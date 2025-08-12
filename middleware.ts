@@ -1,20 +1,74 @@
+// /middleware.ts
 import { updateSession } from "@/lib/supabase/middleware";
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  // Skip middleware for API routes to prevent interference
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
+  // Handle session updates using the SSR approach
+  const response = await updateSession(request);
+
+  // Skip auth checks for these paths
+  const publicPaths = ['/auth', '/_next', '/favicon.ico', '/api/auth'];
+  if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+    return response;
+  }
+
+  // Create Supabase client for role-based routing
+  const { createServerClient } = await import("@supabase/ssr");
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_OR_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookies) => {
+          cookies.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  // Get user and role from users table
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = user ? (await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()).data?.role?.toLowerCase() : null;
+
+  // Role-based routing
+  if (user && role) {
+    const currentPath = request.nextUrl.pathname.split('/')[2];
+    const allowedRoles = ['accounts', 'admin', 'fc', 'inv', 'master', 'tech'];
+
+    // Case 1: Accessing base protected route
+    if (request.nextUrl.pathname === '/protected') {
+      const url = request.nextUrl.clone();
+      url.pathname = `/protected/${role}`;
+      return NextResponse.redirect(url);
+    }
+
+    // Case 2: Accessing wrong role path
+    if (
+      currentPath &&
+      allowedRoles.includes(currentPath) &&
+      currentPath !== role
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/protected/${role}`;
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
-     * Feel free to modify this pattern to include more paths.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

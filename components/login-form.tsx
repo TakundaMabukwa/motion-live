@@ -33,15 +33,38 @@ export function LoginForm({
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Authenticate user using SSR approach
+      const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+
+      if (authError) throw authError;
+      if (!user) throw new Error("Authentication failed");
+
+      // Get user role from users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
+      if (!userData?.role) throw new Error("Role not assigned");
+
+      // Redirect to role-specific dashboard
+      const rolePath = userData.role.toLowerCase();
+      const allowedRoles = ['accounts', 'admin', 'fc', 'inv', 'master', 'tech'];
+
+      if (allowedRoles.includes(rolePath)) {
+        router.push(`/protected/${rolePath}`);
+      } else {
+        router.push('/protected');
+      }
+
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setError(error instanceof Error ? error.message : "An unknown error occurred");
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +82,7 @@ export function LoginForm({
         <CardContent>
           <form onSubmit={handleLogin}>
             <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
+              <div className="gap-2 grid">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
@@ -70,12 +93,12 @@ export function LoginForm({
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="gap-2 grid">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
                   <Link
                     href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
+                    className="inline-block ml-auto text-sm hover:underline underline-offset-4"
                   >
                     Forgot your password?
                   </Link>
@@ -88,18 +111,23 @@ export function LoginForm({
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && <p className="text-red-500 text-sm">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
             </div>
-            <div className="mt-4 text-center text-sm">
+            <div className="mt-4 text-sm text-center">
               Don&apos;t have an account?{" "}
               <Link
                 href="/auth/sign-up"
                 className="underline underline-offset-4"
               >
                 Sign up
+              </Link>
+            </div>
+            <div className="mt-2 text-gray-500 text-xs text-center">
+              <Link href="/dashboard" className="hover:underline">
+                View Dashboard
               </Link>
             </div>
           </form>
