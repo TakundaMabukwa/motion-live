@@ -31,51 +31,62 @@ import {
   Briefcase,
   Shield,
   Car,
-  Play
+  Play,
+  Camera,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogoutButton } from '@/components/logout-button';
 import { toast } from 'sonner';
-import VinScanner from '../components/VinScanner';
-import { QRCodeScanner } from '@/components/ui/QRCodeScanner';
-import { VehicleDetailsPopup } from '@/components/ui/VehicleDetailsPopup';
+import StartJobModal from '../components/StartJobModal';
+import CreateRepairJobModal from '../components/CreateRepairJobModal';
+
+interface Job {
+  id: string;
+  job_number: string;
+  customer_name: string;
+  vehicle_registration: string;
+  job_description: string;
+  job_date: string;
+  start_time: string;
+  job_status: string;
+  job_type: string;
+  technician_phone: string;
+  [key: string]: any;
+}
+
+interface UserInfo {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
+  isTechAdmin: boolean;
+}
 
 export default function Jobs() {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [userInfo, setUserInfo] = useState(null);
-  const [userJobs, setUserJobs] = useState([]);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [userJobs, setUserJobs] = useState<Job[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [availability, setAvailability] = useState({
     isAvailable: true,
     todaysJobs: [],
     totalJobs: 0
   });
-  const [showVinScanner, setShowVinScanner] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
-  const [showQRScanner, setShowQRScanner] = useState(false);
-  const [showVehicleDetails, setShowVehicleDetails] = useState(false);
-  const [currentVehicle, setCurrentVehicle] = useState<any>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [showStartJobModal, setShowStartJobModal] = useState(false);
+  const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
 
   const itemsPerPage = 50;
   const pathname = usePathname();
   const router = useRouter();
 
-  // Update current time every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Fetch user info and jobs
-  useEffect(() => {
+  // Define fetchUserInfoAndJobs at component level so it can be called from handleJobStarted
     const fetchUserInfoAndJobs = async () => {
       try {
         setLoading(true);
@@ -127,74 +138,69 @@ export default function Jobs() {
         calculateAvailability(transformedJobs);
         
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load job data');
+        console.error('Error fetching user info and jobs:', error);
+        toast.error('Failed to load jobs');
       } finally {
         setLoading(false);
       }
     };
 
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch user info and jobs
+  useEffect(() => {
     fetchUserInfoAndJobs();
   }, []);
 
-  // Recalculate availability when current time changes
-  useEffect(() => {
-    if (userJobs.length > 0) {
-      calculateAvailability(userJobs);
-    }
-  }, [currentTime, userJobs]);
+  // Calculate availability based on jobs
+  const calculateAvailability = (jobs: Job[]) => {
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0];
+    
+    const todaysJobs = jobs.filter(job => {
+      if (!job.job_date) return false;
+      const jobDate = job.job_date.split('T')[0];
+      return jobDate === todayString;
+    });
 
-  const calculateAvailability = (jobs) => {
-    const now = currentTime;
-    
-    // Check if user is currently busy
-    const isCurrentlyBusy = jobs.some(quote => {
-      if (!quote.job_date || !quote.start_time) return false;
-      
-      const jobDate = new Date(quote.job_date);
-      const jobEndTime = new Date(jobDate.getTime() + (2 * 60 * 60 * 1000)); // Assume 2 hour jobs
-      
-      return now >= jobDate && now <= jobEndTime;
-    });
-    
-    // Get today's jobs
-    const today = now.toISOString().split('T')[0];
-    const todaysJobs = jobs.filter(quote => {
-      if (!quote.job_date) return false;
-      const jobDate = quote.job_date.split('T')[0];
-      return jobDate === today;
-    });
-    
     setAvailability({
-      isAvailable: !isCurrentlyBusy,
-      todaysJobs: todaysJobs,
+      isAvailable: todaysJobs.length < 5, // Available if less than 5 jobs today
+      todaysJobs,
       totalJobs: jobs.length
     });
   };
 
+  // Get job statistics
   const getJobStats = () => {
-    const allJobs = userJobs || [];
-    const totalNew = allJobs.filter(job => job.status === 'created').length;
-    const totalOpen = allJobs.filter(job => job.status === 'created' && job.technician_phone).length;
-    const totalCompleted = allJobs.filter(job => job.status === 'completed').length;
-    const serviceUpcoming = availability.todaysJobs.length;
-    const licensesExpiring = 0; // Could be calculated from vehicle data
-    const inForRepairs = allJobs.filter(job => job.job_type === 'repair').length;
-    const active = totalNew + totalOpen;
+    const totalNew = userJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
+    const totalOpen = userJobs.filter(job => job.job_status === 'created' && job.technician_phone).length;
+    const totalCompleted = userJobs.filter(job => job.job_status === 'completed').length;
+    const totalRepair = userJobs.filter(job => job.repair === true).length;
+    const serviceUpcoming = userJobs.filter(job => {
+      if (!job.job_date) return false;
+      const jobDate = new Date(job.job_date);
+      const today = new Date();
+      return jobDate >= today;
+    }).length;
 
-    return { totalNew, totalOpen, totalCompleted, serviceUpcoming, licensesExpiring, inForRepairs, active };
+    return {
+      totalNew,
+      totalOpen,
+      totalCompleted,
+      totalRepair,
+      serviceUpcoming
+    };
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High': return 'bg-red-100 text-red-700 border-red-200';
-      case 'Medium': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'Low': return 'bg-green-100 text-green-700 border-green-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
-    }
-  };
-
-  const getStatusColor = (status) => {
+  // Get status color for badges
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -208,60 +214,91 @@ export default function Jobs() {
     }
   };
 
-  const handleVinScan = (job) => {
-    setSelectedJob(job);
-    setShowVinScanner(true);
-  };
-
-  const handleVehicleFound = (vehicle) => {
-    setSelectedVehicle(vehicle);
-    toast.success(`Vehicle ${vehicle.registration_number} selected for job`);
-    // Here you can add logic to associate the vehicle with the job
-    console.log('Vehicle selected for job:', { job: selectedJob, vehicle });
-  };
-
-  const handleCloseVinScanner = () => {
-    setShowVinScanner(false);
-    setSelectedJob(null);
-    setSelectedVehicle(null);
-  };
-
-  const handleStartJob = (job: any) => {
-    setSelectedJob(job);
-    setShowQRScanner(true);
-  };
-
-  const handleJobVerified = async (jobData: any) => {
-    // Job number verified, now check for vehicle details
-    try {
-      // Check if vehicle exists in vehicles_ip table
-      const response = await fetch(`/api/vehicles-ip?registration=${selectedJob?.vehicle_registration || ''}&vin=${selectedJob?.vin_number || ''}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.vehicles && data.vehicles.length > 0) {
-          // Vehicle exists, proceed with VIN scanning
-          setCurrentVehicle(data.vehicles[0]);
-          console.log('Vehicle found:', data.vehicles[0]);
-          // You can add VIN scanning logic here
+  const handleStartJob = (job: Job) => {
+    console.log('🎯 Job clicked!');
+    console.log('📋 Job details:', job);
+    console.log('🆔 Job ID:', job.id);
+    console.log('🔢 Job Number:', job.job_number);
+    console.log('👤 Customer:', job.customer_name);
+    console.log('🚗 Vehicle:', job.vehicle_registration);
+    console.log('📝 Description:', job.job_description);
+    console.log('📅 Date:', job.job_date);
+    console.log('⏰ Start Time:', job.start_time);
+    console.log('📊 Status:', job.job_status);
+    console.log('🏷️ Job Type:', job.job_type);
+    
+    // Verify this job exists in our current jobs list by job_number (more reliable)
+    const existingJob = userJobs.find(j => j.job_number === job.job_number);
+    if (existingJob) {
+      console.log('✅ Job verified in current jobs list');
+      console.log('📊 Current job status:', existingJob.job_status);
+      console.log('🔍 Verification method: job_number match');
+      toast.success(`Job ${job.job_number} verified successfully!`);
         } else {
-          // Vehicle not found, show vehicle details popup
-          setShowVehicleDetails(true);
-        }
+      console.log('⚠️ Job not found in current jobs list by job_number');
+      // Fallback: try to find by ID
+      const existingJobById = userJobs.find(j => j.id === job.id);
+      if (existingJobById) {
+        console.log('✅ Job found by ID instead');
+        console.log('🔍 Verification method: ID match');
+        toast.success(`Job ${job.job_number || job.id} verified by ID!`);
       } else {
-        // Error checking vehicle, show vehicle details popup
-        setShowVehicleDetails(true);
+        console.log('❌ Job not found by either job_number or ID');
+        toast.error(`Job verification failed! Job not found in current list.`);
+        return; // Don't proceed if job can't be verified
+      }
+    }
+    
+    // Show the exact job number for manual input testing
+    if (job.job_number) {
+      console.log('📋 COPY THIS JOB NUMBER FOR TESTING:', job.job_number);
+      console.log('📋 COPY THIS JOB ID FOR TESTING:', job.id);
+      toast.info(`Job Number: ${job.job_number} - Copy this for testing!`);
+    }
+    
+    setSelectedJob(job);
+    setShowStartJobModal(true);
+  };
+
+  const handleJobStarted = (jobData: Job) => {
+    // Update the job in the local state
+    setUserJobs(prev => prev.map(job => 
+      job.id === jobData.id ? { ...job, ...jobData } : job
+    ));
+    
+    toast.success(`Job ${jobData.job_number} started successfully! Status: Active`);
+    setShowStartJobModal(false);
+    
+    // Refresh the jobs data
+    fetchUserInfoAndJobs();
+  };
+
+  const handleCompleteRepairJob = async (job: Job) => {
+    try {
+      // Update job status to completed
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_status: 'Completed',
+          completion_date: new Date().toISOString(),
+          end_time: new Date().toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(`Repair job ${job.job_number} completed successfully!`);
+        // Refresh the jobs data
+        fetchUserInfoAndJobs();
+      } else {
+        throw new Error(`Failed to complete job: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error checking vehicle:', error);
-      setShowVehicleDetails(true);
+      console.error('Error completing repair job:', error);
+      toast.error(`Failed to complete repair job: ${error.message}`);
     }
-  };
-
-  const handleVehicleAdded = (vehicleData: any) => {
-    setCurrentVehicle(vehicleData);
-    console.log('Vehicle added:', vehicleData);
-    // You can add VIN scanning logic here
   };
 
   const stats = getJobStats();
@@ -277,7 +314,7 @@ export default function Jobs() {
     );
   }
 
-  const JobTable = ({ jobs, showProgress = false }) => (
+  const JobTable = ({ jobs, showProgress = false }: { jobs: Job[], showProgress?: boolean }) => (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -285,77 +322,113 @@ export default function Jobs() {
             <tr>
               <th className="p-4 font-medium text-slate-700 text-left">Job Type</th>
               <th className="p-4 font-medium text-slate-700 text-left">Customer</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Products</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Scheduled Date</th>
+              {/* <th className="p-4 font-medium text-slate-700 text-left">Products</th> */}
+              {/* <th className="p-4 font-medium text-slate-700 text-left">Scheduled Date</th> */}
               <th className="p-4 font-medium text-slate-700 text-left">Status</th>
+              <th className="p-4 font-medium text-slate-700 text-left">Photos</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-slate-500 text-center">
+                <td colSpan={7} className="py-12 text-slate-500 text-center">
                   No jobs found
                 </td>
               </tr>
             ) : (
-              jobs.map((job, index) => (
-                <tr key={job.id || index} className="hover:bg-slate-50 border-slate-100 border-b transition-colors">
-                  <td className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <Badge className={getStatusColor(job.status || 'created')}>
-                        {job.job_type || 'Install'}
+              jobs.map((job, index) => {
+                const jobPhotoCount = 0; // No photos to display here
+                const isVerified = job.job_status === 'in_progress' || job.job_status === 'assigned' || job.job_status === 'completed';
+                
+                return (
+                  <tr key={job.id || index} className="hover:bg-slate-50 border-slate-100 border-b transition-colors">
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline" className={getStatusColor(job.job_status)}>
+                          {job.job_status === 'created' ? 'New' : job.job_status}
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className="p-4 font-medium text-slate-900">{job.customer_name}</td>
+                    <td className="p-4 text-slate-600">
+                      {job.job_description || 'N/A'}
+                    </td>
+                    {/* <td className="p-4 text-slate-600">
+                      {job.job_date && job.start_time 
+                        ? `${job.job_date.split('T')[0]} at ${job.start_time.split('T')[1]?.split('.')[0] || 'No time'}`
+                        : 'Not scheduled'
+                      }
+                    </td> */}
+                    <td className="p-4">
+                      <Badge variant="outline" className={getStatusColor(job.job_status)}>
+                        {job.job_status === 'created' ? 'New' : job.job_status}
                       </Badge>
-                    </div>
-                  </td>
-                  <td className="p-4 font-medium text-slate-900">{job.customer_name}</td>
-                  <td className="p-4 text-slate-600">
-                    {job.job_description || 'N/A'}
-                  </td>
-                  <td className="p-4 text-slate-600">
-                    {job.job_date && job.start_time 
-                      ? `${job.job_date.split('T')[0]} at ${job.start_time.split('T')[1]?.split('.')[0] || 'No time'}`
-                      : 'Not scheduled'
-                    }
-                  </td>
-                  <td className="p-4">
-                    <Badge variant="outline" className={getStatusColor(job.status)}>
-                      {job.status === 'created' ? 'New' : job.status}
-                    </Badge>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleStartJob(job)}
-                        className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        <Play className="w-4 h-4" />
-                        Start Job
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleVinScan(job)}
-                        className="flex items-center gap-1"
-                      >
-                        <Car className="w-4 h-4" />
-                        Scan VIN
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Calendar className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    {/* <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        {isVerified && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStartJob(job)}
+                            className="flex items-center gap-1 hover:bg-blue-50 border-blue-200 text-blue-600"
+                            disabled={false} // No photosLoading state
+                          >
+                            <Play className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </td> */}
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        {job.job_type === 'repair' && job.job_status === 'created' ? (
+                          <>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleStartJob(job)}
+                              className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              <Play className="w-4 h-4" />
+                              Start Job
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleCompleteRepairJob(job)}
+                              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              Complete
+                            </Button>
+                          </>
+                        ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleCompleteRepairJob(job)}
+                            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Complete Job
+                          </Button>
+                        ) : (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleStartJob(job)}
+                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <Play className="w-4 h-4" />
+                            Start Job
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -363,7 +436,7 @@ export default function Jobs() {
     </div>
   );
 
-  const OnHandTable = ({ jobs }) => (
+  const OnHandTable = ({ jobs }: { jobs: any[] }) => (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -422,28 +495,40 @@ export default function Jobs() {
       {/* Main Content */}
       <main className="flex-1 p-6">
         <div className="mb-6">
-          <h2 className="mb-2 font-bold text-slate-900 text-2xl">My Jobs</h2>
-          {userInfo && (
-            <p className="text-slate-600">
-              {userInfo.isTechAdmin 
-                ? "Viewing all assigned jobs (Admin Access)" 
-                : `Viewing your assigned jobs (${userInfo.user.email})`
-              }
-            </p>
-          )}
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="mb-2 font-bold text-slate-900 text-2xl">My Jobs</h2>
+              {userInfo && (
+                <p className="text-slate-600">
+                  {userInfo.isTechAdmin 
+                    ? "Viewing all assigned jobs (Admin Access)" 
+                    : `Viewing your assigned jobs (${userInfo.user.email})`
+                  }
+                </p>
+              )}
+            </div>
+            <Button
+              onClick={() => setShowCreateRepairJobModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Plus className="mr-2 w-4 h-4" />
+              Create Repair Job
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full">
+          <TabsList className="grid grid-cols-5 w-full">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="new">New Jobs</TabsTrigger>
             <TabsTrigger value="open">Open Jobs</TabsTrigger>
+            <TabsTrigger value="repair">Repair Jobs</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
           </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
               {/* Statistics Cards */}
-              <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+              <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
                 <Card className="hover:shadow-lg transition-shadow duration-200">
                   <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
                     <CardTitle className="font-medium text-slate-600 text-sm">
@@ -507,6 +592,22 @@ export default function Jobs() {
                     </p>
                   </CardContent>
                 </Card>
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+                      Repair Jobs
+                    </CardTitle>
+                    <Wrench className="w-4 h-4 text-purple-600" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="font-bold text-slate-900 text-3xl">{stats.totalRepair}</div>
+                    <p className="flex items-center mt-1 text-purple-600 text-xs">
+                      <TrendingUp className="mr-1 w-3 h-3" />
+                      Total repair jobs
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* All Jobs Table */}
@@ -526,7 +627,7 @@ export default function Jobs() {
                   <CardTitle>New Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.status === 'created' && !job.technician_phone)} />
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && !job.technician_phone)} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -537,7 +638,40 @@ export default function Jobs() {
                   <CardTitle>Open Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.status === 'created' && job.technician_phone)} />
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && job.technician_phone)} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="repair" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Repair Jobs</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const filteredJobs = userJobs.filter(job => {
+                      // Filter for repair jobs
+                      if (job.repair !== true) return false;
+                      
+                      // Tech admins can see all repair jobs
+                      if (userInfo?.isTechAdmin) return true;
+                      
+                      // Regular technicians can only see their own repair jobs
+                      return job.technician_phone === userInfo?.user?.email;
+                    });
+                    
+                    console.log('🔧 Repair Jobs Filtering:', {
+                      totalJobs: userJobs.length,
+                      repairJobs: userJobs.filter(job => job.repair === true).length,
+                      filteredJobs: filteredJobs.length,
+                      userEmail: userInfo?.user?.email,
+                      isTechAdmin: userInfo?.isTechAdmin,
+                      sampleJob: userJobs.find(job => job.repair === true)
+                    });
+                    
+                    return <JobTable jobs={filteredJobs} />;
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -548,36 +682,38 @@ export default function Jobs() {
                   <CardTitle>Completed Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.status === 'completed')} />
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'completed')} />
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </main>
 
-      {/* VIN Scanner */}
-      <VinScanner
-        isOpen={showVinScanner}
-        onClose={handleCloseVinScanner}
-        jobId={selectedJob?.id}
-        customerName={selectedJob?.customer_name}
-        customerEmail={selectedJob?.customer_email}
-      />
-
       {/* QR Code Scanner */}
-      <QRCodeScanner
-        isOpen={showQRScanner}
-        onClose={() => setShowQRScanner(false)}
-        onJobVerified={handleJobVerified}
-        expectedJobNumber={selectedJob?.job_number || selectedJob?.id}
+      <StartJobModal
+        isOpen={showStartJobModal}
+        onClose={() => setShowStartJobModal(false)}
+        job={selectedJob}
+        userJobs={userJobs}
+        onJobStarted={handleJobStarted}
+        onJobCompleted={(jobData) => {
+          // Handle job completion if needed
+          toast.success(`Job ${jobData.job_number} completed successfully!`);
+          setShowStartJobModal(false);
+          fetchUserInfoAndJobs();
+        }}
       />
 
-      {/* Vehicle Details Popup */}
-      <VehicleDetailsPopup
-        isOpen={showVehicleDetails}
-        onClose={() => setShowVehicleDetails(false)}
-        onVehicleAdded={handleVehicleAdded}
-        jobData={selectedJob}
+      {/* Create Repair Job Modal */}
+      <CreateRepairJobModal
+        isOpen={showCreateRepairJobModal}
+        onClose={() => setShowCreateRepairJobModal(false)}
+        userInfo={userInfo}
+        onJobCreated={(jobData) => {
+          toast.success(`Repair job ${jobData.job_number} created successfully!`);
+          setShowCreateRepairJobModal(false);
+          fetchUserInfoAndJobs();
+        }}
       />
     </div>
   );

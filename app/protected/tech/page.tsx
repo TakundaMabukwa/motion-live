@@ -52,21 +52,6 @@ export default function Dashboard() {
   const [showRepairForm, setShowRepairForm] = useState(false);
   const [showJobInfoModal, setShowJobInfoModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
-  const [formData, setFormData] = useState({
-    vehicleMake: '',
-    vehicleModel: '',
-    vehicleYear: '',
-    licensePlate: '',
-    vin: '',
-    mileage: '',
-    repairDescription: '',
-    customerName: '',
-    customerPhone: '',
-    priority: 'medium'
-  });
-  const [images, setImages] = useState([]);
-  const [dragActive, setDragActive] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch user data and jobs on component mount
@@ -137,71 +122,43 @@ export default function Dashboard() {
   }, []);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    // Function removed - no longer needed
   };
 
   const handleImageUpload = (files) => {
-    const newImages = Array.from(files).map(file => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-      name: file.name
-    }));
-    setImages(prev => [...prev, ...newImages]);
+    // Function removed - no longer needed
   };
 
   const removeImage = (id) => {
-    setImages(prev => {
-      const imageToRemove = prev.find(img => img.id === id);
-      if (imageToRemove) {
-        URL.revokeObjectURL(imageToRemove.preview);
-      }
-      return prev.filter(img => img.id !== id);
-    });
+    // Function removed - no longer needed
   };
 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    // Function removed - no longer needed
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleImageUpload(e.dataTransfer.files);
-    }
+    // Function removed - no longer needed
   };
 
   const isVehicleInfoComplete = () => {
-    return formData.vehicleMake &&
-      formData.vehicleModel &&
-      formData.vehicleYear &&
-      formData.licensePlate;
+    return false; // No form data to check
   };
 
   const isCustomerInfoComplete = () => {
-    return formData.customerName && formData.customerPhone;
+    return false; // No form data to check
   };
 
   const areImagesUploaded = () => {
-    return images.length > 0;
+    return false; // No images state
   };
 
   const handleNextStep = () => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    }
+    // Function removed - no longer needed
   };
 
   const handleSubmit = async (e) => {
@@ -209,39 +166,11 @@ export default function Dashboard() {
     setSubmitting(true);
     
     try {
-      const jobData = {
-        ...formData,
-        images: images.map(img => img.file),
-        timestamp: new Date().toISOString(),
-        jobId: `JOB-${Date.now()}`
-      };
-
-      console.log('Repair Job Submitted:', jobData);
+      // Function removed - no longer needed
+      toast.success('Repair job functionality removed');
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast.success('Repair job created successfully!');
-
-      // Reset form
-      setFormData({
-        vehicleMake: '',
-        vehicleModel: '',
-        vehicleYear: '',
-        licensePlate: '',
-        vin: '',
-        mileage: '',
-        repairDescription: '',
-        customerName: '',
-        customerPhone: '',
-        priority: 'medium'
-      });
-      setImages([]);
-      setCurrentStep(1);
-      setShowRepairForm(false);
     } catch (error) {
       toast.error('Failed to create repair job');
-      console.error('Error creating repair job:', error);
     } finally {
       setSubmitting(false);
     }
@@ -466,7 +395,6 @@ export default function Dashboard() {
                             <Eye className="mr-1 w-3 h-3" />
                             Details
                           </Button>
-                          <Checkmark />
                         </div>
                       </div>
                     ))}
@@ -482,53 +410,10 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="w-5 h-5" />
-                <span>Team Status</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback>JD</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">John Doe</p>
-                    <p className="text-slate-500 text-xs">On-site: Tech Solutions</p>
-                  </div>
-                  <Badge variant="secondary" className="bg-green-100 text-green-700">Available</Badge>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback>SW</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">Sarah Wilson</p>
-                    <p className="text-slate-500 text-xs">Repair Job #002</p>
-                  </div>
-                  <Badge variant="secondary" className="bg-orange-100 text-orange-700">Busy</Badge>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback>MJ</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">Mike Johnson</p>
-                    <p className="text-slate-500 text-xs">Boot stock check</p>
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700">Available</Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Process Flow Overview */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Job Process Flow</CardTitle>
           </CardHeader>
@@ -559,7 +444,7 @@ export default function Dashboard() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </main>
 
       {/* Repair Job Form Modal */}
@@ -571,7 +456,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setShowRepairForm(false);
-                  setCurrentStep(1);
+                  // setCurrentStep(1); // No currentStep state
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -579,294 +464,9 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6 p-6">
-              {/* Progress Indicator */}
-              <div className="flex justify-center space-x-4">
-                {[1, 2, 3, 4].map((step) => (
-                  <div key={step} className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${step <= currentStep
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-600'
-                      }`}>
-                      {step < currentStep ? <CheckCircle className="w-5 h-5" /> : step}
-                    </div>
-                    {step < 4 && (
-                      <div className={`w-12 h-1 mx-2 ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-                        }`} />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="mb-6 text-gray-500 text-sm text-center">
-                Step {currentStep} of 4: {
-                  currentStep === 1 ? 'Vehicle Information' :
-                    currentStep === 2 ? 'Customer Information' :
-                      currentStep === 3 ? 'Vehicle Documentation' :
-                        'Repair Details'
-                }
-              </div>
-
-              {/* Step 1: Vehicle Information */}
-              {currentStep === 1 && (
-                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicleMake">Vehicle Make *</Label>
-                    <Input
-                      id="vehicleMake"
-                      name="vehicleMake"
-                      value={formData.vehicleMake}
-                      onChange={handleInputChange}
-                      placeholder="e.g., Ford, Toyota, Honda"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicleModel">Vehicle Model *</Label>
-                    <Input
-                      id="vehicleModel"
-                      name="vehicleModel"
-                      value={formData.vehicleModel}
-                      onChange={handleInputChange}
-                      placeholder="e.g., F-150, Camry, Civic"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicleYear">Year *</Label>
-                    <Input
-                      id="vehicleYear"
-                      name="vehicleYear"
-                      type="number"
-                      value={formData.vehicleYear}
-                      onChange={handleInputChange}
-                      placeholder="2023"
-                      min="1900"
-                      max="2030"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="licensePlate">License Plate *</Label>
-                    <Input
-                      id="licensePlate"
-                      name="licensePlate"
-                      value={formData.licensePlate}
-                      onChange={handleInputChange}
-                      placeholder="ABC-1234"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="vin">VIN Number</Label>
-                    <Input
-                      id="vin"
-                      name="vin"
-                      value={formData.vin}
-                      onChange={handleInputChange}
-                      placeholder="17-character VIN"
-                      maxLength="17"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="mileage">Current Mileage</Label>
-                    <Input
-                      id="mileage"
-                      name="mileage"
-                      type="number"
-                      value={formData.mileage}
-                      onChange={handleInputChange}
-                      placeholder="50000"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Customer Information */}
-              {currentStep === 2 && (
-                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="customerName">Customer Name *</Label>
-                    <Input
-                      id="customerName"
-                      name="customerName"
-                      value={formData.customerName}
-                      onChange={handleInputChange}
-                      placeholder="John Doe"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="customerPhone">Phone Number *</Label>
-                    <Input
-                      id="customerPhone"
-                      name="customerPhone"
-                      type="tel"
-                      value={formData.customerPhone}
-                      onChange={handleInputChange}
-                      placeholder="(555) 123-4567"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority Level</Label>
-                    <select
-                      id="priority"
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleInputChange}
-                      className="px-3 py-2 border border-gray-300 focus:border-blue-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Vehicle Images */}
-              {currentStep === 3 && (
-                <div className="space-y-4">
-                  <div
-                    className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-blue-400'
-                      }`}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                  >
-                    <div className="space-y-4">
-                      <div className="flex justify-center">
-                        <Camera className="w-12 h-12 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-700 text-lg">
-                          Take or Upload Vehicle Photos
-                        </p>
-                        <p className="mt-1 text-gray-500 text-sm">
-                          Drag and drop images here, or click to select files
-                        </p>
-                      </div>
-                      <div className="flex justify-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => document.getElementById('imageUpload').click()}
-                        >
-                          <Upload className="mr-2 w-4 h-4" />
-                          Choose Files
-                        </Button>
-                      </div>
-                    </div>
-                    <input
-                      id="imageUpload"
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => handleImageUpload(e.target.files)}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {/* Image Previews */}
-                  {images.length > 0 && (
-                    <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
-                      {images.map((image) => (
-                        <div key={image.id} className="group relative">
-                          <img
-                            src={image.preview}
-                            alt={image.name}
-                            className="border border-gray-200 rounded-lg w-full h-24 object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage(image.id)}
-                            className="-top-2 -right-2 absolute bg-red-500 opacity-0 group-hover:opacity-100 p-1 rounded-full text-white transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 4: Repair Description */}
-              {currentStep === 4 && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="repairDescription">
-                      Repair Description *
-                    </Label>
-                    <Textarea
-                      id="repairDescription"
-                      name="repairDescription"
-                      value={formData.repairDescription}
-                      onChange={handleInputChange}
-                      placeholder="Describe the issue with the telematics tracker, symptoms observed, and any preliminary diagnostics performed..."
-                      className="min-h-32"
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Navigation Buttons */}
-              <div className="flex justify-between pt-4">
-                {currentStep > 1 ? (
-                  <Button
-                    type="button"
-                    onClick={() => setCurrentStep(currentStep - 1)}
-                    variant="outline"
-                  >
-                    Back
-                  </Button>
-                ) : (
-                  <div></div>
-                )}
-
-                {currentStep < 4 ? (
-                  <Button
-                    type="button"
-                    onClick={handleNextStep}
-                    disabled={
-                      (currentStep === 1 && !isVehicleInfoComplete()) ||
-                      (currentStep === 2 && !isCustomerInfoComplete()) ||
-                      (currentStep === 3 && !areImagesUploaded())
-                    }
-                  >
-                    Next
-                  </Button>
-                ) : (
-                  <Button
-                    type="submit"
-                    disabled={!formData.repairDescription || submitting}
-                  >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Repair Job'
-                    )}
-                  </Button>
-                )}
-              </div>
-            </form>
+            <div className="p-6 text-center">
+              <p className="text-gray-500">Repair job functionality has been removed.</p>
+            </div>
           </div>
         </div>
       )}

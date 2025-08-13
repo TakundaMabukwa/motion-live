@@ -16,61 +16,66 @@ export async function GET(request: NextRequest) {
     const companyFilter = searchParams.get('company');
     const roleFilter = searchParams.get('role');
 
-    // Build the query for job_cards with parts_required not null or empty
-    let query = supabase
-      .from('job_cards')
-      .select(`
-        id,
-        job_number,
-        job_date,
-        due_date,
-        start_time,
-        end_time,
-        status,
-        job_type,
-        job_description,
-        priority,
-        customer_name,
-        customer_email,
-        customer_phone,
-        customer_address,
-        vehicle_registration,
-        vehicle_make,
-        vehicle_model,
-        vehicle_year,
-        technician_name,
-        technician_phone,
-        job_location,
-        estimated_duration_hours,
-        actual_duration_hours,
-        created_at,
-        updated_at,
-        parts_required,
-        products_required,
-        quotation_products,
-        quotation_total_amount,
-        qr_code,
-        work_notes,
-        completion_notes,
-        job_status,
-        customer_feedback,
-        quotation_number,
-        quote_status,
-        special_instructions,
-        access_requirements,
-        site_contact_person,
-        site_contact_phone
-      `)
-      .not('parts_required', 'is', null)
-      .neq('parts_required', '[]')
-      .neq('parts_required', '{}');
+         // Build the base query for job_cards
+     let query = supabase
+       .from('job_cards')
+       .select(`
+         id,
+         job_number,
+         job_date,
+         due_date,
+         start_time,
+         end_time,
+         status,
+         job_type,
+         job_description,
+         priority,
+         customer_name,
+         customer_email,
+         customer_phone,
+         customer_address,
+         vehicle_registration,
+         vehicle_make,
+         vehicle_model,
+         vehicle_year,
+         technician_name,
+         technician_phone,
+         job_location,
+         estimated_duration_hours,
+         actual_duration_hours,
+         created_at,
+         updated_at,
+         parts_required,
+         products_required,
+         quotation_products,
+         quotation_total_amount,
+         qr_code,
+         work_notes,
+         completion_notes,
+         job_status,
+         customer_feedback,
+         quotation_number,
+         quote_status,
+         special_instructions,
+         access_requirements,
+         site_contact_person,
+         site_contact_phone,
+         repair,
+         role
+       `);
 
-    // Apply status filter
-    if (status === 'open') {
-      query = query.not('status', 'in', ['completed', 'cancelled']);
-    } else if (status === 'completed') {
-      query = query.eq('status', 'completed');
-    }
+          // Apply status filter
+     if (status === 'open') {
+       // For open jobs, only show those with parts required
+       query = query
+         .not('job_status', 'in', ['Completed', 'cancelled'])
+         .not('parts_required', 'is', null)
+         .neq('parts_required', '[]')
+         .neq('parts_required', '{}');
+     } else if (status === 'completed') {
+       // For completed jobs, show ALL completed jobs regardless of parts
+       query = query.eq('job_status', 'Completed');
+     }
 
     // Apply company filter (using customer_name as company)
     if (companyFilter) {
@@ -98,7 +103,7 @@ export async function GET(request: NextRequest) {
       due_date: job.due_date,
       start_time: job.start_time,
       end_time: job.end_time,
-      status: job.status || job.job_status,
+      status: job.job_status || job.status,
       job_type: job.job_type,
       job_description: job.job_description,
       priority: job.priority,
@@ -130,7 +135,9 @@ export async function GET(request: NextRequest) {
       special_instructions: job.special_instructions,
       access_requirements: job.access_requirements,
       site_contact_person: job.site_contact_person,
-      site_contact_phone: job.site_contact_phone
+      site_contact_phone: job.site_contact_phone,
+      repair: job.repair,
+      role: job.role
     }));
 
     return NextResponse.json({

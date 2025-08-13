@@ -23,8 +23,10 @@ interface PhotoCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPhotosSaved: (photos: PhotoData[]) => void;
-  jobNumber: string;
+  jobId?: string;
+  jobNumber?: string;
   vehicleRegistration?: string;
+  existingPhotos?: PhotoData[];
 }
 
 interface PhotoData {
@@ -40,10 +42,26 @@ export default function PhotoCaptureModal({
   isOpen, 
   onClose, 
   onPhotosSaved, 
+  jobId,
   jobNumber, 
-  vehicleRegistration 
+  vehicleRegistration,
+  existingPhotos = []
 }: PhotoCaptureModalProps) {
-  const [photos, setPhotos] = useState<PhotoData[]>([]);
+  console.log('PhotoCaptureModal rendered with props:', {
+    isOpen,
+    jobId,
+    jobNumber,
+    vehicleRegistration,
+    existingPhotosCount: existingPhotos.length
+  });
+
+  // Don't render if essential props are missing
+  if (!jobId || !jobNumber) {
+    console.warn('PhotoCaptureModal: Missing essential props', { jobId, jobNumber });
+    return null;
+  }
+
+  const [photos, setPhotos] = useState<PhotoData[]>(existingPhotos);
   const [capturing, setCapturing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [currentPhoto, setCurrentPhoto] = useState<string | null>(null);
@@ -185,26 +203,58 @@ export default function PhotoCaptureModal({
   }, []);
 
   // Save all photos and close
-  const handleSaveAll = useCallback(() => {
+  const handleSaveAll = useCallback(async () => {
     if (photos.length === 0) {
       toast.error('Please capture or upload at least one photo');
       return;
     }
 
-    onPhotosSaved(photos);
-    toast.success(`${photos.length} photos saved successfully!`);
-    onClose();
-  }, [photos, onPhotosSaved, onClose]);
+    try {
+      // Upload photos to Supabase storage
+      const response = await fetch('/api/job-photos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId,
+          jobNumber,
+          vehicleRegistration,
+          photos: photos.map(photo => ({
+            ...photo,
+            url: photo.url.startsWith('data:') ? photo.url : photo.url
+          }))
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload photos');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        onPhotosSaved(result.photos);
+        toast.success(`${photos.length} photos uploaded successfully!`);
+        onClose();
+      } else {
+        throw new Error(result.error || 'Failed to upload photos');
+      }
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      toast.error('Failed to upload photos. Please try again.');
+    }
+  }, [photos, jobId, jobNumber, vehicleRegistration, onPhotosSaved, onClose]);
 
   // Cleanup on close
   const handleClose = useCallback(() => {
     stopCamera();
-    setPhotos([]);
+    setPhotos(existingPhotos);
     setCurrentPhoto(null);
     setPhotoDescription('');
     setShowPreview(false);
     onClose();
-  }, [stopCamera, onClose]);
+  }, [stopCamera, onClose, existingPhotos]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -222,6 +272,10 @@ export default function PhotoCaptureModal({
             <CardContent className="pt-4">
               <div className="gap-4 grid grid-cols-2 text-sm">
                 <div>
+                  <span className="font-medium text-gray-700">Job ID:</span>
+                  <span className="ml-2 text-gray-900">{jobId}</span>
+                </div>
+                <div>
                   <span className="font-medium text-gray-700">Job Number:</span>
                   <span className="ml-2 text-gray-900">{jobNumber}</span>
                 </div>
@@ -229,6 +283,12 @@ export default function PhotoCaptureModal({
                   <span className="font-medium text-gray-700">Vehicle:</span>
                   <span className="ml-2 text-gray-900">
                     {vehicleRegistration || 'Not specified'}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Existing Photos:</span>
+                  <span className="ml-2 text-gray-900">
+                    {existingPhotos.length}
                   </span>
                 </div>
               </div>

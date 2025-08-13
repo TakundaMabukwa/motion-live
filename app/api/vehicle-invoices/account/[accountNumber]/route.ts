@@ -49,7 +49,7 @@ export async function GET(
 
     // Process invoices to calculate overdue amounts and format vehicle data
     const vehicles = invoices.map(invoice => {
-      const monthlyAmount = parseFloat(invoice.one_month) || 0;
+      const monthlyAmount = parseFloat(invoice.total_incl_vat) || 0;
       
       // Calculate overdue amounts for different periods
       const overdue1_30 = monthsLate >= 1 ? monthlyAmount : 0;

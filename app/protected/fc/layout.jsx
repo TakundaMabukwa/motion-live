@@ -10,7 +10,8 @@ import {
   Car,
   Wrench,
   User,
-  Map
+  Map,
+  CheckCircle
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -37,6 +38,7 @@ export default function Layout({ children }) {
       { name: 'Accounts', href: '/protected/fc', icon: Building2 },
       { name: 'Quotes', href: '/protected/fc/quotes', icon: FileText },
       { name: 'External Quotation', href: '/protected/fc/external-quotation', icon: ExternalLink },
+      { name: 'Completed Jobs', href: '/protected/fc/completed-jobs', icon: CheckCircle },
     ];
   }
 

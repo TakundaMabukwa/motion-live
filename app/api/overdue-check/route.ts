@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
       monthsLate = 1; // Current month is overdue
     }
 
-    // Fetch all vehicle invoices
+    // Fetch all vehicle invoices with monthly subscription data
     const { data: invoices, error } = await supabase
       .from('vehicle_invoices')
-      .select('*');
+      .select('*')
+      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
 
     if (error) {
       console.error('Error fetching vehicle invoices for overdue check:', error);
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     let totalAccountsWithOverdue = 0;
 
     invoices?.forEach(invoice => {
-      const monthlyAmount = parseFloat(invoice.one_month) || 0;
+      const monthlyAmount = parseFloat(invoice.total_incl_vat) || 0;
       
       if (monthlyAmount > 0) {
         // Calculate overdue amounts for different periods
@@ -47,42 +48,42 @@ export async function GET(request: NextRequest) {
         
         const totalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
 
+        const accountNumber = invoice.new_account_number;
+        if (!accountNumber) return;
+
+        if (!overdueAccounts[accountNumber]) {
+          overdueAccounts[accountNumber] = {
+            accountNumber,
+            company: invoice.company,
+            totalMonthlyAmount: 0,
+            totalOverdue: 0,
+            overdue1_30: 0,
+            overdue31_60: 0,
+            overdue61_90: 0,
+            overdue91_plus: 0,
+            vehicleCount: 0
+          };
+        }
+
+        overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
+        overdueAccounts[accountNumber].totalOverdue += totalOverdue;
+        overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
+        overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
+        overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
+        overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
+        overdueAccounts[accountNumber].vehicleCount += 1;
+
         if (totalOverdue > 0) {
-          const accountNumber = invoice.new_account_number;
-          if (!accountNumber) return;
-
-          if (!overdueAccounts[accountNumber]) {
-            overdueAccounts[accountNumber] = {
-              accountNumber,
-              company: invoice.company,
-              totalMonthlyAmount: 0,
-              totalOverdue: 0,
-              overdue1_30: 0,
-              overdue31_60: 0,
-              overdue61_90: 0,
-              overdue91_plus: 0,
-              vehicleCount: 0
-            };
-          }
-
-          overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
-          overdueAccounts[accountNumber].totalOverdue += totalOverdue;
-          overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
-          overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
-          overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
-          overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
-          overdueAccounts[accountNumber].vehicleCount += 1;
-
           totalOverdueAmount += totalOverdue;
         }
       }
     });
 
-    totalAccountsWithOverdue = Object.keys(overdueAccounts).length;
+    totalAccountsWithOverdue = Object.values(overdueAccounts).filter(acc => acc.totalOverdue > 0).length;
 
-    // Sort accounts by total overdue amount (highest first)
+    // Sort accounts by total monthly amount (highest first) to show all accounts
     const sortedOverdueAccounts = Object.values(overdueAccounts)
-      .sort((a: any, b: any) => b.totalOverdue - a.totalOverdue);
+      .sort((a: any, b: any) => b.totalMonthlyAmount - a.totalMonthlyAmount);
 
     // Log the overdue check results
     console.log(`[${new Date().toISOString()}] Overdue Check Results:`, {
@@ -135,10 +136,11 @@ export async function POST(request: NextRequest) {
       monthsLate = 1;
     }
 
-    // Fetch all vehicle invoices
+    // Fetch all vehicle invoices with monthly subscription data
     const { data: invoices, error } = await supabase
       .from('vehicle_invoices')
-      .select('*');
+      .select('*')
+      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
 
     if (error) {
       console.error('Error fetching vehicle invoices for overdue check:', error);
@@ -151,7 +153,7 @@ export async function POST(request: NextRequest) {
     let totalAccountsWithOverdue = 0;
 
     invoices?.forEach(invoice => {
-      const monthlyAmount = parseFloat(invoice.one_month) || 0;
+      const monthlyAmount = parseFloat(invoice.total_incl_vat) || 0;
       
       if (monthlyAmount > 0) {
         const overdue1_30 = monthsLate >= 1 ? monthlyAmount : 0;
@@ -161,41 +163,41 @@ export async function POST(request: NextRequest) {
         
         const totalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
 
+        const accountNumber = invoice.new_account_number;
+        if (!accountNumber) return;
+
+        if (!overdueAccounts[accountNumber]) {
+          overdueAccounts[accountNumber] = {
+            accountNumber,
+            company: invoice.company,
+            totalMonthlyAmount: 0,
+            totalOverdue: 0,
+            overdue1_30: 0,
+            overdue31_60: 0,
+            overdue61_90: 0,
+            overdue91_plus: 0,
+            vehicleCount: 0
+          };
+        }
+
+        overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
+        overdueAccounts[accountNumber].totalOverdue += totalOverdue;
+        overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
+        overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
+        overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
+        overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
+        overdueAccounts[accountNumber].vehicleCount += 1;
+
         if (totalOverdue > 0) {
-          const accountNumber = invoice.new_account_number;
-          if (!accountNumber) return;
-
-          if (!overdueAccounts[accountNumber]) {
-            overdueAccounts[accountNumber] = {
-              accountNumber,
-              company: invoice.company,
-              totalMonthlyAmount: 0,
-              totalOverdue: 0,
-              overdue1_30: 0,
-              overdue31_60: 0,
-              overdue61_90: 0,
-              overdue91_plus: 0,
-              vehicleCount: 0
-            };
-          }
-
-          overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
-          overdueAccounts[accountNumber].totalOverdue += totalOverdue;
-          overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
-          overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
-          overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
-          overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
-          overdueAccounts[accountNumber].vehicleCount += 1;
-
           totalOverdueAmount += totalOverdue;
         }
       }
     });
 
-    totalAccountsWithOverdue = Object.keys(overdueAccounts).length;
+    totalAccountsWithOverdue = Object.values(overdueAccounts).filter(acc => acc.totalOverdue > 0).length;
 
     const sortedOverdueAccounts = Object.values(overdueAccounts)
-      .sort((a: any, b: any) => b.totalOverdue - a.totalOverdue);
+      .sort((a: any, b: any) => b.totalMonthlyAmount - a.totalMonthlyAmount);
 
     return NextResponse.json({
       success: true,

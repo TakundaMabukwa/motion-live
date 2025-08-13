@@ -178,11 +178,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger to auto-generate quotation numbers
+-- Create trigger to auto-generate quotation numbers (only for non-repair jobs)
 CREATE OR REPLACE FUNCTION set_quotation_number()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.quotation_number IS NULL OR NEW.quotation_number = '' THEN
+    -- Only generate quotation numbers for non-repair jobs
+    IF NEW.repair = false AND (NEW.quotation_number IS NULL OR NEW.quotation_number = '') THEN
         NEW.quotation_number := generate_quotation_number();
     END IF;
     RETURN NEW;

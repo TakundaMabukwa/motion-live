@@ -23,7 +23,9 @@ import {
   BarChart3,
   Briefcase,
   Car,
-  Play
+  Play,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -34,6 +36,7 @@ import { JobDetailsPopup } from '@/components/ui/JobDetailsPopup';
 import { QRCodeScanner } from '@/components/ui/QRCodeScanner';
 import { VehicleDetailsPopup } from '@/components/ui/VehicleDetailsPopup';
 import StartJobModal from '../components/StartJobModal';
+import { createClient } from '@/lib/supabase/client';
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -52,90 +55,82 @@ export default function Calendar() {
   const [showVehicleDetails, setShowVehicleDetails] = useState(false);
   const [currentVehicle, setCurrentVehicle] = useState<any>(null);
   const [showStartJobModal, setShowStartJobModal] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [userRole, setUserRole] = useState(null);
+  const [userEmail, setUserEmail] = useState(null);
+  const [jobStats, setJobStats] = useState([
+    { title: 'New Jobs', value: 0, change: '0', color: 'bg-blue-500', icon: Plus },
+    { title: 'Open Jobs', value: 0, change: '0', color: 'bg-orange-500', icon: Clock },
+    { title: 'Jobs Completed', value: 0, change: '0', color: 'bg-green-500', icon: CheckCircle },
+    { title: 'Awaiting Parts', value: 0, change: '0', color: 'bg-yellow-500', icon: AlertCircle }
+  ]);
 
   const pathname = usePathname();
   const router = useRouter();
 
-  // Fetch user info and jobs
+  // Fetch user data and jobs on component mount
   useEffect(() => {
-    const fetchUserInfoAndJobs = async () => {
+    const fetchUserAndJobs = async () => {
       try {
-        setLoading(true);
+        const supabase = createClient();
         
-        // Fetch jobs using our new technicians API endpoint
-        const jobsResponse = await fetch('/api/technicians/jobs');
-        if (!jobsResponse.ok) {
-          throw new Error('Failed to fetch jobs');
+        // Get current user
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          console.error('Authentication error:', authError);
+          setLoading(false);
+          return;
         }
-        const jobsData = await jobsResponse.json();
         
-        console.log('Jobs API Response:', jobsData);
-        console.log('User role:', jobsData.userRole);
-        console.log('User email:', jobsData.userEmail);
-        console.log('Jobs count:', jobsData.jobs?.length || 0);
-        
-        // Set user info from the jobs API response
-        setUserInfo({
-          user: { email: jobsData.userEmail },
-          isTechAdmin: jobsData.userRole === 'tech_admin'
-        });
-        
-        // Group jobs by date for calendar display
-        const eventsByDate = {};
-        jobsData.jobs?.forEach(job => {
-          console.log('Processing job:', job);
-          // Check if job has a date (job_date, due_date, or start_time)
-          let jobDate = job.job_date || job.due_date || job.start_time;
-          
-          if (jobDate) {
-            const dateKey = jobDate.split('T')[0]; // Extract date part from timestamp
-            if (!eventsByDate[dateKey]) {
-              eventsByDate[dateKey] = [];
-            }
-            eventsByDate[dateKey].push({
-              id: job.id,
-              title: job.customer_name || job.job_description || 'Job Service',
-              time: job.start_time ? job.start_time.split('T')[1]?.split('.')[0] : 'No time set',
-              assignee: job.technician_phone || job.technician_name || 'Unassigned',
-              location: job.customer_address || job.job_location || 'No address',
-              customerName: job.customer_name || 'N/A',
-              customerEmail: job.customer_email || 'N/A',
-              customerPhone: job.customer_phone || 'N/A',
-              customerAddress: job.customer_address || 'N/A',
-              productName: job.job_description || 'Job Service',
-              quantity: 1,
-              technician: job.technician_phone || job.technician_name,
-              date: dateKey,
-              jobType: job.job_type || 'Service',
-              totalAmount: job.estimated_cost || job.quotation_total_amount || job.actual_cost || 0,
-              subtotal: job.estimated_cost || job.quotation_subtotal || 0,
-              status: job.status || job.job_status || 'New',
-              priority: job.priority || 'Medium',
-              jobStatus: job.job_status || job.status || 'New',
-            });
+        if (user) {
+          // Fetch jobs from our API
+          const response = await fetch('/api/technicians/jobs');
+          if (response.ok) {
+            const data = await response.json();
+            setJobs(data.jobs || []);
+            setUserRole(data.userRole);
+            setUserEmail(data.userEmail);
+            
+            // Update job stats based on real data
+            const newJobs = data.jobs.filter(job => job.status === 'New' || job.job_status === 'New').length;
+            const openJobs = data.jobs.filter(job => 
+              job.status === 'In Progress' || 
+              job.job_status === 'In Progress' || 
+              job.status === 'Pending' || 
+              job.job_status === 'Pending'
+            ).length;
+            const completedJobs = data.jobs.filter(job => 
+              job.status === 'Completed' || 
+              job.job_status === 'Completed'
+            ).length;
+            const awaitingParts = data.jobs.filter(job => 
+              job.status === 'Awaiting Parts' || 
+              job.job_status === 'Awaiting Parts'
+            ).length;
+
+            setJobStats([
+              { title: 'New Jobs', value: newJobs, change: `+${newJobs} today`, color: 'bg-blue-500', icon: Plus },
+              { title: 'Open Jobs', value: openJobs, change: `+${openJobs} since yesterday`, color: 'bg-orange-500', icon: Clock },
+              { title: 'Jobs Completed', value: completedJobs, change: `+${completedJobs} this week`, color: 'bg-green-500', icon: CheckCircle },
+              { title: 'Awaiting Parts', value: awaitingParts, change: `+${awaitingParts} since yesterday`, color: 'bg-yellow-500', icon: AlertCircle }
+            ]);
           }
-        });
-        
-        console.log('Events by date:', eventsByDate);
-        setCalendarEvents(eventsByDate);
-        
-        // Set today as selected date
-        const today = new Date();
-        const dateKey = formatDateKey(today.getFullYear(), today.getMonth(), today.getDate());
-        setSelectedDate(dateKey);
-        
-        toast.success(`Calendar loaded! Found ${Object.values(eventsByDate).flat().length} jobs`);
-        
+        }
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load calendar data');
+        console.error('Error fetching user and jobs:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserInfoAndJobs();
+    fetchUserAndJobs();
   }, []);
+
+  // Debug: Monitor modal state changes
+  useEffect(() => {
+    console.log('Calendar: showStartJobModal changed to:', showStartJobModal);
+    console.log('Calendar: selectedJob changed to:', selectedJob);
+  }, [showStartJobModal, selectedJob]);
 
   const handleClick = (e) => {
     e.preventDefault();
@@ -251,7 +246,8 @@ export default function Calendar() {
     });
     
     toast.success(`Job ${jobData.job_number} started successfully! Status: Active`);
-    setShowStartJobModal(false);
+    // Don't close the modal here - let the StartJobModal handle its own flow
+    // setShowStartJobModal(false);
     
     // Refresh the calendar data to show updated status
     setTimeout(() => {
@@ -869,7 +865,7 @@ export default function Calendar() {
       />
 
       {/* Start Job Modal */}
-      {showStartJobModal && selectedJob && (
+      {showStartJobModal && (
         <StartJobModal
           isOpen={showStartJobModal}
           onClose={() => setShowStartJobModal(false)}

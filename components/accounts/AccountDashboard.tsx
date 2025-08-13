@@ -201,6 +201,58 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
           </CardContent>
         </Card>
 
+        {/* Financial Overview - New Section */}
+        <Card className="bg-gradient-to-r from-green-50 to-emerald-50 shadow-xl border-green-200">
+          <CardHeader className="text-center">
+            <CardTitle className="flex justify-center items-center space-x-2 mb-2 text-green-900 text-2xl">
+              <DollarSign className="w-8 h-8" />
+              <span>Financial Overview</span>
+            </CardTitle>
+            <p className="text-green-700 text-lg">
+              Total monthly revenue and detailed financial breakdown
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
+              {/* Total Monthly Revenue */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <TrendingUp className="w-12 h-12 text-green-600" />
+                </div>
+                <div className="mb-2 font-bold text-green-600 text-3xl">
+                  {formatCurrency(vehicles.reduce((sum, v) => sum + (parseFloat(v.total_incl_vat) || 0), 0))}
+                </div>
+                <p className="font-semibold text-green-700 text-lg">Total Monthly Revenue</p>
+                <p className="text-green-600 text-sm">All vehicles incl. VAT</p>
+              </div>
+              
+              {/* Total Ex VAT */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <DollarSign className="w-12 h-12 text-blue-600" />
+                </div>
+                <div className="mb-2 font-bold text-blue-600 text-3xl">
+                  {formatCurrency(vehicles.reduce((sum, v) => sum + (parseFloat(v.total_ex_vat) || 0), 0))}
+                </div>
+                <p className="font-semibold text-blue-700 text-lg">Total Ex VAT</p>
+                <p className="text-blue-600 text-sm">Before VAT</p>
+              </div>
+              
+              {/* Total VAT */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <DollarSign className="w-12 h-12 text-purple-600" />
+                </div>
+                <div className="mb-2 font-bold text-purple-600 text-3xl">
+                  {formatCurrency(vehicles.reduce((sum, v) => sum + (parseFloat(v.total_vat) || 0), 0))}
+                </div>
+                <p className="font-semibold text-purple-700 text-lg">Total VAT</p>
+                <p className="text-purple-600 text-sm">VAT amount</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Quick Stats */}
         <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
           <Card className="hover:shadow-lg transition-shadow duration-200">
@@ -260,6 +312,7 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                 {vehicles.map((vehicle, index) => {
                   const monthlyCost = parseFloat(vehicle.one_month) || 0;
                   const overdueStatus = getOverdueStatus(vehicle.totalOverdue || 0);
+                  const totalInclVat = parseFloat(vehicle.total_incl_vat) || 0;
                   
                   return (
                     <div key={vehicle.id || index} className="hover:shadow-md p-4 border rounded-lg transition-shadow">
@@ -286,6 +339,10 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                             {formatCurrency(monthlyCost)}
                           </div>
                           <p className="text-green-700 text-sm">Monthly Cost</p>
+                          <div className="mt-1 font-semibold text-blue-600 text-lg">
+                            {formatCurrency(totalInclVat)}
+                          </div>
+                          <p className="text-blue-700 text-sm">Total Inc VAT</p>
                           <Badge className={`mt-2 ${getOverdueColor(overdueStatus)}`}>
                             {overdueStatus === 'current' ? 'Current' : 
                              overdueStatus === 'low' ? 'Low Risk' :
@@ -439,6 +496,189 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                                 Overdue: {formatCurrency(vehicle.totalOverdue)}
                               </div>
                             )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Financials Section - New Detailed Financial View
+  if (activeSection === 'financials') {
+    const totalMonthlyRevenue = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_incl_vat) || 0), 0);
+    const totalExVat = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_ex_vat) || 0), 0);
+    const totalVat = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_vat) || 0), 0);
+    
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="font-bold text-gray-900 text-3xl">Financial Overview</h1>
+            <p className="text-gray-600">Detailed financial breakdown for {accountData.company}</p>
+          </div>
+          <Button 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            variant="outline"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
+
+        {/* Total Monthly Revenue Summary */}
+        <Card className="bg-gradient-to-r from-green-50 to-emerald-50 shadow-xl border-green-200">
+          <CardHeader className="text-center">
+            <CardTitle className="flex justify-center items-center space-x-2 mb-2 text-green-900 text-2xl">
+              <DollarSign className="w-8 h-8" />
+              <span>Total Monthly Revenue</span>
+            </CardTitle>
+            <p className="text-green-700 text-lg">
+              Combined monthly revenue for all vehicles in this account
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
+              {/* Total Monthly Revenue */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <TrendingUp className="w-12 h-12 text-green-600" />
+                </div>
+                <div className="mb-2 font-bold text-green-600 text-4xl">
+                  {formatCurrency(totalMonthlyRevenue)}
+                </div>
+                <p className="font-semibold text-green-700 text-lg">Total Monthly Revenue</p>
+                <p className="text-green-600 text-sm">All vehicles incl. VAT</p>
+              </div>
+              
+              {/* Total Ex VAT */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <DollarSign className="w-12 h-12 text-blue-600" />
+                </div>
+                <div className="mb-2 font-bold text-blue-600 text-4xl">
+                  {formatCurrency(totalExVat)}
+                </div>
+                <p className="font-semibold text-blue-700 text-lg">Total Ex VAT</p>
+                <p className="text-blue-600 text-sm">Before VAT</p>
+              </div>
+              
+              {/* Total VAT */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <DollarSign className="w-12 h-12 text-purple-600" />
+                </div>
+                <div className="mb-2 font-bold text-purple-600 text-4xl">
+                  {formatCurrency(totalVat)}
+                </div>
+                <p className="font-semibold text-purple-700 text-lg">Total VAT</p>
+                <p className="text-purple-600 text-sm">VAT amount</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Detailed Financial Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <DollarSign className="w-5 h-5 text-green-600" />
+              <span>Detailed Financial Breakdown</span>
+            </CardTitle>
+            <p className="text-gray-600 text-sm">
+              Individual vehicle financial details with totals for each vehicle
+            </p>
+          </CardHeader>
+          <CardContent>
+            {vehicles.length === 0 ? (
+              <div className="py-8 text-gray-500 text-center">
+                <DollarSign className="mx-auto mb-4 w-12 h-12 text-gray-300" />
+                <p>No vehicles found for this account</p>
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                        Vehicle Details
+                      </th>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
+                        Monthly Cost
+                      </th>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
+                        Total (Ex VAT)
+                      </th>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
+                        VAT Amount
+                      </th>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
+                        Total (Inc VAT)
+                      </th>
+                      <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
+                        Group
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {vehicles.map((vehicle, index) => {
+                      const monthlyCost = parseFloat(vehicle.one_month) || 0;
+                      const totalExVat = parseFloat(vehicle.total_ex_vat) || 0;
+                      const totalVat = parseFloat(vehicle.total_vat) || 0;
+                      const totalInclVat = parseFloat(vehicle.total_incl_vat) || 0;
+                      
+                      return (
+                        <tr key={vehicle.id || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-3">
+                              <Car className="w-5 h-5 text-blue-600" />
+                              <div>
+                                <h3 className="font-medium text-gray-900">
+                                  {vehicle.stock_description || `Vehicle ${index + 1}`}
+                                </h3>
+                                <p className="text-gray-500 text-sm">
+                                  Stock Code: {vehicle.stock_code || 'N/A'}
+                                </p>
+                                {vehicle.beame && (
+                                  <p className="text-gray-400 text-xs">
+                                    Beame: {vehicle.beame}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center whitespace-nowrap">
+                            <div className="font-medium text-green-600">
+                              {formatCurrency(monthlyCost)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center whitespace-nowrap">
+                            <div className="font-medium text-gray-900">
+                              {totalExVat > 0 ? formatCurrency(totalExVat) : 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center whitespace-nowrap">
+                            <div className="font-medium text-gray-900">
+                              {totalVat > 0 ? formatCurrency(totalVat) : 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center whitespace-nowrap">
+                            <div className="font-medium font-semibold text-blue-600">
+                              {totalInclVat > 0 ? formatCurrency(totalInclVat) : 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center whitespace-nowrap">
+                            <div className="text-gray-900 text-sm">
+                              {vehicle.group_name || 'N/A'}
+                            </div>
                           </td>
                         </tr>
                       );

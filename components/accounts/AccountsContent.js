@@ -15,7 +15,8 @@ import {
   RefreshCw,
   ShoppingCart,
   Wrench,
-  Receipt
+  Receipt,
+  X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -33,6 +34,10 @@ export default function AccountsContent({ activeSection }) {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [accountVehicles, setAccountVehicles] = useState([]);
   const [accountLoading, setAccountLoading] = useState(false);
+  const [completedJobs, setCompletedJobs] = useState([]);
+  const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
+  const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
+  const [selectedJobDetails, setSelectedJobDetails] = useState(null);
   const router = useRouter();
 
   const fetchCustomers = useCallback(async (isLoadMore = false) => {
@@ -76,6 +81,9 @@ export default function AccountsContent({ activeSection }) {
     if (activeSection === 'dashboard' || activeSection === 'overdue') {
       fetchCustomers();
     }
+    if (activeSection === 'completed-jobs') {
+      fetchCompletedJobs();
+    }
   }, [activeSection, fetchCustomers]);
 
   // Check for account parameter in URL
@@ -88,6 +96,50 @@ export default function AccountsContent({ activeSection }) {
       fetchAccountData(accountParam);
     }
   }, []);
+
+  const fetchCompletedJobs = async () => {
+    try {
+      setCompletedJobsLoading(true);
+      
+      const response = await fetch('/api/accounts/completed-jobs');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch completed jobs');
+      }
+
+      const data = await response.json();
+      setCompletedJobs(data.jobs || []);
+    } catch (error) {
+      console.error('Error fetching completed jobs:', error);
+      toast.error('Failed to load completed jobs');
+    } finally {
+      setCompletedJobsLoading(false);
+    }
+  };
+
+  const handleBillClient = async (job) => {
+    try {
+      // For now, just show a success message
+      // In the future, this could generate invoices, send emails, etc.
+      toast.success(`Billing initiated for job ${job.job_number}`);
+      
+      // You could also update the job status to 'billed' here
+      // const response = await fetch(`/api/job-cards/${job.id}`, {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ job_status: 'Billed' })
+      // });
+      
+    } catch (error) {
+      console.error('Error billing client:', error);
+      toast.error('Failed to bill client');
+    }
+  };
+
+  const handleViewJobDetails = (job) => {
+    setSelectedJobDetails(job);
+    setShowJobDetailsModal(true);
+  };
 
   const fetchAccountData = async (accountNumber) => {
     try {
@@ -669,6 +721,599 @@ export default function AccountsContent({ activeSection }) {
     );
   }
 
+  // Completed Jobs Section
+  if (activeSection === 'completed-jobs') {
+    if (completedJobsLoading) {
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-center items-center py-12">
+            <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+            <span className="ml-2">Loading completed jobs...</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="font-bold text-gray-900 text-3xl">Completed Job Cards</h1>
+            <p className="mt-2 text-gray-600">View completed jobs ready for billing</p>
+          </div>
+          <div className="flex gap-3">
+            <Button 
+              onClick={fetchCompletedJobs}
+              disabled={completedJobsLoading}
+              variant="outline"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${completedJobsLoading ? 'animate-spin' : ''}`} />
+              {completedJobsLoading ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="gap-6 grid grid-cols-1 md:grid-cols-4">
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+              <CardTitle className="font-medium text-sm">Total Jobs</CardTitle>
+              <Wrench className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-bold text-blue-600 text-2xl">{completedJobs.length}</div>
+              <p className="text-muted-foreground text-xs">Ready for billing</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+              <CardTitle className="font-medium text-sm">Repair Jobs</CardTitle>
+              <Wrench className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-bold text-purple-600 text-2xl">
+                {completedJobs.filter(job => job.repair).length}
+              </div>
+              <p className="text-muted-foreground text-xs">Repair work</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+              <CardTitle className="font-medium text-sm">Installation Jobs</CardTitle>
+              <Car className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-bold text-green-600 text-2xl">
+                {completedJobs.filter(job => job.job_type?.toLowerCase().includes('install')).length}
+              </div>
+              <p className="text-muted-foreground text-xs">Installations</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+              <CardTitle className="font-medium text-sm">Total Value</CardTitle>
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="font-bold text-green-600 text-2xl">
+                {formatCurrency(completedJobs.reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
+              </div>
+              <p className="text-muted-foreground text-xs">Billing amount</p>
+            </CardContent>
+          </Card>
+        </div>
+
+                 {/* Completed Jobs Table */}
+         <Card className="hover:shadow-lg transition-shadow duration-200">
+           <CardHeader>
+             <CardTitle className="flex items-center space-x-2">
+               <Receipt className="w-5 h-5 text-green-600" />
+               <span>Completed Jobs for Billing</span>
+             </CardTitle>
+           </CardHeader>
+           <CardContent>
+             {completedJobs.length === 0 ? (
+               <div className="py-8 text-gray-500 text-center">
+                 No completed jobs found
+               </div>
+             ) : (
+               <div className="overflow-x-auto">
+                 <table className="w-full">
+                   <thead className="bg-gray-50">
+                     <tr>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Job Details
+                       </th>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Customer
+                       </th>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Vehicle
+                       </th>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Amount
+                       </th>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Completion Date
+                       </th>
+                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                         Actions
+                       </th>
+                     </tr>
+                   </thead>
+                   <tbody className="bg-white divide-y divide-gray-200">
+                     {completedJobs.map((job) => (
+                       <tr key={job.id} className="hover:bg-gray-50">
+                         <td className="px-4 py-3">
+                           <div className="flex items-center space-x-2 mb-2">
+                             <h3 className="font-semibold text-lg">{job.job_number}</h3>
+                             <Badge className={job.repair ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}>
+                               {job.repair ? 'Repair' : job.job_type}
+                             </Badge>
+                           </div>
+                           <div className="text-gray-600 text-sm">
+                             <p><strong>Description:</strong> {job.job_description || 'No description'}</p>
+                             {job.job_location && (
+                               <p><strong>Location:</strong> {job.job_location}</p>
+                             )}
+                           </div>
+                         </td>
+                         <td className="px-4 py-3">
+                           <div className="font-medium">{job.customer_name}</div>
+                           <div className="text-gray-500 text-sm">
+                             <div className="flex items-center gap-1">
+                               <span>📧 {job.customer_email}</span>
+                             </div>
+                             <div className="flex items-center gap-1">
+                               <span>📱 {job.customer_phone}</span>
+                             </div>
+                           </div>
+                         </td>
+                         <td className="px-4 py-3">
+                           {job.vehicle_registration ? (
+                             <div>
+                               <div className="font-medium">{job.vehicle_registration}</div>
+                               <div className="text-gray-500 text-sm">
+                                 {job.vehicle_make} {job.vehicle_model} {job.vehicle_year}
+                               </div>
+                             </div>
+                           ) : (
+                             <span className="text-gray-400">No vehicle</span>
+                           )}
+                         </td>
+                         <td className="px-4 py-3">
+                           <div className="text-right">
+                             <div className="font-medium text-green-600">
+                               {formatCurrency(job.quotation_total_amount || 0)}
+                             </div>
+                             {job.quotation_subtotal && (
+                               <div className="text-gray-500 text-sm">
+                                 Subtotal: {formatCurrency(job.quotation_subtotal)}
+                               </div>
+                             )}
+                           </div>
+                         </td>
+                         <td className="px-4 py-3">
+                           <div className="text-sm">
+                             <div className="font-medium">
+                               {new Date(job.completion_date || job.job_date).toLocaleDateString()}
+                             </div>
+                             <div className="text-gray-500">
+                               {job.actual_duration_hours || job.estimated_duration_hours || 'N/A'}h
+                             </div>
+                           </div>
+                         </td>
+                                                  <td className="px-4 py-3">
+                            <div className="space-y-2">
+                              <Button
+                                onClick={() => handleViewJobDetails(job)}
+                                size="sm"
+                                variant="outline"
+                                className="w-full"
+                              >
+                                <Search className="mr-2 w-4 h-4" />
+                                View Details
+                              </Button>
+                              <Button
+                                onClick={() => handleBillClient(job)}
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 w-full"
+                              >
+                                <Receipt className="mr-2 w-4 h-4" />
+                                Bill Client
+                              </Button>
+                            </div>
+                          </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
+             )}
+           </CardContent>
+         </Card>
+
+         {/* Job Details Modal */}
+         {showJobDetailsModal && selectedJobDetails && (
+           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+             <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+               {/* Modal Header */}
+               <div className="flex items-center justify-between p-6 border-b">
+                 <div>
+                   <h2 className="text-2xl font-bold text-gray-900">
+                     Job Details: {selectedJobDetails.job_number}
+                   </h2>
+                   <p className="text-gray-600">
+                     {selectedJobDetails.repair ? 'Repair Job' : selectedJobDetails.job_type}
+                   </p>
+                 </div>
+                 <Button
+                   onClick={() => setShowJobDetailsModal(false)}
+                   variant="ghost"
+                   size="sm"
+                   className="h-8 w-8 p-0"
+                 >
+                   <X className="h-4 w-4" />
+                 </Button>
+               </div>
+
+               {/* Modal Content */}
+               <div className="p-6 space-y-6">
+                 {/* Job Information */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg">Job Information</CardTitle>
+                     </CardHeader>
+                     <CardContent className="space-y-3">
+                       <div>
+                         <span className="font-medium">Job Number:</span>
+                         <span className="ml-2 text-gray-600">{selectedJobDetails.job_number}</span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Job Type:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.repair ? 'Repair' : selectedJobDetails.job_type}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Description:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.job_description || 'No description'}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Location:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.job_location || 'No location specified'}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Priority:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.priority || 'Not specified'}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Status:</span>
+                         <Badge className="ml-2 bg-green-100 text-green-800">
+                           {selectedJobDetails.job_status}
+                         </Badge>
+                       </div>
+                     </CardContent>
+                   </Card>
+
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg">Timing & Duration</CardTitle>
+                     </CardHeader>
+                     <CardContent className="space-y-3">
+                       <div>
+                         <span className="font-medium">Job Date:</span>
+                         <span className="ml-2 text-gray-600">
+                           {new Date(selectedJobDetails.job_date).toLocaleDateString()}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Start Time:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.start_time ? 
+                             new Date(selectedJobDetails.start_time).toLocaleTimeString() : 'Not specified'
+                           }
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">End Time:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.end_time ? 
+                             new Date(selectedJobDetails.end_time).toLocaleTimeString() : 'Not specified'
+                           }
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Completion Date:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.completion_date ? 
+                             new Date(selectedJobDetails.completion_date).toLocaleDateString() : 'Not specified'
+                           }
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Duration:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.actual_duration_hours || selectedJobDetails.estimated_duration_hours || 'N/A'} hours
+                         </span>
+                       </div>
+                     </CardContent>
+                   </Card>
+                 </div>
+
+                 {/* Customer Information */}
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="text-lg">Customer Information</CardTitle>
+                   </CardHeader>
+                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-3">
+                       <div>
+                         <span className="font-medium">Name:</span>
+                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_name}</span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Email:</span>
+                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Phone:</span>
+                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
+                       </div>
+                     </div>
+                     <div className="space-y-3">
+                       <div>
+                         <span className="font-medium">Address:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.customer_address || 'No address specified'}
+                         </span>
+                       </div>
+                     </div>
+                   </CardContent>
+                 </Card>
+
+                 {/* Vehicle Information */}
+                 {selectedJobDetails.vehicle_registration && (
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg">Vehicle Information</CardTitle>
+                     </CardHeader>
+                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="space-y-3">
+                         <div>
+                           <span className="font-medium">Registration:</span>
+                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_registration}</span>
+                         </div>
+                         <div>
+                           <span className="font-medium">Make:</span>
+                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_make}</span>
+                         </div>
+                         <div>
+                           <span className="font-medium">Model:</span>
+                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_model}</span>
+                         </div>
+                       </div>
+                       <div className="space-y-3">
+                         <div>
+                           <span className="font-medium">Year:</span>
+                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_year}</span>
+                         </div>
+                         {selectedJobDetails.vin_numer && (
+                           <div>
+                             <span className="font-medium">VIN:</span>
+                             <span className="ml-2 text-gray-600">{selectedJobDetails.vin_numer}</span>
+                           </div>
+                         )}
+                         {selectedJobDetails.odormeter && (
+                           <div>
+                             <span className="font-medium">Odometer:</span>
+                             <span className="ml-2 text-gray-600">{selectedJobDetails.odormeter}</span>
+                           </div>
+                         )}
+                       </div>
+                     </CardContent>
+                   </Card>
+                 )}
+
+                 {/* Financial Information */}
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="text-lg">Financial Information</CardTitle>
+                   </CardHeader>
+                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="text-center">
+                       <div className="text-2xl font-bold text-green-600">
+                         {formatCurrency(selectedJobDetails.quotation_total_amount || 0)}
+                       </div>
+                       <div className="text-sm text-gray-600">Total Amount</div>
+                     </div>
+                     <div className="text-center">
+                       <div className="text-xl font-semibold text-blue-600">
+                         {formatCurrency(selectedJobDetails.quotation_subtotal || 0)}
+                       </div>
+                       <div className="text-sm text-gray-600">Subtotal</div>
+                     </div>
+                     <div className="text-center">
+                       <div className="text-xl font-semibold text-red-600">
+                         {formatCurrency(selectedJobDetails.quotation_vat_amount || 0)}
+                       </div>
+                       <div className="text-sm text-gray-600">VAT (15%)</div>
+                     </div>
+                   </CardContent>
+                 </Card>
+
+                 {/* Before and After Photos - Split View */}
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                   {/* Before Photos */}
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg text-red-600">Before Photos</CardTitle>
+                       <p className="text-sm text-gray-600">
+                         {selectedJobDetails.before_photos?.length || 0} photo(s) taken before work
+                       </p>
+                     </CardHeader>
+                     <CardContent>
+                       {selectedJobDetails.before_photos && selectedJobDetails.before_photos.length > 0 ? (
+                         <div className="grid grid-cols-2 gap-3">
+                           {selectedJobDetails.before_photos.map((photo, index) => (
+                             <div key={index} className="relative group">
+                               <img
+                                 src={photo}
+                                 alt={`Before photo ${index + 1}`}
+                                 className="w-full h-32 object-cover rounded-lg border-2 border-red-200 hover:border-red-400 transition-colors cursor-pointer"
+                                 onClick={() => window.open(photo, '_blank')}
+                               />
+                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
+                                 <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
+                                   Click to enlarge
+                                 </span>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="text-center py-8 text-gray-500">
+                           <div className="text-4xl mb-2">📷</div>
+                           <p>No before photos available</p>
+                           </div>
+                       )}
+                     </CardContent>
+                   </Card>
+
+                   {/* After Photos */}
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg text-green-600">After Photos</CardTitle>
+                       <p className="text-sm text-gray-600">
+                         {selectedJobDetails.after_photos?.length || 0} photo(s) taken after work
+                       </p>
+                     </CardHeader>
+                     <CardContent>
+                       {selectedJobDetails.after_photos && selectedJobDetails.after_photos.length > 0 ? (
+                         <div className="grid grid-cols-2 gap-3">
+                           {selectedJobDetails.after_photos.map((photo, index) => (
+                             <div key={index} className="relative group">
+                               <img
+                                 src={photo}
+                                 alt={`After photo ${index + 1}`}
+                                 className="w-full h-32 object-cover rounded-lg border-2 border-green-200 hover:border-green-400 transition-colors cursor-pointer"
+                                 onClick={() => window.open(photo, '_blank')}
+                               />
+                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
+                                 <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
+                                   Click to enlarge
+                                 </span>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="text-center py-8 text-gray-500">
+                           <div className="text-4xl mb-2">📷</div>
+                           <p>No after photos available</p>
+                         </div>
+                       )}
+                     </CardContent>
+                   </Card>
+                 </div>
+
+                 {/* Additional Information */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* Work Notes */}
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg">Work Notes</CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
+                         {selectedJobDetails.work_notes ? (
+                           <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.work_notes}</p>
+                         ) : (
+                           <p className="text-gray-500 italic">No work notes available</p>
+                         )}
+                       </div>
+                     </CardContent>
+                   </Card>
+
+                   {/* Completion Notes */}
+                   <Card>
+                     <CardHeader>
+                       <CardTitle className="text-lg">Completion Notes</CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                       <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
+                         <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.completion_notes || 'No completion notes available'}</p>
+                       </div>
+                     </CardContent>
+                   </Card>
+                 </div>
+
+                 {/* Technician Information */}
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="text-lg">Technician Information</CardTitle>
+                   </CardHeader>
+                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="space-y-3">
+                       <div>
+                         <span className="font-medium">Name:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.technician_name || 'Not specified'}
+                         </span>
+                       </div>
+                       <div>
+                         <span className="font-medium">Email:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.technician_phone || 'Not specified'}
+                         </span>
+                       </div>
+                     </div>
+                     <div className="space-y-3">
+                       <div>
+                         <span className="font-medium">Special Instructions:</span>
+                         <span className="ml-2 text-gray-600">
+                           {selectedJobDetails.special_instructions || 'None'}
+                         </span>
+                       </div>
+                     </div>
+                   </CardContent>
+                 </Card>
+               </div>
+
+               {/* Modal Footer */}
+               <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
+                 <Button
+                   onClick={() => setShowJobDetailsModal(false)}
+                   variant="outline"
+                 >
+                   Close
+                 </Button>
+                 <Button
+                   onClick={() => handleBillClient(selectedJobDetails)}
+                   className="bg-green-600 hover:bg-green-700"
+                 >
+                   <Receipt className="mr-2 w-4 h-4" />
+                   Bill Client
+                 </Button>
+               </div>
+             </div>
+           </div>
+         )}
+       </div>
+     );
+   }
+
   // Other sections (placeholder for now)
   if (activeSection === 'purchases') {
     return (
@@ -764,9 +1409,385 @@ export default function AccountsContent({ activeSection }) {
 
   // Default fallback
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Select a Section</h2>
-      <p className="text-gray-600">Please select a section from the sidebar to get started.</p>
-    </div>
+    <>
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-gray-900">Select a Section</h2>
+        <p className="text-gray-600">Please select a section from the sidebar to get started.</p>
+      </div>
+
+               {/* Job Details Modal */}
+         {showJobDetailsModal && selectedJobDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Job Details: {selectedJobDetails.job_number}
+                </h2>
+                <p className="text-gray-600">
+                  {selectedJobDetails.repair ? 'Repair Job' : selectedJobDetails.job_type}
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowJobDetailsModal(false)}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Job Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Job Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <span className="font-medium">Job Number:</span>
+                      <span className="ml-2 text-gray-600">{selectedJobDetails.job_number}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Job Type:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.repair ? 'Repair' : selectedJobDetails.job_type}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Description:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.job_description || 'No description'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Location:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.job_location || 'No location specified'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Priority:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.priority || 'Not specified'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Status:</span>
+                      <Badge className="ml-2 bg-green-100 text-green-800">
+                        {selectedJobDetails.job_status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Timing & Duration</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <span className="font-medium">Job Date:</span>
+                      <span className="ml-2 text-gray-600">
+                        {new Date(selectedJobDetails.job_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Start Time:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.start_time ? 
+                          new Date(selectedJobDetails.start_time).toLocaleTimeString() : 'Not specified'
+                        }
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">End Time:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.end_time ? 
+                          new Date(selectedJobDetails.end_time).toLocaleTimeString() : 'Not specified'
+                        }
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Completion Date:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.completion_date ? 
+                          new Date(selectedJobDetails.completion_date).toLocaleDateString() : 'Not specified'
+                        }
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Duration:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.actual_duration_hours || selectedJobDetails.estimated_duration_hours || 'N/A'} hours
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Customer Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Customer Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-medium">Name:</span>
+                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_name}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span>
+                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_email}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Phone:</span>
+                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-medium">Address:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.customer_address || 'No address specified'}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Vehicle Information */}
+              {selectedJobDetails.vehicle_registration && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Vehicle Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div>
+                        <span className="font-medium">Registration:</span>
+                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_registration}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Make:</span>
+                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_make}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Model:</span>
+                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_model}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="font-medium">Year:</span>
+                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_year}</span>
+                      </div>
+                      {selectedJobDetails.vin_numer && (
+                        <div>
+                          <span className="font-medium">VIN:</span>
+                          <span className="ml-2 text-gray-600">{selectedJobDetails.vin_numer}</span>
+                        </div>
+                      )}
+                      {selectedJobDetails.odormeter && (
+                        <div>
+                          <span className="font-medium">Odometer:</span>
+                          <span className="ml-2 text-gray-600">{selectedJobDetails.odormeter}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Financial Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Financial Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(selectedJobDetails.quotation_total_amount || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Total Amount</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-blue-600">
+                      {formatCurrency(selectedJobDetails.quotation_subtotal || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">Subtotal</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-red-600">
+                      {formatCurrency(selectedJobDetails.quotation_vat_amount || 0)}
+                    </div>
+                    <div className="text-sm text-gray-600">VAT (15%)</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Before and After Photos - Split View */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Before Photos */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-red-600">Before Photos</CardTitle>
+                    <p className="text-sm text-gray-600">
+                      {selectedJobDetails.before_photos?.length || 0} photo(s) taken before work
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedJobDetails.before_photos && selectedJobDetails.before_photos.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {selectedJobDetails.before_photos.map((photo, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={photo}
+                              alt={`Before photo ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border-2 border-red-200 hover:border-red-400 transition-colors cursor-pointer"
+                              onClick={() => window.open(photo, '_blank')}
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
+                              <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
+                                Click to enlarge
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-4xl mb-2">📷</div>
+                        <p>No before photos available</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* After Photos */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-green-600">After Photos</CardTitle>
+                    <p className="text-sm text-gray-600">
+                      {selectedJobDetails.after_photos?.length || 0} photo(s) taken after work
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedJobDetails.after_photos && selectedJobDetails.after_photos.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {selectedJobDetails.after_photos.map((photo, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={photo}
+                              alt={`After photo ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border-2 border-green-200 hover:border-green-400 transition-colors cursor-pointer"
+                              onClick={() => window.open(photo, '_blank')}
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
+                              <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
+                                Click to enlarge
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <div className="text-4xl mb-2">📷</div>
+                        <p>No after photos available</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Additional Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Work Notes */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Work Notes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
+                      {selectedJobDetails.work_notes ? (
+                        <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.work_notes}</p>
+                      ) : (
+                        <p className="text-gray-500 italic">No work notes available</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Completion Notes */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Completion Notes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
+                      <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.completion_notes || 'No completion notes available'}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Technician Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Technician Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-medium">Name:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.technician_name || 'Not specified'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Email:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.technician_phone || 'Not specified'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="font-medium">Special Instructions:</span>
+                      <span className="ml-2 text-gray-600">
+                        {selectedJobDetails.special_instructions || 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
+              <Button
+                onClick={() => setShowJobDetailsModal(false)}
+                variant="outline"
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => handleBillClient(selectedJobDetails)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Receipt className="mr-2 w-4 h-4" />
+                Bill Client
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

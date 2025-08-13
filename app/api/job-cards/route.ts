@@ -69,81 +69,92 @@ export async function POST(request: NextRequest) {
     const jobNumber = `JOB-${timestamp}-${randomSuffix}`;
     const quotationNumber = `QUOTE-${timestamp}-${randomSuffix}`;
     
-    // Prepare job card data from quotation
+    // Prepare job card data - handle both quotation and repair jobs
     const jobCardData = {
       // Job details
-      job_type: body.jobType || 'install',
-      job_description: body.jobDescription || '',
+      job_type: body.jobType || body.job_type || 'install',
+      repair: body.repair || false,
+      job_description: body.jobDescription || body.job_description || '',
       priority: body.priority || 'medium',
+      status: body.status || 'draft',
+      job_status: body.job_status || 'created',
       
       // Customer information
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
-      customer_name: body.customerName || '',
-      customer_email: body.customerEmail || '',
-      customer_phone: body.customerPhone || '',
-      customer_address: body.customerAddress || '',
+      customer_name: body.customerName || body.customer_name || '',
+      customer_email: body.customerEmail || body.customer_email || '',
+      customer_phone: body.customerPhone || body.customer_phone || '',
+      customer_address: body.customerAddress || body.customer_address || '',
       
       // Vehicle information
-      vehicle_id: body.vehicleId || null,
-      vehicle_registration: body.vehicleRegistration || '',
-      vehicle_make: body.vehicleMake || '',
-      vehicle_model: body.vehicleModel || '',
-      vehicle_year: body.vehicleYear || null,
-      vin_numer: body.vinNumber || '',
-      odormeter: body.odormeter || '',
+      vehicle_id: body.vehicleId || body.vehicle_id || null,
+      vehicle_registration: body.vehicleRegistration || body.vehicle_registration || '',
+      vehicle_make: body.vehicleMake || body.vehicle_make || '',
+      vehicle_model: body.vehicleModel || body.vehicle_model || '',
+      vehicle_year: body.vehicleYear || body.vehicle_year || null,
+      vin_numer: body.vinNumber || body.vin_numer || '',
+      odormeter: body.odormeter || body.odormeter || '',
       
       // Location information
-      job_location: body.jobLocation || '',
+      job_location: body.jobLocation || body.job_location || '',
       latitude: body.latitude || null,
       longitude: body.longitude || null,
       
-      // Quotation details
-      quotation_number: quotationNumber,
-      quote_date: body.quoteDate || new Date().toISOString(),
-      quote_expiry_date: body.quoteExpiryDate || null,
-      quote_status: body.quoteStatus || 'draft',
+      // Quotation details (only for quotation jobs)
+      quotation_number: body.repair ? 'REPAIR-JOB' : (body.quotationNumber || quotationNumber),
+      quote_date: body.repair ? null : (body.quoteDate || new Date().toISOString()),
+      quote_expiry_date: body.repair ? null : (body.quoteExpiryDate || null),
+      quote_status: body.repair ? null : (body.quoteStatus || 'draft'),
       
       // Purchase and job type for quotation
-      purchase_type: body.purchaseType || 'purchase',
-      quotation_job_type: body.quotationJobType || 'install',
+      purchase_type: body.repair ? null : (body.purchaseType || 'purchase'),
+      quotation_job_type: body.repair ? null : (body.quotationJobType || 'install'),
       
-      // Quotation pricing breakdown
-      quotation_products: body.quotationProducts || [],
-      quotation_subtotal: body.quotationSubtotal || 0,
-      quotation_vat_amount: body.quotationVatAmount || 0,
-      quotation_total_amount: body.quotationTotalAmount || 0,
+      // Quotation pricing breakdown (only for quotation jobs)
+      quotation_products: body.repair ? null : (body.quotationProducts || []),
+      quotation_subtotal: body.repair ? null : (body.quotationSubtotal || 0),
+      quotation_vat_amount: body.repair ? null : (body.quotationVatAmount || 0),
+      quotation_total_amount: body.repair ? null : (body.quotationTotalAmount || 0),
       
-      // Quotation email details
-      quote_email_subject: body.quoteEmailSubject || '',
-      quote_email_body: body.quoteEmailBody || '',
-      quote_email_footer: body.quoteEmailFooter || '',
-      quote_notes: body.quoteNotes || '',
+      // Quotation email details (only for quotation jobs)
+      quote_email_subject: body.repair ? null : (body.quoteEmailSubject || ''),
+      quote_email_body: body.repair ? null : (body.quoteEmailBody || ''),
+      quote_email_footer: body.repair ? null : (body.quoteEmailFooter || ''),
+      quote_notes: body.repair ? null : (body.quoteNotes || ''),
       
-      // Quotation type
-      quote_type: body.quoteType || 'external',
+      // Quotation type (only for quotation jobs)
+      quote_type: body.repair ? null : (body.quoteType || 'external'),
       
       // Additional fields
-      special_instructions: body.specialInstructions || '',
-      access_requirements: body.accessRequirements || '',
-      site_contact_person: body.siteContactPerson || '',
-      site_contact_phone: body.siteContactPhone || '',
+      special_instructions: body.specialInstructions || body.special_instructions || '',
       
-      // Status
-      status: body.status || 'draft',
+      // Technician information (for repair jobs)
+      technician_name: body.technician_name || null,
+      technician_phone: body.technician_phone || null,
+      
+      // Job timing (for repair jobs)
+      job_date: body.job_date || new Date().toISOString(),
+      start_time: body.start_time || null,
+      completion_date: body.completion_date || null,
+      end_time: body.end_time || null,
+      
+      // Photos (for repair jobs)
+      before_photos: body.before_photos || null,
+      after_photos: body.after_photos || null,
       
       // Metadata
-      created_by: '00000000-0000-0000-0000-000000000000', // Temporary user ID
-      updated_by: '00000000-0000-0000-0000-000000000000', // Temporary user ID
+      created_by: body.created_by || '00000000-0000-0000-0000-000000000000',
+      updated_by: body.updated_by || '00000000-0000-0000-0000-000000000000',
       
       // Set job_number explicitly to avoid trigger conflicts
-      job_number: jobNumber
+      job_number: body.repair ? (body.job_number || jobNumber) : jobNumber
     };
 
     // Insert the job card
     const { data, error } = await supabase
       .from('job_cards')
       .insert([jobCardData])
-      .select('id, job_number, quotation_number, customer_name, job_type, status, created_at')
+      .select('id, job_number, customer_name, job_type, status, created_at')
       .single();
 
     if (error) {

@@ -3,16 +3,16 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const { jobNumber, vehicleRegistration, photos, vehicleData } = await request.json();
+    const { jobId, jobNumber, vehicleRegistration, photos, vehicleData } = await request.json();
 
-    if (!jobNumber || !photos || !Array.isArray(photos)) {
+    if (!jobId || !photos || !Array.isArray(photos)) {
       return NextResponse.json(
-        { error: 'Missing required fields: jobNumber and photos array' },
+        { error: 'Missing required fields: jobId and photos array' },
         { status: 400 }
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // First, save vehicle data if it's new
     let vehicleId = null;
@@ -46,6 +46,21 @@ export async function POST(request: NextRequest) {
       }
 
       vehicleId = newVehicle.id;
+    }
+
+    // Get existing photos from the job card
+    const { data: existingJobCard, error: fetchError } = await supabase
+      .from('job_cards')
+      .select('before_photos, vehicle_registration, vehicle_id')
+      .eq('id', jobId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching existing job card:', fetchError);
+      return NextResponse.json(
+        { error: 'Failed to fetch existing job card' },
+        { status: 500 }
+      );
     }
 
     // Upload photos to Supabase storage bucket
@@ -108,16 +123,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update job_cards table with before_photos JSONB and vehicle info
+    // Merge with existing photos and update job_cards table
+    const existingPhotos = existingJobCard?.before_photos || [];
+    const updatedPhotos = [...existingPhotos, ...uploadedPhotos];
+    
+    const updateData: any = {
+      before_photos: updatedPhotos,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update vehicle info if provided
+    if (vehicleRegistration) {
+      updateData.vehicle_registration = vehicleRegistration;
+    }
+    if (vehicleId) {
+      updateData.vehicle_id = vehicleId;
+    }
+
     const { error: updateError } = await supabase
       .from('job_cards')
-      .update({
-        before_photos: uploadedPhotos,
-        vehicle_registration: vehicleRegistration || vehicleData?.new_registration,
-        vehicle_id: vehicleId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('job_number', jobNumber);
+      .update(updateData)
+      .eq('id', jobId);
 
     if (updateError) {
       console.error('Error updating job card:', updateError);
@@ -130,6 +156,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       photos: uploadedPhotos,
+      totalPhotos: updatedPhotos.length,
       vehicleId,
       message: `${uploadedPhotos.length} photos uploaded and saved successfully`
     });
@@ -146,26 +173,117 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get('jobId');
     const jobNumber = searchParams.get('jobNumber');
 
-    if (!jobNumber) {
+    console.log('GET /api/job-photos - Params:', { jobId, jobNumber });
+
+    // Health check endpoint
+    if (!jobId && !jobNumber) {
+      try {
+        const supabase = await createClient();
+        const { data: testData, error: testError } = await supabase
+          .from('job_cards')
+          .select('id')
+          .limit(1);
+        
+        if (testError) {
+          console.error('Health check failed:', testError);
+          return NextResponse.json(
+            { error: 'Health check failed', details: testError.message },
+            { status: 500 }
+          );
+        }
+        
+        return NextResponse.json({ 
+          status: 'healthy', 
+          message: 'Job photos API is working',
+          database: 'connected',
+          timestamp: new Date().toISOString()
+        });
+      } catch (healthError) {
+        console.error('Health check error:', healthError);
+        return NextResponse.json(
+          { error: 'Health check error', details: healthError instanceof Error ? healthError.message : 'Unknown error' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Validate UUID format if jobId is provided
+    if (jobId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
+      console.error('Invalid jobId format:', jobId);
       return NextResponse.json(
-        { error: 'Job number parameter is required' },
+        { error: 'Invalid jobId format' },
         { status: 400 }
       );
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
+    console.log('Supabase client created successfully');
 
-    // Get photos from job_cards before_photos field
-    const { data: jobCard, error } = await supabase
+    // Test Supabase connection
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from('job_cards')
+        .select('id')
+        .limit(1);
+      
+      if (testError) {
+        console.error('Supabase connection test failed:', testError);
+        return NextResponse.json(
+          { error: 'Database connection failed', details: testError.message },
+          { status: 500 }
+        );
+      }
+      console.log('Supabase connection test successful');
+    } catch (testError) {
+      console.error('Supabase connection test error:', testError);
+      return NextResponse.json(
+        { error: 'Database connection test failed' },
+        { status: 500 }
+      );
+    }
+
+    let query = supabase
       .from('job_cards')
-      .select('before_photos, after_photos')
-      .eq('job_number', jobNumber)
-      .single();
+      .select('id, before_photos, after_photos, vehicle_registration');
+
+    if (jobId) {
+      query = query.eq('id', jobId);
+      console.log('Querying by jobId:', jobId);
+    } else if (jobNumber) {
+      query = query.eq('job_number', jobNumber);
+      console.log('Querying by jobNumber:', jobNumber);
+    }
+
+    const { data: jobCard, error } = await query.single();
+    console.log('Query result:', { jobCard: !!jobCard, error: error?.message });
 
     if (error) {
-      throw error;
+      console.error('Error fetching job card:', error);
+      
+      // Check if it's a "not found" error
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Job not found', details: 'No job card found with the provided ID or number' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: 'Failed to fetch job card', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    if (!jobCard) {
+      console.log('No job card found for:', { jobId, jobNumber });
+      return NextResponse.json({ 
+        photos: { before: [], after: [] },
+        jobId: null,
+        vehicleRegistration: null
+      });
     }
 
     const photos = {
@@ -173,11 +291,20 @@ export async function GET(request: NextRequest) {
       after: jobCard?.after_photos || []
     };
 
-    return NextResponse.json({ photos });
+    console.log('Returning photos:', { 
+      beforeCount: photos.before.length, 
+      afterCount: photos.after.length 
+    });
+
+    return NextResponse.json({ 
+      photos,
+      jobId: jobCard?.id,
+      vehicleRegistration: jobCard?.vehicle_registration
+    });
   } catch (error) {
     console.error('Error fetching job photos:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch job photos' },
+      { error: 'Failed to fetch job photos', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

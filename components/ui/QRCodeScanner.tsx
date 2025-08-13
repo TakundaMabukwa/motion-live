@@ -270,3 +270,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
 
 
 
+
+
+
+

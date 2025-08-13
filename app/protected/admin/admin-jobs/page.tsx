@@ -70,6 +70,8 @@ interface AdminJob {
   access_requirements: string;
   site_contact_person: string;
   site_contact_phone: string;
+  repair: boolean;
+  role: string;
 }
 
 interface Technician {
@@ -298,6 +300,33 @@ export default function AdminJobsPage() {
       case 'maintenance': return 'bg-green-500';
       case 'repair': return 'bg-orange-500';
       default: return 'bg-gray-500';
+    }
+  };
+
+  const handleSendToFC = async (job: AdminJob) => {
+    try {
+      // Update the job role to 'fc'
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          role: 'fc',
+          updated_by: 'admin', // You might want to get the actual admin user ID
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send job to FC');
+      }
+
+      toast.success(`Job ${job.job_number} sent to FC successfully!`);
+      fetchAdminJobs(); // Refresh the jobs list
+    } catch (error) {
+      console.error('Error sending job to FC:', error);
+      toast.error('Failed to send job to FC. Please try again.');
     }
   };
 
@@ -536,7 +565,7 @@ export default function AdminJobsPage() {
                           </tr>
                           {expandedJobs[job.id] && (
                             <tr>
-                              <td colSpan={6} className="bg-gray-50 px-4 py-3">
+                              <td colSpan={7} className="bg-gray-50 px-4 py-3">
                                 <div className="space-y-3">
                                   <h4 className="font-medium text-gray-900">Job Details:</h4>
                                   <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
@@ -624,10 +653,16 @@ export default function AdminJobsPage() {
                           Vehicle
                         </th>
                         <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                          Technician
+                          Repair
+                        </th>
+                        <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                          Technician Email
                         </th>
                         <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
                           Completion
+                        </th>
+                        <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                          Actions
                         </th>
                       </tr>
                     </thead>
@@ -675,10 +710,23 @@ export default function AdminJobsPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-gray-900">
-                            {job.technician_name ? (
+                            {job.repair ? (
+                              <Badge className="bg-purple-100 text-purple-800">
+                                Yes
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-gray-100 text-gray-600">
+                                No
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-900">
+                            {job.technician_phone ? (
                               <div>
-                                <div className="font-medium">{job.technician_name}</div>
-                                <div className="text-gray-500 text-sm">{job.technician_phone}</div>
+                                <div className="font-medium text-blue-600">{job.technician_phone}</div>
+                                {job.technician_name && (
+                                  <div className="text-gray-500 text-sm">{job.technician_name}</div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-gray-400">No technician</span>
@@ -689,6 +737,15 @@ export default function AdminJobsPage() {
                               <p><strong>Date:</strong> {formatDate(job.job_date)}</p>
                               <p><strong>Duration:</strong> {job.actual_duration_hours || job.estimated_duration_hours || 'N/A'}h</p>
                             </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-900">
+                            <Button
+                              onClick={() => handleSendToFC(job)}
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              Send to FC
+                            </Button>
                           </td>
                         </tr>
                       ))}

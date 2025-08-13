@@ -1,13 +1,36 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, ArrowRight, TrendingUp, AlertTriangle, Car } from 'lucide-react';
+import { Users, ArrowRight, TrendingUp, AlertTriangle, Car, DollarSign, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { OverdueAccountsWidget } from '@/components/overdue/OverdueAccountsWidget';
 
 export default function DashboardContent() {
   const router = useRouter();
+  const [monthlyTotals, setMonthlyTotals] = useState(null);
+  const [loadingTotals, setLoadingTotals] = useState(true);
+
+  // Fetch monthly subscription totals
+  useEffect(() => {
+    const fetchMonthlyTotals = async () => {
+      try {
+        setLoadingTotals(true);
+        const response = await fetch('/api/vehicle-invoices/monthly-totals');
+        if (response.ok) {
+          const data = await response.json();
+          setMonthlyTotals(data);
+        }
+      } catch (error) {
+        console.error('Error fetching monthly totals:', error);
+      } finally {
+        setLoadingTotals(false);
+      }
+    };
+
+    fetchMonthlyTotals();
+  }, []);
 
   const handleViewAccounts = () => {
     router.push('/protected/accounts');
@@ -15,6 +38,14 @@ export default function DashboardContent() {
 
   const handleAccountClick = (accountNumber) => {
     router.push(`/protected/accounts/${encodeURIComponent(accountNumber)}`);
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR',
+      minimumFractionDigits: 2,
+    }).format(amount || 0);
   };
 
   return (
@@ -30,6 +61,70 @@ export default function DashboardContent() {
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>
+
+      {/* Monthly Subscription Totals - New Section */}
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 shadow-xl border-green-200">
+        <CardHeader className="text-center">
+          <CardTitle className="flex justify-center items-center space-x-2 mb-2 text-green-900 text-2xl">
+            <DollarSign className="w-8 h-8" />
+            <span>Monthly Subscription Overview</span>
+          </CardTitle>
+          <p className="text-green-700 text-lg">
+            Total monthly revenue across all cost centers and customers
+          </p>
+        </CardHeader>
+        <CardContent>
+          {loadingTotals ? (
+            <div className="flex justify-center items-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+              <span>Loading monthly totals...</span>
+            </div>
+          ) : monthlyTotals ? (
+            <div className="gap-8 grid grid-cols-1 md:grid-cols-3">
+              {/* Total Monthly Revenue */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <TrendingUp className="w-12 h-12 text-green-600" />
+                </div>
+                <div className="mb-2 font-bold text-green-600 text-4xl">
+                  {formatCurrency(monthlyTotals.totalMonthlyRevenue)}
+                </div>
+                <p className="font-semibold text-green-700 text-lg">Total Monthly Revenue</p>
+                <p className="text-green-600 text-sm">All vehicles combined</p>
+              </div>
+              
+              {/* Total Vehicles */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <Car className="w-12 h-12 text-blue-600" />
+                </div>
+                <div className="mb-2 font-bold text-blue-600 text-4xl">
+                  {monthlyTotals.totalVehicles}
+                </div>
+                <p className="font-semibold text-blue-700 text-lg">Total Vehicles</p>
+                <p className="text-blue-600 text-sm">Across all accounts</p>
+              </div>
+              
+              {/* Total Accounts */}
+              <div className="bg-white shadow-md p-6 rounded-lg text-center">
+                <div className="flex justify-center items-center mb-4">
+                  <Users className="w-12 h-12 text-indigo-600" />
+                </div>
+                <div className="mb-2 font-bold text-indigo-600 text-4xl">
+                  {monthlyTotals.totalAccounts}
+                </div>
+                <p className="font-semibold text-indigo-700 text-lg">Total Accounts</p>
+                <p className="text-indigo-600 text-sm">Cost centers/customers</p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <AlertTriangle className="mx-auto mb-4 w-12 h-12 text-gray-300" />
+              <p>Unable to load monthly totals</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -67,23 +162,23 @@ export default function DashboardContent() {
         </Card>
       </div>
 
-      {/* Overdue Accounts Widget - Main Feature */}
+      {/* All Accounts Widget - Main Feature */}
       <Card className="hover:shadow-lg transition-shadow duration-200">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-red-600">
-            <AlertTriangle className="w-5 h-5" />
-            <span>Overdue Accounts Overview</span>
+          <CardTitle className="flex items-center space-x-2 text-blue-600">
+            <Users className="w-5 h-5" />
+            <span>All Accounts Overview</span>
           </CardTitle>
           <p className="text-gray-600 text-sm">
-            Click on any account to view detailed vehicle information and costs
+            Monthly subscription totals for all cost centers and customers. Click on any account to view detailed vehicle information and costs.
           </p>
         </CardHeader>
         <CardContent>
           <OverdueAccountsWidget 
             autoRefresh={true} 
             refreshInterval={300000} // 5 minutes
-            showAllAccounts={false}
-            maxAccounts={10}
+            showAllAccounts={true}
+            maxAccounts={20}
             onAccountClick={handleAccountClick}
           />
         </CardContent>
