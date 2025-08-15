@@ -11,36 +11,23 @@ import {
   MapPin, 
   Calendar, 
   Search, 
-  RefreshCw,
-  Package,
-  Wrench,
-  QrCode
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
-import AssignPartsModal from './assign-parts-modal';
-import JobQRCode from './job-qr-code';
 
-export default function CustomerJobCards({ customerId, customerName }) {
+export default function CustomerJobCards({ accountNumber }) {
   const [jobCards, setJobCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedJobCard, setSelectedJobCard] = useState(null);
-  const [showAssignPartsModal, setShowAssignPartsModal] = useState(false);
-  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
-
-  // Helper function to check if job has parts and IP assigned
-  const hasPartsAndIPAssigned = (job) => {
-    return job.parts_required && 
-           Array.isArray(job.parts_required) && 
-           job.parts_required.length > 0 && 
-           job.ip_address;
-  };
 
   const fetchJobCards = async () => {
     try {
       setLoading(true);
-      console.log('Fetching job cards for customer ID:', customerId, 'Type:', typeof customerId);
-      const response = await fetch(`/api/job-cards/customer/${customerId}`);
+      const url = '/api/job-cards';
+      
+      console.log('Fetching all job cards');
+      const response = await fetch(url);
       console.log('Response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
@@ -49,7 +36,7 @@ export default function CustomerJobCards({ customerId, customerName }) {
       }
       const data = await response.json();
       console.log('Job cards response:', data);
-      setJobCards(data.jobCards || []);
+      setJobCards(data.job_cards || []);
     } catch (error) {
       console.error('Error fetching job cards:', error);
       toast.error('Failed to load job cards');
@@ -59,37 +46,13 @@ export default function CustomerJobCards({ customerId, customerName }) {
   };
 
   useEffect(() => {
-    if (customerId) {
-      fetchJobCards();
-    }
-  }, [customerId]);
-
-  const handleAssignParts = (jobCard) => {
-    setSelectedJobCard(jobCard);
-    setShowAssignPartsModal(true);
-  };
-
-  const handleViewQRCode = (jobCard) => {
-    if (!hasPartsAndIPAssigned(jobCard)) {
-      toast.error('QR Code is only available after parts and IP address have been assigned');
-      return;
-    }
-    setSelectedJobCard(jobCard);
-    setShowQRCodeModal(true);
-  };
-
-  const handlePartsAssigned = (updatedJobCard) => {
-    // Update the job card in the list
-    setJobCards(prev => 
-      prev.map(job => 
-        job.id === updatedJobCard.data.id ? { ...job, ...updatedJobCard.data } : job
-      )
-    );
-    toast.success('Parts assigned successfully');
-  };
-
-  const handleRefresh = () => {
     fetchJobCards();
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchJobCards();
+    setRefreshing(false);
   };
 
   const getStatusColor = (status) => {
@@ -137,21 +100,38 @@ export default function CustomerJobCards({ customerId, customerName }) {
     }
   };
 
-  const filteredJobCards = jobCards.filter(job =>
-    job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.customer_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.job_type?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredJobCards = jobCards.filter(job => {
+    // Handle status filter
+    if (searchTerm.startsWith('status:')) {
+      const status = searchTerm.substring(7); // Remove 'status:' prefix
+      return job.job_status === status;
+    }
+    
+    // Handle regular search
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        job.job_number?.toLowerCase().includes(searchLower) ||
+        job.customer_name?.toLowerCase().includes(searchLower) ||
+        job.customer_address?.toLowerCase().includes(searchLower) ||
+        job.job_type?.toLowerCase().includes(searchLower) ||
+        job.quotation_number?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    return true;
+  });
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="font-bold text-2xl">Job Cards</h2>
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="mr-2 w-4 h-4" />
-            Refresh
+                  <h2 className="font-bold text-2xl">
+          All Job Cards
+        </h2>
+          <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
+            <RefreshCw className={`mr-2 w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
         <div className="flex justify-center items-center py-12">
@@ -165,28 +145,13 @@ export default function CustomerJobCards({ customerId, customerName }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="font-bold text-2xl">Job Cards</h2>
+        <h2 className="font-bold text-2xl">
+          All Job Cards
+        </h2>
         <div className="flex gap-2">
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="mr-2 w-4 h-4" />
-            Refresh
-          </Button>
-          <Button 
-            onClick={async () => {
-              try {
-                const response = await fetch('/api/job-cards/test');
-                const data = await response.json();
-                console.log('Test endpoint response:', data);
-                toast.success(`Found ${data.total} job cards total`);
-              } catch (error) {
-                console.error('Test error:', error);
-                toast.error('Test failed');
-              }
-            }} 
-            variant="outline" 
-            size="sm"
-          >
-            Test
+          <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
+            <RefreshCw className={`mr-2 w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
       </div>
@@ -196,12 +161,43 @@ export default function CustomerJobCards({ customerId, customerName }) {
         <div className="relative flex-1">
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
-            placeholder="Search jobs by job number, type, or address..."
+            placeholder="Search all jobs by job number, customer, type, or address..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
           />
         </div>
+        <select 
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          onChange={(e) => {
+            const status = e.target.value;
+            if (status === 'all') {
+              setSearchTerm('');
+            } else {
+              setSearchTerm(`status:${status}`);
+            }
+          }}
+        >
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="on_hold">On Hold</option>
+        </select>
+      </div>
+
+      {/* Results Summary */}
+      <div className="flex justify-between items-center text-gray-600 text-sm">
+        <span>
+          Showing {filteredJobCards.length} of {jobCards.length} job cards
+          {searchTerm && !searchTerm.startsWith('status:') && (
+            <span className="ml-2">filtered by "{searchTerm}"</span>
+          )}
+          {searchTerm.startsWith('status:') && (
+            <span className="ml-2">with status "{searchTerm.substring(7)}"</span>
+          )}
+        </span>
       </div>
 
       {/* Job Cards */}
@@ -210,21 +206,20 @@ export default function CustomerJobCards({ customerId, customerName }) {
           <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">No job cards found</h3>
           <p className="text-gray-500">
-            {searchTerm ? 'No job cards match your search criteria.' : 'This customer has no job cards yet.'}
+            {searchTerm ? 'No job cards match your search criteria.' : 
+             'No job cards have been created yet.'}
           </p>
         </div>
       ) : (
-        <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-4">
           {filteredJobCards.map((job) => (
-            <Card key={job.id} className="hover:shadow-lg overflow-hidden transition-shadow">
-              <CardHeader className="pb-3">
+            <Card key={job.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2 text-lg">
+                    <div className="flex items-center gap-3 mb-3">
                       <FileText className="w-5 h-5 text-blue-600" />
-                      {job.job_number}
-                    </CardTitle>
-                    <div className="flex items-center gap-2 mt-2">
+                      <h3 className="font-semibold text-lg">{job.job_number}</h3>
                       <Badge className={getStatusColor(job.job_status)}>
                         {getStatusText(job.job_status)}
                       </Badge>
@@ -232,116 +227,86 @@ export default function CustomerJobCards({ customerId, customerName }) {
                         {getJobTypeText(job.job_type)}
                       </Badge>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleAssignParts(job)}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Wrench className="mr-1 w-4 h-4" />
-                      Assign Parts
-                    </Button>
-                    {hasPartsAndIPAssigned(job) && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleViewQRCode(job)}
-                        variant="outline"
-                      >
-                        <QrCode className="mr-1 w-4 h-4" />
-                        QR Code
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Customer Information */}
-                <div className="flex items-start gap-2 text-sm">
-                  <User className="flex-shrink-0 mt-0.5 w-4 h-4 text-gray-500" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium">Customer:</span>
-                    <span className="ml-1 text-gray-700 break-words">{job.customer_name || 'N/A'}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="flex-shrink-0 mt-0.5 w-4 h-4 text-gray-500" />
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium">Address:</span>
-                    <span className="ml-1 text-gray-700 break-words">
-                      {job.customer_address || 'No address provided'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Job Description */}
-                {job.job_description && (
-                  <div className="pt-2 border-t">
-                    <p className="text-gray-600 text-sm break-words line-clamp-2">
-                      {job.job_description}
-                    </p>
-                  </div>
-                )}
-
-                {/* Job Metadata */}
-                <div className="pt-2 border-t">
-                  <div className="flex justify-between items-center text-gray-500 text-xs">
-                                         <div className="flex items-center gap-1">
-                       <Calendar className="w-3 h-3" />
-                       <span>
-                         {job.job_date ? new Date(job.job_date).toLocaleDateString() : 'No date'}
-                       </span>
-                     </div>
                     
-                    {job.quotation_number && (
-                      <div className="flex items-center gap-1">
-                        <FileText className="w-3 h-3" />
-                        <span className="max-w-24 truncate">{job.quotation_number}</span>
+                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="w-4 h-4 text-gray-500" />
+                          <span className="font-medium">Customer:</span>
+                          <span className="text-gray-700">{job.customer_name || 'N/A'}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="w-4 h-4 text-gray-500" />
+                          <span className="font-medium">Address:</span>
+                          <span className="text-gray-700">{job.customer_address || 'No address provided'}</span>
+                        </div>
+                        
+                        {job.account_id && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium">Account:</span>
+                            <span className="text-gray-700">{job.account_id}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {job.job_date && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <span className="font-medium">Job Date:</span>
+                            <span className="text-gray-700">{new Date(job.job_date).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        
+                        {job.quotation_number && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <FileText className="w-4 h-4 text-gray-500" />
+                            <span className="font-medium">Quote:</span>
+                            <span className="text-gray-700">{job.quotation_number}</span>
+                          </div>
+                        )}
+                        
+                        {job.created_at && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium">Created:</span>
+                            <span className="text-gray-700">{new Date(job.created_at).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {job.job_description && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-gray-600 text-sm">{job.job_description}</p>
+                      </div>
+                    )}
+                    
+                    {(job.customer_email || job.customer_phone) && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex gap-4 text-sm">
+                          {job.customer_email && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Email:</span>
+                              <span className="text-gray-700">{job.customer_email}</span>
+                            </div>
+                          )}
+                          {job.customer_phone && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Phone:</span>
+                              <span className="text-gray-700">{job.customer_phone}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* Contact Information */}
-                {(job.customer_email || job.customer_phone) && (
-                  <div className="pt-2 border-t">
-                    <div className="space-y-1 text-gray-500 text-xs">
-                      {job.customer_email && (
-                        <div className="break-all">📧 {job.customer_email}</div>
-                      )}
-                      {job.customer_phone && (
-                        <div className="break-all">📞 {job.customer_phone}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
-
-      {/* Assign Parts Modal */}
-      <AssignPartsModal
-        isOpen={showAssignPartsModal}
-        onClose={() => {
-          setShowAssignPartsModal(false);
-          setSelectedJobCard(null);
-        }}
-        jobCard={selectedJobCard}
-        onPartsAssigned={handlePartsAssigned}
-      />
-
-      {/* QR Code Modal */}
-      <JobQRCode
-        isOpen={showQRCodeModal}
-        onClose={() => {
-          setShowQRCodeModal(false);
-          setSelectedJobCard(null);
-        }}
-        jobCard={selectedJobCard}
-      />
     </div>
   );
 } 

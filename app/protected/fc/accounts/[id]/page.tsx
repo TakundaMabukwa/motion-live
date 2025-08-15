@@ -45,6 +45,7 @@ function AccountDetailPageContent() {
   const [loading, setLoading] = useState(true);
   const [showClientQuote, setShowClientQuote] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (accountId) {
@@ -226,10 +227,10 @@ function AccountDetailPageContent() {
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="font-semibold text-xl">Job History</h2>
+              <h2 className="font-semibold text-xl">Job Cards</h2>
             </div>
             
-            <CustomerJobCards customerId={accountId} />
+            <CustomerJobCards accountNumber={customer?.new_account_number} />
           </div>
         );
 
@@ -237,7 +238,9 @@ function AccountDetailPageContent() {
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="font-semibold text-xl">Client Quotations</h2>
+              <h2 className="font-semibold text-xl">
+                {customer?.new_account_number ? `Client Quotations for Account ${customer.new_account_number}` : 'Client Quotations'}
+              </h2>
               <Button 
                 onClick={() => setShowClientQuote(true)}
                 className="bg-blue-600 hover:bg-blue-700"
@@ -248,10 +251,12 @@ function AccountDetailPageContent() {
             </div>
             
             <ClientJobCards 
-              accountNumber={customer?.new_account_number || accountId}
+              key={refreshKey}
+              accountNumber={customer?.new_account_number}
               onQuoteCreated={() => {
-                // Refresh the page or update the data
-                window.location.reload();
+                // Refresh the client quotes list
+                setShowClientQuote(false);
+                setRefreshKey(prev => prev + 1);
               }}
             />
           </div>
@@ -308,8 +313,13 @@ function AccountDetailPageContent() {
               </Button>
             </div>
             <ClientQuoteForm 
-              customer={customer}
-              onClose={() => setShowClientQuote(false)}
+              companyName={customer?.company || customer?.trading_name || customer?.legal_name}
+              accountInfo={customer}
+              onQuoteCreated={() => {
+                setShowClientQuote(false);
+                // Refresh the client quotes list
+                setRefreshKey(prev => prev + 1);
+              }}
             />
           </div>
         </div>

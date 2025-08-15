@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,16 @@ import {
 import { toast } from "sonner";
 
 export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCreated }) {
+  // Debug logging for accountInfo
+  useEffect(() => {
+    console.log('CustomerQuoteForm - accountInfo received:', {
+      accountInfo,
+      new_account_number: accountInfo?.new_account_number,
+      account_number: accountInfo?.account_number,
+      id: accountInfo?.id
+    });
+  }, [accountInfo]);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -75,6 +85,45 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     calculatedTotal: 0,
     productDetails: {},
   });
+
+  const [customerDataLoading, setCustomerDataLoading] = useState(false);
+  const [fetchedCustomerData, setFetchedCustomerData] = useState(null);
+
+  // Helper function to get account number with fallbacks
+  const getAccountNumber = useCallback(() => {
+    // Priority 1: Extract account number from URL path (e.g., /protected/fc/accounts/ACEA-0001)
+    if (typeof window !== 'undefined') {
+      const pathParts = window.location.pathname.split('/');
+      console.log('URL path parts:', pathParts);
+      
+      const accountIndex = pathParts.findIndex(part => part === 'accounts');
+      console.log('Found accounts at index:', accountIndex);
+      
+      if (accountIndex !== -1 && accountIndex + 1 < pathParts.length) {
+        const urlAccountNumber = pathParts[accountIndex + 1];
+        console.log('Potential account number from path:', urlAccountNumber);
+        
+        // Check if it looks like an account number (contains letters and numbers, possibly with hyphens)
+        const isAccountNumber = /^[A-Z0-9-]+$/i.test(urlAccountNumber);
+        console.log('Regex test result for', urlAccountNumber, ':', isAccountNumber);
+        
+        if (urlAccountNumber && isAccountNumber) {
+          console.log('Using account number from URL path:', urlAccountNumber);
+          return urlAccountNumber;
+        }
+      }
+    }
+    
+    // Priority 2: accountInfo props (fallback)
+    let accountNumber = accountInfo?.new_account_number || accountInfo?.account_number;
+    if (accountNumber) {
+      console.log('Using account number from accountInfo:', accountNumber);
+      return accountNumber;
+    }
+    
+    console.warn('No account number found in URL path or accountInfo');
+    return null;
+  }, [accountInfo]);
 
   const steps = [
     {
@@ -137,8 +186,8 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
       const port = window.location.port;
       const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
       
-      // Use new_account_number from accountInfo
-      const accountNumber = accountInfo?.new_account_number || accountInfo?.account_number;
+             // Use new_account_number from accountInfo
+       const accountNumber = getAccountNumber();
       
       if (!accountNumber) {
         toast.error("No account number available");
@@ -166,30 +215,88 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
   const fetchCustomerData = useCallback(async (accountNumber) => {
     if (!accountNumber) return;
     
+    setCustomerDataLoading(true);
     try {
-      const response = await fetch(`/api/customers/match-account?accountNumber=${encodeURIComponent(accountNumber)}`);
+      // Query customers table where account_number matches the new_account_number
+      const response = await fetch(`/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(accountNumber)}`);
       if (!response.ok) {
         throw new Error('Failed to fetch customer data');
       }
       const data = await response.json();
       
       if (data.success && data.customer) {
-        // Update form data with fetched customer information
-        setFormData(prev => ({
-          ...prev,
-          customerName: data.customer.trading_name || data.customer.company || prev.customerName,
-          customerEmail: data.customer.email || prev.customerEmail,
-          customerPhone: data.customer.cell_no || data.customer.switchboard || prev.customerPhone,
-          customerAddress: data.customer.physical_address || data.customer.postal_address || prev.customerAddress,
-        }));
-        
-        console.log('Customer data fetched and updated:', data.customer);
+        // Store the fetched customer data instead of immediately updating the form
+        setFetchedCustomerData(data.customer);
+        console.log('Customer data fetched and stored:', data.customer);
+        toast.success('Customer details loaded successfully', {
+          description: 'Contact information is ready to be populated',
+          duration: 3000,
+        });
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
       // Don't show error toast as this is not critical for quote creation
+    } finally {
+      setCustomerDataLoading(false);
     }
   }, []);
+
+  // Fetch customer data when account loads (not just when reaching customer details step)
+  useEffect(() => {
+    const accountNumber = getAccountNumber();
+    
+    if (accountNumber && !fetchedCustomerData) {
+      console.log('Fetching customer data when account loads for account:', accountNumber);
+      console.log('This will query customers table where account_number =', accountNumber);
+      fetchCustomerData(accountNumber);
+    }
+  }, [accountInfo, getAccountNumber, fetchCustomerData, fetchedCustomerData]);
+
+  // Populate form with fetched customer data when reaching customer details step
+  useEffect(() => {
+    if (currentStep === 1 && fetchedCustomerData) { // Customer Details step
+      console.log('Populating form with fetched customer data:', fetchedCustomerData);
+      
+      // Update form data with fetched customer information from customers table
+      setFormData(prev => ({
+        ...prev,
+        customerName: fetchedCustomerData.trading_name || fetchedCustomerData.company || fetchedCustomerData.legal_name || prev.customerName,
+        customerEmail: fetchedCustomerData.email || prev.customerEmail,
+        customerPhone: fetchedCustomerData.cell_no || fetchedCustomerData.switchboard || prev.customerPhone,
+        customerAddress: [
+          fetchedCustomerData.physical_address_1,
+          fetchedCustomerData.physical_address_2,
+          fetchedCustomerData.physical_address_3,
+          fetchedCustomerData.physical_area,
+          fetchedCustomerData.physical_province,
+          fetchedCustomerData.physical_code,
+          fetchedCustomerData.physical_country
+        ].filter(Boolean).join(', ') || prev.customerAddress,
+      }));
+      
+      toast.success('Customer details populated automatically', {
+        description: 'Contact information has been filled from customers table',
+        duration: 3000,
+      });
+    }
+  }, [currentStep, fetchedCustomerData]);
+
+  // Auto-fetch customer data when entering customer details step (fallback)
+  useEffect(() => {
+    if (currentStep === 1 && !fetchedCustomerData) { // Customer Details step
+      const accountNumber = getAccountNumber();
+      
+      if (accountNumber) {
+        console.log('Fallback: fetching customer data for account:', accountNumber);
+        console.log('This will query customers table where account_number =', accountNumber);
+        fetchCustomerData(accountNumber);
+      } else {
+        console.warn('No account number available for fetching customer data');
+      }
+    }
+  }, [currentStep, getAccountNumber, fetchCustomerData, fetchedCustomerData]);
+
+
 
   const fetchProductItems = async () => {
     setLoadingProducts(true);
@@ -364,9 +471,16 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     setSubmitError(null);
 
     try {
-      // Fetch customer data when about to create a quote
-      const accountNumber = accountInfo?.new_account_number || accountInfo?.account_number;
-      if (accountNumber) {
+                   // Use fetched customer data if available, otherwise fetch it
+      const accountNumber = getAccountNumber();
+      console.log('=== ACCOUNT NUMBER DEBUG ===');
+      console.log('Final resolved account number:', accountNumber);
+      console.log('URL pathname:', typeof window !== 'undefined' ? window.location.pathname : 'N/A');
+      console.log('URL path parts:', typeof window !== 'undefined' ? window.location.pathname.split('/') : 'N/A');
+      console.log('Account info:', accountInfo);
+      console.log('===========================');
+      
+      if (accountNumber && !fetchedCustomerData) {
         await fetchCustomerData(accountNumber);
       }
 
@@ -441,8 +555,10 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
         
-        // Account information (for internal quotes)
+                         // Account information (for internal quotes)
         accountId: accountInfo?.id,
+        accountNumber: getAccountNumber(),
+        new_account_number: getAccountNumber(), // Explicitly set new_account_number for client_quotes table
         
         // Quotation products with detailed pricing
         quotationProducts: quotationProducts,
@@ -463,9 +579,26 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
       };
 
       console.log('Submitting quotation data:', quotationData);
+                    console.log('Account info being used:', {
+          id: accountInfo?.id,
+          new_account_number: accountInfo?.new_account_number,
+          account_number: accountInfo?.account_number,
+          company: accountInfo?.company,
+          company_trading_name: accountInfo?.company_trading_name,
+          fullAccountInfo: accountInfo,
+          resolvedAccountNumber: getAccountNumber()
+        });
+        
+        console.log('Final account number being sent:', {
+          accountNumber: getAccountNumber(),
+          new_account_number: getAccountNumber(),
+          urlParams: typeof window !== 'undefined' ? new URLSearchParams(window.location.search).toString() : 'N/A'
+        });
       
-      // Send data to job_cards API
-      const response = await fetch(`${baseUrl}/api/job-cards`, {
+      // Send data to client_quotes API
+      console.log('Final quotation data being sent:', JSON.stringify(quotationData, null, 2));
+      
+      const response = await fetch(`${baseUrl}/api/client-quotes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -476,12 +609,12 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create job card');
+        throw new Error(result.error || 'Failed to create client quote');
       }
 
       // Show success toast
-      toast.success('Quote created successfully!', {
-        description: `Job Number: ${result.data.job_number}`,
+      toast.success('Client quote created successfully!', {
+        description: `Quote Number: ${result.data.job_number}`,
         duration: 5000,
       });
       
@@ -574,6 +707,12 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
         <CardTitle className="flex items-center gap-2">
           <User className="w-5 h-5" />
           Customer Details
+          {customerDataLoading && (
+            <div className="flex items-center gap-2 text-blue-600 text-sm">
+              <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
+              Loading contact details...
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -587,6 +726,7 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
               onChange={(e) =>
                 setFormData({ ...formData, customerName: e.target.value })
               }
+              disabled={customerDataLoading}
             />
           </div>
           <div className="space-y-2">
@@ -599,6 +739,7 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
               onChange={(e) =>
                 setFormData({ ...formData, customerEmail: e.target.value })
               }
+              disabled={customerDataLoading}
             />
           </div>
         </div>
@@ -613,6 +754,7 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
               onChange={(e) =>
                 setFormData({ ...formData, customerPhone: e.target.value })
               }
+              disabled={customerDataLoading}
             />
           </div>
           <div className="space-y-2">
@@ -624,9 +766,74 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
               onChange={(e) =>
                 setFormData({ ...formData, customerAddress: e.target.value })
               }
+              disabled={customerDataLoading}
             />
           </div>
         </div>
+        
+        {customerDataLoading && (
+          <div className="bg-blue-50 p-3 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2 text-blue-700">
+              <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
+              <span className="text-sm">Automatically loading contact details from your account...</span>
+            </div>
+          </div>
+        )}
+        
+        {!customerDataLoading && (
+          <div className="flex justify-between items-center">
+            <div className="text-gray-600 text-sm">
+              Contact details will be automatically loaded from your account
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const accountNumber = getAccountNumber();
+                
+                if (accountNumber) {
+                  if (fetchedCustomerData) {
+                    // If we already have the data, just populate the form
+                    console.log('Re-populating form with existing customer data:', fetchedCustomerData);
+                    setFormData(prev => ({
+                      ...prev,
+                      customerName: fetchedCustomerData.trading_name || fetchedCustomerData.company || fetchedCustomerData.legal_name || prev.customerName,
+                      customerEmail: fetchedCustomerData.email || prev.customerEmail,
+                      customerPhone: fetchedCustomerData.cell_no || fetchedCustomerData.switchboard || prev.customerPhone,
+                      customerAddress: [
+                        fetchedCustomerData.physical_address_1,
+                        fetchedCustomerData.physical_address_2,
+                        fetchedCustomerData.physical_address_3,
+                        fetchedCustomerData.physical_area,
+                        fetchedCustomerData.physical_province,
+                        fetchedCustomerData.physical_code,
+                        fetchedCustomerData.physical_country
+                      ].filter(Boolean).join(', ') || prev.customerAddress,
+                    }));
+                    
+                    toast.success('Customer details re-populated', {
+                      description: 'Contact information has been refreshed',
+                      duration: 3000,
+                    });
+                  } else {
+                    // Fetch new data if we don't have it
+                    fetchCustomerData(accountNumber);
+                  }
+                } else {
+                  toast.error('No account number available', {
+                    description: 'Please ensure you have access to an account',
+                    duration: 3000,
+                  });
+                }
+              }}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              <User className="mr-2 w-4 h-4" />
+              Reload Contact Details
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

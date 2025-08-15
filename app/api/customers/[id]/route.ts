@@ -41,11 +41,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const customer = {
       id: accountNumber,
       new_account_number: accountNumber,
+      account_number: accountNumber, // Add this for backward compatibility
       company: vehicle.company || 'Unknown Company',
+      company_trading_name: vehicle.company || vehicle.trading_name || 'Unknown Company',
       trading_name: vehicle.company || vehicle.trading_name || 'Unknown Company',
       email: vehicle.email || '',
+      landline_no: vehicle.switchboard || vehicle.phone || vehicle.cell_no || '',
       cell_no: vehicle.cell_no || vehicle.phone || '',
       switchboard: vehicle.switchboard || vehicle.phone || '',
+      address: vehicle.physical_address || vehicle.address || '',
       physical_address: vehicle.physical_address || vehicle.address || '',
       postal_address: vehicle.postal_address || vehicle.address || '',
       // Add other fields as needed

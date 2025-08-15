@@ -197,3 +197,99 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    
+    // Re-enable authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    
+    // Validate required fields
+    if (!body.account_number || !body.company || !body.trading_name) {
+      return NextResponse.json({ 
+        error: 'Missing required fields: account_number, company, and trading_name are required' 
+      }, { status: 400 });
+    }
+
+    // Prepare customer data
+    const customerData = {
+      divisions: body.divisions || null,
+      account_number: body.account_number,
+      company: body.company,
+      legal_name: body.legal_name || null,
+      trading_name: body.trading_name,
+      holding_company: body.holding_company || null,
+      skylink_name: body.skylink_name || null,
+      annual_billing_run_date: body.annual_billing_run_date || null,
+      payment_terms: body.payment_terms || null,
+      category: body.category || null,
+      accounts_status: body.accounts_status || 'active',
+      acc_contact: body.acc_contact || null,
+      sales_rep: body.sales_rep || null,
+      date_added: body.date_added || new Date().toISOString(),
+      switchboard: body.switchboard || null,
+      cell_no: body.cell_no || null,
+      email: body.email || null,
+      send_accounts_to_contact: body.send_accounts_to_contact || null,
+      send_accounts_to_email_for_statements_and_multibilling: body.send_accounts_to_email_for_statements_and_multibilling || null,
+      vat_number: body.vat_number || null,
+      vat_exempt_number: body.vat_exempt_number || null,
+      registration_number: body.registration_number || null,
+      creator: body.creator || null,
+      modified_by: body.modified_by || null,
+      date_modified: body.date_modified || new Date().toISOString(),
+      physical_address_1: body.physical_address_1 || null,
+      physical_address_2: body.physical_address_2 || null,
+      physical_address_3: body.physical_address_3 || null,
+      physical_area: body.physical_area || null,
+      physical_province: body.physical_province || null,
+      physical_code: body.physical_code || null,
+      physical_country: body.physical_country || null,
+      postal_address_1: body.postal_address_1 || null,
+      postal_address_2: body.postal_address_2 || null,
+      postal_area: body.postal_area || null,
+      postal_province: body.postal_province || null,
+      postal_code: body.postal_code || null,
+      postal_country: body.postal_country || null,
+      branch_person: body.branch_person || null,
+      branch_person_number: body.branch_person_number || null,
+      branch_person_email: body.branch_person_email || null,
+      count_of_products: body.count_of_products || null,
+      new_account_number: body.new_account_number || null,
+    };
+
+    // Insert the customer
+    const { data, error } = await supabase
+      .from('customers')
+      .insert([customerData])
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error inserting customer:', error);
+      return NextResponse.json({ 
+        error: 'Failed to create customer account',
+        details: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Customer account created successfully',
+      data: data 
+    });
+
+  } catch (error) {
+    console.error('Error in customers POST:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+} 

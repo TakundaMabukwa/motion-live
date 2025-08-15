@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { OverdueAccountsWidget } from '@/components/overdue/OverdueAccountsWidget';
 import InternalAccountDashboard from './InternalAccountDashboard';
 
+
 export default function AccountsContent({ activeSection }) {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function AccountsContent({ activeSection }) {
   const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
+
   const router = useRouter();
 
   const fetchCustomers = useCallback(async (isLoadMore = false) => {
@@ -207,6 +209,8 @@ export default function AccountsContent({ activeSection }) {
     fetchAccountData(accountNumber);
   };
 
+
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -256,13 +260,16 @@ export default function AccountsContent({ activeSection }) {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h2>
-          <Button 
-            onClick={() => router.push('/protected/accounts')}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            View All Accounts
-          </Button>
+          <div className="flex gap-2">
+
+            <Button 
+              onClick={() => router.push('/protected/accounts')}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              View All Accounts
+            </Button>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -1788,6 +1795,8 @@ export default function AccountsContent({ activeSection }) {
           </div>
         </div>
       )}
+
+
     </>
   );
 }

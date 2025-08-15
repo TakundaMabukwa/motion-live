@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    // Get all job cards data without complex filtering
+    // Get all job cards data
     let query = supabase
       .from('job_cards')
       .select('*')

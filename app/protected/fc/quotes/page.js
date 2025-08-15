@@ -6,7 +6,7 @@ import {
   FileText,
   Filter,
   ChevronDown,
-  Eye,
+  Trash2,
   Calendar,
   DollarSign,
   CheckCircle,
@@ -35,6 +35,7 @@ export default function QuotesDashboard() {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [approvingQuote, setApprovingQuote] = useState(null);
+  const [decliningQuote, setDecliningQuote] = useState(null);
 
   // Fetch quotes from the API
   const fetchQuotes = useCallback(async () => {
@@ -195,6 +196,45 @@ export default function QuotesDashboard() {
       });
     } finally {
       setApprovingQuote(null);
+    }
+  };
+
+  const handleDeclineQuote = async (quote) => {
+    // Confirm before declining
+    if (!confirm(`Are you sure you want to decline and delete quote ${quote.job_number}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      setDecliningQuote(quote.id);
+      
+      // Delete the quote
+      const response = await fetch(`/api/customer-quotes/${quote.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete quote');
+      }
+
+      toast.success('Quote declined and deleted successfully!', {
+        description: `Quote ${quote.job_number} has been removed.`
+      });
+
+      // Refresh the quotes list
+      fetchQuotes();
+
+    } catch (error) {
+      console.error('Error declining quote:', error);
+      toast.error('Failed to decline quote', {
+        description: error.message
+      });
+    } finally {
+      setDecliningQuote(null);
     }
   };
 
@@ -396,28 +436,41 @@ export default function QuotesDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(`/protected/fc/external-quotation?id=${quote.id}`, '_blank')}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
                         {quote.job_status !== 'approved' && (
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                            onClick={() => handleApproveQuote(quote)}
-                            disabled={approvingQuote === quote.id}
-                          >
-                            {approvingQuote === quote.id ? (
-                              <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                            ) : (
-                              <Check className="w-4 h-4 mr-1" />
-                            )}
-                            {approvingQuote === quote.id ? 'Approving...' : 'Approve'}
-                          </Button>
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-red-600 hover:bg-red-700 text-white border-red-600"
+                              onClick={() => handleDeclineQuote(quote)}
+                              disabled={decliningQuote === quote.id}
+                            >
+                              {decliningQuote === quote.id ? (
+                                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4 mr-1" />
+                              )}
+                              {decliningQuote === quote.id ? 'Declining...' : 'Decline'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700"
+                              onClick={() => handleApproveQuote(quote)}
+                              disabled={approvingQuote === quote.id}
+                            >
+                              {approvingQuote === quote.id ? (
+                                <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              ) : (
+                                <Check className="w-4 h-4 mr-1" />
+                              )}
+                              {approvingQuote === quote.id ? 'Approving...' : 'Approve'}
+                            </Button>
+                          </>
+                        )}
+                        {quote.job_status === 'approved' && (
+                          <Badge className="bg-green-100 text-green-800">
+                            Approved
+                          </Badge>
                         )}
                       </div>
                     </TableCell>

@@ -29,6 +29,7 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
+import { FaR } from "react-icons/fa6";
 
 export default function ExternalQuotation() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -82,7 +83,8 @@ export default function ExternalQuotation() {
       id: 2,
       title: "Quote Details",
       subtitle: "Pricing and terms",
-      icon: DollarSign,
+      // icon: <FaR />
+      icon: FaR
     },
     { id: 3, title: "Email", subtitle: "Send quote to customer", icon: Mail },
   ];
@@ -391,7 +393,7 @@ export default function ExternalQuotation() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="install">Installation</SelectItem>
-                <SelectItem value="deinstall">De-installation</SelectItem>
+                {/* <SelectItem value="deinstall">De-installation</SelectItem> */}
               </SelectContent>
             </Select>
           </div>

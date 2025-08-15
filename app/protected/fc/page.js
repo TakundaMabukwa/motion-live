@@ -9,12 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import NewAccountDialog from "@/components/ui-personal/new-account-dialog";
 import {
   Users,
   Search,
   Plus,
   Loader2,
-  Car,
   Building2,
   Eye,
 } from "lucide-react";
@@ -25,9 +25,10 @@ export default function AccountsDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [totalCount, setTotalCount] = useState(0);
+  const [showNewAccountDialog, setShowNewAccountDialog] = useState(false);
 
   // Fetch customers data
-  const fetchCustomers = useCallback(async (search = "", page = 1, append = false) => {
+  const fetchCustomers = useCallback(async (search = "") => {
     try {
       setLoading(true);
       const response = await fetch(`/api/customers?search=${encodeURIComponent(search)}`);
@@ -53,7 +54,7 @@ export default function AccountsDashboard() {
 
   // Initial load
   useEffect(() => {
-    fetchCustomers("", 1, false);
+    fetchCustomers("");
   }, [fetchCustomers]);
 
   // Debounced search effect
@@ -61,7 +62,7 @@ export default function AccountsDashboard() {
     const timer = setTimeout(() => {
       if (searchTerm !== debouncedSearchTerm) {
         setDebouncedSearchTerm(searchTerm);
-        fetchCustomers(searchTerm, 1, false);
+        fetchCustomers(searchTerm);
       }
     }, 500);
 
@@ -73,16 +74,22 @@ export default function AccountsDashboard() {
   }, [customers]);
 
   const handleNewAccount = () => {
-    // TODO: Implement new account creation
-    toast.info("New account creation coming soon!");
+    setShowNewAccountDialog(true);
+  };
+
+  const handleNewAccountCreated = (newAccount) => {
+    console.log('New account created:', newAccount);
+    fetchCustomers(); // Refresh the list
+    toast.success('New account created successfully!');
+    setShowNewAccountDialog(false);
   };
 
   if (loading) {
     return (
       <div className="space-y-6 p-6">
         <DashboardHeader
-          title="Companies"
-          subtitle="Browse individual companies"
+          title="Clients"
+          subtitle="Browse individual clients"
           icon={Users}
           actionButton={{
             label: "New Account",
@@ -119,7 +126,7 @@ export default function AccountsDashboard() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input
             type="text"
-            placeholder="Search companies..."
+            placeholder="Search clients..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10"
@@ -131,7 +138,7 @@ export default function AccountsDashboard() {
       {/* Results count */}
       {!loading && (
         <div className="text-sm text-gray-600">
-          Showing {filteredCustomers.length} of {totalCount} companies
+          Showing {filteredCustomers.length} of {totalCount} clients
           {searchTerm && ` matching "${searchTerm}"`}
         </div>
       )}
@@ -236,6 +243,12 @@ export default function AccountsDashboard() {
           </CardContent>
         </Card>
       )}
+
+      <NewAccountDialog
+        open={showNewAccountDialog}
+        onOpenChange={setShowNewAccountDialog}
+        onAccountCreated={handleNewAccountCreated}
+      />
     </div>
   );
 }

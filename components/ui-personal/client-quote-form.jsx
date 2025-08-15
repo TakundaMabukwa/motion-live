@@ -32,7 +32,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
-export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCreated }) {
+export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -573,8 +573,8 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
 
       console.log('Submitting quotation data:', quotationData);
       
-      // Send data to job_cards API
-      const response = await fetch(`${baseUrl}/api/job-cards`, {
+      // Send data to client_quotes API
+      const response = await fetch(`${baseUrl}/api/client-quotes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -585,18 +585,14 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create job card');
+        throw new Error(result.error || 'Failed to create client quote');
       }
 
       // Show success toast
-      toast.success('Quote created successfully!', {
-        description: `Job Number: ${result.data.job_number}`,
+      toast.success('Client quote created successfully!', {
+        description: `Quote Number: ${result.data.job_number}`,
         duration: 5000,
       });
-      
-      if (onQuoteCreated) {
-        onQuoteCreated();
-      }
       
       // Reset form data
       setFormData({
@@ -629,8 +625,10 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
       setSelectedCategory("all");
       setHasUserSelectedJobType(false);
       
-      // Close the form
-      onClose();
+      // Form submitted successfully - call callback after reset
+      if (onQuoteCreated) {
+        onQuoteCreated();
+      }
     } catch (error) {
       console.error('Error submitting quote:', error);
       
@@ -891,6 +889,48 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
       case 2:
         return (
           <div className="space-y-6">
+            {/* Selected Products List - Show at top */}
+            {(selectedProducts || []).length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    Selected Products ({selectedProducts.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {(selectedProducts || []).map((product, index) => (
+                      <div key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-blue-600 rounded-full w-3 h-3"></div>
+                          <div>
+                            <div className="font-medium text-gray-900">{product.name}</div>
+                            <div className="text-gray-600 text-sm">
+                              Qty: {product.quantity} • 
+                              {product.purchaseType === 'purchase' ? (
+                                <span className="text-green-600"> R{product.cashPrice?.toFixed(2) || '0.00'}</span>
+                              ) : (
+                                <span className="text-blue-600"> R{product.rentalPrice?.toFixed(2) || '0.00'}/month</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeProduct(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Product Selection */}
             {formData.jobType === 'install' && (
               <Card>
@@ -1459,8 +1499,8 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
   };
 
   return (
-    <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
-      <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-4xl h-[95vh]">
+    <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
+      <div className="flex flex-col bg-white shadow-xl w-[95%] h-[95%]">
         {/* Header */}
         <div className="flex flex-shrink-0 justify-between items-center p-6 border-b">
           <div>
@@ -1469,7 +1509,7 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
           </div>
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={() => onQuoteCreated && onQuoteCreated()}
             className="text-gray-500 hover:text-gray-700"
           >
             <X className="w-4 h-4" />
@@ -1527,7 +1567,7 @@ export default function ClientQuoteForm({ customer, vehicles, onClose, onQuoteCr
         <div className="flex flex-shrink-0 justify-between items-center p-6 border-t">
           <Button
             variant="outline"
-            onClick={currentStep === 0 ? onClose : handlePreviousStep}
+            onClick={currentStep === 0 ? () => onQuoteCreated && onQuoteCreated() : handlePreviousStep}
           >
             {currentStep === 0 ? 'Cancel' : 'Previous'}
           </Button>
