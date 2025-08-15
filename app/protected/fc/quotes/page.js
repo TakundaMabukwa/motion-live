@@ -320,13 +320,12 @@ export default function QuotesDashboard() {
         <Card>
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
             <CardTitle className="font-medium text-sm">Total Value</CardTitle>
-            <DollarSign className="w-4 h-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="font-bold text-purple-600 text-2xl">
               {totalValue >= 1000000 ? `R${(totalValue / 1000000).toFixed(1)}M` : `R${(totalValue / 1000).toFixed(1)}K`}
             </div>
-            <p className="text-muted-foreground text-xs">Combined value</p>
+            {/* <p className="text-muted-foreground text-xs">Combined value</p> */}
           </CardContent>
         </Card>
       </div>

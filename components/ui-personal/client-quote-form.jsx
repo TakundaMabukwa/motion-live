@@ -18,7 +18,6 @@ import {
   ArrowRight,
   FileText,
   User,
-  DollarSign,
   Mail,
   CheckCircle,
   AlertTriangle,
@@ -29,6 +28,7 @@ import {
   X,
   Car,
 } from "lucide-react";
+import { FaR } from "react-icons/fa6";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -97,7 +97,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
       id: 2,
       title: "Quote Details",
       subtitle: "Pricing and terms",
-      icon: DollarSign,
+      icon: FaR,
     },
     { id: 3, title: "Email", subtitle: "Send quote to customer", icon: Mail },
   ];
