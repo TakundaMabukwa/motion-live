@@ -44,7 +44,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [approvingQuote, setApprovingQuote] = useState(null);
-  const [deletingQuote, setDeletingQuote] = useState(null);
+  const [decliningQuote, setDecliningQuote] = useState(null);
 
   // Fetch client quotes from the client_quotes table, filtered by account number
   const fetchClientQuotes = useCallback(async () => {
@@ -170,16 +170,16 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
     }
   };
 
-  const handleDeleteQuote = async (quote) => {
-    // Confirm before deleting
-    if (!confirm(`Are you sure you want to delete quote ${quote.job_number}? This action cannot be undone.`)) {
+  const handleDeclineQuote = async (quote) => {
+    // Confirm before declining
+    if (!confirm(`Are you sure you want to decline quote ${quote.job_number}? This action cannot be undone.`)) {
       return;
     }
     
     try {
-      setDeletingQuote(quote.id);
+      setDecliningQuote(quote.id);
       
-      // Delete the client quote
+      // Decline the client quote
       const response = await fetch(`/api/client-quotes/${quote.id}`, {
         method: 'DELETE',
         headers: {
@@ -189,23 +189,23 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete quote');
+        throw new Error(errorData.error || 'Failed to decline quote');
       }
 
-      toast.success('Quote deleted successfully!', {
-        description: `Quote ${quote.job_number} has been removed.`
+      toast.success('Quote declined successfully!', {
+        description: `Quote ${quote.job_number} has been declined.`
       });
 
       // Refresh the client quotes list
       fetchClientQuotes();
 
     } catch (error) {
-      console.error('Error deleting quote:', error);
-      toast.error('Failed to delete quote', {
+      console.error('Error declining quote:', error);
+      toast.error('Failed to decline quote', {
         description: error.message
       });
     } finally {
-      setDeletingQuote(null);
+      setDecliningQuote(null);
     }
   };
 
@@ -421,15 +421,15 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                               variant="outline"
                               size="sm"
                               className="bg-red-600 hover:bg-red-700 border-red-600 text-white"
-                              onClick={() => handleDeleteQuote(quote)}
-                              disabled={deletingQuote === quote.id}
+                              onClick={() => handleDeclineQuote(quote)}
+                              disabled={decliningQuote === quote.id}
                             >
-                              {deletingQuote === quote.id ? (
+                              {decliningQuote === quote.id ? (
                                 <RefreshCw className="mr-1 w-4 h-4 animate-spin" />
                               ) : (
                                 <Trash2 className="mr-1 w-4 h-4" />
                               )}
-                              {deletingQuote === quote.id ? 'Deleting...' : 'Delete'}
+                              {decliningQuote === quote.id ? 'Declining...' : 'Decline'}
                             </Button>
                             <Button
                               size="sm"
