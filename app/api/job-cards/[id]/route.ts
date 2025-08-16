@@ -1,38 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { JobCardService } from '@/lib/services/job-card-service';
+import { handleApiError } from '@/lib/errors';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
+
+// Create an instance of the service
+const jobCardService = new JobCardService();
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
     const { id } = await params;
+    
+    // Get job card from service
+    const jobCard = await jobCardService.getJobCardById(id);
 
-    // Fetch the job card by ID
-    const { data: job, error: fetchError } = await supabase
-      .from('job_cards')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching job card:', fetchError);
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(job);
-
+    return NextResponse.json(jobCard);
   } catch (error) {
-    console.error('Error in job-cards GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in job card GET:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }
 
@@ -41,38 +36,55 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
     const { id } = await params;
     const body = await request.json();
 
-    // Update the job card
-    const { data: updatedJob, error: updateError } = await supabase
-      .from('job_cards')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id,
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    // Update job card
+    const updatedJobCard = await jobCardService.updateJobCard(id, body);
 
-    if (updateError) {
-      console.error('Error updating job card:', updateError);
-      return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
+    return NextResponse.json(updatedJobCard);
+  } catch (error) {
+    console.error('Error in job card PATCH:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}
+
+/**
+ * DELETE /api/job-cards/[id]
+ * Delete a job card
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
-    return NextResponse.json(updatedJob);
+    const { id } = await params;
+    
+    // Delete job card
+    await jobCardService.deleteJobCard(id);
 
+    return NextResponse.json({ 
+      success: true,
+      message: 'Job card deleted successfully'
+    });
   } catch (error) {
-    console.error('Error in job-cards PATCH:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in job card DELETE:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }

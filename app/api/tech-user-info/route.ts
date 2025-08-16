@@ -1,49 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
+import { TechnicianService } from '@/lib/services/technician-service';
+import { handleApiError } from '@/lib/errors';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
 
-export async function GET(request: NextRequest) {
+// Create an instance of the service
+const technicianService = new TechnicianService();
+
+/**
+ * GET /api/tech-user-info
+ * Get information about the authenticated technician user
+ */
+export async function GET() {
   try {
-    const supabase = await createClient();
-    
     // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let user;
+    try {
+      user = await getAuthenticatedUser();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
-    // Get user info from users table
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, email, role, tech_admin')
-      .eq('id', user.id)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching user data:', userError);
-      return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 });
-    }
-
-    if (!userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Check if user is a technician
-    if (userData.role !== 'tech') {
-      return NextResponse.json({ error: 'Access denied. Technician role required.' }, { status: 403 });
-    }
-
+    // Use service to get technician and user info
+    const result = await technicianService.getTechUserInfoWithRole(user.id);
+    
     return NextResponse.json({
       user: {
-        id: userData.id,
-        email: userData.email,
-        role: userData.role
+        id: result.user.id,
+        email: result.user.email,
+        role: result.user.role
       },
-      isTechAdmin: userData.tech_admin || false
+      isTechAdmin: result.isAdmin || result.user.tech_admin || false,
+      technician: result.technician
     });
-
   } catch (error) {
-    console.error('Error in tech-user-info GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = handleApiError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
 

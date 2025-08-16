@@ -1,220 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { OverdueService } from '@/lib/services/overdue-service';
+import { handleApiError } from '@/lib/errors';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
+import { Logger } from '@/lib/logger';
 
-export async function GET(request: NextRequest) {
+// Create an instance of the service and logger
+const service = new OverdueService();
+const logger = new Logger('overdue-check-api');
+
+/**
+ * GET /api/overdue-check
+ * Get overdue payment information
+ */
+export async function GET(_request: NextRequest) {
   try {
-    const supabase = await createClient();
+    logger.debug('Starting overdue check request');
     
-    // Get current date and calculate overdue periods
-    const now = new Date();
-    const currentDay = now.getDate();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    // Payment is due on 21st of each month
-    const paymentDueDay = 21;
-    
-    // Calculate overdue months based on current date vs payment due date
-    let monthsLate = 0;
-    if (currentDay > paymentDueDay) {
-      monthsLate = 1; // Current month is overdue
+    // Get authenticated user
+    try {
+      const user = await getAuthenticatedUser();
+      logger.debug('User authenticated successfully', { user: user.email });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_authError) {
+      logger.warn('Authentication failed');
+      return createUnauthorizedResponse();
     }
 
-    // Fetch all vehicle invoices with monthly subscription data
-    const { data: invoices, error } = await supabase
-      .from('vehicle_invoices')
-      .select('*')
-      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
-
-    if (error) {
-      console.error('Error fetching vehicle invoices for overdue check:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
-    }
-
-    // Process invoices to calculate overdue amounts
-    const overdueAccounts = {};
-    let totalOverdueAmount = 0;
-    let totalAccountsWithOverdue = 0;
-
-    invoices?.forEach(invoice => {
-      const monthlyAmount = parseFloat(invoice.total_incl_vat) || 0;
-      
-      if (monthlyAmount > 0) {
-        // Calculate overdue amounts for different periods
-        const overdue1_30 = monthsLate >= 1 ? monthlyAmount : 0;
-        const overdue31_60 = monthsLate >= 2 ? monthlyAmount : 0;
-        const overdue61_90 = monthsLate >= 3 ? monthlyAmount : 0;
-        const overdue91_plus = monthsLate >= 4 ? monthlyAmount : 0;
-        
-        const totalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
-
-        const accountNumber = invoice.new_account_number;
-        if (!accountNumber) return;
-
-        if (!overdueAccounts[accountNumber]) {
-          overdueAccounts[accountNumber] = {
-            accountNumber,
-            company: invoice.company,
-            totalMonthlyAmount: 0,
-            totalOverdue: 0,
-            overdue1_30: 0,
-            overdue31_60: 0,
-            overdue61_90: 0,
-            overdue91_plus: 0,
-            vehicleCount: 0
-          };
-        }
-
-        overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
-        overdueAccounts[accountNumber].totalOverdue += totalOverdue;
-        overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
-        overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
-        overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
-        overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
-        overdueAccounts[accountNumber].vehicleCount += 1;
-
-        if (totalOverdue > 0) {
-          totalOverdueAmount += totalOverdue;
-        }
-      }
-    });
-
-    totalAccountsWithOverdue = Object.values(overdueAccounts).filter(acc => acc.totalOverdue > 0).length;
-
-    // Sort accounts by total monthly amount (highest first) to show all accounts
-    const sortedOverdueAccounts = Object.values(overdueAccounts)
-      .sort((a: any, b: any) => b.totalMonthlyAmount - a.totalMonthlyAmount);
-
-    // Log the overdue check results
-    console.log(`[${new Date().toISOString()}] Overdue Check Results:`, {
-      totalAccountsWithOverdue,
-      totalOverdueAmount,
-      monthsLate,
-      topOverdueAccounts: sortedOverdueAccounts.slice(0, 5).map(acc => ({
-        company: acc.company,
-        accountNumber: acc.accountNumber,
-        totalOverdue: acc.totalOverdue
-      }))
-    });
-
-    return NextResponse.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      summary: {
-        totalAccountsWithOverdue,
-        totalOverdueAmount,
-        monthsLate,
-        paymentDueDay
-      },
-      topOverdueAccounts: sortedOverdueAccounts.slice(0, 10),
-      allOverdueAccounts: sortedOverdueAccounts
-    });
-
+    // Get overdue check from service
+    const result = await service.getOverdueCheck();
+    
+    logger.info('Overdue check request completed successfully');
+    
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in overdue check:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('Error in overdue check GET', error as Error);
+    const { message, status } = handleApiError(error as Error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
+/**
+ * POST /api/overdue-check
+ * Force refresh overdue payment information
+ */
 export async function POST(request: NextRequest) {
   try {
+    logger.debug('Starting overdue check POST request');
+    
+    // Get authenticated user
+    try {
+      const user = await getAuthenticatedUser();
+      logger.debug('User authenticated successfully', { user: user.email });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_authError) {
+      logger.warn('Authentication failed');
+      return createUnauthorizedResponse();
+    }
+
+    // Parse request body
     const body = await request.json();
-    const { forceRefresh = false } = body;
+    const { forceRefresh = true } = body; // Default to true for POST
     
-    // This endpoint can be called with POST to force a refresh
-    // Useful for admin dashboards or when data needs to be updated immediately
+    logger.debug('Overdue check POST parameters', { forceRefresh });
+
+    // Get overdue check from service with force refresh
+    const result = await service.getOverdueCheck({ forceRefresh });
     
-    const supabase = await createClient();
+    logger.info('Overdue check POST request completed successfully');
     
-    // Get current date and calculate overdue periods
-    const now = new Date();
-    const currentDay = now.getDate();
-    const paymentDueDay = 21;
-    
-    let monthsLate = 0;
-    if (currentDay > paymentDueDay) {
-      monthsLate = 1;
-    }
-
-    // Fetch all vehicle invoices with monthly subscription data
-    const { data: invoices, error } = await supabase
-      .from('vehicle_invoices')
-      .select('*')
-      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
-
-    if (error) {
-      console.error('Error fetching vehicle invoices for overdue check:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
-    }
-
-    // Process invoices to calculate overdue amounts
-    const overdueAccounts = {};
-    let totalOverdueAmount = 0;
-    let totalAccountsWithOverdue = 0;
-
-    invoices?.forEach(invoice => {
-      const monthlyAmount = parseFloat(invoice.total_incl_vat) || 0;
-      
-      if (monthlyAmount > 0) {
-        const overdue1_30 = monthsLate >= 1 ? monthlyAmount : 0;
-        const overdue31_60 = monthsLate >= 2 ? monthlyAmount : 0;
-        const overdue61_90 = monthsLate >= 3 ? monthlyAmount : 0;
-        const overdue91_plus = monthsLate >= 4 ? monthlyAmount : 0;
-        
-        const totalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
-
-        const accountNumber = invoice.new_account_number;
-        if (!accountNumber) return;
-
-        if (!overdueAccounts[accountNumber]) {
-          overdueAccounts[accountNumber] = {
-            accountNumber,
-            company: invoice.company,
-            totalMonthlyAmount: 0,
-            totalOverdue: 0,
-            overdue1_30: 0,
-            overdue31_60: 0,
-            overdue61_90: 0,
-            overdue91_plus: 0,
-            vehicleCount: 0
-          };
-        }
-
-        overdueAccounts[accountNumber].totalMonthlyAmount += monthlyAmount;
-        overdueAccounts[accountNumber].totalOverdue += totalOverdue;
-        overdueAccounts[accountNumber].overdue1_30 += overdue1_30;
-        overdueAccounts[accountNumber].overdue31_60 += overdue31_60;
-        overdueAccounts[accountNumber].overdue61_90 += overdue61_90;
-        overdueAccounts[accountNumber].overdue91_plus += overdue91_plus;
-        overdueAccounts[accountNumber].vehicleCount += 1;
-
-        if (totalOverdue > 0) {
-          totalOverdueAmount += totalOverdue;
-        }
-      }
-    });
-
-    totalAccountsWithOverdue = Object.values(overdueAccounts).filter(acc => acc.totalOverdue > 0).length;
-
-    const sortedOverdueAccounts = Object.values(overdueAccounts)
-      .sort((a: any, b: any) => b.totalMonthlyAmount - a.totalMonthlyAmount);
-
-    return NextResponse.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      forceRefresh,
-      summary: {
-        totalAccountsWithOverdue,
-        totalOverdueAmount,
-        monthsLate,
-        paymentDueDay
-      },
-      topOverdueAccounts: sortedOverdueAccounts.slice(0, 10),
-      allOverdueAccounts: sortedOverdueAccounts
-    });
-
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in overdue check POST:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('Error in overdue check POST', error as Error);
+    const { message, status } = handleApiError(error as Error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

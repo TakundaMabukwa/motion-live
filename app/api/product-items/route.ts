@@ -1,63 +1,78 @@
-import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { ProductService } from '@/lib/services/product-service';
+import { handleApiError } from '@/lib/errors';
+import { validateRequest } from '@/lib/api/validation';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
+import { 
+  GetProductItemsRequestSchema,
+  CreateProductItemSchema
+} from '@/lib/types/api/product';
 
+// Create an instance of the service
+const productService = new ProductService();
+
+/**
+ * GET /api/product-items
+ * Get all product items with optional filtering
+ */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Authentication required' },
-        { status: 401 }
-      );
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
+    // Parse and validate query parameters
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type');
-    const category = searchParams.get('category');
-    const search = searchParams.get('search');
+    const params = {
+      type: searchParams.get('type'),
+      category: searchParams.get('category'),
+      search: searchParams.get('search')
+    };
+    
+    const validatedParams = validateRequest(params, GetProductItemsRequestSchema);
+    
+    // Get products from service
+    const products = await productService.getAllProducts(validatedParams);
 
-    let query = supabase
-      .from('product_items')
-      .select('*')
-      .order('product', { ascending: true });
-
-    // Filter by type if provided
-    if (type) {
-      query = query.eq('type', type);
-    }
-
-    // Filter by category if provided
-    if (category) {
-      query = query.eq('category', category);
-    }
-
-    // Search functionality
-    if (search) {
-      query = query.or(`product.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    const { data: products, error } = await query;
-
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch product items', details: error.message },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ products: products || [] });
-
-  } catch (error: any) {
-    console.error('Unexpected error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to fetch product items', 
-        details: error.message 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ products });
+  } catch (error) {
+    console.error('Error in product items GET:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
-} 
+}
+
+/**
+ * POST /api/product-items
+ * Create a new product item
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
+    }
+
+    // Parse and validate request body
+    const body = await request.json();
+    const validatedData = validateRequest(body, CreateProductItemSchema);
+    
+    // Create product
+    const product = await productService.createProduct(validatedData);
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Product created successfully',
+      product
+    });
+  } catch (error) {
+    console.error('Error in product items POST:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}

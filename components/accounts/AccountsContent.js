@@ -262,13 +262,13 @@ export default function AccountsContent({ activeSection }) {
           <h2 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h2>
           <div className="flex gap-2">
 
-            <Button 
-              onClick={() => router.push('/protected/accounts')}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Users className="w-4 h-4 mr-2" />
-              View All Accounts
-            </Button>
+          <Button 
+            onClick={() => router.push('/protected/accounts')}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Users className="w-4 h-4 mr-2" />
+            View All Accounts
+          </Button>
           </div>
         </div>
 

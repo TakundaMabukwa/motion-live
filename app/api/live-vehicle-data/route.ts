@@ -1,44 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { LiveVehicleDataService } from '@/lib/services/live-vehicle-data-service';
+import { handleApiError } from '@/lib/errors';
+import { Logger } from '@/lib/logger';
 
-interface LiveVehicleData {
-  Plate: string;
-  Speed: number | null;
-  Latitude: number;
-  Longitude: number;
-  LocTime: string;
-  Quality: string;
-  Mileage: number;
-  Pocsagstr: string;
-  Head: string;
-  Geozone: string;
-  DriverName: string;
-  NameEvent: string;
-  Temperature: string;
-  Address: string;
-}
+// Create service and logger instances
+const liveVehicleDataService = new LiveVehicleDataService();
+const logger = new Logger('API:live-vehicle-data');
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    console.log('Fetching live vehicle data...');
+    logger.debug('Processing GET request');
     
-    // Fetch live data from external API
-    const response = await fetch('http://64.227.138.235:8000/latest');
+    // Get live vehicle data from service
+    const liveData = await liveVehicleDataService.getLiveVehicleData();
     
-    if (!response.ok) {
-      console.error('Error fetching live data:', response.status);
-      return NextResponse.json({ error: 'Failed to fetch live data' }, { status: 500 });
-    }
+    logger.info('Returning live vehicle data', { 
+      plate: liveData.Plate,
+      timestamp: liveData.LocTime
+    });
     
-    const liveData: LiveVehicleData = await response.json();
-    console.log('Live data received:', liveData);
-
     return NextResponse.json({
       success: true,
-      liveData: liveData
+      liveData
     });
-
   } catch (error) {
-    console.error('Error in live vehicle data GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('Error in live vehicle data GET:', error as Error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }

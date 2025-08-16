@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { StockService } from '@/lib/services/stock-service';
+import { handleApiError } from '@/lib/errors';
+import { Logger } from '@/lib/logger';
+
+// Create service and logger instances
+const stockService = new StockService();
+const logger = new Logger('API:stock-orders:approved');
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    logger.debug('Processing GET request');
+    
+    const supabase = await (await import('@/lib/supabase/server')).createClient();
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      logger.warn('Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,62 +26,21 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search') || '';
 
-    // Build query for approved stock orders only
-    let query = supabase
-      .from('stock_orders')
-      .select('*')
-      .eq('approved', true)
-      .order('created_at', { ascending: false });
+    logger.info('Fetching approved stock orders', { limit, offset, search });
 
-    // Add search filter if provided
-    if (search) {
-      query = query.or(`order_number.ilike.%${search}%,supplier.ilike.%${search}%,notes.ilike.%${search}%`);
-    }
+    // Use service to get approved stock orders
+    const result = await stockService.getApprovedStockOrders(limit, offset, search || undefined);
 
-    // Add pagination
-    query = query.range(offset, offset + limit - 1);
-
-    const { data: stockOrders, error } = await query;
-
-    if (error) {
-      console.error('Error fetching approved stock orders:', error);
-      return NextResponse.json({ error: 'Failed to fetch approved stock orders' }, { status: 500 });
-    }
-
-    // Transform stock_orders to the format expected by the frontend
-    const orders = stockOrders?.map(order => ({
-      id: order.id,
-      orderNumber: order.order_number,
-      supplier: order.supplier || 'Unknown Supplier',
-      totalAmount: parseFloat(order.total_amount_ex_vat) || 0,
-      totalAmountUSD: order.total_amount_usd,
-      orderDate: new Date(order.order_date || order.created_at).toISOString().split('T')[0],
-      approved: order.approved || false,
-      status: order.status || 'approved',
-      notes: order.notes || '',
-      createdBy: order.created_by || 'Unknown',
-      invoiceLink: order.invoice_link,
-      orderItems: order.order_items || [],
-      createdAt: order.created_at,
-      updatedAt: order.updated_at
-    })) || [];
-
-    // Get total count for pagination
-    const { count } = await supabase
-      .from('stock_orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('approved', true);
-
-    return NextResponse.json({
-      orders,
-      count: count || 0,
-      page: Math.floor(offset / limit) + 1,
-      limit,
-      total_pages: Math.ceil((count || 0) / limit)
+    logger.info(`Found ${result.orders.length} approved stock orders`, { 
+      total: result.count,
+      page: result.page,
+      totalPages: result.total_pages
     });
 
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in approved stock orders GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('Error in approved stock orders GET:', error as Error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }

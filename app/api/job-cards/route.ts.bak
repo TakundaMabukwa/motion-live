@@ -1,0 +1,79 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { JobCardService } from '@/lib/services/job-card-service';
+import { handleApiError } from '@/lib/errors';
+import { validateRequest } from '@/lib/api/validation';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
+import { 
+  GetJobCardsRequestSchema,
+  CreateJobCardSchema
+} from '@/lib/types/api/job-card';
+import { Logger } from '@/lib/logger';
+
+// Create an instance of the service and logger
+const service = new JobCardService();
+const logger = new Logger('job-cards-api');
+
+/**
+ * GET /api/job-cards
+ * Get all job cards with pagination
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
+    }
+
+    // Parse and validate query parameters
+    const { searchParams } = new URL(request.url);
+    const params = {
+      page: searchParams.get('page'),
+      limit: searchParams.get('limit')
+    };
+    
+    const validatedParams = validateRequest(params, GetJobCardsRequestSchema);
+    
+    // Get job cards from service
+    const result = await service.getAllJobCards(validatedParams);
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('Error in job cards GET:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}
+
+/**
+ * POST /api/job-cards
+ * Create a new job card
+ */
+export async function POST(request: NextRequest) {
+  try {
+    // Authenticate the user
+    try {
+      await getAuthenticatedUser();
+    } catch (error) {
+      return createUnauthorizedResponse();
+    }
+
+    // Parse and validate request body
+    const body = await request.json();
+    const validatedData = validateRequest(body, CreateJobCardSchema);
+    
+    // Create job card
+    const result = await service.createJobCard(validatedData);
+
+    return NextResponse.json({ 
+      success: true,
+      message: 'Job card created successfully',
+      data: result 
+    });
+  } catch (error) {
+    console.error('Error in job cards POST:', error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
+  }
+}

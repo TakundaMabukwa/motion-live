@@ -1,44 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { VehicleService } from '@/lib/services/vehicle-service';
+import { handleApiError } from '@/lib/errors';
+import { safeValidateRequest } from '@/lib/validation';
+import { VehiclesByCompanySchema } from '@/lib/validation/schemas/vehicle';
+import { Logger } from '@/lib/logger';
 
+// Create an instance of the service and logger
+const vehicleService = new VehicleService();
+const logger = new Logger('API:vehicles-by-company');
+
+/**
+ * GET /api/vehicles-by-company
+ * Get vehicles by company name or account number
+ */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    logger.debug('Processing GET request');
     
-    // Temporarily disable authentication for testing
-    // const { data: { user }, error: authError } = await supabase.auth.getUser();
-    // if (authError || !user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-
+    // Extract query parameters
     const { searchParams } = new URL(request.url);
     const company = searchParams.get('company');
     const accountNumber = searchParams.get('accountNumber');
 
+    // Validate that at least one parameter is provided
     if (!company && !accountNumber) {
-      return NextResponse.json({ error: 'Company name or account number is required' }, { status: 400 });
+      logger.warn('Request missing required parameters');
+      return NextResponse.json(
+        { error: 'Company name or account number is required' }, 
+        { status: 400 }
+      );
     }
 
-    console.log('Fetching vehicles for:', { company, accountNumber });
+    logger.info('Fetching vehicles for:', { company, accountNumber });
 
-    let query = supabase.from('vehicles_ip').select('*');
-
+    let vehicles;
     if (accountNumber) {
-      // If account number is provided, use exact match
-      query = query.eq('new_account_number', accountNumber);
+      // Use account number as company to simplify the logic
+      vehicles = await vehicleService.getVehiclesByCompany(accountNumber);
     } else if (company) {
-      // If company name is provided, search by company
-      query = query.ilike('company', `%${company}%`);
+      // Validate company parameter
+      const validation = safeValidateRequest({ company }, VehiclesByCompanySchema);
+      if (!validation.success) {
+        logger.warn('Invalid company parameter', { error: validation.error });
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      
+      // Use service to get vehicles by company
+      vehicles = await vehicleService.getVehiclesByCompany(company);
     }
 
-    const { data: vehicles, error } = await query;
-
-    if (error) {
-      console.error('Error fetching vehicles:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
-    }
-
-    console.log('Found vehicles:', vehicles?.length || 0);
+    logger.info('Found vehicles:', { count: vehicles?.length || 0 });
 
     // Transform the data to match expected format with group_name as plate
     const transformedVehicles = vehicles?.map(vehicle => ({
@@ -68,9 +79,9 @@ export async function GET(request: NextRequest) {
       vehicles: transformedVehicles,
       count: transformedVehicles.length
     });
-
   } catch (error) {
-    console.error('Error in vehicles by company GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logger.error('Error in vehicles by company GET:', error as Error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }

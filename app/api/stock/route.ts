@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { StockService } from '@/lib/services/stock-service';
+import { handleApiError } from '@/lib/errors';
+import { Logger } from '@/lib/logger';
+
+// Create service and logger instances
+const stockService = new StockService();
+const logger = new Logger('API:stock');
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    logger.debug('Processing GET request');
+    
+    const supabase = await (await import('@/lib/supabase/server')).createClient();
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
+      logger.warn('Unauthorized access attempt');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -17,41 +26,16 @@ export async function GET(request: NextRequest) {
     const supplier = searchParams.get('supplier');
     const stockType = searchParams.get('stock_type');
 
-    // Build the query
-    let query = supabase
-      .from('stock')
-      .select('*')
-      .order('description', { ascending: true });
+    logger.info('Fetching stock items', { search, supplier, stockType });
 
-    // Apply filters
-    if (search) {
-      query = query.or(`description.ilike.%${search}%,code.ilike.%${search}%,supplier.ilike.%${search}%`);
-    }
+    // Use stock service to get filtered stock items
+    const stock = await stockService.getStock(search || undefined, supplier || undefined, stockType || undefined);
 
-    if (supplier) {
-      query = query.eq('supplier', supplier);
-    }
-
-    if (stockType) {
-      query = query.eq('stock_type', stockType);
-    }
-
-    const { data: stock, error } = await query;
-
-    if (error) {
-      console.error('Error fetching stock:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Convert quantity to number for display (since it's stored as text)
-    const processedStock = stock?.map(item => ({
-      ...item,
-      quantity: item.quantity || '0'
-    })) || [];
-
-    return NextResponse.json({ stock: processedStock });
+    logger.info(`Returning ${stock.length} stock items`);
+    return NextResponse.json({ stock });
   } catch (error) {
-    console.error('Error in stock GET:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    logger.error('Error in stock GET:', error as Error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
-} 
+}

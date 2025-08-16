@@ -1,17 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { TechnicianService } from '@/lib/services/technician-service';
+import { handleApiError } from '@/lib/errors';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/auth/auth-utils';
+
+// Create an instance of the service
+const technicianService = new TechnicianService();
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    
-    // Get the authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get authenticated user
+    let user;
+    try {
+      user = await getAuthenticatedUser();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (error) {
+      return createUnauthorizedResponse();
     }
 
-    // Get user details from the users table
+    // Get search parameters
+    const { searchParams } = new URL(request.url);
+    const technicianId = searchParams.get('technicianId') || user.id;
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const detailed = searchParams.get('detailed');
+    const format = searchParams.get('format');
+
+    // Get user details
+    const { createClient } = await import('@/lib/supabase/server');
+    const supabase = await createClient();
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id, email, tech_admin')
@@ -22,34 +39,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    let jobsQuery;
-
-    if (userData.tech_admin) {
-      // If tech_admin is true, load all job_cards
-      jobsQuery = supabase
-        .from('job_cards')
-        .select('*')
-        .order('created_at', { ascending: false });
-    } else {
-      // If tech_admin is false, load jobs where email matches technician_phone
-      jobsQuery = supabase
-        .from('job_cards')
-        .select('*')
-        .eq('technician_phone', userData.email)
-        .order('created_at', { ascending: false });
-    }
-
-    const { data: jobs, error: jobsError } = await jobsQuery;
-
-    if (jobsError) {
-      console.error('Error fetching jobs:', error);
-      return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
-    }
-
-    // Check if user wants detailed job info
-    const { searchParams } = new URL(request.url);
-    const detailed = searchParams.get('detailed');
-    const format = searchParams.get('format');
+    // Get jobs for technician using service
+    const { jobs, count } = await technicianService.getTechnicianJobs({
+      technicianId,
+      startDate,
+      endDate,
+      status
+    });
 
     if (detailed === 'true' || format === 'json') {
       // Return detailed job information with all fields
@@ -57,7 +53,7 @@ export async function GET(request: NextRequest) {
         jobs: jobs || [],
         userRole: userData.tech_admin ? 'tech_admin' : 'technician',
         userEmail: userData.email,
-        totalJobs: jobs?.length || 0,
+        totalJobs: count,
         timestamp: new Date().toISOString(),
         fields: {
           basic: ['id', 'job_number', 'job_type', 'status', 'job_status', 'priority', 'job_description'],
@@ -75,11 +71,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       jobs: jobs || [],
       userRole: userData.tech_admin ? 'tech_admin' : 'technician',
-      userEmail: userData.email
+      userEmail: userData.email,
+      count
     });
-
   } catch (error) {
-    console.error('Error in technicians jobs GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = handleApiError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

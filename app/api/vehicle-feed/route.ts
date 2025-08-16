@@ -1,44 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { VehicleFeedService } from '@/lib/services/vehicle-feed-service';
+import { handleApiError } from '@/lib/errors';
+import { Logger } from '@/lib/logger';
 
-export async function GET(request: NextRequest) {
+// Create service and logger instances
+const vehicleFeedService = new VehicleFeedService();
+const logger = new Logger('API:vehicle-feed');
+
+export async function GET(_request: NextRequest) {
   try {
-    // Check authentication
-    const supabase = await createClient();
+    logger.debug('Processing GET request');
+    
+    // Authenticate the user
+    const supabase = await (await import('@/lib/supabase/server')).createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
+      logger.warn('Unauthorized access attempt');
       return NextResponse.json(
         { error: 'Unauthorized - Authentication required' },
         { status: 401 }
       );
     }
-
-    // Fetch data from external API
-    const response = await fetch('http://64.227.138.235:8000/latest', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`External API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // Return the data to the frontend
+    
+    // Get vehicle feed data from service
+    const data = await vehicleFeedService.getVehicleFeedData();
+    
+    logger.info('Returning vehicle feed data');
+    
     return NextResponse.json(data);
-
-  } catch (error: any) {
-    console.error('Vehicle feed proxy error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to fetch vehicle data', 
-        details: error.message 
-      },
-      { status: 500 }
-    );
+  } catch (error) {
+    logger.error('Vehicle feed proxy error:', error as Error);
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
-} 
+}

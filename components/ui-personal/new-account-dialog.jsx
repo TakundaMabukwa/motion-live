@@ -917,3 +917,4 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
     </Dialog>
   );
 }
+

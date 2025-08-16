@@ -21,7 +21,8 @@ import {
   Gauge,
   Calendar,
   Map,
-  Quote
+  Quote,
+  Package
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import LiveVehicleMap from '@/components/vehicle-tracking/LiveVehicleMap';
@@ -29,6 +30,7 @@ import VehicleCards from '@/components/vehicle-tracking/VehicleCards';
 import CustomerJobCards from '@/components/ui-personal/customer-job-cards';
 import ClientQuoteForm from '@/components/ui-personal/client-quote-form';
 import ClientJobCards from '@/components/ui-personal/client-job-cards';
+import ClientEquipmentPricing from '@/components/ui-personal/client-equipment-pricing';
 import AccountDashboard from '@/components/ui-personal/account-dashboard';
 import VehicleMapView from '@/components/ui-personal/vehicle-map-view';
 import { toast } from 'sonner';
@@ -161,6 +163,7 @@ function AccountDetailPageContent() {
           { id: 'vehicles', label: 'Vehicles', icon: Car },
           { id: 'jobs', label: 'Jobs', icon: FileText },
           { id: 'client-quotes', label: 'Quotes', icon: Quote },
+          { id: 'equipment-pricing', label: 'Equipment Pricing', icon: Package },
           { id: 'map', label: 'Live Map', icon: Map }
         ].map((tabItem) => {
           const Icon = tabItem.icon;
@@ -260,6 +263,13 @@ function AccountDetailPageContent() {
               }}
             />
           </div>
+        );
+
+      case 'equipment-pricing':
+        return (
+          <ClientEquipmentPricing 
+            accountNumber={customer?.new_account_number}
+          />
         );
 
       case 'map':

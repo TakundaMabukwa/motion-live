@@ -1,110 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { VehicleService } from '@/lib/services/vehicle-service';
+import { safeValidate } from '@/lib/api/validation';
+import { CreateVehicleIpSchema } from '@/lib/types/api/vehicle';
+import { handleApiError } from '@/lib/errors';
+
+const vehicleService = new VehicleService();
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Authentication check will be handled in the service layer
 
     const body = await request.json();
     
-    // Validate required fields
-    if (!body.new_registration || !body.new_account_number || !body.ip_address) {
+    // Validate request body
+    const validation = safeValidate(body, CreateVehicleIpSchema);
+    if (!validation.success) {
       return NextResponse.json({ 
-        error: 'Missing required fields: new_registration, new_account_number, and ip_address are required' 
+        error: `Validation error: ${validation.error.message}`
       }, { status: 400 });
     }
 
-    // Prepare vehicle data
-    const vehicleData = {
-      new_registration: body.new_registration,
-      new_account_number: body.new_account_number,
-      ip_address: body.ip_address,
-      vin_number: body.vin_number || null,
-      company: body.company || body.new_account_number,
-      products: body.products || [],
-      active: body.active !== undefined ? body.active : true,
-      comment: body.comment || null,
-      group_name: body.group_name || null,
-      beame_1: body.beame_1 || null,
-      beame_2: body.beame_2 || null,
-      beame_3: body.beame_3 || null
-    };
+    // Create the vehicle via service
+    const result = await vehicleService.createVehicleIp(validation.data);
 
-    // Insert into vehicles_ip table
-    const { data, error } = await supabase
-      .from('vehicles_ip')
-      .insert(vehicleData)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding vehicle to vehicles_ip:', error);
-      return NextResponse.json({ error: 'Failed to add vehicle to vehicles_ip' }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      vehicle: data,
-      message: 'Vehicle added to vehicles_ip successfully'
-    });
-
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in vehicles-ip POST:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = handleApiError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Authentication check will be handled in the service layer
 
     // Get search parameters
     const { searchParams } = new URL(request.url);
-    const registration = searchParams.get('registration');
-    const accountNumber = searchParams.get('accountNumber');
+    const registration = searchParams.get('registration') || undefined;
+    const accountNumber = searchParams.get('accountNumber') || undefined;
 
-    let query = supabase
-      .from('vehicles_ip')
-      .select('*')
-      .order('id', { ascending: false });
-
-    // Apply filters if provided
-    if (registration) {
-      query = query.ilike('new_registration', `%${registration}%`);
-    }
-    if (accountNumber) {
-      query = query.ilike('new_account_number', `%${accountNumber}%`);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching vehicles_ip:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      vehicles: data || [],
-      total: (data || []).length
+    // Get filtered vehicles via service
+    const result = await vehicleService.getVehiclesIp({
+      registration,
+      accountNumber
     });
 
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error in vehicles-ip GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const { message, status } = handleApiError(error);
+    return NextResponse.json({ error: message }, { status });
   }
 }
-
-
 

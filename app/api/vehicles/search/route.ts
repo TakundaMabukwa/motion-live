@@ -1,41 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { VehicleService } from '@/lib/services/vehicle-service';
+import { handleApiError } from '@/lib/errors';
+import { safeValidateRequest } from '@/lib/validation';
+import { SearchVehicleSchema } from '@/lib/validation/schemas/vehicle';
 
+// Create an instance of the service
+const vehicleService = new VehicleService();
+
+/**
+ * GET /api/vehicles/search
+ * Search for a vehicle by VIN or registration number
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const vin = searchParams.get('vin');
-
-    if (!vin) {
+    const registration = searchParams.get('registration');
+    
+    // Validate request parameters
+    const validation = safeValidateRequest(
+      { vin, registration }, 
+      SearchVehicleSchema
+    );
+    
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'VIN parameter is required' },
+        { error: validation.error },
         { status: 400 }
       );
     }
-
-    const supabase = createClient();
-
-    // Search for vehicle by VIN number
-    const { data: vehicle, error } = await supabase
-      .from('vehicles_ip')
-      .select('*')
-      .eq('vin_number', vin.trim())
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        // No rows returned
-        return NextResponse.json({ vehicle: null, message: 'Vehicle not found' });
-      }
-      throw error;
-    }
-
-    return NextResponse.json({ vehicle });
+    
+    // Use service to handle business logic
+    const result = await vehicleService.searchVehicle({
+      vin: vin || undefined,
+      registration: registration || undefined
+    });
+    
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error searching for vehicle:', error);
-    return NextResponse.json(
-      { error: 'Failed to search for vehicle' },
-      { status: 500 }
-    );
+    const { error: errorMessage, status } = handleApiError(error);
+    return NextResponse.json({ error: errorMessage }, { status });
   }
 }

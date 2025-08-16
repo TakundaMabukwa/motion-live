@@ -1,0 +1,453 @@
+import { JobCardRepository } from '@/lib/repositories/job-card-repository';
+import { JobCard } from '@/lib/types/database/job-card';
+import { 
+  GetJobCardsRequest, 
+  CreateJobCardRequest,
+  JobCardSummary
+} from '@/lib/types/api/job-card';
+import {
+  GetActiveJobsRequest,
+  TransformedJob
+} from '@/lib/types/api/job';
+import { BadRequestError, NotFoundError } from '@/lib/errors';
+import { Logger } from '@/lib/logger';
+import { MemoryCache } from '@/lib/cache/memory-cache';
+
+/**
+ * Service for job card-related business logic
+ */
+export class JobCardService {
+  private repository: JobCardRepository;
+  private logger: Logger;
+  private cache: MemoryCache;
+  
+  constructor() {
+    this.repository = new JobCardRepository();
+    this.logger = new Logger('JobCardService');
+    this.cache = MemoryCache.getInstance();
+  }
+  
+  /**
+   * Get all job cards with pagination
+   * @param params Pagination parameters
+   * @returns Job cards and pagination metadata
+   */
+  async getAllJobCards(params: GetJobCardsRequest = {}) {
+    const page = params.page || 1;
+    const limit = params.limit || 50;
+    
+    // Create cache key based on pagination parameters
+    const cacheKey = `job_cards:page=${page}:limit=${limit}`;
+    
+    // Try to get from cache first
+    const cachedResult = this.cache.get<{
+      job_cards: JobCardSummary[];
+      count: number;
+      page: number;
+      limit: number;
+      total_pages: number;
+    }>(cacheKey);
+    
+    if (cachedResult) {
+      this.logger.debug('Retrieved job cards from cache', { page, limit });
+      return cachedResult;
+    }
+    
+    try {
+      this.logger.info('Fetching job cards from database', { page, limit });
+      const { jobCards, count } = await this.repository.findAll(page, limit);
+      
+      // Transform to summary objects
+      const jobCardSummaries = jobCards.map(card => ({
+        id: card.id,
+        job_number: card.job_number,
+        customer_name: card.customer_name,
+        job_type: card.job_type,
+        status: card.status,
+        created_at: card.created_at
+      }));
+      
+      const result = {
+        job_cards: jobCardSummaries,
+        count,
+        page,
+        limit,
+        total_pages: Math.ceil(count / limit)
+      };
+      
+      // Cache the result for 1 minute
+      this.cache.set(cacheKey, result, 60);
+      
+      return result;
+    } catch (error) {
+      this.logger.error('Error fetching job cards', error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get a job card by ID
+   * @param id Job card ID
+   * @returns The job card
+   * @throws NotFoundError if job card not found
+   */
+  async getJobCardById(id: string): Promise<JobCard> {
+    const cacheKey = `job_card:id=${id}`;
+    
+    // Try to get from cache first
+    const cachedJobCard = this.cache.get<JobCard>(cacheKey);
+    
+    if (cachedJobCard) {
+      this.logger.debug('Retrieved job card from cache', { id });
+      return cachedJobCard;
+    }
+    
+    try {
+      this.logger.info('Fetching job card from database', { id });
+      const jobCard = await this.repository.findById(id);
+      
+      if (!jobCard) {
+        throw new NotFoundError(`Job card with ID ${id} not found`);
+      }
+      
+      // Cache the result for 5 minutes
+      this.cache.set(cacheKey, jobCard, 300);
+      
+      return jobCard;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw error;
+      }
+      this.logger.error(`Error fetching job card with ID ${id}`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Create a new job card
+   * @param data Job card data
+   * @returns Created job card summary
+   */
+  async createJobCard(data: CreateJobCardRequest): Promise<JobCardSummary> {
+    try {
+      this.logger.info('Creating new job card');
+      
+      // Generate unique identifiers if not provided
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(2, 9);
+      const jobNumber = data.job_number || `JOB-${timestamp}-${randomSuffix}`;
+      const quotationNumber = data.repair ? 'REPAIR-JOB' : (data.quotation_number || `QUOTE-${timestamp}-${randomSuffix}`);
+      
+      // Prepare job card data with consistent field naming
+      const jobCardData: Partial<JobCard> = {
+        // Job details
+        job_type: data.job_type || data.jobType || 'install',
+        repair: data.repair || false,
+        job_description: data.job_description || data.jobDescription || '',
+        priority: data.priority || 'medium',
+        status: data.status || 'draft',
+        job_status: data.job_status || 'created',
+        
+        // Customer information
+        account_id: data.account_id || data.accountId || null,
+        customer_name: data.customer_name || data.customerName || '',
+        customer_email: data.customer_email || data.customerEmail || '',
+        customer_phone: data.customer_phone || data.customerPhone || '',
+        customer_address: data.customer_address || data.customerAddress || '',
+        
+        // Vehicle information
+        vehicle_id: data.vehicle_id || data.vehicleId || null,
+        vehicle_registration: data.vehicle_registration || data.vehicleRegistration || '',
+        vehicle_make: data.vehicle_make || data.vehicleMake || '',
+        vehicle_model: data.vehicle_model || data.vehicleModel || '',
+        vehicle_year: data.vehicle_year || data.vehicleYear || null,
+        vin_numer: data.vin_numer || data.vinNumber || '',
+        odormeter: data.odormeter || '',
+        
+        // Location information
+        job_location: data.job_location || data.jobLocation || '',
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
+        
+        // Quotation details
+        quotation_number: data.repair ? 'REPAIR-JOB' : (data.quotation_number || data.quotationNumber || quotationNumber),
+        quote_date: data.repair ? null : (data.quote_date || data.quoteDate || new Date().toISOString()),
+        quote_expiry_date: data.repair ? null : (data.quote_expiry_date || data.quoteExpiryDate || null),
+        quote_status: data.repair ? null : (data.quote_status || data.quoteStatus || 'draft'),
+        
+        // Quotation metadata
+        purchase_type: data.repair ? null : (data.purchase_type || data.purchaseType || 'purchase'),
+        quotation_job_type: data.repair ? null : (data.quotation_job_type || data.quotationJobType || 'install'),
+        
+        // Quotation pricing
+        quotation_products: data.repair ? null : (data.quotation_products || data.quotationProducts || []),
+        quotation_subtotal: data.repair ? null : (data.quotation_subtotal || data.quotationSubtotal || 0),
+        quotation_vat_amount: data.repair ? null : (data.quotation_vat_amount || data.quotationVatAmount || 0),
+        quotation_total_amount: data.repair ? null : (data.quotation_total_amount || data.quotationTotalAmount || 0),
+        
+        // Quotation email
+        quote_email_subject: data.repair ? null : (data.quote_email_subject || data.quoteEmailSubject || ''),
+        quote_email_body: data.repair ? null : (data.quote_email_body || data.quoteEmailBody || ''),
+        quote_email_footer: data.repair ? null : (data.quote_email_footer || data.quoteEmailFooter || ''),
+        quote_notes: data.repair ? null : (data.quote_notes || data.quoteNotes || ''),
+        quote_type: data.repair ? null : (data.quote_type || data.quoteType || 'external'),
+        
+        // Additional fields
+        special_instructions: data.special_instructions || data.specialInstructions || '',
+        
+        // Technician information
+        technician_name: data.technician_name || null,
+        technician_phone: data.technician_phone || null,
+        
+        // Job timing
+        job_date: data.job_date || new Date().toISOString(),
+        start_time: data.start_time || null,
+        completion_date: data.completion_date || null,
+        end_time: data.end_time || null,
+        
+        // Photos
+        before_photos: data.before_photos || null,
+        after_photos: data.after_photos || null,
+        
+        // Metadata
+        created_by: data.created_by || '00000000-0000-0000-0000-000000000000',
+        updated_by: data.updated_by || '00000000-0000-0000-0000-000000000000',
+        
+        // Job number
+        job_number: data.repair ? (data.job_number || jobNumber) : jobNumber
+      };
+      
+      // Create the job card
+      const createdJobCard = await this.repository.create(jobCardData);
+      
+      // Invalidate cache for job cards list
+      this.cache.invalidateByPrefix('job_cards:page=');
+      
+      this.logger.info('Job card created successfully', { id: createdJobCard.id });
+      
+      return {
+        id: createdJobCard.id,
+        job_number: createdJobCard.job_number,
+        customer_name: createdJobCard.customer_name,
+        job_type: createdJobCard.job_type,
+        status: createdJobCard.status,
+        created_at: createdJobCard.created_at
+      };
+    } catch (error) {
+      this.logger.error('Error creating job card', error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Update a job card
+   * @param id Job card ID
+   * @param data Updated job card data
+   * @returns Updated job card
+   */
+  async updateJobCard(id: string, data: Partial<JobCard>): Promise<JobCard> {
+    try {
+      this.logger.info('Updating job card', { id });
+      
+      // Check if job card exists
+      const existingJobCard = await this.repository.findById(id);
+      
+      if (!existingJobCard) {
+        throw new NotFoundError(`Job card with ID ${id} not found`);
+      }
+      
+      // Update job card
+      const updatedJobCard = await this.repository.update(id, {
+        ...data,
+        updated_at: new Date().toISOString()
+      });
+      
+      // Invalidate cache
+      this.cache.delete(`job_card:id=${id}`);
+      this.cache.invalidateByPrefix('job_cards:page=');
+      
+      this.logger.info('Job card updated successfully', { id });
+      
+      return updatedJobCard;
+    } catch (error) {
+      this.logger.error(`Error updating job card with ID ${id}`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Delete a job card
+   * @param id Job card ID
+   * @returns Boolean indicating success
+   */
+  async deleteJobCard(id: string): Promise<boolean> {
+    try {
+      this.logger.info('Deleting job card', { id });
+      
+      // Check if job card exists
+      const existingJobCard = await this.repository.findById(id);
+      
+      if (!existingJobCard) {
+        throw new NotFoundError(`Job card with ID ${id} not found`);
+      }
+      
+      // Delete job card
+      await this.repository.delete(id);
+      
+      // Invalidate cache
+      this.cache.delete(`job_card:id=${id}`);
+      this.cache.invalidateByPrefix('job_cards:page=');
+      
+      this.logger.info('Job card deleted successfully', { id });
+      
+      return true;
+    } catch (error) {
+      this.logger.error(`Error deleting job card with ID ${id}`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get active (non-completed) jobs with filters
+   * @param params Filter parameters
+   * @returns Transformed jobs in quote format
+   */
+  async getActiveJobs(params: GetActiveJobsRequest): Promise<{
+    quotes: TransformedJob[];
+    count: number;
+  }> {
+    try {
+      const { status, company, role } = params;
+      
+      // Create a cache key based on the filters
+      const cacheKey = `active_jobs:status=${status || 'all'}:company=${company || 'all'}:role=${role || 'all'}`;
+      
+      // Try to get from cache first
+      const cachedResult = this.cache.get<{
+        quotes: TransformedJob[];
+        count: number;
+      }>(cacheKey);
+      
+      if (cachedResult) {
+        this.logger.debug('Retrieved active jobs from cache', { status, company, role });
+        return cachedResult;
+      }
+      
+      this.logger.info('Fetching active jobs from database', { status, company, role });
+      
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      
+      let query = supabase
+        .from('job_cards')
+        .select('id, job_number, job_date, due_date, completion_date, status, job_type, job_description, priority, account_id, customer_name, customer_email, customer_phone, customer_address, vehicle_id, vehicle_registration, vehicle_make, vehicle_model, vehicle_year, assigned_technician_id, technician_name, technician_phone, job_location, latitude, longitude, products_required, parts_required, equipment_used, estimated_duration_hours, actual_duration_hours, estimated_cost, actual_cost, start_time, end_time, work_notes, completion_notes, job_status, safety_checklist_completed, quality_check_passed, customer_signature_obtained, before_photos, after_photos, documents, customer_satisfaction_rating, customer_feedback, quotation_number, quote_date, quote_expiry_date, quote_status, purchase_type, quotation_job_type, quotation_products, quotation_subtotal, quotation_vat_amount, quotation_total_amount, quote_email_subject, quote_email_body, quote_email_footer, quote_notes, quote_type, special_instructions, access_requirements, site_contact_person, site_contact_phone, created_at, updated_at, created_by, updated_by')
+        .neq('job_status', 'Completed') // Only show jobs that are not completed
+        .order('created_at', { ascending: false });
+
+      // Apply filters
+      if (status) {
+        query = query.eq('job_status', status);
+      }
+      if (company) {
+        query = query.ilike('customer_name', `%${company}%`);
+      }
+      if (role && role !== 'all') {
+        // For now, we'll filter by job_type as a proxy for role
+        if (role === 'admin') {
+          query = query.in('job_type', ['install', 'maintenance']);
+        } else if (role === 'user') {
+          query = query.in('job_type', ['repair', 'deinstall']);
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        this.logger.error('Error fetching active jobs', error);
+        throw error;
+      }
+
+      // Transform the data to match the expected format
+      const transformedJobs = data?.map(job => ({
+        id: job.id,
+        customer_name: job.customer_name,
+        customer_email: job.customer_email,
+        customer_phone: job.customer_phone,
+        job_type: job.job_type,
+        total_amount: job.estimated_cost || job.quotation_total_amount || 0,
+        jobs: [
+          {
+            id: job.id,
+            product_name: job.job_description || 'Job Service',
+            quantity: 1,
+            subtotal: job.estimated_cost || job.quotation_total_amount || 0,
+            technician: job.technician_name,
+            date: job.job_date,
+            time: job.start_time
+          }
+        ]
+      })) || [];
+      
+      const result = {
+        quotes: transformedJobs,
+        count: transformedJobs.length
+      };
+      
+      // Cache the result for 5 minutes
+      this.cache.set(cacheKey, result, 300);
+      
+      return result;
+    } catch (error) {
+      this.logger.error('Error fetching active jobs', error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Check health of job cards system
+   * @returns Health check results
+   */
+  async checkHealth(): Promise<{
+    status: string;
+    message: string;
+    timestamp: string;
+    databaseConnection: boolean;
+  }> {
+    try {
+      this.logger.debug('Running job cards API health check');
+      
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      
+      // Test database connection
+      const { data, error } = await supabase
+        .from('job_cards')
+        .select('id')
+        .limit(1);
+      
+      const databaseConnection = !error;
+      
+      const result = {
+        status: databaseConnection ? 'healthy' : 'unhealthy',
+        message: 'Job cards API health check',
+        timestamp: new Date().toISOString(),
+        databaseConnection
+      };
+      
+      this.logger.info('Job cards API health check result', result);
+      
+      return result;
+    } catch (error) {
+      this.logger.error('Error checking job cards API health', error as Error);
+      
+      return {
+        status: 'error',
+        message: `Health check error: ${(error as Error).message}`,
+        timestamp: new Date().toISOString(),
+        databaseConnection: false
+      };
+    }
+  }
+}
+  }
+}
