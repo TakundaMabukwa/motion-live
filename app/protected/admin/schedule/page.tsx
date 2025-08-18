@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import AdminSubnav from '@/components/admin/AdminSubnav';
 
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -56,6 +57,12 @@ export default function CalendarApp() {
     const [teamAvailability, setTeamAvailability] = useState({});
     const [currentTime, setCurrentTime] = useState(new Date());
     const [technicianColors, setTechnicianColors] = useState({});
+    
+    // New state for technician popup
+    const [technicianPopupOpen, setTechnicianPopupOpen] = useState(false);
+    const [selectedTechnician, setSelectedTechnician] = useState(null);
+    const [technicianJobs, setTechnicianJobs] = useState([]);
+    const [technicianJobsLoading, setTechnicianJobsLoading] = useState(false);
 
     // Update current time every minute
     useEffect(() => {
@@ -165,6 +172,70 @@ export default function CalendarApp() {
             toast.error('Failed to load jobs');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Function to fetch jobs for a specific technician
+    const fetchTechnicianJobs = async (technicianName, technicianEmail) => {
+        try {
+            setTechnicianJobsLoading(true);
+            console.log('Fetching jobs for technician:', technicianName);
+            
+            // Use the new API endpoint for technician-specific jobs
+            const response = await fetch('/api/job-cards/schedule', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    technicianName: technicianName,
+                    technicianEmail: technicianEmail
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch technician jobs: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Technician jobs data:', data);
+            
+            // Process the jobs to match the expected format
+            const processedJobs = (data.jobs || []).map(job => {
+                const dateKey = job.job_date ? new Date(job.job_date).toISOString().split('T')[0] : 'no-date';
+                
+                return {
+                    id: job.id,
+                    customerName: job.customer_name,
+                    customerEmail: job.customer_email,
+                    customerPhone: job.customer_phone,
+                    customerAddress: job.customer_address || job.job_location,
+                    productName: job.job_description || 'Job Service',
+                    quantity: 1,
+                    technician: job.technician_name,
+                    technicianEmail: job.technician_phone,
+                    technicianColor: getColorHex(job.technician_color),
+                    time: job.start_time ? new Date(job.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
+                    date: dateKey,
+                    jobType: job.job_type,
+                    status: job.status,
+                    priority: job.priority,
+                    totalAmount: job.estimated_cost || 0,
+                    subtotal: job.estimated_cost || 0,
+                    vehicleRegistration: job.vehicle_registration,
+                    estimatedDuration: job.estimated_duration_hours
+                };
+            });
+            
+            setTechnicianJobs(processedJobs);
+            setSelectedTechnician({ name: technicianName, email: technicianEmail });
+            setTechnicianPopupOpen(true);
+            
+        } catch (error) {
+            console.error('Error fetching technician jobs:', error);
+            toast.error('Failed to load technician jobs');
+        } finally {
+            setTechnicianJobsLoading(false);
         }
     };
 
@@ -317,6 +388,10 @@ export default function CalendarApp() {
     return (
         <div className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6 min-h-screen">
             <div className="mx-auto max-w-7xl">
+                {/* Admin sub navigation */}
+                <div className="mb-4">
+                    <AdminSubnav />
+                </div>
                 {/* Header with Title and Legend */}
                 <div className="mb-6">
                     <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
@@ -493,6 +568,16 @@ export default function CalendarApp() {
                                     <CardTitle className="flex items-center gap-2">
                                         <User className="w-5 h-5" />
                                         Team Availability
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Info className="w-4 h-4 text-white/80 cursor-help" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Click on any technician card to view their assigned jobs</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </CardTitle>
                                     <Button
                                         variant="secondary"
@@ -510,7 +595,11 @@ export default function CalendarApp() {
                                         <p className="text-gray-500 text-sm">No technicians assigned to jobs</p>
                                     ) : (
                                         Object.entries(teamAvailability).map(([technicianEmail, availability]) => (
-                                            <div key={technicianEmail} className="flex justify-between items-center bg-gray-50 p-3 border border-gray-200 rounded-lg">
+                                            <div 
+                                                key={technicianEmail} 
+                                                className="group flex justify-between items-center bg-gray-50 hover:bg-gray-100 hover:shadow-md p-3 border border-gray-200 rounded-lg transition-all duration-200 cursor-pointer"
+                                                onClick={() => fetchTechnicianJobs(availability.technicianName || technicianEmail.split('@')[0], technicianEmail)}
+                                            >
                                                 <div className="flex items-center gap-2">
                                                     {availability.isAvailable ? (
                                                         <CheckCircle className="w-4 h-4 text-green-500" />
@@ -537,12 +626,17 @@ export default function CalendarApp() {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <Badge 
-                                                    variant={availability.isAvailable ? "default" : "secondary"}
-                                                    className={availability.isAvailable ? "bg-green-100 text-green-800 border-green-200" : "bg-red-100 text-red-800 border-red-200"}
-                                                >
-                                                    {availability.isAvailable ? "Available" : "Busy"}
-                                                </Badge>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge 
+                                                        variant={availability.isAvailable ? "default" : "secondary"}
+                                                        className={availability.isAvailable ? "bg-green-100 text-green-800 border-green-200" : "bg-red-100 text-red-800 border-red-200"}
+                                                    >
+                                                        {availability.isAvailable ? "Available" : "Busy"}
+                                                    </Badge>
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                        <Info className="w-4 h-4 text-blue-500" />
+                                                    </div>
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -714,6 +808,225 @@ export default function CalendarApp() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Technician Jobs Popup */}
+            <Dialog open={technicianPopupOpen} onOpenChange={setTechnicianPopupOpen}>
+                <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <User className="w-5 h-5" />
+                            {selectedTechnician?.name}'s Jobs
+                            {selectedTechnician?.email && (
+                                <span className="font-normal text-gray-500 text-sm">
+                                    ({selectedTechnician.email})
+                                </span>
+                            )}
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    {technicianJobsLoading ? (
+                        <div className="flex justify-center items-center py-8">
+                            <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                            <span className="ml-2 text-gray-600">Loading jobs...</span>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Summary Stats */}
+                            <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+                                <Card className="bg-blue-50 border-blue-200">
+                                    <CardContent className="p-4">
+                                        <div className="text-center">
+                                            <p className="font-bold text-blue-600 text-2xl">{technicianJobs.length}</p>
+                                            <p className="text-blue-600 text-sm">Total Jobs</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-green-50 border-green-200">
+                                    <CardContent className="p-4">
+                                        <div className="text-center">
+                                            <p className="font-bold text-green-600 text-2xl">
+                                                {technicianJobs.filter(job => job.status === 'completed' || job.status === 'Completed').length}
+                                            </p>
+                                            <p className="text-green-600 text-sm">Completed</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-yellow-50 border-yellow-200">
+                                    <CardContent className="p-4">
+                                        <div className="text-center">
+                                            <p className="font-bold text-yellow-600 text-2xl">
+                                                {technicianJobs.filter(job => job.status === 'pending' || job.status === 'Pending').length}
+                                            </p>
+                                            <p className="text-yellow-600 text-sm">Pending</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Calendar View */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Calendar className="w-5 h-5" />
+                                        Jobs Calendar View
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    {/* Days of week header */}
+                                    <div className="grid grid-cols-7 bg-gray-50 border-b">
+                                        {DAYS.map(day => (
+                                            <div key={day} className="p-3 font-medium text-gray-600 text-sm text-center">
+                                                {day}
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Calendar grid for technician jobs */}
+                                    <div className="grid grid-cols-7 border border-gray-200 rounded-b-lg overflow-hidden">
+                                        {Array.from({ length: 35 }, (_, index) => {
+                                            const day = index + 1;
+                                            const dateKey = formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day);
+                                            const dayJobs = technicianJobs.filter(job => job.date === dateKey);
+                                            const isToday = dateKey === new Date().toISOString().split('T')[0];
+
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`
+                                                        min-h-[100px] p-2 border border-gray-100
+                                                        ${isToday ? 'bg-yellow-50 border-yellow-200' : 'bg-white'}
+                                                    `}
+                                                >
+                                                    <div className={`mb-2 font-medium text-sm ${
+                                                        isToday ? 'text-blue-600 font-bold' : 'text-gray-900'
+                                                    }`}>
+                                                        {day}
+                                                        {isToday && (
+                                                            <span className="bg-blue-100 ml-1 px-1.5 py-0.5 rounded-full text-blue-600 text-xs">
+                                                                Today
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        {dayJobs.map((job, jobIndex) => (
+                                                            <TooltipProvider key={jobIndex}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div
+                                                                            className="shadow-sm hover:shadow-md p-2 border-l-4 rounded-lg text-xs transition-all duration-200 cursor-pointer"
+                                                                            style={{
+                                                                                backgroundColor: `${job.technicianColor}15`,
+                                                                                borderLeftColor: job.technicianColor,
+                                                                                color: job.technicianColor
+                                                                            }}
+                                                                            onClick={() => {
+                                                                                setSelectedJob(job);
+                                                                                setJobDetailsOpen(true);
+                                                                                setTechnicianPopupOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            <div className="mb-1 font-semibold truncate">
+                                                                                {job.customerName}
+                                                                            </div>
+                                                                            <div className="opacity-90 mb-1 text-xs">
+                                                                                <Clock className="inline mr-1 w-3 h-3" />
+                                                                                {job.time}
+                                                                            </div>
+                                                                            {job.priority && (
+                                                                                <div className={`text-xs px-2 py-1 rounded-full inline-block ${getPriorityColor(job.priority)}`}>
+                                                                                    {job.priority}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent className="max-w-xs">
+                                                                        <div className="space-y-1">
+                                                                            <p className="font-medium">{job.customerName}</p>
+                                                                            <p className="text-sm">Time: {job.time}</p>
+                                                                            <p className="text-sm">Type: {job.jobType}</p>
+                                                                            {job.priority && (
+                                                                                <p className="text-sm">Priority: {job.priority}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* List View */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Package className="w-5 h-5" />
+                                        All Jobs List
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-3">
+                                        {technicianJobs.length === 0 ? (
+                                            <p className="py-4 text-gray-500 text-sm text-center">No jobs found for this technician</p>
+                                        ) : (
+                                            technicianJobs.map((job, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="hover:bg-gray-50 hover:shadow-md p-3 border border-gray-200 rounded-lg transition-all duration-200 cursor-pointer"
+                                                    onClick={() => {
+                                                        setSelectedJob(job);
+                                                        setJobDetailsOpen(true);
+                                                        setTechnicianPopupOpen(false);
+                                                    }}
+                                                >
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <h4 className="font-medium text-sm">{job.customerName}</h4>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {job.date}
+                                                            </Badge>
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {job.time}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2 text-gray-600 text-xs">
+                                                        <p className="flex items-center gap-2">
+                                                            <Package className="w-3 h-3" />
+                                                            <span>{job.productName}</span>
+                                                        </p>
+                                                        <div className="flex items-center gap-2">
+                                                            <div 
+                                                                className="border border-gray-300 rounded-full w-3 h-3"
+                                                                style={{ backgroundColor: job.technicianColor }}
+                                                            ></div>
+                                                            <span>{job.technician}</span>
+                                                        </div>
+                                                        {job.priority && (
+                                                            <Badge className={`text-xs ${getPriorityColor(job.priority)}`}>
+                                                                {job.priority}
+                                                            </Badge>
+                                                        )}
+                                                        {job.status && (
+                                                            <Badge variant="outline" className="text-xs">
+                                                                {job.status}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     )}
                 </DialogContent>

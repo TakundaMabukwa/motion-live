@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Sidebar from '@/components/accounts/Sidebar';
+import AccountsTopBar from '@/components/accounts/AccountsTopBar';
 import AccountsContent from '@/components/accounts/AccountsContent';
 
 function AccountsLayoutContent() {
@@ -18,20 +18,16 @@ function AccountsLayoutContent() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      <div className="flex h-full">
-        {/* Sidebar */}
-        <div className="flex-shrink-0 bg-white shadow-lg w-64 min-h-screen">
-          <Sidebar 
-            activeSection={activeSection} 
-            onSectionChange={setActiveSection}
-          />
-        </div>
-        
-        {/* Main Content Area */}
-        <div className="flex-1 min-w-0">
-          <div className="p-6">
-            <AccountsContent activeSection={activeSection} />
-          </div>
+      {/* Top Bar Navigation */}
+      <AccountsTopBar 
+        activeSection={activeSection} 
+        onSectionChange={setActiveSection}
+      />
+      
+      {/* Main Content Area */}
+      <div className="flex-1 min-w-0">
+        <div className="p-4 sm:p-6">
+          <AccountsContent activeSection={activeSection} />
         </div>
       </div>
     </div>

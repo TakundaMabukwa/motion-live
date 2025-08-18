@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { 
   BarChart3,
   Users,
@@ -23,10 +25,10 @@ import {
   Mail,
   Package,
   Car,
-  FileText
+  FileText,
+  Plus
 } from 'lucide-react';
 import StatsCard from '@/components/shared/StatsCard';
-import DashboardTabs from '@/components/shared/DashboardTabs';
 import { toast } from 'sonner';
 
 interface PartRequired {
@@ -97,38 +99,201 @@ export default function AdminDashboard() {
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
   const [loadingJobsWithParts, setLoadingJobsWithParts] = useState(false);
   const [jobsLoaded, setJobsLoaded] = useState(false);
+  const [createJobOpen, setCreateJobOpen] = useState(false);
+  const [createJobStep, setCreateJobStep] = useState(1);
+  const [newJobData, setNewJobData] = useState({
+    jobType: 'install',
+    jobDescription: '',
+    priority: 'medium',
+    customerName: '',
+    customerEmail: '',
+    customerPhone: '',
+    customerAddress: '',
+    vehicleRegistration: '',
+    vehicleMake: '',
+    vehicleModel: '',
+    vehicleYear: 2023,
+    partsRequired: [] as PartRequired[],
+  });
+  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
+  const [selectedTechnicianForJob, setSelectedTechnicianForJob] = useState('');
+  const [assignmentDateForJob, setAssignmentDateForJob] = useState('');
+  const [assignmentTimeForJob, setAssignmentTimeForJob] = useState('');
+
+  // FC External-quotation style product selection for installation
+  const [aqProducts, setAqProducts] = useState<any[]>([]);
+  const [aqSelectedProducts, setAqSelectedProducts] = useState<any[]>([]);
+  const [aqLoadingProducts, setAqLoadingProducts] = useState(false);
+  const [aqSearchTerm, setAqSearchTerm] = useState('');
+  const [aqSelectedType, setAqSelectedType] = useState('all');
+  const [aqSelectedCategory, setAqSelectedCategory] = useState('all');
+
+  // For deinstall: vehicles from vehicles_ip
+  const [vehiclesIp, setVehiclesIp] = useState<any[]>([]);
+  const [loadingVehiclesIp, setLoadingVehiclesIp] = useState(false);
+  const [selectedVehicleIp, setSelectedVehicleIp] = useState<any>(null);
+
+  const aqProductTypes = [
+    'FMS', 'BACKUP', 'MODULE', 'INPUT', 'PFK CAMERA', 'DASHCAM', 'PTT', 'DVR CAMERA'
+  ];
+  const aqProductCategories = [
+    'HARDWARE', 'MODULES', 'INPUTS', 'CAMERA EQUIPMENT', 'AI MOVEMENT DETECTION', 'PTT RADIOS'
+  ];
+
+  const fetchAqProducts = useCallback(async () => {
+    setAqLoadingProducts(true);
+    try {
+      const params = new URLSearchParams();
+      if (aqSelectedType && aqSelectedType !== 'all') params.append('type', aqSelectedType);
+      if (aqSelectedCategory && aqSelectedCategory !== 'all') params.append('category', aqSelectedCategory);
+      if (aqSearchTerm) params.append('search', aqSearchTerm);
+      const res = await fetch(`/api/product-items?${params.toString()}`);
+      if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
+      const data = await res.json();
+      if (data && Array.isArray(data.products)) setAqProducts(data.products);
+      else if (Array.isArray(data)) setAqProducts(data);
+      else setAqProducts([]);
+    } catch (e) {
+      console.error('Failed to fetch products', e);
+      setAqProducts([]);
+    } finally {
+      setAqLoadingProducts(false);
+    }
+  }, [aqSelectedType, aqSelectedCategory, aqSearchTerm]);
+
+  useEffect(() => { if (createJobOpen) fetchAqProducts(); }, [createJobOpen, fetchAqProducts]);
+
+  const fetchVehiclesIp = useCallback(async () => {
+    setLoadingVehiclesIp(true);
+    try {
+      const res = await fetch('/api/vehicles-ip');
+      if (!res.ok) throw new Error('Failed to fetch vehicles');
+      const data = await res.json();
+      setVehiclesIp(data.vehicles || []);
+    } catch (e) {
+      console.error('Failed to fetch vehicles', e);
+      setVehiclesIp([]);
+    } finally {
+      setLoadingVehiclesIp(false);
+    }
+  }, []);
+
+  useEffect(() => { 
+    if (createJobOpen) {
+      // Load popup first, then load data after a short delay for smooth rendering
+      const timer = setTimeout(() => {
+        fetchAqProducts();
+      }, 100); // 100ms delay to ensure popup is fully rendered
+      return () => clearTimeout(timer);
+    }
+  }, [createJobOpen, fetchAqProducts]);
+
+  const aqAddProduct = (product: any) => {
+    const newProduct = {
+      id: product.id,
+      name: product.product,
+      description: product.description,
+      type: product.type,
+      category: product.category,
+      cashPrice: product.price || 0,
+      cashDiscount: product.discount || 0,
+      rentalPrice: product.rental || 0,
+      rentalDiscount: 0,
+      installationPrice: newJobData.jobType === 'install' ? (product.installation || 0) : 0,
+      installationDiscount: 0,
+      deInstallationPrice: newJobData.jobType === 'deinstall' ? (product.installation || 0) : 0,
+      deInstallationDiscount: 0,
+      subscriptionPrice: product.subscription || 0,
+      subscriptionDiscount: 0,
+      quantity: 1,
+      purchaseType: 'purchase',
+    };
+    setAqSelectedProducts(prev => [...prev, newProduct]);
+  };
+
+  const aqRemoveProduct = (index: number) => {
+    setAqSelectedProducts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const aqUpdateProduct = (index: number, field: string, value: any) => {
+    setAqSelectedProducts(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const aqCalcGross = (price: number, discount: number) => Math.max(0, (price || 0) - (discount || 0));
+
+  const aqGetProductTotal = (p: any) => {
+    let total = 0;
+    // cash only for admin job create for now
+    total += aqCalcGross(p.cashPrice, p.cashDiscount);
+    if (newJobData.jobType === 'install') total += aqCalcGross(p.installationPrice, p.installationDiscount || 0);
+    if (newJobData.jobType === 'deinstall') total += aqCalcGross(p.deInstallationPrice, p.deInstallationDiscount || 0);
+    if (p.purchaseType === 'rental' && p.subscriptionPrice) total += aqCalcGross(p.subscriptionPrice, p.subscriptionDiscount || 0);
+    return total * (p.quantity || 1);
+  };
+
+  const aqSubtotal = aqSelectedProducts.reduce((sum, p) => sum + aqGetProductTotal(p), 0);
+  const aqVat = aqSubtotal * 0.15;
+  const aqTotal = aqSubtotal + aqVat;
+
+  const handleVehicleIpSelect = (vehicle: any) => {
+    setSelectedVehicleIp(vehicle);
+    setNewJobData(prev => ({
+      ...prev,
+      vehicleRegistration: vehicle.new_registration || '',
+      vehicleMake: vehicle.company || '',
+      vehicleModel: vehicle.group_name || '',
+      // Note: vehicles_ip doesn't have year, so we'll leave it as default
+    }));
+  };
+
+  const handleJobTypeChange = (jobType: string) => {
+    setNewJobData(prev => ({ ...prev, jobType }));
+    if (jobType === 'deinstall') {
+      // Load vehicles with a small delay for smooth UI updates
+      const timer = setTimeout(() => {
+        fetchVehiclesIp();
+      }, 50); // 50ms delay for smooth UI transition
+      return () => clearTimeout(timer);
+    }
+    // Clear vehicle data when switching job types
+    setSelectedVehicleIp(null);
+    setNewJobData(prev => ({
+      ...prev,
+      vehicleRegistration: '',
+      vehicleMake: '',
+      vehicleModel: '',
+      vehicleYear: 2023,
+    }));
+  };
 
   // Fetch job cards with caching
   const fetchJobCards = useCallback(async (forceRefresh = false) => {
-    // If jobs are already loaded and not forcing refresh, return cached data
-    if (jobsLoaded && !forceRefresh) {
-      console.log('Using cached job cards');
-      return;
-    }
-
-    try {
+    if (!forceRefresh && jobsLoaded) return;
+    
       setLoading(true);
+    try {
       const response = await fetch('/api/job-cards');
-      if (!response.ok) {
-        throw new Error('Failed to fetch job cards');
-      }
+      if (!response.ok) throw new Error('Failed to fetch job cards');
+      
       const data = await response.json();
-      console.log('Job cards API response:', data);
       setJobCards(data.job_cards || []);
       setJobsLoaded(true);
-      
-      // If no job cards exist, create some test data
-      if (!data.job_cards || data.job_cards.length === 0) {
-        console.log('No job cards found, creating test data...');
-        await createTestJobCards();
-      }
     } catch (error) {
       console.error('Error fetching job cards:', error);
-      toast.error('Failed to load job cards');
     } finally {
       setLoading(false);
     }
   }, [jobsLoaded]);
+
+  // Set default assignment date to today
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    setAssignmentDateForJob(today);
+  }, []);
 
   // Fetch assigned jobs (formerly today's jobs)
   const fetchAssignedJobs = useCallback(async () => {
@@ -192,9 +357,8 @@ export default function AdminDashboard() {
           vehicleMake: 'Toyota',
           vehicleModel: 'Hilux',
           vehicleYear: 2022,
-          jobLocation: 'Durban Warehouse',
-          estimatedDurationHours: 4,
-          estimatedCost: 2500,
+
+
           partsRequired: [{
             description: 'GPS Module',
             quantity: 1,
@@ -227,9 +391,8 @@ export default function AdminDashboard() {
           vehicleMake: 'Ford',
           vehicleModel: 'Ranger',
           vehicleYear: 2021,
-          jobLocation: 'Cape Town Depot',
-          estimatedDurationHours: 2,
-          estimatedCost: 1200,
+
+
           partsRequired: [{
             description: 'Replacement Sensor',
             quantity: 1,
@@ -253,9 +416,8 @@ export default function AdminDashboard() {
           vehicleMake: 'Isuzu',
           vehicleModel: 'KB',
           vehicleYear: 2023,
-          jobLocation: 'Johannesburg Hub',
-          estimatedDurationHours: 6,
-          estimatedCost: 3500,
+
+
           partsRequired: [{
             description: 'New Control Unit',
             quantity: 1,
@@ -391,6 +553,175 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateJob = async () => {
+    // Validate required fields
+    if (!newJobData.customerName.trim()) {
+      toast.error('Customer name is required');
+      return;
+    }
+
+    // For deinstall jobs, ensure a vehicle is selected
+    if (newJobData.jobType === 'deinstall' && !selectedVehicleIp) {
+      toast.error('Please select a vehicle for deinstall job');
+      return;
+    }
+
+    try {
+      const jobData = {
+        jobType: newJobData.jobType,
+        jobDescription: newJobData.jobDescription,
+        priority: newJobData.priority,
+        customerName: newJobData.customerName,
+        customerEmail: newJobData.customerEmail,
+        customerPhone: newJobData.customerPhone,
+        customerAddress: newJobData.customerAddress,
+        vehicleRegistration: newJobData.vehicleRegistration,
+        vehicleMake: newJobData.vehicleMake,
+        vehicleModel: newJobData.vehicleModel,
+        vehicleYear: newJobData.vehicleYear,
+        status: 'pending',
+        job_status: 'created',
+        // For deinstall: include vehicle_ip reference
+        vehicle_ip_id: newJobData.jobType === 'deinstall' && selectedVehicleIp ? selectedVehicleIp.id : null,
+        // quotation-style fields
+        purchaseType: 'purchase',
+        quotationJobType: newJobData.jobType,
+        quotationProducts: aqSelectedProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          type: p.type,
+          category: p.category,
+          cash_price: p.cashPrice,
+          cash_discount: p.cashDiscount,
+          cash_gross: aqCalcGross(p.cashPrice, p.cashDiscount),
+          rental_price: p.rentalPrice,
+          rental_discount: p.rentalDiscount,
+          rental_gross: aqCalcGross(p.rentalPrice, p.rentalDiscount),
+          installation_price: p.installationPrice,
+          installation_discount: p.installationDiscount,
+          installation_gross: aqCalcGross(p.installationPrice, p.installationDiscount),
+          de_installation_price: p.deInstallationPrice,
+          de_installation_discount: p.deInstallationDiscount,
+          de_installation_gross: aqCalcGross(p.deInstallationPrice, p.deInstallationDiscount),
+          subscription_price: p.subscriptionPrice,
+          subscription_discount: p.subscriptionDiscount,
+          subscription_gross: aqCalcGross(p.subscriptionPrice, p.subscriptionDiscount),
+          quantity: p.quantity,
+          line_total: aqGetProductTotal(p)
+        })),
+        quotationSubtotal: aqSubtotal,
+        quotationVatAmount: aqVat,
+        quotationTotalAmount: aqTotal,
+        quoteType: 'external'
+      };
+
+      const response = await fetch('/api/job-cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jobData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create job');
+      }
+
+      const result = await response.json();
+      toast.success(`Job created successfully! Job number: ${result.data.job_number}`);
+
+      // Store the created job ID and move to technician assignment step
+      setCreatedJobId(result.data.id);
+      setCreateJobStep(2);
+    } catch (error) {
+      console.error('Error creating job:', error);
+      toast.error(`Failed to create job: ${error.message}`);
+    }
+  };
+
+  const resetCreateJobForm = () => {
+    setNewJobData({
+      jobType: 'install',
+      jobDescription: '',
+      priority: 'medium',
+      customerName: '',
+      customerEmail: '',
+      customerPhone: '',
+      customerAddress: '',
+      vehicleRegistration: '',
+      vehicleMake: '',
+      vehicleModel: '',
+      vehicleYear: 2023,
+      partsRequired: [],
+    });
+    setCreateJobStep(1);
+    setCreatedJobId(null);
+    setSelectedTechnicianForJob('');
+    setAssignmentDateForJob('');
+    setAssignmentTimeForJob('');
+    setAqSelectedProducts([]);
+    setSelectedVehicleIp(null);
+    setVehiclesIp([]);
+  };
+
+  const handleAssignTechnicianToNewJob = async () => {
+    if (!createdJobId || !selectedTechnicianForJob || !assignmentDateForJob) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const technician = technicians.find(t => t.name === selectedTechnicianForJob);
+      if (!technician) {
+        toast.error('Selected technician not found');
+        return;
+      }
+
+      const assignmentDateTime = `${assignmentDateForJob}T${assignmentTimeForJob || '09:00'}:00`;
+
+      const response = await fetch(`/api/admin/jobs/assign-technician`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId: createdJobId,
+          technicianEmail: technician.email,
+          technicianName: technician.name,
+          jobDate: assignmentDateTime,
+          startTime: assignmentTimeForJob || null,
+          endTime: null,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to assign technician');
+        return;
+      }
+
+      toast.success(`Technician ${technician.name} assigned successfully to the new job!`);
+
+      // Reset everything and close dialog
+      resetCreateJobForm();
+      setCreateJobStep(1);
+      setCreatedJobId(null);
+      setSelectedTechnicianForJob('');
+      setAssignmentDateForJob('');
+      setAssignmentTimeForJob('');
+      setCreateJobOpen(false);
+
+      // Refresh job cards
+      await fetchJobCards(true);
+    } catch (error) {
+      console.error('Error assigning technician:', error);
+      toast.error('Failed to assign technician');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -445,25 +776,30 @@ export default function AdminDashboard() {
     return hasParts;
   };
 
-  // Sort jobs: unassigned first, then assigned jobs at the bottom
+  // Sort jobs: newest first, then by assignment status and priority
   const sortJobs = (jobs: JobCard[]) => {
     return [...jobs].sort((a, b) => {
-      // First sort by assignment status (unassigned first)
+      // Primary sort: creation date (newest first)
+      const aDate = new Date(a.created_at).getTime();
+      const bDate = new Date(b.created_at).getTime();
+      
+      if (aDate !== bDate) {
+        return bDate - aDate; // Newest first
+      }
+      
+      // Secondary sort: assignment status (unassigned first)
       const aAssigned = !!a.technician_name;
       const bAssigned = !!b.technician_name;
       
       if (aAssigned && !bAssigned) return 1; // a goes to bottom
-      if (!aAssigned && bAssigned) return -1; // b goes to bottom
+      if (!aAssigned && bAssigned) return -1; // b goes to top
       
-      // If both have same assignment status, sort by priority
+      // Tertiary sort: priority
       const priorityOrder = { 'critical': 0, 'urgent': 1, 'high': 2, 'medium': 3, 'low': 4 };
       const aPriority = priorityOrder[a.priority?.toLowerCase() as keyof typeof priorityOrder] ?? 5;
       const bPriority = priorityOrder[b.priority?.toLowerCase() as keyof typeof priorityOrder] ?? 5;
       
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      
-      // If same priority, sort by creation date (newest first)
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return aPriority - bPriority;
     });
   };
 
@@ -1086,7 +1422,19 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Access Section */}
-      <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+      <div className="gap-4 grid grid-cols-1 md:grid-cols-4">
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCreateJobOpen(true)}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Plus className="w-8 h-8 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Create Job</h3>
+                <p className="text-gray-600 text-sm">Create a new job card and assign technician</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
         <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/all-job-cards'}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -1124,11 +1472,59 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <DashboardTabs
-        tabs={tabItems}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+      {/* Custom Top Bar Navigation */}
+      <div className="bg-white p-1 border border-gray-200 rounded-lg">
+        <div className="flex justify-between items-center">
+          {tabItems.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setActiveTab(item.value)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 flex-1 ${
+                activeTab === item.value
+                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              {item.icon && <item.icon className="w-4 h-4" />}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation Links */}
+      <div className="flex items-center gap-4">
+        <a
+          href="/protected/admin/schedule"
+          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
+        >
+          <Calendar className="w-4 h-4" />
+          Schedule
+        </a>
+        <a
+          href="/protected/admin/all-job-cards"
+          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
+        >
+          <FileText className="w-4 h-4" />
+          All Job Cards
+        </a>
+        <a
+          href="/protected/admin/completed-jobs"
+          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
+        >
+          <CheckCircle className="w-4 h-4" />
+          Completed Jobs
+        </a>
+      </div>
+
+      {/* Tab Content */}
+      {tabItems.map((item) => (
+        activeTab === item.value && (
+          <div key={item.value}>
+            {item.content}
+          </div>
+        )
+      ))}
 
       {/* Assign Technician Dialog */}
       <Dialog open={assignTechnicianOpen} onOpenChange={setAssignTechnicianOpen}>
@@ -1201,6 +1597,405 @@ export default function AdminDashboard() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Job Dialog */}
+      <Dialog open={createJobOpen} onOpenChange={(open) => {
+        setCreateJobOpen(open);
+        if (!open) {
+          resetCreateJobForm();
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {createJobStep === 1 ? 'Create New Job' : 'Assign Technician'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {createJobStep === 1 ? (
+            // Step 1: Job Creation Form
+            <div className="space-y-6">
+              {/* Job Details Section */}
+              <div className="space-y-4">
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Job Details</h3>
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="jobType">Job Type *</Label>
+                    <Select value={newJobData.jobType} onValueChange={handleJobTypeChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="install">Install</SelectItem>
+                        <SelectItem value="deinstall">Deinstall</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="priority">Priority *</Label>
+                    <Select value={newJobData.priority} onValueChange={(value) => setNewJobData(prev => ({ ...prev, priority: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="jobDescription">Job Description</Label>
+                  <Textarea
+                    id="jobDescription"
+                    placeholder="Describe the job requirements..."
+                    value={newJobData.jobDescription}
+                    onChange={(e) => setNewJobData(prev => ({ ...prev, jobDescription: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
+
+              </div>
+
+              {/* Customer Details Section */}
+              <div className="space-y-4">
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Customer Details</h3>
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="customerName">Customer Name *</Label>
+                    <Input
+                      id="customerName"
+                      placeholder="Enter customer name..."
+                      value={newJobData.customerName}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerName: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerEmail">Customer Email</Label>
+                    <Input
+                      id="customerEmail"
+                      type="email"
+                      placeholder="Enter customer email..."
+                      value={newJobData.customerEmail}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerEmail: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="customerPhone">Customer Phone</Label>
+                    <Input
+                      id="customerPhone"
+                      placeholder="Enter customer phone..."
+                      value={newJobData.customerPhone}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerPhone: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerAddress">Customer Address</Label>
+                    <Input
+                      id="customerAddress"
+                      placeholder="Enter customer address..."
+                      value={newJobData.customerAddress}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerAddress: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle Details Section */}
+              <div className="space-y-4">
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Vehicle Details</h3>
+                
+                {newJobData.jobType === 'deinstall' && (
+                  <div className="bg-blue-50 mb-4 p-4 border border-blue-200 rounded-lg">
+                    <h4 className="mb-3 font-medium text-blue-800">Select Vehicle for Deinstall</h4>
+                    {loadingVehiclesIp ? (
+                      <div className="text-blue-600">Loading vehicles...</div>
+                    ) : vehiclesIp.length === 0 ? (
+                      <div className="text-blue-600">No vehicles found</div>
+                    ) : (
+                      <div className="space-y-2 max-h-40 overflow-auto">
+                        {vehiclesIp.map((vehicle) => (
+                          <div 
+                            key={vehicle.id} 
+                            className={`p-2 border rounded cursor-pointer hover:bg-blue-100 ${
+                              selectedVehicleIp?.id === vehicle.id ? 'bg-blue-200 border-blue-400' : 'bg-white'
+                            }`}
+                            onClick={() => handleVehicleIpSelect(vehicle)}
+                          >
+                            <div className="font-medium text-sm">{vehicle.new_registration || 'No Registration'}</div>
+                            <div className="text-gray-600 text-xs">
+                              Company: {vehicle.company || 'N/A'} | Group: {vehicle.group_name || 'N/A'}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              IP: {vehicle.ip_address || 'N/A'} | VIN: {vehicle.vin_number || 'N/A'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="vehicleRegistration">Vehicle Registration</Label>
+                    <Input
+                      id="vehicleRegistration"
+                      placeholder="Enter vehicle registration..."
+                      value={newJobData.vehicleRegistration}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleRegistration: e.target.value }))}
+                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="vehicleMake">Vehicle Make</Label>
+                    <Input
+                      id="vehicleMake"
+                      placeholder="Enter vehicle make..."
+                      value={newJobData.vehicleMake}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleMake: e.target.value }))}
+                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                    />
+                  </div>
+                </div>
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="vehicleModel">Vehicle Model</Label>
+                    <Input
+                      id="vehicleModel"
+                      placeholder="Enter vehicle model..."
+                      value={newJobData.vehicleModel}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleModel: e.target.value }))}
+                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="vehicleYear">Vehicle Year</Label>
+                    <Input
+                      id="vehicleYear"
+                      type="number"
+                      min="1900"
+                      max={new Date().getFullYear() + 1}
+                      value={newJobData.vehicleYear}
+                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleYear: parseInt(e.target.value) || 2023 }))}
+                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Products (FC external quotation style) */}
+              <div className="space-y-4">
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Products</h3>
+                <div className="gap-3 grid grid-cols-1 md:grid-cols-3">
+                  <div>
+                    <Label className="text-sm">Type</Label>
+                    <Select value={aqSelectedType} onValueChange={setAqSelectedType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All types" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {aqProductTypes.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Category</Label>
+                    <Select value={aqSelectedCategory} onValueChange={setAqSelectedCategory}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {aqProductCategories.map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-sm">Search</Label>
+                    <Input value={aqSearchTerm} onChange={(e) => setAqSearchTerm(e.target.value)} placeholder="Search products" />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" onClick={fetchAqProducts} disabled={aqLoadingProducts}>
+                    Refresh
+                  </Button>
+                </div>
+
+                <div className="gap-3 grid grid-cols-1 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Available Products</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 max-h-64 overflow-auto">
+                      {aqLoadingProducts ? (
+                        <div className="text-gray-500 text-sm">Loading...</div>
+                      ) : aqProducts.length === 0 ? (
+                        <div className="text-gray-500 text-sm">No products</div>
+                      ) : (
+                        aqProducts.map((p: any) => (
+                          <div key={p.id} className="flex justify-between items-center py-2 border-b">
+                            <div>
+                              <div className="font-medium text-sm">{p.product}</div>
+                              <div className="text-gray-500 text-xs">Installation: R{(p.installation || 0).toFixed(2)}</div>
+                            </div>
+                            <Button size="sm" onClick={() => aqAddProduct(p)}>Add</Button>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Selected Products</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 max-h-64 overflow-auto">
+                      {aqSelectedProducts.length === 0 ? (
+                        <div className="text-gray-500 text-sm">No products selected</div>
+                      ) : (
+                        aqSelectedProducts.map((prod, idx) => (
+                          <div key={idx} className="space-y-2 p-2 border rounded">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium text-sm">{prod.name}</div>
+                              <Button size="icon" variant="ghost" onClick={() => aqRemoveProduct(idx)}>
+                                ×
+                              </Button>
+                            </div>
+                            <div className="gap-3 grid grid-cols-3">
+                              <div>
+                                <Label className="text-xs">Cash ex VAT</Label>
+                                <Input type="number" value={prod.cashPrice} onChange={(e) => aqUpdateProduct(idx, 'cashPrice', parseFloat(e.target.value) || 0)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Cash Discount</Label>
+                                <Input type="number" value={prod.cashDiscount} onChange={(e) => aqUpdateProduct(idx, 'cashDiscount', parseFloat(e.target.value) || 0)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Qty</Label>
+                                <Input type="number" min={1} value={prod.quantity} onChange={(e) => aqUpdateProduct(idx, 'quantity', parseInt(e.target.value) || 1)} />
+                              </div>
+                            </div>
+                            <div className="gap-3 grid grid-cols-3">
+                              <div>
+                                <Label className="text-xs">Install ex VAT</Label>
+                                <Input type="number" value={prod.installationPrice} onChange={(e) => aqUpdateProduct(idx, 'installationPrice', parseFloat(e.target.value) || 0)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Install Discount</Label>
+                                <Input type="number" value={prod.installationDiscount} onChange={(e) => aqUpdateProduct(idx, 'installationDiscount', parseFloat(e.target.value) || 0)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Line Total</Label>
+                                <Input readOnly value={aqGetProductTotal(prod).toFixed(2)} />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Separator />
+                <div className="flex justify-end gap-6 text-sm">
+                  <div>Subtotal: <span className="font-semibold">R{aqSubtotal.toFixed(2)}</span></div>
+                  <div>VAT (15%): <span className="font-semibold">R{aqVat.toFixed(2)}</span></div>
+                  <div>Total: <span className="font-semibold">R{aqTotal.toFixed(2)}</span></div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => {
+                  resetCreateJobForm();
+                  setCreateJobOpen(false);
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateJob} 
+                  disabled={!newJobData.customerName.trim() || (newJobData.jobType === 'deinstall' && !selectedVehicleIp)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Plus className="mr-2 w-4 h-4" />
+                  Create Job
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // Step 2: Technician Assignment
+            <div className="space-y-6">
+              <div className="bg-green-50 p-4 border border-green-200 rounded-lg">
+                <h4 className="mb-2 font-medium text-green-800">Job Created Successfully!</h4>
+                <p className="text-green-700 text-sm">Now assign a technician to complete the setup.</p>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Technician Assignment</h3>
+                <div>
+                  <Label htmlFor="technicianForJob">Select Technician *</Label>
+                  <Select value={selectedTechnicianForJob} onValueChange={setSelectedTechnicianForJob}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a technician" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {technicians.map((technician) => (
+                        <SelectItem key={technician.id} value={technician.name}>
+                          {technician.name} ({technician.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="assignmentDateForJob">Assignment Date *</Label>
+                    <Input
+                      id="assignmentDateForJob"
+                      type="date"
+                      value={assignmentDateForJob}
+                      onChange={(e) => setAssignmentDateForJob(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="assignmentTimeForJob">Assignment Time</Label>
+                    <Input
+                      id="assignmentTimeForJob"
+                      type="time"
+                      value={assignmentTimeForJob}
+                      onChange={(e) => setAssignmentTimeForJob(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setCreateJobStep(1)}>
+                  Back
+                </Button>
+                <Button 
+                  onClick={handleAssignTechnicianToNewJob} 
+                  disabled={!selectedTechnicianForJob || !assignmentDateForJob}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <UserPlus className="mr-2 w-4 h-4" />
+                  Assign Technician
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

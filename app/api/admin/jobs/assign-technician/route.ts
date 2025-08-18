@@ -20,18 +20,23 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Build proper timestamp strings for start_time/end_time if provided
+    const datePart = String(jobDate).includes('T') ? String(jobDate).split('T')[0] : String(jobDate);
+    const startDateTime = startTime ? `${datePart}T${startTime}:00` : null;
+    const endDateTime = endTime ? `${datePart}T${endTime}:00` : null;
+
     // Update the job card with technician assignment and scheduling
     const updateData = {
       assigned_technician_id: user.id, // Store the user ID who made the assignment
       technician_name: technicianName,
       technician_phone: technicianEmail, // Store email in technician_phone field
       job_date: jobDate,
-      start_time: startTime || null,
-      end_time: endTime || null,
+      start_time: startDateTime,
+      end_time: endDateTime,
       status: 'assigned',
       updated_at: new Date().toISOString(),
       updated_by: user.id
-    };
+    } as const;
 
     const { data, error } = await supabase
       .from('job_cards')

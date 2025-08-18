@@ -53,6 +53,8 @@ export default function TechSchedule() {
   const [showVehicleDetails, setShowVehicleDetails] = useState(false);
   const [currentVehicle, setCurrentVehicle] = useState<any>(null);
   const [showVinScanner, setShowVinScanner] = useState(false);
+  const [showTechnicianCalendar, setShowTechnicianCalendar] = useState(false);
+  const [selectedTechnician, setSelectedTechnician] = useState(null);
 
   const pathname = usePathname();
 
@@ -257,6 +259,11 @@ export default function TechSchedule() {
   const handleJobClick = (job) => {
     setSelectedJob(job);
     setJobDetailsOpen(true);
+  };
+
+  const handleTechnicianClick = (technicianEmail, availability) => {
+    setSelectedTechnician({ email: technicianEmail, ...availability });
+    setShowTechnicianCalendar(true);
   };
 
   const handleVinScan = (job) => {
@@ -492,7 +499,11 @@ export default function TechSchedule() {
                     <p className="text-gray-500 text-sm">No technicians assigned to jobs</p>
                   ) : (
                     Object.entries(teamAvailability).map(([technicianEmail, availability]) => (
-                      <div key={technicianEmail} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                      <div 
+                        key={technicianEmail} 
+                        className="flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg transition-colors cursor-pointer"
+                        onClick={() => handleTechnicianClick(technicianEmail, availability)}
+                      >
                         <div className="flex items-center gap-2">
                           {availability.isAvailable ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -607,6 +618,168 @@ export default function TechSchedule() {
         onVehicleAdded={handleVehicleAdded}
         jobData={selectedJob}
       />
+
+      {/* Technician Calendar Modal */}
+      <Dialog open={showTechnicianCalendar} onOpenChange={setShowTechnicianCalendar}>
+        <DialogContent className="max-w-6xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="w-5 h-5" />
+              {selectedTechnician?.email?.split('@')[0]}'s Schedule
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+            {selectedTechnician && (
+              <div className="space-y-6">
+                {/* Technician Info */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      {selectedTechnician.isAvailable ? (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      )}
+                      <span className="font-medium text-gray-900">
+                        {selectedTechnician.email?.split('@')[0]}
+                      </span>
+                    </div>
+                    <Badge variant={selectedTechnician.isAvailable ? "default" : "secondary"}>
+                      {selectedTechnician.isAvailable ? "Available" : "Busy"}
+                    </Badge>
+                    <span className="text-gray-600">
+                      {selectedTechnician.totalJobs} total jobs
+                    </span>
+                  </div>
+                </div>
+
+                {/* Calendar */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5" />
+                        Calendar View
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigateMonth(-1)}
+                          className="p-0 w-8 h-8"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="min-w-[120px] font-medium text-gray-900 text-center">
+                          {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigateMonth(1)}
+                          className="p-0 w-8 h-8"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Days of week header */}
+                    <div className="gap-0 grid grid-cols-7 mb-2">
+                      {DAYS.map(day => (
+                        <div key={day} className="p-3 border-b font-medium text-gray-500 text-sm text-center">
+                          {day}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Calendar grid */}
+                    <div className="gap-0 grid grid-cols-7 border border-gray-200 rounded-lg overflow-hidden">
+                      {getDaysInMonth(currentDate).map((day, index) => {
+                        const events = getEventsForDate(day).filter(event => 
+                          event.technician === selectedTechnician.email
+                        );
+                        const dateKey = day ? formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
+
+                        return (
+                          <div
+                            key={index}
+                            className={`
+                              min-h-[100px] p-2 border border-gray-100 transition-colors
+                              ${day ? 'hover:bg-gray-50' : 'bg-gray-25'}
+                            `}
+                          >
+                            {day && (
+                              <>
+                                <div className="mb-1 font-medium text-gray-900">
+                                  {day}
+                                </div>
+                                <div className="space-y-1">
+                                  {events.map((event, eventIndex) => (
+                                    <div
+                                      key={eventIndex}
+                                      className="bg-blue-100 hover:bg-blue-200 p-1 rounded text-blue-800 text-xs cursor-pointer"
+                                      onClick={() => handleJobClick(event)}
+                                    >
+                                      <div className="font-medium truncate">
+                                        {event.customerName}
+                                      </div>
+                                      <div className="text-blue-600">
+                                        {event.time}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Today's Jobs for this Technician */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      Today's Jobs
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {selectedTechnician.todaysJobs?.length === 0 ? (
+                        <p className="text-gray-500 text-sm">No jobs scheduled for today</p>
+                      ) : (
+                        selectedTechnician.todaysJobs.map((job, index) => (
+                          <div
+                            key={index}
+                            className="hover:bg-gray-50 p-3 border rounded-lg transition-colors cursor-pointer"
+                            onClick={() => handleJobClick(job)}
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-medium text-sm">{job.customerName}</h4>
+                              <Badge variant="outline" className="text-xs">
+                                {job.time}
+                              </Badge>
+                            </div>
+                            <div className="space-y-1 text-gray-600 text-xs">
+                              <p><Package className="inline mr-1 w-3 h-3" />{job.productName}</p>
+                              <p><MapPin className="inline mr-1 w-3 h-3" />{job.customerAddress}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

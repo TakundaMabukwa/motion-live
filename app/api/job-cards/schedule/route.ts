@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date'); // Optional: filter by specific date
+    const technicianName = searchParams.get('technician_name'); // Optional: filter by technician name
     const technicianEmail = searchParams.get('technician_email'); // Optional: filter by technician email
 
     // Build the query with technician color information
@@ -59,14 +60,18 @@ export async function GET(request: NextRequest) {
         customer_name,
         customer_email,
         customer_phone,
+        customer_address,
         vehicle_registration,
         vehicle_make,
         vehicle_model,
+        assigned_technician_id,
         technician_name,
         technician_phone,
         job_location,
         estimated_duration_hours,
         actual_duration_hours,
+        estimated_cost,
+        actual_cost,
         created_at
       `)
       .not('job_date', 'is', null) // Only jobs with dates
@@ -83,6 +88,11 @@ export async function GET(request: NextRequest) {
       query = query
         .gte('job_date', startOfDay.toISOString())
         .lte('job_date', endOfDay.toISOString());
+    }
+
+    // Apply technician name filter if provided
+    if (technicianName) {
+      query = query.eq('technician_name', technicianName);
     }
 
     // Apply technician email filter if provided
@@ -172,6 +182,119 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in schedule jobs GET:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST method to fetch jobs for a specific technician
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { technicianName, technicianEmail } = body;
+
+    if (!technicianName && !technicianEmail) {
+      return NextResponse.json({ error: 'Technician name or email is required' }, { status: 400 });
+    }
+
+    // Build query for technician-specific jobs
+    let query = supabase
+      .from('job_cards')
+      .select(`
+        id,
+        job_number,
+        job_date,
+        due_date,
+        start_time,
+        end_time,
+        status,
+        job_type,
+        job_description,
+        priority,
+        customer_name,
+        customer_email,
+        customer_phone,
+        customer_address,
+        vehicle_registration,
+        vehicle_make,
+        vehicle_model,
+        assigned_technician_id,
+        technician_name,
+        technician_phone,
+        job_location,
+        estimated_duration_hours,
+        actual_duration_hours,
+        estimated_cost,
+        actual_cost,
+        created_at
+      `)
+      .not('job_date', 'is', null)
+      .order('job_date', { ascending: true })
+      .order('start_time', { ascending: true });
+
+    // Apply technician filter
+    if (technicianName) {
+      query = query.eq('technician_name', technicianName);
+    } else if (technicianEmail) {
+      query = query.eq('technician_phone', technicianEmail);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching technician jobs:', error);
+      return NextResponse.json({ error: 'Failed to fetch technician jobs' }, { status: 500 });
+    }
+
+    // Process jobs and add technician colors
+    const processedJobs = (data || []).map(job => ({
+      ...job,
+      technician_color: 'gray'
+    }));
+
+    // Fetch technician colors
+    const { data: technicians } = await supabase
+      .from('technicians')
+      .select('name, color_code');
+
+    if (technicians) {
+      const technicianColorMap = {};
+      technicians.forEach(tech => {
+        technicianColorMap[tech.name] = tech.color_code;
+      });
+
+      processedJobs.forEach(job => {
+        if (job.technician_name && technicianColorMap[job.technician_name]) {
+          job.technician_color = technicianColorMap[job.technician_name];
+        }
+      });
+    }
+
+    // Group jobs by date
+    const jobsByDate = processedJobs.reduce((acc, job) => {
+      const dateKey = job.job_date ? new Date(job.job_date).toISOString().split('T')[0] : 'no-date';
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(job);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return NextResponse.json({
+      jobs: processedJobs,
+      jobsByDate,
+      total: processedJobs.length
+    });
+
+  } catch (error) {
+    console.error('Error in technician jobs POST:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

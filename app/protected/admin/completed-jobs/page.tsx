@@ -17,6 +17,7 @@ import {
   Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
+import AdminSubnav from '@/components/admin/AdminSubnav';
 
 interface CompletedJob {
   id: string;
@@ -166,6 +167,10 @@ export default function CompletedJobsPage() {
 
   return (
     <div className="mx-auto p-6 container">
+      {/* Admin sub navigation */}
+      <div className="mb-4">
+        <AdminSubnav />
+      </div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="font-bold text-gray-900 text-3xl">Completed Jobs</h1>

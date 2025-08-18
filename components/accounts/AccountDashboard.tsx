@@ -98,6 +98,23 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
     }).format(amount);
   };
 
+  // Check if payment is due (after 21st of month)
+  const isPaymentDue = () => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    return currentDay >= 21;
+  };
+
+  // Get appropriate label for monthly amounts
+  const getMonthlyLabel = () => {
+    return isPaymentDue() ? 'Amount Due' : 'Monthly Total';
+  };
+
+  // Get appropriate description for monthly amounts
+  const getMonthlyDescription = () => {
+    return isPaymentDue() ? 'Payment due for this month' : 'Combined monthly billing';
+  };
+
   const getOverdueStatus = (totalOverdue) => {
     if (totalOverdue === 0) return 'current';
     if (totalOverdue < 1000) return 'low';
@@ -194,8 +211,8 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                 <div className="mb-2 font-bold text-green-600 text-4xl">
                   {formatCurrency(totalMonthlyCost)}
                 </div>
-                <p className="font-semibold text-green-700 text-lg">Monthly Total</p>
-                <p className="text-green-600 text-sm">Combined monthly billing</p>
+                <p className="font-semibold text-green-700 text-lg">{getMonthlyLabel()}</p>
+                <p className="text-green-600 text-sm">{getMonthlyDescription()}</p>
               </div>
             </div>
           </CardContent>
@@ -270,14 +287,14 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Account Monthly</CardTitle>
+              <CardTitle className="font-medium text-sm">{isPaymentDue() ? 'Amount Due' : 'Account Monthly'}</CardTitle>
               <DollarSign className="w-4 h-4 text-blue-500" />
             </CardHeader>
             <CardContent>
               <div className="font-bold text-blue-600 text-2xl">
                 {formatCurrency(accountData.totalMonthlyAmount)}
               </div>
-              <p className="text-blue-700 text-sm">Account total</p>
+              <p className="text-blue-700 text-sm">{isPaymentDue() ? 'Payment due' : 'Monthly average'}</p>
             </CardContent>
           </Card>
 
@@ -521,7 +538,7 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="font-bold text-gray-900 text-3xl">Financial Overview</h1>
+            <h1 className="font-bold text-gray-900 text-3xl">Financial Summary</h1>
             <p className="text-gray-600">Detailed financial breakdown for {accountData.company}</p>
           </div>
           <Button 
@@ -539,10 +556,13 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
           <CardHeader className="text-center">
             <CardTitle className="flex justify-center items-center space-x-2 mb-2 text-green-900 text-2xl">
               <DollarSign className="w-8 h-8" />
-              <span>Total Monthly Revenue</span>
+              <span>{isPaymentDue() ? 'Total Amount Due' : 'Total Monthly Revenue'}</span>
             </CardTitle>
             <p className="text-green-700 text-lg">
-              Combined monthly revenue for all vehicles in this account
+              {isPaymentDue() 
+                ? 'Total amount due for all vehicles in this account'
+                : 'Combined monthly revenue for all vehicles in this account'
+              }
             </p>
           </CardHeader>
           <CardContent>
@@ -555,8 +575,8 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                 <div className="mb-2 font-bold text-green-600 text-4xl">
                   {formatCurrency(totalMonthlyRevenue)}
                 </div>
-                <p className="font-semibold text-green-700 text-lg">Total Monthly Revenue</p>
-                <p className="text-green-600 text-sm">All vehicles incl. VAT</p>
+                <p className="font-semibold text-green-700 text-lg">{isPaymentDue() ? 'Total Amount Due' : 'Total Monthly Revenue'}</p>
+                <p className="text-green-600 text-sm">{isPaymentDue() ? 'All vehicles due' : 'All vehicles incl. VAT'}</p>
               </div>
               
               {/* Total Ex VAT */}
@@ -568,7 +588,7 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                   {formatCurrency(totalExVat)}
                 </div>
                 <p className="font-semibold text-blue-700 text-lg">Total Ex VAT</p>
-                <p className="text-blue-600 text-sm">Before VAT</p>
+                <p className="text-green-600 text-sm">Before VAT</p>
               </div>
               
               {/* Total VAT */}
@@ -580,7 +600,7 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                   {formatCurrency(totalVat)}
                 </div>
                 <p className="font-semibold text-purple-700 text-lg">Total VAT</p>
-                <p className="text-purple-600 text-sm">VAT amount</p>
+                <p className="text-green-600 text-sm">VAT amount</p>
               </div>
             </div>
           </CardContent>
@@ -612,7 +632,7 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
                         Vehicle Details
                       </th>
                       <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                        Monthly Cost
+                        Due Amount
                       </th>
                       <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
                         Total (Ex VAT)
@@ -689,6 +709,115 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
             )}
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // Payment Section
+  if (activeSection === 'payment') {
+    const customerTotalValue = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_incl_vat) || 0), 0);
+    const totalExVat = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_ex_vat) || 0), 0);
+    const totalVat = vehicles.reduce((sum, v) => sum + (parseFloat(v.total_vat) || 0), 0);
+    
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="font-bold text-gray-900 text-3xl">Payment</h1>
+            <p className="text-gray-600">Payment processing for {accountData.company}</p>
+          </div>
+          <Button 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            variant="outline"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
+
+        {/* Payment Summary Cards */}
+        <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
+          {/* Customer Total Value */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader className="text-center">
+              <CardTitle className="text-blue-900 text-lg">{isPaymentDue() ? 'Amount Due' : 'Customer Total Value'}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="mb-2 font-bold text-blue-600 text-3xl">
+                {formatCurrency(customerTotalValue)}
+              </div>
+              <p className="text-blue-700 text-sm">{isPaymentDue() ? 'Total amount due' : 'Total value including VAT'}</p>
+            </CardContent>
+          </Card>
+
+          {/* Excl VAT */}
+          <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+            <CardHeader className="text-center">
+              <CardTitle className="text-green-900 text-lg">Excl VAT</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="mb-2 font-bold text-green-600 text-3xl">
+                {formatCurrency(totalExVat)}
+              </div>
+              <p className="text-green-700 text-sm">Total before VAT</p>
+            </CardContent>
+          </Card>
+
+          {/* Total VAT */}
+          <Card className="bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200">
+            <CardHeader className="text-center">
+              <CardTitle className="text-purple-900 text-lg">Total VAT</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="mb-2 font-bold text-purple-600 text-3xl">
+                {formatCurrency(totalVat)}
+              </div>
+              <p className="text-purple-700 text-sm">VAT amount</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Payment Actions */}
+        <div className="gap-6 grid grid-cols-1 md:grid-cols-2">
+          {/* Confirm Payment */}
+          <Card className="border-2 border-gray-300 hover:border-blue-400 border-dashed transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-green-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Confirm Payment</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-gray-600">Process and confirm payment for this account</p>
+              <Button className="bg-green-600 hover:bg-green-700 w-full">
+                Confirm Payment
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* See Overview */}
+          <Card className="border-2 border-gray-300 hover:border-blue-400 border-dashed transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-blue-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span>See Overview</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-gray-600">View detailed payment overview and generate invoice</p>
+              <Button className="bg-blue-600 hover:bg-blue-700 w-full">
+                Generate Invoice
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

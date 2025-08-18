@@ -294,6 +294,11 @@ function AccountDetailPageContent() {
         title={customer.company || customer.trading_name || customer.legal_name}
         subtitle={`Account #${customer.new_account_number || accountId}`}
         icon={Building}
+        actionButton={{
+          label: 'Main Dashboard',
+          onClick: () => window.location.href = '/protected/fc',
+          icon: Building
+        }}
       />
 
       {/* Tab Navigation */}

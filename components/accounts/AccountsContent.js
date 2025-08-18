@@ -39,8 +39,41 @@ export default function AccountsContent({ activeSection }) {
   const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
+  const [showFinancialDetails, setShowFinancialDetails] = useState(false);
+  const [selectedFinancialAccount, setSelectedFinancialAccount] = useState(null);
 
   const router = useRouter();
+
+  // Check if payment is due (after 21st of month)
+  const isPaymentDue = () => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    return currentDay >= 21;
+  };
+
+  // Get appropriate label for monthly amounts
+  const getMonthlyLabel = () => {
+    return isPaymentDue() ? 'Amount Due' : 'Monthly Amount';
+  };
+
+
+
+
+
+  // Show financial details before viewing account
+  const handleShowFinancialDetails = (customer) => {
+    setSelectedFinancialAccount(customer);
+    setShowFinancialDetails(true);
+  };
+
+  // Proceed to view account details
+  const handleProceedToAccount = () => {
+    if (selectedFinancialAccount) {
+      handleCustomerClick(selectedFinancialAccount.accountNumber);
+      setShowFinancialDetails(false);
+      setSelectedFinancialAccount(null);
+    }
+  };
 
   const fetchCustomers = useCallback(async (isLoadMore = false) => {
     try {
@@ -51,6 +84,8 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const currentPage = isLoadMore ? page + 1 : 1;
+      console.log('Fetching customers:', { currentPage, searchTerm });
+      
       const response = await fetch(
         `/api/vehicle-invoices?page=${currentPage}&limit=50&search=${encodeURIComponent(searchTerm)}`
       );
@@ -60,6 +95,7 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const data = await response.json();
+      console.log('API response:', data);
       
       if (isLoadMore) {
         setCustomers(prev => [...prev, ...data.customers]);
@@ -212,11 +248,24 @@ export default function AccountsContent({ activeSection }) {
 
 
   const formatCurrency = (amount) => {
+    // Handle null, undefined, or empty string
+    if (amount === null || amount === undefined || amount === '') {
+      return 'R 0.00';
+    }
+    
+    // Convert to number if it's a string
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    
+    // Check if it's a valid number
+    if (isNaN(numAmount)) {
+      return 'R 0.00';
+    }
+    
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
       minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(numAmount);
   };
 
   const getOverdueStatus = (totalOverdue) => {
@@ -239,6 +288,7 @@ export default function AccountsContent({ activeSection }) {
   // Dashboard Section
   if (activeSection === 'dashboard') {
     console.log('Dashboard section active, selectedAccount:', selectedAccount);
+    console.log('Customers data:', customers);
     
     // If an account is selected, show the internal account dashboard
     if (selectedAccount) {
@@ -258,57 +308,68 @@ export default function AccountsContent({ activeSection }) {
     // Show the main accounts dashboard
     return (
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Accounts Dashboard</h2>
-          <div className="flex gap-2">
-
-            <Button 
-              onClick={() => router.push('/protected/accounts')}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Users className="w-4 h-4 mr-2" />
-              View All Accounts
-            </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Vehicle Invoices Overview</h1>
+            <p className="text-gray-600">All accounts grouped by CODE (before dash)</p>
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Vehicle Invoices</CardTitle>
-              <Car className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Codes</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">Vehicle Billing</div>
-              <p className="text-xs text-muted-foreground">Monthly recurring billing</p>
+              <div className="text-2xl font-bold text-blue-600">{customers.length}</div>
+              <p className="text-xs text-muted-foreground">Active code groups</p>
             </CardContent>
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Payment Tracking</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Monthly</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">Due 21st</div>
-              <p className="text-xs text-muted-foreground">Monthly payment schedule</p>
+              <div className="text-2xl font-bold text-green-600">
+                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyAmount || 0), 0))}
+              </div>
+              <p className="text-xs text-muted-foreground">Full monthly amounts due</p>
             </CardContent>
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue Monitoring</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Amount Due</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">Real-time</div>
-              <p className="text-xs text-muted-foreground">Automated tracking</p>
+              <div className="text-2xl font-bold text-red-600">
+                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalAmountDue || 0), 0))}
+              </div>
+              <p className="text-xs text-muted-foreground">Outstanding amounts</p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+              <Car className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                {customers.reduce((sum, c) => sum + (c.vehicleCount || 0), 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">Fleet size</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Overdue Accounts Widget - Main Feature */}
+        {/* Overdue Accounts Widget */}
         <Card className="hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-600">
@@ -316,7 +377,7 @@ export default function AccountsContent({ activeSection }) {
               <span>Overdue Accounts Overview</span>
             </CardTitle>
             <p className="text-gray-600 text-sm">
-              Click on any account to view detailed vehicle information and costs
+              Accounts with overdue payments (after 21st of month)
             </p>
           </CardHeader>
           <CardContent>
@@ -324,33 +385,32 @@ export default function AccountsContent({ activeSection }) {
               autoRefresh={true} 
               refreshInterval={300000} // 5 minutes
               showAllAccounts={false}
-              maxAccounts={10}
+              maxAccounts={15}
               onAccountClick={handleCustomerClick}
             />
           </CardContent>
         </Card>
 
-                 {/* All Accounts Section */}
+        {/* Accounts Table */}
          <Card className="hover:shadow-lg transition-shadow duration-200">
            <CardHeader>
              <div className="flex items-center justify-between">
                <div className="flex items-center space-x-2">
                  <Users className="w-5 h-5 text-blue-600" />
-                 <span>All Accounts</span>
+                <span>All Clients</span>
                </div>
                <Button 
-                 onClick={() => {
-                   console.log('Testing internal dashboard with AIRG-0001');
-                   fetchAccountData('AIRG-0001');
-                 }}
+                onClick={handleRefresh}
+                disabled={refreshing}
                  variant="outline"
                  size="sm"
                >
-                 Test Dashboard
+                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? 'Refreshing...' : 'Refresh'}
                </Button>
              </div>
              <p className="text-gray-600 text-sm">
-               Showing {customers.length} accounts (first 50 loaded, click "Load More" for additional accounts)
+              Showing {customers.length} clients with combined totals
              </p>
            </CardHeader>
           <CardContent>
@@ -366,12 +426,12 @@ export default function AccountsContent({ activeSection }) {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Search and Filters */}
+                {/* Search */}
                 <div className="flex items-center space-x-4 mb-6">
                   <div className="relative flex-1">
                     <Search className="top-3 left-3 absolute w-4 h-4 text-gray-400" />
                     <Input
-                      placeholder="Search by company name or account number..."
+                      placeholder="Search by company name or code..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -384,73 +444,74 @@ export default function AccountsContent({ activeSection }) {
                   </Button>
                 </div>
 
-                {/* Accounts Table */}
+                {/* Table */}
                 <div className="border rounded-lg overflow-hidden">
                   <table className="min-w-full">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                          Customer
+                          Client
                         </th>
                         <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                          Monthly Amount
+                          Monthly Total
                         </th>
                         <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                          Total Overdue
+                          Amount Due
+                        </th>
+                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
+                          Overdue
                         </th>
                         <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
                           Vehicles
                         </th>
                         <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {customers.map((customer, index) => {
-                        const overdueStatus = getOverdueStatus(customer.totalOverdue);
-                        return (
-                          <tr key={customer.accountNumber} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      {customers.map((customer, index) => (
+                        <tr key={customer.code} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="font-medium text-gray-900 text-sm">{customer.company}</div>
-                              <div className="text-gray-500 text-sm">#{customer.accountNumber}</div>
+                            <div className="text-gray-500 text-sm">Code: {customer.code}</div>
                             </td>
                             <td className="px-6 py-4 text-right whitespace-nowrap">
-                              <div className="font-medium text-gray-900 text-sm">
+                            <div className="font-medium text-gray-900 text-sm cursor-pointer hover:text-blue-600" 
+                                 onClick={() => handleShowFinancialDetails(customer)}>
                                 {formatCurrency(customer.totalMonthlyAmount)}
                               </div>
+                            <div className="text-xs text-gray-500">Full monthly due</div>
                             </td>
                             <td className="px-6 py-4 text-right whitespace-nowrap">
-                              <div className="font-medium text-red-600 text-sm">
-                                {formatCurrency(customer.totalOverdue)}
+                            <div className={`font-medium text-sm ${
+                              (customer.totalAmountDue || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {formatCurrency(customer.totalAmountDue || 0)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <div className={`font-medium text-sm ${
+                              (customer.totalOverdue || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {formatCurrency(customer.totalOverdue || 0)}
                               </div>
                             </td>
                             <td className="px-6 py-4 text-center whitespace-nowrap">
                               <Badge variant="outline">{customer.vehicleCount}</Badge>
                             </td>
                             <td className="px-6 py-4 text-center whitespace-nowrap">
-                              <Badge className={getOverdueColor(overdueStatus)}>
-                                {overdueStatus === 'current' ? 'Current' : 
-                                 overdueStatus === 'low' ? 'Low Risk' :
-                                 overdueStatus === 'medium' ? 'Medium Risk' : 'High Risk'}
-                              </Badge>
-                            </td>
-                            <td className="px-6 py-4 text-right whitespace-nowrap">
                               <Button 
                                 size="sm" 
-                                onClick={() => handleCustomerClick(customer.accountNumber)}
+                              onClick={() => handleShowFinancialDetails(customer)}
                                 className="bg-blue-500 hover:bg-blue-600"
                               >
                                 <Users className="mr-2 w-4 h-4" />
-                                View Details
+                              View Cost Centers
                               </Button>
                             </td>
                           </tr>
-                        );
-                      })}
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -470,7 +531,7 @@ export default function AccountsContent({ activeSection }) {
                           Loading...
                         </>
                       ) : (
-                        'Load More Accounts'
+                        'Load More Clients'
                       )}
                     </Button>
                   </div>
@@ -666,13 +727,17 @@ export default function AccountsContent({ activeSection }) {
                           <div className="text-gray-500 text-sm">#{customer.accountNumber}</div>
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="font-medium text-gray-900 text-sm">
+                          <div className="font-medium text-gray-900 text-sm cursor-pointer hover:text-blue-600" 
+                               onClick={() => handleShowFinancialDetails(customer)}>
                             {formatCurrency(customer.totalMonthlyAmount)}
                           </div>
+                          <div className="text-xs text-gray-500">Full monthly due</div>
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="font-medium text-red-600 text-sm">
-                            {formatCurrency(customer.totalOverdue)}
+                          <div className={`font-medium text-sm ${
+                            (customer.totalOverdue || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(customer.totalOverdue || 0)}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-center whitespace-nowrap">
@@ -688,7 +753,7 @@ export default function AccountsContent({ activeSection }) {
                         <td className="px-6 py-4 text-right whitespace-nowrap">
                           <Button 
                             size="sm" 
-                            onClick={() => handleCustomerClick(customer.accountNumber)}
+                            onClick={() => handleShowFinancialDetails(customer)}
                             className="bg-blue-500 hover:bg-blue-600"
                           >
                             <Users className="mr-2 w-4 h-4" />
@@ -1796,6 +1861,385 @@ export default function AccountsContent({ activeSection }) {
         </div>
       )}
 
+      {/* Financial Details Modal */}
+      {showFinancialDetails && selectedFinancialAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  Payment Details: {selectedFinancialAccount.company}
+                </h2>
+                <p className="text-gray-600">
+                  Code: {selectedFinancialAccount.code} - {selectedFinancialAccount.vehicleCount} vehicles
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowFinancialDetails(false)}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Payment Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Customer Total Value</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_incl_vat || 0), 0))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Total value incl VAT</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Excl VAT</CardTitle>
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_ex_vat || 0), 0))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Total ex VAT</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total VAT</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-purple-600">
+                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_vat || 0), 0))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Total VAT amount</p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Monthly Due</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      {formatCurrency(selectedFinancialAccount.totalMonthlyAmount)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Full monthly amounts</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Action Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="border-2 border-blue-200 hover:border-blue-300 transition-colors">
+                  <CardHeader>
+                    <CardTitle className="text-lg text-blue-600">Confirm Payment</CardTitle>
+                    <p className="text-sm text-gray-600">Process payment for all accounts in this group</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                      <Receipt className="mr-2 w-4 h-4" />
+                      Confirm Payment
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2 border-green-200 hover:border-green-300 transition-colors">
+                  <CardHeader>
+                    <CardTitle className="text-lg text-green-600">See Overview</CardTitle>
+                    <p className="text-sm text-gray-600">View detailed breakdown and generate invoice</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full bg-green-600 hover:bg-green-700">
+                      <Download className="mr-2 w-4 h-4" />
+                      Generate Invoice
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Cost Centers Table with Payment Options */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Cost Centers - Individual Payment Options</CardTitle>
+                  <p className="text-sm text-gray-600">
+                    Each cost center shows their individual amounts and payment options
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {/* Payment Tab Section */}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Tab - Aggregated Summary</h3>
+                    
+                    {/* Payment Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Customer Total Value</CardTitle>
+                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xl font-bold text-blue-600">
+                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_incl_vat || 0), 0))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Total value incl VAT</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Excl VAT</CardTitle>
+                          <Receipt className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xl font-bold text-green-600">
+                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_ex_vat || 0), 0))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Total ex VAT</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Total VAT</CardTitle>
+                          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xl font-bold text-purple-600">
+                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_vat || 0), 0))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Total VAT amount</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Monthly Due</CardTitle>
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-xl font-bold text-red-600">
+                            {formatCurrency(selectedFinancialAccount.totalMonthlyAmount)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Full monthly amounts</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Action Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <Card className="border-2 border-blue-200 hover:border-blue-300 transition-colors">
+                        <CardHeader>
+                          <CardTitle className="text-base text-blue-600">Confirm Payment</CardTitle>
+                          <p className="text-sm text-gray-600">Process payment for all accounts in this group</p>
+                        </CardHeader>
+                        <CardContent>
+                          <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                            <Receipt className="mr-2 w-4 h-4" />
+                            Confirm Payment
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2 border-green-200 hover:border-green-300 transition-colors">
+                        <CardHeader>
+                          <CardTitle className="text-base text-green-600">See Overview</CardTitle>
+                          <p className="text-sm text-gray-600">View detailed breakdown and generate invoice</p>
+                        </CardHeader>
+                        <CardContent>
+                          <Button className="w-full bg-green-600 hover:bg-green-700">
+                            <Download className="mr-2 w-4 h-4" />
+                            Generate Invoice
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* Cost Centers Breakdown */}
+                  <div className="border-t pt-6">
+                    <h4 className="text-md font-semibold text-gray-900 mb-4">Cost Centers Breakdown by Account Number</h4>
+                    
+                    {/* Group vehicles by account number and show payment details */}
+                    {(() => {
+                      const groupedVehicles = {};
+                      selectedFinancialAccount.vehicles.forEach(vehicle => {
+                        const accountNum = vehicle.account_number;
+                        if (!groupedVehicles[accountNum]) {
+                          groupedVehicles[accountNum] = {
+                            accountNumber: accountNum,
+                            vehicleCount: 0,
+                            totalMonthly: 0,
+                            totalAmountDue: 0,
+                            totalExVat: 0,
+                            totalVat: 0,
+                            totalInclVat: 0,
+                            vehicles: []
+                          };
+                        }
+                        
+                        groupedVehicles[accountNum].vehicleCount += 1;
+                        groupedVehicles[accountNum].totalMonthly += vehicle.monthly_amount || 0;
+                        groupedVehicles[accountNum].totalAmountDue += vehicle.amount_due || 0;
+                        groupedVehicles[accountNum].totalExVat += vehicle.total_ex_vat || 0;
+                        groupedVehicles[accountNum].totalVat += vehicle.total_vat || 0;
+                        groupedVehicles[accountNum].totalInclVat += vehicle.total_incl_vat || 0;
+                        groupedVehicles[accountNum].vehicles.push(vehicle);
+                      });
+
+                      return (
+                        <div className="space-y-6">
+                          {Object.values(groupedVehicles).map((accountGroup, index) => (
+                            <div key={accountGroup.accountNumber} className="border rounded-lg p-4">
+                              {/* Account Header with Summary */}
+                              <div className="flex items-center justify-between mb-4">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-900">
+                                    Account: {accountGroup.accountNumber}
+                                  </h3>
+                                  <p className="text-sm text-gray-600">
+                                    {accountGroup.vehicleCount} vehicle(s)
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-lg font-bold text-blue-600">
+                                    {formatCurrency(accountGroup.totalInclVat)}
+                                  </div>
+                                  <div className="text-sm text-gray-500">Total Value</div>
+                                </div>
+                              </div>
+
+                              {/* Account Summary Cards */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <div className="text-sm font-medium text-gray-600">Monthly Due</div>
+                                  <div className="text-lg font-semibold text-red-600">
+                                    {formatCurrency(accountGroup.totalMonthly)}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <div className="text-sm font-medium text-gray-600">Amount Due</div>
+                                  <div className={`text-lg font-semibold ${
+                                    accountGroup.totalAmountDue > 0 ? 'text-red-600' : 'text-green-600'
+                                  }`}>
+                                    {formatCurrency(accountGroup.totalAmountDue)}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <div className="text-sm font-medium text-gray-600">Ex VAT</div>
+                                  <div className="text-lg font-semibold text-green-600">
+                                    {formatCurrency(accountGroup.totalExVat)}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <div className="text-sm font-medium text-gray-600">VAT</div>
+                                  <div className="text-lg font-semibold text-purple-600">
+                                    {formatCurrency(accountGroup.totalVat)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Payment Action for this Account */}
+                              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                <div>
+                                  <div className="font-medium text-blue-900">Payment Required</div>
+                                  <div className="text-sm text-blue-700">
+                                    Amount to pay: {formatCurrency(accountGroup.totalAmountDue > 0 ? accountGroup.totalAmountDue : accountGroup.totalMonthly)}
+                                  </div>
+                                </div>
+                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                                  <Receipt className="mr-2 w-4 h-4" />
+                                  Pay Now
+                                </Button>
+                              </div>
+
+                              {/* Individual Vehicles Table */}
+                              <div className="mt-4 overflow-x-auto">
+                                <table className="min-w-full border rounded-lg">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Vehicle Details
+                                      </th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Monthly Amount
+                                      </th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Amount Due
+                                      </th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Total Value
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-gray-200">
+                                    {accountGroup.vehicles.map((vehicle, vIndex) => (
+                                      <tr key={`${vehicle.doc_no}-${vIndex}`} className={vIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                        <td className="px-3 py-2">
+                                          <div className="font-medium text-gray-900 text-sm">
+                                            {vehicle.stock_description || 'No description'}
+                                          </div>
+                                          <div className="text-gray-500 text-xs">
+                                            Doc: {vehicle.doc_no} | Stock: {vehicle.stock_code}
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <div className="font-medium text-gray-900">
+                                            {formatCurrency(vehicle.monthly_amount || 0)}
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <div className={`font-medium ${
+                                            vehicle.amount_due > 0 ? 'text-red-600' : 'text-green-600'
+                                          }`}>
+                                            {formatCurrency(vehicle.amount_due || 0)}
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-2 text-right text-sm">
+                                          <div className="font-medium text-gray-900">
+                                            {formatCurrency(vehicle.total_incl_vat || 0)}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
+              <Button
+                onClick={() => setShowFinancialDetails(false)}
+                variant="outline"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   );

@@ -21,7 +21,10 @@ import {
   User,
   Calendar,
   Receipt,
-  Download
+  Download,
+  ClipboardList,
+  Filter,
+  Save
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
@@ -43,6 +46,20 @@ export default function InventoryPage() {
   const [stockOrdersSearchTerm, setStockOrdersSearchTerm] = useState('');
   const [selectedStockOrder, setSelectedStockOrder] = useState(null);
   const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [showOrderItemsModal, setShowOrderItemsModal] = useState(false);
+  
+  // Stock Take state
+  const [stockItems, setStockItems] = useState([]);
+  const [stockTakeMode, setStockTakeMode] = useState(false);
+  const [updatedItems, setUpdatedItems] = useState({});
+  const [hasChanges, setHasChanges] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [stockTakeSearchTerm, setStockTakeSearchTerm] = useState('');
+  const [selectedStockType, setSelectedStockType] = useState('all');
+  const [stockTypes, setStockTypes] = useState([]);
+  const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
+  const [thresholds, setThresholds] = useState({});
+  const [defaultThreshold, setDefaultThreshold] = useState(10);
 
   useEffect(() => {
     fetchJobCards();
@@ -52,16 +69,16 @@ export default function InventoryPage() {
     if (activeTab === 'stock-orders') {
       fetchStockOrders();
     }
+    if (activeTab === 'stock-take') {
+      fetchStockItems();
+    }
   }, [activeTab]);
 
   const fetchStockOrders = async () => {
     try {
       setStockOrdersLoading(true);
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      );
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
 
       const { data, error } = await supabase
         .from('stock_orders')
@@ -335,6 +352,12 @@ export default function InventoryPage() {
     }
   };
 
+  // Handle viewing order items
+  const handleViewOrderItems = (order) => {
+    setSelectedStockOrder(order);
+    setShowOrderItemsModal(true);
+  };
+
   // Handle downloading stock order invoice
   const handleDownloadStockOrderInvoice = (order) => {
     if (order.invoice_link) {
@@ -426,6 +449,166 @@ export default function InventoryPage() {
       toast.error('Failed to create test stock items');
     }
   };
+
+  // Stock Take Functions
+  const fetchStockItems = async () => {
+    try {
+      const response = await fetch('/api/stock');
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock items');
+      }
+      const data = await response.json();
+      setStockItems(data.stock || []);
+      
+      // Extract unique stock types
+      const types = [...new Set(data.stock?.map(item => item.stock_type).filter(Boolean))];
+      setStockTypes(types);
+    } catch (error) {
+      console.error('Error fetching stock items:', error);
+      toast.error('Failed to load stock items');
+    }
+  };
+
+  const handleStartStockTake = () => {
+    setStockTakeMode(true);
+    setUpdatedItems({});
+    setHasChanges(false);
+    toast.success('Stock take mode activated. You can now update quantities.');
+  };
+
+  const handleCancelStockTake = () => {
+    setStockTakeMode(false);
+    setUpdatedItems({});
+    setHasChanges(false);
+    toast.info('Stock take cancelled. No changes were saved.');
+  };
+
+  const handleQuantityChange = (itemId, newQuantity) => {
+    const currentQuantity = parseInt(stockItems.find(item => item.id === itemId)?.quantity || '0');
+    const parsedQuantity = parseInt(newQuantity) || 0;
+    
+    setUpdatedItems(prev => ({
+      ...prev,
+      [itemId]: {
+        id: itemId,
+        current_quantity: currentQuantity,
+        new_quantity: parsedQuantity,
+        difference: parsedQuantity - currentQuantity
+      }
+    }));
+    
+    setHasChanges(true);
+  };
+
+  const handlePublishStockTake = async () => {
+    if (!hasChanges) {
+      toast.error('No changes to publish');
+      return;
+    }
+
+    try {
+      setPublishing(true);
+      const response = await fetch('/api/stock/stock-take', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stock_updates: Object.values(updatedItems),
+          stock_take_date: new Date().toISOString(),
+          notes: `Stock take completed on ${new Date().toLocaleDateString()}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to publish stock take');
+      }
+
+      const result = await response.json();
+      toast.success(`Stock take published successfully! ${result.updated_count} items updated.`);
+      
+      // Reset state
+      setStockTakeMode(false);
+      setUpdatedItems({});
+      setHasChanges(false);
+      
+      // Refresh stock items
+      fetchStockItems();
+    } catch (error) {
+      console.error('Error publishing stock take:', error);
+      toast.error('Failed to publish stock take');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const getQuantityDifference = (itemId) => {
+    const update = updatedItems[itemId];
+    if (!update) return null;
+    
+    if (update.difference > 0) {
+      return { type: 'increase', value: update.difference };
+    } else if (update.difference < 0) {
+      return { type: 'decrease', value: Math.abs(update.difference) };
+    }
+    return null;
+  };
+
+  const getQuantityDifferenceColor = (difference) => {
+    if (difference > 0) return 'text-green-600';
+    if (difference < 0) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  const getStockTypeColor = (stockType) => {
+    const colors = {
+      'Tracking Equipment': 'bg-blue-100 text-blue-800',
+      'Accessories': 'bg-green-100 text-green-800',
+      'Hardware': 'bg-orange-100 text-orange-800',
+      'Electronics': 'bg-purple-100 text-purple-800',
+      'Software': 'bg-indigo-100 text-indigo-800'
+    };
+    return colors[stockType] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Threshold management functions
+  const handleThresholdChange = (itemId, newThreshold) => {
+    setThresholds(prev => ({
+      ...prev,
+      [itemId]: parseInt(newThreshold) || defaultThreshold
+    }));
+  };
+
+  const getItemThreshold = (itemId) => {
+    return thresholds[itemId] || defaultThreshold;
+  };
+
+  const isLowStock = (item) => {
+    const threshold = getItemThreshold(item.id);
+    return parseInt(item.quantity || 0) <= threshold;
+  };
+
+  const getLowStockStyle = (item) => {
+    return isLowStock(item) ? 'bg-red-50 border-red-200' : '';
+  };
+
+  const filteredStockItems = stockItems.filter(item => {
+    const matchesSearch = 
+      item.description?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
+      item.code?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
+      item.supplier?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
+    
+    const matchesType = selectedStockType === 'all' || item.stock_type === selectedStockType;
+    
+    return matchesSearch && matchesType;
+  }).sort((a, b) => {
+    // Sort low stock items to the top
+    const aIsLow = isLowStock(a);
+    const bIsLow = isLowStock(b);
+    if (aIsLow && !bIsLow) return -1;
+    if (!aIsLow && bIsLow) return 1;
+    return 0;
+  });
 
   // Tab content components
   const jobCardsContent = (
@@ -734,7 +917,7 @@ export default function InventoryPage() {
   const stockOrdersContent = (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="font-semibold text-xl">Stock Orders</h2>
+        <h2 className="font-semibold text-xl">Items on Order</h2>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{filteredStockOrders.length} orders</Badge>
           <Button onClick={fetchStockOrders} variant="outline" size="sm">
@@ -749,7 +932,7 @@ export default function InventoryPage() {
         <div className="relative flex-1">
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
-            placeholder="Search stock orders by order number, supplier, status, or item description..."
+            placeholder="Search orders by order number, supplier, status, or item description..."
             value={stockOrdersSearchTerm}
             onChange={(e) => setStockOrdersSearchTerm(e.target.value)}
             className="pl-10"
@@ -760,107 +943,417 @@ export default function InventoryPage() {
       {stockOrdersLoading ? (
         <div className="py-12 text-center">
           <div className="mx-auto mb-4 border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-          <span>Loading stock orders...</span>
+          <span>Loading orders...</span>
         </div>
       ) : filteredStockOrders.length === 0 ? (
         <div className="py-12 text-center">
           <Receipt className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">
-            {stockOrdersSearchTerm ? 'No stock orders match your search criteria.' : 'No stock orders found'}
+            {stockOrdersSearchTerm ? 'No orders match your search criteria.' : 'No orders found'}
           </h3>
           <p className="text-gray-500">
-            {stockOrdersSearchTerm ? 'Try adjusting your search terms.' : 'Stock orders will appear here once submitted.'}
+            {stockOrdersSearchTerm ? 'Try adjusting your search terms.' : 'Orders will appear here once submitted.'}
           </p>
         </div>
       ) : (
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {filteredStockOrders.map((order) => (
-            <Card key={order.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{order.order_number}</CardTitle>
-                    <p className="text-gray-600 text-sm">{order.supplier || 'Custom'}</p>
-                  </div>
-                  <Badge className={`text-xs ${
-                    order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {order.status || 'pending'}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>Ordered: {formatDate(order.order_date)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-gray-400" />
-                    <span>Total: R {parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}</span>
-                  </div>
-                  {order.total_amount_usd && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">$</span>
-                      <span>USD: ${parseFloat(order.total_amount_usd).toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {order.order_items && Array.isArray(order.order_items) && order.order_items.length > 0 && (
-                  <div className="text-sm">
-                    <p className="font-medium text-gray-700">Order Items:</p>
-                    <div className="space-y-1 mt-1">
-                      {order.order_items.slice(0, 3).map((item, index) => (
-                        <div key={index} className="flex justify-between text-gray-600 text-xs">
-                          <span>• {item.description || 'Custom Item'}</span>
-                          <span className="text-blue-600">Qty: {item.quantity}</span>
-                        </div>
-                      ))}
-                      {order.order_items.length > 3 && (
-                        <div className="text-gray-500 text-xs">
-                          +{order.order_items.length - 3} more items
-                        </div>
+        <div className="overflow-x-auto">
+          <table className="border border-gray-200 w-full border-collapse">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Order Number
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Supplier
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Status
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Order Date
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Total Amount
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Items Count
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {filteredStockOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 border border-gray-200 text-sm">
+                    <div className="font-medium text-gray-900">{order.order_number}</div>
+                    {order.notes && (
+                      <div className="mt-1 text-gray-500 text-xs">{order.notes}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
+                    {order.supplier || 'Custom'}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                    <Badge className={`text-xs ${
+                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {order.status || 'pending'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm text-center">
+                    {formatDate(order.order_date)}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                    <div className="font-medium">R {parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}</div>
+                    {order.total_amount_usd && (
+                      <div className="text-gray-500 text-xs">$ {parseFloat(order.total_amount_usd).toFixed(2)}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                    <Badge variant="outline" className="text-xs">
+                      {order.order_items?.length || 0} items
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                    <div className="flex flex-col gap-2">
+                      {order.invoice_link ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewStockOrder(order)}
+                            className="text-blue-600 hover:text-blue-700 text-xs"
+                          >
+                            <FileText className="mr-1 w-3 h-3" />
+                            View PDF
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadStockOrderInvoice(order)}
+                            className="text-green-600 hover:text-green-700 text-xs"
+                          >
+                            <Download className="mr-1 w-3 h-3" />
+                            Download
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No PDF</span>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewOrderItems(order)}
+                        className="text-purple-600 hover:text-purple-700 text-xs"
+                      >
+                        <Package className="mr-1 w-3 h-3" />
+                        View Items
+                      </Button>
                     </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  // Stock Take Content
+  const stockTakeContent = (
+    <div className="space-y-6">
+      {/* Stock Take Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-lg">Stock Take</h3>
+          <p className="text-gray-600 text-sm">Perform physical stock counts and update inventory</p>
+        </div>
+        <Button 
+          onClick={stockTakeMode ? handleCancelStockTake : handleStartStockTake}
+          variant={stockTakeMode ? "outline" : "default"}
+          className={stockTakeMode ? "text-red-600 hover:text-red-700" : ""}
+        >
+          {stockTakeMode ? (
+            <>
+              <AlertCircle className="mr-2 w-4 h-4" />
+              Cancel Stock Take
+            </>
+          ) : (
+            <>
+              <ClipboardList className="mr-2 w-4 h-4" />
+              Start Stock Take
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Stock Take Tabs */}
+      <div className="border-gray-200 border-b">
+        <nav className="flex space-x-8 -mb-px">
+          <button
+            onClick={() => setStockTakeActiveTab('stock-take')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              stockTakeActiveTab === 'stock-take'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Stock Take
+          </button>
+          <button
+            onClick={() => setStockTakeActiveTab('thresholds')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              stockTakeActiveTab === 'thresholds'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Thresholds
+          </button>
+        </nav>
+      </div>
+
+      {/* Conditional Content Based on Active Tab */}
+      {stockTakeActiveTab === 'stock-take' ? (
+        <>
+          {/* Stock Take Controls */}
+          {stockTakeMode && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-blue-600" />
+                    <span className="font-medium text-blue-800">Stock Take Mode Active</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handlePublishStockTake}
+                      disabled={!hasChanges || publishing}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Save className="mr-2 w-4 h-4" />
+                      {publishing ? 'Publishing...' : 'Publish Changes'}
+                    </Button>
+                  </div>
+                </div>
+                {hasChanges && (
+                  <div className="mt-2 text-blue-700 text-sm">
+                    {Object.keys(updatedItems).length} items have been modified
                   </div>
                 )}
-
-                <div className="flex justify-between items-center pt-2">
-                  {order.invoice_link ? (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleViewStockOrder(order)}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        <FileText className="mr-1 w-3 h-3" />
-                        View
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDownloadStockOrderInvoice(order)}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <FileText className="mr-1 w-3 h-3" />
-                        Download
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 text-xs">No invoice available</span>
-                  )}
-                  <Badge variant="outline" className="text-xs">
-                    {order.order_items?.length || 0} items
-                  </Badge>
-                </div>
               </CardContent>
             </Card>
-          ))}
+          )}
+
+          {/* Search and Filter */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+              <Input
+                placeholder="Search stock items by description, code, or supplier..."
+                value={stockTakeSearchTerm}
+                onChange={(e) => setStockTakeSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <select
+                value={selectedStockType}
+                onChange={(e) => setSelectedStockType(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+              >
+                <option value="all">All Types</option>
+                {stockTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={fetchStockItems} variant="outline" size="sm">
+              <RefreshCw className="mr-2 w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Thresholds Tab Content */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="font-medium text-gray-700 text-sm">Default Threshold:</label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={defaultThreshold}
+                  onChange={(e) => setDefaultThreshold(parseInt(e.target.value) || 10)}
+                  className="w-20"
+                />
+              </div>
+              <p className="text-gray-600 text-sm">Items at or below this threshold will be highlighted in red</p>
+            </div>
+            
+            <div className="bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                <span className="font-medium text-yellow-800 text-sm">
+                  Set individual thresholds below or use the default threshold of {defaultThreshold}
+                </span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Stock Items Table */}
+      {filteredStockItems.length === 0 ? (
+        <div className="py-12 text-center">
+          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">No stock items found</h3>
+          <p className="text-gray-500">
+            {stockTakeSearchTerm || selectedStockType !== 'all' ? 'No stock items match your search criteria.' : 'No stock items available.'}
+          </p>
         </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="border border-gray-200 w-full border-collapse">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Item Description
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Code
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Supplier
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Type
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Current Qty
+                </th>
+                {stockTakeActiveTab === 'thresholds' && (
+                  <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                    Threshold
+                  </th>
+                )}
+                {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
+                  <>
+                    <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                      New Qty
+                    </th>
+                    <td className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                      Difference
+                    </td>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {filteredStockItems.map((item) => {
+                const update = updatedItems[item.id];
+                const currentQuantity = update?.new_quantity ?? parseInt(item.quantity || '0');
+                const difference = update?.difference ?? 0;
+                const isLow = isLowStock(item);
+
+                return (
+                  <tr key={item.id} className={`hover:bg-gray-50 ${getLowStockStyle(item)}`}>
+                    <td className="px-4 py-3 border border-gray-200 text-sm">
+                      <div>
+                        <div className="font-medium text-gray-900">{String(item.description || '')}</div>
+                        {item.stock_type && (
+                          <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
+                            {String(item.stock_type)}
+                          </Badge>
+                        )}
+                        {isLow && (
+                          <Badge className="bg-red-100 mt-1 text-red-800 text-xs">
+                            Low Stock
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
+                      {item.code || 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
+                      {item.supplier || 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                      <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
+                        {item.stock_type || 'N/A'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                      <span className={`font-medium ${isLow ? 'text-red-600' : ''}`}>
+                        {parseInt(item.quantity || '0')}
+                      </span>
+                    </td>
+                    {stockTakeActiveTab === 'thresholds' && (
+                      <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={getItemThreshold(item.id)}
+                          onChange={(e) => handleThresholdChange(item.id, e.target.value)}
+                          className="w-20 text-center"
+                        />
+                      </td>
+                    )}
+                    {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
+                      <>
+                        <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={currentQuantity}
+                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                            className="w-20 text-center"
+                          />
+                        </td>
+                        <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                          {update && (
+                            <span className={`font-medium ${getQuantityDifferenceColor(difference)}`}>
+                              {difference > 0 ? '+' : ''}{difference}
+                            </span>
+                          )}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Summary */}
+      {stockTakeMode && hasChanges && (
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-medium text-green-800">Stock Take Summary</h3>
+                <p className="text-green-700 text-sm">
+                  {Object.keys(updatedItems).length} items modified
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-green-700 text-sm">
+                  Total Changes: {Object.values(updatedItems).reduce((sum, item) => sum + Math.abs(item.difference), 0)}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
@@ -886,9 +1379,15 @@ export default function InventoryPage() {
     },
     {
       value: 'stock-orders',
-      label: 'Stock Orders',
+      label: 'Items on Order',
       icon: Receipt,
       content: stockOrdersContent
+    },
+    {
+      value: 'stock-take',
+      label: 'Stock Take',
+      icon: ClipboardList,
+      content: stockTakeContent
     }
   ];
 
@@ -901,7 +1400,7 @@ export default function InventoryPage() {
           icon={Package}
         />
         
-        {/* Order Stock Button */}
+        {/* Create Order Button */}
         <div className="flex justify-end">
           <StockOrderModal onOrderSubmitted={fetchStockOrders} />
         </div>
@@ -921,7 +1420,7 @@ export default function InventoryPage() {
         icon={Package}
       />
       
-      {/* Order Stock Button */}
+      {/* Create Order Button */}
       <div className="flex justify-end">
         <StockOrderModal onOrderSubmitted={fetchStockOrders} />
       </div>
@@ -1096,59 +1595,151 @@ export default function InventoryPage() {
         onTabChange={setActiveTab}
       />
 
-      {/* PDF Viewer Modal for Stock Orders */}
-      <Dialog open={showPdfViewer} onOpenChange={setShowPdfViewer}>
-        <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle className="flex justify-between items-center">
-              <span>Invoice PDF: {selectedStockOrder?.order_number}</span>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => selectedStockOrder && handleDownloadStockOrderInvoice(selectedStockOrder)}
-                >
-                  <Download className="mr-2 w-4 h-4" />
-                  Download
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowPdfViewer(false)}
-                >
-                  Close
-                </Button>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0">
-            {selectedStockOrder?.invoice_link ? (
-              <iframe
-                src={selectedStockOrder.invoice_link}
-                className="border-0 rounded-lg w-full h-[80vh]"
-                title={`Invoice for Order ${selectedStockOrder.order_number}`}
-                onError={() => {
-                  toast({
-                    title: "Error",
-                    description: "Failed to load PDF. Please try downloading instead.",
-                    variant: "destructive"
-                  });
-                }}
-              />
-            ) : (
-              <div className="flex justify-center items-center h-64">
-                <div className="text-center">
-                  <AlertCircle className="mx-auto w-12 h-12 text-gray-400" />
-                  <h3 className="mt-2 font-medium text-gray-900 text-sm">No PDF Available</h3>
-                  <p className="mt-1 text-gray-500 text-sm">
-                    This order doesn't have an invoice PDF attached.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+             {/* PDF Viewer Modal for Stock Orders */}
+       <Dialog open={showPdfViewer} onOpenChange={setShowPdfViewer}>
+         <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden">
+           <DialogHeader>
+             <DialogTitle className="flex justify-between items-center">
+               <span>Invoice PDF: {selectedStockOrder?.order_number}</span>
+               <div className="flex items-center space-x-2">
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={() => selectedStockOrder && handleDownloadStockOrderInvoice(selectedStockOrder)}
+                 >
+                   <Download className="mr-2 w-4 h-4" />
+                   Download
+                 </Button>
+                 <Button
+                   variant="outline"
+                   size="sm"
+                   onClick={() => setShowPdfViewer(false)}
+                 >
+                   Close
+                 </Button>
+               </div>
+             </DialogTitle>
+           </DialogHeader>
+           <div className="flex-1 min-h-0">
+             {selectedStockOrder?.invoice_link ? (
+               <iframe
+                 src={selectedStockOrder.invoice_link}
+                 className="border-0 rounded-lg w-full h-[80vh]"
+                 title={`Invoice for Order ${selectedStockOrder.order_number}`}
+                 onError={() => {
+                   toast({
+                     title: "Error",
+                     description: "Failed to load PDF. Please try downloading instead.",
+                     variant: "destructive"
+                   });
+                 }}
+               />
+             ) : (
+               <div className="flex justify-center items-center h-64">
+                 <div className="text-center">
+                   <AlertCircle className="mx-auto w-12 h-12 text-gray-400" />
+                   <h3 className="mt-2 font-medium text-gray-900 text-sm">No PDF Available</h3>
+                   <p className="mt-1 text-gray-500 text-sm">
+                     This order doesn't have an invoice PDF attached.
+                   </p>
+                 </div>
+               </div>
+             )}
+           </div>
+         </DialogContent>
+       </Dialog>
+
+       {/* Order Items Modal */}
+       <Dialog open={showOrderItemsModal} onOpenChange={setShowOrderItemsModal}>
+         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+           <DialogHeader>
+             <DialogTitle className="flex justify-between items-center">
+               <span>Order Items: {selectedStockOrder?.order_number}</span>
+               <Button
+                 variant="outline"
+                 size="sm"
+                 onClick={() => setShowOrderItemsModal(false)}
+               >
+                 Close
+               </Button>
+             </DialogTitle>
+           </DialogHeader>
+           <div className="flex-1 min-h-0 overflow-y-auto">
+             {selectedStockOrder && (
+               <div className="space-y-6">
+                 {/* Order Summary */}
+                 <div className="bg-gray-50 p-4 rounded-lg">
+                   <div className="gap-4 grid grid-cols-2 md:grid-cols-4 text-sm">
+                     <div>
+                       <span className="font-medium text-gray-700">Supplier:</span>
+                       <p className="text-gray-900">{selectedStockOrder.supplier || 'Custom'}</p>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-700">Status:</span>
+                       <p className="text-gray-900">{selectedStockOrder.status || 'pending'}</p>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-700">Order Date:</span>
+                       <p className="text-gray-900">{formatDate(selectedStockOrder.order_date)}</p>
+                     </div>
+                     <div>
+                       <span className="font-medium text-gray-700">Total Amount:</span>
+                       <p className="text-gray-900">R {parseFloat(selectedStockOrder.total_amount_ex_vat || 0).toFixed(2)}</p>
+                     </div>
+                   </div>
+                   {selectedStockOrder.notes && (
+                     <div className="mt-3 pt-3 border-gray-200 border-t">
+                       <span className="font-medium text-gray-700">Notes:</span>
+                       <p className="text-gray-900 text-sm">{selectedStockOrder.notes}</p>
+                     </div>
+                   )}
+                 </div>
+
+                                   {/* Order Items Table */}
+                  {selectedStockOrder.order_items && Array.isArray(selectedStockOrder.order_items) && selectedStockOrder.order_items.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="border border-gray-200 w-full border-collapse">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                              Item Description
+                            </th>
+                            <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                              Quantity
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white">
+                          {selectedStockOrder.order_items.map((item, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 border border-gray-200 text-sm">
+                                <div className="font-medium text-gray-900">{item.description || 'Custom Item'}</div>
+                                {item.supplier && (
+                                  <div className="mt-1 text-gray-500 text-xs">Supplier: {item.supplier}</div>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                                <Badge variant="outline" className="text-xs">
+                                  {item.quantity || 0}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                 ) : (
+                   <div className="py-8 text-center">
+                     <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                     <h3 className="mb-2 font-medium text-gray-900 text-lg">No Order Items</h3>
+                     <p className="text-gray-500">This order doesn't have any items listed.</p>
+                   </div>
+                 )}
+               </div>
+             )}
+           </div>
+         </DialogContent>
+       </Dialog>
     </div>
   );
 }

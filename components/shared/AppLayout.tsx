@@ -21,6 +21,7 @@ interface AppLayoutProps {
   sidebarItems: SidebarItem[];
   userRole: string;
   userName?: string;
+  showSidebar?: boolean;
 }
 
 export default function AppLayout({ 
@@ -29,7 +30,8 @@ export default function AppLayout({
   subtitle, 
   sidebarItems, 
   userRole, 
-  userName = "User" 
+  userName = "User", 
+  showSidebar = true 
 }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const pathname = usePathname();
@@ -60,73 +62,75 @@ export default function AppLayout({
       )}
 
       {/* Sidebar */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col",
-        sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64 lg:w-20"
-      )}>
-        <div className="flex justify-between items-center px-4 border-gray-200 border-b h-16">
-          {(sidebarOpen || window.innerWidth >= 1024) && (
-            <div className="flex items-center space-x-3">
-              <div className="flex justify-center items-center bg-blue-500 rounded-full w-8 h-8">
-                <span className="font-bold text-white text-sm">S</span>
-              </div>
-              <span className="font-semibold text-gray-900">Soltrack</span>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden"
-          >
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
-
-        <nav className="flex flex-col flex-1 space-y-2 py-4">
-          {sidebarItems.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center transition-colors group relative mx-2 rounded-lg",
-                sidebarOpen || window.innerWidth >= 1024 ? "px-4 py-3" : "justify-center w-12 h-12 mx-auto",
-                pathname === item.href
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-100"
-              )}
-              onClick={() => window.innerWidth < 1024 && setSidebarOpen(false)}
-              title={!sidebarOpen && window.innerWidth >= 1024 ? item.name : undefined}
-            >
-              <item.icon className="w-6 h-6" />
-              {(sidebarOpen || window.innerWidth >= 1024) && (
-                <span className="ml-3 font-medium">{item.name}</span>
-              )}
-              {!sidebarOpen && window.innerWidth >= 1024 && (
-                <span className="left-16 z-50 absolute bg-gray-900 opacity-0 group-hover:opacity-100 px-2 py-1 rounded text-white text-sm whitespace-nowrap transition-opacity">
-                  {item.name}
-                </span>
-              )}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="p-4 border-gray-200 border-t">
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full text-gray-600 hover:bg-gray-100",
-              sidebarOpen || window.innerWidth >= 1024 ? "justify-start" : "justify-center"
-            )}
-            title={!sidebarOpen && window.innerWidth >= 1024 ? "Sign Out" : undefined}
-          >
-            <User className="w-5 h-5" />
+      {showSidebar && (
+        <div className={cn(
+          "fixed inset-y-0 left-0 z-50 bg-white shadow-lg transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col",
+          sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64 lg:w-20"
+        )}>
+          <div className="flex justify-between items-center px-4 border-gray-200 border-b h-16">
             {(sidebarOpen || window.innerWidth >= 1024) && (
-              <span className="ml-3">Sign Out</span>
+              <div className="flex items-center space-x-3">
+                <div className="flex justify-center items-center bg-blue-500 rounded-full w-8 h-8">
+                  <span className="font-bold text-white text-sm">S</span>
+                </div>
+                <span className="font-semibold text-gray-900">Soltrack</span>
+              </div>
             )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+
+          <nav className="flex flex-col flex-1 space-y-2 py-4">
+            {sidebarItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex items-center transition-colors group relative mx-2 rounded-lg",
+                  sidebarOpen || window.innerWidth >= 1024 ? "px-4 py-3" : "justify-center w-12 h-12 mx-auto",
+                  pathname === item.href
+                    ? "bg-blue-50 text-blue-600"
+                    : "text-gray-600 hover:bg-gray-100"
+                )}
+                onClick={() => window.innerWidth < 1024 && setSidebarOpen(false)}
+                title={!sidebarOpen && window.innerWidth >= 1024 ? item.name : undefined}
+              >
+                <item.icon className="w-6 h-6" />
+                {(sidebarOpen || window.innerWidth >= 1024) && (
+                  <span className="ml-3 font-medium">{item.name}</span>
+                )}
+                {!sidebarOpen && window.innerWidth >= 1024 && (
+                  <span className="left-16 z-50 absolute bg-gray-900 opacity-0 group-hover:opacity-100 px-2 py-1 rounded text-white text-sm whitespace-nowrap transition-opacity">
+                    {item.name}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="p-4 border-gray-200 border-t">
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full text-gray-600 hover:bg-gray-100",
+                sidebarOpen || window.innerWidth >= 1024 ? "justify-start" : "justify-center"
+              )}
+              title={!sidebarOpen && window.innerWidth >= 1024 ? "Sign Out" : undefined}
+            >
+              <User className="w-5 h-5" />
+              {(sidebarOpen || window.innerWidth >= 1024) && (
+                <span className="ml-3">Sign Out</span>
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden">

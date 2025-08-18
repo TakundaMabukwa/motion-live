@@ -24,6 +24,7 @@ import {
   Info
 } from 'lucide-react';
 import { toast } from 'sonner';
+import AdminSubnav from '@/components/admin/AdminSubnav';
 
 interface JobCard {
   id: string;
@@ -179,6 +180,9 @@ export default function AllJobCardsPage() {
 
   return (
     <div className="space-y-6 mx-auto p-6 container">
+      {/* Admin sub navigation */}
+      <AdminSubnav />
+      
       <div className="flex justify-between items-center">
         <div>
           <h1 className="font-bold text-gray-900 text-3xl">All Job Cards</h1>
