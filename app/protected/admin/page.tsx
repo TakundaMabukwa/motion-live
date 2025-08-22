@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import StatsCard from '@/components/shared/StatsCard';
 import { toast } from 'sonner';
+import CreateJobModal from './components/CreateJobModal';
 
 interface PartRequired {
   description: string;
@@ -94,12 +95,12 @@ export default function AdminDashboard() {
   const [assignmentDate, setAssignmentDate] = useState('');
   const [assignmentTime, setAssignmentTime] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
-  const [assignedJobs, setAssignedJobs] = useState<any[]>([]);
-  const [loadingAssignedJobs, setLoadingAssignedJobs] = useState(false);
+
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
   const [loadingJobsWithParts, setLoadingJobsWithParts] = useState(false);
   const [jobsLoaded, setJobsLoaded] = useState(false);
   const [createJobOpen, setCreateJobOpen] = useState(false);
+  const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
   const [createJobStep, setCreateJobStep] = useState(1);
   const [newJobData, setNewJobData] = useState({
     jobType: 'install',
@@ -295,24 +296,7 @@ export default function AdminDashboard() {
     setAssignmentDateForJob(today);
   }, []);
 
-  // Fetch assigned jobs (formerly today's jobs)
-  const fetchAssignedJobs = useCallback(async () => {
-    try {
-      setLoadingAssignedJobs(true);
-      const response = await fetch('/api/schedule/today');
-      if (!response.ok) {
-        throw new Error('Failed to fetch assigned jobs');
-      }
-      const data = await response.json();
-      console.log('Assigned jobs API response:', data);
-      setAssignedJobs(data.today_jobs || []);
-    } catch (error) {
-      console.error('Error fetching assigned jobs:', error);
-      toast.error('Failed to load assigned jobs');
-    } finally {
-      setLoadingAssignedJobs(false);
-    }
-  }, []);
+
 
   // Fetch jobs with parts
   const fetchJobsWithParts = useCallback(async () => {
@@ -490,9 +474,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchJobCards();
     fetchTechnicians();
-    fetchAssignedJobs();
     fetchJobsWithParts();
-  }, [fetchJobCards, fetchTechnicians, fetchAssignedJobs, fetchJobsWithParts]);
+  }, [fetchJobCards, fetchTechnicians, fetchJobsWithParts]);
 
   const handleAssignTechnician = (job: JobCard) => {
     setSelectedJob(job);
@@ -546,7 +529,6 @@ export default function AdminDashboard() {
       
       // Refresh data
       fetchJobCards(true);
-      fetchAssignedJobs();
     } catch (error) {
       console.error('Error assigning technician:', error);
       toast.error('Failed to assign technician');
@@ -810,8 +792,8 @@ export default function AdminDashboard() {
       job.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.job_description?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Show all jobs in the main job cards tab
-    return matchesSearch;
+    // Show only jobs with no technician assigned AND with parts assigned
+    return matchesSearch && !job.technician_name && hasPartsRequired(job);
   }));
 
   const jobCardsWithParts = sortJobs(jobCards.filter(job => 
@@ -865,10 +847,21 @@ export default function AdminDashboard() {
   const tabItems = [
     {
       value: 'all-jobs',
-      label: 'All Jobs',
+      label: 'Ready for Technician',
       icon: BarChart3,
       content: (
         <div className="space-y-6">
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="font-semibold text-gray-900 text-xl">Jobs Ready for Technician Assignment</h2>
+              <p className="mt-1 text-gray-600 text-sm">Showing jobs with parts assigned and no technician assigned</p>
+            </div>
+            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+
           {/* Filters */}
           <div className="flex sm:flex-row flex-col gap-4">
             <div className="flex-1">
@@ -1105,118 +1098,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )
-    },
-    {
-      value: 'assigned-jobs',
-      label: 'Assigned Jobs',
-      icon: Calendar,
-      content: (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="font-semibold text-gray-900 text-xl">Assigned Jobs</h2>
-            <Button onClick={fetchAssignedJobs} variant="outline" size="icon">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
 
-          {loadingAssignedJobs ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-              <span className="ml-2">Loading assigned jobs...</span>
-            </div>
-          ) : assignedJobs.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Calendar className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs Assigned Today</h3>
-                <p className="text-gray-500">There are no jobs assigned for today. Assign technicians to jobs to see them here.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="gap-4 grid">
-              {assignedJobs.map((schedule) => (
-                <Card key={schedule.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="font-semibold text-gray-900 text-lg">
-                          {schedule.job_number}
-                        </h3>
-                        <p className="text-gray-600 text-sm">
-                          Scheduled: {new Date(schedule.scheduled_date).toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge className="bg-blue-100 text-blue-800">
-                        {schedule.status.toUpperCase()}
-                      </Badge>
-                    </div>
-
-                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-4">
-                      <div>
-                        <h4 className="mb-2 font-medium text-gray-900">Technician</h4>
-                        <div className="space-y-1 text-sm">
-                          <p className="flex items-center gap-2">
-                            <UserPlus className="w-4 h-4 text-gray-400" />
-                            {schedule.technician_name}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-gray-400" />
-                            {schedule.technician_email}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="mb-2 font-medium text-gray-900">Customer</h4>
-                        <div className="space-y-1 text-sm">
-                          <p className="flex items-center gap-2">
-                            <UserPlus className="w-4 h-4 text-gray-400" />
-                            {schedule.customer_name || 'N/A'}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-gray-400" />
-                            {schedule.vehicle_registration || 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
-                        <div className="space-y-1 text-sm">
-                          <p className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            {schedule.job_type?.toUpperCase() || 'N/A'}
-                          </p>
-                          <p className="text-gray-600">
-                            Duration: {schedule.estimated_duration_hours}h
-                          </p>
-                          <p className="text-gray-600">
-                            Location: {schedule.job_location || 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {schedule.job_description && (
-                      <div className="mb-4">
-                        <h4 className="mb-2 font-medium text-gray-900">Description</h4>
-                        <p className="text-gray-600 text-sm">{schedule.job_description}</p>
-                      </div>
-                    )}
-
-                    {schedule.notes && (
-                      <div className="mb-4">
-                        <h4 className="mb-2 font-medium text-gray-900">Notes</h4>
-                        <p className="text-gray-600 text-sm">{schedule.notes}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )
     },
     {
       value: 'overview',
@@ -1411,6 +1293,162 @@ export default function AdminDashboard() {
           )}
         </div>
       )
+    },
+    {
+      value: 'waiting-for-parts',
+      label: 'Waiting for Parts',
+      icon: Package,
+      content: (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="font-semibold text-gray-900 text-xl">Jobs Waiting for Parts</h2>
+              <p className="mt-1 text-gray-600 text-sm">Showing jobs that need parts assigned before technician assignment</p>
+            </div>
+            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+              <span className="ml-2">Loading jobs...</span>
+            </div>
+          ) : jobCards.filter(job => !hasPartsRequired(job)).length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs Waiting for Parts</h3>
+                <p className="text-gray-500">All jobs have parts assigned. Great job!</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="gap-4 grid">
+              {sortJobs(jobCards.filter(job => !hasPartsRequired(job))).map((job) => (
+                <Card key={job.id} className="hover:shadow-md border-l-4 border-l-orange-500 transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-semibold text-gray-900 text-lg">
+                              {job.job_number}
+                            </h3>
+                            <p className="text-gray-600 text-sm">
+                              Created: {new Date(job.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge className={getStatusColor(job.status)}>
+                              {job.status.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
+                              {job.priority.toUpperCase()}
+                            </Badge>
+                            <Badge className="bg-orange-100 border-orange-200 text-orange-800">
+                              NEEDS PARTS
+                            </Badge>
+                            {(job.vehicle_registration || job.vehicle_make || job.vehicle_model) && (
+                              <Badge className="bg-green-100 border-green-200 text-green-800">
+                                <Car className="mr-1 w-3 h-3" />
+                                VEHICLE
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-4">
+                          <div>
+                            <h4 className="mb-2 font-medium text-gray-900">Customer</h4>
+                            <div className="space-y-1 text-sm">
+                              <p className="flex items-center gap-2">
+                                <UserPlus className="w-4 h-4 text-gray-400" />
+                                {job.customer_name || 'N/A'}
+                              </p>
+                              {job.customer_email && (
+                                <p className="flex items-center gap-2">
+                                  <Mail className="w-4 h-4 text-gray-400" />
+                                  {job.customer_email}
+                                </p>
+                              )}
+                              {job.customer_phone && (
+                                <p className="flex items-center gap-2">
+                                  <Phone className="w-4 h-4 text-gray-400" />
+                                  {job.customer_phone}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="mb-2 font-medium text-gray-900">Vehicle</h4>
+                            <div className="space-y-1 text-sm">
+                              <p className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-gray-400" />
+                                {job.vehicle_registration || 'N/A'}
+                              </p>
+                              {job.vehicle_make && job.vehicle_model && (
+                                <p className="text-gray-600">
+                                  {job.vehicle_make} {job.vehicle_model}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
+                            <div className="space-y-1 text-sm">
+                              <p className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                {job.job_type?.toUpperCase() || 'N/A'}
+                              </p>
+                              {job.estimated_duration_hours && (
+                                <p className="text-gray-600">
+                                  Est. Duration: {job.estimated_duration_hours}h
+                                </p>
+                              )}
+                              {job.estimated_cost && (
+                                <p className="text-gray-600">
+                                  Est. Cost: R{job.estimated_cost}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {job.job_description && (
+                          <div className="mb-4">
+                            <h4 className="mb-2 font-medium text-gray-900">Description</h4>
+                            <p className="text-gray-600 text-sm">{job.job_description}</p>
+                          </div>
+                        )}
+
+                        {job.technician_name && (
+                          <div className="mb-4">
+                            <h4 className="mb-2 font-medium text-gray-900">Assigned Technician</h4>
+                            <p className="text-gray-600 text-sm">{job.technician_name}</p>
+                            {job.technician_phone && (
+                              <p className="text-gray-600 text-sm">{job.technician_phone}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <Badge className="bg-orange-100 border-orange-200 text-orange-800">
+                          Parts Required
+                        </Badge>
+                        <p className="text-gray-500 text-xs text-center">Assign parts before technician</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )
     }
   ];
 
@@ -1421,15 +1459,79 @@ export default function AdminDashboard() {
         <h1 className="font-bold text-gray-900 text-2xl">Admin Dashboard</h1>
       </div>
 
+      {/* Overview Cards Section */}
+      <div className="gap-4 grid grid-cols-1 md:grid-cols-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium text-blue-600 text-sm">Total Jobs</p>
+                <p className="font-bold text-blue-900 text-2xl">{jobCards.length}</p>
+                <p className="text-blue-700 text-xs">All job cards</p>
+              </div>
+              <div className="bg-blue-500 p-3 rounded-full">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium text-green-600 text-sm">Technicians Assigned</p>
+                <p className="font-bold text-green-900 text-2xl">{jobCards.filter(job => job.technician_name).length}</p>
+                <p className="text-green-700 text-xs">Jobs with technicians</p>
+              </div>
+              <div className="bg-green-500 p-3 rounded-full">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium text-purple-600 text-sm">Jobs with Parts</p>
+                <p className="font-bold text-purple-900 text-2xl">{jobCards.filter(job => hasPartsRequired(job)).length}</p>
+                <p className="text-purple-700 text-xs">Parts assigned</p>
+              </div>
+              <div className="bg-purple-500 p-3 rounded-full">
+                <Package className="w-6 h-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-medium text-orange-600 text-sm">Waiting for Parts</p>
+                <p className="font-bold text-orange-900 text-2xl">{jobCards.filter(job => !hasPartsRequired(job)).length}</p>
+                <p className="text-orange-700 text-xs">Need parts assigned</p>
+              </div>
+              <div className="bg-orange-500 p-3 rounded-full">
+                <Clock className="w-6 h-6 text-white" />
+              </div>
+            </div>
+
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Quick Access Section */}
       <div className="gap-4 grid grid-cols-1 md:grid-cols-4">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCreateJobOpen(true)}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCreateJobModalOpen(true)}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Plus className="w-8 h-8 text-green-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Create Job</h3>
-                <p className="text-gray-600 text-sm">Create a new job card and assign technician</p>
+                <p className="text-gray-600 text-sm">Create a new job with photos and details</p>
               </div>
             </div>
           </CardContent>
@@ -1447,25 +1549,25 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('all-jobs')}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Package className="w-8 h-8 text-purple-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Job Management</h3>
-                <p className="text-gray-600 text-sm">Manage and assign technicians to jobs</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('assigned-jobs')}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/schedule'}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Calendar className="w-8 h-8 text-green-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Schedule</h3>
-                <p className="text-gray-600 text-sm">View today's assigned jobs and schedule</p>
+                <p className="text-gray-600 text-sm">View technicians' calendars and schedule</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/completed-jobs'}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
+                <p className="text-gray-600 text-sm">View all completed job cards and history</p>
               </div>
             </div>
           </CardContent>
@@ -1474,12 +1576,12 @@ export default function AdminDashboard() {
 
       {/* Custom Top Bar Navigation */}
       <div className="bg-white p-1 border border-gray-200 rounded-lg">
-        <div className="flex justify-between items-center">
+        <div className="gap-1 grid grid-cols-4">
           {tabItems.map((item) => (
             <button
               key={item.value}
               onClick={() => setActiveTab(item.value)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 flex-1 ${
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 ${
                 activeTab === item.value
                   ? 'bg-blue-50 text-blue-600 border border-blue-200'
                   : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
@@ -1508,13 +1610,7 @@ export default function AdminDashboard() {
           <FileText className="w-4 h-4" />
           All Job Cards
         </a>
-        <a
-          href="/protected/admin/completed-jobs"
-          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
-        >
-          <CheckCircle className="w-4 h-4" />
-          Completed Jobs
-        </a>
+
       </div>
 
       {/* Tab Content */}
@@ -1998,6 +2094,20 @@ export default function AdminDashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Create Job Modal */}
+      <CreateJobModal
+        isOpen={createJobModalOpen}
+        onClose={() => setCreateJobModalOpen(false)}
+        onJobCreated={(jobData) => {
+          toast.success(`Job created successfully: ${jobData.job_number}`);
+          setCreateJobModalOpen(false);
+          // Refresh job data if needed
+          if (activeTab === 'all-jobs') {
+            fetchJobCards();
+          }
+        }}
+      />
     </div>
   );
 }

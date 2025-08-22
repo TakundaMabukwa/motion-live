@@ -7,6 +7,7 @@ import { Bell, User, Menu, MessageSquare, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
 
 interface SidebarItem {
   name: string;
@@ -34,6 +35,7 @@ export default function AppLayout({
   showSidebar = true 
 }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userEmail, setUserEmail] = useState<string>('');
   const pathname = usePathname();
 
   // Handle responsive sidebar
@@ -50,6 +52,38 @@ export default function AppLayout({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Get user email from auth
+  useEffect(() => {
+    const supabase = createClient();
+    
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        setUserEmail(session.user.email);
+      }
+    };
+
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user?.email) {
+          setUserEmail(session.user.email);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
 
   return (
     <div className="flex bg-gray-100 h-screen">
@@ -158,7 +192,9 @@ export default function AppLayout({
             </div>
 
             <div className="flex items-center space-x-4">
-              <span className="text-blue-100 text-sm">Good afternoon, {userName}</span>
+              <span className="text-blue-100 text-sm">
+                {userEmail ? `${getGreeting()}, ${userEmail}` : `Hi, ${userName}`}
+              </span>
               <div className="relative">
                 <Button variant="ghost" size="sm" className="relative hover:bg-blue-600 text-white">
                   <Bell className="w-5 h-5" />

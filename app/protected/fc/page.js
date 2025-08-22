@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import { toast } from "sonner";
@@ -9,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import NewAccountDialog from "@/components/ui-personal/new-account-dialog";
 import GlobalView from "@/components/ui-personal/global-view";
 import {
   Users,
@@ -19,16 +19,20 @@ import {
   Building2,
   Eye,
   Globe,
-  Building
+  Building,
+  FileText,
+  ExternalLink,
+  CheckCircle
 } from "lucide-react";
 
 export default function AccountsDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [totalCount, setTotalCount] = useState(0);
-  const [showNewAccountDialog, setShowNewAccountDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('global');
 
   // Fetch customers data
@@ -82,45 +86,10 @@ export default function AccountsDashboard() {
   }, [customers]);
 
   const handleNewAccount = () => {
-    setShowNewAccountDialog(true);
+    router.push('/protected/fc/add-account');
   };
 
-  const handleNewAccountCreated = (newAccount) => {
-    console.log('New account created:', newAccount);
-    fetchCustomers(); // Refresh the list
-    toast.success('New account created successfully!');
-    setShowNewAccountDialog(false);
-  };
 
-  // Tab navigation component
-  const TabNavigation = () => (
-    <div className="mb-6 border-gray-200 border-b">
-      <nav className="flex space-x-8">
-        {[
-          { id: 'global', label: 'Global View', icon: Globe },
-          { id: 'companies', label: 'Companies', icon: Building }
-        ].map((tabItem) => {
-          const Icon = tabItem.icon;
-          const isActive = activeTab === tabItem.id;
-          
-          return (
-            <button
-              key={tabItem.id}
-              onClick={() => setActiveTab(tabItem.id)}
-              className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                isActive
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tabItem.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </div>
-  );
 
   // Render content based on active tab
   const renderContent = () => {
@@ -153,13 +122,13 @@ export default function AccountsDashboard() {
               </div>
             )}
 
-            {/* Companies Table */}
+            {/* Clients Table */}
             <Card>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Company</TableHead>
+                      <TableHead>Client</TableHead>
                       <TableHead>Cost Centers</TableHead>
                       <TableHead>Total Vehicles</TableHead>
                       <TableHead>Account Name</TableHead>
@@ -172,7 +141,7 @@ export default function AccountsDashboard() {
                         <TableCell colSpan={5} className="text-center py-8">
                           <div className="flex flex-col items-center">
                             <Building2 className="w-8 h-8 text-gray-400 mb-2" />
-                            <p className="text-gray-500">No companies found</p>
+                            <p className="text-gray-500">No clients found</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -234,21 +203,21 @@ export default function AccountsDashboard() {
                 <CardContent className="p-8">
                   <div className="text-center">
                     <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      No companies found
-                    </h3>
-                    <p className="text-gray-500 mb-4">
-                      {searchTerm
-                        ? "Try adjusting your search criteria."
-                        : `Get started by creating your first company.`
-                      }
-                    </p>
-                    {!searchTerm && (
-                      <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create First Company
-                      </Button>
-                    )}
+                                          <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        No clients found
+                      </h3>
+                      <p className="text-gray-500 mb-4">
+                        {searchTerm
+                          ? "Try adjusting your search criteria."
+                          : `Get started by creating your first client.`
+                        }
+                      </p>
+                      {!searchTerm && (
+                        <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create First Client
+                        </Button>
+                      )}
                   </div>
                 </CardContent>
               </Card>
@@ -266,7 +235,7 @@ export default function AccountsDashboard() {
       <div className="space-y-6 p-6">
         <DashboardHeader
           title="Field Coordinator Dashboard"
-          subtitle="Manage companies and view global overview"
+          subtitle="Manage clients and view global overview"
           icon={Globe}
           actionButton={
             activeTab === 'companies' ? {
@@ -276,11 +245,10 @@ export default function AccountsDashboard() {
             } : undefined
           }
         />
-        <TabNavigation />
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <Loader2 className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></Loader2>
-            <p className="text-gray-600">Loading companies...</p>
+            <p className="text-gray-600">Loading clients...</p>
           </div>
         </div>
       </div>
@@ -302,17 +270,61 @@ export default function AccountsDashboard() {
         }
       />
 
-      {/* Tab Navigation */}
-      <TabNavigation />
+      {/* Combined Navigation */}
+      <div className="mb-6 border-gray-200 border-b">
+        <nav className="flex space-x-8">
+          {[
+            { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
+            { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
+            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true },
+            { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
+            { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
+            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs', type: 'link' }
+          ].filter(navItem => !(navItem.hideOnGlobal && activeTab === 'global')).map((navItem) => {
+            const Icon = navItem.icon;
+            const isActive = (navItem.id === 'global' && activeTab === 'global') || 
+                           (navItem.id === 'companies' && activeTab === 'companies') ||
+                           (navItem.type === 'link' && pathname === navItem.href);
+            
+            if (navItem.type === 'tab') {
+              return (
+                <button
+                  key={navItem.id}
+                  onClick={() => setActiveTab(navItem.id)}
+                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    isActive
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{navItem.label}</span>
+                </button>
+              );
+            }
+            
+            return (
+              <Link
+                key={navItem.id}
+                href={navItem.href}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  isActive
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{navItem.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* Content based on active tab */}
       {renderContent()}
 
-      <NewAccountDialog
-        open={showNewAccountDialog}
-        onOpenChange={setShowNewAccountDialog}
-        onAccountCreated={handleNewAccountCreated}
-      />
+
     </div>
   );
 }

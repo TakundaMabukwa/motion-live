@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,10 @@ import {
   MapPin,
   Edit,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Building2,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -328,6 +332,36 @@ export default function FCCompletedJobsPage() {
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
+      </div>
+
+      {/* Main Navigation */}
+      <div className="mb-6 border-gray-200 border-b">
+        <nav className="flex space-x-8">
+          {[
+            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
+            { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
+            { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
+            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
+          ].map((navItem) => {
+            const Icon = navItem.icon;
+            const isActive = window.location.pathname === navItem.href;
+            
+            return (
+              <Link
+                key={navItem.id}
+                href={navItem.href}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  isActive
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{navItem.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Search and Stats */}

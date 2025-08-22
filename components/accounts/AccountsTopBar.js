@@ -7,7 +7,9 @@ import {
   LayoutDashboard,
   Receipt,
   AlertTriangle,
-  Car
+  Car,
+  Users,
+  CheckCircle
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogoutButton } from '../logout-button';
@@ -16,6 +18,8 @@ const getIcon = (name) => {
   switch (name) {
     case 'grid':
       return LayoutDashboard;
+    case 'clients':
+      return Users;
     case 'alert-triangle':
       return AlertTriangle;
     case 'shopping-cart':
@@ -23,7 +27,7 @@ const getIcon = (name) => {
     case 'wrench':
       return Wrench;
     case 'receipt':
-      return Receipt;
+      return CheckCircle;
     case 'car':
       return Car;
     default:
@@ -42,11 +46,12 @@ export default function AccountsTopBar({ activeSection, onSectionChange }) {
 
   const navigation = [
     { name: 'Dashboard', icon: 'grid', key: 'dashboard' },
+    { name: 'Clients', icon: 'clients', key: 'clients' },
     { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },
     { name: 'Orders', icon: 'receipt', key: 'orders' },
-    { name: 'Vehicles', icon: 'car', key: 'vehicles' },
+    // { name: 'Vehicles', icon: 'car', key: 'vehicles' },
   ];
 
   return (

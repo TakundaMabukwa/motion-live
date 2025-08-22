@@ -33,7 +33,7 @@ export default function Layout({ children }) {
       { name: 'Map', href: `/protected/fc/accounts/${accountId}?tab=map`, icon: Map },
     ];
   } else {
-    // Default FC sidebar items
+    // Default FC sidebar items - these will be moved to top bar
     fcSidebarItems = [
       { name: 'Accounts', href: '/protected/fc', icon: Building2 },
       { name: 'Quotes', href: '/protected/fc/quotes', icon: FileText },
@@ -49,6 +49,7 @@ export default function Layout({ children }) {
       sidebarItems={fcSidebarItems}
       userRole="field_coordinator"
       userName="FC User"
+      showSidebar={false}
     >
       {children}
     </AppLayout>

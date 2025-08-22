@@ -23,15 +23,38 @@ export async function GET(request: NextRequest) {
 
     // Add search filter if provided
     if (search) {
-      query = query.or(`company.ilike.%${search}%,new_account_number.ilike.%${search}%`);
+      // Search directly in new_account_number column (starts with search term)
+      query = query.ilike('new_account_number', `${search}%`);
     }
 
-    // Get all invoices
-    const { data: invoices, error } = await query;
+    // Get all invoices - fetch in chunks to ensure we get everything
+    let allInvoices = [];
+    let invoicesHasMore = true;
+    let currentOffset = 0;
+    const chunkSize = 1000; // Fetch 1000 records at a time
+    
+    while (invoicesHasMore) {
+      const { data: chunk, error: chunkError } = await query
+        .range(currentOffset, currentOffset + chunkSize - 1);
+      
+      if (chunkError) {
+        console.error('Error fetching invoice chunk:', chunkError);
+        break;
+      }
+      
+      if (chunk && chunk.length > 0) {
+        allInvoices = allInvoices.concat(chunk);
+        currentOffset += chunkSize;
+        invoicesHasMore = chunk.length === chunkSize; // If we got less than chunkSize, we've reached the end
+      } else {
+        invoicesHasMore = false;
+      }
+    }
+    
+    const invoices = allInvoices;
 
-    if (error) {
-      console.error('Error fetching vehicle invoices:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
+    if (!invoices || invoices.length === 0) {
+      console.log('No vehicle invoices found');
     }
 
     // Get current date for overdue calculations
@@ -68,6 +91,83 @@ export async function GET(request: NextRequest) {
       return overdue;
     };
 
+    // Get customers data to get legal names - fetch in chunks to ensure we get everything
+    let allCustomers = [];
+    let customersHasMore = true;
+    let customersOffset = 0;
+    const customersChunkSize = 1000;
+    
+    while (customersHasMore) {
+      const { data: customersChunk, error: customersChunkError } = await supabase
+        .from('customers')
+        .select('new_account_number, legal_name, company')
+        .range(customersOffset, customersOffset + customersChunkSize - 1);
+      
+      if (customersChunkError) {
+        console.error('Error fetching customers chunk:', customersChunkError);
+        break;
+      }
+      
+      if (customersChunk && customersChunk.length > 0) {
+        allCustomers = allCustomers.concat(customersChunk);
+        customersOffset += customersChunkSize;
+        customersHasMore = customersChunk.length === customersChunkSize;
+      } else {
+        customersHasMore = false;
+      }
+    }
+    
+         const customersData = allCustomers;
+
+     // Check if we successfully fetched customers data
+     if (!customersData || customersData.length === 0) {
+       console.log('No customers data found');
+     }
+
+    // Get payments data for the matching account numbers
+    let paymentsData = {};
+    if (search) {
+      // Get all payments where new_account_number starts with the search term
+      const { data: payments, error: paymentsError } = await supabase
+        .from('payments')
+        .select('new_account_number, total_amount, amount_due')
+        .ilike('new_account_number', `${search}%`);
+      
+      if (paymentsError) {
+        console.error('Error fetching payments data:', paymentsError);
+      } else if (payments) {
+        // Group payments by the CODE part (before the dash)
+        payments.forEach(payment => {
+          const accountNumber = payment.new_account_number;
+          if (!accountNumber) return;
+
+          // Extract CODE part (before the dash)
+          const codeMatch = accountNumber.match(/^([^-]+)/);
+          if (!codeMatch) return;
+          
+          const code = codeMatch[1];
+          
+          if (!paymentsData[code]) {
+            paymentsData[code] = {
+              totalAmount: 0,
+              amountDue: 0
+            };
+          }
+          
+          paymentsData[code].totalAmount += (payment.total_amount || 0);
+          paymentsData[code].amountDue += (payment.amount_due || 0);
+        });
+      }
+    }
+
+    // Create a map for quick lookup of customer data by new_account_number
+    const customerMap = {};
+    customersData.forEach(customer => {
+      if (customer.new_account_number) {
+        customerMap[customer.new_account_number] = customer;
+      }
+    });
+
     // Group by CODE part (before the dash) of new_account_number
     const customerSummaries = {};
     invoices.forEach(invoice => {
@@ -81,15 +181,21 @@ export async function GET(request: NextRequest) {
       const code = codeMatch[1]; // This is the CODE part
 
       if (!customerSummaries[code]) {
+        // Get customer data for this code
+        const customerData = customerMap[accountNumber];
+        const paymentsInfo = paymentsData[code] || { totalAmount: 0, amountDue: 0 };
         customerSummaries[code] = {
           code,
           company: invoice.company,
+          legal_name: customerData?.legal_name || null,
           totalMonthlyAmount: 0,
           totalAmountDue: 0,
           totalOverdue: 0,
           vehicleCount: 0,
           vehicles: [],
-          accountNumbers: new Set() // Track all account numbers with this code
+          accountNumbers: new Set(), // Track all account numbers with this code
+          paymentsTotalAmount: paymentsInfo.totalAmount,
+          paymentsAmountDue: paymentsInfo.amountDue
         };
       }
 
@@ -125,6 +231,7 @@ export async function GET(request: NextRequest) {
         stock_code: invoice.stock_code,
         stock_description: invoice.stock_description,
         account_number: invoice.new_account_number,
+        company: invoice.company,
         total_ex_vat: safeNumber(invoice.total_ex_vat),
         total_vat: safeNumber(invoice.total_vat),
         total_incl_vat: safeNumber(invoice.total_incl_vat),

@@ -14,7 +14,8 @@ import {
   Eye,
   Calendar,
   MapPin,
-  DollarSign
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -201,7 +202,7 @@ export default function GlobalView() {
       </div>
 
       {/* Summary Cards */}
-      <div className="gap-6 grid grid-cols-1 md:grid-cols-4">
+      <div className="gap-6 grid grid-cols-1 md:grid-cols-6">
         {/* Recent Jobs */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
@@ -243,6 +244,47 @@ export default function GlobalView() {
             <p className="text-muted-foreground text-xs">
               Jobs in progress
             </p>
+            <div className="mt-1 font-bold text-orange-600 text-lg">
+              {formatCurrency(accountSummaries.reduce((sum, account) => sum + account.total_value, 0))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quotes Opened */}
+        <Card className="border-l-4 border-l-yellow-500">
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+            <CardTitle className="font-medium text-sm">Quotes Opened</CardTitle>
+            <FileText className="w-4 h-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="font-bold text-yellow-600 text-2xl">
+              {recentJobs.filter(job => job.status === 'open' || job.job_status === 'open').length}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Open quotes
+            </p>
+            <div className="mt-1 font-bold text-yellow-600 text-lg">
+              {formatCurrency(recentJobs.filter(job => job.status === 'open' || job.job_status === 'open').reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Valuation */}
+        <Card className="border-l-4 border-l-indigo-500">
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+            <CardTitle className="font-medium text-sm">Valuation</CardTitle>
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="font-bold text-indigo-600 text-2xl">
+              {recentJobs.length > 0 ? recentJobs.length : 0}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Total quotes
+            </p>
+            <div className="mt-1 font-bold text-indigo-600 text-lg">
+              {formatCurrency(recentJobs.reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
+            </div>
           </CardContent>
         </Card>
 
@@ -290,15 +332,24 @@ export default function GlobalView() {
                         {job.job_number?.charAt(0) || 'J'}
                       </span>
                     </div>
-                    <div>
-                      <div className="font-medium text-sm">Job #{job.job_number}</div>
-                      <div className="text-gray-500 text-xs">
-                        {job.customer_name} • {job.vehicle_registration}
-                      </div>
-                      <div className="text-gray-400 text-xs">
-                        {job.job_type} • {formatTimeAgo(job.created_at)}
-                      </div>
-                    </div>
+                                         <div>
+                       <div className="font-medium text-sm">Job #{job.job_number}</div>
+                       <div className="text-gray-500 text-xs">
+                         {job.customer_name} • {job.vehicle_registration}
+                       </div>
+                       <div className="text-gray-400 text-xs">
+                         {job.job_type} • {formatTimeAgo(job.created_at)}
+                       </div>
+                       <div className="text-gray-400 text-xs">
+                         Created: {new Date(job.created_at).toLocaleDateString('en-ZA', { 
+                           year: 'numeric', 
+                           month: 'short', 
+                           day: 'numeric',
+                           hour: '2-digit',
+                           minute: '2-digit'
+                         })}
+                       </div>
+                     </div>
                   </div>
                   <div className="text-right">
                     <div className="font-semibold text-sm">

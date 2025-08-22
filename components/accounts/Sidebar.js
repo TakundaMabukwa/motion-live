@@ -7,7 +7,8 @@ import {
   LayoutDashboard,
   Receipt,
   AlertTriangle,
-  Car
+  Users,
+  CreditCard
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogoutButton } from '../logout-button';
@@ -16,16 +17,18 @@ const getIcon = (name) => {
   switch (name) {
     case 'grid':
       return LayoutDashboard;
+    case 'clients':
+      return Users;
     case 'alert-triangle':
       return AlertTriangle;
     case 'shopping-cart':
       return ShoppingCart;
+    case 'credit-card':
+      return CreditCard;
     case 'wrench':
       return Wrench;
     case 'receipt':
       return Receipt;
-    case 'car':
-      return Car;
     default:
       return null;
   }
@@ -42,12 +45,12 @@ export default function Sidebar({ activeSection, onSectionChange }) {
 
   const navigation = [
     { name: 'Dashboard', icon: 'grid', key: 'dashboard' },
+    { name: 'Clients', icon: 'clients', key: 'clients' },
     { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
-    { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
+    { name: 'Purchases', icon: 'credit-card', key: 'purchases' },
     // { name: 'Job Cards', icon: 'wrench', key: 'job-cards' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },
-    { name: 'Orders', icon: 'receipt', key: 'orders' },
-    { name: 'Vehicles', icon: 'car', key: 'vehicles' },
+    { name: 'Orders', icon: 'shopping-cart', key: 'orders' },
     // { name: 'Logout', icon: 'log-out', key: 'logout' },
   ];
 

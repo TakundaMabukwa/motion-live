@@ -13,7 +13,10 @@ import {
   Building2, 
   Users,
   Eye,
-  Loader2
+  Loader2,
+  FileText,
+  ExternalLink,
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -56,7 +59,7 @@ export default function PrefixAccountsPage() {
           <Link href="/protected/fc">
             <Button variant="outline" size="sm">
               <ArrowLeft className="mr-2 w-4 h-4" />
-              Back to Companies
+              Back to Clients
             </Button>
           </Link>
         </div>
@@ -78,16 +81,46 @@ export default function PrefixAccountsPage() {
           <Link href="/protected/fc">
             <Button variant="outline" size="sm">
               <ArrowLeft className="mr-2 w-4 h-4" />
-              Back to Companies
+              Back to Clients
             </Button>
           </Link>
           <div>
             <h1 className="font-bold text-2xl">{prefix} Accounts</h1>
             <p className="text-gray-600">
-              {prefixInfo?.company_name || `${prefix} Company`} - {accounts.length} accounts
+              {prefixInfo?.company_name || `${prefix} Client`} - {accounts.length} accounts
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Main Navigation */}
+      <div className="mb-6 border-gray-200 border-b">
+        <nav className="flex space-x-8">
+          {[
+            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
+            { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
+            { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
+            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
+          ].map((navItem) => {
+            const Icon = navItem.icon;
+            const isActive = window.location.pathname === navItem.href;
+            
+            return (
+              <Link
+                key={navItem.id}
+                href={navItem.href}
+                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  isActive
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{navItem.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Summary Cards */}
@@ -122,12 +155,12 @@ export default function PrefixAccountsPage() {
 
         <Card>
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-            <CardTitle className="font-medium text-sm">Company</CardTitle>
+            <CardTitle className="font-medium text-sm">Client</CardTitle>
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="font-semibold text-lg">
-              {prefixInfo?.company_name || `${prefix} Company`}
+              {prefixInfo?.company_name || `${prefix} Client`}
             </div>
             <p className="text-muted-foreground text-xs">
               Prefix: {prefix}

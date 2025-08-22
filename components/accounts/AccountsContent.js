@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { 
   Users, 
   Search, 
@@ -16,16 +18,23 @@ import {
   ShoppingCart,
   Wrench,
   Receipt,
-  X
+  DollarSign,
+  FileText,
+  Settings,
+  CreditCard,
+  Clock
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { OverdueAccountsWidget } from '@/components/overdue/OverdueAccountsWidget';
 import InternalAccountDashboard from './InternalAccountDashboard';
-
+import AccountDashboard from '@/components/accounts/AccountDashboard';
+import OrdersContent from './OrdersContent';
+import PurchasesContent from './PurchasesContent';
 
 export default function AccountsContent({ activeSection }) {
   const [customers, setCustomers] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -41,6 +50,24 @@ export default function AccountsContent({ activeSection }) {
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
   const [selectedFinancialAccount, setSelectedFinancialAccount] = useState(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [selectedJobForInvoice, setSelectedJobForInvoice] = useState(null);
+  const [invoiceFormData, setInvoiceFormData] = useState({
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
+    clientAddress: '',
+    paymentTerms: '30 days',
+    dueDate: '',
+    notes: ''
+  });
+  const [generatedInvoice, setGeneratedInvoice] = useState(null);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  
+  // Overdue section state
+  const [refreshKey, setRefreshKey] = useState(0);
+
 
   const router = useRouter();
 
@@ -56,55 +83,33 @@ export default function AccountsContent({ activeSection }) {
     return isPaymentDue() ? 'Amount Due' : 'Monthly Amount';
   };
 
-
-
-
-
-  // Show financial details before viewing account
-  const handleShowFinancialDetails = (customer) => {
-    setSelectedFinancialAccount(customer);
-    setShowFinancialDetails(true);
-  };
-
-  // Proceed to view account details
-  const handleProceedToAccount = () => {
-    if (selectedFinancialAccount) {
-      handleCustomerClick(selectedFinancialAccount.accountNumber);
-      setShowFinancialDetails(false);
-      setSelectedFinancialAccount(null);
-    }
-  };
-
-  const fetchCustomers = useCallback(async (isLoadMore = false) => {
+  // Fetch customers data
+  const fetchCustomers = useCallback(async (loadMore = false) => {
     try {
-      if (isLoadMore) {
+      if (loadMore) {
         setLoadingMore(true);
       } else {
         setLoading(true);
       }
 
-      const currentPage = isLoadMore ? page + 1 : 1;
-      console.log('Fetching customers:', { currentPage, searchTerm });
-      
-      const response = await fetch(
-        `/api/vehicle-invoices?page=${currentPage}&limit=50&search=${encodeURIComponent(searchTerm)}`
-      );
+      const currentPage = loadMore ? page + 1 : 1;
+      const response = await fetch(`/api/vehicle-invoices?page=${currentPage}&limit=50&search=${searchTerm}&includeLegalNames=true`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch customers');
       }
 
       const data = await response.json();
-      console.log('API response:', data);
       
-      if (isLoadMore) {
+      if (loadMore) {
         setCustomers(prev => [...prev, ...data.customers]);
         setPage(currentPage);
-        setHasMore(data.pagination.hasMore);
+        setHasMore(data.customers.length === 50);
       } else {
         setCustomers(data.customers);
+        setAllCustomers(data.customers);
         setPage(1);
-        setHasMore(data.pagination.hasMore);
+        setHasMore(data.customers.length === 50);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -113,16 +118,33 @@ export default function AccountsContent({ activeSection }) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [page, searchTerm]);
+  }, [searchTerm, page]);
 
+  // Initial data fetch
   useEffect(() => {
-    if (activeSection === 'dashboard' || activeSection === 'overdue') {
       fetchCustomers();
+  }, [fetchCustomers]);
+
+  // Real-time search filtering
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setCustomers(allCustomers);
+    } else {
+      const searchLower = searchTerm.toLowerCase();
+      const filtered = allCustomers.filter(customer => {
+        const legalNameLower = (customer.legal_name || '').toLowerCase();
+        const companyLower = (customer.company || '').toLowerCase();
+        const codeLower = (customer.code || '').toLowerCase();
+        
+        return (
+          legalNameLower.includes(searchLower) ||
+          companyLower.includes(searchLower) ||
+          codeLower.includes(searchLower)
+        );
+      });
+      setCustomers(filtered);
     }
-    if (activeSection === 'completed-jobs') {
-      fetchCompletedJobs();
-    }
-  }, [activeSection, fetchCustomers]);
+  }, [searchTerm, allCustomers]);
 
   // Check for account parameter in URL
   useEffect(() => {
@@ -134,6 +156,13 @@ export default function AccountsContent({ activeSection }) {
       fetchAccountData(accountParam);
     }
   }, []);
+
+  // Fetch completed jobs when section changes
+  useEffect(() => {
+    if (activeSection === 'completed-jobs') {
+      fetchCompletedJobs();
+    }
+  }, [activeSection]);
 
   const fetchCompletedJobs = async () => {
     try {
@@ -155,28 +184,97 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
-  const handleBillClient = async (job) => {
-    try {
-      // For now, just show a success message
-      // In the future, this could generate invoices, send emails, etc.
-      toast.success(`Billing initiated for job ${job.job_number}`);
-      
-      // You could also update the job status to 'billed' here
-      // const response = await fetch(`/api/job-cards/${job.id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ job_status: 'Billed' })
-      // });
-      
-    } catch (error) {
-      console.error('Error billing client:', error);
-      toast.error('Failed to bill client');
-    }
+  const handleInvoiceClient = async (job) => {
+    setSelectedJobForInvoice(job);
+    // Pre-fill form with available job data
+    setInvoiceFormData({
+      clientName: job.customer_name || '',
+      clientEmail: job.customer_email || '',
+      clientPhone: job.customer_phone || '',
+      clientAddress: job.customer_address || '',
+      paymentTerms: '30 days',
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+      notes: ''
+    });
+    setShowInvoiceModal(true);
   };
 
   const handleViewJobDetails = (job) => {
     setSelectedJobDetails(job);
     setShowJobDetailsModal(true);
+  };
+
+  const generateInvoice = async () => {
+    if (!selectedJobForInvoice) return;
+    
+    setIsGeneratingInvoice(true);
+    try {
+      // Simulate PDF generation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const invoiceData = {
+        invoiceNumber: `INV-${Date.now()}`,
+        jobNumber: selectedJobForInvoice.job_number,
+        clientInfo: invoiceFormData,
+        jobDetails: selectedJobForInvoice,
+        generatedAt: new Date().toISOString(),
+        pdfUrl: `#invoice-${Date.now()}` // Placeholder for actual PDF URL
+      };
+      
+      setGeneratedInvoice(invoiceData);
+      toast.success('Invoice generated successfully!');
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      toast.error('Failed to generate invoice');
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
+  };
+
+  const sendInvoiceEmail = async () => {
+    if (!generatedInvoice || !invoiceFormData.clientEmail) {
+      toast.error('Please provide client email address');
+      return;
+    }
+    
+    setIsSendingEmail(true);
+    try {
+      // Simulate email sending
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
+      setShowInvoiceModal(false);
+      setGeneratedInvoice(null);
+      setSelectedJobForInvoice(null);
+      setInvoiceFormData({
+        clientName: '',
+        clientEmail: '',
+        clientPhone: '',
+        clientAddress: '',
+        paymentTerms: '30 days',
+        dueDate: '',
+        notes: ''
+      });
+    } catch (error) {
+      console.error('Error sending invoice email:', error);
+      toast.error('Failed to send invoice email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const resetInvoiceForm = () => {
+    setInvoiceFormData({
+      clientName: '',
+      clientEmail: '',
+      clientPhone: '',
+      clientAddress: '',
+      paymentTerms: '30 days',
+      dueDate: '',
+      notes: ''
+    });
+    setGeneratedInvoice(null);
+    setSelectedJobForInvoice(null);
   };
 
   const fetchAccountData = async (accountNumber) => {
@@ -230,7 +328,6 @@ export default function AccountsContent({ activeSection }) {
 
   const handleSearch = () => {
     setPage(1);
-    fetchCustomers();
   };
 
   const handleLoadMore = () => {
@@ -241,31 +338,35 @@ export default function AccountsContent({ activeSection }) {
 
   const handleCustomerClick = (accountNumber) => {
     console.log('Clicking on account:', accountNumber);
-    // Set the selected account directly instead of navigating
     fetchAccountData(accountNumber);
   };
 
+  const handleShowFinancialDetails = (customer) => {
+    setSelectedFinancialAccount(customer);
+    setShowFinancialDetails(true);
+  };
 
+  const handleViewClients = (customer) => {
+    console.log('handleViewClients called with:', customer);
+    // Navigate to the new client cost centers page
+    const url = `/protected/client-cost-centers/${customer.code}`;
+    console.log('Redirecting to:', url);
+    window.location.href = url;
+  };
 
   const formatCurrency = (amount) => {
-    // Handle null, undefined, or empty string
     if (amount === null || amount === undefined || amount === '') {
       return 'R 0.00';
     }
     
-    // Convert to number if it's a string
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
     
-    // Check if it's a valid number
     if (isNaN(numAmount)) {
       return 'R 0.00';
     }
     
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: 2,
-    }).format(numAmount);
+    // Use consistent formatting to avoid hydration errors
+    return `R ${numAmount.toFixed(2)}`;
   };
 
   const getOverdueStatus = (totalOverdue) => {
@@ -290,7 +391,6 @@ export default function AccountsContent({ activeSection }) {
     console.log('Dashboard section active, selectedAccount:', selectedAccount);
     console.log('Customers data:', customers);
     
-    // If an account is selected, show the internal account dashboard
     if (selectedAccount) {
       console.log('Showing internal dashboard for account:', selectedAccount.accountNumber);
       return (
@@ -305,7 +405,6 @@ export default function AccountsContent({ activeSection }) {
       );
     }
 
-    // Show the main accounts dashboard
     return (
       <div className="space-y-6">
         {/* Header */}
@@ -369,189 +468,54 @@ export default function AccountsContent({ activeSection }) {
           </Card>
         </div>
 
-        {/* Overdue Accounts Widget */}
+        {/* Customers Table */}
         <Card className="hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Overdue Accounts Overview</span>
-            </CardTitle>
-            <p className="text-gray-600 text-sm">
-              Accounts with overdue payments (after 21st of month)
-            </p>
+            <CardTitle className="text-lg">All Clients</CardTitle>
+            <p className="text-sm text-gray-600">Click on any client to view detailed information</p>
           </CardHeader>
           <CardContent>
-            <OverdueAccountsWidget 
-              autoRefresh={true} 
-              refreshInterval={300000} // 5 minutes
-              showAllAccounts={false}
-              maxAccounts={15}
-              onAccountClick={handleCustomerClick}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Accounts Table */}
-         <Card className="hover:shadow-lg transition-shadow duration-200">
-           <CardHeader>
-             <div className="flex items-center justify-between">
-               <div className="flex items-center space-x-2">
-                 <Users className="w-5 h-5 text-blue-600" />
-                <span>All Clients</span>
-               </div>
-               <Button 
-                onClick={handleRefresh}
-                disabled={refreshing}
-                 variant="outline"
-                 size="sm"
-               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Refreshing...' : 'Refresh'}
-               </Button>
-             </div>
-             <p className="text-gray-600 text-sm">
-              Showing {customers.length} clients with combined totals
-             </p>
-           </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                <span className="ml-2">Loading accounts...</span>
+            <div className="space-y-4">
+              {customers.map((customer, index) => (
+                <div
+                  key={customer.code || index}
+                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => handleCustomerClick(customer.code)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900">
+                        {customer.legal_name || customer.company}
+                      </h3>
+                      <p className="text-sm text-gray-600">Code: {customer.code}</p>
+                      <p className="text-xs text-gray-500">
+                        {customer.vehicleCount || 0} vehicles
+                      </p>
               </div>
-            ) : customers.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">
-                <Users className="mx-auto mb-4 w-12 h-12 text-gray-300" />
-                <p>No accounts found</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Search */}
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="relative flex-1">
-                    <Search className="top-3 left-3 absolute w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Search by company name or code..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700">
-                    <Search className="mr-2 w-4 h-4" />
-                    Search
-                  </Button>
-                </div>
-
-                {/* Table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="min-w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                          Client
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                          Monthly Total
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                          Amount Due
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                          Overdue
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                          Vehicles
-                        </th>
-                        <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {customers.map((customer, index) => (
-                        <tr key={customer.code} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="font-medium text-gray-900 text-sm">{customer.company}</div>
-                            <div className="text-gray-500 text-sm">Code: {customer.code}</div>
-                            </td>
-                            <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className="font-medium text-gray-900 text-sm cursor-pointer hover:text-blue-600" 
-                                 onClick={() => handleShowFinancialDetails(customer)}>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-red-600">
                                 {formatCurrency(customer.totalMonthlyAmount)}
                               </div>
-                            <div className="text-xs text-gray-500">Full monthly due</div>
-                            </td>
-                            <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className={`font-medium text-sm ${
-                              (customer.totalAmountDue || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                            }`}>
-                              {formatCurrency(customer.totalAmountDue || 0)}
+                      <p className="text-xs text-gray-500">Monthly</p>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 text-right whitespace-nowrap">
-                            <div className={`font-medium text-sm ${
-                              (customer.totalOverdue || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                            }`}>
-                              {formatCurrency(customer.totalOverdue || 0)}
                               </div>
-                            </td>
-                            <td className="px-6 py-4 text-center whitespace-nowrap">
-                              <Badge variant="outline">{customer.vehicleCount}</Badge>
-                            </td>
-                            <td className="px-6 py-4 text-center whitespace-nowrap">
-                              <Button 
-                                size="sm" 
-                              onClick={() => handleShowFinancialDetails(customer)}
-                                className="bg-blue-500 hover:bg-blue-600"
-                              >
-                                <Users className="mr-2 w-4 h-4" />
-                              View Cost Centers
-                              </Button>
-                            </td>
-                          </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
-
-                {/* Load More Button */}
-                {hasMore && (
-                  <div className="flex justify-center pt-4">
-                    <Button 
-                      onClick={handleLoadMore} 
-                      disabled={loadingMore}
-                      variant="outline"
-                      className="w-full max-w-xs"
-                    >
-                      {loadingMore ? (
-                        <>
-                          <div className="mr-2 border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
-                          Loading...
-                        </>
-                      ) : (
-                        'Load More Clients'
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+              ))}
+                </div>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Overdue Accounts Section
-  if (activeSection === 'overdue') {
+  // Clients Section
+  if (activeSection === 'clients') {
     if (loading) {
       return (
         <div className="space-y-6">
           <div className="flex justify-center items-center py-12">
             <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-            <span className="ml-2">Loading overdue accounts...</span>
+            <span className="ml-2">Loading clients...</span>
           </div>
         </div>
       );
@@ -562,8 +526,8 @@ export default function AccountsContent({ activeSection }) {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="font-bold text-gray-900 text-3xl">Overdue Accounts Dashboard</h1>
-            <p className="mt-2 text-gray-600">Monitor customer payment status and overdue amounts</p>
+            <h1 className="font-bold text-gray-900 text-3xl">View Clients</h1>
+            <p className="mt-2 text-gray-600">Manage and view all client information with legal names</p>
           </div>
           <div className="flex gap-3">
             <Button 
@@ -585,7 +549,7 @@ export default function AccountsContent({ activeSection }) {
         <div className="gap-6 grid grid-cols-1 md:grid-cols-4">
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Customers</CardTitle>
+              <CardTitle className="font-medium text-sm">Total Clients</CardTitle>
               <Users className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -596,407 +560,134 @@ export default function AccountsContent({ activeSection }) {
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Monthly Revenue</CardTitle>
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Monthly Revenue</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="font-bold text-green-600 text-2xl">
+              <div className="text-2xl font-bold text-green-600">
                 {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyAmount || 0), 0))}
               </div>
-              <p className="text-muted-foreground text-xs">Monthly billing</p>
+              <p className="text-xs text-muted-foreground">Monthly subscriptions</p>
             </CardContent>
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Overdue</CardTitle>
-              <AlertTriangle className="w-4 h-4 text-red-500" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Amount Due</CardTitle>
+              <span className="h-4 w-4 text-muted-foreground font-bold">R</span>
             </CardHeader>
             <CardContent>
-              <div className="font-bold text-red-600 text-2xl">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalOverdue || 0), 0))}
+              <div className="text-2xl font-bold text-red-600">
+                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalAmountDue || 0), 0))}
               </div>
-              <p className="text-muted-foreground text-xs">Outstanding amounts</p>
+              <p className="text-xs text-muted-foreground">Outstanding amounts</p>
             </CardContent>
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Vehicles</CardTitle>
-              <Car className="w-4 h-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+              <Car className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="font-bold text-purple-600 text-2xl">
+              <div className="text-2xl font-bold text-purple-600">
                 {customers.reduce((sum, c) => sum + (c.vehicleCount || 0), 0)}
               </div>
-              <p className="text-muted-foreground text-xs">Fleet size</p>
+              <p className="text-xs text-muted-foreground">Fleet size</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Overdue Accounts Widget */}
-        <Card className="hover:shadow-lg transition-shadow duration-200">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-red-600">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Overdue Accounts Overview</span>
-            </CardTitle>
-            <p className="text-gray-600 text-sm">
-              Click on any account to view detailed vehicle information and costs
-            </p>
-          </CardHeader>
-          <CardContent>
-            <OverdueAccountsWidget 
-              autoRefresh={true} 
-              refreshInterval={300000} // 5 minutes
-              showAllAccounts={false}
-              maxAccounts={15}
-              onAccountClick={handleCustomerClick}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Search and Filters */}
+        {/* Search */}
         <Card>
           <CardHeader>
-            <CardTitle>Search & Filter</CardTitle>
+            <CardTitle className="text-lg">Search Clients</CardTitle>
+            <p className="text-sm text-gray-600">Search by legal name, company name, or code</p>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center space-x-4">
-              <div className="relative flex-1">
-                <Search className="top-3 left-3 absolute w-4 h-4 text-gray-400" />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Search by company name or account number..."
+                type="text"
+                placeholder="Search by legal name or code..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   className="pl-10"
                 />
-              </div>
-              <Button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700">
-                <Search className="mr-2 w-4 h-4" />
-                Search
-              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Overdue Accounts Table */}
+        {/* Clients Table */}
         <Card className="hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
-              <span>Overdue Accounts (Highest to Lowest)</span>
-            </CardTitle>
-            <p className="text-gray-600 text-sm">
-              Showing {customers.length} accounts sorted by overdue amount
-            </p>
+            <CardTitle className="text-lg">Client Legal Names</CardTitle>
+            <p className="text-sm text-gray-600">All clients with their legal names and account information</p>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
-              <table className="min-w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                      Monthly Amount
-                    </th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                      Total Overdue
-                    </th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                      Vehicles
-                    </th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-center uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 font-medium text-gray-500 text-xs text-right uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {customers.map((customer, index) => {
-                    const overdueStatus = getOverdueStatus(customer.totalOverdue);
-                    return (
-                      <tr key={customer.accountNumber} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900 text-sm">{customer.company}</div>
-                          <div className="text-gray-500 text-sm">#{customer.accountNumber}</div>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className="font-medium text-gray-900 text-sm cursor-pointer hover:text-blue-600" 
-                               onClick={() => handleShowFinancialDetails(customer)}>
-                            {formatCurrency(customer.totalMonthlyAmount)}
-                          </div>
-                          <div className="text-xs text-gray-500">Full monthly due</div>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <div className={`font-medium text-sm ${
-                            (customer.totalOverdue || 0) > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {formatCurrency(customer.totalOverdue || 0)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center whitespace-nowrap">
-                          <Badge variant="outline">{customer.vehicleCount}</Badge>
-                        </td>
-                        <td className="px-6 py-4 text-center whitespace-nowrap">
-                          <Badge className={getOverdueColor(overdueStatus)}>
-                            {overdueStatus === 'current' ? 'Current' : 
-                             overdueStatus === 'low' ? 'Low Risk' :
-                             overdueStatus === 'medium' ? 'Medium Risk' : 'High Risk'}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
-                          <Button 
-                            size="sm" 
-                            onClick={() => handleShowFinancialDetails(customer)}
-                            className="bg-blue-500 hover:bg-blue-600"
-                          >
-                            <Users className="mr-2 w-4 h-4" />
-                            View Details
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Load More Button */}
-            {hasMore && (
-              <div className="flex justify-center pt-4">
-                <Button 
-                  onClick={handleLoadMore} 
-                  disabled={loadingMore}
-                  variant="outline"
-                  className="w-full max-w-xs"
-                >
-                  {loadingMore ? (
-                    <>
-                      <div className="mr-2 border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
-                      Loading...
-                    </>
-                  ) : (
-                    'Load More Customers'
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Completed Jobs Section
-  if (activeSection === 'completed-jobs') {
-    if (completedJobsLoading) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-center items-center py-12">
-            <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-            <span className="ml-2">Loading completed jobs...</span>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="font-bold text-gray-900 text-3xl">Completed Job Cards</h1>
-            <p className="mt-2 text-gray-600">View completed jobs ready for billing</p>
-          </div>
-          <div className="flex gap-3">
-            <Button 
-              onClick={fetchCompletedJobs}
-              disabled={completedJobsLoading}
-              variant="outline"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${completedJobsLoading ? 'animate-spin' : ''}`} />
-              {completedJobsLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="gap-6 grid grid-cols-1 md:grid-cols-4">
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Jobs</CardTitle>
-              <Wrench className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-bold text-blue-600 text-2xl">{completedJobs.length}</div>
-              <p className="text-muted-foreground text-xs">Ready for billing</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Repair Jobs</CardTitle>
-              <Wrench className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-bold text-purple-600 text-2xl">
-                {completedJobs.filter(job => job.repair).length}
-              </div>
-              <p className="text-muted-foreground text-xs">Repair work</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Installation Jobs</CardTitle>
-              <Car className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-bold text-green-600 text-2xl">
-                {completedJobs.filter(job => job.job_type?.toLowerCase().includes('install')).length}
-              </div>
-              <p className="text-muted-foreground text-xs">Installations</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Value</CardTitle>
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-bold text-green-600 text-2xl">
-                {formatCurrency(completedJobs.reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
-              </div>
-              <p className="text-muted-foreground text-xs">Billing amount</p>
-            </CardContent>
-          </Card>
-        </div>
-
-                 {/* Completed Jobs Table */}
-         <Card className="hover:shadow-lg transition-shadow duration-200">
-           <CardHeader>
-             <CardTitle className="flex items-center space-x-2">
-               <Receipt className="w-5 h-5 text-green-600" />
-               <span>Completed Jobs for Billing</span>
-             </CardTitle>
-           </CardHeader>
-           <CardContent>
-             {completedJobs.length === 0 ? (
-               <div className="py-8 text-gray-500 text-center">
-                 No completed jobs found
-               </div>
-             ) : (
                <div className="overflow-x-auto">
                  <table className="w-full">
                    <thead className="bg-gray-50">
                      <tr>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                         Job Details
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client Legal Name
                        </th>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                         Customer
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Code
                        </th>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                         Vehicle
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Monthly Amount
                        </th>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                         Amount
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount Due
                        </th>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                         Completion Date
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Vehicles
                        </th>
-                       <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                          Actions
                        </th>
                      </tr>
                    </thead>
                    <tbody className="bg-white divide-y divide-gray-200">
-                     {completedJobs.map((job) => (
-                       <tr key={job.id} className="hover:bg-gray-50">
+                  {customers.map((customer, index) => (
+                    <tr key={customer.code || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                          <td className="px-4 py-3">
-                           <div className="flex items-center space-x-2 mb-2">
-                             <h3 className="font-semibold text-lg">{job.job_number}</h3>
-                             <Badge className={job.repair ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}>
-                               {job.repair ? 'Repair' : job.job_type}
-                             </Badge>
+                        <div className="font-medium text-gray-900 text-sm">
+                          {customer.legal_name || customer.company}
                            </div>
-                           <div className="text-gray-600 text-sm">
-                             <p><strong>Description:</strong> {job.job_description || 'No description'}</p>
-                             {job.job_location && (
-                               <p><strong>Location:</strong> {job.job_location}</p>
-                             )}
+                        <div className="text-gray-500 text-xs">
+                          {customer.company && customer.legal_name !== customer.company ? customer.company : ''}
                            </div>
                          </td>
                          <td className="px-4 py-3">
-                           <div className="font-medium">{job.customer_name}</div>
-                           <div className="text-gray-500 text-sm">
-                             <div className="flex items-center gap-1">
-                               <span>📧 {job.customer_email}</span>
-                             </div>
-                             <div className="flex items-center gap-1">
-                               <span>📱 {job.customer_phone}</span>
-                             </div>
+                        <div className="font-medium text-gray-900 text-sm">
+                          {customer.code}
                            </div>
                          </td>
-                         <td className="px-4 py-3">
-                           {job.vehicle_registration ? (
-                             <div>
-                               <div className="font-medium">{job.vehicle_registration}</div>
-                               <div className="text-gray-500 text-sm">
-                                 {job.vehicle_make} {job.vehicle_model} {job.vehicle_year}
+                      <td className="px-4 py-3 text-right text-sm">
+                        <div className="font-medium text-gray-900">
+                          {formatCurrency(customer.totalMonthlyAmount)}
                                </div>
-                             </div>
-                           ) : (
-                             <span className="text-gray-400">No vehicle</span>
-                           )}
                          </td>
-                         <td className="px-4 py-3">
-                           <div className="text-right">
-                             <div className="font-medium text-green-600">
-                               {formatCurrency(job.quotation_total_amount || 0)}
-                             </div>
-                             {job.quotation_subtotal && (
-                               <div className="text-gray-500 text-sm">
-                                 Subtotal: {formatCurrency(job.quotation_subtotal)}
-                               </div>
-                             )}
+                      <td className="px-4 py-3 text-right text-sm">
+                        <div className={`font-medium ${
+                          customer.totalAmountDue > 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(customer.totalAmountDue)}
                            </div>
                          </td>
-                         <td className="px-4 py-3">
-                           <div className="text-sm">
-                             <div className="font-medium">
-                               {new Date(job.completion_date || job.job_date).toLocaleDateString()}
-                             </div>
-                             <div className="text-gray-500">
-                               {job.actual_duration_hours || job.estimated_duration_hours || 'N/A'}h
-                             </div>
-                           </div>
+                      <td className="px-4 py-3 text-center text-sm">
+                        <Badge variant="outline">{customer.vehicleCount || 0}</Badge>
                          </td>
-                                                  <td className="px-4 py-3">
-                            <div className="space-y-2">
+                      <td className="px-4 py-3 text-center text-sm">
+                        <div className="flex gap-2 justify-center">
                               <Button
-                                onClick={() => handleViewJobDetails(job)}
+                            onClick={() => handleViewClients(customer)}
                                 size="sm"
                                 variant="outline"
-                                className="w-full"
-                              >
-                                <Search className="mr-2 w-4 h-4" />
-                                View Details
-                              </Button>
-                              <Button
-                                onClick={() => handleBillClient(job)}
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700 w-full"
-                              >
-                                <Receipt className="mr-2 w-4 h-4" />
-                                Bill Client
+                          >
+                            View Clients
                               </Button>
                             </div>
                           </td>
@@ -1005,403 +696,18 @@ export default function AccountsContent({ activeSection }) {
                    </tbody>
                  </table>
                </div>
-             )}
            </CardContent>
          </Card>
-
-         {/* Job Details Modal */}
-         {showJobDetailsModal && selectedJobDetails && (
-           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-             <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-               {/* Modal Header */}
-               <div className="flex items-center justify-between p-6 border-b">
-                 <div>
-                   <h2 className="text-2xl font-bold text-gray-900">
-                     Job Details: {selectedJobDetails.job_number}
-                   </h2>
-                   <p className="text-gray-600">
-                     {selectedJobDetails.repair ? 'Repair Job' : selectedJobDetails.job_type}
-                   </p>
-                 </div>
-                 <Button
-                   onClick={() => setShowJobDetailsModal(false)}
-                   variant="ghost"
-                   size="sm"
-                   className="h-8 w-8 p-0"
-                 >
-                   <X className="h-4 w-4" />
-                 </Button>
-               </div>
-
-               {/* Modal Content */}
-               <div className="p-6 space-y-6">
-                 {/* Job Information */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg">Job Information</CardTitle>
-                     </CardHeader>
-                     <CardContent className="space-y-3">
-                       <div>
-                         <span className="font-medium">Job Number:</span>
-                         <span className="ml-2 text-gray-600">{selectedJobDetails.job_number}</span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Job Type:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.repair ? 'Repair' : selectedJobDetails.job_type}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Description:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.job_description || 'No description'}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Location:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.job_location || 'No location specified'}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Priority:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.priority || 'Not specified'}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Status:</span>
-                         <Badge className="ml-2 bg-green-100 text-green-800">
-                           {selectedJobDetails.job_status}
-                         </Badge>
-                       </div>
-                     </CardContent>
-                   </Card>
-
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg">Timing & Duration</CardTitle>
-                     </CardHeader>
-                     <CardContent className="space-y-3">
-                       <div>
-                         <span className="font-medium">Job Date:</span>
-                         <span className="ml-2 text-gray-600">
-                           {new Date(selectedJobDetails.job_date).toLocaleDateString()}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Start Time:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.start_time ? 
-                             new Date(selectedJobDetails.start_time).toLocaleTimeString() : 'Not specified'
-                           }
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">End Time:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.end_time ? 
-                             new Date(selectedJobDetails.end_time).toLocaleTimeString() : 'Not specified'
-                           }
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Completion Date:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.completion_date ? 
-                             new Date(selectedJobDetails.completion_date).toLocaleDateString() : 'Not specified'
-                           }
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Duration:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.actual_duration_hours || selectedJobDetails.estimated_duration_hours || 'N/A'} hours
-                         </span>
-                       </div>
-                     </CardContent>
-                   </Card>
-                 </div>
-
-                 {/* Customer Information */}
-                 <Card>
-                   <CardHeader>
-                     <CardTitle className="text-lg">Customer Information</CardTitle>
-                   </CardHeader>
-                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div className="space-y-3">
-                       <div>
-                         <span className="font-medium">Name:</span>
-                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_name}</span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Email:</span>
-                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Phone:</span>
-                         <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
-                       </div>
-                     </div>
-                     <div className="space-y-3">
-                       <div>
-                         <span className="font-medium">Address:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.customer_address || 'No address specified'}
-                         </span>
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
-
-                 {/* Vehicle Information */}
-                 {selectedJobDetails.vehicle_registration && (
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg">Vehicle Information</CardTitle>
-                     </CardHeader>
-                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="space-y-3">
-                         <div>
-                           <span className="font-medium">Registration:</span>
-                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_registration}</span>
-                         </div>
-                         <div>
-                           <span className="font-medium">Make:</span>
-                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_make}</span>
-                         </div>
-                         <div>
-                           <span className="font-medium">Model:</span>
-                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_model}</span>
-                         </div>
-                       </div>
-                       <div className="space-y-3">
-                         <div>
-                           <span className="font-medium">Year:</span>
-                           <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_year}</span>
-                         </div>
-                         {selectedJobDetails.vin_numer && (
-                           <div>
-                             <span className="font-medium">VIN:</span>
-                             <span className="ml-2 text-gray-600">{selectedJobDetails.vin_numer}</span>
-                           </div>
-                         )}
-                         {selectedJobDetails.odormeter && (
-                           <div>
-                             <span className="font-medium">Odometer:</span>
-                             <span className="ml-2 text-gray-600">{selectedJobDetails.odormeter}</span>
-                           </div>
-                         )}
-                       </div>
-                     </CardContent>
-                   </Card>
-                 )}
-
-                 {/* Financial Information */}
-                 <Card>
-                   <CardHeader>
-                     <CardTitle className="text-lg">Financial Information</CardTitle>
-                   </CardHeader>
-                   <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                     <div className="text-center">
-                       <div className="text-2xl font-bold text-green-600">
-                         {formatCurrency(selectedJobDetails.quotation_total_amount || 0)}
-                       </div>
-                       <div className="text-sm text-gray-600">Total Amount</div>
-                     </div>
-                     <div className="text-center">
-                       <div className="text-xl font-semibold text-blue-600">
-                         {formatCurrency(selectedJobDetails.quotation_subtotal || 0)}
-                       </div>
-                       <div className="text-sm text-gray-600">Subtotal</div>
-                     </div>
-                     <div className="text-center">
-                       <div className="text-xl font-semibold text-red-600">
-                         {formatCurrency(selectedJobDetails.quotation_vat_amount || 0)}
-                       </div>
-                       <div className="text-sm text-gray-600">VAT (15%)</div>
-                     </div>
-                   </CardContent>
-                 </Card>
-
-                 {/* Before and After Photos - Split View */}
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                   {/* Before Photos */}
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg text-red-600">Before Photos</CardTitle>
-                       <p className="text-sm text-gray-600">
-                         {selectedJobDetails.before_photos?.length || 0} photo(s) taken before work
-                       </p>
-                     </CardHeader>
-                     <CardContent>
-                       {selectedJobDetails.before_photos && selectedJobDetails.before_photos.length > 0 ? (
-                         <div className="grid grid-cols-2 gap-3">
-                           {selectedJobDetails.before_photos.map((photo, index) => (
-                             <div key={index} className="relative group">
-                               <img
-                                 src={photo}
-                                 alt={`Before photo ${index + 1}`}
-                                 className="w-full h-32 object-cover rounded-lg border-2 border-red-200 hover:border-red-400 transition-colors cursor-pointer"
-                                 onClick={() => window.open(photo, '_blank')}
-                               />
-                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                                 <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
-                                   Click to enlarge
-                                 </span>
-                               </div>
-                             </div>
-                           ))}
-                         </div>
-                       ) : (
-                         <div className="text-center py-8 text-gray-500">
-                           <div className="text-4xl mb-2">📷</div>
-                           <p>No before photos available</p>
-                           </div>
-                       )}
-                     </CardContent>
-                   </Card>
-
-                   {/* After Photos */}
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg text-green-600">After Photos</CardTitle>
-                       <p className="text-sm text-gray-600">
-                         {selectedJobDetails.after_photos?.length || 0} photo(s) taken after work
-                       </p>
-                     </CardHeader>
-                     <CardContent>
-                       {selectedJobDetails.after_photos && selectedJobDetails.after_photos.length > 0 ? (
-                         <div className="grid grid-cols-2 gap-3">
-                           {selectedJobDetails.after_photos.map((photo, index) => (
-                             <div key={index} className="relative group">
-                               <img
-                                 src={photo}
-                                 alt={`After photo ${index + 1}`}
-                                 className="w-full h-32 object-cover rounded-lg border-2 border-green-200 hover:border-green-400 transition-colors cursor-pointer"
-                                 onClick={() => window.open(photo, '_blank')}
-                               />
-                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                                 <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
-                                   Click to enlarge
-                                 </span>
-                               </div>
-                             </div>
-                           ))}
-                         </div>
-                       ) : (
-                         <div className="text-center py-8 text-gray-500">
-                           <div className="text-4xl mb-2">📷</div>
-                           <p>No after photos available</p>
-                         </div>
-                       )}
-                     </CardContent>
-                   </Card>
-                 </div>
-
-                 {/* Additional Information */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   {/* Work Notes */}
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg">Work Notes</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                       <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
-                         {selectedJobDetails.work_notes ? (
-                           <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.work_notes}</p>
-                         ) : (
-                           <p className="text-gray-500 italic">No work notes available</p>
-                         )}
-                       </div>
-                     </CardContent>
-                   </Card>
-
-                   {/* Completion Notes */}
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="text-lg">Completion Notes</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                       <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
-                         <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.completion_notes || 'No completion notes available'}</p>
-                       </div>
-                     </CardContent>
-                   </Card>
-                 </div>
-
-                 {/* Technician Information */}
-                 <Card>
-                   <CardHeader>
-                     <CardTitle className="text-lg">Technician Information</CardTitle>
-                   </CardHeader>
-                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div className="space-y-3">
-                       <div>
-                         <span className="font-medium">Name:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.technician_name || 'Not specified'}
-                         </span>
-                       </div>
-                       <div>
-                         <span className="font-medium">Email:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.technician_phone || 'Not specified'}
-                         </span>
-                       </div>
-                     </div>
-                     <div className="space-y-3">
-                       <div>
-                         <span className="font-medium">Special Instructions:</span>
-                         <span className="ml-2 text-gray-600">
-                           {selectedJobDetails.special_instructions || 'None'}
-                         </span>
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
-               </div>
-
-               {/* Modal Footer */}
-               <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
-                 <Button
-                   onClick={() => setShowJobDetailsModal(false)}
-                   variant="outline"
-                 >
-                   Close
-                 </Button>
-                 <Button
-                   onClick={() => handleBillClient(selectedJobDetails)}
-                   className="bg-green-600 hover:bg-green-700"
-                 >
-                   <Receipt className="mr-2 w-4 h-4" />
-                   Bill Client
-                 </Button>
-               </div>
-             </div>
-           </div>
-         )}
        </div>
      );
    }
 
-  // Other sections (placeholder for now)
   if (activeSection === 'purchases') {
+    console.log('Rendering purchases section');
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Purchases</h2>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <ShoppingCart className="w-5 h-5 text-blue-600" />
-              <span>Purchase Management</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600">Purchase management functionality coming soon...</p>
-          </CardContent>
-        </Card>
+        <h2 className="text-2xl font-bold text-gray-900">Purchase History</h2>
+        <PurchasesContent />
       </div>
     );
   }
@@ -1428,24 +734,703 @@ export default function AccountsContent({ activeSection }) {
   if (activeSection === 'orders') {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Receipt className="w-5 h-5 text-blue-600" />
-              <span>Order Management</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-600">Order management functionality coming soon...</p>
-          </CardContent>
-        </Card>
+        <h2 className="text-2xl font-bold text-gray-900">Pending Stock Orders</h2>
+        <OrdersContent />
+      </div>
+    );
+  }
+
+  if (activeSection === 'completed-jobs') {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Completed Job Cards</h2>
+          <Button
+            onClick={fetchCompletedJobs}
+            variant="outline"
+            size="sm"
+            disabled={completedJobsLoading}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            {completedJobsLoading ? 'Loading...' : 'Refresh'}
+          </Button>
+        </div>
+
+        {completedJobsLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+            <span className="ml-2">Loading completed jobs...</span>
+          </div>
+        ) : completedJobs.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Wrench className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+              <p className="text-lg font-medium text-gray-900 mb-2">No Completed Jobs</p>
+              <p className="text-gray-600">No completed job cards found.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {completedJobs.map((job) => (
+              <Card key={job.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-semibold text-gray-900">
+                      {job.job_number}
+                    </CardTitle>
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                      Completed
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {job.customer_name || 'Unknown Customer'}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Vehicle:</span>
+                      <p className="font-medium">{job.vehicle_registration || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Technician:</span>
+                      <p className="font-medium">{job.technician_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Start Date:</span>
+                      <p className="font-medium">
+                        {job.start_date ? new Date(job.start_date).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">End Date:</span>
+                      <p className="font-medium">
+                        {job.end_date ? new Date(job.end_date).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {job.description && (
+                    <div>
+                      <span className="text-gray-500 text-sm">Description:</span>
+                      <p className="text-sm mt-1">{job.description}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={() => handleViewJobDetails(job)}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View Details
+                    </Button>
+                    <Button
+                      onClick={() => handleInvoiceClient(job)}
+                      size="sm"
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Receipt className="w-4 h-4 mr-2" />
+                      Invoice Client
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Job Details Modal */}
+        <Dialog open={showJobDetailsModal} onOpenChange={setShowJobDetailsModal}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-blue-600" />
+                Job Details - {selectedJobDetails?.job_number}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedJobDetails && (
+              <div className="space-y-6 overflow-y-auto max-h-[70vh]">
+                {/* Basic Job Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-blue-600" />
+                    Job Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Job Number:</span>
+                      <p className="font-semibold text-gray-900 text-lg">{selectedJobDetails.job_number}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Status:</span>
+                      <Badge variant="default" className="bg-green-100 text-green-800">
+                        Completed
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Customer:</span>
+                      <p className="font-medium text-gray-900">{selectedJobDetails.customer_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Vehicle Registration:</span>
+                      <p className="font-medium text-gray-900">{selectedJobDetails.vehicle_registration || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Technician:</span>
+                      <p className="font-medium text-gray-900">{selectedJobDetails.technician_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Job Type:</span>
+                      <p className="font-medium text-gray-900">{selectedJobDetails.job_type || 'Repair'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Information */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-blue-600" />
+                    Timeline
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Start Date:</span>
+                      <p className="font-medium text-gray-900">
+                        {selectedJobDetails.start_date ? new Date(selectedJobDetails.start_date).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        }) : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">End Date:</span>
+                      <p className="font-medium text-gray-900">
+                        {selectedJobDetails.end_date ? new Date(selectedJobDetails.end_date).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        }) : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Duration:</span>
+                      <p className="font-medium text-gray-900">
+                        {selectedJobDetails.start_date && selectedJobDetails.end_date ? 
+                          `${Math.ceil((new Date(selectedJobDetails.end_date) - new Date(selectedJobDetails.start_date)) / (1000 * 60 * 60 * 24))} days` : 
+                          'N/A'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Details */}
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-green-600" />
+                    Financial Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Labor Cost:</span>
+                      <p className="font-semibold text-gray-900 text-lg">
+                        {selectedJobDetails.labor_cost ? `R ${parseFloat(selectedJobDetails.labor_cost).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Parts Cost:</span>
+                      <p className="font-semibold text-gray-900 text-lg">
+                        {selectedJobDetails.parts_cost ? `R ${parseFloat(selectedJobDetails.parts_cost).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Total Cost:</span>
+                      <p className="font-semibold text-green-600 text-lg">
+                        {selectedJobDetails.total_cost ? `R ${parseFloat(selectedJobDetails.total_cost).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">VAT Amount:</span>
+                      <p className="font-medium text-gray-900">
+                        {selectedJobDetails.vat_amount ? `R ${parseFloat(selectedJobDetails.vat_amount).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Invoice Amount:</span>
+                      <p className="font-semibold text-blue-600 text-lg">
+                        {selectedJobDetails.invoice_amount ? `R ${parseFloat(selectedJobDetails.invoice_amount).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Payment Status:</span>
+                      <Badge variant={selectedJobDetails.payment_status === 'Paid' ? 'default' : 'secondary'} 
+                             className={selectedJobDetails.payment_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                        {selectedJobDetails.payment_status || 'Pending'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Job Description & Notes */}
+                {(selectedJobDetails.description || selectedJobDetails.notes) && (
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-yellow-600" />
+                      Job Details
+                    </h3>
+                    <div className="space-y-4">
+                      {selectedJobDetails.description && (
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Description:</span>
+                          <p className="text-gray-900 mt-1 p-3 bg-white rounded border">{selectedJobDetails.description}</p>
+                        </div>
+                      )}
+                      {selectedJobDetails.notes && (
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Notes:</span>
+                          <p className="text-gray-900 mt-1 p-3 bg-white rounded border">{selectedJobDetails.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Parts Used */}
+                {selectedJobDetails.parts_used && selectedJobDetails.parts_used.length > 0 && (
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <ShoppingCart className="w-5 h-5 text-purple-600" />
+                      Parts Used
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedJobDetails.parts_used.map((part, index) => (
+                        <div key={index} className="flex justify-between items-center p-3 bg-white rounded border">
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-900">{part.name}</span>
+                            {part.part_number && (
+                              <p className="text-sm text-gray-500">Part #: {part.part_number}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm text-gray-600">Qty: {part.quantity}</span>
+                            {part.unit_price && (
+                              <p className="text-sm font-medium text-gray-900">
+                                R {parseFloat(part.unit_price).toFixed(2)} each
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Additional Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-gray-600" />
+                    Additional Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Priority Level:</span>
+                      <Badge variant="outline" className="text-xs">
+                        {selectedJobDetails.priority || 'Normal'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Warranty:</span>
+                      <Badge variant="outline" className="text-xs">
+                        {selectedJobDetails.warranty ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Created By:</span>
+                      <p className="font-medium text-gray-900">{selectedJobDetails.created_by || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-sm font-medium">Last Updated:</span>
+                      <p className="font-medium text-gray-900">
+                        {selectedJobDetails.updated_at ? new Date(selectedJobDetails.updated_at).toLocaleDateString('en-GB') : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter className="pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowJobDetailsModal(false)}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={() => selectedJobDetails && handleInvoiceClient(selectedJobDetails)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Receipt className="w-4 h-4 mr-2" />
+                Invoice Client
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Invoice Modal */}
+        <Dialog open={showInvoiceModal} onOpenChange={setShowInvoiceModal}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-blue-600" />
+                Generate Invoice - {selectedJobForInvoice?.job_number}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedJobForInvoice && (
+              <div className="space-y-6 overflow-y-auto max-h-[70vh]">
+                {/* Job Summary */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Job Summary</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Job Number:</span>
+                      <p className="font-medium">{selectedJobForInvoice.job_number}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Vehicle:</span>
+                      <p className="font-medium">{selectedJobForInvoice.vehicle_registration || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Total Cost:</span>
+                      <p className="font-medium text-green-600">
+                        {selectedJobForInvoice.total_cost ? `R ${parseFloat(selectedJobForInvoice.total_cost).toFixed(2)}` : 'R 0.00'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Client Information Form */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Client Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="client-name" className="text-sm font-medium text-gray-700">
+                        Client Name *
+                      </Label>
+                      <Input
+                        id="client-name"
+                        value={invoiceFormData.clientName}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, clientName: e.target.value }))}
+                        placeholder="Enter client name"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="client-email" className="text-sm font-medium text-gray-700">
+                        Email Address *
+                      </Label>
+                      <Input
+                        id="client-email"
+                        type="email"
+                        value={invoiceFormData.clientEmail}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, clientEmail: e.target.value }))}
+                        placeholder="client@example.com"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="client-phone" className="text-sm font-medium text-gray-700">
+                        Phone Number
+                      </Label>
+                      <Input
+                        id="client-phone"
+                        value={invoiceFormData.clientPhone}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, clientPhone: e.target.value }))}
+                        placeholder="+27 12 345 6789"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="payment-terms" className="text-sm font-medium text-gray-700">
+                        Payment Terms
+                      </Label>
+                      <select
+                        id="payment-terms"
+                        value={invoiceFormData.paymentTerms}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, paymentTerms: e.target.value }))}
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="7 days">7 days</option>
+                        <option value="14 days">14 days</option>
+                        <option value="30 days">30 days</option>
+                        <option value="60 days">60 days</option>
+                        <option value="90 days">90 days</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="due-date" className="text-sm font-medium text-gray-700">
+                        Due Date
+                      </Label>
+                      <Input
+                        id="due-date"
+                        type="date"
+                        value={invoiceFormData.dueDate}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="client-address" className="text-sm font-medium text-gray-700">
+                        Client Address
+                      </Label>
+                      <textarea
+                        id="client-address"
+                        value={invoiceFormData.clientAddress}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, clientAddress: e.target.value }))}
+                        placeholder="Enter full client address"
+                        rows={3}
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="invoice-notes" className="text-sm font-medium text-gray-700">
+                        Invoice Notes
+                      </Label>
+                      <textarea
+                        id="invoice-notes"
+                        value={invoiceFormData.notes}
+                        onChange={(e) => setInvoiceFormData(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Additional notes for the invoice..."
+                        rows={3}
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Generated Invoice Preview */}
+                {generatedInvoice && (
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-green-600" />
+                      Invoice Generated Successfully!
+                    </h3>
+                    <div className="bg-white p-4 rounded border">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Invoice Number:</span>
+                          <p className="font-medium">{generatedInvoice.invoiceNumber}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Generated:</span>
+                          <p className="font-medium">
+                            {new Date(generatedInvoice.generatedAt).toLocaleDateString('en-GB')}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Client:</span>
+                          <p className="font-medium">{generatedInvoice.clientInfo.clientName}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Email:</span>
+                          <p className="font-medium">{generatedInvoice.clientInfo.clientEmail}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-sm text-gray-600 mb-2">Invoice Summary:</p>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <p className="text-sm">
+                            <strong>Job:</strong> {generatedInvoice.jobNumber} | 
+                            <strong> Amount:</strong> R {parseFloat(selectedJobForInvoice.total_cost || 0).toFixed(2)} | 
+                            <strong> Due:</strong> {generatedInvoice.clientInfo.dueDate}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={resetInvoiceForm}
+                    className="flex-1"
+                  >
+                    Reset Form
+                  </Button>
+                  
+                  {!generatedInvoice ? (
+                    <Button
+                      onClick={generateInvoice}
+                      disabled={!invoiceFormData.clientName || !invoiceFormData.clientEmail || isGeneratingInvoice}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isGeneratingInvoice ? (
+                        <>
+                          <div className="w-4 h-4 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                          Generating Invoice...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Generate Invoice PDF
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={sendInvoiceEmail}
+                      disabled={!invoiceFormData.clientEmail || isSendingEmail}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      {isSendingEmail ? (
+                        <>
+                          <div className="w-4 h-4 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                          Sending Email...
+                        </>
+                      ) : (
+                        <>
+                          <Receipt className="w-4 h-4 mr-2" />
+                          Send Invoice via Email
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter className="pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowInvoiceModal(false);
+                  resetInvoiceForm();
+                }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  if (activeSection === 'overdue') {
+    const handleRefresh = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">Overdue Accounts</h2>
+          <Button
+            onClick={handleRefresh}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+        
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Overdue</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                <OverdueAccountsWidget 
+                  key={`overdue-total-${refreshKey}`}
+                  autoRefresh={false}
+                  refreshInterval={300000}
+                  showAllAccounts={false}
+                  maxAccounts={1}
+                  showSummaryOnly={true}
+                  onAccountClick={(accountNumber) => {
+                    router.push(`/protected/accounts?section=vehicles&account=${accountNumber}`);
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Accounts Affected</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                <OverdueAccountsWidget 
+                  key={`overdue-count-${refreshKey}`}
+                  autoRefresh={false}
+                  refreshInterval={300000}
+                  showAllAccounts={false}
+                  maxAccounts={1}
+                  showSummaryOnly={true}
+                  showAccountCount={true}
+                  onAccountClick={(accountNumber) => {
+                    router.push(`/protected/accounts?section=vehicles&account=${accountNumber}`);
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Status</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                <OverdueAccountsWidget 
+                  key={`overdue-status-${refreshKey}`}
+                  autoRefresh={false}
+                  refreshInterval={300000}
+                  showAllAccounts={false}
+                  maxAccounts={1}
+                  showSummaryOnly={true}
+                  showStatus={true}
+                  onAccountClick={(accountNumber) => {
+                    router.push(`/protected/accounts?section=vehicles&account=${accountNumber}`);
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* All Overdue Accounts with Expandable Cards */}
+        <OverdueAccountsWidget 
+          key={`overdue-expandable-${refreshKey}`}
+          autoRefresh={false}
+          refreshInterval={300000}
+          showAllAccounts={true}
+          maxAccounts={50}
+          expandableCards={true}
+          onAccountClick={(accountNumber) => {
+            router.push(`/protected/accounts?section=vehicles&account=${accountNumber}`);
+          }}
+        />
       </div>
     );
   }
 
   if (activeSection === 'vehicles') {
-    // If an account is selected, show the internal account dashboard with vehicles tab
     if (selectedAccount) {
       return (
         <InternalAccountDashboard 
@@ -1460,7 +1445,6 @@ export default function AccountsContent({ activeSection }) {
       );
     }
 
-    // Show the main vehicles section
     return (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-900">Vehicles</h2>
@@ -1486,760 +1470,6 @@ export default function AccountsContent({ activeSection }) {
         <h2 className="text-2xl font-bold text-gray-900">Select a Section</h2>
         <p className="text-gray-600">Please select a section from the sidebar to get started.</p>
       </div>
-
-               {/* Job Details Modal */}
-         {showJobDetailsModal && selectedJobDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Job Details: {selectedJobDetails.job_number}
-                </h2>
-                <p className="text-gray-600">
-                  {selectedJobDetails.repair ? 'Repair Job' : selectedJobDetails.job_type}
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowJobDetailsModal(false)}
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Job Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Job Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <span className="font-medium">Job Number:</span>
-                      <span className="ml-2 text-gray-600">{selectedJobDetails.job_number}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Job Type:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.repair ? 'Repair' : selectedJobDetails.job_type}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Description:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.job_description || 'No description'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Location:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.job_location || 'No location specified'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Priority:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.priority || 'Not specified'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Status:</span>
-                      <Badge className="ml-2 bg-green-100 text-green-800">
-                        {selectedJobDetails.job_status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Timing & Duration</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <span className="font-medium">Job Date:</span>
-                      <span className="ml-2 text-gray-600">
-                        {new Date(selectedJobDetails.job_date).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Start Time:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.start_time ? 
-                          new Date(selectedJobDetails.start_time).toLocaleTimeString() : 'Not specified'
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">End Time:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.end_time ? 
-                          new Date(selectedJobDetails.end_time).toLocaleTimeString() : 'Not specified'
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Completion Date:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.completion_date ? 
-                          new Date(selectedJobDetails.completion_date).toLocaleDateString() : 'Not specified'
-                        }
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Duration:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.actual_duration_hours || selectedJobDetails.estimated_duration_hours || 'N/A'} hours
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Customer Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Customer Information</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div>
-                      <span className="font-medium">Name:</span>
-                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_name}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span>
-                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_email}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Phone:</span>
-                      <span className="ml-2 text-gray-600">{selectedJobDetails.customer_phone}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="font-medium">Address:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.customer_address || 'No address specified'}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Vehicle Information */}
-              {selectedJobDetails.vehicle_registration && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Vehicle Information</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <div>
-                        <span className="font-medium">Registration:</span>
-                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_registration}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Make:</span>
-                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_make}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Model:</span>
-                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_model}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <span className="font-medium">Year:</span>
-                        <span className="ml-2 text-gray-600">{selectedJobDetails.vehicle_year}</span>
-                      </div>
-                      {selectedJobDetails.vin_numer && (
-                        <div>
-                          <span className="font-medium">VIN:</span>
-                          <span className="ml-2 text-gray-600">{selectedJobDetails.vin_numer}</span>
-                        </div>
-                      )}
-                      {selectedJobDetails.odormeter && (
-                        <div>
-                          <span className="font-medium">Odometer:</span>
-                          <span className="ml-2 text-gray-600">{selectedJobDetails.odormeter}</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Financial Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Financial Information</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {formatCurrency(selectedJobDetails.quotation_total_amount || 0)}
-                    </div>
-                    <div className="text-sm text-gray-600">Total Amount</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-blue-600">
-                      {formatCurrency(selectedJobDetails.quotation_subtotal || 0)}
-                    </div>
-                    <div className="text-sm text-gray-600">Subtotal</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-red-600">
-                      {formatCurrency(selectedJobDetails.quotation_vat_amount || 0)}
-                    </div>
-                    <div className="text-sm text-gray-600">VAT (15%)</div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Before and After Photos - Split View */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Before Photos */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg text-red-600">Before Photos</CardTitle>
-                    <p className="text-sm text-gray-600">
-                      {selectedJobDetails.before_photos?.length || 0} photo(s) taken before work
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    {selectedJobDetails.before_photos && selectedJobDetails.before_photos.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {selectedJobDetails.before_photos.map((photo, index) => (
-                          <div key={index} className="relative group">
-                            <img
-                              src={photo}
-                              alt={`Before photo ${index + 1}`}
-                              className="w-full h-32 object-cover rounded-lg border-2 border-red-200 hover:border-red-400 transition-colors cursor-pointer"
-                              onClick={() => window.open(photo, '_blank')}
-                            />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                              <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
-                                Click to enlarge
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <div className="text-4xl mb-2">📷</div>
-                        <p>No before photos available</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* After Photos */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg text-green-600">After Photos</CardTitle>
-                    <p className="text-sm text-gray-600">
-                      {selectedJobDetails.after_photos?.length || 0} photo(s) taken after work
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    {selectedJobDetails.after_photos && selectedJobDetails.after_photos.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {selectedJobDetails.after_photos.map((photo, index) => (
-                          <div key={index} className="relative group">
-                            <img
-                              src={photo}
-                              alt={`After photo ${index + 1}`}
-                              className="w-full h-32 object-cover rounded-lg border-2 border-green-200 hover:border-green-400 transition-colors cursor-pointer"
-                              onClick={() => window.open(photo, '_blank')}
-                            />
-                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                              <span className="text-white opacity-0 group-hover:opacity-100 font-medium">
-                                Click to enlarge
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <div className="text-4xl mb-2">📷</div>
-                        <p>No after photos available</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Additional Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Work Notes */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Work Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
-                      {selectedJobDetails.work_notes ? (
-                        <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.work_notes}</p>
-                      ) : (
-                        <p className="text-gray-500 italic">No work notes available</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Completion Notes */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Completion Notes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-gray-50 p-4 rounded-lg min-h-[100px]">
-                      <p className="text-gray-700 whitespace-pre-wrap">{selectedJobDetails.completion_notes || 'No completion notes available'}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Technician Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Technician Information</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div>
-                      <span className="font-medium">Name:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.technician_name || 'Not specified'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.technician_phone || 'Not specified'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="font-medium">Special Instructions:</span>
-                      <span className="ml-2 text-gray-600">
-                        {selectedJobDetails.special_instructions || 'None'}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
-              <Button
-                onClick={() => setShowJobDetailsModal(false)}
-                variant="outline"
-              >
-                Close
-              </Button>
-              <Button
-                onClick={() => handleBillClient(selectedJobDetails)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <Receipt className="mr-2 w-4 h-4" />
-                Bill Client
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Financial Details Modal */}
-      {showFinancialDetails && selectedFinancialAccount && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Payment Details: {selectedFinancialAccount.company}
-                </h2>
-                <p className="text-gray-600">
-                  Code: {selectedFinancialAccount.code} - {selectedFinancialAccount.vehicleCount} vehicles
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowFinancialDetails(false)}
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Payment Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Customer Total Value</CardTitle>
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_incl_vat || 0), 0))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Total value incl VAT</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Excl VAT</CardTitle>
-                    <Receipt className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_ex_vat || 0), 0))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Total ex VAT</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total VAT</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-purple-600">
-                      {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_vat || 0), 0))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Total VAT amount</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Monthly Due</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
-                      {formatCurrency(selectedFinancialAccount.totalMonthlyAmount)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Full monthly amounts</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Action Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-2 border-blue-200 hover:border-blue-300 transition-colors">
-                  <CardHeader>
-                    <CardTitle className="text-lg text-blue-600">Confirm Payment</CardTitle>
-                    <p className="text-sm text-gray-600">Process payment for all accounts in this group</p>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                      <Receipt className="mr-2 w-4 h-4" />
-                      Confirm Payment
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-2 border-green-200 hover:border-green-300 transition-colors">
-                  <CardHeader>
-                    <CardTitle className="text-lg text-green-600">See Overview</CardTitle>
-                    <p className="text-sm text-gray-600">View detailed breakdown and generate invoice</p>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full bg-green-600 hover:bg-green-700">
-                      <Download className="mr-2 w-4 h-4" />
-                      Generate Invoice
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Cost Centers Table with Payment Options */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Cost Centers - Individual Payment Options</CardTitle>
-                  <p className="text-sm text-gray-600">
-                    Each cost center shows their individual amounts and payment options
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  {/* Payment Tab Section */}
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Tab - Aggregated Summary</h3>
-                    
-                    {/* Payment Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Customer Total Value</CardTitle>
-                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-xl font-bold text-blue-600">
-                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_incl_vat || 0), 0))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Total value incl VAT</p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Excl VAT</CardTitle>
-                          <Receipt className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-xl font-bold text-green-600">
-                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_ex_vat || 0), 0))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Total ex VAT</p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Total VAT</CardTitle>
-                          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-xl font-bold text-purple-600">
-                            {formatCurrency(selectedFinancialAccount.vehicles.reduce((sum, v) => sum + (v.total_vat || 0), 0))}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Total VAT amount</p>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">Monthly Due</CardTitle>
-                          <AlertTriangle className="h-4 w-4 text-red-500" />
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-xl font-bold text-red-600">
-                            {formatCurrency(selectedFinancialAccount.totalMonthlyAmount)}
-                          </div>
-                          <p className="text-xs text-muted-foreground">Full monthly amounts</p>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Action Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      <Card className="border-2 border-blue-200 hover:border-blue-300 transition-colors">
-                        <CardHeader>
-                          <CardTitle className="text-base text-blue-600">Confirm Payment</CardTitle>
-                          <p className="text-sm text-gray-600">Process payment for all accounts in this group</p>
-                        </CardHeader>
-                        <CardContent>
-                          <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                            <Receipt className="mr-2 w-4 h-4" />
-                            Confirm Payment
-                          </Button>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="border-2 border-green-200 hover:border-green-300 transition-colors">
-                        <CardHeader>
-                          <CardTitle className="text-base text-green-600">See Overview</CardTitle>
-                          <p className="text-sm text-gray-600">View detailed breakdown and generate invoice</p>
-                        </CardHeader>
-                        <CardContent>
-                          <Button className="w-full bg-green-600 hover:bg-green-700">
-                            <Download className="mr-2 w-4 h-4" />
-                            Generate Invoice
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-
-                  {/* Cost Centers Breakdown */}
-                  <div className="border-t pt-6">
-                    <h4 className="text-md font-semibold text-gray-900 mb-4">Cost Centers Breakdown by Account Number</h4>
-                    
-                    {/* Group vehicles by account number and show payment details */}
-                    {(() => {
-                      const groupedVehicles = {};
-                      selectedFinancialAccount.vehicles.forEach(vehicle => {
-                        const accountNum = vehicle.account_number;
-                        if (!groupedVehicles[accountNum]) {
-                          groupedVehicles[accountNum] = {
-                            accountNumber: accountNum,
-                            vehicleCount: 0,
-                            totalMonthly: 0,
-                            totalAmountDue: 0,
-                            totalExVat: 0,
-                            totalVat: 0,
-                            totalInclVat: 0,
-                            vehicles: []
-                          };
-                        }
-                        
-                        groupedVehicles[accountNum].vehicleCount += 1;
-                        groupedVehicles[accountNum].totalMonthly += vehicle.monthly_amount || 0;
-                        groupedVehicles[accountNum].totalAmountDue += vehicle.amount_due || 0;
-                        groupedVehicles[accountNum].totalExVat += vehicle.total_ex_vat || 0;
-                        groupedVehicles[accountNum].totalVat += vehicle.total_vat || 0;
-                        groupedVehicles[accountNum].totalInclVat += vehicle.total_incl_vat || 0;
-                        groupedVehicles[accountNum].vehicles.push(vehicle);
-                      });
-
-                      return (
-                        <div className="space-y-6">
-                          {Object.values(groupedVehicles).map((accountGroup, index) => (
-                            <div key={accountGroup.accountNumber} className="border rounded-lg p-4">
-                              {/* Account Header with Summary */}
-                              <div className="flex items-center justify-between mb-4">
-                                <div>
-                                  <h3 className="text-lg font-semibold text-gray-900">
-                                    Account: {accountGroup.accountNumber}
-                                  </h3>
-                                  <p className="text-sm text-gray-600">
-                                    {accountGroup.vehicleCount} vehicle(s)
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-lg font-bold text-blue-600">
-                                    {formatCurrency(accountGroup.totalInclVat)}
-                                  </div>
-                                  <div className="text-sm text-gray-500">Total Value</div>
-                                </div>
-                              </div>
-
-                              {/* Account Summary Cards */}
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                <div className="bg-gray-50 p-3 rounded-lg">
-                                  <div className="text-sm font-medium text-gray-600">Monthly Due</div>
-                                  <div className="text-lg font-semibold text-red-600">
-                                    {formatCurrency(accountGroup.totalMonthly)}
-                                  </div>
-                                </div>
-                                <div className="bg-gray-50 p-3 rounded-lg">
-                                  <div className="text-sm font-medium text-gray-600">Amount Due</div>
-                                  <div className={`text-lg font-semibold ${
-                                    accountGroup.totalAmountDue > 0 ? 'text-red-600' : 'text-green-600'
-                                  }`}>
-                                    {formatCurrency(accountGroup.totalAmountDue)}
-                                  </div>
-                                </div>
-                                <div className="bg-gray-50 p-3 rounded-lg">
-                                  <div className="text-sm font-medium text-gray-600">Ex VAT</div>
-                                  <div className="text-lg font-semibold text-green-600">
-                                    {formatCurrency(accountGroup.totalExVat)}
-                                  </div>
-                                </div>
-                                <div className="bg-gray-50 p-3 rounded-lg">
-                                  <div className="text-sm font-medium text-gray-600">VAT</div>
-                                  <div className="text-lg font-semibold text-purple-600">
-                                    {formatCurrency(accountGroup.totalVat)}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Payment Action for this Account */}
-                              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                                <div>
-                                  <div className="font-medium text-blue-900">Payment Required</div>
-                                  <div className="text-sm text-blue-700">
-                                    Amount to pay: {formatCurrency(accountGroup.totalAmountDue > 0 ? accountGroup.totalAmountDue : accountGroup.totalMonthly)}
-                                  </div>
-                                </div>
-                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                                  <Receipt className="mr-2 w-4 h-4" />
-                                  Pay Now
-                                </Button>
-                              </div>
-
-                              {/* Individual Vehicles Table */}
-                              <div className="mt-4 overflow-x-auto">
-                                <table className="min-w-full border rounded-lg">
-                                  <thead className="bg-gray-100">
-                                    <tr>
-                                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Vehicle Details
-                                      </th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Monthly Amount
-                                      </th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Amount Due
-                                      </th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Total Value
-                                      </th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="bg-white divide-y divide-gray-200">
-                                    {accountGroup.vehicles.map((vehicle, vIndex) => (
-                                      <tr key={`${vehicle.doc_no}-${vIndex}`} className={vIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                        <td className="px-3 py-2">
-                                          <div className="font-medium text-gray-900 text-sm">
-                                            {vehicle.stock_description || 'No description'}
-                                          </div>
-                                          <div className="text-gray-500 text-xs">
-                                            Doc: {vehicle.doc_no} | Stock: {vehicle.stock_code}
-                                          </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-sm">
-                                          <div className="font-medium text-gray-900">
-                                            {formatCurrency(vehicle.monthly_amount || 0)}
-                                          </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-sm">
-                                          <div className={`font-medium ${
-                                            vehicle.amount_due > 0 ? 'text-red-600' : 'text-green-600'
-                                          }`}>
-                                            {formatCurrency(vehicle.amount_due || 0)}
-                                          </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-right text-sm">
-                                          <div className="font-medium text-gray-900">
-                                            {formatCurrency(vehicle.total_incl_vat || 0)}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t bg-gray-50">
-              <Button
-                onClick={() => setShowFinancialDetails(false)}
-                variant="outline"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </>
   );
