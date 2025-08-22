@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 
 export default function PrefixAccountsPage() {
   const params = useParams();
+  const pathname = usePathname();
   const prefix = params.prefix as string;
   
   const [accounts, setAccounts] = useState([]);
@@ -103,7 +104,7 @@ export default function PrefixAccountsPage() {
             { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
           ].map((navItem) => {
             const Icon = navItem.icon;
-            const isActive = window.location.pathname === navItem.href;
+            const isActive = pathname === navItem.href;
             
             return (
               <Link

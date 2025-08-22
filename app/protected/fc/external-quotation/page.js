@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ import { FaR } from "react-icons/fa6";
 import Link from "next/link";
 
 export default function ExternalQuotation() {
+  const pathname = usePathname();
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -1083,7 +1085,7 @@ export default function ExternalQuotation() {
               { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
             ].map((navItem) => {
               const Icon = navItem.icon;
-              const isActive = window.location.pathname === navItem.href;
+              const isActive = pathname === navItem.href;
               
               return (
                 <Link

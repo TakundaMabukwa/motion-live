@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,7 @@ interface CompletedJob {
 }
 
 export default function FCCompletedJobsPage() {
+  const pathname = usePathname();
   const [searchTerm, setSearchTerm] = useState('');
   const [jobs, setJobs] = useState<CompletedJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -344,7 +346,7 @@ export default function FCCompletedJobsPage() {
             { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
           ].map((navItem) => {
             const Icon = navItem.icon;
-            const isActive = window.location.pathname === navItem.href;
+            const isActive = pathname === navItem.href;
             
             return (
               <Link

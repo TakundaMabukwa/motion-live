@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import Link from 'next/link';
 
 export default function AddAccountPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     account_number: '',
@@ -137,7 +138,7 @@ export default function AddAccountPage() {
             { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
           ].map((navItem) => {
             const Icon = navItem.icon;
-            const isActive = window.location.pathname === navItem.href;
+            const isActive = pathname === navItem.href;
             
             return (
               <Link
