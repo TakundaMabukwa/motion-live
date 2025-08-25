@@ -26,6 +26,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Layout from "@/components/Layout";
+import EnhancedCustomerDetails from "@/components/ui-personal/EnhancedCustomerDetails";
 
 export default function CreateQuote() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -41,6 +42,7 @@ export default function CreateQuote() {
   const [stockItems, setStockItems] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
   const [stockError, setStockError] = useState(null);
+  const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
 
   const [formData, setFormData] = useState({
     jobType: "",
@@ -132,6 +134,15 @@ export default function CreateQuote() {
     }
   };
 
+  const handleVehiclesSelectedFromDetails = (vehicles) => {
+    setSelectedVehiclesFromDetails(vehicles);
+    // Update the form data with selected vehicles
+    setFormData(prev => ({
+      ...prev,
+      selectedVehicles: vehicles.map(v => v.id)
+    }));
+  };
+
   const fetchStockItems = async (vehicleIds) => {
     if (!vehicleIds || vehicleIds.length === 0) {
       setStockItems([]);
@@ -213,30 +224,38 @@ export default function CreateQuote() {
     );
   };
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        if (formData.jobType === "deinstall") {
-          return formData.jobType && formData.description && formData.selectedVehicles.length > 0;
-        }
-        return formData.jobType && formData.description;
-      case 1:
-        return (
-          formData.customerName &&
-          formData.customerEmail &&
-          formData.customerPhone
-        );
-      case 2:
-        if (formData.jobType === "deinstall") {
-          return true; // De-installation doesn't require products
-        }
-        return selectedProducts.length > 0;
-      case 3:
-        return formData.emailSubject && formData.emailBody;
-      default:
-        return false;
-    }
-  };
+     const canProceed = () => {
+     switch (currentStep) {
+       case 0:
+         if (formData.jobType === "deinstall") {
+           return formData.jobType && formData.description; // De-installation doesn't require vehicles in Step 0
+         }
+         return formData.jobType && formData.description;
+       case 1:
+         if (formData.jobType === "deinstall") {
+           return (
+             formData.customerName &&
+             formData.customerEmail &&
+             formData.customerPhone &&
+             selectedVehiclesFromDetails.length > 0 // Require vehicles to be selected in Customer Details for de-installation
+           );
+         }
+         return (
+           formData.customerName &&
+           formData.customerEmail &&
+           formData.customerPhone
+         );
+       case 2:
+         if (formData.jobType === "deinstall") {
+           return true; // De-installation doesn't require products
+         }
+         return selectedProducts.length > 0;
+       case 3:
+         return formData.emailSubject && formData.emailBody;
+       default:
+         return false;
+     }
+   };
 
   const handleSubmitQuote = async () => {
     if (!canProceed()) return;
@@ -250,13 +269,13 @@ export default function CreateQuote() {
         products: selectedProducts,
       };
 
-      // Add de-installation specific data
-      if (formData.jobType === "deinstall") {
-        quoteData.selectedVehicles = formData.selectedVehicles;
-        quoteData.selectedStock = formData.selectedStock;
-        quoteData.stockReceived = formData.stockReceived;
-        // De-installation pricing is handled by the API
-      } else {
+             // Add de-installation specific data
+       if (formData.jobType === "deinstall") {
+         quoteData.selectedVehicles = selectedVehiclesFromDetails.map(v => v.id); // Use vehicles from EnhancedCustomerDetails
+         quoteData.selectedStock = formData.selectedStock;
+         quoteData.stockReceived = formData.stockReceived;
+         // De-installation pricing is handled by the API
+       } else {
         quoteData.subtotal = getTotalQuoteAmount();
         quoteData.vat_amount = getTotalQuoteAmount() * 0.15;
         quoteData.total_amount = getTotalQuoteAmount() * 1.15;
@@ -362,163 +381,18 @@ export default function CreateQuote() {
           </div>
         )}
 
-        {/* De-installation Vehicle Selection */}
-        {formData.jobType === "deinstall" && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Customer Company Name *</Label>
-              <Input
-                placeholder="Enter customer company name"
-                value={formData.customerName}
-                onChange={(e) => {
-                  setFormData({ ...formData, customerName: e.target.value });
-                  // Fetch vehicles when company name changes
-                  if (e.target.value.trim()) {
-                    fetchVehicles(e.target.value.trim());
-                  }
-                }}
-              />
-            </div>
-
-            {loadingVehicles && (
-              <div className="text-sm text-gray-500">Loading vehicles...</div>
-            )}
-
-            {vehicleError && (
-              <div className="text-red-500 text-sm">{vehicleError}</div>
-            )}
-
-            {vehicles.length > 0 && (
-              <div className="space-y-2">
-                <Label>Select Vehicle(s) for De-installation *</Label>
-                <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
-                  {vehicles.map((vehicle) => (
-                    <div
-                      key={vehicle.id}
-                      className={`flex items-center space-x-2 p-2 rounded cursor-pointer ${
-                        formData.selectedVehicles.includes(vehicle.id)
-                          ? "bg-blue-50 border border-blue-200"
-                          : "hover:bg-gray-50"
-                      }`}
-                      onClick={() => {
-                        const isSelected = formData.selectedVehicles.includes(vehicle.id);
-                        const newSelectedVehicles = isSelected
-                          ? formData.selectedVehicles.filter(id => id !== vehicle.id)
-                          : [...formData.selectedVehicles, vehicle.id];
-                        
-                        setFormData({
-                          ...formData,
-                          selectedVehicles: newSelectedVehicles
-                        });
-                        
-                        // Fetch stock items for selected vehicles
-                        fetchStockItems(newSelectedVehicles);
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formData.selectedVehicles.includes(vehicle.id)}
-                        onChange={() => {}} // Handled by onClick
-                        className="rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">
-                          {vehicle.new_registration || vehicle.registration_number || vehicle.registration || 'N/A'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {vehicle.make} {vehicle.model} ({vehicle.manufactured_year})
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-xs text-gray-500">
-                  Selected: {formData.selectedVehicles.length} vehicle(s)
-                </div>
-              </div>
-            )}
-
-            {formData.selectedVehicles.length > 0 && (
-              <div className="space-y-2">
-                <Label>Stock Items to De-install</Label>
-                
-                {loadingStock && (
-                  <div className="text-sm text-gray-500">Loading stock items...</div>
-                )}
-
-                {stockError && (
-                  <div className="text-red-500 text-sm">{stockError}</div>
-                )}
-
-                {stockItems.length > 0 && (
-                  <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
-                    {stockItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`flex items-center space-x-2 p-2 rounded cursor-pointer ${
-                          formData.selectedStock.includes(item.id)
-                            ? "bg-blue-50 border border-blue-200"
-                            : "hover:bg-gray-50"
-                        }`}
-                        onClick={() => {
-                          const isSelected = formData.selectedStock.includes(item.id);
-                          setFormData({
-                            ...formData,
-                            selectedStock: isSelected
-                              ? formData.selectedStock.filter(id => id !== item.id)
-                              : [...formData.selectedStock, item.id]
-                          });
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.selectedStock.includes(item.id)}
-                          onChange={() => {}} // Handled by onClick
-                          className="rounded"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">
-                            {item.name || item.product || 'Unknown Item'}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {String(item.description || 'No description')} - Qty: {item.count || 1}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {stockItems.length === 0 && !loadingStock && (
-                  <div className="text-sm text-gray-500">
-                    No stock items found for selected vehicles.
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-500">
-                  Selected: {formData.selectedStock.length} item(s)
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="stockReceived"
-                  checked={formData.stockReceived}
-                  onChange={(e) =>
-                    setFormData({ ...formData, stockReceived: e.target.checked })
-                  }
-                  className="rounded"
-                />
-                <Label htmlFor="stockReceived" className="text-sm">
-                  Stock items will be returned to Soltrack inventory
-                </Label>
-              </div>
-            </div>
-          </div>
-        )}
+                 {/* De-installation Note */}
+         {formData.jobType === "deinstall" && (
+           <div className="space-y-4">
+             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+               <h3 className="font-medium text-blue-900 mb-2">De-installation Job</h3>
+               <p className="text-sm text-blue-800">
+                 Vehicle selection will be handled in the Customer Details step. 
+                 Please proceed to the next step to select vehicles and configure de-installation details.
+               </p>
+             </div>
+           </div>
+         )}
 
         {selectedProducts.length > 0 && (
           <div className="space-y-2">
@@ -559,66 +433,13 @@ export default function CreateQuote() {
   );
 
   const renderCustomerDetailsForm = () => (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="w-5 h-5" />
-          Customer Details
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="customerName">Customer Name *</Label>
-            <Input
-              id="customerName"
-              placeholder="Enter customer name"
-              value={formData.customerName}
-              onChange={(e) =>
-                setFormData({ ...formData, customerName: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerEmail">Email Address *</Label>
-            <Input
-              id="customerEmail"
-              type="email"
-              placeholder="customer@example.com"
-              value={formData.customerEmail}
-              onChange={(e) =>
-                setFormData({ ...formData, customerEmail: e.target.value })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="customerPhone">Phone Number *</Label>
-            <Input
-              id="customerPhone"
-              placeholder="Enter phone number"
-              value={formData.customerPhone}
-              onChange={(e) =>
-                setFormData({ ...formData, customerPhone: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerAddress">Address</Label>
-            <Input
-              id="customerAddress"
-              placeholder="Enter customer address"
-              value={formData.customerAddress}
-              onChange={(e) =>
-                setFormData({ ...formData, customerAddress: e.target.value })
-              }
-            />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <EnhancedCustomerDetails
+      formData={formData}
+      setFormData={setFormData}
+      accountInfo={null} // You can pass account info here if available
+      onVehiclesSelected={handleVehiclesSelectedFromDetails}
+      isDeinstall={formData.jobType === "deinstall"}
+    />
   );
 
   const renderQuoteDetailsForm = () => (
@@ -635,11 +456,30 @@ export default function CreateQuote() {
           <div className="space-y-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="font-semibold text-lg mb-2">De-installation Summary</h3>
-              <div className="space-y-2 text-sm">
-                <div><strong>Selected Vehicles:</strong> {formData.selectedVehicles.length}</div>
-                <div><strong>Selected Stock Items:</strong> {formData.selectedStock.length}</div>
-                <div><strong>Stock Return:</strong> {formData.stockReceived ? 'Yes' : 'No'}</div>
-              </div>
+                             <div className="space-y-2 text-sm">
+                 <div><strong>Selected Vehicles:</strong> {selectedVehiclesFromDetails.length}</div>
+                 <div><strong>Selected Stock Items:</strong> {formData.selectedStock.length}</div>
+                 <div><strong>Stock Return:</strong> {formData.stockReceived ? 'Yes' : 'No'}</div>
+               </div>
+              
+                              {/* Enhanced Vehicle Details */}
+                {selectedVehiclesFromDetails.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <h4 className="font-medium text-blue-900 mb-2">Selected Vehicle Details:</h4>
+                    <div className="space-y-1">
+                      {selectedVehiclesFromDetails.map((vehicle) => (
+                        <div key={vehicle.id} className="bg-white p-2 rounded border border-blue-200">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-blue-800">
+                              {vehicle.group_name || 'Unknown Vehicle'}
+                              {vehicle.ip_address && ` (${vehicle.ip_address})`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
             
             <div className="space-y-4">

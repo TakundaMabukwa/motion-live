@@ -24,12 +24,30 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching customer data for account number:', accountNumber);
 
-    // Query customers table where account_number matches the provided accountNumber
-    const { data: customer, error } = await supabase
+    // First try to find customer by new_account_number
+    let { data: customer, error } = await supabase
       .from('customers')
       .select('*')
-      .eq('account_number', accountNumber)
+      .eq('new_account_number', accountNumber)
       .single();
+
+    // If not found, try account_number as fallback
+    if (error && error.code === 'PGRST116') {
+      console.log('Customer not found by new_account_number, trying account_number...');
+      const { data: fallbackCustomer, error: fallbackError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('account_number', accountNumber)
+        .single();
+      
+      if (!fallbackError && fallbackCustomer) {
+        customer = fallbackCustomer;
+        error = null;
+        console.log('Customer found using fallback account_number field');
+      } else {
+        error = fallbackError;
+      }
+    }
 
     if (error) {
       console.error('Error fetching customer data:', error);
@@ -57,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     console.log('Customer data found:', {
       id: customer.id,
-      account_number: customer.account_number,
+      new_account_number: customer.new_account_number,
       trading_name: customer.trading_name,
       company: customer.company,
       email: customer.email,

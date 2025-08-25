@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import AppLayout from '@/components/shared/AppLayout';
+import { ClientsProvider } from '@/contexts/ClientsContext';
 import { 
   Building2, 
   FileText,
@@ -51,7 +52,9 @@ export default function Layout({ children }) {
       userName="FC User"
       showSidebar={false}
     >
-      {children}
+      <ClientsProvider>
+        {children}
+      </ClientsProvider>
     </AppLayout>
   );
 }

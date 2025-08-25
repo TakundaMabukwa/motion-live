@@ -32,7 +32,7 @@ import { FaR } from "react-icons/fa6";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
-export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) {
+export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, accountInfo }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -51,6 +51,9 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
     availableVehicles: vehicles || [],
     selectedVehicles: [],
     vehicleProducts: {}, // Map of vehicle to their installed products
+    loadingVehicles: false,
+    vehiclesLoaded: 0,
+    totalVehicles: 0,
   });
 
   // Log when vehicles prop changes
@@ -58,14 +61,192 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
     console.log('ClientQuoteForm received vehicles:', vehicles);
   }, [vehicles]);
 
+  // New function to fetch vehicles from vehicles_ip table
+  const fetchVehiclesFromIP = useCallback(async (loadAll = false) => {
+    if (!accountInfo?.new_account_number) {
+      console.log('No account number available for fetching vehicles');
+      return;
+    }
+    
+    try {
+      setDeInstallData(prev => ({ ...prev, loadingVehicles: true }));
+      
+      // Fetch vehicles from vehicles_ip table for this account
+      const response = await fetch(`/api/vehicles-ip?accountNumber=${encodeURIComponent(accountInfo.new_account_number)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const allAccountVehicles = data.vehicles || [];
+        
+        console.log('Fetched all vehicles for account:', allAccountVehicles);
+        
+        // Determine how many vehicles to show initially
+        const initialCount = loadAll ? allAccountVehicles.length : Math.min(5, allAccountVehicles.length);
+        const vehiclesToShow = allAccountVehicles.slice(0, initialCount);
+        
+        // Update available vehicles in deInstallData
+        setDeInstallData(prev => ({ 
+          ...prev, 
+          availableVehicles: vehiclesToShow,
+          totalVehicles: allAccountVehicles.length,
+          vehiclesLoaded: initialCount
+        }));
+        
+        // Process each vehicle and its products
+        const vehicleProducts = {};
+        for (const vehicle of vehiclesToShow) {
+          if (!vehicle.id) {
+            console.warn('Vehicle missing ID:', vehicle);
+            continue;
+          }
+          
+          // Use the products array from vehicles_ip table
+          const vehicleProductsList = vehicle.products || [];
+          
+          if (vehicleProductsList.length > 0) {
+            // Transform products to match expected format
+            vehicleProducts[vehicle.id] = vehicleProductsList.map(product => ({
+              id: `product-${vehicle.id}-${product.id || Math.random()}`,
+              name: product.name || product.product || 'Telematics Product',
+              description: product.description || 'Product from vehicle',
+              type: product.type || 'FMS',
+              category: product.category || 'HARDWARE',
+              installation_price: product.installation_price || 0,
+              de_installation_price: product.de_installation_price || 500,
+              price: product.price || 0,
+              rental: product.rental || 0,
+              code: product.code || 'N/A',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
+            }));
+          } else {
+            // If no products found, create a default product for de-installation
+            vehicleProducts[vehicle.id] = [
+              {
+                id: `default-${vehicle.id}`,
+                name: "Telematics Unit",
+                description: "Standard telematics unit with GPS tracking",
+                type: "FMS",
+                category: "HARDWARE",
+                installation_price: 0,
+                de_installation_price: 500,
+                price: 0,
+                rental: 0,
+                code: 'DEFAULT',
+                vehicleId: vehicle.id,
+                vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
+              }
+            ];
+          }
+        }
+        
+        setDeInstallData(prev => ({ ...prev, vehicleProducts }));
+      } else {
+        console.warn('Failed to fetch vehicles for account:', response.status);
+        // Create default vehicle if fetch fails
+        const defaultVehicle = {
+          id: 'default-vehicle',
+          new_registration: 'Default Vehicle',
+          group_name: 'Default Vehicle',
+          products: []
+        };
+        
+        setDeInstallData(prev => ({ 
+          ...prev, 
+          availableVehicles: [defaultVehicle],
+          totalVehicles: 1,
+          vehiclesLoaded: 1,
+          vehicleProducts: {
+            'default-vehicle': [{
+              id: 'default-product',
+              name: "Telematics Unit",
+              description: "Standard telematics unit with GPS tracking",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 500,
+              price: 0,
+              rental: 0,
+              code: 'DEFAULT',
+              vehicleId: 'default-vehicle',
+              vehiclePlate: 'Default Vehicle'
+            }]
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching vehicle products:', error);
+      toast.error('Failed to load vehicle products');
+    } finally {
+      setDeInstallData(prev => ({ ...prev, loadingVehicles: false }));
+    }
+  }, [accountInfo?.new_account_number]);
+
+  // Helper function to construct full address from customer data
+  const constructAddress = useCallback((customer) => {
+    if (!customer) return '';
+    
+    const physicalAddress = [
+      customer.physical_address_1,
+      customer.physical_address_2,
+      customer.physical_address_3,
+      customer.physical_area,
+      customer.physical_province,
+      customer.physical_code,
+      customer.physical_country
+    ].filter(Boolean).join(', ');
+    
+    const postalAddress = [
+      customer.postal_address_1,
+      customer.postal_address_2,
+      customer.postal_area,
+      customer.postal_province,
+      customer.postal_code,
+      customer.postal_country
+    ].filter(Boolean).join(', ');
+    
+    return physicalAddress || postalAddress || '';
+  }, []);
+
+  // Fetch customer data from customers table
+  const fetchCustomerData = useCallback(async (accountNumber) => {
+    if (!accountNumber) return;
+    
+    try {
+      const response = await fetch(`/api/customers/match-account?accountNumber=${encodeURIComponent(accountNumber)}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch customer data');
+      }
+      const data = await response.json();
+      
+      if (data.success && data.customer) {
+        // Update form data with fetched customer information
+        const customer = data.customer;
+        
+        setFormData(prev => ({
+          ...prev,
+          customerName: customer.trading_name || customer.company || customer.legal_name || prev.customerName,
+          customerEmail: customer.branch_person_email || customer.email || prev.customerEmail,
+          customerPhone: customer.cell_no || customer.switchboard || prev.customerPhone,
+          customerAddress: constructAddress(customer) || prev.customerAddress,
+        }));
+        
+        console.log('Customer data fetched and updated:', data.customer);
+        console.log('Constructed address:', constructAddress(customer));
+      }
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      // Don't show error toast as this is not critical for quote creation
+    }
+  }, [constructAddress]);
+
   const [formData, setFormData] = useState({
     jobType: "",
     description: "",
     purchaseType: "purchase", // "purchase" or "rental"
-    customerName: customer?.trading_name || customer?.company || "",
-    customerEmail: customer?.email || "",
-    customerPhone: customer?.cell_no || customer?.switchboard || "",
-    customerAddress: customer?.physical_address || customer?.postal_address || "",
+    customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
+    customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
+    customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || "",
+    customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
     // Vehicle information
     vehicle_registration: "",
     vehicle_make: "",
@@ -122,45 +303,24 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
 
   // Update form data when customer prop changes
   useEffect(() => {
-    if (customer) {
+    if (customer || accountInfo) {
       setFormData(prev => ({
         ...prev,
-        customerName: customer.trading_name || customer.company || '',
-        customerEmail: customer.email || '',
-        customerPhone: customer.cell_no || customer.switchboard || '',
-        customerAddress: customer.physical_address || customer.postal_address || '',
+        customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || accountInfo?.company || '',
+        customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || '',
+        customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || accountInfo?.switchboard || '',
+        customerAddress: constructAddress(accountInfo) || constructAddress(customer) || '',
       }));
     }
-  }, [customer]);
+  }, [customer, accountInfo, constructAddress]);
 
-  // Fetch customer data when about to create a quote
-  const fetchCustomerData = useCallback(async (accountNumber) => {
-    if (!accountNumber) return;
-    
-    try {
-      const response = await fetch(`/api/customers/match-account?accountNumber=${encodeURIComponent(accountNumber)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch customer data');
-      }
-      const data = await response.json();
-      
-      if (data.success && data.customer) {
-        // Update form data with fetched customer information
-        setFormData(prev => ({
-          ...prev,
-          customerName: data.customer.trading_name || data.customer.company || prev.customerName,
-          customerEmail: data.customer.email || prev.customerEmail,
-          customerPhone: data.customer.cell_no || data.customer.switchboard || prev.customerPhone,
-          customerAddress: data.customer.physical_address || data.customer.postal_address || prev.customerAddress,
-        }));
-        
-        console.log('Customer data fetched and updated:', data.customer);
-      }
-    } catch (error) {
-      console.error('Error fetching customer data:', error);
-      // Don't show error toast as this is not critical for quote creation
+  // Fetch customer data when accountInfo changes
+  useEffect(() => {
+    if (accountInfo?.new_account_number) {
+      console.log('Fetching customer data for account:', accountInfo.new_account_number);
+      fetchCustomerData(accountInfo.new_account_number);
     }
-  }, []);
+  }, [accountInfo?.new_account_number, fetchCustomerData]);
 
   const fetchVehicleProducts = useCallback(async () => {
     if (!vehicles || vehicles.length === 0) {
@@ -229,15 +389,13 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
     }
   }, [vehicles]);
 
-  // Fetch vehicle products when vehicles change
+  // Fetch vehicles from vehicles_ip when job type changes to deinstall
   useEffect(() => {
-    if (vehicles && vehicles.length > 0 && formData.jobType === 'deinstall') {
-      console.log('Fetching vehicle products for de-installation');
-      fetchVehicleProducts();
-    } else if (formData.jobType === 'deinstall' && (!vehicles || vehicles.length === 0)) {
-      console.log('No vehicles available for de-installation');
+    if (formData.jobType === 'deinstall' && accountInfo?.new_account_number) {
+      console.log('Job type changed to deinstall, fetching vehicles from vehicles_ip');
+      fetchVehiclesFromIP(false); // Load first 5 vehicles initially
     }
-  }, [vehicles, formData.jobType, fetchVehicleProducts]);
+  }, [formData.jobType, accountInfo?.new_account_number, fetchVehiclesFromIP]);
 
   const fetchProductItems = useCallback(async () => {
     // Skip if no filters are set and we already have products
@@ -271,16 +429,16 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
   // Effect for job type changes
   useEffect(() => {
     // Only fetch when job type changes and user has actually selected a job type
-    if (formData.jobType === 'deinstall' && vehicles && vehicles.length > 0 && hasUserSelectedJobType) {
-      console.log('Job type changed to deinstall, fetching vehicle products');
-      fetchVehicleProducts();
+    if (formData.jobType === 'deinstall' && accountInfo?.new_account_number && hasUserSelectedJobType) {
+      console.log('Job type changed to deinstall, fetching vehicles from vehicles_ip');
+      fetchVehiclesFromIP(false); // Load first 5 vehicles initially
     } else if (formData.jobType === 'install' && hasUserSelectedJobType) {
       console.log('Job type changed to install, fetching product items');
       fetchProductItems();
-    } else if (formData.jobType === 'deinstall' && (!vehicles || vehicles.length === 0) && hasUserSelectedJobType) {
-      console.log('Job type is deinstall but no vehicles available yet');
+    } else if (formData.jobType === 'deinstall' && !accountInfo?.new_account_number && hasUserSelectedJobType) {
+      console.log('Job type is deinstall but no account number available yet');
     }
-  }, [formData.jobType, vehicles, hasUserSelectedJobType, fetchVehicleProducts, fetchProductItems]);
+  }, [formData.jobType, accountInfo?.new_account_number, hasUserSelectedJobType, fetchVehiclesFromIP, fetchProductItems]);
 
   // Separate effect for product filters
   useEffect(() => {
@@ -298,6 +456,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
         description: product.description,
         type: product.type,
         category: product.category,
+        code: product.code || 'N/A',
         quantity: 1,
         purchaseType: 'service',
         cashPrice: product.de_installation_price || 500,
@@ -322,6 +481,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
         description: product.description,
         type: product.type,
         category: product.category,
+        code: product.code || 'N/A',
         quantity: 1,
         purchaseType: formData.purchaseType,
         cashPrice: product.price || 0,
@@ -459,8 +619,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
 
     try {
       // Fetch customer data when about to create a quote
-      if (customer?.new_account_number) {
-        await fetchCustomerData(customer.new_account_number);
+      if (accountInfo?.new_account_number) {
+        await fetchCustomerData(accountInfo.new_account_number);
       }
 
       const protocol = window.location.protocol;
@@ -547,8 +707,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
         vinNumber: formData.vin_number || '',
         odormeter: formData.odormeter || '',
         
-        // Account information (for internal quotes) - Skip for now due to UUID format issues
-        // accountId: customer?.id || null,
+        // Account information (for internal quotes)
+        new_account_number: accountInfo?.new_account_number || customer?.new_account_number || null,
         
         // Quotation products with detailed pricing
         quotationProducts: quotationProducts,
@@ -599,10 +759,10 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
         jobType: "",
         description: "",
         purchaseType: "purchase",
-        customerName: customer?.trading_name || customer?.company || "",
-        customerEmail: customer?.email || "",
-        customerPhone: customer?.cell_no || customer?.switchboard || "",
-        customerAddress: customer?.physical_address || customer?.postal_address || "",
+        customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
+        customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
+        customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || "",
+        customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
         // Vehicle information
         vehicle_registration: "",
         vehicle_make: "",
@@ -1036,7 +1196,12 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
                   <CardTitle>Vehicle Selection</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {!vehicles || vehicles.length === 0 ? (
+                  {deInstallData.loadingVehicles ? (
+                    <div className="py-8 text-center">
+                      <div className="mx-auto mb-4 border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                      <span className="text-gray-600">Loading vehicles...</span>
+                    </div>
+                  ) : !deInstallData.availableVehicles || deInstallData.availableVehicles.length === 0 ? (
                     <div className="py-8 text-center">
                       <Car className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                       <h3 className="mb-2 font-medium text-gray-900 text-lg">No vehicles available</h3>
@@ -1047,31 +1212,34 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
                       <div className="space-y-2">
                         <Label>Select Vehicles for De-installation</Label>
                         <p className="text-gray-600 text-sm">Choose the vehicles you want to de-install products from:</p>
+                        <div className="text-gray-500 text-xs">
+                          Showing {deInstallData.vehiclesLoaded} of {deInstallData.totalVehicles} vehicles
+                        </div>
                       </div>
                       
                       <div className="space-y-3 max-h-64 overflow-y-auto">
-                        {vehicles.map((vehicle) => {
+                        {deInstallData.availableVehicles.map((vehicle) => {
                           const isSelected = deInstallData.selectedVehicles.includes(vehicle.id);
+                          const vehicleProductsList = deInstallData.vehicleProducts[vehicle.id] || [];
                           return (
                             <div
                               key={vehicle.id}
-                              className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                              className={`p-4 border rounded-lg transition-all hover:shadow-md ${
                                 isSelected 
                                   ? 'border-blue-500 bg-blue-50 shadow-lg' 
                                   : 'border-gray-200 hover:border-gray-300'
                               }`}
-                              onClick={() => toggleVehicleSelection(vehicle.id)}
                             >
-                              <div className="flex justify-between items-start">
+                              <div className="flex justify-between items-start mb-3">
                                 <div className="flex-1">
                                   <div className="mb-1 font-bold text-gray-900 text-lg">
-                                    {vehicle.plate_number || vehicle.new_registration || vehicle.group_name || 'Unknown Plate'}
+                                    {vehicle.new_registration || vehicle.group_name || 'Unknown Plate'}
                                   </div>
                                   <div className="text-gray-500 text-sm">
-                                    {vehicle.make} {vehicle.model} • {vehicle.year || 'N/A'}
+                                    {vehicle.beame_1 || 'Unknown Make'} {vehicle.beame_2 || 'Unknown Model'} • {vehicle.beame_3 || 'N/A'}
                                   </div>
                                   <div className="text-gray-400 text-xs">
-                                    VIN: {vehicle.vin_number || 'N/A'}
+                                    VIN: {vehicle.vin_number || 'N/A'} • IP: {vehicle.ip_address || 'N/A'}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -1081,34 +1249,84 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
                                   >
                                     {isSelected ? 'Selected' : 'Select'}
                                   </Badge>
-                                  {isSelected && (
-                                    <Button
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        addVehicleProducts(vehicle);
-                                      }}
-                                      className="bg-green-600 hover:bg-green-700"
-                                    >
-                                      <Plus className="w-3 h-3" />
-                                    </Button>
-                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant={isSelected ? 'outline' : 'default'}
+                                    onClick={() => toggleVehicleSelection(vehicle.id)}
+                                    className={isSelected ? 'text-blue-600 hover:text-blue-700' : ''}
+                                  >
+                                    {isSelected ? 'Deselect' : 'Select'}
+                                  </Button>
                                 </div>
                               </div>
+                              
+                              {/* Products Dropdown */}
+                              {vehicleProductsList.length > 0 && (
+                                <div className="mt-3">
+                                  <div className="mb-2 font-medium text-gray-700 text-sm">Installed Products:</div>
+                                  <div className="space-y-2">
+                                    {vehicleProductsList.map((product, index) => (
+                                      <div key={product.id} className="flex justify-between items-center bg-gray-50 p-2 border rounded">
+                                        <div className="flex-1">
+                                          <div className="font-medium text-sm">{product.name}</div>
+                                          <div className="text-gray-600 text-xs">
+                                            {product.description} • Code: {product.code}
+                                          </div>
+                                          <div className="text-gray-500 text-xs">
+                                            Type: {product.type} • Category: {product.category}
+                                          </div>
+                                        </div>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => addProduct({
+                                            ...product,
+                                            vehicleId: vehicle.id,
+                                            vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
+                                          })}
+                                          className="bg-green-600 hover:bg-green-700"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {vehicleProductsList.length === 0 && (
+                                <div className="bg-yellow-50 mt-3 p-2 border border-yellow-200 rounded">
+                                  <div className="text-yellow-800 text-sm">
+                                    No products found for this vehicle. A default telematics unit will be added for de-installation.
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
+                      
+                      {/* Load More Button */}
+                      {deInstallData.vehiclesLoaded < deInstallData.totalVehicles && (
+                        <div className="text-center">
+                          <Button
+                            variant="outline"
+                            onClick={() => fetchVehiclesFromIP(true)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            Load All Vehicles ({deInstallData.totalVehicles - deInstallData.vehiclesLoaded} remaining)
+                          </Button>
+                        </div>
+                      )}
                       
                       {(deInstallData.selectedVehicles || []).length > 0 && (
                         <div className="bg-blue-50 mt-4 p-4 rounded-lg">
                           <h4 className="mb-2 font-medium text-blue-900">Selected Vehicles: {(deInstallData.selectedVehicles || []).length}</h4>
                           <div className="space-y-2">
                             {(deInstallData.selectedVehicles || []).map(vehicleId => {
-                              const vehicle = vehicles.find(v => v.id === vehicleId);
+                              const vehicle = deInstallData.availableVehicles.find(v => v.id === vehicleId);
                               return (
                                 <div key={vehicleId} className="flex justify-between items-center text-sm">
-                                  <span>{vehicle?.plate_number || vehicle?.new_registration || 'Unknown'}</span>
+                                  <span>{vehicle?.new_registration || vehicle?.group_name || 'Unknown'}</span>
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1143,9 +1361,18 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
                           <div>
                             <h4 className="font-semibold">{product.name}</h4>
                             <p className="text-gray-600 text-sm">{product.description}</p>
-                            {product.vehiclePlate && (
-                              <p className="text-blue-600 text-xs">Vehicle: {product.vehiclePlate}</p>
-                            )}
+                            <div className="flex gap-2 mt-1">
+                              {product.code && (
+                                <span className="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">
+                                  Code: {product.code}
+                                </span>
+                              )}
+                              {product.vehiclePlate && (
+                                <span className="bg-green-100 px-2 py-1 rounded text-green-800 text-xs">
+                                  Vehicle: {product.vehiclePlate}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <Button
                             variant="outline"
@@ -1158,11 +1385,19 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated }) 
                         </div>
 
                         {/* Product Information Header */}
-                        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
+                        <div className="gap-4 grid grid-cols-1 md:grid-cols-3 mb-4">
                           <div className="space-y-2">
                             <Label>Product</Label>
                             <Input
                               value={product.name}
+                              readOnly
+                              className="bg-gray-50"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Code</Label>
+                            <Input
+                              value={product.code || 'N/A'}
                               readOnly
                               className="bg-gray-50"
                             />

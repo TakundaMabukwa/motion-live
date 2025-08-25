@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { FaR } from "react-icons/fa6";
 import Link from "next/link";
+import EnhancedCustomerDetails from "@/components/ui-personal/EnhancedCustomerDetails";
 
 export default function ExternalQuotation() {
   const pathname = usePathname();
@@ -45,6 +46,7 @@ export default function ExternalQuotation() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
 
   const [formData, setFormData] = useState({
     jobType: "",
@@ -100,6 +102,10 @@ export default function ExternalQuotation() {
   const productCategories = [
     "HARDWARE", "MODULES", "INPUTS", "CAMERA EQUIPMENT", "AI MOVEMENT DETECTION", "PTT RADIOS"
   ];
+
+  const handleVehiclesSelectedFromDetails = (vehicles) => {
+    setSelectedVehiclesFromDetails(vehicles);
+  };
 
   useEffect(() => {
     fetchProductItems();
@@ -436,149 +442,13 @@ export default function ExternalQuotation() {
   );
 
   const renderCustomerDetailsForm = () => (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="w-5 h-5" />
-          Customer Details
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="customerName">Customer Name *</Label>
-            <Input
-              id="customerName"
-              placeholder="Enter customer name"
-              value={formData.customerName}
-              onChange={(e) =>
-                setFormData({ ...formData, customerName: e.target.value })
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerEmail">Email Address *</Label>
-            <Input
-              id="customerEmail"
-              type="email"
-              placeholder="customer@example.com"
-              value={formData.customerEmail}
-              onChange={(e) =>
-                setFormData({ ...formData, customerEmail: e.target.value })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="customerPhone">Phone Number *</Label>
-            <Input
-              id="customerPhone"
-              placeholder="Enter phone number"
-              value={formData.customerPhone}
-              onChange={(e) =>
-                setFormData({ ...formData, customerPhone: e.target.value })
-              }
-            />
-          </div>
-                      <div className="space-y-2">
-              <Label htmlFor="customerAddress">Address</Label>
-              <Input
-                id="customerAddress"
-                placeholder="Enter address"
-                value={formData.customerAddress}
-                onChange={(e) =>
-                  setFormData({ ...formData, customerAddress: e.target.value })
-                }
-              />
-            </div>
-        </div>
-
-        {/* Vehicle Information Section */}
-        <Separator className="my-6" />
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Vehicle Information (Optional)</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Vehicle information is optional but will be stored with the quotation for future reference.
-          </p>
-          <div className="space-y-2">
-            <Label htmlFor="vehicle_registration">Vehicle Registration</Label>
-            <Input
-              id="vehicle_registration"
-              placeholder="Enter vehicle registration (optional)"
-              value={formData.vehicle_registration}
-              onChange={(e) =>
-                setFormData({ ...formData, vehicle_registration: e.target.value })
-              }
-            />
-            <p className="text-xs text-gray-500">
-              Vehicle registration is optional but will be stored if provided
-            </p>
-          </div>
-          <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="vehicle_make">Vehicle Make</Label>
-              <Input
-                id="vehicle_make"
-                placeholder="e.g., Toyota, Ford"
-                value={formData.vehicle_make}
-                onChange={(e) =>
-                  setFormData({ ...formData, vehicle_make: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vehicle_model">Vehicle Model</Label>
-              <Input
-                id="vehicle_model"
-                placeholder="e.g., Corolla, Ranger"
-                value={formData.vehicle_model}
-                onChange={(e) =>
-                  setFormData({ ...formData, vehicle_model: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vehicle_year">Vehicle Year</Label>
-              <Input
-                id="vehicle_year"
-                type="number"
-                placeholder="e.g., 2020"
-                value={formData.vehicle_year}
-                onChange={(e) =>
-                  setFormData({ ...formData, vehicle_year: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="vin_number">VIN Number</Label>
-              <Input
-                id="vin_number"
-                placeholder="Enter VIN number"
-                value={formData.vin_number}
-                onChange={(e) =>
-                  setFormData({ ...formData, vin_number: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="odormeter">Odometer Reading</Label>
-              <Input
-                id="odormeter"
-                placeholder="Enter odometer reading"
-                value={formData.odormeter}
-                onChange={(e) =>
-                  setFormData({ ...formData, odormeter: e.target.value })
-                }
-              />
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <EnhancedCustomerDetails
+      formData={formData}
+      setFormData={setFormData}
+      accountInfo={null}
+      onVehiclesSelected={handleVehiclesSelectedFromDetails}
+      isDeinstall={false} // External quotes are not de-installation
+    />
   );
 
   const renderQuoteDetailsForm = () => (

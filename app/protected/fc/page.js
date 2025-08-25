@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import GlobalView from "@/components/ui-personal/global-view";
+import { useClients } from "@/contexts/ClientsContext";
 import {
   Users,
   Search,
@@ -22,50 +23,37 @@ import {
   Building,
   FileText,
   ExternalLink,
-  CheckCircle
+  CheckCircle,
+  Phone,
+  Mail,
+  MapPin,
+  RefreshCw
 } from "lucide-react";
 
 export default function AccountsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const { 
+    companyGroups, 
+    contactInfo, 
+    loading, 
+    loadingContacts, 
+    totalCount, 
+    fetchCompanyGroups, 
+    isDataLoaded 
+  } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [totalCount, setTotalCount] = useState(0);
   const [activeTab, setActiveTab] = useState('global');
 
-  // Fetch customers data
-  const fetchCustomers = useCallback(async (search = "") => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/customers?search=${encodeURIComponent(search)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch customers');
-      }
-      const data = await response.json();
-      
-      console.log('Customers data received:', data);
-      
-      const newCustomers = data.customers || [];
-      
-      setCustomers(newCustomers);
-      setTotalCount(newCustomers.length);
-      
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast.error('Failed to load customers');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
 
   // Initial load
   useEffect(() => {
-    if (activeTab === 'companies') {
-      fetchCustomers("");
+    if (activeTab === 'companies' && !isDataLoaded) {
+      fetchCompanyGroups("");
     }
-  }, [fetchCustomers, activeTab]);
+  }, [fetchCompanyGroups, activeTab, isDataLoaded]);
 
   // Debounced search effect
   useEffect(() => {
@@ -73,23 +61,21 @@ export default function AccountsDashboard() {
       const timer = setTimeout(() => {
         if (searchTerm !== debouncedSearchTerm) {
           setDebouncedSearchTerm(searchTerm);
-          fetchCustomers(searchTerm);
+          fetchCompanyGroups(searchTerm);
         }
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [searchTerm, fetchCustomers, activeTab]);
+  }, [searchTerm, fetchCompanyGroups, activeTab]);
 
-  const filteredCustomers = useMemo(() => {
-    return customers;
-  }, [customers]);
+  const filteredCompanyGroups = useMemo(() => {
+    return companyGroups;
+  }, [companyGroups]);
 
   const handleNewAccount = () => {
     router.push('/protected/fc/add-account');
   };
-
-
 
   // Render content based on active tab
   const renderContent = () => {
@@ -112,13 +98,38 @@ export default function AccountsDashboard() {
                   className="w-full pl-10"
                 />
               </div>
+              <Button
+                variant="outline"
+                onClick={() => fetchCompanyGroups(searchTerm)}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Refresh
+              </Button>
             </div>
 
             {/* Results count */}
             {!loading && (
               <div className="text-sm text-gray-600">
-                Showing {filteredCustomers.length} of {totalCount} clients
+                Showing {filteredCompanyGroups.length} of {totalCount} clients
                 {searchTerm && ` matching "${searchTerm}"`}
+                {loadingContacts && (
+                  <span className="ml-2 text-blue-600">
+                    <Loader2 className="w-3 h-3 inline animate-spin mr-1" />
+                    Loading contact info...
+                  </span>
+                )}
+                {isDataLoaded && (
+                  <span className="ml-2 text-green-600">
+                    <CheckCircle className="w-3 h-3 inline mr-1" />
+                    Data cached
+                  </span>
+                )}
               </div>
             )}
 
@@ -129,16 +140,14 @@ export default function AccountsDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Client</TableHead>
-                      <TableHead>Cost Centers</TableHead>
-                      <TableHead>Total Vehicles</TableHead>
-                      <TableHead>Account Name</TableHead>
+                      <TableHead>Contact Info</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {customers.length === 0 ? (
+                    {companyGroups.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8">
+                        <TableCell colSpan={3} className="text-center py-8">
                           <div className="flex flex-col items-center">
                             <Building2 className="w-8 h-8 text-gray-400 mb-2" />
                             <p className="text-gray-500">No clients found</p>
@@ -146,51 +155,102 @@ export default function AccountsDashboard() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      customers.map((customer) => (
-                        <TableRow key={customer.prefix} className="hover:bg-gray-50">
-                          <TableCell className="font-medium">
-                            <div>
-                              <div className="font-semibold">{customer.company_name}</div>
-                              <div className="text-sm text-gray-500">Prefix: {customer.prefix}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {customer.total_accounts} cost centers
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {customer.total_vehicles} vehicles
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            <div className="space-y-1">
-                              {customer.accounts?.slice(0, 3).map((account, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                  <Building2 className="w-3 h-3 text-gray-400" />
-                                  <span className="font-medium">
-                                    {account}
-                                  </span>
+                      companyGroups.map((group) => {
+                        const contact = contactInfo[group.id];
+                        return (
+                          <TableRow key={group.id} className="hover:bg-gray-50">
+                            <TableCell className="font-medium">
+                              <div>
+                                <div className="mb-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {group.company_group || 'N/A'}
+                                  </Badge>
                                 </div>
-                              ))}
-                              {customer.total_accounts > 3 && (
-                                <div className="text-xs text-gray-400">
-                                  +{customer.total_accounts - 3} more accounts
+                                <div className="font-semibold text-sm">{group.legal_names || 'N/A'}</div>
+                                <div className="text-xs text-gray-500">
+                                  {group.legal_names_list && group.legal_names_list.length > 0 
+                                    ? `${group.legal_names_list.length} legal entities`
+                                    : 'No legal names'
+                                  }
                                 </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {loadingContacts ? (
+                                <div className="flex items-center gap-2">
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span className="text-sm text-gray-500">Loading...</span>
+                                </div>
+                              ) : contact ? (
+                                <div className="space-y-1">
+                                  {contact.cell_no && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Phone className="w-3 h-3 text-gray-400" />
+                                      <span>{contact.cell_no}</span>
+                                    </div>
+                                  )}
+                                  {contact.switchboard && !contact.cell_no && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Phone className="w-3 h-3 text-gray-400" />
+                                      <span>{contact.switchboard}</span>
+                                    </div>
+                                  )}
+                                  {contact.email && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Mail className="w-3 h-3 text-gray-400" />
+                                      <span className="truncate max-w-[200px]" title={contact.email}>
+                                        {contact.email}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {contact.branch_person_email && !contact.email && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Mail className="w-3 h-3 text-gray-400" />
+                                      <span className="truncate max-w-[200px]" title={contact.branch_person_email}>
+                                        {contact.branch_person_email}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {contact.physical_address_1 && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <MapPin className="w-3 h-3 text-gray-400 mt-0.5" />
+                                      <div className="truncate max-w-[200px]">
+                                        <div title={`${contact.physical_address_1}${contact.physical_area ? `, ${contact.physical_area}` : ''}${contact.physical_province ? `, ${contact.physical_province}` : ''}`}>
+                                          {contact.physical_address_1}
+                                          {contact.physical_area && `, ${contact.physical_area}`}
+                                          {contact.physical_province && `, ${contact.physical_province}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!contact.cell_no && !contact.switchboard && !contact.email && !contact.branch_person_email && !contact.physical_address_1 && (
+                                    <span className="text-sm text-gray-400">No contact info</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-gray-400">No contact info</span>
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Link href={`/protected/fc/companies/${customer.prefix}`}>
-                              <Button size="sm" variant="outline" className="flex items-center gap-2">
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="flex items-center gap-2"
+                                onClick={() => {
+                                  if (group.all_new_account_numbers) {
+                                    const firstAccount = group.all_new_account_numbers.split(',')[0].trim();
+                                    const prefix = firstAccount.split('-')[0];
+                                    router.push(`/protected/fc/clients/${prefix}/cost-centers`);
+                                  }
+                                }}
+                              >
                                 <Eye className="w-3 h-3" />
-                                View All Accounts
+                                View Details
                               </Button>
-                            </Link>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -198,26 +258,26 @@ export default function AccountsDashboard() {
             </Card>
 
             {/* Empty State */}
-            {customers.length === 0 && !loading && (
+            {companyGroups.length === 0 && !loading && (
               <Card>
                 <CardContent className="p-8">
                   <div className="text-center">
                     <Building2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                                          <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        No clients found
-                      </h3>
-                      <p className="text-gray-500 mb-4">
-                        {searchTerm
-                          ? "Try adjusting your search criteria."
-                          : `Get started by creating your first client.`
-                        }
-                      </p>
-                      {!searchTerm && (
-                        <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create First Client
-                        </Button>
-                      )}
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No clients found
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                      {searchTerm
+                        ? "Try adjusting your search criteria."
+                        : `Get started by creating your first client.`
+                      }
+                    </p>
+                    {!searchTerm && (
+                      <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create First Client
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

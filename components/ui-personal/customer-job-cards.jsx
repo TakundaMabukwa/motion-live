@@ -24,9 +24,14 @@ export default function CustomerJobCards({ accountNumber }) {
   const fetchJobCards = async () => {
     try {
       setLoading(true);
-      const url = '/api/job-cards';
+      let url = '/api/job-cards';
       
-      console.log('Fetching all job cards');
+      // Add account number filter if provided
+      if (accountNumber) {
+        url += `?account_number=${encodeURIComponent(accountNumber)}`;
+      }
+      
+      console.log('Fetching job cards for account:', accountNumber || 'all accounts');
       const response = await fetch(url);
       console.log('Response status:', response.status);
       if (!response.ok) {
@@ -146,7 +151,7 @@ export default function CustomerJobCards({ accountNumber }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="font-bold text-2xl">
-          All Job Cards
+          {accountNumber ? `Job Cards for ${accountNumber}` : 'All Job Cards'}
         </h2>
         <div className="flex gap-2">
           <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
@@ -161,7 +166,10 @@ export default function CustomerJobCards({ accountNumber }) {
         <div className="relative flex-1">
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
-            placeholder="Search all jobs by job number, customer, type, or address..."
+            placeholder={accountNumber ? 
+              `Search jobs for ${accountNumber} by job number, customer, type, or address...` : 
+              "Search all jobs by job number, customer, type, or address..."
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -190,7 +198,10 @@ export default function CustomerJobCards({ accountNumber }) {
       {/* Results Summary */}
       <div className="flex justify-between items-center text-gray-600 text-sm">
         <span>
-          Showing {filteredJobCards.length} of {jobCards.length} job cards
+          {accountNumber ? 
+            `Showing ${filteredJobCards.length} of ${jobCards.length} job cards for ${accountNumber}` :
+            `Showing ${filteredJobCards.length} of ${jobCards.length} job cards`
+          }
           {searchTerm && !searchTerm.startsWith('status:') && (
             <span className="ml-2">filtered by "{searchTerm}"</span>
           )}
@@ -206,8 +217,12 @@ export default function CustomerJobCards({ accountNumber }) {
           <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">No job cards found</h3>
           <p className="text-gray-500">
-            {searchTerm ? 'No job cards match your search criteria.' : 
-             'No job cards have been created yet.'}
+            {accountNumber ? 
+              (searchTerm ? `No job cards for ${accountNumber} match your search criteria.` : 
+               `No job cards have been created for ${accountNumber} yet.`) :
+              (searchTerm ? 'No job cards match your search criteria.' : 
+               'No job cards have been created yet.')
+            }
           </p>
         </div>
       ) : (

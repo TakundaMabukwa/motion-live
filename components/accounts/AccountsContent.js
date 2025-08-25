@@ -31,6 +31,7 @@ import InternalAccountDashboard from './InternalAccountDashboard';
 import AccountDashboard from '@/components/accounts/AccountDashboard';
 import OrdersContent from './OrdersContent';
 import PurchasesContent from './PurchasesContent';
+import AccountsClientsSection from './AccountsClientsSection';
 
 export default function AccountsContent({ activeSection }) {
   const [customers, setCustomers] = useState([]);
@@ -83,7 +84,7 @@ export default function AccountsContent({ activeSection }) {
     return isPaymentDue() ? 'Amount Due' : 'Monthly Amount';
   };
 
-  // Fetch customers data
+  // Fetch customers data from customers_grouped table
   const fetchCustomers = useCallback(async (loadMore = false) => {
     try {
       if (loadMore) {
@@ -93,7 +94,7 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const currentPage = loadMore ? page + 1 : 1;
-      const response = await fetch(`/api/vehicle-invoices?page=${currentPage}&limit=50&search=${searchTerm}&includeLegalNames=true`);
+      const response = await fetch(`/api/accounts/customers-grouped?page=${currentPage}&limit=50&search=${searchTerm}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch customers');
@@ -102,14 +103,14 @@ export default function AccountsContent({ activeSection }) {
       const data = await response.json();
       
       if (loadMore) {
-        setCustomers(prev => [...prev, ...data.customers]);
+        setCustomers(prev => [...prev, ...data.companyGroups]);
         setPage(currentPage);
-        setHasMore(data.customers.length === 50);
+        setHasMore(data.companyGroups.length === 50);
       } else {
-        setCustomers(data.customers);
-        setAllCustomers(data.customers);
+        setCustomers(data.companyGroups);
+        setAllCustomers(data.companyGroups);
         setPage(1);
-        setHasMore(data.customers.length === 50);
+        setHasMore(data.companyGroups.length === 50);
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -132,14 +133,14 @@ export default function AccountsContent({ activeSection }) {
     } else {
       const searchLower = searchTerm.toLowerCase();
       const filtered = allCustomers.filter(customer => {
-        const legalNameLower = (customer.legal_name || '').toLowerCase();
-        const companyLower = (customer.company || '').toLowerCase();
-        const codeLower = (customer.code || '').toLowerCase();
+        const legalNamesLower = (customer.legal_names || '').toLowerCase();
+        const companyGroupLower = (customer.company_group || '').toLowerCase();
+        const accountNumbersLower = (customer.all_account_numbers || '').toLowerCase();
         
         return (
-          legalNameLower.includes(searchLower) ||
-          companyLower.includes(searchLower) ||
-          codeLower.includes(searchLower)
+          legalNamesLower.includes(searchLower) ||
+          companyGroupLower.includes(searchLower) ||
+          accountNumbersLower.includes(searchLower)
         );
       });
       setCustomers(filtered);
@@ -336,9 +337,10 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
-  const handleCustomerClick = (accountNumber) => {
-    console.log('Clicking on account:', accountNumber);
-    fetchAccountData(accountNumber);
+  const handleCompanyGroupClick = (companyGroup) => {
+    console.log('Clicking on company group:', companyGroup);
+    // For now, just show a toast since we don't have individual account details
+    toast.success(`Selected company group: ${companyGroup}`);
   };
 
   const handleShowFinancialDetails = (customer) => {
@@ -348,8 +350,8 @@ export default function AccountsContent({ activeSection }) {
 
   const handleViewClients = (customer) => {
     console.log('handleViewClients called with:', customer);
-    // Navigate to the new client cost centers page
-    const url = `/protected/client-cost-centers/${customer.code}`;
+    // Navigate to the new client cost centers page using company_group
+    const url = `/protected/client-cost-centers/${customer.company_group}`;
     console.log('Redirecting to:', url);
     window.location.href = url;
   };
@@ -410,8 +412,8 @@ export default function AccountsContent({ activeSection }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Vehicle Invoices Overview</h1>
-            <p className="text-gray-600">All accounts grouped by CODE (before dash)</p>
+            <h1 className="text-2xl font-bold text-gray-900">Company Groups Overview</h1>
+            <p className="text-gray-600">All company groups from customers_grouped table</p>
           </div>
         </div>
 
@@ -419,12 +421,12 @@ export default function AccountsContent({ activeSection }) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Codes</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Company Groups</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{customers.length}</div>
-              <p className="text-xs text-muted-foreground">Active code groups</p>
+              <p className="text-xs text-muted-foreground">Active company groups</p>
             </CardContent>
           </Card>
 
@@ -468,41 +470,104 @@ export default function AccountsContent({ activeSection }) {
           </Card>
         </div>
 
-        {/* Customers Table */}
+        {/* Search and Company Groups Table */}
         <Card className="hover:shadow-lg transition-shadow duration-200">
           <CardHeader>
-            <CardTitle className="text-lg">All Clients</CardTitle>
-            <p className="text-sm text-gray-600">Click on any client to view detailed information</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">All Company Groups</CardTitle>
+                <p className="text-sm text-gray-600">Click on any company group to view detailed information</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search company groups..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-64"
+                  />
+                </div>
+                <Button
+                  onClick={() => fetchCustomers()}
+                  variant="outline"
+                  size="sm"
+                  disabled={loading}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {customers.map((customer, index) => (
+                      <CardContent>
+              {loading ? (
+                <div className="flex justify-center items-center py-12">
+                  <RefreshCw className="mr-2 w-6 h-6 animate-spin" />
+                  <span>Loading company groups...</span>
+                </div>
+              ) : customers.length === 0 ? (
+                <div className="py-8 text-muted-foreground text-center">
+                  <Users className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                  <p className="font-medium text-lg">No company groups found</p>
+                  <p>No company groups match your search criteria.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {customers.map((customer, index) => (
                 <div
-                  key={customer.code || index}
+                  key={customer.id || index}
                   className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => handleCustomerClick(customer.code)}
+                  onClick={() => handleCompanyGroupClick(customer.company_group)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900">
-                        {customer.legal_name || customer.company}
+                        {customer.company_group || 'Unknown Company'}
                       </h3>
-                      <p className="text-sm text-gray-600">Code: {customer.code}</p>
+                      <p className="text-sm text-gray-600">Legal Names: {customer.legal_names || 'N/A'}</p>
                       <p className="text-xs text-gray-500">
-                        {customer.vehicleCount || 0} vehicles
+                        {customer.vehicleCount || 0} vehicles • {customer.uniqueClientCount || 0} clients
                       </p>
-              </div>
+                    </div>
                     <div className="text-right">
                       <div className="text-lg font-bold text-red-600">
-                                {formatCurrency(customer.totalMonthlyAmount)}
-                              </div>
+                        {formatCurrency(customer.totalMonthlyAmount)}
+                      </div>
                       <p className="text-xs text-gray-500">Monthly</p>
-                            </div>
-                              </div>
+                      <div className="text-sm font-medium text-orange-600">
+                        {formatCurrency(customer.totalAmountDue)}
+                      </div>
+                      <p className="text-xs text-gray-500">Amount Due</p>
+                    </div>
+                  </div>
                 </div>
               ))}
                 </div>
-          </CardContent>
+              )}
+              
+              {/* Load More Button */}
+              {hasMore && !loading && (
+                <div className="flex justify-center mt-6">
+                  <Button
+                    onClick={() => fetchCustomers(true)}
+                    variant="outline"
+                    disabled={loadingMore}
+                    className="px-8"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      'Load More Company Groups'
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
         </Card>
       </div>
     );
@@ -510,197 +575,10 @@ export default function AccountsContent({ activeSection }) {
 
   // Clients Section
   if (activeSection === 'clients') {
-    if (loading) {
-      return (
-        <div className="space-y-6">
-          <div className="flex justify-center items-center py-12">
-            <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-            <span className="ml-2">Loading clients...</span>
-          </div>
-        </div>
-      );
-    }
+    return <AccountsClientsSection />;
+  }
 
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="font-bold text-gray-900 text-3xl">View Clients</h1>
-            <p className="mt-2 text-gray-600">Manage and view all client information with legal names</p>
-          </div>
-          <div className="flex gap-3">
-            <Button 
-              onClick={handleRefresh}
-              disabled={refreshing}
-              variant="outline"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </Button>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 w-4 h-4" />
-              Export
-            </Button>
-          </div>
-        </div>
 
-        {/* Summary Stats */}
-        <div className="gap-6 grid grid-cols-1 md:grid-cols-4">
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="font-medium text-sm">Total Clients</CardTitle>
-              <Users className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-bold text-blue-600 text-2xl">{customers.length}</div>
-              <p className="text-muted-foreground text-xs">Active accounts</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Monthly Revenue</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyAmount || 0), 0))}
-              </div>
-              <p className="text-xs text-muted-foreground">Monthly subscriptions</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Amount Due</CardTitle>
-              <span className="h-4 w-4 text-muted-foreground font-bold">R</span>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalAmountDue || 0), 0))}
-              </div>
-              <p className="text-xs text-muted-foreground">Outstanding amounts</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow duration-200">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {customers.reduce((sum, c) => sum + (c.vehicleCount || 0), 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">Fleet size</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Search Clients</CardTitle>
-            <p className="text-sm text-gray-600">Search by legal name, company name, or code</p>
-          </CardHeader>
-          <CardContent>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                type="text"
-                placeholder="Search by legal name or code..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Clients Table */}
-        <Card className="hover:shadow-lg transition-shadow duration-200">
-          <CardHeader>
-            <CardTitle className="text-lg">Client Legal Names</CardTitle>
-            <p className="text-sm text-gray-600">All clients with their legal names and account information</p>
-          </CardHeader>
-          <CardContent>
-               <div className="overflow-x-auto">
-                 <table className="w-full">
-                   <thead className="bg-gray-50">
-                     <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client Legal Name
-                       </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Code
-                       </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Monthly Amount
-                       </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount Due
-                       </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Vehicles
-                       </th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                         Actions
-                       </th>
-                     </tr>
-                   </thead>
-                   <tbody className="bg-white divide-y divide-gray-200">
-                  {customers.map((customer, index) => (
-                    <tr key={customer.code || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                         <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 text-sm">
-                          {customer.legal_name || customer.company}
-                           </div>
-                        <div className="text-gray-500 text-xs">
-                          {customer.company && customer.legal_name !== customer.company ? customer.company : ''}
-                           </div>
-                         </td>
-                         <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 text-sm">
-                          {customer.code}
-                           </div>
-                         </td>
-                      <td className="px-4 py-3 text-right text-sm">
-                        <div className="font-medium text-gray-900">
-                          {formatCurrency(customer.totalMonthlyAmount)}
-                               </div>
-                         </td>
-                      <td className="px-4 py-3 text-right text-sm">
-                        <div className={`font-medium ${
-                          customer.totalAmountDue > 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(customer.totalAmountDue)}
-                           </div>
-                         </td>
-                      <td className="px-4 py-3 text-center text-sm">
-                        <Badge variant="outline">{customer.vehicleCount || 0}</Badge>
-                         </td>
-                      <td className="px-4 py-3 text-center text-sm">
-                        <div className="flex gap-2 justify-center">
-                              <Button
-                            onClick={() => handleViewClients(customer)}
-                                size="sm"
-                                variant="outline"
-                          >
-                            View Clients
-                              </Button>
-                            </div>
-                          </td>
-                       </tr>
-                     ))}
-                   </tbody>
-                 </table>
-               </div>
-           </CardContent>
-         </Card>
-       </div>
-     );
-   }
 
   if (activeSection === 'purchases') {
     console.log('Rendering purchases section');

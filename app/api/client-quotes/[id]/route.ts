@@ -80,7 +80,7 @@ export async function PUT(
         }, { status: 500 });
       }
 
-      // Move the client quote to job_cards table - only include essential fields
+      // Create a copy of the client quote in job_cards table - don't move the original
       const jobCardData = {
         // Basic job information
         job_type: clientQuote.job_type || 'install',
@@ -95,6 +95,7 @@ export async function PUT(
         customer_phone: clientQuote.customer_phone || '',
         customer_address: clientQuote.customer_address || '',
         account_id: clientQuote.account_id,
+        new_account_number: clientQuote.new_account_number, // Copy the new_account_number field
         
         // Vehicle information
         vehicle_registration: clientQuote.vehicle_registration || '',
@@ -133,9 +134,9 @@ export async function PUT(
       };
 
       // Debug: Log the data being inserted
-      console.log('Inserting job card data:', JSON.stringify(jobCardData, null, 2));
+      console.log('Creating job card copy from client quote:', JSON.stringify(jobCardData, null, 2));
       
-      // Insert into job_cards table
+      // Insert copy into job_cards table
       const { data: jobCard, error: insertError } = await supabase
         .from('job_cards')
         .insert(jobCardData)
@@ -143,14 +144,14 @@ export async function PUT(
         .single();
 
       if (insertError) {
-        console.error('Error creating job card:', insertError);
+        console.error('Error creating job card copy:', insertError);
         return NextResponse.json({ 
-          error: 'Failed to create job card',
+          error: 'Failed to create job card copy',
           details: insertError.message 
         }, { status: 500 });
       }
 
-      // Update the client quote status to approved
+      // Update the client quote status to approved (don't move it)
       const { error: updateError } = await supabase
         .from('client_quotes')
         .update({ 
@@ -171,17 +172,51 @@ export async function PUT(
 
       return NextResponse.json({
         success: true,
-        message: 'Client quote approved and moved to job cards successfully',
+        message: 'Client quote approved and copied to job cards successfully',
         data: {
           jobCardId: jobCard.id,
-          jobNumber: jobCard.job_number
+          jobNumber: jobCard.job_number,
+          originalQuoteId: id
+        }
+      });
+    }
+
+    if (action === 'decline') {
+      // Await params to get the ID
+      const { id } = await params;
+      
+      // Update the client quote status to declined (don't delete it)
+      const { error: updateError } = await supabase
+        .from('client_quotes')
+        .update({ 
+          status: 'declined',
+          job_status: 'declined',
+          updated_at: new Date().toISOString(),
+          updated_by: user.id
+        })
+        .eq('id', id);
+
+      if (updateError) {
+        console.error('Error updating client quote status to declined:', updateError);
+        return NextResponse.json({ 
+          error: 'Failed to decline client quote',
+          details: updateError.message 
+        }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Client quote declined successfully',
+        data: {
+          quoteId: id,
+          status: 'declined'
         }
       });
     }
 
     return NextResponse.json({
       error: 'Invalid action',
-      details: 'Only approve action is supported'
+      details: 'Only approve or decline actions are supported'
     }, { status: 400 });
 
   } catch (error) {

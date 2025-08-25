@@ -180,7 +180,9 @@ export default function TestCustomerMatch() {
                 new_account_number: accountNumber || "MAC-001"
               }}
               vehicles={[]} // Empty vehicles to test the fix
-              onClose={() => setShowQuoteForm(false)}
+              accountInfo={{
+                new_account_number: accountNumber || "MAC-001"
+              }}
               onQuoteCreated={(quote) => {
                 console.log('Quote created:', quote);
                 setShowQuoteForm(false);

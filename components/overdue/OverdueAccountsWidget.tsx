@@ -5,7 +5,7 @@ import { useOverdueCheck } from '@/lib/hooks/useOverdueCheck';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, AlertTriangle, DollarSign, Building2, Car, ExternalLink, ChevronDown } from 'lucide-react';
+import { RefreshCw, AlertTriangle, DollarSign, Building2, Car, ChevronDown } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 
 interface OverdueAccountsWidgetProps {
@@ -13,7 +13,6 @@ interface OverdueAccountsWidgetProps {
   refreshInterval?: number;
   showAllAccounts?: boolean;
   maxAccounts?: number;
-  onAccountClick?: (accountNumber: string) => void;
   showSummaryOnly?: boolean;
   showAccountCount?: boolean;
   showStatus?: boolean;
@@ -26,7 +25,6 @@ export function OverdueAccountsWidget({
   refreshInterval = 300000, // 5 minutes
   showAllAccounts = false,
   maxAccounts = 10,
-  onAccountClick,
   showSummaryOnly = false,
   showAccountCount = false,
   showStatus = false,
@@ -75,11 +73,7 @@ export function OverdueAccountsWidget({
     }
   };
 
-  const handleAccountClick = (accountNumber: string) => {
-    if (onAccountClick) {
-      onAccountClick(accountNumber);
-    }
-  };
+
 
   const handleCardExpand = (accountNumber: string) => {
     setExpandedCards(prev => {
@@ -298,7 +292,7 @@ export function OverdueAccountsWidget({
                     >
                       <div className="px-4 pb-4 border-muted border-t">
                         {/* Overdue Breakdown */}
-                        <div className="gap-2 grid grid-cols-2 md:grid-cols-4 mt-4">
+                        <div className="gap-2 grid grid-cols-3 mt-4">
                           <div className="text-center">
                             <Badge variant={getOverdueBadgeVariant(account.overdue1_30)} className="w-full">
                               1-30 days
@@ -323,14 +317,6 @@ export function OverdueAccountsWidget({
                               {formatCurrency(account.overdue61_90)}
                             </div>
                           </div>
-                          <div className="text-center">
-                            <Badge variant={getOverdueBadgeVariant(account.overdue91_plus)} className="w-full">
-                              91+ days
-                            </Badge>
-                            <div className="mt-1 font-medium text-sm">
-                              {formatCurrency(account.overdue91_plus)}
-                            </div>
-                          </div>
                         </div>
                         
                         {/* Payment Details */}
@@ -353,22 +339,7 @@ export function OverdueAccountsWidget({
                           </div>
                         )}
                         
-                        {/* Action Button */}
-                        {onAccountClick && (
-                          <div className="mt-4 pt-4 border-muted border-t">
-                            <div className="flex justify-center">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAccountClick(account.accountNumber);
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium text-white text-sm transition-colors"
-                              >
-                                View Vehicle Details
-                              </button>
-                            </div>
-                          </div>
-                        )}
+
                       </div>
                     </div>
                   </div>
@@ -379,19 +350,13 @@ export function OverdueAccountsWidget({
               return (
                 <div
                   key={account.accountNumber}
-                  className={`hover:bg-muted/50 p-4 border rounded-lg transition-colors ${
-                    onAccountClick ? 'cursor-pointer hover:shadow-md' : ''
-                  }`}
-                  onClick={() => onAccountClick && handleAccountClick(account.accountNumber)}
+                  className="hover:bg-muted/50 p-4 border rounded-lg transition-colors"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <Building2 className="w-4 h-4 text-muted-foreground" />
                         <span className="font-medium">{account.company}</span>
-                        {onAccountClick && (
-                          <ExternalLink className="w-4 h-4 text-blue-500" />
-                        )}
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground text-sm">
                         <span>Account: {account.accountNumber}</span>
@@ -411,7 +376,7 @@ export function OverdueAccountsWidget({
                   </div>
                   
                   {!compactView && (
-                    <div className="gap-2 grid grid-cols-2 md:grid-cols-4">
+                    <div className="gap-2 grid grid-cols-3">
                       <div className="text-center">
                         <Badge variant={getOverdueBadgeVariant(account.overdue1_30)} className="w-full">
                           1-30 days
@@ -434,14 +399,6 @@ export function OverdueAccountsWidget({
                         </Badge>
                         <div className="mt-1 font-medium text-sm">
                           {formatCurrency(account.overdue61_90)}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <Badge variant={getOverdueBadgeVariant(account.overdue91_plus)} className="w-full">
-                          91+ days
-                        </Badge>
-                        <div className="mt-1 font-medium text-sm">
-                          {formatCurrency(account.overdue91_plus)}
                         </div>
                       </div>
                     </div>
@@ -478,13 +435,7 @@ export function OverdueAccountsWidget({
                     </div>
                   )}
                   
-                  {onAccountClick && (
-                    <div className="mt-3 pt-3 border-muted border-t">
-                      <p className="text-muted-foreground text-sm text-center">
-                        Click to view vehicle details and costs
-                      </p>
-                    </div>
-                  )}
+
                 </div>
               );
             })}

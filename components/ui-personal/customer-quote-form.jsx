@@ -26,8 +26,10 @@ import {
   Trash2,
   Building2,
   Search,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import EnhancedCustomerDetails from './EnhancedCustomerDetails';
 
 export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCreated }) {
   // Debug logging for accountInfo
@@ -67,6 +69,16 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
 
+  // Debug: Log initial form data
+  useEffect(() => {
+    console.log('Initial form data set:', {
+      customerName: formData.customerName,
+      customerEmail: formData.customerEmail,
+      customerPhone: formData.customerPhone,
+      customerAddress: formData.customerAddress,
+    });
+  }, []);
+
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
     stockReceived: null,
@@ -88,9 +100,13 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
 
   const [customerDataLoading, setCustomerDataLoading] = useState(false);
   const [fetchedCustomerData, setFetchedCustomerData] = useState(null);
+  const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
 
   // Helper function to get account number with fallbacks
   const getAccountNumber = useCallback(() => {
+    console.log('=== GET ACCOUNT NUMBER CALLED ===');
+    console.log('Window available:', typeof window !== 'undefined');
+    
     // Priority 1: Extract account number from URL path (e.g., /protected/fc/accounts/ACEA-0001)
     if (typeof window !== 'undefined') {
       const pathParts = window.location.pathname.split('/');
@@ -116,6 +132,12 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     
     // Priority 2: accountInfo props (fallback)
     let accountNumber = accountInfo?.new_account_number || accountInfo?.account_number;
+    console.log('AccountInfo fallback check:', {
+      new_account_number: accountInfo?.new_account_number,
+      account_number: accountInfo?.account_number,
+      resolved: accountNumber
+    });
+    
     if (accountNumber) {
       console.log('Using account number from accountInfo:', accountNumber);
       return accountNumber;
@@ -124,6 +146,100 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     console.warn('No account number found in URL path or accountInfo');
     return null;
   }, [accountInfo]);
+
+  const handleVehiclesSelectedFromDetails = (vehicles) => {
+    setSelectedVehiclesFromDetails(vehicles);
+    // Update the deInstallData with selected vehicles
+    setDeInstallData(prev => ({
+      ...prev,
+      selectedVehicles: vehicles.map(v => v.id)
+    }));
+  };
+
+  // Fetch customer data when about to create a quote
+  const fetchCustomerData = useCallback(async (accountNumber) => {
+    if (!accountNumber) return;
+    
+    console.log('=== FETCHING CUSTOMER DATA ===');
+    console.log('Account number:', accountNumber);
+    console.log('API endpoint:', `/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(accountNumber)}`);
+    
+    setCustomerDataLoading(true);
+    try {
+      console.log('Fetching customer data for account:', accountNumber);
+      console.log('Query: SELECT * FROM customers WHERE new_account_number LIKE \'' + accountNumber + '\'');
+      
+      // Query customers table where new_account_number matches the provided accountNumber
+      const response = await fetch(`/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(accountNumber)}`);
+      console.log('API response status:', response.status);
+      console.log('API response ok:', response.ok);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch customer data');
+      }
+      const data = await response.json();
+      console.log('API response data:', data);
+      
+      if (data.success && data.customer) {
+        // Store the fetched customer data
+        setFetchedCustomerData(data.customer);
+        console.log('Customer data fetched successfully:', data.customer);
+        
+        // Immediately populate the form with customer data
+        setFormData(prev => {
+          const newFormData = {
+            ...prev,
+            customerName: data.customer.trading_name || data.customer.company || data.customer.legal_name || prev.customerName,
+            customerEmail: data.customer.email || prev.customerEmail,
+            customerPhone: data.customer.cell_no || data.customer.switchboard || prev.customerPhone,
+            customerAddress: [
+              data.customer.physical_address_1,
+              data.customer.physical_address_2,
+              data.customer.physical_address_3,
+              data.customer.physical_area,
+              data.customer.physical_province,
+              data.customer.physical_code,
+              data.customer.physical_country
+            ].filter(Boolean).join(', ') || prev.customerAddress,
+          };
+          
+          console.log('Updating form data:', {
+            from: {
+              customerName: prev.customerName,
+              customerEmail: prev.customerEmail,
+              customerPhone: prev.customerPhone,
+              customerAddress: prev.customerAddress,
+            },
+            to: {
+              customerName: newFormData.customerName,
+              customerEmail: newFormData.customerEmail,
+              customerPhone: newFormData.customerPhone,
+              customerAddress: newFormData.customerAddress,
+            }
+          });
+          
+          return newFormData;
+        });
+        
+        console.log('Form data updated with customer details');
+        toast.success('Customer details loaded and populated automatically', {
+          description: 'Contact information has been filled from customers table',
+          duration: 3000,
+        });
+      } else {
+        console.log('No customer data found for account:', accountNumber);
+        console.log('API response:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      toast.error('Failed to load customer details', {
+        description: 'Contact information will need to be entered manually',
+        duration: 3000,
+      });
+    } finally {
+      setCustomerDataLoading(false);
+    }
+  }, []);
 
   const steps = [
     {
@@ -211,46 +327,25 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     }
   };
 
-  // Fetch customer data when about to create a quote
-  const fetchCustomerData = useCallback(async (accountNumber) => {
-    if (!accountNumber) return;
-    
-    setCustomerDataLoading(true);
-    try {
-      // Query customers table where account_number matches the new_account_number
-      const response = await fetch(`/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(accountNumber)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch customer data');
-      }
-      const data = await response.json();
-      
-      if (data.success && data.customer) {
-        // Store the fetched customer data instead of immediately updating the form
-        setFetchedCustomerData(data.customer);
-        console.log('Customer data fetched and stored:', data.customer);
-        toast.success('Customer details loaded successfully', {
-          description: 'Contact information is ready to be populated',
-          duration: 3000,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching customer data:', error);
-      // Don't show error toast as this is not critical for quote creation
-    } finally {
-      setCustomerDataLoading(false);
-    }
-  }, []);
-
-  // Fetch customer data when account loads (not just when reaching customer details step)
+  // Fetch customer data immediately when form component mounts
   useEffect(() => {
-    const accountNumber = getAccountNumber();
+    console.log('=== FORM MOUNTED ===');
+    console.log('Current URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+    console.log('AccountInfo:', accountInfo);
     
-    if (accountNumber && !fetchedCustomerData) {
-      console.log('Fetching customer data when account loads for account:', accountNumber);
-      console.log('This will query customers table where account_number =', accountNumber);
+    const accountNumber = getAccountNumber();
+    console.log('Resolved account number:', accountNumber);
+    
+    if (accountNumber) {
+      console.log('Form mounted - fetching customer data for account:', accountNumber);
+      console.log('This will query customers table where new_account_number =', accountNumber);
+      console.log('About to call fetchCustomerData...');
       fetchCustomerData(accountNumber);
+      console.log('fetchCustomerData called');
+    } else {
+      console.warn('No account number available when form mounted');
     }
-  }, [accountInfo, getAccountNumber, fetchCustomerData, fetchedCustomerData]);
+  }, []); // Only run once when component mounts
 
   // Populate form with fetched customer data when reaching customer details step
   useEffect(() => {
@@ -281,6 +376,29 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     }
   }, [currentStep, fetchedCustomerData]);
 
+  // Auto-populate customer details when customer data is fetched (regardless of step)
+  useEffect(() => {
+    if (fetchedCustomerData) {
+      console.log('Auto-populating customer details from fetched data:', fetchedCustomerData);
+      
+      setFormData(prev => ({
+        ...prev,
+        customerName: fetchedCustomerData.trading_name || fetchedCustomerData.company || fetchedCustomerData.legal_name || prev.customerName,
+        customerEmail: fetchedCustomerData.email || prev.customerEmail,
+        customerPhone: fetchedCustomerData.cell_no || fetchedCustomerData.switchboard || prev.customerPhone,
+        customerAddress: [
+          fetchedCustomerData.physical_address_1,
+          fetchedCustomerData.physical_address_2,
+          fetchedCustomerData.physical_address_3,
+          fetchedCustomerData.physical_area,
+          fetchedCustomerData.physical_province,
+          fetchedCustomerData.physical_code,
+          fetchedCustomerData.physical_country
+        ].filter(Boolean).join(', ') || prev.customerAddress,
+      }));
+    }
+  }, [fetchedCustomerData]); // Remove formData.customerName dependency to ensure it always runs
+
   // Auto-fetch customer data when entering customer details step (fallback)
   useEffect(() => {
     if (currentStep === 1 && !fetchedCustomerData) { // Customer Details step
@@ -296,7 +414,28 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
     }
   }, [currentStep, getAccountNumber, fetchCustomerData, fetchedCustomerData]);
 
+  // Debug: Monitor form data changes
+  useEffect(() => {
+    console.log('Form data changed:', {
+      customerName: formData.customerName,
+      customerEmail: formData.customerEmail,
+      customerPhone: formData.customerPhone,
+      customerAddress: formData.customerAddress,
+    });
+  }, [formData.customerName, formData.customerEmail, formData.customerPhone, formData.customerAddress]);
 
+  // Missing functions that are referenced in useEffect hooks
+  const calculateClientStockTotal = useCallback(() => {
+    console.log('calculateClientStockTotal called');
+    // This function is referenced but not implemented
+    // You can implement the logic here if needed
+  }, []);
+
+  const fetchStockForSelectedVehicles = useCallback(async () => {
+    console.log('fetchStockForSelectedVehicles called');
+    // This function is referenced but not implemented
+    // You can implement the logic here if needed
+  }, []);
 
   const fetchProductItems = async () => {
     setLoadingProducts(true);
@@ -702,140 +841,13 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
   );
 
   const renderCustomerDetailsForm = () => (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <User className="w-5 h-5" />
-          Customer Details
-          {customerDataLoading && (
-            <div className="flex items-center gap-2 text-blue-600 text-sm">
-              <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
-              Loading contact details...
-            </div>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="customerName">Customer Name *</Label>
-            <Input
-              id="customerName"
-              placeholder="Enter customer name"
-              value={formData.customerName}
-              onChange={(e) =>
-                setFormData({ ...formData, customerName: e.target.value })
-              }
-              disabled={customerDataLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerEmail">Email Address *</Label>
-            <Input
-              id="customerEmail"
-              type="email"
-              placeholder="customer@example.com"
-              value={formData.customerEmail}
-              onChange={(e) =>
-                setFormData({ ...formData, customerEmail: e.target.value })
-              }
-              disabled={customerDataLoading}
-            />
-          </div>
-        </div>
-
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="customerPhone">Phone Number *</Label>
-            <Input
-              id="customerPhone"
-              placeholder="Enter phone number"
-              value={formData.customerPhone}
-              onChange={(e) =>
-                setFormData({ ...formData, customerPhone: e.target.value })
-              }
-              disabled={customerDataLoading}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="customerAddress">Address</Label>
-            <Input
-              id="customerAddress"
-              placeholder="Enter address"
-              value={formData.customerAddress}
-              onChange={(e) =>
-                setFormData({ ...formData, customerAddress: e.target.value })
-              }
-              disabled={customerDataLoading}
-            />
-          </div>
-        </div>
-        
-        {customerDataLoading && (
-          <div className="bg-blue-50 p-3 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-700">
-              <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
-              <span className="text-sm">Automatically loading contact details from your account...</span>
-            </div>
-          </div>
-        )}
-        
-        {!customerDataLoading && (
-          <div className="flex justify-between items-center">
-            <div className="text-gray-600 text-sm">
-              Contact details will be automatically loaded from your account
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const accountNumber = getAccountNumber();
-                
-                if (accountNumber) {
-                  if (fetchedCustomerData) {
-                    // If we already have the data, just populate the form
-                    console.log('Re-populating form with existing customer data:', fetchedCustomerData);
-                    setFormData(prev => ({
-                      ...prev,
-                      customerName: fetchedCustomerData.trading_name || fetchedCustomerData.company || fetchedCustomerData.legal_name || prev.customerName,
-                      customerEmail: fetchedCustomerData.email || prev.customerEmail,
-                      customerPhone: fetchedCustomerData.cell_no || fetchedCustomerData.switchboard || prev.customerPhone,
-                      customerAddress: [
-                        fetchedCustomerData.physical_address_1,
-                        fetchedCustomerData.physical_address_2,
-                        fetchedCustomerData.physical_address_3,
-                        fetchedCustomerData.physical_area,
-                        fetchedCustomerData.physical_province,
-                        fetchedCustomerData.physical_code,
-                        fetchedCustomerData.physical_country
-                      ].filter(Boolean).join(', ') || prev.customerAddress,
-                    }));
-                    
-                    toast.success('Customer details re-populated', {
-                      description: 'Contact information has been refreshed',
-                      duration: 3000,
-                    });
-                  } else {
-                    // Fetch new data if we don't have it
-                    fetchCustomerData(accountNumber);
-                  }
-                } else {
-                  toast.error('No account number available', {
-                    description: 'Please ensure you have access to an account',
-                    duration: 3000,
-                  });
-                }
-              }}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              <User className="mr-2 w-4 h-4" />
-              Reload Contact Details
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <EnhancedCustomerDetails
+      formData={formData}
+      setFormData={setFormData}
+      accountInfo={accountInfo}
+      onVehiclesSelected={handleVehiclesSelectedFromDetails}
+      isDeinstall={formData.jobType === 'deinstall'}
+    />
   );
 
   const renderQuoteDetailsForm = () => (
@@ -955,6 +967,25 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
                     </>
                   )}
                 </div>
+                
+                {/* Enhanced Vehicle Details */}
+                {selectedVehiclesFromDetails.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <h4 className="mb-2 font-medium text-blue-900">Selected Vehicle Details:</h4>
+                    <div className="space-y-1">
+                      {selectedVehiclesFromDetails.map((vehicle) => (
+                        <div key={vehicle.id} className="bg-white p-2 border border-blue-200 rounded">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-blue-800">
+                              {vehicle.group_name || 'Unknown Vehicle'}
+                              {vehicle.ip_address && ` (${vehicle.ip_address})`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1417,7 +1448,125 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
           <p className="text-gray-600">
             Follow the steps to create a professional quote for this customer
           </p>
-        </div>
+          
+                     {/* Debug section */}
+           <div className="bg-gray-100 mt-4 p-4 rounded-lg">
+             <h3 className="mb-2 font-semibold">Debug Info:</h3>
+             <div className="space-y-1 text-sm">
+               <div>Account Number: {getAccountNumber() || 'Not found'}</div>
+               <div>Customer Data Loading: {customerDataLoading ? 'Yes' : 'No'}</div>
+               <div>Customer Data Fetched: {fetchedCustomerData ? 'Yes' : 'No'}</div>
+               <div>Form Customer Name: {formData.customerName || 'Empty'}</div>
+               <div>Form Customer Email: {formData.customerEmail || 'Empty'}</div>
+               <div>Form Customer Phone: {formData.customerPhone || 'Empty'}</div>
+             </div>
+             <div className="space-y-2 mt-2">
+               <Button
+                 onClick={() => {
+                   const accountNumber = getAccountNumber();
+                   if (accountNumber) {
+                     console.log('Manual trigger - fetching customer data for:', accountNumber);
+                     fetchCustomerData(accountNumber);
+                   }
+                 }}
+                 className="mr-2"
+                 variant="outline"
+                 size="sm"
+               >
+                 Manually Fetch Customer Data
+               </Button>
+               <Button
+                 onClick={() => {
+                   console.log('=== DEBUG BUTTON CLICKED ===');
+                   console.log('Current state:', {
+                     accountNumber: getAccountNumber(),
+                     customerDataLoading,
+                     fetchedCustomerData,
+                     formData: {
+                       customerName: formData.customerName,
+                       customerEmail: formData.customerEmail,
+                       customerPhone: formData.customerPhone,
+                       customerAddress: formData.customerAddress,
+                     }
+                   });
+                 }}
+                 variant="outline"
+                 size="sm"
+               >
+                 Debug Current State
+               </Button>
+               <Button
+                 onClick={async () => {
+                   const accountNumber = getAccountNumber();
+                   if (accountNumber) {
+                     console.log('=== TESTING API ENDPOINT ===');
+                     console.log('Testing API call to:', `/api/customers/fetch-by-account?accountNumber=${accountNumber}`);
+                     try {
+                       const response = await fetch(`/api/customers/fetch-by-account?accountNumber=${accountNumber}`);
+                       console.log('API Response status:', response.status);
+                       console.log('API Response ok:', response.ok);
+                       const data = await response.json();
+                       console.log('API Response data:', data);
+                     } catch (error) {
+                       console.error('API Test Error:', error);
+                     }
+                   }
+                 }}
+                 variant="outline"
+                 size="sm"
+               >
+                 Test API Endpoint
+               </Button>
+               <Button
+                 onClick={() => {
+                   console.log('=== TESTING FORM UPDATE ===');
+                   const testCustomerData = {
+                     trading_name: 'Test Company',
+                     company: 'Test Company Ltd',
+                     legal_name: 'Test Company Legal',
+                     email: 'test@example.com',
+                     cell_no: '+27123456789',
+                     switchboard: '+27123456789',
+                     physical_address_1: '123 Test Street',
+                     physical_area: 'Test Area',
+                     physical_province: 'Test Province',
+                     physical_code: '1234'
+                   };
+                   
+                   console.log('Setting test customer data:', testCustomerData);
+                   setFetchedCustomerData(testCustomerData);
+                   
+                   // Also manually update form data
+                   setFormData(prev => ({
+                     ...prev,
+                     customerName: testCustomerData.trading_name,
+                     customerEmail: testCustomerData.email,
+                     customerPhone: testCustomerData.cell_no,
+                     customerAddress: `${testCustomerData.physical_address_1}, ${testCustomerData.physical_area}, ${testCustomerData.physical_province} ${testCustomerData.physical_code}`
+                   }));
+                   
+                   console.log('Test customer data set');
+                 }}
+                 variant="outline"
+                 size="sm"
+               >
+                                  Test Form Update
+               </Button>
+               <Button
+                 onClick={() => {
+                   console.log('=== CURRENT FORM DATA ===');
+                   console.log('Form Data:', formData);
+                   console.log('Fetched Customer Data:', fetchedCustomerData);
+                   console.log('Customer Data Loading:', customerDataLoading);
+                 }}
+                 variant="outline"
+                 size="sm"
+               >
+                 Show Form Data
+               </Button>
+               </div>
+             </div>
+           </div>
 
         {submitError && (
           <div className="bg-red-50 mb-4 p-4 border border-red-200 rounded-lg">

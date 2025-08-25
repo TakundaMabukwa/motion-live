@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AccountsTopBar from '@/components/accounts/AccountsTopBar';
 import AccountsContent from '@/components/accounts/AccountsContent';
+import { AccountsProvider } from '@/contexts/AccountsContext';
 
 function AccountsLayoutContent() {
   const searchParams = useSearchParams();
@@ -37,7 +38,9 @@ function AccountsLayoutContent() {
 export default function AccountsLayout() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <AccountsLayoutContent />
+      <AccountsProvider>
+        <AccountsLayoutContent />
+      </AccountsProvider>
     </Suspense>
   );
 }

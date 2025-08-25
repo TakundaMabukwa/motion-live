@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const accountNumber = searchParams.get('account_number');
+    const accountNumber = searchParams.get('account_number') || searchParams.get('accountNumber');
     const status = searchParams.get('status');
 
     let query = supabase
@@ -162,6 +162,7 @@ export async function GET(request: NextRequest) {
 
     // Only filter by account number if specifically provided
     if (accountNumber && accountNumber.trim() !== '') {
+      console.log('Filtering quotes by account number:', accountNumber);
       query = query.eq('new_account_number', accountNumber);
     }
     if (status) {
@@ -177,6 +178,8 @@ export async function GET(request: NextRequest) {
         details: error.message 
       }, { status: 500 });
     }
+
+    console.log(`Found ${data?.length || 0} quotes for account ${accountNumber || 'all accounts'}`);
 
     return NextResponse.json({
       success: true,

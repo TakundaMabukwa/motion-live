@@ -15,12 +15,18 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
+    const accountNumber = searchParams.get('account_number');
 
-    // Get all job cards data
+    // Get job cards data with optional filtering
     let query = supabase
       .from('job_cards')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // Filter by account number if provided
+    if (accountNumber) {
+      query = query.eq('new_account_number', accountNumber);
+    }
 
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
@@ -33,9 +39,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count for pagination
-    const { count } = await supabase
+    let countQuery = supabase
       .from('job_cards')
       .select('*', { count: 'exact', head: true });
+    
+    if (accountNumber) {
+      countQuery = countQuery.eq('new_account_number', accountNumber);
+    }
+
+    const { count } = await countQuery;
 
     return NextResponse.json({
       job_cards: data || [],
@@ -81,6 +93,7 @@ export async function POST(request: NextRequest) {
       
       // Customer information
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
+      new_account_number: body.newAccountNumber || body.new_account_number || null, // Include new_account_number field
       customer_name: body.customerName || body.customer_name || '',
       customer_email: body.customerEmail || body.customer_email || '',
       customer_phone: body.customerPhone || body.customer_phone || '',

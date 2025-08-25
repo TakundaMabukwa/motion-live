@@ -214,11 +214,12 @@ function AccountDetailPageContent() {
                 </CardContent>
               </Card>
             ) : (
-              <VehicleCards 
-                vehicles={vehicles}
-                selectedVehicle={selectedVehicle}
-                onVehicleSelect={handleVehicleSelect}
-              />
+                          <VehicleCards 
+              vehicles={vehicles}
+              selectedVehicle={selectedVehicle}
+              onVehicleSelect={handleVehicleSelect}
+              accountNumber={customer?.new_account_number}
+            />
             )}
           </div>
         );
@@ -318,7 +319,8 @@ function AccountDetailPageContent() {
               </Button>
             </div>
             <ClientQuoteForm 
-              companyName={customer?.company || customer?.trading_name || customer?.legal_name}
+              customer={customer}
+              vehicles={vehicles}
               accountInfo={customer}
               onQuoteCreated={() => {
                 setShowClientQuote(false);

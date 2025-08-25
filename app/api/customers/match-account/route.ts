@@ -20,9 +20,9 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching customer data for account number:', accountNumber);
 
-    // Get customer data from vehicles_ip table where new_account_number matches
-    const { data: vehicles, error } = await supabase
-      .from('vehicles_ip')
+    // Get customer data from customers table where new_account_number matches
+    const { data: customers, error } = await supabase
+      .from('customers')
       .select('*')
       .eq('new_account_number', accountNumber)
       .limit(1);
@@ -32,24 +32,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch customer data' }, { status: 500 });
     }
 
-    if (!vehicles || vehicles.length === 0) {
+    if (!customers || customers.length === 0) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Create customer object from vehicle data
-    const vehicle = vehicles[0];
-    const customer = {
-      id: accountNumber,
-      new_account_number: accountNumber,
-      company: vehicle.company || 'Unknown Company',
-      trading_name: vehicle.company || vehicle.trading_name || 'Unknown Company',
-      email: vehicle.email || '',
-      cell_no: vehicle.cell_no || vehicle.phone || '',
-      switchboard: vehicle.switchboard || vehicle.phone || '',
-      physical_address: vehicle.physical_address || vehicle.address || '',
-      postal_address: vehicle.postal_address || vehicle.address || '',
-      // Add other fields as needed
-    };
+    // Return customer data from customers table
+    const customer = customers[0];
+    
+    console.log('Customer data found:', customer);
+    console.log('Available customer fields:', Object.keys(customer));
 
     return NextResponse.json({ 
       success: true,

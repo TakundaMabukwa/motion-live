@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar } from 'lucide-react';
+import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
+import DueReportComponent from '@/components/inv/components/due-report';
+import InvoiceReportComponent from '@/components/inv/components/invoice-report';
+
 
 export default function ClientCostCentersPage() {
   const params = useParams();
@@ -29,6 +32,11 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenters, setSelectedCostCenters] = useState([]);
   const [payAllAmount, setPayAllAmount] = useState('');
   const [payAllReference, setPayAllReference] = useState('');
+  const [generatingReport, setGeneratingReport] = useState({});
+  const [showDueReport, setShowDueReport] = useState(false);
+  const [selectedCostCenterForReport, setSelectedCostCenterForReport] = useState(null);
+  const [showInvoiceReport, setShowInvoiceReport] = useState(false);
+  const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
 
   useEffect(() => {
     if (code) {
@@ -371,6 +379,393 @@ export default function ClientCostCentersPage() {
         }
       }
 
+  // Handle Due for All Cost Centers
+  const handleDueForAllCostCenters = async () => {
+    try {
+      // Create a new window with the comprehensive due report
+      const printWindow = window.open('', '_blank');
+      
+      // Calculate totals for all cost centers
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0);
+      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + cc.monthlyAmount, 0);
+      const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
+      
+      // Create the print HTML with proper styling
+      const printHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Due Report - All Cost Centers - ${clientLegalName}</title>
+            <style>
+              @media print {
+                @page {
+                  size: A4;
+                  margin: 20mm;
+                }
+              }
+              
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: white;
+              }
+              
+              .company-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #3b82f6;
+                margin-bottom: 30px;
+              }
+              
+              .company-info {
+                display: flex;
+                align-items: flex-start;
+                gap: 20px;
+              }
+              
+              .company-logo {
+                width: 120px;
+                height: 120px;
+              }
+              
+              .company-details h2 {
+                color: #3b82f6;
+                font-size: 24px;
+                margin: 0 0 10px 0;
+              }
+              
+              .company-details p {
+                margin: 5px 0;
+                color: #6b7280;
+              }
+              
+              .statement-header {
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #d1d5db;
+                margin-bottom: 20px;
+              }
+              
+              .statement-header h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .client-info {
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #d1d5db;
+                margin-bottom: 20px;
+              }
+              
+              .client-info h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .client-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+              }
+              
+              .client-grid label {
+                font-weight: 600;
+                color: #374151;
+                font-size: 12px;
+                text-transform: uppercase;
+              }
+              
+              .client-grid p {
+                margin: 5px 0;
+                color: #111827;
+                font-weight: 600;
+              }
+              
+              .table-section h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .due-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+              }
+              
+              .due-table th {
+                background: #f3f4f6;
+                padding: 12px;
+                text-align: left;
+                border: 1px solid #d1d5db;
+                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+              }
+              
+              .due-table td {
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                font-size: 12px;
+              }
+              
+              .due-table tr:nth-child(even) {
+                background: #f9fafb;
+              }
+              
+              .total-outstanding {
+                background: #fef3c7;
+                padding: 20px;
+                border: 2px solid #f59e0b;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                text-align: center;
+              }
+              
+              .total-outstanding h3 {
+                margin: 0 0 15px 0;
+                color: #92400e;
+              }
+              
+              .total-outstanding p {
+                margin: 0;
+                font-size: 24px;
+                font-weight: bold;
+                color: #92400e;
+              }
+              
+              .summary-section {
+                background: #f8fafc;
+                padding: 30px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                margin-bottom: 30px;
+              }
+              
+              .summary-section h3 {
+                margin: 0 0 20px 0;
+                color: #374151;
+                text-align: center;
+              }
+              
+              .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+              }
+              
+              .summary-box {
+                text-align: center;
+                padding: 20px;
+                border-radius: 8px;
+                color: white;
+              }
+              
+              .summary-box.red {
+                background: #ef4444;
+              }
+              
+              .summary-box.green {
+                background: #22c55e;
+              }
+              
+              .summary-box.blue {
+                background: #3b82f6;
+              }
+              
+              .summary-box label {
+                display: block;
+                margin-bottom: 10px;
+                font-size: 14px;
+                font-weight: 600;
+              }
+              
+              .summary-box p {
+                margin: 0;
+                font-size: 20px;
+                font-weight: bold;
+              }
+              
+              .footer {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+                padding-top: 30px;
+                border-top: 1px solid #d1d5db;
+                margin-top: 30px;
+              }
+              
+              .footer h4 {
+                margin: 0 0 10px 0;
+                color: #374151;
+                font-size: 14px;
+              }
+              
+              .footer p {
+                margin: 5px 0;
+                color: #6b7280;
+                font-size: 12px;
+              }
+              
+              @media print {
+                .download-btn {
+                  display: none;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="company-header">
+              <div class="company-info">
+                <img src="/soltrack_logo.png" alt="Soltrack Logo" class="company-logo" />
+                <div class="company-details">
+                  <h2>Soltrack (PTY) LTD</h2>
+                  <p>VEHICLE BUREAU SERVICE</p>
+                  <p>Reg No: 2018/095975/07</p>
+                  <p>VAT No: 4580161802</p>
+                </div>
+              </div>
+              <div class="statement-header">
+                <h3>COMPREHENSIVE DUE REPORT: ${clientLegalName}</h3>
+                <p>Date: ${new Date().toLocaleDateString()}</p>
+                <p>Total Cost Centers: ${costCentersWithPayments.length}</p>
+              </div>
+            </div>
+            
+            <div class="client-info">
+              <h3>Client Information</h3>
+              <div class="client-grid">
+                <div>
+                  <label>Client Name:</label>
+                  <p>${clientLegalName}</p>
+                </div>
+                <div>
+                  <label>Report Date:</label>
+                  <p>${new Date().toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <label>Total Cost Centers:</label>
+                  <p>${costCentersWithPayments.length}</p>
+                </div>
+                <div>
+                  <label>Total Vehicles:</label>
+                  <p>${costCentersWithPayments.reduce((sum, cc) => sum + cc.vehicleCount, 0)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-section">
+              <h3>All Cost Centers Due Report</h3>
+              <table class="due-table">
+                <thead>
+                  <tr>
+                    <th>Account Name</th>
+                    <th>Account Number</th>
+                    <th>Monthly Amount</th>
+                    <th>Amount Due</th>
+                    <th>First Month</th>
+                    <th>Overdue</th>
+                    <th>Vehicles</th>
+                    <th>Total Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${costCentersWithPayments.map((costCenter, index) => `
+                    <tr>
+                      <td>${costCenter.accountName || 'N/A'}</td>
+                      <td>${costCenter.accountNumber}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.monthlyAmount)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.amountDue)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.firstMonth || 0)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.overdue || 0)}</td>
+                      <td>${costCenter.vehicleCount}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.totalPaid || 0)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="total-outstanding">
+              <h3>Total Outstanding for All Cost Centers</h3>
+              <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstanding)}</p>
+            </div>
+            
+            <div class="summary-section">
+              <h3>Financial Summary</h3>
+              <div class="summary-grid">
+                <div class="summary-box red">
+                  <label>Total Amount Due</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstanding)}</p>
+                </div>
+                <div class="summary-box green">
+                  <label>Total Paid</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalPaid)}</p>
+                </div>
+                <div class="summary-box blue">
+                  <label>Total Monthly</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalMonthly)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <div>
+                <h4>Head Office:</h4>
+                <p>8 Viscount Road</p>
+                <p>Viscount office park, Block C unit 4 & 5</p>
+                <p>Bedfordview, 2008</p>
+              </div>
+              <div>
+                <h4>Postal Address:</h4>
+                <p>P.O Box 95603</p>
+                <p>Grant Park 2051</p>
+              </div>
+              <div>
+                <h4>Contact Details:</h4>
+                <p>Phone: 011 824 0066</p>
+                <p>Email: sales@soltrack.co.za</p>
+                <p>Website: www.soltrack.co.za</p>
+              </div>
+              <div>
+                <h4>Soltrack (PTY) LTD:</h4>
+                <p>Nedbank Northrand</p>
+                <p>Code - 146905</p>
+                <p>A/C No. - 1469109069</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      // Write the HTML to the new window
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+      
+      // Wait for content to load, then print
+      printWindow.onload = function() {
+        printWindow.print();
+        // Close the window after printing
+        setTimeout(() => {
+          printWindow.close();
+        }, 1000);
+      };
+      
+    } catch (error) {
+      console.error('Error generating due report for all cost centers:', error);
+      toast({
+        variant: "destructive",
+        title: "Report Generation Failed",
+        description: "Failed to generate due report for all cost centers. Please try again.",
+      });
+    }
+  };
+
       if (successCount > 0) {
         const message = successCount === selectedCostCentersToPay.length
           ? `Successfully processed payments for all ${successCount} cost centers! Total amount: ${formatCurrency(amount)}`
@@ -403,6 +798,393 @@ export default function ClientCostCentersPage() {
       });
     } finally {
       setProcessingPayment(false);
+    }
+  };
+
+  // Handle Due for All Cost Centers
+  const handleDueForAllCostCenters = async () => {
+    try {
+      // Create a new window with the comprehensive due report
+      const printWindow = window.open('', '_blank');
+      
+      // Calculate totals for all cost centers
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0);
+      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + cc.monthlyAmount, 0);
+      const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
+      
+      // Create the print HTML with proper styling
+      const printHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Due Report - All Cost Centers - ${clientLegalName}</title>
+            <style>
+              @media print {
+                @page {
+                  size: A4;
+                  margin: 20mm;
+                }
+              }
+              
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: white;
+              }
+              
+              .company-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #3b82f6;
+                margin-bottom: 30px;
+              }
+              
+              .company-info {
+                display: flex;
+                align-items: flex-start;
+                gap: 20px;
+              }
+              
+              .company-logo {
+                width: 120px;
+                height: 120px;
+              }
+              
+              .company-details h2 {
+                color: #3b82f6;
+                font-size: 24px;
+                margin: 0 0 10px 0;
+              }
+              
+              .company-details p {
+                margin: 5px 0;
+                color: #6b7280;
+              }
+              
+              .statement-header {
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #d1d5db;
+                margin-bottom: 20px;
+              }
+              
+              .statement-header h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .client-info {
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #d1d5db;
+                margin-bottom: 20px;
+              }
+              
+              .client-info h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .client-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+              }
+              
+              .client-grid label {
+                font-weight: 600;
+                color: #374151;
+                font-size: 12px;
+                text-transform: uppercase;
+              }
+              
+              .client-grid p {
+                margin: 5px 0;
+                color: #111827;
+                font-weight: 600;
+              }
+              
+              .table-section h3 {
+                margin: 0 0 15px 0;
+                color: #374151;
+              }
+              
+              .due-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+              }
+              
+              .due-table th {
+                background: #f3f4f6;
+                padding: 12px;
+                text-align: left;
+                border: 1px solid #d1d5db;
+                font-weight: 600;
+                font-size: 12px;
+                text-transform: uppercase;
+              }
+              
+              .due-table td {
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                font-size: 12px;
+              }
+              
+              .due-table tr:nth-child(even) {
+                background: #f9fafb;
+              }
+              
+              .total-outstanding {
+                background: #fef3c7;
+                padding: 20px;
+                border: 2px solid #f59e0b;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                text-align: center;
+              }
+              
+              .total-outstanding h3 {
+                margin: 0 0 15px 0;
+                color: #92400e;
+              }
+              
+              .total-outstanding p {
+                margin: 0;
+                font-size: 24px;
+                font-weight: bold;
+                color: #92400e;
+              }
+              
+              .summary-section {
+                background: #f8fafc;
+                padding: 30px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                margin-bottom: 30px;
+              }
+              
+              .summary-section h3 {
+                margin: 0 0 20px 0;
+                color: #374151;
+                text-align: center;
+              }
+              
+              .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+              }
+              
+              .summary-box {
+                text-align: center;
+                padding: 20px;
+                border-radius: 8px;
+                color: white;
+              }
+              
+              .summary-box.red {
+                background: #ef4444;
+              }
+              
+              .summary-box.green {
+                background: #22c55e;
+              }
+              
+              .summary-box.blue {
+                background: #3b82f6;
+              }
+              
+              .summary-box label {
+                display: block;
+                margin-bottom: 10px;
+                font-size: 14px;
+                font-weight: 600;
+              }
+              
+              .summary-box p {
+                margin: 0;
+                font-size: 20px;
+                font-weight: bold;
+              }
+              
+              .footer {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+                padding-top: 30px;
+                border-top: 1px solid #d1d5db;
+                margin-top: 30px;
+              }
+              
+              .footer h4 {
+                margin: 0 0 10px 0;
+                color: #374151;
+                font-size: 14px;
+              }
+              
+              .footer p {
+                margin: 5px 0;
+                color: #6b7280;
+                font-size: 12px;
+              }
+              
+              @media print {
+                .download-btn {
+                  display: none;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="company-header">
+              <div class="company-info">
+                <img src="/soltrack_logo.png" alt="Soltrack Logo" class="company-logo" />
+                <div class="company-details">
+                  <h2>Soltrack (PTY) LTD</h2>
+                  <p>VEHICLE BUREAU SERVICE</p>
+                  <p>Reg No: 2018/095975/07</p>
+                  <p>VAT No: 4580161802</p>
+                </div>
+              </div>
+              <div class="statement-header">
+                <h3>COMPREHENSIVE DUE REPORT: ${clientLegalName}</h3>
+                <p>Date: ${new Date().toLocaleDateString()}</p>
+                <p>Total Cost Centers: ${costCentersWithPayments.length}</p>
+              </div>
+            </div>
+            
+            <div class="client-info">
+              <h3>Client Information</h3>
+              <div class="client-grid">
+                <div>
+                  <label>Client Name:</label>
+                  <p>${clientLegalName}</p>
+                </div>
+                <div>
+                  <label>Report Date:</label>
+                  <p>${new Date().toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <label>Total Cost Centers:</label>
+                  <p>${costCentersWithPayments.length}</p>
+                </div>
+                <div>
+                  <label>Total Vehicles:</label>
+                  <p>${costCentersWithPayments.reduce((sum, cc) => sum + cc.vehicleCount, 0)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="table-section">
+              <h3>All Cost Centers Due Report</h3>
+              <table class="due-table">
+                <thead>
+                  <tr>
+                    <th>Account Name</th>
+                    <th>Account Number</th>
+                    <th>Monthly Amount</th>
+                    <th>Amount Due</th>
+                    <th>First Month</th>
+                    <th>Overdue</th>
+                    <th>Vehicles</th>
+                    <th>Total Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${costCentersWithPayments.map((costCenter, index) => `
+                    <tr>
+                      <td>${costCenter.accountName || 'N/A'}</td>
+                      <td>${costCenter.accountNumber}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.monthlyAmount)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.amountDue)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.firstMonth || 0)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.overdue || 0)}</td>
+                      <td>${costCenter.vehicleCount}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.totalPaid || 0)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="total-outstanding">
+              <h3>Total Outstanding for All Cost Centers</h3>
+              <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstanding)}</p>
+            </div>
+            
+            <div class="summary-section">
+              <h3>Financial Summary</h3>
+              <div class="summary-grid">
+                <div class="summary-box red">
+                  <label>Total Amount Due</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstanding)}</p>
+                </div>
+                <div class="summary-box green">
+                  <label>Total Paid</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalPaid)}</p>
+                </div>
+                <div class="summary-box blue">
+                  <label>Total Monthly</label>
+                  <p>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalMonthly)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="footer">
+              <div>
+                <h4>Head Office:</h4>
+                <p>8 Viscount Road</p>
+                <p>Viscount office park, Block C unit 4 & 5</p>
+                <p>Bedfordview, 2008</p>
+              </div>
+              <div>
+                <h4>Postal Address:</h4>
+                <p>P.O Box 95603</p>
+                <p>Grant Park 2051</p>
+              </div>
+              <div>
+                <h4>Contact Details:</h4>
+                <p>Phone: 011 824 0066</p>
+                <p>Email: sales@soltrack.co.za</p>
+                <p>Website: www.soltrack.co.za</p>
+              </div>
+              <div>
+                <h4>Soltrack (PTY) LTD:</h4>
+                <p>Nedbank Northrand</p>
+                <p>Code - 146905</p>
+                <p>A/C No. - 1469109069</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+      
+      // Write the HTML to the new window
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+      
+      // Wait for content to load, then print
+      printWindow.onload = function() {
+        printWindow.print();
+        // Close the window after printing
+        setTimeout(() => {
+          printWindow.close();
+        }, 1000);
+      };
+      
+    } catch (error) {
+      console.error('Error generating due report for all cost centers:', error);
+      toast({
+        variant: "destructive",
+        title: "Report Generation Failed",
+        description: "Failed to generate due report for all cost centers. Please try again.",
+      });
     }
   };
 
@@ -587,6 +1369,254 @@ export default function ClientCostCentersPage() {
     }
   }, [filteredCostCenters]);
 
+  // Show Due Report Component (replaces PDF generation)
+  const handleShowDueReport = async (costCenter) => { // Renamed function
+    try {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
+      const response = await fetch(`/api/payments/by-account?accountNumber=${costCenter.accountNumber}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment data');
+      }
+      
+      const paymentData = await response.json();
+      const payment = paymentData.payment || {};
+      
+      setSelectedCostCenterForReport({
+        ...costCenter,
+        paymentData: payment
+      });
+      setShowDueReport(true);
+      
+    } catch (error) {
+      console.error('Error fetching payment data:', error);
+      toast({
+        variant: "destructive",
+        title: "Report Generation Failed",
+        description: "Failed to fetch payment data. Please try again.",
+      });
+    } finally {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: false }));
+    }
+  };
+
+  // Generate Invoice PDF
+  const handleGenerateInvoice = async (costCenter) => {
+    try {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
+      
+      // Fetch vehicle invoices data
+      const response = await fetch(`/api/vehicle-invoices-fetch/by-account?accountNumber=${costCenter.accountNumber}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch vehicle invoices data');
+      }
+      
+      const data = await response.json();
+      const vehicleInvoices = data.vehicleInvoices || [];
+      
+      if (vehicleInvoices.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No vehicle invoices found for this account.",
+        });
+        return;
+      }
+      
+      // Generate PDF
+      const doc = new jsPDF('landscape'); // Use landscape for wider table
+      
+      // Header
+      doc.setFontSize(20);
+      doc.text('Soltrack (PTY) LTD', 20, 20);
+      doc.setFontSize(12);
+      doc.text('VEHICLE BUREAU SERVICE', 20, 30);
+      doc.text(`Reg No: 2018/095975/07`, 20, 40);
+      doc.text(`VAT No: 4580161802`, 20, 50);
+      
+      // Invoice Title
+      doc.setFontSize(16);
+      doc.text(`INVOICE - ${costCenter.accountNumber}`, 20, 70);
+      doc.setFontSize(10);
+      doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 80);
+      doc.text(`Client: ${clientLegalName}`, 20, 90);
+      
+      // Table headers - matching the image exactly
+      const headers = ['Previous Reg', 'New Reg', 'Item Code', 'Description', 'Comments', 'Units', 'Unit Price', 'Vat', 'Vat%', 'Total Incl'];
+      const startY = 110;
+      let currentY = startY;
+      
+      // Column widths for landscape mode
+      const colWidths = [25, 35, 30, 35, 40, 15, 25, 20, 20, 25];
+      
+      // Draw table headers
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, currentY - 5, 280, 8, 'F');
+      doc.setFontSize(8);
+      
+      let xPos = 20;
+      headers.forEach((header, index) => {
+        doc.text(header, xPos + 2, currentY);
+        xPos += colWidths[index];
+      });
+      
+      currentY += 10;
+      
+      // Calculate totals
+      let totalExVat = 0;
+      let totalVat = 0;
+      let totalInclVat = 0;
+      
+      // Draw table rows
+      vehicleInvoices.forEach((invoice, index) => {
+        if (currentY > 180) {
+          doc.addPage('landscape');
+          currentY = 20;
+        }
+        
+        const exVat = parseFloat(invoice.total_ex_vat) || 0;
+        const vat = parseFloat(invoice.total_vat) || 0;
+        const inclVat = parseFloat(invoice.total_incl_vat) || 0;
+        const vatPercentage = exVat > 0 ? ((vat / exVat) * 100).toFixed(2) : '15.00';
+        
+        totalExVat += exVat;
+        totalVat += vat;
+        totalInclVat += inclVat;
+        
+        // Row background - alternating colors
+        doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 248);
+        doc.rect(20, currentY - 5, 280, 8, 'F');
+        
+        // Row data
+        xPos = 20;
+        doc.setFontSize(7);
+        
+        // Previous Reg (using doc_no or empty)
+        doc.text(invoice.doc_no || '-', xPos + 2, currentY);
+        xPos += colWidths[0];
+        
+        // New Reg (using new_account_number)
+        doc.text(invoice.new_account_number || '-', xPos + 2, currentY);
+        xPos += colWidths[1];
+        
+        // Item Code (using stock_code)
+        doc.text(invoice.stock_code || '-', xPos + 2, currentY);
+        xPos += colWidths[2];
+        
+        // Description (using stock_description)
+        const description = (invoice.stock_description || '-').substring(0, 25);
+        doc.text(description, xPos + 2, currentY);
+        xPos += colWidths[3];
+        
+        // Comments (empty for now)
+        doc.text('-', xPos + 2, currentY);
+        xPos += colWidths[4];
+        
+        // Units (hardcoded to 1)
+        doc.text('1', xPos + 2, currentY);
+        xPos += colWidths[5];
+        
+        // Unit Price (using total_ex_vat)
+        doc.text(exVat.toFixed(2), xPos + 2, currentY);
+        xPos += colWidths[6];
+        
+        // Vat (using total_vat)
+        doc.text(vat.toFixed(2), xPos + 2, currentY);
+        xPos += colWidths[7];
+        
+        // Vat% (calculated)
+        doc.text(vatPercentage + '%', xPos + 2, currentY);
+        xPos += colWidths[8];
+        
+        // Total Incl (using total_incl_vat)
+        doc.text(inclVat.toFixed(2), xPos + 2, currentY);
+        
+        currentY += 10;
+      });
+      
+      // Totals section
+      currentY += 5;
+      doc.setFontSize(10);
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, currentY - 5, 280, 8, 'F');
+      
+      // Fill totals row with data
+      xPos = 20;
+      doc.text('TOTALS:', xPos + 2, currentY);
+      xPos += colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4] + colWidths[5];
+      doc.text(totalExVat.toFixed(2), xPos + 2, currentY);
+      xPos += colWidths[6];
+      doc.text(totalVat.toFixed(2), xPos + 2, currentY);
+      xPos += colWidths[7];
+      doc.text('15.00%', xPos + 2, currentY);
+      xPos += colWidths[8];
+      doc.text(totalInclVat.toFixed(2), xPos + 2, currentY);
+      
+      // Footer
+      currentY += 20;
+      doc.setFontSize(8);
+      doc.text('Head Office: 8 Viscount Road, Viscount office park, Block C unit 4 & 5, Bedfordview, 2008', 20, currentY);
+      currentY += 5;
+      doc.text('Postal: P.O Box 95603, Grant Park 2051 | Phone: 011 824 0066 | Email: sales@soltrack.co.za', 20, currentY);
+      
+      // Save PDF
+      doc.save(`invoice-${costCenter.accountNumber}-${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      toast({
+        title: "Invoice Generated",
+        description: `Invoice PDF has been generated successfully.`,
+      });
+      
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      toast({
+        variant: "destructive",
+        title: "Invoice Generation Failed",
+        description: "Failed to generate invoice. Please try again.",
+      });
+    } finally {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: false }));
+    }
+  };
+
+  // Show Invoice Report Component
+  const handleShowInvoiceReport = async (costCenter) => {
+    try {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
+      
+      // Fetch vehicle invoices data
+      const response = await fetch(`/api/vehicle-invoices-fetch/by-account?accountNumber=${costCenter.accountNumber}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch vehicle invoices data');
+      }
+      
+      const data = await response.json();
+      const vehicleInvoices = data.vehicleInvoices || [];
+      
+      if (vehicleInvoices.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No vehicle invoices found for this account.",
+        });
+        return;
+      }
+      
+      setSelectedCostCenterForInvoice({
+        ...costCenter,
+        vehicleInvoices: vehicleInvoices
+      });
+      setShowInvoiceReport(true);
+      
+    } catch (error) {
+      console.error('Error fetching vehicle invoices data:', error);
+      toast({
+        variant: "destructive",
+        title: "Invoice Report Failed",
+        description: "Failed to fetch vehicle invoices data. Please try again.",
+      });
+    } finally {
+      setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: false }));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center bg-gray-50 min-h-screen">
@@ -668,6 +1698,16 @@ export default function ClientCostCentersPage() {
               <div className="font-bold text-red-600 text-2xl">
                 {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
               </div>
+              <p className={`mt-1 text-xs font-medium ${
+                costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  ? 'text-red-600' 
+                  : 'text-green-600'
+              }`}>
+                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  ? 'Due / Not Paid' 
+                  : 'Paid in Full'
+                }
+              </p>
               <p className="mt-1 text-gray-500 text-xs">From payments table</p>
             </CardContent>
           </Card>
@@ -716,6 +1756,16 @@ export default function ClientCostCentersPage() {
               <div className="font-bold text-orange-600 text-2xl">
                 {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
               </div>
+              <p className={`mt-1 text-xs font-medium ${
+                costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  ? 'text-orange-600' 
+                  : 'text-green-600'
+              }`}>
+                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  ? 'Due / Not Paid' 
+                  : 'Paid in Full'
+                }
+              </p>
               <p className="mt-1 text-gray-500 text-xs">Amount due from payments table</p>
             </CardContent>
           </Card>
@@ -729,6 +1779,16 @@ export default function ClientCostCentersPage() {
                 <div className="font-bold text-gray-900 text-lg">
                   {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
                 </div>
+                <p className={`text-xs font-medium ${
+                  costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                    ? 'text-red-600' 
+                    : 'text-green-600'
+                }`}>
+                  {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                    ? 'Due / Not Paid' 
+                    : 'Paid in Full'
+                  }
+                </p>
                 <p className="text-gray-500 text-xs">Total Amount Due</p>
               </div>
             </CardContent>
@@ -772,6 +1832,8 @@ export default function ClientCostCentersPage() {
           </CardContent>
         </Card>
 
+
+
         {/* Cost Centers Table */}
         <Card className="bg-white shadow-lg border-2 border-gray-200">
           <CardHeader className="bg-gray-50 border-gray-200 border-b">
@@ -781,15 +1843,25 @@ export default function ClientCostCentersPage() {
                 <p className="mt-1 text-gray-600 text-sm">Individual cost centers with company names and account codes for this client</p>
               </div>
               <div className="text-right">
-                <Button
-                  onClick={() => handlePayAllCostCenters()}
-                  size="sm"
-                  disabled={costCentersWithPayments.filter(cc => cc.amountDue > 0).length === 0}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                >
-                  <CreditCard className="mr-2 w-4 h-4" />
-                  Pay All
-                </Button>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    onClick={() => handlePayAllCostCenters()}
+                    size="sm"
+                    disabled={costCentersWithPayments.filter(cc => cc.amountDue > 0).length === 0}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    <CreditCard className="mr-2 w-4 h-4" />
+                    Pay All
+                  </Button>
+                  <Button
+                    onClick={() => handleDueForAllCostCenters()}
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200"
+                  >
+                    <AlertTriangle className="mr-2 w-4 h-4" />
+                    Due for All
+                  </Button>
+                </div>
                 {costCentersWithPayments.filter(cc => cc.amountDue > 0).length > 0 && (
                   <p className="mt-1 text-gray-500 text-xs">
                     Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0))}
@@ -810,6 +1882,7 @@ export default function ClientCostCentersPage() {
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Overdue</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Vehicles</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -829,11 +1902,18 @@ export default function ClientCostCentersPage() {
                         <div className="font-semibold text-gray-900">{formatCurrency(costCenter.monthlyAmount)}</div>
                       </td>
                       <td className="p-4">
-                        <span className={`font-semibold ${
-                          costCenter.amountDue > 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(costCenter.amountDue)}
-                        </span>
+                        <div className="space-y-1">
+                          <span className={`font-semibold ${
+                            costCenter.amountDue > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(costCenter.amountDue)}
+                          </span>
+                          <p className={`text-xs font-medium ${
+                            costCenter.amountDue > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {costCenter.amountDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
+                          </p>
+                        </div>
                       </td>
                       <td className="p-4">
                         <span className="font-semibold text-blue-600">
@@ -861,6 +1941,46 @@ export default function ClientCostCentersPage() {
                           <CreditCard className="mr-2 w-4 h-4" />
                           Pay
                         </Button>
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
+                            onClick={() => handleShowInvoiceReport(costCenter)}
+                            disabled={generatingReport[costCenter.accountNumber]}
+                          >
+                            {generatingReport[costCenter.accountNumber] ? (
+                              <>
+                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
+                                Loading...
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="mr-1 w-3 h-3" />
+                                Invoice
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
+                            onClick={() => handleShowDueReport(costCenter)}
+                            disabled={generatingReport[costCenter.accountNumber]}
+                          >
+                            {generatingReport[costCenter.accountNumber] ? (
+                              <>
+                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
+                                Loading...
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle className="mr-1 w-3 h-3" />
+                                Due
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1209,6 +2329,70 @@ export default function ClientCostCentersPage() {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Due Report Component */}
+      {showDueReport && selectedCostCenterForReport && (
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
+          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
+            {/* Modal Header */}
+            <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
+              <h3 className="font-semibold text-gray-900 text-xl">Due Report - {selectedCostCenterForReport.accountNumber}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowDueReport(false);
+                  setSelectedCostCenterForReport(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto">
+              <DueReportComponent
+                costCenter={selectedCostCenterForReport}
+                clientLegalName={clientLegalName}
+                paymentData={selectedCostCenterForReport.paymentData}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Report Component */}
+      {showInvoiceReport && selectedCostCenterForInvoice && (
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
+          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
+            {/* Modal Header */}
+            <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
+              <h3 className="font-semibold text-gray-900 text-xl">Invoice Report - {selectedCostCenterForInvoice.accountNumber}</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowInvoiceReport(false);
+                  setSelectedCostCenterForInvoice(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto">
+              <InvoiceReportComponent
+                costCenter={selectedCostCenterForInvoice}
+                clientLegalName={clientLegalName}
+                vehicleInvoices={selectedCostCenterForInvoice.vehicleInvoices}
+              />
             </div>
           </div>
         </div>

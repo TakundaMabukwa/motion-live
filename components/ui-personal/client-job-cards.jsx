@@ -101,8 +101,10 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
       case "draft": return "bg-gray-100 text-gray-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "active": return "bg-blue-100 text-blue-800";
+      case "approved": return "bg-green-100 text-green-800";
       case "completed": return "bg-green-100 text-green-800";
       case "cancelled": return "bg-red-100 text-red-800";
+      case "declined": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
@@ -154,7 +156,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
       }
 
       toast.success('Quote approved successfully!', {
-        description: `Quote ${quote.job_number} has been approved and moved to job cards.`
+        description: `Quote ${quote.job_number} has been approved and copied to job cards.`
       });
 
       // Refresh the client quotes list
@@ -172,19 +174,22 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
 
   const handleDeclineQuote = async (quote) => {
     // Confirm before declining
-    if (!confirm(`Are you sure you want to decline quote ${quote.job_number}? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to decline quote ${quote.job_number}?`)) {
       return;
     }
     
     try {
       setDecliningQuote(quote.id);
       
-      // Decline the client quote
+      // Decline the client quote (change status instead of deleting)
       const response = await fetch(`/api/client-quotes/${quote.id}`, {
-        method: 'DELETE',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'decline'
+        }),
       });
 
       if (!response.ok) {
@@ -310,38 +315,20 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
           {isFilterOpen && (
             <div className="right-0 z-10 absolute bg-white shadow-lg mt-2 border border-gray-200 rounded-lg w-48">
               <div className="p-2">
-                <button
-                  onClick={() => setSelectedFilter("all")}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
-                    selectedFilter === "all" ? "bg-blue-50 text-blue-600" : ""
-                  }`}
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  value={selectedFilter}
+                  onChange={(e) => setSelectedFilter(e.target.value)}
                 >
-                  All Quotes
-                </button>
-                <button
-                  onClick={() => setSelectedFilter("draft")}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
-                    selectedFilter === "draft" ? "bg-blue-50 text-blue-600" : ""
-                  }`}
-                >
-                  Draft
-                </button>
-                <button
-                  onClick={() => setSelectedFilter("pending")}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
-                    selectedFilter === "pending" ? "bg-blue-50 text-blue-600" : ""
-                  }`}
-                >
-                  Pending
-                </button>
-                <button
-                  onClick={() => setSelectedFilter("approved")}
-                  className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
-                    selectedFilter === "approved" ? "bg-blue-50 text-blue-600" : ""
-                  }`}
-                >
-                  Approved
-                </button>
+                  <option value="all">All Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="pending">Pending</option>
+                  <option value="active">Active</option>
+                  <option value="approved">Approved</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="declined">Declined</option>
+                </select>
               </div>
             </div>
           )}
@@ -415,7 +402,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        {quote.status !== 'approved' && (
+                        {quote.status !== 'approved' && quote.status !== 'declined' && (
                           <>
                             <Button
                               variant="outline"
@@ -449,6 +436,11 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                         {quote.status === 'approved' && (
                           <Badge className="bg-green-100 text-green-800">
                             Approved
+                          </Badge>
+                        )}
+                        {quote.status === 'declined' && (
+                          <Badge className="bg-red-100 text-red-800">
+                            Declined
                           </Badge>
                         )}
                       </div>

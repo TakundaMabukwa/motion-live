@@ -23,6 +23,7 @@ import {
   Car
 } from "lucide-react";
 import { toast } from "sonner";
+import EnhancedCustomerDetails from './EnhancedCustomerDetails';
 
 export default function DeInstallationForm({ companyName, accountInfo, onDeInstallationComplete }) {
   const [step, setStep] = useState(1);
@@ -32,6 +33,7 @@ export default function DeInstallationForm({ companyName, accountInfo, onDeInsta
   const [vehicleProducts, setVehicleProducts] = useState({}); // Map of vehicleId to products
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
   const [quoteData, setQuoteData] = useState({
     customerName: accountInfo?.company_trading_name || accountInfo?.company || companyName || "",
     customerEmail: accountInfo?.email || "",
@@ -93,6 +95,12 @@ export default function DeInstallationForm({ companyName, accountInfo, onDeInsta
   const handleStockReceivedChange = (value) => {
     setStockReceived(value === 'yes');
     setStep(2);
+  };
+
+  const handleVehiclesSelectedFromDetails = (vehicles) => {
+    setSelectedVehiclesFromDetails(vehicles);
+    // Update the selectedVehicles with IDs
+    setSelectedVehicles(vehicles.map(v => v.id));
   };
 
   const handleVehicleSelection = (vehicleId, checked) => {
@@ -224,40 +232,51 @@ export default function DeInstallationForm({ companyName, accountInfo, onDeInsta
   };
 
   const renderStep1 = () => (
-    <Card className="mx-auto w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Wrench className="w-5 h-5" />
-          De-Installation Process
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4 text-center">
-          <div className="flex justify-center items-center bg-blue-100 mx-auto rounded-full w-16 h-16">
-            <Wrench className="w-8 h-8 text-blue-600" />
+    <div className="space-y-6">
+      <Card className="mx-auto w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="w-5 h-5" />
+            De-Installation Process
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-4 text-center">
+            <div className="flex justify-center items-center bg-blue-100 mx-auto rounded-full w-16 h-16">
+              <Wrench className="w-8 h-8 text-blue-600" />
+            </div>
+            <h3 className="font-semibold text-xl">Stock Received?</h3>
+            <p className="text-gray-600">Has stock been received for de-installation?</p>
           </div>
-          <h3 className="font-semibold text-xl">Stock Received?</h3>
-          <p className="text-gray-600">Has stock been received for de-installation?</p>
-        </div>
 
-        <div className="flex justify-center space-x-4">
-          <Button 
-            onClick={() => handleStockReceivedChange('yes')}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <CheckCircle className="mr-2 w-4 h-4" />
-            Yes, Stock Received
-          </Button>
-          <Button 
-            onClick={() => handleStockReceivedChange('no')}
-            variant="outline"
-          >
-            <X className="mr-2 w-4 h-4" />
-            No Stock Received
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex justify-center space-x-4">
+            <Button 
+              onClick={() => handleStockReceivedChange('yes')}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="mr-2 w-4 h-4" />
+              Yes, Stock Received
+            </Button>
+            <Button 
+              onClick={() => handleStockReceivedChange('no')}
+              variant="outline"
+            >
+              <X className="mr-2 w-4 h-4" />
+              No Stock Received
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Enhanced Customer Details for De-installation */}
+      <EnhancedCustomerDetails
+        formData={quoteData}
+        setFormData={setQuoteData}
+        accountInfo={accountInfo}
+        onVehiclesSelected={handleVehiclesSelectedFromDetails}
+        isDeinstall={true}
+      />
+    </div>
   );
 
   const renderStep2 = () => (

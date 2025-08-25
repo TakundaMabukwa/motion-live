@@ -138,7 +138,7 @@ export default function QuotesDashboard() {
         throw new Error(errorData.error || 'Failed to approve quote');
       }
 
-      // Then, move the quote to job_cards table
+      // Then, create a copy in job_cards table (don't move the original)
       const moveResponse = await fetch('/api/job-cards', {
         method: 'POST',
         headers: {
@@ -174,17 +174,20 @@ export default function QuotesDashboard() {
           specialInstructions: quote.special_instructions || quote.quote_notes,
           accessRequirements: '',
           siteContactPerson: '',
-          siteContactPhone: ''
+          siteContactPhone: '',
+          // Include account information if available
+          accountId: quote.account_id || null,
+          newAccountNumber: quote.new_account_number || quote.account_number || null
         }),
       });
 
       if (!moveResponse.ok) {
         const errorData = await moveResponse.json();
-        throw new Error(errorData.error || 'Failed to move quote to job cards');
+        throw new Error(errorData.error || 'Failed to create job card copy');
       }
 
       toast.success('Quote approved successfully!', {
-        description: `Quote ${quote.job_number} has been approved and moved to job cards.`
+        description: `Quote ${quote.job_number} has been approved and copied to job cards.`
       });
 
       // Refresh the quotes list
@@ -248,14 +251,21 @@ export default function QuotesDashboard() {
   const totalQuotes = quotes.length;
   const pendingQuotes = quotes.filter(q => q.job_status === 'pending').length;
   const approvedQuotes = quotes.filter(q => q.job_status === 'approved').length;
+  const declinedQuotes = quotes.filter(q => q.job_status === 'rejected').length;
   const totalValue = quotes.reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
+  const approvedValue = quotes
+    .filter(q => q.job_status === 'approved')
+    .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
+  const declinedValue = quotes
+    .filter(q => q.job_status === 'rejected')
+    .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
 
   if (loading) {
     return (
       <div className="space-y-6 p-6">
         <DashboardHeader
-          title="Quotes"
-          subtitle="Manage your sales quotes and proposals"
+          title="Client Quotes"
+          subtitle="View approved and declined quotes with their valuations"
           icon={FileText}
           actionButton={{
             label: "Create Quote",
@@ -332,8 +342,8 @@ export default function QuotesDashboard() {
             <FileText className="w-4 h-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="font-bold text-2xl">{totalQuotes}</div>
-            <p className="text-muted-foreground text-xs">All time quotes</p>
+            <div className="font-bold text-blue-600 text-2xl">{totalQuotes}</div>
+            <p className="text-muted-foreground text-xs">All quotes</p>
           </CardContent>
         </Card>
         <Card>
@@ -354,17 +364,24 @@ export default function QuotesDashboard() {
           <CardContent>
             <div className="font-bold text-green-600 text-2xl">{approvedQuotes}</div>
             <p className="text-muted-foreground text-xs">Moved to job cards</p>
+            <div className="font-bold text-green-600 text-lg mt-1">
+              {approvedValue >= 1000000 ? `R${(approvedValue / 1000000).toFixed(1)}M` : `R${(approvedValue / 1000).toFixed(1)}K`}
+            </div>
+            <p className="text-muted-foreground text-xs">Total valuation</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-            <CardTitle className="font-medium text-sm">Total Value</CardTitle>
+            <CardTitle className="font-medium text-sm">Declined</CardTitle>
+            <AlertCircle className="w-4 h-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="font-bold text-purple-600 text-2xl">
-              {totalValue >= 1000000 ? `R${(totalValue / 1000000).toFixed(1)}M` : `R${(totalValue / 1000).toFixed(1)}K`}
+            <div className="font-bold text-red-600 text-2xl">{declinedQuotes}</div>
+            <p className="text-muted-foreground text-xs">Rejected quotes</p>
+            <div className="font-bold text-red-600 text-lg mt-1">
+              {declinedValue >= 1000000 ? `R${(declinedValue / 1000000).toFixed(1)}M` : `R${(declinedValue / 1000).toFixed(1)}K`}
             </div>
-            {/* <p className="text-muted-foreground text-xs">Combined value</p> */}
+            <p className="text-muted-foreground text-xs">Total valuation</p>
           </CardContent>
         </Card>
       </div>
@@ -374,7 +391,7 @@ export default function QuotesDashboard() {
         <div className="flex-1">
           <Input
             type="text"
-            placeholder="Search quotes by job number, customer, or email..."
+            placeholder="Search client quotes by job number, customer, or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
@@ -399,7 +416,7 @@ export default function QuotesDashboard() {
                     selectedFilter === "all" ? "bg-blue-50 text-blue-600" : ""
                   }`}
                 >
-                  All Quotes
+                  All Client Quotes
                 </button>
                 <button
                   onClick={() => setSelectedFilter("draft")}
@@ -435,10 +452,10 @@ export default function QuotesDashboard() {
         </Button>
       </div>
 
-      {/* Quotes Table */}
+      {/* Client Quotes Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Quotes</CardTitle>
+          <CardTitle>Client Quotes</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -526,17 +543,17 @@ export default function QuotesDashboard() {
           <CardContent className="p-8">
             <div className="text-center">
               <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No quotes found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No client quotes found</h3>
               <p className="text-gray-500 mb-4">
                 {searchTerm || selectedFilter !== "all" 
                   ? "Try adjusting your search or filter criteria."
-                  : "Get started by creating your first quote."
+                  : "Get started by creating your first client quote."
                 }
               </p>
               {!searchTerm && selectedFilter === "all" && (
                 <Button onClick={handleNewQuote} className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4 mr-2" />
-                  Create First Quote
+                  Create First Client Quote
                 </Button>
               )}
             </div>
