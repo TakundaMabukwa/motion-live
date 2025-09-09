@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { redirectToRoleDashboard } from "@/lib/auth-utils";
 
 export function LoginForm({
   className,
@@ -42,25 +43,25 @@ export function LoginForm({
       if (authError) throw authError;
       if (!user) throw new Error("Authentication failed");
 
-      // Get user role from users table
+      // Get user data from users table including first_login status
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('role')
+        .select('role, first_login')
         .eq('id', user.id)
         .single();
 
       if (userError) throw userError;
       if (!userData?.role) throw new Error("Role not assigned");
 
-      // Redirect to role-specific dashboard
-      const rolePath = userData.role.toLowerCase();
-      const allowedRoles = ['accounts', 'admin', 'fc', 'inv', 'master', 'tech'];
-
-      if (allowedRoles.includes(rolePath)) {
-        router.push(`/protected/${rolePath}`);
-      } else {
-        router.push('/protected');
+      // Check if this is a first-time login
+      if (userData.first_login === true) {
+        // Redirect to first-time password change page
+        router.push('/auth/first-time-login');
+        return;
       }
+
+      // Redirect to role-specific dashboard using utility function
+      await redirectToRoleDashboard(router, user.id);
 
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An unknown error occurred");

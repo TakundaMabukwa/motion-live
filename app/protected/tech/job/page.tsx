@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { checkAuthSession, handleAuthError } from '@/lib/auth-session-utils';
 import {
   Plus,
   Search,
@@ -91,9 +92,20 @@ export default function Jobs() {
       try {
         setLoading(true);
         
+        // Check authentication session first
+        const hasValidSession = await checkAuthSession(router);
+        if (!hasValidSession) {
+          return;
+        }
+        
         // First, get user info
         const userResponse = await fetch('/api/tech-user-info');
         if (!userResponse.ok) {
+          if (userResponse.status === 401) {
+            console.log('Authentication error: Session missing, redirecting to login');
+            router.push('/auth/login');
+            return;
+          }
           throw new Error('Failed to fetch user info');
         }
         const userData = await userResponse.json();
@@ -139,7 +151,10 @@ export default function Jobs() {
         
       } catch (error) {
         console.error('Error fetching user info and jobs:', error);
+        const handled = await handleAuthError(error, router);
+        if (!handled) {
         toast.error('Failed to load jobs');
+        }
       } finally {
         setLoading(false);
       }
@@ -156,7 +171,15 @@ export default function Jobs() {
 
   // Fetch user info and jobs
   useEffect(() => {
+    const initializePage = async () => {
+      // Check session first
+      const hasValidSession = await checkAuthSession(router);
+      if (hasValidSession) {
     fetchUserInfoAndJobs();
+      }
+    };
+    
+    initializePage();
   }, []);
 
   // Calculate availability based on jobs
@@ -289,7 +312,7 @@ export default function Jobs() {
       });
 
       if (response.ok) {
-        toast.success(`Repair job ${job.job_number} completed successfully!`);
+        toast.success(`Repair job ${job.job_number} completed successfully! Vehicle will be automatically added to inventory.`);
         // Refresh the jobs data
         fetchUserInfoAndJobs();
       } else {
@@ -298,6 +321,31 @@ export default function Jobs() {
     } catch (error) {
       console.error('Error completing repair job:', error);
       toast.error(`Failed to complete repair job: ${error.message}`);
+    }
+  };
+
+  const handleAddVehicleToInventory = async (job: Job) => {
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}/add-vehicle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Vehicle added to inventory successfully!`);
+        // Refresh the jobs data
+        fetchUserInfoAndJobs();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to add vehicle: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error adding vehicle to inventory:', error);
+      toast.error(`Failed to add vehicle to inventory: ${error.message}`);
     }
   };
 
@@ -412,6 +460,16 @@ export default function Jobs() {
                           >
                             <CheckCircle className="w-4 h-4" />
                             Complete Job
+                          </Button>
+                        ) : job.job_status === 'Completed' && !job.vehicle_added_to_inventory ? (
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleAddVehicleToInventory(job)}
+                            className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Package className="w-4 h-4" />
+                            Add to Inventory
                           </Button>
                         ) : (
                           <Button 
@@ -717,4 +775,722 @@ export default function Jobs() {
       />
     </div>
   );
+}
+
+                    </td> */}
+
+                    <td className="p-4">
+
+                      <Badge variant="outline" className={getStatusColor(job.job_status)}>
+
+                        {job.job_status === 'created' ? 'New' : job.job_status}
+
+                      </Badge>
+
+                    </td>
+
+                    {/* <td className="p-4">
+
+                      <div className="flex items-center space-x-2">
+
+                        {isVerified && (
+
+                          <Button
+
+                            size="sm"
+
+                            variant="outline"
+
+                            onClick={() => handleStartJob(job)}
+
+                            className="flex items-center gap-1 hover:bg-blue-50 border-blue-200 text-blue-600"
+
+                            disabled={false} // No photosLoading state
+
+                          >
+
+                            <Play className="w-3 h-3" />
+
+                          </Button>
+
+                        )}
+
+                      </div>
+
+                    </td> */}
+
+                    <td className="p-4">
+
+                      <div className="flex items-center space-x-2">
+
+                        {job.job_type === 'repair' && job.job_status === 'created' ? (
+
+                          <>
+
+                            <Button 
+
+                              size="sm" 
+
+                              variant="outline"
+
+                              onClick={() => handleStartJob(job)}
+
+                              className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+
+                            >
+
+                              <Play className="w-4 h-4" />
+
+                              Start Job
+
+                            </Button>
+
+                            <Button 
+
+                              size="sm" 
+
+                              variant="outline"
+
+                              onClick={() => handleCompleteRepairJob(job)}
+
+                              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+
+                            >
+
+                              <CheckCircle className="w-4 h-4" />
+
+                              Complete
+
+                            </Button>
+
+                          </>
+
+                        ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
+
+                          <Button 
+
+                            size="sm" 
+
+                            variant="outline"
+
+                            onClick={() => handleCompleteRepairJob(job)}
+
+                            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+
+                          >
+
+                            <CheckCircle className="w-4 h-4" />
+
+                            Complete Job
+
+                          </Button>
+
+                        ) : (
+
+                          <Button 
+
+                            size="sm" 
+
+                            variant="outline"
+
+                            onClick={() => handleStartJob(job)}
+
+                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+
+                          >
+
+                            <Play className="w-4 h-4" />
+
+                            Start Job
+
+                          </Button>
+
+                        )}
+
+                      </div>
+
+                    </td>
+
+                  </tr>
+
+                );
+
+              })
+
+            )}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+  );
+
+
+
+  const OnHandTable = ({ jobs }: { jobs: any[] }) => (
+
+    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+
+      <div className="overflow-x-auto">
+
+        <table className="w-full">
+
+          <thead className="bg-slate-50 border-slate-200 border-b">
+
+            <tr>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Job Card</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Odo Reading</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Registration</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Opened</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Last Updated</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Description</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Technician</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Created By</th>
+
+              <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {jobs.length === 0 ? (
+
+              <tr>
+
+                <td colSpan={9} className="py-12 text-slate-500 text-center">
+
+                  No results
+
+                </td>
+
+              </tr>
+
+            ) : (
+
+              jobs.map((job, index) => (
+
+                <tr key={job.jobCard || index} className="hover:bg-slate-50 border-slate-100 border-b transition-colors">
+
+                  <td className="p-4 font-medium text-slate-900">{job.jobCard}</td>
+
+                  <td className="p-4 text-slate-600">{job.odoReading}</td>
+
+                  <td className="p-4 text-slate-600">{job.registration}</td>
+
+                  <td className="p-4 text-slate-600">{job.opened}</td>
+
+                  <td className="p-4 text-slate-600">{job.lastUpdated}</td>
+
+                  <td className="p-4 text-slate-600">{job.description}</td>
+
+                  <td className="p-4 text-slate-600">{job.technician}</td>
+
+                  <td className="p-4 text-slate-600">{job.createdBy}</td>
+
+                  <td className="p-4">
+
+                    <div className="flex items-center space-x-2">
+
+                      <Button size="sm" variant="outline">
+
+                        <Eye className="w-4 h-4" />
+
+                      </Button>
+
+                      <Button size="sm" variant="outline">
+
+                        <Edit className="w-4 h-4" />
+
+                      </Button>
+
+                    </div>
+
+                  </td>
+
+                </tr>
+
+              ))
+
+            )}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+  );
+
+
+
+  return (
+
+    <div className="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+
+      {/* Main Content */}
+
+      <main className="flex-1 p-6">
+
+        <div className="mb-6">
+
+          <div className="flex justify-between items-center">
+
+            <div>
+
+              <h2 className="mb-2 font-bold text-slate-900 text-2xl">My Jobs</h2>
+
+              {userInfo && (
+
+                <p className="text-slate-600">
+
+                  {userInfo.isTechAdmin 
+
+                    ? "Viewing all assigned jobs (Admin Access)" 
+
+                    : `Viewing your assigned jobs (${userInfo.user.email})`
+
+                  }
+
+                </p>
+
+              )}
+
+            </div>
+
+            <Button
+
+              onClick={() => setShowCreateRepairJobModal(true)}
+
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+
+            >
+
+              <Plus className="mr-2 w-4 h-4" />
+
+              Create Repair Job
+
+            </Button>
+
+          </div>
+
+        </div>
+
+
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+
+          <TabsList className="grid grid-cols-5 w-full">
+
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+
+            <TabsTrigger value="new">New Jobs</TabsTrigger>
+
+            <TabsTrigger value="open">Open Jobs</TabsTrigger>
+
+            <TabsTrigger value="repair">Repair Jobs</TabsTrigger>
+
+            <TabsTrigger value="completed">Completed</TabsTrigger>
+
+          </TabsList>
+
+
+
+            <TabsContent value="overview" className="space-y-6">
+
+              {/* Statistics Cards */}
+
+              <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+
+                      Today's Jobs
+
+                    </CardTitle>
+
+                    <Clock className="w-4 h-4 text-orange-600" />
+
+                  </CardHeader>
+
+                  <CardContent>
+
+                    <div className="font-bold text-slate-900 text-3xl">{stats.serviceUpcoming}</div>
+
+                    <p className="flex items-center mt-1 text-green-600 text-xs">
+
+                      <TrendingUp className="mr-1 w-3 h-3" />
+
+                      Scheduled for today
+
+                    </p>
+
+                  </CardContent>
+
+                </Card>
+
+
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+
+                      New Jobs
+
+                    </CardTitle>
+
+                    <AlertCircle className="w-4 h-4 text-yellow-600" />
+
+                  </CardHeader>
+
+                  <CardContent>
+
+                    <div className="font-bold text-slate-900 text-3xl">{stats.totalNew}</div>
+
+                    <p className="flex items-center mt-1 text-green-600 text-xs">
+
+                      <TrendingUp className="mr-1 w-3 h-3" />
+
+                      Awaiting assignment
+
+                    </p>
+
+                  </CardContent>
+
+                </Card>
+
+
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+
+                      Active Jobs
+
+                    </CardTitle>
+
+                    <Wrench className="w-4 h-4 text-red-600" />
+
+                  </CardHeader>
+
+                  <CardContent>
+
+                    <div className="font-bold text-slate-900 text-3xl">{stats.totalOpen}</div>
+
+                    <p className="flex items-center mt-1 text-green-600 text-xs">
+
+                      <TrendingUp className="mr-1 w-3 h-3" />
+
+                      Currently assigned
+
+                    </p>
+
+                  </CardContent>
+
+                </Card>
+
+
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+
+                      Completed
+
+                    </CardTitle>
+
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+
+                  </CardHeader>
+
+                  <CardContent>
+
+                    <div className="font-bold text-slate-900 text-3xl">{stats.totalCompleted}</div>
+
+                    <p className="flex items-center mt-1 text-green-600 text-xs">
+
+                      <TrendingUp className="mr-1 w-3 h-3" />
+
+                      Successfully completed
+
+                    </p>
+
+                  </CardContent>
+
+                </Card>
+
+
+
+                <Card className="hover:shadow-lg transition-shadow duration-200">
+
+                  <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+
+                    <CardTitle className="font-medium text-slate-600 text-sm">
+
+                      Repair Jobs
+
+                    </CardTitle>
+
+                    <Wrench className="w-4 h-4 text-purple-600" />
+
+                  </CardHeader>
+
+                  <CardContent>
+
+                    <div className="font-bold text-slate-900 text-3xl">{stats.totalRepair}</div>
+
+                    <p className="flex items-center mt-1 text-purple-600 text-xs">
+
+                      <TrendingUp className="mr-1 w-3 h-3" />
+
+                      Total repair jobs
+
+                    </p>
+
+                  </CardContent>
+
+                </Card>
+
+              </div>
+
+
+
+              {/* All Jobs Table */}
+
+              <Card>
+
+                <CardHeader>
+
+                  <CardTitle>All My Jobs</CardTitle>
+
+                </CardHeader>
+
+                <CardContent>
+
+                  <JobTable jobs={userJobs} />
+
+                </CardContent>
+
+              </Card>
+
+            </TabsContent>
+
+
+
+            <TabsContent value="new" className="space-y-6">
+
+              <Card>
+
+                <CardHeader>
+
+                  <CardTitle>New Jobs</CardTitle>
+
+                </CardHeader>
+
+                <CardContent>
+
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && !job.technician_phone)} />
+
+                </CardContent>
+
+              </Card>
+
+            </TabsContent>
+
+
+
+            <TabsContent value="open" className="space-y-6">
+
+              <Card>
+
+                <CardHeader>
+
+                  <CardTitle>Open Jobs</CardTitle>
+
+                </CardHeader>
+
+                <CardContent>
+
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && job.technician_phone)} />
+
+                </CardContent>
+
+              </Card>
+
+            </TabsContent>
+
+
+
+            <TabsContent value="repair" className="space-y-6">
+
+              <Card>
+
+                <CardHeader>
+
+                  <CardTitle>Repair Jobs</CardTitle>
+
+                </CardHeader>
+
+                <CardContent>
+
+                  {(() => {
+
+                    const filteredJobs = userJobs.filter(job => {
+
+                      // Filter for repair jobs
+
+                      if (job.repair !== true) return false;
+
+                      
+
+                      // Tech admins can see all repair jobs
+
+                      if (userInfo?.isTechAdmin) return true;
+
+                      
+
+                      // Regular technicians can only see their own repair jobs
+
+                      return job.technician_phone === userInfo?.user?.email;
+
+                    });
+
+                    
+
+                    console.log('🔧 Repair Jobs Filtering:', {
+
+                      totalJobs: userJobs.length,
+
+                      repairJobs: userJobs.filter(job => job.repair === true).length,
+
+                      filteredJobs: filteredJobs.length,
+
+                      userEmail: userInfo?.user?.email,
+
+                      isTechAdmin: userInfo?.isTechAdmin,
+
+                      sampleJob: userJobs.find(job => job.repair === true)
+
+                    });
+
+                    
+
+                    return <JobTable jobs={filteredJobs} />;
+
+                  })()}
+
+                </CardContent>
+
+              </Card>
+
+            </TabsContent>
+
+
+
+            <TabsContent value="completed" className="space-y-6">
+
+              <Card>
+
+                <CardHeader>
+
+                  <CardTitle>Completed Jobs</CardTitle>
+
+                </CardHeader>
+
+                <CardContent>
+
+                  <JobTable jobs={userJobs.filter(job => job.job_status === 'completed')} />
+
+                </CardContent>
+
+              </Card>
+
+            </TabsContent>
+
+          </Tabs>
+
+        </main>
+
+
+
+      {/* QR Code Scanner */}
+
+      <StartJobModal
+
+        isOpen={showStartJobModal}
+
+        onClose={() => setShowStartJobModal(false)}
+
+        job={selectedJob}
+
+        userJobs={userJobs}
+
+        onJobStarted={handleJobStarted}
+
+        onJobCompleted={(jobData) => {
+
+          // Handle job completion if needed
+
+          toast.success(`Job ${jobData.job_number} completed successfully!`);
+
+          setShowStartJobModal(false);
+
+          fetchUserInfoAndJobs();
+
+        }}
+
+      />
+
+
+
+      {/* Create Repair Job Modal */}
+
+      <CreateRepairJobModal
+
+        isOpen={showCreateRepairJobModal}
+
+        onClose={() => setShowCreateRepairJobModal(false)}
+
+        userInfo={userInfo}
+
+        onJobCreated={(jobData) => {
+
+          toast.success(`Repair job ${jobData.job_number} created successfully!`);
+
+          setShowCreateRepairJobModal(false);
+
+          fetchUserInfoAndJobs();
+
+        }}
+
+      />
+
+    </div>
+
+  );
+
 }

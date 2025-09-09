@@ -336,11 +336,14 @@ export default function AccountsDashboard() {
           {[
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
-            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true },
+            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
             { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs', type: 'link' }
-          ].filter(navItem => !(navItem.hideOnGlobal && activeTab === 'global')).map((navItem) => {
+          ].filter(navItem => 
+            !(navItem.hideOnGlobal && activeTab === 'global') &&
+            !(navItem.hideOnClients && activeTab === 'companies')
+          ).map((navItem) => {
             const Icon = navItem.icon;
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||

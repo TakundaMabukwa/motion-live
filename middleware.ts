@@ -36,14 +36,24 @@ export async function middleware(request: NextRequest) {
 
   // Get user and role from users table
   const { data: { user } } = await supabase.auth.getUser();
-  const role = user ? (await supabase
+  const userData = user ? (await supabase
     .from('users')
-    .select('role')
+    .select('role, first_login')
     .eq('id', user.id)
-    .single()).data?.role?.toLowerCase() : null;
+    .single()).data : null;
+  
+  const role = userData?.role?.toLowerCase();
+  const isFirstLogin = userData?.first_login === true;
+
+  // Check for first-time login and redirect to password change
+  if (user && isFirstLogin && !request.nextUrl.pathname.startsWith('/auth/first-time-login')) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/auth/first-time-login';
+    return NextResponse.redirect(url);
+  }
 
   // Role-based routing
-  if (user && role) {
+  if (user && role && !isFirstLogin) {
     const currentPath = request.nextUrl.pathname.split('/')[2];
     const allowedRoles = ['accounts', 'admin', 'fc', 'inv', 'master', 'tech'];
 
