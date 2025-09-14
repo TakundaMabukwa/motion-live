@@ -4,12 +4,14 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
-import { toast } from "sonner";
+import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ThreeDotsMenu } from "@/components/ui/three-dots-menu";
+import { GiveAccessDialog } from "@/components/ui/give-access-dialog";
 import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
 import {
@@ -33,6 +35,7 @@ import {
 export default function AccountsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const { 
     companyGroups, 
     contactInfo, 
@@ -45,6 +48,7 @@ export default function AccountsDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
+  const [giveAccessDialog, setGiveAccessDialog] = useState({ open: false, clientName: "" });
 
 
 
@@ -75,6 +79,21 @@ export default function AccountsDashboard() {
 
   const handleNewAccount = () => {
     router.push('/protected/fc/add-account');
+  };
+
+  const handleViewDetails = (group) => {
+    if (group.all_new_account_numbers) {
+      const firstAccount = group.all_new_account_numbers.split(',')[0].trim();
+      const prefix = firstAccount.split('-')[0];
+      router.push(`/protected/fc/clients/${prefix}/cost-centers`);
+    }
+  };
+
+  const handleGiveAccess = (group) => {
+    setGiveAccessDialog({
+      open: true,
+      clientName: group.legal_names || group.company_group || 'Unknown Client'
+    });
   };
 
   // Render content based on active tab
@@ -232,21 +251,10 @@ export default function AccountsDashboard() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="flex items-center gap-2"
-                                onClick={() => {
-                                  if (group.all_new_account_numbers) {
-                                    const firstAccount = group.all_new_account_numbers.split(',')[0].trim();
-                                    const prefix = firstAccount.split('-')[0];
-                                    router.push(`/protected/fc/clients/${prefix}/cost-centers`);
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3" />
-                                View Details
-                              </Button>
+                              <ThreeDotsMenu
+                                onViewDetails={() => handleViewDetails(group)}
+                                onGiveAccess={() => handleGiveAccess(group)}
+                              />
                             </TableCell>
                           </TableRow>
                         );
@@ -387,6 +395,12 @@ export default function AccountsDashboard() {
       {/* Content based on active tab */}
       {renderContent()}
 
+      {/* Give Access Dialog */}
+      <GiveAccessDialog
+        open={giveAccessDialog.open}
+        onOpenChange={(open) => setGiveAccessDialog({ ...giveAccessDialog, open })}
+        clientName={giveAccessDialog.clientName}
+      />
 
     </div>
   );

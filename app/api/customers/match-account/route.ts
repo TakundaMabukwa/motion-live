@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching customer data for account number:', accountNumber);
 
-    // Get customer data from customers table where new_account_number matches
+    // Get customer data from customers table where account_number matches
     const { data: customers, error } = await supabase
       .from('customers')
       .select('*')
-      .eq('new_account_number', accountNumber)
+      .eq('account_number', accountNumber)
       .limit(1);
 
     if (error) {

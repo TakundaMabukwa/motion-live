@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Save, X, Building2, FileText, ExternalLink, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AddAccountPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     account_number: '',
@@ -22,8 +23,6 @@ export default function AddAccountPage() {
     legal_name: '',
     trading_name: '',
     holding_company: '',
-    skylink_name: '',
-    beame_list_name: '',
     annual_billing_run_date: '',
     payment_terms: '',
     category: '',
@@ -58,24 +57,43 @@ export default function AddAccountPage() {
     branch_person_number: '',
     branch_person_email: '',
     count_of_products: '0',
-    new_account_number: '',
     divisions: ''
   });
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+      
+      // Auto-generate account number when company name changes
+      if (field === 'company' && value.length >= 4) {
+        const firstFourChars = value.substring(0, 4).toUpperCase();
+        updated.account_number = `${firstFourChars}-0001`;
+      }
+      
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Basic validation
-    if (!formData.account_number || !formData.company) {
-      toast.error('Account number and company name are required');
+    if (!formData.company) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Company name is required",
+      });
       return;
+    }
+    
+    // Ensure account number is generated
+    if (!formData.account_number && formData.company.length >= 4) {
+      const firstFourChars = formData.company.substring(0, 4).toUpperCase();
+      formData.account_number = `${firstFourChars}-0001`;
     }
 
     setLoading(true);
@@ -95,14 +113,22 @@ export default function AddAccountPage() {
       }
 
       const result = await response.json();
-      toast.success('Account created successfully!');
+      toast({
+        variant: "success",
+        title: "Account Created Successfully!",
+        description: `Account ${result.data.account_number} has been created for ${result.data.company}`,
+      });
       
       // Redirect back to FC dashboard
       router.push('/protected/fc');
       
     } catch (error) {
       console.error('Error creating account:', error);
-      toast.error(error.message || 'Failed to create account');
+      toast({
+        variant: "destructive",
+        title: "Account Creation Failed",
+        description: error.message || 'Failed to create account. Please try again.',
+      });
     } finally {
       setLoading(false);
     }
@@ -173,22 +199,11 @@ export default function AddAccountPage() {
                   id="account_number"
                   value={formData.account_number}
                   onChange={(e) => handleInputChange('account_number', e.target.value)}
-                  placeholder="Enter account number"
+                  placeholder="Auto-generated from company name"
                   required
+                  readOnly
                 />
               </div>
-              <div>
-                <Label htmlFor="new_account_number">New Account Number</Label>
-                <Input
-                  id="new_account_number"
-                  value={formData.new_account_number}
-                  onChange={(e) => handleInputChange('new_account_number', e.target.value)}
-                  placeholder="Enter new account number"
-                />
-              </div>
-            </div>
-
-            <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="company">Company Name *</Label>
                 <Input
@@ -199,6 +214,9 @@ export default function AddAccountPage() {
                   required
                 />
               </div>
+            </div>
+
+            <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="legal_name">Legal Name</Label>
                 <Input
@@ -208,9 +226,6 @@ export default function AddAccountPage() {
                   placeholder="Enter legal name"
                 />
               </div>
-            </div>
-
-            <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="trading_name">Trading Name</Label>
                 <Input
@@ -220,6 +235,9 @@ export default function AddAccountPage() {
                   placeholder="Enter trading name"
                 />
               </div>
+            </div>
+
+            <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="holding_company">Holding Company</Label>
                 <Input
@@ -227,27 +245,6 @@ export default function AddAccountPage() {
                   value={formData.holding_company}
                   onChange={(e) => handleInputChange('holding_company', e.target.value)}
                   placeholder="Enter holding company"
-                />
-              </div>
-            </div>
-
-            <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-              <div>
-                <Label htmlFor="skylink_name">Skylink Name</Label>
-                <Input
-                  id="skylink_name"
-                  value={formData.skylink_name}
-                  onChange={(e) => handleInputChange('skylink_name', e.target.value)}
-                  placeholder="Enter skylink name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="beame_list_name">Beame List Name</Label>
-                <Input
-                  id="beame_list_name"
-                  value={formData.beame_list_name}
-                  onChange={(e) => handleInputChange('beame_list_name', e.target.value)}
-                  placeholder="Enter beame list name"
                 />
               </div>
             </div>

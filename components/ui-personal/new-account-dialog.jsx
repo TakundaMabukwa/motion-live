@@ -33,9 +33,10 @@ import {
   ArrowLeft,
   CheckCircle,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function NewAccountDialog({ open, onOpenChange, onAccountCreated }) {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,7 +47,6 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
     legal_name: '',
     trading_name: '',
     holding_company: '',
-    skylink_name: '',
     category: '',
     accounts_status: 'active',
     
@@ -96,7 +96,6 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
     
     // Product Information
     count_of_products: '',
-    new_account_number: '',
   });
 
   const steps = [
@@ -133,16 +132,26 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
   ];
 
   const updateFormData = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+      
+      // Auto-generate account number when company name changes
+      if (field === 'company' && value.length >= 4) {
+        const firstFourChars = value.substring(0, 4).toUpperCase();
+        updated.account_number = `${firstFourChars}-0001`;
+      }
+      
+      return updated;
+    });
   };
 
   const canProceed = () => {
     switch (currentStep) {
       case 0: // Company Information
-        return formData.company && formData.trading_name && formData.account_number;
+        return formData.company && formData.trading_name;
       case 1: // Contact Information
         return formData.email && (formData.switchboard || formData.cell_no);
       case 2: // Addresses
@@ -158,7 +167,11 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
 
   const handleNextStep = () => {
     if (!canProceed()) {
-      toast.error("Please complete all required fields to proceed");
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please complete all required fields to proceed",
+      });
       return;
     }
     setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
@@ -188,9 +201,10 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
 
       const result = await response.json();
       
-      toast.success('Customer account created successfully!', {
-        description: `Account: ${result.data.account_number}`,
-        duration: 5000,
+      toast({
+        variant: "success",
+        title: "Customer Account Created Successfully!",
+        description: `Account ${result.data.account_number} has been created for ${result.data.company}`,
       });
 
       if (onAccountCreated) {
@@ -205,7 +219,6 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
         legal_name: '',
         trading_name: '',
         holding_company: '',
-        skylink_name: '',
         category: '',
         accounts_status: 'active',
         annual_billing_run_date: '',
@@ -241,15 +254,15 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
         branch_person_number: '',
         branch_person_email: '',
         count_of_products: '',
-        new_account_number: '',
       });
       setCurrentStep(0);
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating customer account:', error);
-      toast.error('Failed to create customer account', {
-        description: error.message,
-        duration: 5000,
+      toast({
+        variant: "destructive",
+        title: "Account Creation Failed",
+        description: error.message || 'Failed to create customer account. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -263,23 +276,12 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
           <Label htmlFor="account_number">Account Number *</Label>
           <Input
             id="account_number"
-            placeholder="e.g., ACEA-0001"
+            placeholder="Auto-generated from company name"
             value={formData.account_number}
             onChange={(e) => updateFormData('account_number', e.target.value)}
+            readOnly
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="new_account_number">New Account Number</Label>
-          <Input
-            id="new_account_number"
-            placeholder="e.g., ACEA-0001"
-            value={formData.new_account_number}
-            onChange={(e) => updateFormData('new_account_number', e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="company">Company Name *</Label>
           <Input
@@ -289,6 +291,9 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
             onChange={(e) => updateFormData('company', e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="trading_name">Trading Name *</Label>
           <Input
@@ -298,9 +303,6 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
             onChange={(e) => updateFormData('trading_name', e.target.value)}
           />
         </div>
-      </div>
-
-      <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="legal_name">Legal Name</Label>
           <Input
@@ -310,6 +312,9 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
             onChange={(e) => updateFormData('legal_name', e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="holding_company">Holding Company</Label>
           <Input
@@ -317,18 +322,6 @@ export default function NewAccountDialog({ open, onOpenChange, onAccountCreated 
             placeholder="Enter holding company"
             value={formData.holding_company}
             onChange={(e) => updateFormData('holding_company', e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="skylink_name">Skylink Name</Label>
-          <Input
-            id="skylink_name"
-            placeholder="Enter Skylink name"
-            value={formData.skylink_name}
-            onChange={(e) => updateFormData('skylink_name', e.target.value)}
           />
         </div>
         <div className="space-y-2">

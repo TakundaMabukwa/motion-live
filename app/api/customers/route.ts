@@ -225,7 +225,6 @@ export async function POST(request: NextRequest) {
       legal_name: body.legal_name || null,
       trading_name: body.trading_name,
       holding_company: body.holding_company || null,
-      skylink_name: body.skylink_name || null,
       annual_billing_run_date: body.annual_billing_run_date || null,
       payment_terms: body.payment_terms || null,
       category: body.category || null,
@@ -261,7 +260,6 @@ export async function POST(request: NextRequest) {
       branch_person_number: body.branch_person_number || null,
       branch_person_email: body.branch_person_email || null,
       count_of_products: body.count_of_products || null,
-      new_account_number: body.new_account_number || null,
     };
 
     // Insert the customer
@@ -277,6 +275,59 @@ export async function POST(request: NextRequest) {
         error: 'Failed to create customer account',
         details: error.message 
       }, { status: 500 });
+    }
+
+    // Update customers_grouped table
+    try {
+      // Check if a record exists for this company group
+      const { data: existingGroup, error: groupError } = await supabase
+        .from('customers_grouped')
+        .select('*')
+        .eq('company_group', body.company)
+        .single();
+
+      if (groupError && groupError.code !== 'PGRST116') { // PGRST116 is "not found" error
+        console.error('Error checking existing group:', groupError);
+        // Continue without failing the main operation
+      } else if (existingGroup) {
+        // Update existing record - append new account number to all_new_account_numbers
+        const existingAccountNumbers = existingGroup.all_new_account_numbers || '';
+        const updatedAccountNumbers = existingAccountNumbers 
+          ? `${existingAccountNumbers},${body.account_number}`
+          : body.account_number;
+
+        const { error: updateError } = await supabase
+          .from('customers_grouped')
+          .update({
+            all_new_account_numbers: updatedAccountNumbers,
+            cost_code: body.account_number
+          })
+          .eq('id', existingGroup.id);
+
+        if (updateError) {
+          console.error('Error updating customers_grouped:', updateError);
+        }
+      } else {
+        // Create new record in customers_grouped
+        const groupedData = {
+          company_group: body.company,
+          legal_names: body.legal_name || null,
+          all_account_numbers: body.account_number,
+          all_new_account_numbers: body.account_number,
+          cost_code: body.account_number
+        };
+
+        const { error: insertGroupError } = await supabase
+          .from('customers_grouped')
+          .insert([groupedData]);
+
+        if (insertGroupError) {
+          console.error('Error inserting into customers_grouped:', insertGroupError);
+        }
+      }
+    } catch (groupedError) {
+      console.error('Error handling customers_grouped:', groupedError);
+      // Don't fail the main operation if grouped table update fails
     }
 
     return NextResponse.json({ 
