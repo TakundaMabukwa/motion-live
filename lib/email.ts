@@ -9,6 +9,10 @@ const transporter = nodemailer.createTransport({
     user: process.env.BREVO_EMAIL || '970244001@smtp-brevo.com', // Your Brevo login email
     pass: process.env.BREVO_SMTP_KEY || 'rTMhALQas6cKtW0N', // Your Brevo SMTP key
   },
+  connectionTimeout: 5000, // 5 seconds
+  greetingTimeout: 5000, // 5 seconds
+  socketTimeout: 5000, // 5 seconds
+  pool: false, // Disable connection pooling for faster cleanup
 });
 
 export interface UserCredentials {
@@ -168,7 +172,26 @@ export async function sendUserCredentials(credentials: UserCredentials) {
       html: emailHTML,
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    // Add timeout wrapper to prevent hanging
+    const sendWithTimeout = async () => {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Email sending timeout'));
+        }, 7000); // 7 second timeout
+
+        transporter.sendMail(mailOptions)
+          .then((result) => {
+            clearTimeout(timeout);
+            resolve(result);
+          })
+          .catch((error) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+      });
+    };
+
+    const result = await sendWithTimeout();
     console.log('Email sent successfully via Brevo:', result.messageId);
     return { success: true, messageId: result.messageId };
   } catch (error) {

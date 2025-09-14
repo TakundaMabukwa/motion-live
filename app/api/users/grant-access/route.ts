@@ -185,36 +185,50 @@ export async function POST(request: NextRequest) {
       // Continue without failing the main operation
     }
 
-    // Send email with credentials to the new user
-    try {
-      // Get system name for email using service client
-      const { data: systemData } = await serviceSupabase
-        .from('systems')
-        .select('system_name, system_url')
-        .eq('id', systemId)
-        .single();
+    // Send email with credentials to the new user (non-blocking with timeout)
+    const sendEmailAsync = async () => {
+      try {
+        // Get system name for email using service client
+        const { data: systemData } = await serviceSupabase
+          .from('systems')
+          .select('system_name, system_url')
+          .eq('id', systemId)
+          .single();
 
-      const systemName = systemData?.system_name || 'System';
-      const systemUrl = systemData?.system_url || '';
+        const systemName = systemData?.system_name || 'System';
+        const systemUrl = systemData?.system_url || '';
 
-      const emailResult = await sendUserCredentials({
-        email: email,
-        password: 'Password@12',
-        role: role,
-        systemName: systemName,
-        systemUrl: systemUrl
-      });
+        const emailResult = await sendUserCredentials({
+          email: email,
+          password: 'Password@12',
+          role: role,
+          systemName: systemName,
+          systemUrl: systemUrl
+        });
 
-      if (!emailResult.success) {
-        console.error('Failed to send email:', emailResult.error);
-        // Don't fail the main operation if email fails
-      } else {
-        console.log('Email sent successfully to:', email);
+        if (!emailResult.success) {
+          console.error('Failed to send email:', emailResult.error);
+        } else {
+          console.log('Email sent successfully to:', email);
+        }
+      } catch (emailError) {
+        console.error('Error sending email:', emailError);
       }
-    } catch (emailError) {
-      console.error('Error sending email:', emailError);
-      // Don't fail the main operation if email fails
-    }
+    };
+
+    // Start email sending in background with timeout
+    const emailPromise = sendEmailAsync();
+    const emailTimeout = new Promise((resolve) => {
+      setTimeout(() => {
+        console.log('Email sending timed out, continuing with response');
+        resolve(null);
+      }, 8000); // 8 second timeout
+    });
+
+    // Race between email completion and timeout - don't await
+    Promise.race([emailPromise, emailTimeout]).catch(err => {
+      console.error('Email promise error:', err);
+    });
 
     return NextResponse.json({ 
       success: true,
