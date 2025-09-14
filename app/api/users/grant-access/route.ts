@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { sendUserCredentials } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -47,10 +48,27 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Create service client for all operations (bypasses RLS)
+    console.log('Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log('Service role key length:', process.env.SUPABASE_SERVICE_ROLE_KEY?.length);
+    
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
     // Create a NEW user account for the email provided in the popup form
-    const { data: authData, error: authError2 } = await supabase.auth.signUp({
-      email: email, // This is the email from the popup form
-      password: 'Password@12', // Auto-generated password for the new user
+    // Using service client to avoid session creation and RLS issues
+    const { data: authData, error: authError2 } = await serviceSupabase.auth.admin.createUser({
+      email: email,
+      password: 'Password@12',
+      email_confirm: true,
     });
 
     if (authError2) {
@@ -67,97 +85,72 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Wait for the user to be created in the database with retry logic
-    let userData = null;
-    let attempts = 0;
-    const maxAttempts = 10;
-    
-    console.log(`Looking for user with email: ${email}`);
-    
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // First check if user exists in auth.users
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers?.users?.find(u => u.email === email);
-      console.log(`Attempt ${attempts + 1}: Auth user found:`, !!authUser);
-      
-      // Then check our custom users table
-      const { data: foundUser, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-      
-      console.log(`Attempt ${attempts + 1}: Custom users table result:`, { foundUser: !!foundUser, error: userError?.message });
-      
-      if (foundUser && !userError) {
-        userData = foundUser;
-        break;
-      }
-      
-      // If user exists in auth but not in our table, create the record
-      if (authUser && !foundUser && userError?.code === 'PGRST116') {
-        console.log('User exists in auth but not in users table, creating record...');
-        
-        const { data: newUser, error: createError } = await supabase
-          .from('users')
-          .insert([{
-            id: authUser.id,
-            email: email,
-            role: role,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          .select('*')
-          .single();
-        
-        if (newUser && !createError) {
-          userData = newUser;
-          console.log('Successfully created user record in users table');
-          break;
-        } else {
-          console.error('Error creating user record:', createError);
-        }
-      }
-      
-      attempts++;
-      console.log(`Attempt ${attempts}: User not found yet, retrying...`);
-    }
+    // Check if user already exists in our custom users table
+    const { data: existingUserRecord, error: checkError } = await serviceSupabase
+      .from('users')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
 
-    if (!userData) {
-      return NextResponse.json({ 
-        error: 'User not found in database after creation. Please try again.' 
-      }, { status: 500 });
-    }
-
-    // Update the user's role (if not already set during creation)
-    let updatedUser = userData;
-    if (userData.role !== role) {
-      const { data: roleUpdatedUser, error: updateError } = await supabase
+    let userData;
+    
+    if (existingUserRecord && !checkError) {
+      // User already exists, update their role if needed
+      console.log('User already exists in users table, updating role...');
+      const { data: updatedUser, error: updateError } = await serviceSupabase
         .from('users')
         .update({ role: role })
-        .eq('id', userData.id)
+        .eq('id', authData.user.id)
         .select('*')
         .single();
-
+      
       if (updateError) {
         console.error('Error updating user role:', updateError);
         return NextResponse.json({ 
-          error: 'Failed to assign role',
+          error: 'Failed to update user role',
           details: updateError.message 
         }, { status: 500 });
       }
+      
+      userData = updatedUser;
+    } else {
+      // User doesn't exist, create new record
+      console.log('Creating new user record in users table...');
+      const { data: newUser, error: createError } = await serviceSupabase
+        .from('users')
+        .insert([{
+          id: authData.user.id,
+          email: email,
+          role: role,
+          created_at: new Date().toISOString()
+        }])
+        .select('*')
+        .single();
 
-      if (roleUpdatedUser) {
-        updatedUser = roleUpdatedUser;
+      if (createError) {
+        console.error('Error creating user record:', createError);
+        return NextResponse.json({ 
+          error: 'Failed to create user record in database',
+          details: createError.message 
+        }, { status: 500 });
       }
+
+      if (!newUser) {
+        return NextResponse.json({ 
+          error: 'User record creation failed' 
+        }, { status: 500 });
+      }
+
+      userData = newUser;
     }
+
+    // Role is already set during user creation, no need to update
+    const updatedUser = userData;
 
     // Update the systems table to add the user to the selected system
     try {
-      // First, get the current system data
-      const { data: systemData, error: systemFetchError } = await supabase
+      // First, get the current system data using service client
+      const { data: systemData, error: systemFetchError } = await serviceSupabase
         .from('systems')
         .select('users')
         .eq('id', systemId)
@@ -175,8 +168,8 @@ export async function POST(request: NextRequest) {
         if (!existingUsers.includes(userId)) {
           const updatedUsers = [...existingUsers, userId];
           
-          // Update the system with the new user list
-          const { error: systemUpdateError } = await supabase
+          // Update the system with the new user list using service client
+          const { error: systemUpdateError } = await serviceSupabase
             .from('systems')
             .update({ users: updatedUsers })
             .eq('id', systemId);
@@ -194,8 +187,8 @@ export async function POST(request: NextRequest) {
 
     // Send email with credentials to the new user
     try {
-      // Get system name for email
-      const { data: systemData } = await supabase
+      // Get system name for email using service client
+      const { data: systemData } = await serviceSupabase
         .from('systems')
         .select('system_name, system_url')
         .eq('id', systemId)
