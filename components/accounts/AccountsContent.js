@@ -36,6 +36,7 @@ import AccountsClientsSection from './AccountsClientsSection';
 export default function AccountsContent({ activeSection }) {
   const [customers, setCustomers] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
+  const [paymentData, setPaymentData] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -104,13 +105,17 @@ export default function AccountsContent({ activeSection }) {
       
       if (loadMore) {
         setCustomers(prev => [...prev, ...data.companyGroups]);
+        setPaymentData({...paymentData, ...data.paymentData});
         setPage(currentPage);
         setHasMore(data.companyGroups.length === 50);
       } else {
         setCustomers(data.companyGroups);
         setAllCustomers(data.companyGroups);
+        setPaymentData(data.paymentData || {});
         setPage(1);
         setHasMore(data.companyGroups.length === 50);
+
+
       }
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -437,7 +442,12 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyAmount || 0), 0))}
+                {formatCurrency(
+                  customers.reduce((sum, customer) => {
+                    const paymentInfo = paymentData[customer.id];
+                    return sum + (paymentInfo?.totalDue || 0);
+                  }, 0)
+                )}
               </div>
               <p className="text-xs text-muted-foreground">Full monthly amounts due</p>
             </CardContent>
@@ -450,7 +460,12 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.totalAmountDue || 0), 0))}
+                {formatCurrency(
+                  customers.reduce((sum, customer) => {
+                    const paymentInfo = paymentData[customer.id];
+                    return sum + (paymentInfo?.totalBalance || 0);
+                  }, 0)
+                )}
               </div>
               <p className="text-xs text-muted-foreground">Outstanding amounts</p>
             </CardContent>
@@ -515,35 +530,41 @@ export default function AccountsContent({ activeSection }) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {customers.map((customer, index) => (
-                <div
-                  key={customer.id || index}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                  onClick={() => handleCompanyGroupClick(customer.company_group)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">
-                        {customer.company_group || 'Unknown Company'}
-                      </h3>
-                      <p className="text-sm text-gray-600">Legal Names: {customer.legal_names || 'N/A'}</p>
-                      <p className="text-xs text-gray-500">
-                        {customer.vehicleCount || 0} vehicles • {customer.uniqueClientCount || 0} clients
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-red-600">
-                        {formatCurrency(customer.totalMonthlyAmount)}
+                  {customers.map((customer, index) => {
+                    const paymentInfo = paymentData[customer.id] || {};
+                    const totalDue = paymentInfo.totalDue || 0;
+                    const totalBalance = paymentInfo.totalBalance || 0;
+                    
+                    return (
+                      <div
+                        key={customer.id || index}
+                        className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => handleCompanyGroupClick(customer.company_group)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">
+                              {customer.company_group || 'Unknown Company'}
+                            </h3>
+                            <p className="text-sm text-gray-600">Legal Names: {customer.legal_names || 'N/A'}</p>
+                            <p className="text-xs text-gray-500">
+                              {customer.vehicleCount || 0} vehicles • {customer.uniqueClientCount || 0} clients
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-red-600">
+                              {formatCurrency(totalDue)}
+                            </div>
+                            <p className="text-xs text-gray-500">Monthly</p>
+                            <div className="text-sm font-medium text-orange-600">
+                              {formatCurrency(totalBalance)}
+                            </div>
+                            <p className="text-xs text-gray-500">Amount Due</p>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500">Monthly</p>
-                      <div className="text-sm font-medium text-orange-600">
-                        {formatCurrency(customer.totalAmountDue)}
-                      </div>
-                      <p className="text-xs text-gray-500">Amount Due</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    );
+                  })}
                 </div>
               )}
               

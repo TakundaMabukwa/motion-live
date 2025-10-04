@@ -82,6 +82,62 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch payment data and aggregate by company group
+    let paymentData = {};
+    if (companyGroups && companyGroups.length > 0) {
+      try {
+        // Get all cost codes from all_new_account_numbers
+        const allCostCodes = companyGroups
+          .flatMap(group => {
+            if (group.all_new_account_numbers) {
+              return group.all_new_account_numbers
+                .split(',')
+                .map((code: string) => code.trim().toUpperCase())
+                .filter((code: string) => code.length > 0);
+            }
+            return [];
+          });
+
+        if (allCostCodes.length > 0) {
+          console.log('API: Fetching payment data for cost codes:', allCostCodes);
+          
+          // Query payments table for matching cost codes
+          const { data: payments, error: paymentsError } = await supabase
+            .from('payments_')
+            .select('cost_code, due_amount, balance_due, billing_month')
+            .in('cost_code', allCostCodes);
+
+          if (paymentsError) {
+            console.error('API: Error fetching payments:', paymentsError);
+          } else {
+            console.log('API: Payment data received:', payments?.length || 0, 'records');
+            
+            // Aggregate payments by company group
+            paymentData = companyGroups.reduce((acc: any, group: any) => {
+              const groupCostCodes = group.all_new_account_numbers ? 
+                group.all_new_account_numbers.split(',').map((code: string) => code.trim().toUpperCase()).filter((code: string) => code.length > 0) : [];
+              
+              const groupPayments = payments?.filter((payment: any) => 
+                groupCostCodes.includes(payment.cost_code?.toString().toUpperCase())
+              ) || [];
+
+              acc[group.id] = {
+                totalDue: groupPayments.reduce((sum: number, payment: any) => sum + (payment.due_amount || 0), 0),
+                totalBalance: groupPayments.reduce((sum: number, payment: any) => sum + (payment.balance_due || 0), 0),
+                paymentCount: groupPayments.length,
+                costCodes: groupCostCodes,
+                payments: groupPayments
+              };
+
+              return acc;
+            }, {});
+          }
+        }
+      } catch (paymentErr) {
+        console.error('API: Error processing payment data:', paymentErr);
+      }
+    }
+
     console.log('API: Query successful', { 
       companyGroupsCount: companyGroups?.length || 0, 
       totalCount: count 
@@ -107,6 +163,7 @@ export async function GET(request: NextRequest) {
 
     const response = {
       companyGroups: transformedCompanyGroups,
+      paymentData,
       count: count || 0,
       page,
       limit,

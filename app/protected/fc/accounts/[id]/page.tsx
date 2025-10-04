@@ -32,6 +32,7 @@ import ClientJobCards from '@/components/ui-personal/client-job-cards';
 import AccountDashboard from '@/components/ui-personal/account-dashboard';
 import VehicleMapView from '@/components/ui-personal/vehicle-map-view';
 import { toast } from 'sonner';
+import { getVehiclesByAccountNumber, type Vehicle, type VehiclesResponse } from '@/lib/actions/vehicles';
 
 function AccountDetailPageContent() {
   const params = useParams();
@@ -41,7 +42,11 @@ function AccountDetailPageContent() {
   const tab = searchParams.get('tab') || 'dashboard';
   
   const [customer, setCustomer] = useState(null);
-  const [vehicles, setVehicles] = useState([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [vehiclesPage, setVehiclesPage] = useState(1);
+  const [vehiclesTotalCount, setVehiclesTotalCount] = useState(0);
+  const [vehiclesTotalPages, setVehiclesTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showClientQuote, setShowClientQuote] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -55,28 +60,56 @@ function AccountDetailPageContent() {
 
   useEffect(() => {
     if (customer?.new_account_number) {
-      fetchVehicles();
+      fetchVehicles(1); // Load first page when customer data is ready
     }
   }, [customer]);
 
+  useEffect(() => {
+    if (customer?.new_account_number && vehiclesPage > 1) {
+      fetchVehicles(vehiclesPage);
+    }
+  }, [vehiclesPage]);
+
   const fetchCustomerData = async () => {
     try {
-      const response = await fetch(`/api/customers/${accountId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch customer data');
-      }
-      const data = await response.json();
-      setCustomer(data.customer);
+      // Since accountId is now a cost code (like DATA-0001), create a customer object from it
+      const customerData = {
+        id: accountId,
+        new_account_number: accountId,
+        company: accountId.split('-')[0], // Extract prefix (e.g., "DATA" from "DATA-0001")
+        legal_name: `${accountId.split('-')[0]} Cost Center`,
+        trading_name: `${accountId.split('-')[0]} Cost Center`,
+        email: null,
+        cell_no: null,
+        switchboard: null,
+        physical_address_1: null,
+        physical_address_2: null,
+        physical_area: null,
+        physical_province: null,
+        physical_code: null,
+        postal_address_1: null,
+        postal_address_2: null,
+        postal_area: null,
+        postal_province: null,
+        postal_code: null,
+        branch_person: null,
+        branch_person_number: null,
+        branch_person_email: null,
+        created_at: new Date().toISOString()
+      };
+      
+      setCustomer(customerData);
+      console.log('Created customer data from cost code:', customerData);
     } catch (error) {
-      console.error('Error fetching customer:', error);
+      console.error('Error creating customer data:', error);
       toast.error('Failed to load customer data');
     }
   };
 
-  const fetchVehicles = async () => {
+  const fetchVehicles = async (page: number = 1) => {
     try {
       const accountNumber = customer?.new_account_number;
-      console.log('Fetching vehicles for account:', accountNumber);
+      console.log('Fetching vehicles for account:', accountNumber, 'page:', page);
       
       if (!accountNumber) {
         console.error('No account number available');
@@ -84,28 +117,42 @@ function AccountDetailPageContent() {
         return;
       }
       
-      const response = await fetch(`/api/vehicles-by-company?accountNumber=${encodeURIComponent(accountNumber)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch vehicles');
-      }
-      const data = await response.json();
-      console.log('Vehicles data:', data);
+      setVehiclesLoading(true);
       
-      if (data.success) {
-        setVehicles(data.vehicles || []);
+      const result: VehiclesResponse = await getVehiclesByAccountNumber(accountNumber, page, 10);
+      
+      if (result.success) {
+        setVehicles(result.vehicles);
+        setVehiclesTotalCount(result.totalCount);
+        setVehiclesTotalPages(result.totalPages);
+        console.log('Vehicles loaded:', result.vehicles.length, 'of', result.totalCount);
       } else {
-        throw new Error(data.error || 'Failed to fetch vehicles');
+        console.error('Failed to fetch vehicles:', result.error);
+        setVehicles([]);
+        setVehiclesTotalCount(0);
+        setVehiclesTotalPages(0);
+        if (result.error && result.error !== 'Failed to fetch vehicles') {
+          toast.error(result.error);
+        }
       }
     } catch (error) {
       console.error('Error fetching vehicles:', error);
+      setVehicles([]);
+      setVehiclesTotalCount(0);
+      setVehiclesTotalPages(0);
       toast.error('Failed to load vehicles');
     } finally {
+      setVehiclesLoading(false);
       setLoading(false);
     }
   };
 
-  const handleVehicleSelect = (vehicle) => {
+  const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
+  };
+
+  const handleVehiclesPageChange = (newPage: number) => {
+    setVehiclesPage(newPage);
   };
 
   const handleTabChange = (newTab: string) => {
@@ -202,10 +249,18 @@ function AccountDetailPageContent() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold text-xl">Vehicle Fleet</h2>
-              <Badge variant="outline">{vehicles.length} vehicles</Badge>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">{vehiclesTotalCount} total vehicles</Badge>
+                {vehiclesLoading && (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
+                    Loading...
+                  </div>
+                )}
+              </div>
             </div>
             
-            {vehicles.length === 0 ? (
+            {vehicles.length === 0 && !vehiclesLoading ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Car className="mx-auto mb-4 w-12 h-12 text-gray-400" />
@@ -214,12 +269,74 @@ function AccountDetailPageContent() {
                 </CardContent>
               </Card>
             ) : (
-                          <VehicleCards 
-              vehicles={vehicles}
-              selectedVehicle={selectedVehicle}
-              onVehicleSelect={handleVehicleSelect}
-              accountNumber={customer?.new_account_number}
-            />
+              <>
+                <VehicleCards 
+                  vehicles={vehicles}
+                  selectedVehicle={selectedVehicle}
+                  onVehicleSelect={handleVehicleSelect}
+                  accountNumber={customer?.new_account_number}
+                />
+                
+                {/* Pagination Controls */}
+                {vehiclesTotalPages > 1 && (
+                  <div className="flex justify-between items-center mt-6">
+                    <div className="text-gray-700 text-sm">
+                      Showing {((vehiclesPage - 1) * 10) + 1} to {Math.min(vehiclesPage * 10, vehiclesTotalCount)} of {vehiclesTotalCount} vehicles
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleVehiclesPageChange(vehiclesPage - 1)}
+                        disabled={vehiclesPage === 1 || vehiclesLoading}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {/* Show page numbers */}
+                        {Array.from({ length: Math.min(vehiclesTotalPages, 5) }, (_, i) => {
+                          const pageNum = i + 1;
+                          const shouldShow = 
+                            pageNum <= 3 || 
+                            pageNum >= vehiclesTotalPages - 2 || 
+                            Math.abs(pageNum - vehiclesPage) <= 1;
+                          
+                          if (!shouldShow) {
+                            if (pageNum === 4 && vehiclesPage > 5) {
+                              return <span key={`ellipsis-${pageNum}`} className="px-2 text-gray-500">...</span>;
+                            }
+                            if (pageNum === vehiclesTotalPages - 3 && vehiclesPage < vehiclesTotalPages - 4) {
+                              return <span key={`ellipsis-${pageNum}`} className="px-2 text-gray-500">...</span>;
+                            }
+                            return null;
+                          }
+                          
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={vehiclesPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleVehiclesPageChange(pageNum)}
+                              disabled={vehiclesLoading}
+                              className="p-0 w-8 h-8"
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleVehiclesPageChange(vehiclesPage + 1)}
+                        disabled={vehiclesPage === vehiclesTotalPages || vehiclesLoading}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         );

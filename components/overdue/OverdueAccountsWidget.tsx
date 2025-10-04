@@ -88,11 +88,13 @@ export function OverdueAccountsWidget({
   };
 
   const formatCurrency = (amount: number) => {
+    // Ensure amount is a valid number, default to 0 if NaN or undefined
+    const validAmount = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
       minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(validAmount);
   };
 
   const getOverdueBadgeVariant = (amount: number) => {
@@ -156,9 +158,11 @@ export function OverdueAccountsWidget({
     }
     
     // Default summary display - total overdue amount
+    const totalAmount = data?.summary?.totalOverdueAmount;
+    const validAmount = isNaN(totalAmount) || totalAmount === null || totalAmount === undefined ? 0 : totalAmount;
     return (
       <div className="font-bold text-red-600 text-2xl">
-        {formatCurrency(data?.summary?.totalOverdueAmount || 0)}
+        {formatCurrency(validAmount)}
       </div>
     );
   }
@@ -175,8 +179,8 @@ export function OverdueAccountsWidget({
             <CardDescription>
               {data?.summary ? (
                 <>
-                  {data.summary.totalAccountsWithOverdue} accounts with overdue payments totaling{' '}
-                  {formatCurrency(data.summary.totalOverdueAmount)}
+                  {data.summary.totalAccountsWithOverdue || 0} accounts with overdue payments totaling{' '}
+                  {formatCurrency(data.summary.totalOverdueAmount || 0)}
                   {data.summary.monthsLate > 0 && (
                     <span className="font-medium text-orange-600">
                       {' '}({data.summary.monthsLate} month{data.summary.monthsLate > 1 ? 's' : ''} overdue)

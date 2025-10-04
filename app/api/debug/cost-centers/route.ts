@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const prefix = searchParams.get('prefix');
+    const allNewAccountNumbers = searchParams.get('all_new_account_numbers');
 
     console.log('Debug: Checking cost_centers table');
 
@@ -29,45 +29,84 @@ export async function GET(request: NextRequest) {
 
     console.log('Debug: All cost centers sample:', allCostCenters);
 
-    // If a specific prefix is provided, test the LIKE query
-    if (prefix) {
-      console.log(`Debug: Testing LIKE query for prefix: ${prefix}`);
+    // If specific account numbers are provided, test the IN query
+    if (allNewAccountNumbers) {
+      console.log(`Debug: Testing IN query for account numbers: ${allNewAccountNumbers}`);
       
-      const { data: prefixCostCenters, error: prefixError } = await supabase
+      // Parse comma-separated account numbers and normalize them
+      const accountNumbers = allNewAccountNumbers
+        .split(',')
+        .map(num => num.trim())
+        .filter(num => num)
+        .map(num => num.toUpperCase()); // Normalize to uppercase
+      
+      console.log('Debug: Normalized account numbers:', accountNumbers);
+      
+      // Test exact match first
+      const { data: exactMatches, error: exactError } = await supabase
         .from('cost_centers')
         .select('*')
-        .like('new_account_number', `${prefix}%`);
+        .in('cost_code', accountNumbers);
+      
+      // Test case-insensitive match
+      const caseInsensitiveConditions = accountNumbers.map(num => 
+        `cost_code.ilike.%${num}%`
+      ).join(',');
+      
+      const { data: caseInsensitiveMatches, error: caseInsensitiveError } = await supabase
+        .from('cost_centers')
+        .select('*')
+        .or(caseInsensitiveConditions);
+      
+      // Test manual filtering for whitespace
+      const { data: allCostCenters, error: allError } = await supabase
+        .from('cost_centers')
+        .select('*');
+      
+      let whitespaceMatches = [];
+      if (!allError && allCostCenters) {
+        whitespaceMatches = allCostCenters.filter(center => {
+          const normalizedCostCode = center.cost_code?.trim().toUpperCase();
+          return accountNumbers.includes(normalizedCostCode);
+        });
+      }
+      
+      const matchingCostCenters = exactMatches || [];
+      const matchingError = exactError;
 
-      if (prefixError) {
-        console.error('Error with prefix query:', prefixError);
-        return NextResponse.json({ error: 'Prefix query failed', details: prefixError.message }, { status: 500 });
+      if (matchingError) {
+        console.error('Error with matching query:', matchingError);
+        return NextResponse.json({ error: 'Matching query failed', details: matchingError.message }, { status: 500 });
       }
 
-      console.log(`Debug: Found ${prefixCostCenters?.length || 0} cost centers for prefix ${prefix}`);
-
-      // Also test with different patterns
-      const { data: startsWithData, error: startsWithError } = await supabase
-        .from('cost_centers')
-        .select('*')
-        .ilike('new_account_number', `${prefix}%`);
-
-      console.log(`Debug: ILIKE query found ${startsWithData?.length || 0} results`);
+      console.log(`Debug: Found ${matchingCostCenters?.length || 0} cost centers for account numbers:`, accountNumbers);
 
       return NextResponse.json({
         success: true,
         debug: {
           tableSample: allCostCenters,
           totalRecords: allCostCenters?.length || 0,
-          prefixQuery: {
-            prefix: prefix,
-            pattern: `${prefix}%`,
-            results: prefixCostCenters || [],
-            count: prefixCostCenters?.length || 0
-          },
-          alternativeQuery: {
-            pattern: `${prefix}%`,
-            results: startsWithData || [],
-            count: startsWithData?.length || 0
+          accountNumbersQuery: {
+            originalInput: allNewAccountNumbers,
+            normalizedAccountNumbers: accountNumbers,
+            exactMatches: {
+              results: exactMatches || [],
+              count: exactMatches?.length || 0,
+              error: exactError
+            },
+            caseInsensitiveMatches: {
+              results: caseInsensitiveMatches || [],
+              count: caseInsensitiveMatches?.length || 0,
+              error: caseInsensitiveError
+            },
+            whitespaceTrimmedMatches: {
+              results: whitespaceMatches || [],
+              count: whitespaceMatches?.length || 0
+            },
+            finalResults: {
+              results: matchingCostCenters || [],
+              count: matchingCostCenters?.length || 0
+            }
           }
         }
       });

@@ -100,7 +100,7 @@ export default function ClientCostCentersPage() {
   const fetchClientData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/vehicle-invoices?search=${code}&includeLegalNames=true`);
+      const response = await fetch(`/api/client-payments?code=${code}&includeLegalNames=true`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch client data');
@@ -129,10 +129,11 @@ export default function ClientCostCentersPage() {
           vehicles: allVehicles,
           totalMonthlyAmount: allVehicles.reduce((sum, v) => sum + (v.monthly_amount || 0), 0),
           totalAmountDue: allVehicles.reduce((sum, v) => sum + (v.amount_due || 0), 0),
-          totalOverdue: 0,
+          totalOverdue: allVehicles.reduce((sum, v) => sum + (v.overdue_30_days || 0) + (v.overdue_60_days || 0) + (v.overdue_90_days || 0), 0),
           vehicleCount: allVehicles.length,
           paymentsTotalAmount: data.customers[0]?.paymentsTotalAmount || 0,
-          paymentsAmountDue: data.customers[0]?.paymentsAmountDue || 0
+          paymentsAmountDue: data.customers[0]?.paymentsAmountDue || 0,
+          summary: data.customers[0]?.summary || null
         });
       } else {
         setClientLegalName(code);
@@ -169,13 +170,15 @@ export default function ClientCostCentersPage() {
       const stockCode = vehicle.stock_code || '';
       const stockDescription = vehicle.stock_description || '';
       const company = vehicle.company || '';
+      const paymentStatus = vehicle.payment_status || '';
       
       const searchLower = searchTerm.toLowerCase();
       return (
         accountNumber.toLowerCase().includes(searchLower) ||
         stockCode.toLowerCase().includes(searchLower) ||
         stockDescription.toLowerCase().includes(searchLower) ||
-        company.toLowerCase().includes(searchLower)
+        company.toLowerCase().includes(searchLower) ||
+        paymentStatus.toLowerCase().includes(searchLower)
       );
     });
 
@@ -193,17 +196,22 @@ export default function ClientCostCentersPage() {
         costCenters[accountNumber] = {
           accountNumber,
           accountName: vehicle.company || vehicle.stock_description || vehicle.stock_code || accountNumber,
-          monthlyAmount: 0,
-          amountDue: 0,
-          overdue: 0,
+          dueAmount: vehicle.total_ex_vat || 0,
+          paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
+          balanceDue: vehicle.amount_due || 0,
+          paymentStatus: vehicle.payment_status || 'pending',
+          billingMonth: vehicle.billing_month,
           vehicleCount: 0,
           vehicles: []
         };
       }
       
-      const monthlyAmount = (vehicle.one_month || 0) + (vehicle['2nd_month'] || 0) + (vehicle['3rd_month'] || 0);
-      costCenters[accountNumber].monthlyAmount += monthlyAmount;
-      costCenters[accountNumber].amountDue += vehicle.amount_due || 0;
+      // Use the payment data from the payments_ table
+      costCenters[accountNumber].dueAmount = Math.max(costCenters[accountNumber].dueAmount, vehicle.total_ex_vat || 0);
+      costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
+      costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
+      costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
+      costCenters[accountNumber].billingMonth = vehicle.billing_month;
       costCenters[accountNumber].vehicleCount += 1;
       costCenters[accountNumber].vehicles.push(vehicle);
     });
@@ -1696,14 +1704,14 @@ export default function ClientCostCentersPage() {
             </CardHeader>
             <CardContent>
               <div className="font-bold text-red-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
+                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
               </div>
               <p className={`mt-1 text-xs font-medium ${
-                costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                   ? 'text-red-600' 
                   : 'text-green-600'
               }`}>
-                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                   ? 'Due / Not Paid' 
                   : 'Paid in Full'
                 }
@@ -1736,37 +1744,37 @@ export default function ClientCostCentersPage() {
 
           <Card className="bg-white shadow-lg hover:shadow-xl border-2 border-indigo-100 transition-all duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-3">
-              <CardTitle className="font-semibold text-gray-700 text-sm">First Month</CardTitle>
-              <Calendar className="w-5 h-5 text-indigo-600" />
+              <CardTitle className="font-semibold text-gray-700 text-sm">Total Due</CardTitle>
+              <DollarSign className="w-5 h-5 text-indigo-600" />
             </CardHeader>
             <CardContent>
               <div className="font-bold text-indigo-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.firstMonth || 0), 0))}
+                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.dueAmount || 0), 0))}
               </div>
-              <p className="mt-1 text-gray-500 text-xs">Amounts after 21st of month</p>
+              <p className="mt-1 text-gray-500 text-xs">Total amount due from payments table</p>
             </CardContent>
           </Card>
 
           <Card className="bg-white shadow-lg hover:shadow-xl border-2 border-orange-100 transition-all duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-3">
-              <CardTitle className="font-semibold text-gray-700 text-sm">Payments Due</CardTitle>
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
+              <CardTitle className="font-semibold text-gray-700 text-sm">Balance Due</CardTitle>
+              <CreditCard className="w-5 h-5 text-orange-600" />
             </CardHeader>
             <CardContent>
               <div className="font-bold text-orange-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
+                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
               </div>
               <p className={`mt-1 text-xs font-medium ${
-                costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                   ? 'text-orange-600' 
                   : 'text-green-600'
               }`}>
-                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                   ? 'Due / Not Paid' 
                   : 'Paid in Full'
                 }
               </p>
-              <p className="mt-1 text-gray-500 text-xs">Amount due from payments table</p>
+              <p className="mt-1 text-gray-500 text-xs">Balance due from payments table</p>
             </CardContent>
           </Card>
         </div>
@@ -1777,19 +1785,19 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-gray-900 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
+                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
                 </div>
                 <p className={`text-xs font-medium ${
-                  costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                     ? 'text-red-600' 
                     : 'text-green-600'
                 }`}>
-                  {costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0) > 0 
+                  {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
                     ? 'Due / Not Paid' 
                     : 'Paid in Full'
                   }
                 </p>
-                <p className="text-gray-500 text-xs">Total Amount Due</p>
+                <p className="text-gray-500 text-xs">Total Balance Due</p>
               </div>
             </CardContent>
           </Card>
@@ -1798,9 +1806,9 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-green-600 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.firstMonth || 0), 0))}
+                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.paidAmount || 0), 0))}
                 </div>
-                <p className="text-gray-500 text-xs">First Month Amounts</p>
+                <p className="text-gray-500 text-xs">Total Amount Paid</p>
               </div>
             </CardContent>
           </Card>
@@ -1809,9 +1817,9 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-red-600 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.overdue || 0), 0))}
+                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.dueAmount || 0), 0))}
                 </div>
-                <p className="text-gray-500 text-xs">Total Overdue Amount</p>
+                <p className="text-gray-500 text-xs">Total Amount Due</p>
               </div>
             </CardContent>
           </Card>
@@ -1876,11 +1884,11 @@ export default function ClientCostCentersPage() {
                 <thead className="bg-gray-50">
                   <tr className="border-gray-200 border-b">
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Account Name</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Monthly Amount</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Amount Due</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">First Month</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Overdue</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Vehicles</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Due Amount</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Paid Amount</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Payment Status</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Billing Month</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th>
                   </tr>
@@ -1899,38 +1907,47 @@ export default function ClientCostCentersPage() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="font-semibold text-gray-900">{formatCurrency(costCenter.monthlyAmount)}</div>
+                        <div className="font-semibold text-gray-900">{formatCurrency(costCenter.dueAmount || 0)}</div>
+                        <p className="text-gray-500 text-xs">From payments table</p>
                       </td>
                       <td className="p-4">
                         <div className="space-y-1">
-                          <span className={`font-semibold ${
-                            costCenter.amountDue > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {formatCurrency(costCenter.amountDue)}
+                          <span className="font-semibold text-green-600">
+                            {formatCurrency(costCenter.paidAmount || 0)}
                           </span>
-                          <p className={`text-xs font-medium ${
-                            costCenter.amountDue > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {costCenter.amountDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
+                          <p className="font-medium text-green-600 text-xs">
+                            Amount Paid
                           </p>
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="font-semibold text-blue-600">
-                          {formatCurrency(costCenter.firstMonth || 0)}
-                        </span>
+                        <div className="space-y-1">
+                          <span className={`font-semibold ${
+                            costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(costCenter.balanceDue || 0)}
+                          </span>
+                          <p className={`text-xs font-medium ${
+                            costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {costCenter.balanceDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
+                          </p>
+                        </div>
                       </td>
                       <td className="p-4">
-                        <span className={`font-semibold ${
-                          costCenter.overdue > 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(costCenter.overdue)}
-                        </span>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            costCenter.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
+                            costCenter.paymentStatus === 'overdue' ? 'bg-red-100 text-red-800' :
+                            costCenter.paymentStatus === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {costCenter.paymentStatus || 'pending'}
+                          </span>
                       </td>
                       <td className="p-4">
-                        <Badge variant="secondary" className="bg-purple-100 border-purple-200 text-purple-700">
-                          {costCenter.vehicleCount}
-                        </Badge>
+                        <span className="font-semibold text-blue-600 text-sm">
+                          {costCenter.billingMonth ? new Date(costCenter.billingMonth).toLocaleDateString() : 'N/A'}
+                        </span>
                       </td>
                       <td className="p-4 text-center">
                         <Button

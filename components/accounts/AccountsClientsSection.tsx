@@ -66,10 +66,42 @@ export default function AccountsClientsSection() {
     }
   };
 
-  const handleViewClients = (group: any) => {
-    // Navigate to the client cost centers page
-    const url = `/protected/client-cost-centers/${group.prefix}`;
-    window.location.href = url;
+  const handleViewClients = async (group: any) => {
+    if (!group.all_new_account_numbers) {
+      toast.error('No account numbers found for this client');
+      return;
+    }
+
+    try {
+      // Fetch payment data for this client's account numbers
+      const response = await fetch(`/api/payments/by-client-accounts?all_new_account_numbers=${encodeURIComponent(group.all_new_account_numbers)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch payment data');
+      }
+
+      const data = await response.json();
+      
+      // Store payment data in sessionStorage for the next page
+      sessionStorage.setItem('clientPaymentData', JSON.stringify({
+        clientInfo: {
+          companyGroup: group.company_group,
+          legalNames: group.legal_names_list,
+          accountNumbers: group.all_new_account_numbers
+        },
+        payments: data.payments,
+        summary: data.summary
+      }));
+
+      // Navigate to the client cost centers page
+      const url = `/protected/client-cost-centers/${group.prefix}`;
+      window.location.href = url;
+      
+    } catch (error) {
+      console.error('Error fetching payment data:', error);
+      toast.error('Failed to load payment data. Please try again.');
+    }
   };
 
 

@@ -4,43 +4,31 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Car, Target, Wifi } from 'lucide-react';
-import VehicleTrackingModal from './VehicleTrackingModal';
-
-
-
-interface Vehicle {
-  id: number;
-  plate_number: string;
-  company: string;
-  comment: string;
-  group_name: string;
-  registration: string;
-  active: boolean;
-  new_account_number: string;
-  new_registration: string;
-  beame_1: string;
-  beame_2: string;
-  beame_3: string;
-  ip_address: string;
-  products: string[];
-  vin_number: string;
-}
+import { Car, Target, Wifi, Hash, Calendar } from 'lucide-react';
+import VehicleDetailsModal from './VehicleDetailsModal';
+import { Vehicle } from '@/lib/actions/vehicles';
 
 interface VehicleCardsProps {
   vehicles: Vehicle[];
-  selectedVehicle?: string | null;
-  onVehicleSelect?: (plate: string) => void;
+  selectedVehicle?: Vehicle | null;
+  onVehicleSelect?: (vehicle: Vehicle) => void;
   accountNumber?: string;
 }
 
 export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelect, accountNumber }: VehicleCardsProps) {
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
-  const [selectedVehicleForTracking, setSelectedVehicleForTracking] = useState<string>('');
-  const [selectedVehicleIP, setSelectedVehicleIP] = useState<string>('');
+  const [selectedVehicleForTracking, setSelectedVehicleForTracking] = useState<Vehicle | null>(null);
 
-  const getVehiclePlate = (vehicle: Vehicle) => {
-    return vehicle.new_registration || vehicle.group_name || vehicle.plate_number || 'Unknown';
+  const getVehicleDisplayName = (vehicle: Vehicle) => {
+    return vehicle.fleet_number || vehicle.reg || `Vehicle ${vehicle.id}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   if (vehicles.length === 0) {
@@ -66,8 +54,8 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
       
       <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {vehicles.map((vehicle) => {
-          const plate = getVehiclePlate(vehicle);
-          const isSelected = selectedVehicle === plate;
+          const displayName = getVehicleDisplayName(vehicle);
+          const isSelected = selectedVehicle?.id === vehicle.id;
 
           return (
             <Card 
@@ -75,88 +63,103 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
               className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
                 isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
               }`}
-              onClick={() => onVehicleSelect?.(plate)}
+              onClick={() => onVehicleSelect?.(vehicle)}
             >
-                             <CardHeader className="pb-3">
-                 <div className="flex justify-between items-start">
-                   <div className="flex items-center space-x-3">
-                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                       vehicle.active ? 'bg-green-100' : 'bg-gray-100'
-                     }`}>
-                       <Car className={`w-5 h-5 ${
-                         vehicle.active ? 'text-green-600' : 'text-gray-400'
-                       }`} />
-                     </div>
-                     <div>
-                       <CardTitle className="font-semibold text-gray-900 text-lg">
-                         {plate}
-                       </CardTitle>
-                       <p className="text-gray-500 text-sm">
-                         {vehicle.company || 'Unknown Company'}
-                       </p>
-                     </div>
-                   </div>
-                   <Badge variant={vehicle.active ? 'default' : 'secondary'}>
-                     {vehicle.active ? 'Active' : 'Inactive'}
-                   </Badge>
-                 </div>
-               </CardHeader>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex justify-center items-center bg-blue-100 rounded-lg w-10 h-10">
+                      <Car className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="font-semibold text-gray-900 text-lg">
+                        {displayName}
+                      </CardTitle>
+                      <p className="text-gray-500 text-sm">
+                        {vehicle.company || 'Unknown Company'}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline">
+                    Vehicle
+                  </Badge>
+                </div>
+              </CardHeader>
               
-                             <CardContent className="space-y-3">
-                 {vehicle.comment && (
-                   <div className="text-gray-600 text-sm">
-                     <span className="font-medium">Comment:</span> {vehicle.comment}
-                   </div>
-                 )}
-                 
-                 <div className="space-y-2">
-                   {vehicle.ip_address && (
-                     <div className="flex items-center space-x-2 text-sm">
-                       <Wifi className="w-4 h-4 text-blue-600" />
-                       <span><strong>IP Address:</strong> {vehicle.ip_address}</span>
-                     </div>
-                   )}
-                   
-                   {vehicle.vin_number && (
-                     <div className="flex items-center space-x-2 text-sm">
-                       <Car className="w-4 h-4 text-green-600" />
-                       <span className="truncate">
-                         <strong>VIN:</strong> {vehicle.vin_number}
-                       </span>
-                     </div>
-                   )}
-                 </div>
+              <CardContent className="space-y-3">
+                {/* Fleet Number and Registration prominently displayed */}
+                <div className="space-y-2">
+                  {vehicle.fleet_number && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Hash className="w-4 h-4 text-blue-600" />
+                      <span><strong>Fleet #:</strong> {vehicle.fleet_number}</span>
+                    </div>
+                  )}
+                  
+                  {vehicle.reg && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Car className="w-4 h-4 text-green-600" />
+                      <span><strong>Registration:</strong> {vehicle.reg}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Additional vehicle details */}
+                <div className="space-y-2">
+                  {vehicle.make && vehicle.model && (
+                    <div className="text-gray-600 text-sm">
+                      <strong>Vehicle:</strong> {vehicle.make} {vehicle.model}
+                    </div>
+                  )}
+                  
+                  {vehicle.year && (
+                    <div className="text-gray-600 text-sm">
+                      <strong>Year:</strong> {vehicle.year}
+                    </div>
+                  )}
+                  
+                  {vehicle.colour && (
+                    <div className="text-gray-600 text-sm">
+                      <strong>Color:</strong> {vehicle.colour}
+                    </div>
+                  )}
+                  
+                  {vehicle.created_at && (
+                    <div className="flex items-center space-x-2 text-gray-500 text-sm">
+                      <Calendar className="w-4 h-4" />
+                      <span>Added: {formatDate(vehicle.created_at)}</span>
+                    </div>
+                  )}
+                </div>
                 
-                                 <div className="pt-2">
-                   <Button 
-                     variant="outline"
-                     size="sm"
-                     className="bg-blue-50 hover:bg-blue-100 border-blue-200 w-full text-blue-700"
-                     onClick={(e) => {
-                       e.stopPropagation();
-                       setSelectedVehicleForTracking(plate);
-                       setSelectedVehicleIP(vehicle.ip_address || '');
-                       setTrackingModalOpen(true);
-                     }}
-                   >
-                     <Target className="mr-2 w-3 h-3" />
-                     View Vehicle Details
-                   </Button>
-                 </div>
+                <div className="pt-2">
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="bg-blue-50 hover:bg-blue-100 border-blue-200 w-full text-blue-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedVehicleForTracking(vehicle);
+                      setTrackingModalOpen(true);
+                    }}
+                  >
+                    <Target className="mr-2 w-3 h-3" />
+                    View Vehicle Details
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
       
-      {/* Vehicle Tracking Modal */}
-      {trackingModalOpen && accountNumber && (
-        <VehicleTrackingModal
+      {/* Vehicle Details Modal */}
+      {trackingModalOpen && accountNumber && selectedVehicleForTracking && (
+        <VehicleDetailsModal
           isOpen={trackingModalOpen}
           onClose={() => setTrackingModalOpen(false)}
-          vehiclePlate={selectedVehicleForTracking}
+          vehicle={selectedVehicleForTracking}
           accountNumber={accountNumber}
-          vehicleIP={selectedVehicleIP}
         />
       )}
     </div>

@@ -20,34 +20,16 @@ export async function GET(request: NextRequest) {
       monthsLate = 1; // Current month is overdue
     }
 
-    // First, fetch payments data for overdue accounts
+    // Fetch overdue payments data from our new payments_ table
     const { data: paymentsData, error: paymentsError } = await supabase
-      .from('payments')
-      .select('*');
+      .from('payments_')
+      .select('*')
+      .gt('balance_due', 0); // Only accounts with outstanding balance
 
     if (paymentsError) {
       console.error('Error fetching payments:', paymentsError);
       return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 });
     }
-
-    // Then fetch vehicle invoices to get company names and link data
-    const { data: invoices, error: invoicesError } = await supabase
-      .from('vehicle_invoices')
-      .select('*')
-      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
-
-    if (invoicesError) {
-      console.error('Error fetching vehicle invoices for overdue check:', invoicesError);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
-    }
-
-    // Create a map of account numbers to company names from vehicle_invoices
-    const accountCompanyMap = {};
-    invoices?.forEach(invoice => {
-      if (invoice.new_account_number && invoice.company) {
-        accountCompanyMap[invoice.new_account_number] = invoice.company;
-      }
-    });
 
     // Process payments and link with company names
     const processedOverdueAccounts = [];
@@ -55,27 +37,24 @@ export async function GET(request: NextRequest) {
     let totalAccountsWithOverdue = 0;
 
     paymentsData?.forEach(payment => {
-      const accountNumber = payment.new_account_number;
-      if (!accountNumber) return;
+      const costCode = payment.cost_code;
+      if (!costCode) return;
 
-      // Get company name from vehicle_invoices, fallback to 'Unknown Company'
-      const company = accountCompanyMap[accountNumber] || 'Unknown Company';
+      // Get company name from payments_ table, fallback to 'Unknown Company'
+      const company = payment.company || 'Unknown Company';
       
-      // Calculate total overdue amount
-      const totalOverdue = (payment.overdue || 0) + 
-                          (payment.first_month || 0) + 
-                          (payment.second_month || 0) + 
-                          (payment.third_month || 0) + 
-                          (payment.amount_due || 0);
+      // Calculate total overdue amount using balance_due from payments_ table
+      // Ensure proper number conversion to avoid NaN
+      const totalOverdue = parseFloat(payment.balance_due) || 0;
+      
+      // Extract overdue amounts by period from payments_ table
+      const overdue1_30 = parseFloat(payment.overdue_30_days) || 0;
+      const overdue31_60 = parseFloat(payment.overdue_60_days) || 0;
+      const overdue61_90 = parseFloat(payment.overdue_90_days) || 0;
+      const overdue91_plus = Math.max(0, totalOverdue - overdue1_30 - overdue31_60 - overdue61_90);
 
-      // Count vehicles for this account from vehicle_invoices
-      const accountVehicles = invoices?.filter(inv => inv.new_account_number === accountNumber) || [];
-      const vehicleCount = accountVehicles.length;
-
-      // Calculate monthly amount from vehicle invoices
-      const totalMonthlyAmount = accountVehicles.reduce((sum, inv) => {
-        return sum + (parseFloat(inv.total_incl_vat) || 0);
-      }, 0);
+      // Get monthly due amount
+      const totalMonthlyAmount = parseFloat(payment.due_amount) || 0;
 
       if (totalOverdue > 0) {
         totalAccountsWithOverdue++;
@@ -83,25 +62,51 @@ export async function GET(request: NextRequest) {
       }
 
       processedOverdueAccounts.push({
-        accountNumber: payment.new_account_number,
+        accountNumber: costCode,
         company: company,
         totalMonthlyAmount: totalMonthlyAmount,
         totalOverdue: totalOverdue,
-        overdue1_30: payment.first_month || 0,
-        overdue31_60: payment.second_month || 0,
-        overdue61_90: payment.third_month || 0,
-        overdue91_plus: payment.amount_due || 0,
-        vehicleCount: vehicleCount,
+        overdue1_30: overdue1_30,
+        overdue31_60: overdue31_60,
+        overdue61_90: overdue61_90,
+        overdue91_plus: overdue91_plus,
+        vehicleCount: 0, // Will be populated separately
         dueDate: payment.due_date,
-        paymentReference: payment.payment_reference,
-        // Original overdue amounts for reference
-        overdue: payment.overdue || 0,
-        firstMonth: payment.first_month || 0,
-        secondMonth: payment.second_month || 0,
-        thirdMonth: payment.third_month || 0,
-        amountDue: payment.amount_due || 0
+        paymentReference: '',
+        // New payments_ table fields for reference
+        paymentStatus: payment.payment_status,
+        billingMonth: payment.billing_month,
+        lastUpdated: payment.last_updated,
+        overdue30Days: parseFloat(payment.overdue_30_days) || 0,
+        overdue60Days: parseFloat(payment.overdue_60_days) || 0,
+        overdue90Days: parseFloat(payment.overdue_90_days) || 0
       });
     });
+
+    // Fetch vehicle counts for each cost code
+    try {
+      const allCostCodes = [...new Set(paymentsData?.map(p => p.cost_code).filter(Boolean))];
+      if (allCostCodes.length > 0) {
+        const { data: vehicleCounts } = await supabase
+          .from('vehicles')
+          .select('new_account_number')
+          .in('new_account_number', allCostCodes);
+
+        // Create a map of cost codes to vehicle counts
+        const vehicleCountMap = {};
+        vehicleCounts?.forEach(vehicle => {
+          const code = vehicle.new_account_number;
+          vehicleCountMap[code] = (vehicleCountMap[code] || 0) + 1;
+        });
+
+        // Update vehicle counts in processed accounts
+        processedOverdueAccounts.forEach(account => {
+          account.vehicleCount = vehicleCountMap[account.accountNumber] || 0;
+        });
+      }
+    } catch (vehicleError) {
+      console.error('Warning: Could not fetch vehicle counts:', vehicleError);
+    }
 
     // Sort accounts by total overdue amount (highest first)
     const sortedOverdueAccounts = processedOverdueAccounts
@@ -124,7 +129,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       summary: {
         totalAccountsWithOverdue,
-        totalOverdueAmount,
+        totalOverdueAmount: parseFloat(totalOverdueAmount.toFixed(2)), // Ensure proper number formatting
         monthsLate,
         paymentDueDay
       },
@@ -158,34 +163,16 @@ export async function POST(request: NextRequest) {
       monthsLate = 1;
     }
 
-    // First, fetch payments data for overdue accounts
+    // Fetch overdue payments data from our new payments_ table
     const { data: paymentsData, error: paymentsError } = await supabase
-      .from('payments')
-      .select('*');
+      .from('payments_')
+      .select('*')
+      .gt('balance_due', 0); // Only accounts with outstanding balance
 
     if (paymentsError) {
       console.error('Error fetching payments:', paymentsError);
       return NextResponse.json({ error: 'Failed to fetch payments' }, { status: 500 });
     }
-
-    // Then fetch vehicle invoices to get company names and link data
-    const { data: invoices, error: invoicesError } = await supabase
-      .from('vehicle_invoices')
-      .select('*')
-      .eq('stock_code', 'MONLTHY SUBSCRIPTION');
-
-    if (invoicesError) {
-      console.error('Error fetching vehicle invoices for overdue check:', invoicesError);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
-    }
-
-    // Create a map of account numbers to company names from vehicle_invoices
-    const accountCompanyMap = {};
-    invoices?.forEach(invoice => {
-      if (invoice.new_account_number && invoice.company) {
-        accountCompanyMap[invoice.new_account_number] = invoice.company;
-      }
-    });
 
     // Process payments and link with company names
     const processedOverdueAccounts = [];
@@ -193,27 +180,24 @@ export async function POST(request: NextRequest) {
     let totalAccountsWithOverdue = 0;
 
     paymentsData?.forEach(payment => {
-      const accountNumber = payment.new_account_number;
-      if (!accountNumber) return;
+      const costCode = payment.cost_code;
+      if (!costCode) return;
 
-      // Get company name from vehicle_invoices, fallback to 'Unknown Company'
-      const company = accountCompanyMap[accountNumber] || 'Unknown Company';
+      // Get company name from payments_ table, fallback to 'Unknown Company'
+      const company = payment.company || 'Unknown Company';
       
-      // Calculate total overdue amount
-      const totalOverdue = (payment.overdue || 0) + 
-                          (payment.first_month || 0) + 
-                          (payment.second_month || 0) + 
-                          (payment.third_month || 0) + 
-                          (payment.amount_due || 0);
+      // Calculate total overdue amount using balance_due from payments_ table
+      // Ensure proper number conversion to avoid NaN
+      const totalOverdue = parseFloat(payment.balance_due) || 0;
+      
+      // Extract overdue amounts by period from payments_ table
+      const overdue1_30 = parseFloat(payment.overdue_30_days) || 0;
+      const overdue31_60 = parseFloat(payment.overdue_60_days) || 0;
+      const overdue61_90 = parseFloat(payment.overdue_90_days) || 0;
+      const overdue91_plus = Math.max(0, totalOverdue - overdue1_30 - overdue31_60 - overdue61_90);
 
-      // Count vehicles for this account from vehicle_invoices
-      const accountVehicles = invoices?.filter(inv => inv.new_account_number === accountNumber) || [];
-      const vehicleCount = accountVehicles.length;
-
-      // Calculate monthly amount from vehicle invoices
-      const totalMonthlyAmount = accountVehicles.reduce((sum, inv) => {
-        return sum + (parseFloat(inv.total_incl_vat) || 0);
-      }, 0);
+      // Get monthly due amount
+      const totalMonthlyAmount = parseFloat(payment.due_amount) || 0;
 
       if (totalOverdue > 0) {
         totalAccountsWithOverdue++;
@@ -221,25 +205,51 @@ export async function POST(request: NextRequest) {
       }
 
       processedOverdueAccounts.push({
-        accountNumber: payment.new_account_number,
+        accountNumber: costCode,
         company: company,
         totalMonthlyAmount: totalMonthlyAmount,
         totalOverdue: totalOverdue,
-        overdue1_30: payment.first_month || 0,
-        overdue31_60: payment.second_month || 0,
-        overdue61_90: payment.third_month || 0,
-        overdue91_plus: payment.amount_due || 0,
-        vehicleCount: vehicleCount,
+        overdue1_30: overdue1_30,
+        overdue31_60: overdue31_60,
+        overdue61_90: overdue61_90,
+        overdue91_plus: overdue91_plus,
+        vehicleCount: 0, // Will be populated separately
         dueDate: payment.due_date,
-        paymentReference: payment.payment_reference,
-        // Original overdue amounts for reference
-        overdue: payment.overdue || 0,
-        firstMonth: payment.first_month || 0,
-        secondMonth: payment.second_month || 0,
-        thirdMonth: payment.third_month || 0,
-        amountDue: payment.amount_due || 0
+        paymentReference: '',
+        // New payments_ table fields for reference
+        paymentStatus: payment.payment_status,
+        billingMonth: payment.billing_month,
+        lastUpdated: payment.last_updated,
+        overdue30Days: parseFloat(payment.overdue_30_days) || 0,
+        overdue60Days: parseFloat(payment.overdue_60_days) || 0,
+        overdue90Days: parseFloat(payment.overdue_90_days) || 0
       });
     });
+
+    // Fetch vehicle counts for each cost code
+    try {
+      const allCostCodes = [...new Set(paymentsData?.map(p => p.cost_code).filter(Boolean))];
+      if (allCostCodes.length > 0) {
+        const { data: vehicleCounts } = await supabase
+          .from('vehicles')
+          .select('new_account_number')
+          .in('new_account_number', allCostCodes);
+
+        // Create a map of cost codes to vehicle counts
+        const vehicleCountMap = {};
+        vehicleCounts?.forEach(vehicle => {
+          const code = vehicle.new_account_number;
+          vehicleCountMap[code] = (vehicleCountMap[code] || 0) + 1;
+        });
+
+        // Update vehicle counts in processed accounts
+        processedOverdueAccounts.forEach(account => {
+          account.vehicleCount = vehicleCountMap[account.accountNumber] || 0;
+        });
+      }
+    } catch (vehicleError) {
+      console.error('Warning: Could not fetch vehicle counts:', vehicleError);
+    }
 
     const sortedOverdueAccounts = processedOverdueAccounts
       .sort((a: any, b: any) => b.totalOverdue - a.totalOverdue);
@@ -250,7 +260,7 @@ export async function POST(request: NextRequest) {
       forceRefresh,
       summary: {
         totalAccountsWithOverdue,
-        totalOverdueAmount,
+        totalOverdueAmount: parseFloat(totalOverdueAmount.toFixed(2)), // Ensure proper number formatting
         monthsLate,
         paymentDueDay
       },

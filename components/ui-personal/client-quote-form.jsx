@@ -31,6 +31,7 @@ import {
 import { FaR } from "react-icons/fa6";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { getVehiclesByAccountNumber } from "@/lib/actions/vehicles";
 
 export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, accountInfo }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -61,7 +62,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     console.log('ClientQuoteForm received vehicles:', vehicles);
   }, [vehicles]);
 
-  // New function to fetch vehicles from vehicles_ip table
+  // New function to fetch vehicles from vehicles table
   const fetchVehiclesFromIP = useCallback(async (loadAll = false) => {
     if (!accountInfo?.new_account_number) {
       console.log('No account number available for fetching vehicles');
@@ -71,11 +72,11 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     try {
       setDeInstallData(prev => ({ ...prev, loadingVehicles: true }));
       
-      // Fetch vehicles from vehicles_ip table for this account
-      const response = await fetch(`/api/vehicles-ip?accountNumber=${encodeURIComponent(accountInfo.new_account_number)}`);
-      if (response.ok) {
-        const data = await response.json();
-        const allAccountVehicles = data.vehicles || [];
+      // Fetch vehicles from vehicles table for this account using server action
+      const result = await getVehiclesByAccountNumber(accountInfo.new_account_number, 1, loadAll ? 1000 : 5);
+      
+      if (result.success) {
+        const allAccountVehicles = result.vehicles || [];
         
         console.log('Fetched all vehicles for account:', allAccountVehicles);
         
@@ -91,7 +92,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           vehiclesLoaded: initialCount
         }));
         
-        // Process each vehicle and its products
+        // Process each vehicle and create default products for de-installation
         const vehicleProducts = {};
         for (const vehicle of vehiclesToShow) {
           if (!vehicle.id) {
@@ -99,54 +100,143 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
             continue;
           }
           
-          // Use the products array from vehicles_ip table
-          const vehicleProductsList = vehicle.products || [];
+          // Create default products for de-installation based on vehicle equipment
+          const defaultProducts = [];
           
-          if (vehicleProductsList.length > 0) {
-            // Transform products to match expected format
-            vehicleProducts[vehicle.id] = vehicleProductsList.map(product => ({
-              id: `product-${vehicle.id}-${product.id || Math.random()}`,
-              name: product.name || product.product || 'Telematics Product',
-              description: product.description || 'Product from vehicle',
-              type: product.type || 'FMS',
-              category: product.category || 'HARDWARE',
-              installation_price: product.installation_price || 0,
-              de_installation_price: product.de_installation_price || 500,
-              price: product.price || 0,
-              rental: product.rental || 0,
-              code: product.code || 'N/A',
+          // Check for various equipment types and create products accordingly
+          if (vehicle.skylink_trailer_unit_serial_number || vehicle.skylink_trailer_unit_ip) {
+            defaultProducts.push({
+              id: `skylink-trailer-${vehicle.id}`,
+              name: "Skylink Trailer Unit",
+              description: "Trailer telematics unit with GPS tracking",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 500,
+              price: 0,
+              rental: 0,
+              code: 'SKYLINK_TRAILER',
               vehicleId: vehicle.id,
-              vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
-            }));
-          } else {
-            // If no products found, create a default product for de-installation
-            vehicleProducts[vehicle.id] = [
-              {
-                id: `default-${vehicle.id}`,
-                name: "Telematics Unit",
-                description: "Standard telematics unit with GPS tracking",
-                type: "FMS",
-                category: "HARDWARE",
-                installation_price: 0,
-                de_installation_price: 500,
-                price: 0,
-                rental: 0,
-                code: 'DEFAULT',
-                vehicleId: vehicle.id,
-                vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
-              }
-            ];
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
           }
+          
+          if (vehicle.sky_on_batt_ign_unit_serial_number || vehicle.sky_on_batt_ign_unit_ip) {
+            defaultProducts.push({
+              id: `sky-batt-ign-${vehicle.id}`,
+              name: "Sky On Battery Ignition Unit",
+              description: "Battery ignition telematics unit",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 500,
+              price: 0,
+              rental: 0,
+              code: 'SKY_BATT_IGN',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          if (vehicle.skylink_voice_kit_serial_number || vehicle.skylink_voice_kit_ip) {
+            defaultProducts.push({
+              id: `skylink-voice-${vehicle.id}`,
+              name: "Skylink Voice Kit",
+              description: "Voice communication kit",
+              type: "COMMUNICATION",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 300,
+              price: 0,
+              rental: 0,
+              code: 'SKYLINK_VOICE',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          if (vehicle.sky_scout_12v_serial_number || vehicle.sky_scout_12v_ip) {
+            defaultProducts.push({
+              id: `sky-scout-12v-${vehicle.id}`,
+              name: "Sky Scout 12V",
+              description: "12V Scout monitoring unit",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 400,
+              price: 0,
+              rental: 0,
+              code: 'SKY_SCOUT_12V',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          if (vehicle.sky_scout_24v_serial_number || vehicle.sky_scout_24v_ip) {
+            defaultProducts.push({
+              id: `sky-scout-24v-${vehicle.id}`,
+              name: "Sky Scout 24V",
+              description: "24V Scout monitoring unit",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 400,
+              price: 0,
+              rental: 0,
+              code: 'SKY_SCOUT_24V',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          if (vehicle.skylink_pro_serial_number || vehicle.skylink_pro_ip) {
+            defaultProducts.push({
+              id: `skylink-pro-${vehicle.id}`,
+              name: "Skylink Pro Unit",
+              description: "Professional telematics unit",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 600,
+              price: 0,
+              rental: 0,
+              code: 'SKYLINK_PRO',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          // If no specific equipment found, create a default telematics unit
+          if (defaultProducts.length === 0) {
+            defaultProducts.push({
+              id: `default-${vehicle.id}`,
+              name: "Telematics Unit",
+              description: "Standard telematics unit with GPS tracking",
+              type: "FMS",
+              category: "HARDWARE",
+              installation_price: 0,
+              de_installation_price: 500,
+              price: 0,
+              rental: 0,
+              code: 'DEFAULT',
+              vehicleId: vehicle.id,
+              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+            });
+          }
+          
+          vehicleProducts[vehicle.id] = defaultProducts;
         }
         
         setDeInstallData(prev => ({ ...prev, vehicleProducts }));
       } else {
-        console.warn('Failed to fetch vehicles for account:', response.status);
+        console.warn('Failed to fetch vehicles for account:', result.error);
+        toast.error('Failed to load vehicles for de-installation');
         // Create default vehicle if fetch fails
         const defaultVehicle = {
           id: 'default-vehicle',
-          new_registration: 'Default Vehicle',
-          group_name: 'Default Vehicle',
+          fleet_number: 'Default Vehicle',
+          reg: 'Default Vehicle',
+          company: 'Default Company',
           products: []
         };
         
@@ -211,16 +301,38 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const fetchCustomerData = useCallback(async (accountNumber) => {
     if (!accountNumber) return;
     
+    console.log('fetchCustomerData called with accountNumber:', accountNumber);
+    
     try {
       const response = await fetch(`/api/customers/match-account?accountNumber=${encodeURIComponent(accountNumber)}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch customer data');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || 'Failed to fetch customer data';
+        
+        if (response.status === 404) {
+          // Customer not found - show toast message
+          toast.error('No contact information found for this customer');
+        } else {
+          console.error('API Error:', response.status, errorMessage);
+        }
+        return; // Don't throw error, just return
       }
       const data = await response.json();
       
       if (data.success && data.customer) {
         // Update form data with fetched customer information
         const customer = data.customer;
+        
+        // Check if customer has any contact information
+        const hasContactInfo = customer.trading_name || customer.company || customer.legal_name ||
+                              customer.branch_person_email || customer.email ||
+                              customer.cell_no || customer.switchboard ||
+                              constructAddress(customer);
+        
+        if (!hasContactInfo) {
+          toast.error('No contact information found for this customer');
+          return;
+        }
         
         setFormData(prev => ({
           ...prev,
@@ -235,7 +347,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
-      // Don't show error toast as this is not critical for quote creation
+      toast.error('Error fetching customer data');
     }
   }, [constructAddress]);
 
@@ -1233,13 +1345,13 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                               <div className="flex justify-between items-start mb-3">
                                 <div className="flex-1">
                                   <div className="mb-1 font-bold text-gray-900 text-lg">
-                                    {vehicle.new_registration || vehicle.group_name || 'Unknown Plate'}
+                                    {vehicle.fleet_number || vehicle.reg || 'Unknown Vehicle'}
                                   </div>
                                   <div className="text-gray-500 text-sm">
-                                    {vehicle.beame_1 || 'Unknown Make'} {vehicle.beame_2 || 'Unknown Model'} • {vehicle.beame_3 || 'N/A'}
+                                    {vehicle.make || 'Unknown Make'} {vehicle.model || 'Unknown Model'} • {vehicle.year || 'N/A'}
                                   </div>
                                   <div className="text-gray-400 text-xs">
-                                    VIN: {vehicle.vin_number || 'N/A'} • IP: {vehicle.ip_address || 'N/A'}
+                                    VIN: {vehicle.vin || 'N/A'} • Company: {vehicle.company || 'N/A'}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -1281,7 +1393,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                                           onClick={() => addProduct({
                                             ...product,
                                             vehicleId: vehicle.id,
-                                            vehiclePlate: vehicle.new_registration || vehicle.group_name || 'Unknown'
+                                            vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
                                           })}
                                           className="bg-green-600 hover:bg-green-700"
                                         >
@@ -1656,33 +1768,6 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
               </Card>
             )}
 
-            {/* Message for de-installation when no products selected */}
-            {formData.jobType === 'deinstall' && (selectedProducts || []).length === 0 && (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                  <h3 className="mb-2 font-medium text-gray-900 text-lg">No products selected</h3>
-                  <p className="mb-4 text-gray-500">Select vehicles above to add their products, or manually add products with pricing below.</p>
-                  <Button
-                    onClick={() => {
-                      // Add a default product for manual pricing
-                      addProduct({
-                        id: 'manual-product',
-                        name: 'Manual Product',
-                        description: 'Product added manually for de-installation',
-                        type: 'FMS',
-                        category: 'HARDWARE',
-                        de_installation_price: 0,
-                      });
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Plus className="mr-2 w-4 h-4" />
-                    Add Manual Product
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
           </div>
         );
 
@@ -1751,41 +1836,30 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           </Button>
         </div>
 
-        {/* Vehicle Information Note */}
-        <div className="bg-blue-50 p-4 border border-blue-200">
-          <div className="flex items-start gap-2">
-            <div className="flex-shrink-0 bg-blue-500 mt-2 rounded-full w-2 h-2"></div>
-            <div className="text-blue-800 text-sm">
-              <p className="font-medium">Vehicle Information (Optional)</p>
-              <p>Vehicle information is optional. If vehicle registration is not provided, 
-              a temporary registration will be automatically generated by the system.</p>
-            </div>
-          </div>
-        </div>
 
         {/* Step Indicator */}
-        <div className="flex flex-shrink-0 justify-center items-center bg-gray-50 p-4 border-b">
+        <div className="flex flex-shrink-0 justify-center items-center bg-gray-50 px-4 py-1 border-b">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+              <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 ${
                 index <= currentStep ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-500'
               }`}>
                 {index < currentStep ? (
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="w-2.5 h-2.5" />
                 ) : (
-                  <step.icon className="w-4 h-4" />
+                  <step.icon className="w-2.5 h-2.5" />
                 )}
               </div>
-              <div className="ml-2">
-                <div className={`text-sm font-medium ${
+              <div className="ml-1.5">
+                <div className={`text-xs font-medium ${
                   index <= currentStep ? 'text-blue-600' : 'text-gray-500'
                 }`}>
                   {step.title}
                 </div>
-                <div className="text-gray-400 text-xs">{step.subtitle}</div>
+                <div className="text-gray-400 text-xs leading-tight">{step.subtitle}</div>
               </div>
               {index < steps.length - 1 && (
-                <div className={`w-12 h-0.5 mx-4 ${
+                <div className={`w-6 h-0.5 mx-2 ${
                   index < currentStep ? 'bg-blue-600' : 'bg-gray-300'
                 }`} />
               )}

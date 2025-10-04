@@ -41,6 +41,7 @@ interface CompanyGroup {
 interface ClientsContextType {
   companyGroups: CompanyGroup[];
   contactInfo: Record<string, ContactInfo>;
+  paymentData: Record<string, any>;
   loading: boolean;
   loadingContacts: boolean;
   totalCount: number;
@@ -67,6 +68,7 @@ interface ClientsProviderProps {
 export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) => {
   const [companyGroups, setCompanyGroups] = useState<CompanyGroup[]>([]);
   const [contactInfo, setContactInfo] = useState<Record<string, ContactInfo>>({});
+  const [paymentData, setPaymentData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -85,8 +87,10 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
       console.log('Company groups data received:', data);
       
       const newCompanyGroups = data.companyGroups || [];
+      const newPaymentData = data.paymentData || {};
       
       setCompanyGroups(newCompanyGroups);
+      setPaymentData(newPaymentData);
       setTotalCount(data.count || newCompanyGroups.length);
       setIsDataLoaded(true);
       
@@ -193,6 +197,7 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
   const value: ClientsContextType = {
     companyGroups,
     contactInfo,
+    paymentData,
     loading,
     loadingContacts,
     totalCount,

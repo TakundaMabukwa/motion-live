@@ -39,6 +39,7 @@ export default function AccountsDashboard() {
   const { 
     companyGroups, 
     contactInfo, 
+    paymentData,
     loading, 
     loadingContacts, 
     totalCount, 
@@ -83,9 +84,9 @@ export default function AccountsDashboard() {
 
   const handleViewDetails = (group) => {
     if (group.all_new_account_numbers) {
-      const firstAccount = group.all_new_account_numbers.split(',')[0].trim();
-      const prefix = firstAccount.split('-')[0];
-      router.push(`/protected/fc/clients/${prefix}/cost-centers`);
+      // Pass the entire all_new_account_numbers string to the cost centers page
+      const encodedAccountNumbers = encodeURIComponent(group.all_new_account_numbers);
+      router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
     }
   };
 

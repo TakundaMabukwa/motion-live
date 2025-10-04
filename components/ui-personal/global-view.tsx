@@ -50,6 +50,7 @@ interface AccountSummary {
 export default function GlobalView() {
   const [recentJobs, setRecentJobs] = useState<JobCard[]>([]);
   const [accountSummaries, setAccountSummaries] = useState<AccountSummary[]>([]);
+  const [paymentData, setPaymentData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const router = useRouter();
@@ -108,6 +109,18 @@ export default function GlobalView() {
       });
       
       setAccountSummaries(Array.from(accountMap.values()));
+      
+      // Fetch payment data from payments dashboard
+      try {
+        const paymentResponse = await fetch('/api/customers-grouped?fetchAll=true');
+        if (paymentResponse.ok) {
+          const paymentDataResponse = await paymentResponse.json();
+          setPaymentData(paymentDataResponse.paymentData || {});
+        }
+      } catch (paymentError) {
+        console.error('Error fetching payment data:', paymentError);
+      }
+      
       setLastUpdated(new Date());
       
     } catch (error) {
@@ -202,7 +215,7 @@ export default function GlobalView() {
       </div>
 
       {/* Summary Cards */}
-      <div className="gap-6 grid grid-cols-1 md:grid-cols-6">
+      <div className="gap-6 grid grid-cols-1 md:grid-cols-7">
         {/* Recent Jobs */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
@@ -300,6 +313,24 @@ export default function GlobalView() {
             </div>
             <p className="text-muted-foreground text-xs">
               Combined value
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Total Monthly Payments */}
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+            <CardTitle className="font-medium text-sm">Total Monthly</CardTitle>
+            <TrendingUp className="w-4 h-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="font-bold text-green-600 text-2xl">
+              {formatCurrency(
+                Object.values(paymentData).reduce((sum: number, payment: any) => sum + (payment.totalDue || 0), 0)
+              )}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Monthly payments due
             </p>
           </CardContent>
         </Card>
