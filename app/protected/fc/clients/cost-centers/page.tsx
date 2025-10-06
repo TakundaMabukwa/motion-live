@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,7 @@ interface CostCenter {
   company: string;
 }
 
-export default function ClientCostCentersPage() {
+function ClientCostCentersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const accountsParam = searchParams.get('accounts');
@@ -488,5 +488,48 @@ export default function ClientCostCentersPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function CostCentersLoading() {
+  return (
+    <div className="bg-white min-h-screen">
+      {/* Top Navigation */}
+      <div className="bg-white border-gray-200 border-b">
+        <div className="px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="bg-gray-200 rounded w-20 h-8 animate-pulse"></div>
+              <span className="text-gray-400">›</span>
+              <span className="text-gray-600">Cost Centers</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex justify-center items-center bg-blue-100 rounded-full w-8 h-8">
+                <span className="font-medium text-blue-600 text-sm">FC</span>
+              </div>
+              <span className="font-medium text-gray-900 text-sm">Field Coordinator</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="px-6 py-8">
+        <div className="mb-8">
+          <div className="bg-gray-200 mb-2 rounded w-48 h-8 animate-pulse"></div>
+          <div className="bg-gray-200 rounded w-96 h-4 animate-pulse"></div>
+        </div>
+        <div className="bg-gray-200 rounded-lg w-full h-96 animate-pulse"></div>
+      </div>
+    </div>
+  );
+}
+
+export default function ClientCostCentersPage() {
+  return (
+    <Suspense fallback={<CostCentersLoading />}>
+      <ClientCostCentersContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner';
 import AccountDashboard from '@/components/accounts/AccountDashboard';
 
-export default function AccountPage() {
+function AccountPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const accountNumber = params.accountNumber as string;
@@ -117,5 +117,41 @@ export default function AccountPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function AccountPageLoading() {
+  return (
+    <div className="bg-gray-50 min-h-screen">
+      <div className="flex">
+        {/* Sidebar Skeleton */}
+        <div className="bg-white border-gray-200 border-r w-64">
+          <div className="p-6">
+            <div className="bg-gray-200 mb-4 rounded w-32 h-6 animate-pulse"></div>
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-gray-200 rounded w-full h-10 animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Main Content Skeleton */}
+        <div className="flex-1">
+          <div className="p-6">
+            <div className="bg-gray-200 rounded w-full h-96 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<AccountPageLoading />}>
+      <AccountPageContent />
+    </Suspense>
   );
 }
