@@ -50,7 +50,7 @@ export function OverdueDashboard() {
         <Card>
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
             <CardTitle className="font-medium text-sm">Accounts Overdue</CardTitle>
-            <DollarSign className="w-4 h-4 text-muted-foreground" />
+            {/* <DollarSign className="w-4 h-4 text-muted-foreground" /> */}
           </CardHeader>
           <CardContent>
             <div className="font-bold text-2xl">

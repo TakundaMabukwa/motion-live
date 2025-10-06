@@ -56,6 +56,13 @@ export default function AccountsClientsSection() {
     return companyGroups;
   }, [companyGroups]);
 
+  // Calculate statistics for customers with and without cost centers
+  const customerStats = useMemo(() => {
+    const withCostCenters = companyGroups.filter(group => group.hasCostCenters !== false).length;
+    const withoutCostCenters = companyGroups.filter(group => group.hasCostCenters === false).length;
+    return { withCostCenters, withoutCostCenters };
+  }, [companyGroups]);
+
   const handleRefresh = async () => {
     try {
       await fetchCompanyGroups(searchTerm);
@@ -67,40 +74,69 @@ export default function AccountsClientsSection() {
   };
 
   const handleViewClients = async (group: any) => {
+    console.log('handleViewClients called with group:', group);
+    console.log('Group all_new_account_numbers:', group.all_new_account_numbers);
+    
     if (!group.all_new_account_numbers) {
+      console.error('No account numbers found for this client:', group);
       toast.error('No account numbers found for this client');
       return;
     }
 
     try {
-      // Fetch payment data for this client's account numbers
+      // Parse comma-separated account numbers for payments_ table search
+      const accountNumbers = group.all_new_account_numbers
+        .split(',')
+        .map((num: string) => num.trim().toUpperCase())
+        .filter((num: string) => num.length > 0);
+
+      console.log('Searching payments_ table for account numbers:', accountNumbers);
+
+      // Fetch payment data directly from payments_ table using cost_code
       const response = await fetch(`/api/payments/by-client-accounts?all_new_account_numbers=${encodeURIComponent(group.all_new_account_numbers)}`);
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch payment data');
+        throw new Error(errorData.error || 'Failed to fetch payment data from payments_ table');
       }
 
       const data = await response.json();
       
+      console.log('API response data:', data);
+      console.log('Payments found:', data.payments?.length || 0);
+      console.log('Summary:', data.summary);
+      
+      console.log('Payments_ table data retrieved:', {
+        paymentsCount: data.payments?.length || 0,
+        summary: data.summary,
+        accountNumbers: data.accountNumbers
+      });
+
       // Store payment data in sessionStorage for the next page
       sessionStorage.setItem('clientPaymentData', JSON.stringify({
         clientInfo: {
           companyGroup: group.company_group,
           legalNames: group.legal_names_list,
-          accountNumbers: group.all_new_account_numbers
+          accountNumbers: group.all_new_account_numbers,
+          searchMethod: 'payments_table_focus'
         },
         payments: data.payments,
-        summary: data.summary
+        summary: data.summary,
+        searchDetails: {
+          searchedAccountNumbers: accountNumbers,
+          paymentsTableRecords: data.payments?.length || 0,
+          totalDueAmount: data.summary?.totalDueAmount || 0,
+          totalBalanceDue: data.summary?.totalBalanceDue || 0
+        }
       }));
 
-      // Navigate to the client cost centers page
-      const url = `/protected/client-cost-centers/${group.prefix}`;
+      // Navigate to the client cost centers page using the all_new_account_numbers
+      const url = `/protected/client-cost-centers/${encodeURIComponent(group.all_new_account_numbers)}`;
       window.location.href = url;
       
     } catch (error) {
-      console.error('Error fetching payment data:', error);
-      toast.error('Failed to load payment data. Please try again.');
+      console.error('Error fetching payment data from payments_ table:', error);
+      toast.error('Failed to load payment data from payments_ table. Please try again.');
     }
   };
 
@@ -220,6 +256,22 @@ export default function AccountsClientsSection() {
         <CardHeader>
           <CardTitle className="text-lg">Client Company Groups</CardTitle>
           <p className="text-gray-600 text-sm">All clients with their legal names, account information, and vehicle amounts</p>
+          {!loading && customerStats.withoutCostCenters > 0 && (
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex items-center gap-1">
+                <div className="bg-green-500 rounded-full w-3 h-3"></div>
+                <span className="text-gray-600 text-sm">
+                  {customerStats.withCostCenters} with cost centers
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="bg-gray-400 rounded-full w-3 h-3"></div>
+                <span className="text-gray-600 text-sm">
+                  {customerStats.withoutCostCenters} without cost centers
+                </span>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -232,36 +284,52 @@ export default function AccountsClientsSection() {
                           </TableRow>
                </TableHeader>
               <TableBody>
-                {filteredCompanyGroups.map((group, index) => (
-                  <TableRow key={group.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <TableCell>
-                      <div className="font-medium text-gray-900 text-sm">
-                        {group.company_group || 'N/A'}
-                      </div>
-                    </TableCell>
-                                         <TableCell>
-                       <div className="text-gray-900 text-sm">
-                         {group.legal_names_list?.slice(0, 2).join(', ') || 'N/A'}
-                         {group.legal_names_list?.length > 2 && (
-                           <span className="text-gray-500 text-xs"> +{group.legal_names_list.length - 2} more</span>
-                         )}
-                       </div>
-                     </TableCell>
+                {filteredCompanyGroups.map((group, index) => {
+                  const hasCostCenters = group.hasCostCenters !== false; // Default to true if not set
+                  const isGreyedOut = !hasCostCenters;
+                  
+                  return (
+                    <TableRow 
+                      key={group.id} 
+                      className={`
+                        ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                        ${isGreyedOut ? 'opacity-50' : ''}
+                      `}
+                    >
+                      <TableCell>
+                        <div className={`font-medium text-sm ${isGreyedOut ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {group.company_group || 'N/A'}
+                          {isGreyedOut && (
+                            <span className="ml-2 text-gray-400 text-xs">(No cost centers)</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className={`text-sm ${isGreyedOut ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {group.legal_names_list?.slice(0, 2).join(', ') || 'N/A'}
+                          {group.legal_names_list?.length > 2 && (
+                            <span className="text-gray-500 text-xs"> +{group.legal_names_list.length - 2} more</span>
+                          )}
+                        </div>
+                      </TableCell>
 
-                    <TableCell className="text-sm text-center">
-                      <div className="flex justify-center gap-2">
-                        <Button
-                          onClick={() => handleViewClients(group)}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Eye className="mr-1 w-4 h-4" />
-                          View Clients
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell className="text-sm text-center">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            onClick={() => handleViewClients(group)}
+                            size="sm"
+                            variant="outline"
+                            disabled={isGreyedOut}
+                            className={isGreyedOut ? 'cursor-not-allowed' : ''}
+                          >
+                            <Eye className="mr-1 w-4 h-4" />
+                            View Clients
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

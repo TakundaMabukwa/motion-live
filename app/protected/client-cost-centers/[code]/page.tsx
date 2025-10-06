@@ -10,6 +10,7 @@ import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X
 import { toast } from '@/components/ui/use-toast';
 import DueReportComponent from '@/components/inv/components/due-report';
 import InvoiceReportComponent from '@/components/inv/components/invoice-report';
+import jsPDF from 'jspdf';
 
 
 export default function ClientCostCentersPage() {
@@ -40,7 +41,41 @@ export default function ClientCostCentersPage() {
 
   useEffect(() => {
     if (code) {
-      fetchClientData();
+      console.log('Client cost centers page loaded with code:', code);
+      console.log('Decoded code:', decodeURIComponent(code));
+      
+      // Check if we have sessionStorage data from Accounts role (payments_ table focus)
+      const sessionData = sessionStorage.getItem('clientPaymentData');
+      console.log('SessionStorage data:', sessionData);
+      
+      if (sessionData) {
+        try {
+          const parsedData = JSON.parse(sessionData);
+          console.log('Parsed sessionStorage data:', parsedData);
+          
+          if (parsedData.searchMethod === 'payments_table_focus') {
+            console.log('Using sessionStorage data from payments_ table search:', parsedData);
+            console.log('About to call loadFromSessionStorage...');
+            try {
+              loadFromSessionStorage(parsedData);
+              console.log('loadFromSessionStorage called successfully, returning from useEffect');
+            } catch (error) {
+              console.error('Error calling loadFromSessionStorage:', error);
+            }
+            return;
+          } else {
+            console.log('SessionStorage data found but not payments_table_focus method:', parsedData.searchMethod);
+          }
+        } catch (error) {
+          console.error('Error parsing sessionStorage data:', error);
+        }
+      } else {
+        console.log('No sessionStorage data found');
+      }
+      
+      // Fallback to enhanced API fetch with payments_ table focus
+      console.log('Falling back to enhanced API fetch with payments_ table focus for code:', code);
+      fetchClientDataWithPaymentsFocus();
     }
   }, [code]);
 
@@ -95,6 +130,184 @@ export default function ClientCostCentersPage() {
   // Get the numeric amount from entered string
   const getNumericAmount = () => {
     return parseFloat(enteredAmount) || 0;
+  };
+
+  // Load data from sessionStorage when coming from Accounts role with payments_ table focus
+  const loadFromSessionStorage = (sessionData) => {
+    console.log('loadFromSessionStorage called with:', sessionData);
+    try {
+      setLoading(true);
+      
+      const { clientInfo, payments, summary, searchDetails } = sessionData;
+      
+      console.log('Loading from sessionStorage - payments_ table data:', {
+        clientInfo,
+        paymentsCount: payments?.length || 0,
+        summary,
+        searchDetails,
+        code: code
+      });
+
+      // Set client legal name
+      setClientLegalName(clientInfo.companyGroup || code);
+
+      // Convert payments_ table data to cost centers format
+      const costCentersFromPayments = payments?.map(payment => ({
+        accountNumber: payment.cost_code,
+        accountName: payment.company || payment.cost_code,
+        dueAmount: payment.due_amount || 0,
+        paidAmount: payment.paid_amount || 0,
+        balanceDue: payment.balance_due || 0,
+        paymentStatus: payment.payment_status || 'pending',
+        reference: payment.reference || '',
+        billingMonth: payment.billing_month,
+        overdue30Days: payment.overdue_30_days || 0,
+        overdue60Days: payment.overdue_60_days || 0,
+        overdue90Days: payment.overdue_90_days || 0,
+        lastUpdated: payment.last_updated,
+        invoiceDate: payment.invoice_date,
+        dueDate: payment.due_date,
+        vehicleCount: 1, // Each payment record represents one cost center
+        vehicles: [{
+          doc_no: payment.id,
+          stock_code: payment.cost_code,
+          stock_description: `${payment.company || 'N/A'} - ${payment.cost_code}`,
+          account_number: payment.cost_code,
+          company: payment.company || clientInfo.companyGroup,
+          total_ex_vat: Number(payment.due_amount || 0),
+          total_vat: 0,
+          total_incl_vat: Number(payment.due_amount || 0),
+          one_month: Number(payment.due_amount || 0),
+          '2nd_month': 0,
+          '3rd_month': 0,
+          amount_due: Number(payment.balance_due || 0),
+          monthly_amount: Number(payment.due_amount || 0),
+          payment_status: payment.payment_status,
+          billing_month: payment.billing_month,
+          reference: payment.reference,
+          overdue_30_days: Number(payment.overdue_30_days || 0),
+          overdue_60_days: Number(payment.overdue_60_days || 0),
+          overdue_90_days: Number(payment.overdue_90_days || 0)
+        }]
+      })) || [];
+
+      console.log('Converted cost centers from payments:', costCentersFromPayments);
+
+      setClientData({
+        code: code,
+        customers: [{
+          company: clientInfo.companyGroup,
+          legal_name: clientInfo.legalNames?.[0] || clientInfo.companyGroup,
+          vehicles: costCentersFromPayments.flatMap(cc => cc.vehicles)
+        }],
+        vehicles: costCentersFromPayments.flatMap(cc => cc.vehicles),
+        totalMonthlyAmount: summary?.totalDueAmount || 0,
+        totalAmountDue: summary?.totalBalanceDue || 0,
+        totalOverdue: (summary?.totalOverdue30 || 0) + (summary?.totalOverdue60 || 0) + (summary?.totalOverdue90 || 0),
+        vehicleCount: costCentersFromPayments.length,
+        paymentsTotalAmount: summary?.totalPaidAmount || 0,
+        paymentsAmountDue: summary?.totalBalanceDue || 0,
+        summary: summary,
+        searchMethod: 'payments_table_focus',
+        searchDetails: searchDetails
+      });
+
+      // Set filtered cost centers directly from payments_ table data
+      const vehiclesFromPayments = costCentersFromPayments.flatMap(cc => cc.vehicles);
+      setFilteredCostCenters(vehiclesFromPayments);
+      
+      console.log('Set filtered cost centers from payments:', vehiclesFromPayments.length, 'vehicles');
+      
+      console.log('Successfully loaded payments_ table data:', {
+        costCentersCount: costCentersFromPayments.length,
+        totalDueAmount: summary?.totalDueAmount || 0,
+        totalBalanceDue: summary?.totalBalanceDue || 0,
+        vehiclesCount: costCentersFromPayments.flatMap(cc => cc.vehicles).length
+      });
+
+      console.log('loadFromSessionStorage completed successfully');
+
+    } catch (error) {
+      console.error('Error loading from sessionStorage:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load payment data from session. Falling back to API fetch."
+      });
+      // Fallback to regular fetch
+      fetchClientData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enhanced fetchClientData with payments_ table focus
+  const fetchClientDataWithPaymentsFocus = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching client data with payments_ table focus for all_new_account_numbers:', code);
+      
+      const response = await fetch(`/api/client-payments?all_new_account_numbers=${code}&includeLegalNames=true`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch client data');
+      }
+
+      const data = await response.json();
+      console.log('API response for client with payments focus:', data);
+
+      if (data.customers && data.customers.length > 0) {
+        // Get the first customer to extract client legal name
+        const firstCustomer = data.customers[0];
+        const legalName = firstCustomer.legal_name || firstCustomer.company || code;
+        setClientLegalName(legalName);
+        
+        // Get all vehicles from all matching customers
+        const allVehicles = data.customers.reduce((vehicles, customer) => {
+          if (customer.vehicles && Array.isArray(customer.vehicles)) {
+            return vehicles.concat(customer.vehicles);
+          }
+          return vehicles;
+        }, []);
+
+        setClientData({
+          code: code,
+          customers: data.customers,
+          vehicles: allVehicles,
+          totalMonthlyAmount: allVehicles.reduce((sum, v) => sum + (v.monthly_amount || 0), 0),
+          totalAmountDue: allVehicles.reduce((sum, v) => sum + (v.amount_due || 0), 0),
+          totalOverdue: allVehicles.reduce((sum, v) => sum + (v.overdue_30_days || 0) + (v.overdue_60_days || 0) + (v.overdue_90_days || 0), 0),
+          vehicleCount: allVehicles.length,
+          paymentsTotalAmount: data.customers[0]?.paymentsTotalAmount || 0,
+          paymentsAmountDue: data.customers[0]?.paymentsAmountDue || 0,
+          summary: data.customers[0]?.summary || null,
+          searchMethod: 'payments_table_focus_api'
+        });
+      } else {
+        setClientLegalName(code);
+        setClientData({
+          code: code,
+          customers: [],
+          vehicles: [],
+          totalMonthlyAmount: 0,
+          totalAmountDue: 0,
+          totalOverdue: 0,
+          vehicleCount: 0,
+          paymentsTotalAmount: 0,
+          paymentsAmountDue: 0
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching client data with payments focus:', err);
+      setClientLegalName(code);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch client data. Please try again."
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchClientData = async () => {
@@ -165,6 +378,9 @@ export default function ClientCostCentersPage() {
   const filterCostCenters = () => {
     if (!clientData?.vehicles) return;
 
+    console.log('Filtering cost centers with search term:', searchTerm);
+    console.log('Available vehicles:', clientData.vehicles.length);
+
     const filtered = clientData.vehicles.filter(vehicle => {
       const accountNumber = vehicle.account_number || '';
       const stockCode = vehicle.stock_code || '';
@@ -173,24 +389,44 @@ export default function ClientCostCentersPage() {
       const paymentStatus = vehicle.payment_status || '';
       
       const searchLower = searchTerm.toLowerCase();
-      return (
+      const matches = (
         accountNumber.toLowerCase().includes(searchLower) ||
         stockCode.toLowerCase().includes(searchLower) ||
         stockDescription.toLowerCase().includes(searchLower) ||
         company.toLowerCase().includes(searchLower) ||
         paymentStatus.toLowerCase().includes(searchLower)
       );
+      
+      if (searchTerm && matches) {
+        console.log('Match found:', { accountNumber, stockCode, company, paymentStatus });
+      }
+      
+      return matches;
     });
 
+    console.log('Filtered vehicles:', filtered.length);
     setFilteredCostCenters(filtered);
   };
 
   const groupByCostCenter = (vehicles) => {
     const costCenters = {};
     
+    console.log('Grouping vehicles by cost center:', vehicles.length, 'vehicles');
+    
     vehicles.forEach(vehicle => {
       const accountNumber = vehicle.account_number;
-      if (!accountNumber) return;
+      if (!accountNumber) {
+        console.log('Skipping vehicle with no account number:', vehicle);
+        return;
+      }
+      
+      console.log('Processing vehicle:', { 
+        accountNumber, 
+        company: vehicle.company, 
+        total_ex_vat: vehicle.total_ex_vat, 
+        amount_due: vehicle.amount_due,
+        payment_status: vehicle.payment_status
+      });
       
       if (!costCenters[accountNumber]) {
         costCenters[accountNumber] = {
@@ -200,6 +436,7 @@ export default function ClientCostCentersPage() {
           paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
           balanceDue: vehicle.amount_due || 0,
           paymentStatus: vehicle.payment_status || 'pending',
+          reference: vehicle.reference || '',
           billingMonth: vehicle.billing_month,
           vehicleCount: 0,
           vehicles: []
@@ -211,12 +448,26 @@ export default function ClientCostCentersPage() {
       costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
       costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
       costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
+      costCenters[accountNumber].reference = vehicle.reference || '';
       costCenters[accountNumber].billingMonth = vehicle.billing_month;
       costCenters[accountNumber].vehicleCount += 1;
       costCenters[accountNumber].vehicles.push(vehicle);
     });
     
-    return Object.values(costCenters);
+    const result = Object.values(costCenters);
+    console.log('Grouped cost centers result:', result.length, 'cost centers');
+    result.forEach(cc => {
+      console.log('Cost center:', {
+        accountNumber: cc.accountNumber,
+        accountName: cc.accountName,
+        dueAmount: cc.dueAmount,
+        balanceDue: cc.balanceDue,
+        paymentStatus: cc.paymentStatus,
+        vehicleCount: cc.vehicleCount
+      });
+    });
+    
+    return result;
   };
 
   // Fetch payments data for each cost center
@@ -231,10 +482,11 @@ export default function ClientCostCentersPage() {
               if (paymentData.payment) {
                 return {
                   ...costCenter,
-                  amountDue: paymentData.payment.amount_due || 0,
-                  overdue: paymentData.payment.overdue || 0,
-                  totalPaid: paymentData.payment.total_amount || 0,
-                  firstMonth: paymentData.payment.first_month || 0
+                  amountDue: paymentData.payment.balance_due || 0,
+                  overdue: (paymentData.payment.overdue_30_days || 0) + (paymentData.payment.overdue_60_days || 0) + (paymentData.payment.overdue_90_days || 0),
+                  totalPaid: paymentData.payment.paid_amount || 0,
+                  monthlyAmount: paymentData.payment.due_amount || 0,
+                  firstMonth: paymentData.payment.overdue_30_days || 0
                 };
               }
             }
@@ -272,7 +524,7 @@ export default function ClientCostCentersPage() {
   };
 
   const handlePayAllCostCenters = () => {
-    const outstandingCostCenters = costCentersWithPayments.filter(cc => cc.amountDue > 0);
+    const outstandingCostCenters = costCentersWithPayments.filter(cc => cc.balanceDue > 0);
     
     if (outstandingCostCenters.length === 0) {
       toast({
@@ -289,8 +541,8 @@ export default function ClientCostCentersPage() {
       selected: true
     })));
     
-    // Calculate initial total
-    const totalAmount = outstandingCostCenters.reduce((sum, cc) => sum + cc.amountDue, 0);
+    // Calculate initial total using balanceDue
+    const totalAmount = outstandingCostCenters.reduce((sum, cc) => sum + cc.balanceDue, 0);
     setPayAllAmount(totalAmount.toString());
     setPayAllReference('');
     
@@ -313,7 +565,7 @@ export default function ClientCostCentersPage() {
     
     const totalAmount = newSelected
       .filter(cc => cc.selected)
-      .reduce((sum, cc) => sum + cc.amountDue, 0);
+      .reduce((sum, cc) => sum + cc.balanceDue, 0);
     
     setPayAllAmount(totalAmount.toString());
   };
@@ -353,39 +605,32 @@ export default function ClientCostCentersPage() {
     setProcessingPayment(true);
     
     try {
-      let successCount = 0;
-      const errors = [];
+      // Prepare bulk payment data
+      const bulkPayments = selectedCostCentersToPay.map(costCenter => ({
+        accountNumber: costCenter.accountNumber,
+        amount: costCenter.balanceDue
+      }));
 
-      // Process payment for each selected cost center
-      for (const costCenter of selectedCostCentersToPay) {
-        try {
-          const response = await fetch('/api/payments/process', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              accountNumber: costCenter.accountNumber,
-              amount: costCenter.amountDue,
-              paymentReference: payAllReference,
-              paymentType: 'cost_center_payment'
-            }),
-          });
+      // Process all payments in one API call
+      const response = await fetch('/api/payments/bulk-process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          payments: bulkPayments,
+          paymentReference: payAllReference.trim()
+        }),
+      });
 
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-              successCount++;
-            } else {
-              errors.push(`${costCenter.accountName}: ${result.error}`);
-            }
-          } else {
-            errors.push(`${costCenter.accountName}: Payment failed`);
-          }
-        } catch (error) {
-          errors.push(`${costCenter.accountName}: ${error.message}`);
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Bulk payment failed');
       }
+
+      const result = await response.json();
+      const successCount = result.summary.successful;
+      const errors = result.errors || [];
 
   // Handle Due for All Cost Centers
   const handleDueForAllCostCenters = async () => {
@@ -394,8 +639,8 @@ export default function ClientCostCentersPage() {
       const printWindow = window.open('', '_blank');
       
       // Calculate totals for all cost centers
-      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0);
-      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + cc.monthlyAmount, 0);
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0);
+      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + (cc.monthlyAmount || 0), 0);
       const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
       
       // Create the print HTML with proper styling
@@ -775,9 +1020,10 @@ export default function ClientCostCentersPage() {
   };
 
       if (successCount > 0) {
+        const totalAmount = result.summary.totalAmount;
         const message = successCount === selectedCostCentersToPay.length
-          ? `Successfully processed payments for all ${successCount} cost centers! Total amount: ${formatCurrency(amount)}`
-          : `Successfully processed payments for ${successCount} out of ${selectedCostCentersToPay.length} cost centers. Total amount: ${formatCurrency(amount)}`;
+          ? `Successfully processed payments for all ${successCount} cost centers! Total amount: ${formatCurrency(totalAmount)}`
+          : `Successfully processed payments for ${successCount} out of ${selectedCostCentersToPay.length} cost centers. Total amount: ${formatCurrency(totalAmount)}`;
         
         toast({
           title: "Pay All Successful",
@@ -786,6 +1032,11 @@ export default function ClientCostCentersPage() {
         
         if (errors.length > 0) {
           console.error('Payment errors:', errors);
+          toast({
+            variant: "destructive",
+            title: "Some Payments Failed",
+            description: `${errors.length} payments failed. Check console for details.`
+          });
         }
         
         // Refresh client data to show updated amounts
@@ -816,8 +1067,8 @@ export default function ClientCostCentersPage() {
       const printWindow = window.open('', '_blank');
       
       // Calculate totals for all cost centers
-      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0);
-      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + cc.monthlyAmount, 0);
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0);
+      const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + (cc.monthlyAmount || 0), 0);
       const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
       
       // Create the print HTML with proper styling
@@ -1232,18 +1483,18 @@ export default function ClientCostCentersPage() {
     if (paymentDetails.type === 'costCenter') {
       setProcessingPayment(true);
       try {
-        // Process payment through API
-        const response = await fetch('/api/payments/process', {
+        // Process payment through API using payments_ table
+        const response = await fetch('/api/payments/process-payments', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-                        body: JSON.stringify({
-                accountNumber: paymentDetails.costCenter.accountNumber,
-                amount: amount,
-                paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
-                paymentType: 'cost_center_payment'
-              }),
+          body: JSON.stringify({
+            accountNumber: paymentDetails.costCenter.accountNumber,
+            amount: amount,
+            paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
+            paymentType: 'cost_center_payment'
+          }),
         });
 
         if (!response.ok) {
@@ -1253,10 +1504,11 @@ export default function ClientCostCentersPage() {
         const result = await response.json();
         
         if (result.success) {
-          const newAmountDue = result.payment.amount_due;
-          const message = newAmountDue === 0 
-            ? `Payment of ${formatCurrency(amount)} processed successfully! Amount due is now R 0.00.`
-            : `Payment of ${formatCurrency(amount)} processed successfully! New amount due: ${formatCurrency(newAmountDue)}`;
+          const newBalanceDue = result.payment.balance_due;
+          const paymentStatus = result.payment.payment_status;
+          const message = newBalanceDue === 0 
+            ? `Payment of ${formatCurrency(amount)} processed successfully! Balance due is now R 0.00. Status: ${paymentStatus}`
+            : `Payment of ${formatCurrency(amount)} processed successfully! New balance due: ${formatCurrency(newBalanceDue)}. Status: ${paymentStatus}`;
           
           toast({
             title: "Payment Successful",
@@ -1286,21 +1538,21 @@ export default function ClientCostCentersPage() {
       setProcessingPayment(true);
       try {
         // Process payments for all cost centers
-        const costCentersToPay = costCentersWithPayments.filter(cc => cc.amountDue > 0);
+        const costCentersToPay = costCentersWithPayments.filter(cc => cc.balanceDue > 0);
         let successCount = 0;
         let totalProcessed = 0;
 
         for (const costCenter of costCentersToPay) {
           try {
-            const response = await fetch('/api/payments/process', {
+            const response = await fetch('/api/payments/process-payments', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
                 accountNumber: costCenter.accountNumber,
-                amount: Math.min(amount - totalProcessed, costCenter.amountDue),
-                paymentReference: paymentReference || `Bulk payment for ${costCenter.accountNumber}`,
+                amount: Math.min(amount - totalProcessed, costCenter.balanceDue),
+                paymentReference: paymentReference.trim() || `Bulk payment for ${costCenter.accountNumber}`,
                 paymentType: 'cost_center_payment'
               }),
             });
@@ -1371,9 +1623,18 @@ export default function ClientCostCentersPage() {
 
   // Effect to fetch payments data when cost centers change
   useEffect(() => {
+    console.log('useEffect triggered for filteredCostCenters:', filteredCostCenters.length);
     if (filteredCostCenters.length > 0) {
+      console.log('Processing filtered cost centers...');
       const costCenters = groupByCostCenter(filteredCostCenters);
-      fetchPaymentsForCostCenters(costCenters).then(setCostCentersWithPayments);
+      console.log('Grouped cost centers:', costCenters.length);
+      fetchPaymentsForCostCenters(costCenters).then(result => {
+        console.log('Final cost centers with payments:', result.length);
+        setCostCentersWithPayments(result);
+      });
+    } else {
+      console.log('No filtered cost centers to process');
+      setCostCentersWithPayments([]);
     }
   }, [filteredCostCenters]);
 
@@ -1447,9 +1708,64 @@ export default function ClientCostCentersPage() {
       doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 80);
       doc.text(`Client: ${clientLegalName}`, 20, 90);
       
+      // Calculate totals for summary
+      let totalExVat = 0;
+      let totalVat = 0;
+      let totalInclVat = 0;
+      
+      vehicleInvoices.forEach((invoice) => {
+        const exVat = parseFloat(invoice.unit_price_without_vat) || 0;
+        const vat = parseFloat(invoice.vat_amount) || 0;
+        const inclVat = parseFloat(invoice.total_including_vat) || 0;
+        
+        totalExVat += exVat;
+        totalVat += vat;
+        totalInclVat += inclVat;
+      });
+      
+      // Summary section
+      const summaryY = 105;
+      doc.setFontSize(12);
+      doc.text('SUMMARY', 20, summaryY);
+      
+      // Summary mini table
+      const summaryTableY = summaryY + 8;
+      const summaryColWidths = [60, 40, 40, 40];
+      const summaryHeaders = ['Description', 'Amount (Ex VAT)', 'VAT', 'Total (Incl VAT)'];
+      
+      // Draw summary table header
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, summaryTableY - 5, 180, 8, 'F');
+      doc.setFontSize(8);
+      
+      let summaryXPos = 20;
+      summaryHeaders.forEach((header, index) => {
+        doc.text(header, summaryXPos + 2, summaryTableY);
+        summaryXPos += summaryColWidths[index];
+      });
+      
+      // Draw summary table data
+      const summaryDataY = summaryTableY + 10;
+      doc.setFillColor(255, 255, 255);
+      doc.rect(20, summaryDataY - 5, 180, 8, 'F');
+      doc.setFontSize(8);
+      
+      summaryXPos = 20;
+      const summaryData = [
+        'MONTHLY SERVICE SUBSCRIPTION',
+        `R ${totalExVat.toFixed(2)}`,
+        `R ${totalVat.toFixed(2)}`,
+        `R ${totalInclVat.toFixed(2)}`
+      ];
+      
+      summaryData.forEach((data, index) => {
+        doc.text(data, summaryXPos + 2, summaryDataY);
+        summaryXPos += summaryColWidths[index];
+      });
+      
       // Table headers - matching the image exactly
       const headers = ['Previous Reg', 'New Reg', 'Item Code', 'Description', 'Comments', 'Units', 'Unit Price', 'Vat', 'Vat%', 'Total Incl'];
-      const startY = 110;
+      const startY = summaryDataY + 20;
       let currentY = startY;
       
       // Column widths for landscape mode
@@ -1468,11 +1784,6 @@ export default function ClientCostCentersPage() {
       
       currentY += 10;
       
-      // Calculate totals
-      let totalExVat = 0;
-      let totalVat = 0;
-      let totalInclVat = 0;
-      
       // Draw table rows
       vehicleInvoices.forEach((invoice, index) => {
         if (currentY > 180) {
@@ -1480,14 +1791,9 @@ export default function ClientCostCentersPage() {
           currentY = 20;
         }
         
-        const exVat = parseFloat(invoice.total_ex_vat) || 0;
-        const vat = parseFloat(invoice.total_vat) || 0;
-        const inclVat = parseFloat(invoice.total_incl_vat) || 0;
-        const vatPercentage = exVat > 0 ? ((vat / exVat) * 100).toFixed(2) : '15.00';
-        
-        totalExVat += exVat;
-        totalVat += vat;
-        totalInclVat += inclVat;
+        const exVat = parseFloat(invoice.unit_price_without_vat) || 0;
+        const vat = parseFloat(invoice.vat_amount) || 0;
+        const inclVat = parseFloat(invoice.total_including_vat) || 0;
         
         // Row background - alternating colors
         doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 248);
@@ -1497,45 +1803,45 @@ export default function ClientCostCentersPage() {
         xPos = 20;
         doc.setFontSize(7);
         
-        // Previous Reg (using doc_no or empty)
-        doc.text(invoice.doc_no || '-', xPos + 2, currentY);
+        // Previous Reg (using reg from vehicles table)
+        doc.text(invoice.reg || '-', xPos + 2, currentY);
         xPos += colWidths[0];
         
-        // New Reg (using new_account_number)
-        doc.text(invoice.new_account_number || '-', xPos + 2, currentY);
+        // New Reg (using MONTHLY SERVICE SUBSCRIPTION as per image)
+        doc.text('MONTHLY SERVICE SUBSCRIPTION', xPos + 2, currentY);
         xPos += colWidths[1];
         
-        // Item Code (using stock_code)
-        doc.text(invoice.stock_code || '-', xPos + 2, currentY);
+        // Item Code (using MONTHLY SUBSCRIPTION as per image)
+        doc.text('MONTHLY SUBSCRIPTION', xPos + 2, currentY);
         xPos += colWidths[2];
         
-        // Description (using stock_description)
-        const description = (invoice.stock_description || '-').substring(0, 25);
-        doc.text(description, xPos + 2, currentY);
+        // Description (using MONTHLY SERVICE SUBSCRIPTION as per image)
+        doc.text('MONTHLY SERVICE SUBSCRIPTION', xPos + 2, currentY);
         xPos += colWidths[3];
         
-        // Comments (empty for now)
-        doc.text('-', xPos + 2, currentY);
+        // Comments (empty for now, but could add company info)
+        const comment = invoice.company ? `THERE IS NO FD RENTAL ON THIS UNIT, AS CLIENT PAID US "CASH" - REG UPDATE FROM ${invoice.company} - ISUZU FTR` : '-';
+        doc.text(comment.substring(0, 35), xPos + 2, currentY);
         xPos += colWidths[4];
         
-        // Units (hardcoded to 1)
+        // Units (hardcoded to 1 as per image)
         doc.text('1', xPos + 2, currentY);
         xPos += colWidths[5];
         
-        // Unit Price (using total_ex_vat)
-        doc.text(exVat.toFixed(2), xPos + 2, currentY);
+        // Unit Price (price without VAT - using unit_price_without_vat)
+        doc.text(`R ${invoice.unit_price_without_vat.toFixed(2)}`, xPos + 2, currentY);
         xPos += colWidths[6];
         
-        // Vat (using total_vat)
-        doc.text(vat.toFixed(2), xPos + 2, currentY);
+        // Vat (VAT amount - using vat_amount)
+        doc.text(`R ${invoice.vat_amount.toFixed(2)}`, xPos + 2, currentY);
         xPos += colWidths[7];
         
-        // Vat% (calculated)
-        doc.text(vatPercentage + '%', xPos + 2, currentY);
+        // Vat% (15.00% as per image)
+        doc.text('15.00%', xPos + 2, currentY);
         xPos += colWidths[8];
         
-        // Total Incl (using total_incl_vat)
-        doc.text(inclVat.toFixed(2), xPos + 2, currentY);
+        // Total Incl (total including VAT - using total_including_vat)
+        doc.text(`R ${invoice.total_including_vat.toFixed(2)}`, xPos + 2, currentY);
         
         currentY += 10;
       });
@@ -1550,13 +1856,13 @@ export default function ClientCostCentersPage() {
       xPos = 20;
       doc.text('TOTALS:', xPos + 2, currentY);
       xPos += colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4] + colWidths[5];
-      doc.text(totalExVat.toFixed(2), xPos + 2, currentY);
+      doc.text(`R ${totalExVat.toFixed(2)}`, xPos + 2, currentY);
       xPos += colWidths[6];
-      doc.text(totalVat.toFixed(2), xPos + 2, currentY);
+      doc.text(`R ${totalVat.toFixed(2)}`, xPos + 2, currentY);
       xPos += colWidths[7];
       doc.text('15.00%', xPos + 2, currentY);
       xPos += colWidths[8];
-      doc.text(totalInclVat.toFixed(2), xPos + 2, currentY);
+      doc.text(`R ${totalInclVat.toFixed(2)}`, xPos + 2, currentY);
       
       // Footer
       currentY += 20;
@@ -1590,35 +1896,35 @@ export default function ClientCostCentersPage() {
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
       
-      // Fetch vehicle invoices data
-      const response = await fetch(`/api/vehicle-invoices-fetch/by-account?accountNumber=${costCenter.accountNumber}`);
+      // Fetch vehicle invoice data from vehicles table
+      const response = await fetch(`/api/vehicles/invoice?accountNumber=${costCenter.accountNumber}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch vehicle invoices data');
+        throw new Error('Failed to fetch vehicle invoice data');
       }
       
       const data = await response.json();
-      const vehicleInvoices = data.vehicleInvoices || [];
+      const invoiceData = data.invoiceData;
       
-      if (vehicleInvoices.length === 0) {
+      if (!invoiceData) {
         toast({
           title: "No Data",
-          description: "No vehicle invoices found for this account.",
+          description: "No vehicle data found for this account.",
         });
         return;
       }
       
       setSelectedCostCenterForInvoice({
         ...costCenter,
-        vehicleInvoices: vehicleInvoices
+        invoiceData: invoiceData
       });
       setShowInvoiceReport(true);
       
     } catch (error) {
-      console.error('Error fetching vehicle invoices data:', error);
+      console.error('Error fetching payment invoice data:', error);
       toast({
         variant: "destructive",
         title: "Invoice Report Failed",
-        description: "Failed to fetch vehicle invoices data. Please try again.",
+        description: "Failed to fetch vehicle invoice data. Please try again.",
       });
     } finally {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: false }));
@@ -1649,8 +1955,21 @@ export default function ClientCostCentersPage() {
                   Back to Clients
                 </Button>
                 <div>
-                  <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+                    {(clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api') && (
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                        Payments Table Focus
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-gray-500 text-sm">{clientLegalName || code}</p>
+                  {clientData?.searchDetails && (
+                    <p className="mt-1 text-gray-400 text-xs">
+                      Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
+                      Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1686,8 +2005,21 @@ export default function ClientCostCentersPage() {
                 Back to Clients
               </Button>
               <div>
-                <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+                  {(clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api') && (
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                      Payments Table Focus
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-gray-500 text-sm">{clientLegalName}</p>
+                {clientData?.searchDetails && (
+                  <p className="mt-1 text-gray-400 text-xs">
+                    Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
+                    Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1745,7 +2077,7 @@ export default function ClientCostCentersPage() {
           <Card className="bg-white shadow-lg hover:shadow-xl border-2 border-indigo-100 transition-all duration-200">
             <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-3">
               <CardTitle className="font-semibold text-gray-700 text-sm">Total Due</CardTitle>
-              <DollarSign className="w-5 h-5 text-indigo-600" />
+              {/* <DollarSign className="w-5 h-5 text-indigo-600" /> */}
             </CardHeader>
             <CardContent>
               <div className="font-bold text-indigo-600 text-2xl">
@@ -1855,7 +2187,7 @@ export default function ClientCostCentersPage() {
                   <Button
                     onClick={() => handlePayAllCostCenters()}
                     size="sm"
-                    disabled={costCentersWithPayments.filter(cc => cc.amountDue > 0).length === 0}
+                    disabled={costCentersWithPayments.filter(cc => cc.balanceDue > 0).length === 0}
                     className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
                   >
                     <CreditCard className="mr-2 w-4 h-4" />
@@ -1870,9 +2202,9 @@ export default function ClientCostCentersPage() {
                     Due for All
                   </Button>
                 </div>
-                {costCentersWithPayments.filter(cc => cc.amountDue > 0).length > 0 && (
+                {costCentersWithPayments.filter(cc => (cc.amountDue || 0) > 0).length > 0 && (
                   <p className="mt-1 text-gray-500 text-xs">
-                    Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + cc.amountDue, 0))}
+                    Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
                   </p>
                 )}
               </div>
@@ -1888,6 +2220,7 @@ export default function ClientCostCentersPage() {
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Paid Amount</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Payment Status</th>
+                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Reference</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Billing Month</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th>
@@ -1943,6 +2276,11 @@ export default function ClientCostCentersPage() {
                           }`}>
                             {costCenter.paymentStatus || 'pending'}
                           </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="font-semibold text-gray-700 text-sm">
+                          {costCenter.reference || 'N/A'}
+                        </span>
                       </td>
                       <td className="p-4">
                         <span className="font-semibold text-blue-600 text-sm">
@@ -2408,7 +2746,7 @@ export default function ClientCostCentersPage() {
               <InvoiceReportComponent
                 costCenter={selectedCostCenterForInvoice}
                 clientLegalName={clientLegalName}
-                vehicleInvoices={selectedCostCenterForInvoice.vehicleInvoices}
+                invoiceData={selectedCostCenterForInvoice.invoiceData}
               />
             </div>
           </div>

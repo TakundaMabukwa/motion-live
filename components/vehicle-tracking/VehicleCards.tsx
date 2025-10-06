@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Car, Target, Wifi, Hash, Calendar } from 'lucide-react';
+import { Car, Target, Wifi, Hash } from 'lucide-react';
 import VehicleDetailsModal from './VehicleDetailsModal';
 import { Vehicle } from '@/lib/actions/vehicles';
 
@@ -21,14 +21,6 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
 
   const getVehicleDisplayName = (vehicle: Vehicle) => {
     return vehicle.fleet_number || vehicle.reg || `Vehicle ${vehicle.id}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   if (vehicles.length === 0) {
@@ -73,11 +65,8 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
                     </div>
                     <div>
                       <CardTitle className="font-semibold text-gray-900 text-lg">
-                        {displayName}
+                        {vehicle.reg || 'No Registration'}
                       </CardTitle>
-                      <p className="text-gray-500 text-sm">
-                        {vehicle.company || 'Unknown Company'}
-                      </p>
                     </div>
                   </div>
                   <Badge variant="outline">
@@ -121,13 +110,6 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
                   {vehicle.colour && (
                     <div className="text-gray-600 text-sm">
                       <strong>Color:</strong> {vehicle.colour}
-                    </div>
-                  )}
-                  
-                  {vehicle.created_at && (
-                    <div className="flex items-center space-x-2 text-gray-500 text-sm">
-                      <Calendar className="w-4 h-4" />
-                      <span>Added: {formatDate(vehicle.created_at)}</span>
                     </div>
                   )}
                 </div>

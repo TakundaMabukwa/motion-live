@@ -55,20 +55,25 @@ function AccountDetailPageContent() {
   useEffect(() => {
     if (accountId) {
       fetchCustomerData();
+      fetchVehicles(1); // Load vehicles immediately, no need to wait for customer data
     }
   }, [accountId]);
 
   useEffect(() => {
-    if (customer?.new_account_number) {
-      fetchVehicles(1); // Load first page when customer data is ready
-    }
-  }, [customer]);
-
-  useEffect(() => {
-    if (customer?.new_account_number && vehiclesPage > 1) {
+    // Fetch vehicles when page changes (including page 1)
+    if (vehiclesPage >= 1) {
+      console.log('📄 [PAGINATION] Fetching vehicles for page:', vehiclesPage);
       fetchVehicles(vehiclesPage);
     }
   }, [vehiclesPage]);
+
+  // Ensure vehicles are loaded when switching to vehicles tab
+  useEffect(() => {
+    if (tab === 'vehicles' && vehicles.length === 0 && !vehiclesLoading) {
+      console.log('🚗 [TAB SWITCH] Loading vehicles for vehicles tab');
+      fetchVehicles(1);
+    }
+  }, [tab, vehicles.length, vehiclesLoading]);
 
   const fetchCustomerData = async () => {
     try {
@@ -108,35 +113,37 @@ function AccountDetailPageContent() {
 
   const fetchVehicles = async (page: number = 1) => {
     try {
-      const accountNumber = customer?.new_account_number;
-      console.log('Fetching vehicles for account:', accountNumber, 'page:', page);
-      
-      if (!accountNumber) {
-        console.error('No account number available');
-        toast.error('No account number available for vehicle fetching');
-        return;
-      }
+      console.log('🚗 [ACCOUNT DETAILS] Fetching vehicles for account:', accountId, 'page:', page);
       
       setVehiclesLoading(true);
       
-      const result: VehiclesResponse = await getVehiclesByAccountNumber(accountNumber, page, 10);
+      // Use the account-specific vehicles API endpoint with pagination
+      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountId)}&page=${page}&limit=10`);
       
-      if (result.success) {
-        setVehicles(result.vehicles);
-        setVehiclesTotalCount(result.totalCount);
-        setVehiclesTotalPages(result.totalPages);
-        console.log('Vehicles loaded:', result.vehicles.length, 'of', result.totalCount);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [ACCOUNT DETAILS] Response not ok:', errorText);
+        throw new Error(`Failed to fetch vehicles: ${response.status} ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ [ACCOUNT DETAILS] Vehicles data received:', data);
+      console.log('📊 [ACCOUNT DETAILS] Vehicles count:', data.vehicles?.length || 0, 'of', data.totalCount || 0);
+      
+      if (data.success) {
+        setVehicles(data.vehicles);
+        setVehiclesTotalCount(data.totalCount);
+        setVehiclesTotalPages(data.totalPages);
+        console.log('✅ [ACCOUNT DETAILS] Vehicles loaded successfully for account:', accountId);
       } else {
-        console.error('Failed to fetch vehicles:', result.error);
+        console.error('❌ [ACCOUNT DETAILS] API returned error:', data.error);
         setVehicles([]);
         setVehiclesTotalCount(0);
         setVehiclesTotalPages(0);
-        if (result.error && result.error !== 'Failed to fetch vehicles') {
-          toast.error(result.error);
-        }
+        toast.error(data.error || 'Failed to load vehicles');
       }
     } catch (error) {
-      console.error('Error fetching vehicles:', error);
+      console.error('💥 [ACCOUNT DETAILS] Error fetching vehicles:', error);
       setVehicles([]);
       setVehiclesTotalCount(0);
       setVehiclesTotalPages(0);
@@ -152,13 +159,16 @@ function AccountDetailPageContent() {
   };
 
   const handleVehiclesPageChange = (newPage: number) => {
+    console.log('📄 [PAGE CHANGE] Changing from page', vehiclesPage, 'to page', newPage);
     setVehiclesPage(newPage);
   };
 
   const handleTabChange = (newTab: string) => {
+    console.log('🔄 [TAB CHANGE] Switching to tab:', newTab, 'Current vehicles count:', vehicles.length);
     const url = new URL(window.location.href);
     url.searchParams.set('tab', newTab);
-    router.push(url.pathname + url.search);
+    // Use replace instead of push to avoid adding to history stack
+    router.replace(url.pathname + url.search);
   };
 
   const formatLastUpdate = (timestamp) => {
@@ -248,7 +258,7 @@ function AccountDetailPageContent() {
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="font-semibold text-xl">Vehicle Fleet</h2>
+              <h2 className="font-semibold text-xl">All Vehicles</h2>
               <div className="flex items-center gap-3">
                 <Badge variant="outline">{vehiclesTotalCount} total vehicles</Badge>
                 {vehiclesLoading && (
@@ -265,7 +275,7 @@ function AccountDetailPageContent() {
                 <CardContent className="py-12 text-center">
                   <Car className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                   <h3 className="mb-2 font-medium text-gray-900 text-lg">No vehicles found</h3>
-                  <p className="text-gray-500">This customer has no vehicles assigned.</p>
+                  <p className="text-gray-500">No vehicles found in the system.</p>
                 </CardContent>
               </Card>
             ) : (

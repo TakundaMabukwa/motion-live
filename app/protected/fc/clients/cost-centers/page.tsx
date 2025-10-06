@@ -26,18 +26,6 @@ interface CostCenter {
   company: string;
 }
 
-interface PaymentInfo {
-  cost_code: string;
-  due_amount: number;
-  balance_due: number;
-  payment_status: string;
-  billing_month: string;
-  overdue_30_days: number;
-  overdue_60_days: number;
-  overdue_90_days: number;
-  last_updated: string;
-}
-
 export default function ClientCostCentersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,8 +33,6 @@ export default function ClientCostCentersPage() {
   
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [filteredCostCenters, setFilteredCostCenters] = useState<CostCenter[]>([]);
-  const [paymentData, setPaymentData] = useState<Record<string, PaymentInfo>>({});
-  const [paymentSummary, setPaymentSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [clientInfo, setClientInfo] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,77 +45,38 @@ export default function ClientCostCentersPage() {
     if (accountsParam) {
       const decodedAccounts = decodeURIComponent(accountsParam);
       const accounts = decodedAccounts.split(',').map(acc => acc.trim()).filter(acc => acc);
+      console.log('🔍 [COST CENTERS] URL accounts param:', accountsParam);
+      console.log('🔍 [COST CENTERS] Decoded accounts:', decodedAccounts);
+      console.log('🔍 [COST CENTERS] Parsed accounts array:', accounts);
       setAccountNumbers(accounts);
       fetchClientInfo(accounts);
     }
   }, [accountsParam]);
 
-  // Check for stored payment data from sessionStorage
-  useEffect(() => {
-    const storedPaymentData = sessionStorage.getItem('clientPaymentData');
-    if (storedPaymentData) {
-      try {
-        const data = JSON.parse(storedPaymentData);
-        
-        // Set client info from stored data
-        if (data.clientInfo) {
-          setClientInfo(data.clientInfo);
-        }
-        
-        // Set payment summary
-        if (data.summary) {
-          setPaymentSummary(data.summary);
-        }
-        
-        // Convert payment array to object keyed by cost_code
-        if (data.payments && Array.isArray(data.payments)) {
-          const paymentMap: Record<string, PaymentInfo> = {};
-          data.payments.forEach((payment: any) => {
-            paymentMap[payment.cost_code] = {
-              cost_code: payment.cost_code,
-              due_amount: parseFloat(payment.due_amount) || 0,
-              balance_due: parseFloat(payment.balance_due) || 0,
-              payment_status: payment.payment_status || 'pending',
-              billing_month: payment.billing_month || '',
-              overdue_30_days: parseFloat(payment.overdue_30_days) || 0,
-              overdue_60_days: parseFloat(payment.overdue_60_days) || 0,
-              overdue_90_days: parseFloat(payment.overdue_90_days) || 0,
-              last_updated: payment.last_updated || '',
-            };
-          });
-          setPaymentData(paymentMap);
-        }
-        
-        // Clear the stored data after using it
-        sessionStorage.removeItem('clientPaymentData');
-      } catch (error) {
-        console.error('Error parsing stored payment data:', error);
-      }
-    }
-  }, []);
-
   // Fetch cost centers after client info is loaded
   useEffect(() => {
     if (accountsParam && clientInfo) {
+      console.log('🔄 [COST CENTERS] Client info loaded, fetching cost centers');
+      console.log('🔄 [COST CENTERS] Client info:', clientInfo);
       fetchCostCenters(accountsParam);
     }
   }, [accountsParam, clientInfo]);
 
-  // Fetch payment data after cost centers are loaded
-  useEffect(() => {
-    if (costCenters.length > 0) {
-      fetchPaymentData();
-    }
-  }, [costCenters]);
-
   // Filter cost centers based on search term (company only)
   useEffect(() => {
+    console.log('🔍 [COST CENTERS] Filtering cost centers. Search term:', searchTerm);
+    console.log('🔍 [COST CENTERS] Total cost centers:', costCenters.length);
+    console.log('🔍 [COST CENTERS] Cost centers data:', costCenters);
+    
     if (searchTerm.trim() === '') {
+      console.log('✅ [COST CENTERS] No search term, showing all cost centers');
       setFilteredCostCenters(costCenters);
     } else {
       const filtered = costCenters.filter(center =>
         center.company?.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      console.log('🔍 [COST CENTERS] Filtered results:', filtered.length);
+      console.log('🔍 [COST CENTERS] Filtered data:', filtered);
       setFilteredCostCenters(filtered);
     }
     setCurrentPage(1); // Reset to first page when filtering
@@ -144,87 +91,44 @@ export default function ClientCostCentersPage() {
   const fetchCostCenters = async (allNewAccountNumbers: string) => {
     try {
       setLoading(true);
-      console.log('Fetching cost centers from database for account numbers:', allNewAccountNumbers);
+      console.log('🔍 [COST CENTERS] Fetching cost centers from database for account numbers:', allNewAccountNumbers);
       
       // Parse account numbers
       const accounts = allNewAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc);
+      console.log('🔢 [COST CENTERS] Parsed account numbers:', accounts);
       
       if (accounts.length === 0) {
+        console.log('⚠️ [COST CENTERS] No account numbers provided');
         setCostCenters([]);
         return;
       }
       
       // Fetch cost centers from the database where cost_code matches account numbers
-      const response = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(allNewAccountNumbers)}`);
+      const apiUrl = `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(allNewAccountNumbers)}`;
+      console.log('🌐 [COST CENTERS] API call:', apiUrl);
+      
+      const response = await fetch(apiUrl);
+      
+      console.log('📡 [COST CENTERS] Response status:', response.status);
+      console.log('📡 [COST CENTERS] Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response not ok:', errorText);
+        console.error('❌ [COST CENTERS] Response not ok:', errorText);
         throw new Error(`Failed to fetch cost centers: ${response.status} ${errorText}`);
       }
       
       const data = await response.json();
-      console.log('Cost centers data received from database:', data);
-      console.log('Account numbers being searched:', accounts);
-      console.log('Number of cost centers found:', data.costCenters?.length || 0);
+      console.log('✅ [COST CENTERS] Data received from database:', data);
+      console.log('📊 [COST CENTERS] Cost centers count:', data.costCenters?.length || 0);
+      console.log('📋 [COST CENTERS] Cost centers data:', data.costCenters);
       
       setCostCenters(data.costCenters || []);
     } catch (error) {
-      console.error('Error fetching cost centers from database:', error);
+      console.error('💥 [COST CENTERS] Error fetching cost centers from database:', error);
       toast.error('Failed to load cost centers from database');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchPaymentData = async () => {
-    try {
-      console.log('Fetching payment data for cost centers:', costCenters.map(cc => cc.cost_code));
-      
-      // Get all cost codes from the cost centers
-      const costCodes = costCenters.map(cc => cc.cost_code);
-      
-      if (costCodes.length === 0) {
-        setPaymentData({});
-        return;
-      }
-
-      // Fetch payment data from payments_ table
-      const response = await fetch('/api/payments/by-cost-codes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ costCodes }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch payment data: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Payment data received:', data);
-
-      // Convert array to object keyed by cost_code
-      const paymentMap: Record<string, PaymentInfo> = {};
-      data.payments?.forEach((payment: any) => {
-        paymentMap[payment.cost_code] = {
-          cost_code: payment.cost_code,
-          due_amount: parseFloat(payment.due_amount) || 0,
-          balance_due: parseFloat(payment.balance_due) || 0,
-          payment_status: payment.payment_status || 'pending',
-          billing_month: payment.billing_month || '',
-          overdue_30_days: parseFloat(payment.overdue_30_days) || 0,
-          overdue_60_days: parseFloat(payment.overdue_60_days) || 0,
-          overdue_90_days: parseFloat(payment.overdue_90_days) || 0,
-          last_updated: payment.last_updated || '',
-        };
-      });
-
-      setPaymentData(paymentMap);
-    } catch (error) {
-      console.error('Error fetching payment data:', error);
-      toast.error('Failed to load payment data');
     }
   };
 
@@ -263,21 +167,12 @@ export default function ClientCostCentersPage() {
   const LoadingSkeleton = () => (
     <div className="bg-gray-50 shadow-sm border border-gray-300 rounded-lg overflow-hidden">
           {/* Table Header Skeleton */}
-          <div className="gap-4 grid grid-cols-6 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
+          <div className="gap-4 grid grid-cols-3 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
+            <div className="flex justify-center">
+              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
+            </div>
             <div className="flex items-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-            <div className="flex justify-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-            <div className="flex justify-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-            <div className="flex justify-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-            <div className="flex justify-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
+              <div className="bg-gray-200 rounded w-20 h-4 animate-pulse"></div>
             </div>
             <div className="flex justify-end">
               <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
@@ -287,7 +182,7 @@ export default function ClientCostCentersPage() {
       {/* Table Body Skeleton */}
       <div className="divide-y divide-gray-200">
         {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="gap-4 grid grid-cols-6 bg-white px-6 py-2">
+          <div key={index} className="gap-4 grid grid-cols-3 bg-white px-6 py-2">
             {/* Cost Center Column Skeleton */}
             <div className="flex items-center">
               <div className="bg-gray-200 rounded-full w-24 h-6 animate-pulse"></div>
@@ -300,20 +195,6 @@ export default function ClientCostCentersPage() {
               </div>
             </div>
 
-            {/* Monthly Due Column Skeleton */}
-            <div className="flex justify-center items-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-
-            {/* Balance Due Column Skeleton */}
-            <div className="flex justify-center items-center">
-              <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
-            </div>
-
-            {/* Status Column Skeleton */}
-            <div className="flex justify-center items-center">
-              <div className="bg-gray-200 rounded-full w-16 h-6 animate-pulse"></div>
-            </div>
 
             {/* Actions Column Skeleton */}
             <div className="flex justify-end items-center">
@@ -428,75 +309,6 @@ export default function ClientCostCentersPage() {
           </p>
         </div>
 
-        {/* Payment Summary */}
-        {paymentSummary && (
-          <div className="mb-8">
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-900">
-                  <Building2 className="w-5 h-5" />
-                  Payment Summary for {clientInfo?.companyGroup || 'Client'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
-                  <div className="text-center">
-                    <div className="font-bold text-blue-600 text-2xl">
-                      R {paymentSummary.totalDueAmount?.toFixed(2) || '0.00'}
-                    </div>
-                    <div className="text-gray-600 text-sm">Total Due Amount</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-green-600 text-2xl">
-                      R {paymentSummary.totalPaidAmount?.toFixed(2) || '0.00'}
-                    </div>
-                    <div className="text-gray-600 text-sm">Total Paid Amount</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-red-600 text-2xl">
-                      R {paymentSummary.totalBalanceDue?.toFixed(2) || '0.00'}
-                    </div>
-                    <div className="text-gray-600 text-sm">Balance Due</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="font-bold text-orange-600 text-2xl">
-                      {paymentSummary.paymentCount || 0}
-                    </div>
-                    <div className="text-gray-600 text-sm">Payment Records</div>
-                  </div>
-                </div>
-                
-                {/* Overdue Breakdown */}
-                {(paymentSummary.totalOverdue30 > 0 || paymentSummary.totalOverdue60 > 0 || paymentSummary.totalOverdue90 > 0) && (
-                  <div className="mt-4 pt-4 border-t border-blue-200">
-                    <h4 className="mb-2 font-medium text-gray-700 text-sm">Overdue Breakdown</h4>
-                    <div className="gap-4 grid grid-cols-3">
-                      <div className="text-center">
-                        <div className="font-semibold text-yellow-600 text-lg">
-                          R {paymentSummary.totalOverdue30?.toFixed(2) || '0.00'}
-                        </div>
-                        <div className="text-gray-600 text-xs">30+ Days</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-orange-600 text-lg">
-                          R {paymentSummary.totalOverdue60?.toFixed(2) || '0.00'}
-                        </div>
-                        <div className="text-gray-600 text-xs">60+ Days</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-semibold text-red-600 text-lg">
-                          R {paymentSummary.totalOverdue90?.toFixed(2) || '0.00'}
-                        </div>
-                        <div className="text-gray-600 text-xs">90+ Days</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* Controls */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-4">
@@ -541,93 +353,34 @@ export default function ClientCostCentersPage() {
 
         {/* Table */}
         <div className="bg-gray-50 shadow-sm border border-gray-300 rounded-lg overflow-hidden">
-          {filteredCostCenters.length === 0 ? (
-            <div className="py-12 text-center">
-              <Building2 className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-              <h3 className="mb-2 font-medium text-gray-900 text-lg">
-                {costCenters.length === 0 ? 'No cost centers found' : 'No matching cost centers'}
-              </h3>
-              <p className="mb-4 text-gray-500">
-                {costCenters.length === 0 
-                  ? `No cost centers found for the provided account numbers`
-                  : `No cost centers match your search "${searchTerm}"`
-                }
-              </p>
-              
-              {/* Show payment data if available, even without cost centers */}
-              {paymentData && Object.keys(paymentData).length > 0 && (
-                <div className="mx-auto mt-6 max-w-4xl">
-                  <h4 className="mb-4 font-medium text-gray-900 text-lg">Payment Records Found</h4>
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="divide-y divide-gray-200 min-w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Cost Code</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Due Amount</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Paid Amount</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Balance Due</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">Billing Month</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {Object.values(paymentData).map((payment: any, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 font-medium text-gray-900 text-sm whitespace-nowrap">
-                                {payment.cost_code}
-                              </td>
-                              <td className="px-6 py-4 text-gray-900 text-sm whitespace-nowrap">
-                                R {payment.due_amount?.toFixed(2) || '0.00'}
-                              </td>
-                              <td className="px-6 py-4 text-gray-900 text-sm whitespace-nowrap">
-                                R {payment.paid_amount?.toFixed(2) || '0.00'}
-                              </td>
-                              <td className="px-6 py-4 text-gray-900 text-sm whitespace-nowrap">
-                                <span className={payment.balance_due > 0 ? 'text-red-600 font-medium' : 'text-gray-900'}>
-                                  R {payment.balance_due?.toFixed(2) || '0.00'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                  payment.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
-                                  payment.payment_status === 'overdue' ? 'bg-red-100 text-red-800' :
-                                  payment.payment_status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {payment.payment_status || 'pending'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-gray-500 text-sm whitespace-nowrap">
-                                {payment.billing_month ? new Date(payment.billing_month).toLocaleDateString() : 'N/A'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+          {(() => {
+            console.log('🎨 [COST CENTERS] Rendering table. Filtered count:', filteredCostCenters.length);
+            console.log('🎨 [COST CENTERS] Total cost centers:', costCenters.length);
+            console.log('🎨 [COST CENTERS] Paginated cost centers:', paginatedCostCenters.length);
+            console.log('🎨 [COST CENTERS] Paginated data:', paginatedCostCenters);
+            
+            return filteredCostCenters.length === 0 ? (
+              <div className="py-12 text-center">
+                <Building2 className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                <h3 className="mb-2 font-medium text-gray-900 text-lg">
+                  {costCenters.length === 0 ? 'No cost centers found' : 'No matching cost centers'}
+                </h3>
+                <p className="mb-4 text-gray-500">
+                  {costCenters.length === 0 
+                    ? `No cost centers found for the provided account numbers`
+                    : `No cost centers match your search "${searchTerm}"`
+                  }
+                </p>
+              </div>
+            ) : (
             <>
               {/* Table Header */}
-              <div className="gap-4 grid grid-cols-6 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
+              <div className="gap-4 grid grid-cols-3 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
                 <div className="flex items-center">
                   <span className="font-medium text-gray-700 text-sm">Cost Center</span>
                 </div>
                 <div className="text-center">
                   <span className="font-medium text-gray-700 text-sm">Cost Code</span>
-                </div>
-                <div className="text-center">
-                  <span className="font-medium text-gray-700 text-sm">Monthly Due</span>
-                </div>
-                <div className="text-center">
-                  <span className="font-medium text-gray-700 text-sm">Balance Due</span>
-                </div>
-                <div className="text-center">
-                  <span className="font-medium text-gray-700 text-sm">Status</span>
                 </div>
                 <div className="text-right">
                   <span className="font-medium text-gray-700 text-sm">Actions</span>
@@ -636,76 +389,40 @@ export default function ClientCostCentersPage() {
 
               {/* Table Body */}
               <div className="divide-y divide-gray-200">
-                {paginatedCostCenters.map((costCenter) => {
-                  const payment = paymentData[costCenter.cost_code];
-                  const formatCurrency = (amount: number) => {
-                    const validAmount = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
-                    return `R ${validAmount.toFixed(2)}`;
-                  };
-                  
-                  const getStatusColor = (status: string) => {
-                    switch (status?.toLowerCase()) {
-                      case 'paid': return 'bg-green-100 text-green-800';
-                      case 'pending': return 'bg-yellow-100 text-yellow-800';
-                      case 'overdue': return 'bg-red-100 text-red-800';
-                      default: return 'bg-gray-100 text-gray-800';
-                    }
-                  };
+                {paginatedCostCenters.map((costCenter) => (
+                  <div key={costCenter.id} className="gap-4 grid grid-cols-3 bg-white hover:bg-gray-50 px-6 py-2 transition-colors">
+                    {/* Cost Center Column */}
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center bg-green-100 px-2 py-1 rounded-full font-medium text-green-800 text-xs">
+                        {costCenter.company || 'N/A'}
+                      </span>
+                    </div>
 
-                  return (
-                    <div key={costCenter.id} className="gap-4 grid grid-cols-6 bg-white hover:bg-gray-50 px-6 py-2 transition-colors">
-                      {/* Cost Center Column */}
-                      <div className="flex items-center">
-                        <span className="inline-flex items-center bg-green-100 px-2 py-1 rounded-full font-medium text-green-800 text-xs">
-                          {costCenter.company || 'N/A'}
-                        </span>
-                      </div>
-
-                      {/* Cost Code Column */}
-                      <div className="flex justify-center items-center">
-                        <div>
-                          <div className="font-medium text-gray-900">{costCenter.cost_code}</div>
-                        </div>
-                      </div>
-
-                      {/* Monthly Due Column */}
-                      <div className="flex justify-center items-center">
-                        <div className="font-medium text-gray-900 text-sm">
-                          {payment ? formatCurrency(payment.due_amount) : 'R 0.00'}
-                        </div>
-                      </div>
-
-                      {/* Balance Due Column */}
-                      <div className="flex justify-center items-center">
-                        <div className={`text-sm font-medium ${payment && payment.balance_due > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                          {payment ? formatCurrency(payment.balance_due) : 'R 0.00'}
-                        </div>
-                      </div>
-
-                      {/* Status Column */}
-                      <div className="flex justify-center items-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(payment?.payment_status || 'pending')}`}>
-                          {payment?.payment_status || 'pending'}
-                        </span>
-                      </div>
-
-                      {/* Actions Column */}
-                      <div className="flex justify-end items-center">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => router.push(`/protected/fc/accounts/${costCenter.cost_code}`)}
-                          className="hover:bg-blue-50 text-blue-600 hover:text-blue-700"
-                        >
-                          View
-                        </Button>
+                    {/* Cost Code Column */}
+                    <div className="flex justify-center items-center">
+                      <div>
+                        <div className="font-medium text-gray-900">{costCenter.cost_code}</div>
                       </div>
                     </div>
-                  );
-                })}
+
+
+                    {/* Actions Column */}
+                    <div className="flex justify-end items-center">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => router.push(`/protected/fc/accounts/${costCenter.cost_code}`)}
+                        className="hover:bg-blue-50 text-blue-600 hover:text-blue-700"
+                      >
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
-          )}
+            );
+          })()}
         </div>
 
         {/* Pagination */}

@@ -238,27 +238,31 @@ export default function FCCompletedJobsPage() {
         throw new Error('Failed to update job card');
       }
 
-      // If it's an installation job, add to vehicles_ip
+      // If it's an installation job, add to vehicles table
       if (editingJob.job_type?.toLowerCase().includes('install') && formData.ip_address) {
-        const vehicleResponse = await fetch('/api/vehicles-ip', {
+        const vehicleResponse = await fetch('/api/vehicles', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            new_registration: formData.vehicle_registration,
-            vin_number: formData.vin_number,
-            ip_address: formData.ip_address,
-            new_account_number: editingJob.customer_name || 'Unknown',
+            reg: formData.vehicle_registration,
+            vin: formData.vin_number,
+            make: formData.vehicle_make,
+            model: formData.vehicle_model,
+            year: formData.vehicle_year,
+            colour: 'Unknown',
             company: editingJob.customer_name || 'Unknown',
-            products: editingJob.quotation_products || [],
-            active: true,
-            comment: `Added from job ${editingJob.job_number}`
+            new_account_number: editingJob.customer_name || 'Unknown',
+            skylink_trailer_unit_ip: formData.ip_address,
+            total_rental_sub: parseFloat(formData.quotation_total_amount) || 0,
+            total_rental: parseFloat(formData.quotation_subtotal) || 0,
+            total_sub: parseFloat(formData.quotation_vat_amount) || 0
           }),
         });
 
         if (!vehicleResponse.ok) {
-          console.warn('Failed to add vehicle to vehicles_ip, but job was updated');
+          console.warn('Failed to add vehicle to vehicles table, but job was updated');
         }
       }
 
@@ -924,7 +928,7 @@ export default function FCCompletedJobsPage() {
                          <h4 className="mb-2 font-medium text-blue-900">Summary of Changes</h4>
                          <div className="space-y-1 text-blue-800 text-sm">
                            <p><strong>Vehicle Registration:</strong> {formData.vehicle_registration || 'Not set'}</p>
-                           <p><strong>IP Address:</strong> {formData.vehicle_registration && formData.ip_address ? 'Will be added to vehicles_ip' : 'Not set'}</p>
+                           <p><strong>IP Address:</strong> {formData.vehicle_registration && formData.ip_address ? 'Will be added to vehicles table' : 'Not set'}</p>
                            <p><strong>Total Amount:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : 'Not set'}</p>
                            <p><strong>Job Role:</strong> Will be updated to 'accounts'</p>
                          </div>
@@ -934,7 +938,7 @@ export default function FCCompletedJobsPage() {
                          <h4 className="mb-2 font-medium text-yellow-900">Important Notes</h4>
                          <ul className="space-y-1 text-yellow-800 text-sm list-disc list-inside">
                            <li>This action will update the job card with all entered information</li>
-                           <li>If this is an installation job with IP address, the vehicle will be added to vehicles_ip table</li>
+                           <li>If this is an installation job with IP address, the vehicle will be added to vehicles table</li>
                            <li>The job role will be changed to 'accounts'</li>
                            <li>This action cannot be undone</li>
                          </ul>

@@ -12,16 +12,18 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const prefix = searchParams.get('prefix');
+    const accountNumber = searchParams.get('accountNumber');
+    const prefix = searchParams.get('prefix'); // Keep for backward compatibility
 
-    if (!prefix) {
-      return NextResponse.json({ error: 'Prefix is required' }, { status: 400 });
+    if (!accountNumber && !prefix) {
+      return NextResponse.json({ error: 'Account number or prefix is required' }, { status: 400 });
     }
 
-    console.log('Fetching customer contact info for prefix:', prefix);
+    console.log('🔍 API: Fetching customer contact info');
+    console.log('📊 API: Account number:', accountNumber);
+    console.log('📊 API: Prefix:', prefix);
 
-    // Query customers table to find records where new_account_number starts with the prefix
-    const { data: customers, error } = await supabase
+    let query = supabase
       .from('customers')
       .select(`
         id,
@@ -45,21 +47,40 @@ export async function GET(request: NextRequest) {
         branch_person_number,
         branch_person_email,
         new_account_number
-      `)
-      .like('new_account_number', `${prefix}-%`)
-      .limit(1);
+      `);
+
+    // If account number is provided, search for exact match first, then fallback to prefix
+    if (accountNumber) {
+      console.log(`🎯 API: Searching for exact account number: "${accountNumber}"`);
+      query = query.eq('new_account_number', accountNumber);
+    } else if (prefix) {
+      // Fallback to prefix-based search for backward compatibility
+      console.log(`🔄 API: Searching by prefix: "${prefix}"`);
+      query = query.like('new_account_number', `${prefix}-%`);
+    }
+
+    const { data: customers, error } = await query.limit(1);
 
     if (error) {
-      console.error('Error fetching customer contact info:', error);
+      console.error('💥 API: Database error:', error);
       return NextResponse.json({ error: 'Failed to fetch customer contact info' }, { status: 500 });
     }
 
     if (!customers || customers.length === 0) {
+      console.log(`❌ API: No customers found for ${accountNumber ? `account "${accountNumber}"` : `prefix "${prefix}"`}`);
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
     const customer = customers[0];
-    console.log('Found customer:', customer.company || customer.legal_name || customer.trading_name);
+    console.log('✅ API: Found customer:', {
+      id: customer.id,
+      company: customer.company,
+      legal_name: customer.legal_name,
+      trading_name: customer.trading_name,
+      new_account_number: customer.new_account_number,
+      email: customer.email,
+      cell_no: customer.cell_no
+    });
 
     return NextResponse.json({ 
       success: true,
@@ -67,7 +88,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in customer contact info GET:', error);
+    console.error('💥 API: Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

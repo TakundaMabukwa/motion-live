@@ -28,63 +28,64 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
       date: new Date().toLocaleDateString(),
       type: "Debtor Statement"
     },
-    // Transaction details from payments table
+    // Transaction details from payments_ table
     transactions: [
       {
-        date: paymentData?.created_at ? new Date(paymentData.created_at).toLocaleDateString() : new Date().toLocaleDateString(),
+        date: paymentData?.invoice_date ? new Date(paymentData.invoice_date).toLocaleDateString() : new Date().toLocaleDateString(),
         client: clientLegalName || "Client Name",
-        invoiceNo: paymentData?.payment_reference || `INV-${costCenter?.accountNumber || 'N/A'}`,
-        totalInvoiced: costCenter?.monthlyAmount || 0,
-        paid: Math.max(0, (costCenter?.monthlyAmount || 0) - (paymentData?.amount_due || 0)),
+        invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+        totalInvoiced: paymentData?.due_amount || 0,
+        paid: paymentData?.paid_amount || 0,
         credited: 0,
-        outstanding: paymentData?.amount_due || 0
+        outstanding: paymentData?.balance_due || 0
       }
     ],
-    // Aging analysis using payments table data
+    // Aging analysis using payments_ table data
     aging: [
       {
         period: "120 Days",
-        amount: 0.00,
-        status: "Current"
+        amount: paymentData?.overdue_90_days || 0,
+        status: "Overdue"
       },
       {
         period: "90 Days",
-        amount: 0.00,
-        status: "Current"
+        amount: paymentData?.overdue_60_days || 0,
+        status: "Overdue"
       },
       {
         period: "60 Days",
-        amount: 0.00,
-        status: "Current"
+        amount: paymentData?.overdue_30_days || 0,
+        status: "Overdue"
       },
       {
         period: "30 Days",
-        amount: paymentData?.first_month || 0,
-        status: "Due Soon"
+        amount: 0,
+        status: "Current"
       },
       {
         period: "Current",
-        amount: paymentData?.amount_due || 0,
+        amount: paymentData?.balance_due || 0,
         status: "Outstanding"
       }
     ],
     totals: {
-      totalOutstanding: paymentData?.amount_due || 0,
-      totalMonthly: costCenter?.monthlyAmount || 0,
-      totalPaid: Math.max(0, (costCenter?.monthlyAmount || 0) - (paymentData?.amount_due || 0)),
-      amountDue: paymentData?.amount_due || 0
+      totalOutstanding: paymentData?.balance_due || 0,
+      totalMonthly: paymentData?.due_amount || 0,
+      totalPaid: paymentData?.paid_amount || 0,
+      amountDue: paymentData?.balance_due || 0
     }
   };
 
   // Function to calculate overdue distribution across months
   const calculateOverdueDistribution = () => {
-    const amountDue = paymentData?.amount_due || 0;
-    if (amountDue > 0) {
-      // Distribute amount due across months
-      dueReportData.aging[0].amount = amountDue * 0.4; // 120 days
-      dueReportData.aging[1].amount = amountDue * 0.3; // 90 days
-      dueReportData.aging[2].amount = amountDue * 0.2; // 60 days
-      dueReportData.aging[3].amount = amountDue * 0.1; // 30 days
+    const balanceDue = paymentData?.balance_due || 0;
+    if (balanceDue > 0) {
+      // Use actual overdue amounts from payments_ table
+      dueReportData.aging[0].amount = paymentData?.overdue_90_days || 0; // 120+ days
+      dueReportData.aging[1].amount = paymentData?.overdue_60_days || 0; // 90+ days
+      dueReportData.aging[2].amount = paymentData?.overdue_30_days || 0; // 60+ days
+      dueReportData.aging[3].amount = 0; // 30 days - current
+      dueReportData.aging[4].amount = balanceDue; // Current outstanding
     }
   };
 

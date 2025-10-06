@@ -15,10 +15,15 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
 
     // Parse the comma-separated account numbers
+    // Handle cases like "AVIS-0001, AVIS-0002, AVIS-0003"
     const accountNumbers = allNewAccountNumbers
       .split(',')
       .map((code: string) => code.trim().toUpperCase())
       .filter((code: string) => code.length > 0);
+
+    console.log('🔍 DEBUG: Raw all_new_account_numbers input:', allNewAccountNumbers);
+    console.log('🔍 DEBUG: Parsed account numbers:', accountNumbers);
+    console.log('🔍 DEBUG: Number of account numbers to search:', accountNumbers.length);
 
     if (accountNumbers.length === 0) {
       return NextResponse.json({
@@ -27,7 +32,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('Fetching payment data for account numbers:', accountNumbers);
+    console.log('🔍 DEBUG: Searching payments_ table for cost_code IN:', accountNumbers);
 
     // Fetch payment records for all account numbers from payments_ table
     const { data: payments, error } = await supabase
@@ -36,6 +41,7 @@ export async function GET(request: NextRequest) {
         id,
         company,
         cost_code,
+        reference,
         due_amount,
         paid_amount,
         balance_due,
@@ -53,11 +59,25 @@ export async function GET(request: NextRequest) {
       .order('due_date', { ascending: false });
 
     if (error) {
-      console.error('Error fetching payment records:', error);
+      console.error('❌ Error fetching payment records:', error);
       return NextResponse.json({
         error: `Database error: ${error.message}`
       }, { status: 500 });
     }
+
+    console.log(`✅ Found ${payments?.length || 0} payment records from payments_ table`);
+    
+    // Show which account numbers had matches
+    const matchesByAccount = {};
+    payments?.forEach(payment => {
+      if (!matchesByAccount[payment.cost_code]) {
+        matchesByAccount[payment.cost_code] = 0;
+      }
+      matchesByAccount[payment.cost_code]++;
+    });
+    console.log('✅ DEBUG: Matches by account number:', matchesByAccount);
+    console.log('✅ DEBUG: All searched account numbers:', accountNumbers);
+    console.log('✅ DEBUG: Account numbers with matches:', Object.keys(matchesByAccount));
 
     // Calculate summary statistics
     const summary = {

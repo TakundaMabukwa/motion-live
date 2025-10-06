@@ -5,11 +5,24 @@ interface OverdueAccount {
   company: string;
   totalMonthlyAmount: number;
   totalOverdue: number;
+  // Monthly overdue amounts
+  overdue1Month?: number;
+  overdue2Months?: number;
+  overdue3Months?: number;
+  overdue4PlusMonths?: number;
+  monthsOverdue?: number;
+  // Day-based overdue amounts (for backward compatibility)
   overdue1_30: number;
   overdue31_60: number;
   overdue61_90: number;
   overdue91_plus: number;
   vehicleCount: number;
+  // Additional fields
+  dueDate?: string;
+  paymentReference?: string;
+  paymentStatus?: string;
+  billingMonth?: string;
+  lastUpdated?: string;
 }
 
 interface OverdueSummary {
@@ -36,7 +49,7 @@ interface UseOverdueCheckReturn {
   lastUpdated: Date | null;
 }
 
-export function useOverdueCheck(autoRefresh: boolean = false, refreshInterval: number = 300000): UseOverdueCheckReturn {
+export function useOverdueCheck(autoRefresh: boolean = false, refreshInterval: number = 300000, monthlyMode: boolean = false): UseOverdueCheckReturn {
   const [data, setData] = useState<OverdueCheckResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +60,8 @@ export function useOverdueCheck(autoRefresh: boolean = false, refreshInterval: n
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/overdue-check', {
+      const apiEndpoint = monthlyMode ? '/api/overdue-check-monthly' : '/api/overdue-check';
+      const response = await fetch(apiEndpoint, {
         method: forceRefresh ? 'POST' : 'GET',
         headers: {
           'Content-Type': 'application/json',

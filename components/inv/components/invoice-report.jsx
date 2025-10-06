@@ -1,13 +1,16 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, Mail } from 'lucide-react';
+import { toast } from 'sonner';
 
 
-export default function InvoiceReportComponent({ costCenter, clientLegalName, vehicleInvoices }) {
+export default function InvoiceReportComponent({ costCenter, clientLegalName, invoiceData }) {
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState(null);
 
   // Invoice report data structure using vehicle_invoices table data
   const invoiceReportData = {
@@ -36,18 +39,30 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
     }).format(amount);
   };
 
-  // Calculate totals
-  const totals = vehicleInvoices.reduce((acc, invoice) => {
-    const exVat = parseFloat(invoice.total_ex_vat) || 0;
-    const vat = parseFloat(invoice.total_vat) || 0;
-    const inclVat = parseFloat(invoice.total_incl_vat) || 0;
-    
-    return {
-      totalExVat: acc.totalExVat + exVat,
-      totalVat: acc.totalVat + vat,
-      totalInclVat: acc.totalInclVat + inclVat
-    };
-  }, { totalExVat: 0, totalVat: 0, totalInclVat: 0 });
+  // Calculate totals from all vehicle invoices
+  const calculateTotals = () => {
+    if (!invoiceData?.invoiceItems || !Array.isArray(invoiceData.invoiceItems)) {
+      return { totalExVat: 0, totalVat: 0, totalInclVat: 0, totalPaid: 0, totalBalanceDue: 0, totalOverdue: 0 };
+    }
+
+    return invoiceData.invoiceItems.reduce((totals, item) => {
+      const exVat = parseFloat(item.unit_price_without_vat) || 0;
+      const vat = parseFloat(item.vat_amount) || 0;
+      const inclVat = parseFloat(item.total_including_vat || item.total_rental_sub) || 0;
+      const paid = parseFloat(item.paidAmount) || 0;
+
+      return {
+        totalExVat: totals.totalExVat + exVat,
+        totalVat: totals.totalVat + vat,
+        totalInclVat: totals.totalInclVat + inclVat,
+        totalPaid: totals.totalPaid + paid,
+        totalBalanceDue: totals.totalBalanceDue + inclVat,
+        totalOverdue: totals.totalOverdue + (parseFloat(item.totalOverdue) || 0)
+      };
+    }, { totalExVat: 0, totalVat: 0, totalInclVat: 0, totalPaid: 0, totalBalanceDue: 0, totalOverdue: 0 });
+  };
+
+  const totals = calculateTotals();
 
   // Print Report function using browser print
   const printReport = () => {
@@ -314,8 +329,30 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
             <p>FOR ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()} ANNUITY BILLING RUN</p>
           </div>
           
+          <div class="summary-section">
+            <h3>Summary</h3>
+            <table class="invoice-table" style="width: 50%; margin-bottom: 0;">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Amount (Ex VAT)</th>
+                  <th>VAT</th>
+                  <th>Total (Incl VAT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>MONTHLY SERVICE SUBSCRIPTION</td>
+                  <td>${formatCurrency(totals.totalExVat)}</td>
+                  <td>${formatCurrency(totals.totalVat)}</td>
+                  <td>${formatCurrency(totals.totalInclVat)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
           <div class="table-section">
-            <h3>Vehicle Invoices</h3>
+            <h3>Payment Details</h3>
             <table class="invoice-table">
               <thead>
                 <tr>
@@ -332,40 +369,39 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
                 </tr>
               </thead>
               <tbody>
-                ${vehicleInvoices.map((invoice, index) => {
-                  const exVat = parseFloat(invoice.total_ex_vat) || 0;
-                  const vat = parseFloat(invoice.total_vat) || 0;
-                  const inclVat = parseFloat(invoice.total_incl_vat) || 0;
-                  const vatPercentage = exVat > 0 ? ((vat / exVat) * 100).toFixed(2) : '15.00';
+                ${invoiceData?.invoiceItems?.map((item, index) => {
+                  const exVat = item.unit_price_without_vat || 0; // Unit price without VAT
+                  const vat = item.vat_amount || 0; // VAT amount
+                  const inclVat = item.total_including_vat || item.total_rental_sub || 0; // Total including VAT
                   
                   return `
                     <tr>
-                      <td>${invoice.doc_no || '-'}</td>
-                      <td>${invoice.new_account_number || '-'}</td>
-                      <td>${invoice.stock_code || '-'}</td>
-                      <td>${invoice.stock_description || '-'}</td>
-                      <td>-</td>
+                      <td>${item.reg || '-'}</td>
+                      <td>MONTHLY SERVICE SUBSCRIPTION</td>
+                      <td>MONTHLY SUBSCRIPTION</td>
+                      <td>MONTHLY SERVICE SUBSCRIPTION</td>
+                      <td>${item.company ? `THERE IS NO FD RENTAL ON THIS UNIT, AS CLIENT PAID US "CASH" - REG UPDATE FROM ${item.company} - ISUZU FTR` : '-'}</td>
                       <td>1</td>
                       <td>${formatCurrency(exVat)}</td>
                       <td>${formatCurrency(vat)}</td>
-                      <td>${vatPercentage}%</td>
+                      <td>15.00%</td>
                       <td>${formatCurrency(inclVat)}</td>
                     </tr>
                   `;
-                }).join('')}
+                }).join('') || '<tr><td colspan="10" class="text-center">No vehicle data available</td></tr>'}
               </tbody>
             </table>
           </div>
           
           <div class="summary-section">
-            <h3>Invoice Summary</h3>
+            <h3>Vehicle Invoice Summary</h3>
             <div class="summary-grid">
               <div class="summary-box blue">
                 <label>Total Ex. VAT</label>
                 <p>${formatCurrency(totals.totalExVat)}</p>
               </div>
               <div class="summary-box green">
-                <label>VAT</label>
+                <label>VAT (15%)</label>
                 <p>${formatCurrency(totals.totalVat)}</p>
               </div>
               <div class="summary-box red">
@@ -418,6 +454,92 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
     };
   };
 
+  // Email PDF function
+  const emailPDF = async () => {
+    if (!costCenter?.accountNumber) {
+      toast.error('Account number not found');
+      return;
+    }
+
+    setIsSendingEmail(true);
+
+    try {
+      // First, fetch customer information
+      const customerResponse = await fetch(`/api/customers/by-account?account_number=${costCenter.accountNumber}`);
+      const customerResult = await customerResponse.json();
+
+      if (!customerResult.success) {
+        throw new Error(customerResult.error || 'Customer not found');
+      }
+
+      const customer = customerResult.customer;
+      setCustomerInfo(customer);
+
+      if (!customer.email) {
+        toast.error('No email address found for this customer');
+        return;
+      }
+
+      // Prepare invoice data for email
+      const invoiceEmailData = {
+        invoiceNumber: invoiceReportData.invoice.number,
+        clientName: customer.legal_name || customer.company || customer.trading_name || clientLegalName,
+        clientEmail: customer.email,
+        clientPhone: customer.cell_no || customer.switchboard || '',
+        clientAddress: [
+          customer.physical_address_1,
+          customer.physical_address_2,
+          customer.physical_address_3,
+          customer.physical_area,
+          customer.physical_province,
+          customer.physical_code
+        ].filter(Boolean).join(', '),
+        invoiceDate: invoiceReportData.invoice.date,
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+        totalAmount: totals.totalInclVat,
+        vatAmount: totals.totalVat,
+        subtotal: totals.totalExVat,
+        items: invoiceData?.invoiceItems?.map(item => ({
+          description: item.description || 'MONTHLY SERVICE SUBSCRIPTION',
+          quantity: 1,
+          unitPrice: item.amountExcludingVat || item.dueAmount || 0,
+          total: item.totalRentalSub || item.balanceDue || 0,
+          vehicleRegistration: item.reg || item.fleetNumber || 'N/A'
+        })) || [{
+          description: 'MONTHLY SERVICE SUBSCRIPTION',
+          quantity: 1,
+          unitPrice: totals.totalExVat,
+          total: totals.totalInclVat,
+          vehicleRegistration: 'N/A'
+        }],
+        paymentTerms: '30 days',
+        notes: `FOR ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()} ANNUITY BILLING RUN`
+      };
+
+      // Send email via API
+      const emailResponse = await fetch('/api/send-invoice-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invoiceEmailData),
+      });
+
+      const emailResult = await emailResponse.json();
+
+      if (emailResult.success) {
+        toast.success(`Invoice sent successfully to ${customer.email}!`);
+      } else {
+        throw new Error(emailResult.error || 'Failed to send invoice email');
+      }
+    } catch (error) {
+      console.error('Error sending invoice email:', error);
+      toast.error(`Failed to send invoice email: ${error.message}`);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="space-y-6 p-4">
@@ -444,13 +566,32 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
               <p className="font-semibold">{invoiceReportData.invoice.type.toUpperCase()}: {invoiceReportData.invoice.number}</p>
               <p className="text-gray-600 text-sm">Date: {invoiceReportData.invoice.date}</p>
             </div>
-            <Button
-              onClick={printReport}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white"
-            >
-              <Download className="w-4 h-4" />
-              Print Report
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={printReport}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white"
+              >
+                <Download className="w-4 h-4" />
+                Print Report
+              </Button>
+              <Button
+                onClick={emailPDF}
+                disabled={isSendingEmail}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-white"
+              >
+                {isSendingEmail ? (
+                  <>
+                    <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Email PDF
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -485,9 +626,34 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
           </p>
         </div>
 
-        {/* Vehicle Invoices Table */}
+        {/* Summary Section */}
+        <div className="bg-gray-50 p-4 border border-gray-200 rounded-lg">
+          <h3 className="mb-4 font-semibold text-gray-800">Summary</h3>
+          <div className="overflow-x-auto">
+            <table className="border border-gray-300 w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Description</th>
+                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Amount (Ex VAT)</th>
+                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">VAT</th>
+                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Total (Incl VAT)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-3 py-2 border border-gray-300 text-sm">MONTHLY SERVICE SUBSCRIPTION</td>
+                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalExVat)}</td>
+                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalVat)}</td>
+                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalInclVat)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Payment Details Table */}
         <div>
-          <h3 className="mb-4 font-semibold text-gray-800">Vehicle Invoices</h3>
+          <h3 className="mb-4 font-semibold text-gray-800">Payment Details</h3>
           <div className="overflow-x-auto">
             <table className="border border-gray-300 w-full border-collapse">
               <thead className="bg-gray-100">
@@ -505,19 +671,19 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
                 </tr>
               </thead>
               <tbody>
-                {vehicleInvoices.map((invoice, index) => {
-                  const exVat = parseFloat(invoice.total_ex_vat) || 0;
-                  const vat = parseFloat(invoice.total_vat) || 0;
-                  const inclVat = parseFloat(invoice.total_incl_vat) || 0;
-                  const vatPercentage = exVat > 0 ? ((vat / exVat) * 100).toFixed(2) : '15.00';
+                {invoiceData?.invoiceItems?.map((item, index) => {
+                  const exVat = item.amountExcludingVat || item.dueAmount; // Amount excluding VAT
+                  const vat = item.vatAmount || 0; // VAT amount (separated from total_rental_sub)
+                  const inclVat = item.totalRentalSub || item.balanceDue; // Total including VAT (total_rental_sub)
+                  const vatPercentage = inclVat > 0 ? ((vat / inclVat) * 100).toFixed(2) : '15.00';
                   
                   return (
-                    <tr key={invoice.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="p-3 border border-gray-300 text-sm">{invoice.doc_no || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{invoice.new_account_number || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{invoice.stock_code || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{invoice.stock_description || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">-</td>
+                    <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                      <td className="p-3 border border-gray-300 text-sm">{item.reg || item.fleetNumber || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{invoiceData.accountNumber || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.fleetNumber || item.reg || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.description || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.reference || '-'}</td>
                       <td className="p-3 border border-gray-300 text-sm text-center">1</td>
                       <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(exVat)}</td>
                       <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(vat)}</td>
@@ -525,7 +691,13 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
                       <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(inclVat)}</td>
                     </tr>
                   );
-                })}
+                }) || (
+                  <tr className="bg-white">
+                    <td colSpan="10" className="p-3 border border-gray-300 text-gray-500 text-sm text-center">
+                      No payment data available
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -533,21 +705,33 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, ve
 
         {/* Totals Section */}
         <div className="bg-gray-50 p-6 border border-gray-200 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Invoice Summary</h3>
-          <div className="gap-6 grid grid-cols-3">
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Total Ex. VAT</label>
-              <p className="font-bold text-blue-600 text-2xl">{formatCurrency(totals.totalExVat)}</p>
+          <h3 className="mb-4 font-semibold text-gray-800">Payment Summary</h3>
+            <div className="gap-6 grid grid-cols-2 md:grid-cols-3">
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">Total Ex. VAT</label>
+                <p className="font-bold text-blue-600 text-2xl">{formatCurrency(totals.totalExVat)}</p>
+              </div>
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">VAT (15%)</label>
+                <p className="font-bold text-green-600 text-2xl">{formatCurrency(totals.totalVat)}</p>
+              </div>
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">Total Incl. VAT</label>
+                <p className="font-bold text-red-600 text-2xl">{formatCurrency(totals.totalInclVat)}</p>
+              </div>
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">Payment Status</label>
+                <p className="font-bold text-purple-600 text-lg">{invoiceData?.paymentStatus?.toUpperCase() || 'PENDING'}</p>
+              </div>
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">Reference</label>
+                <p className="font-bold text-gray-600 text-lg">{invoiceData?.reference || 'N/A'}</p>
+              </div>
+              <div className="text-center">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">Billing Month</label>
+                <p className="font-bold text-gray-600 text-lg">{invoiceData?.billingMonth ? new Date(invoiceData.billingMonth).toLocaleDateString() : 'N/A'}</p>
+              </div>
             </div>
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">VAT</label>
-              <p className="font-bold text-green-600 text-2xl">{formatCurrency(totals.totalVat)}</p>
-            </div>
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Total Incl. VAT</label>
-              <p className="font-bold text-red-600 text-2xl">{formatCurrency(totals.totalInclVat)}</p>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

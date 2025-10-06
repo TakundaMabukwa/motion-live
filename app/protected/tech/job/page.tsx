@@ -312,7 +312,7 @@ export default function Jobs() {
       });
 
       if (response.ok) {
-        toast.success(`Repair job ${job.job_number} completed successfully! Vehicle will be automatically added to inventory.`);
+        toast.success(`Repair job ${job.job_number} completed successfully! Vehicle will be automatically added to vehicles table.`);
         // Refresh the jobs data
         fetchUserInfoAndJobs();
       } else {
@@ -469,7 +469,7 @@ export default function Jobs() {
                             className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white"
                           >
                             <Package className="w-4 h-4" />
-                            Add to Inventory
+                            Add to Vehicles
                           </Button>
                         ) : (
                           <Button 

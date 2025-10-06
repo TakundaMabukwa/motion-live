@@ -1,37 +1,33 @@
-// Simple email test script for Digital Ocean server
-const nodemailer = require('nodemailer');
+// Test Email Script
+// Run this when your Next.js server is running on localhost:3000
 
-// Brevo (Sendinblue) SMTP configuration
-const transporter = nodemailer.createTransport({
-  host: 'smtp-relay.brevo.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.BREVO_EMAIL || '970244001@smtp-brevo.com',
-    pass: process.env.BREVO_SMTP_KEY || 'rTMhALQas6cKtW0N',
-  },
-  connectionTimeout: 5000,
-  greetingTimeout: 5000,
-  socketTimeout: 5000,
-  pool: false,
-});
-
-async function testEmail() {
+const testEmail = async () => {
   try {
-    console.log('Testing email connection...');
+    const response = await fetch('http://localhost:3000/api/test-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: 'mabukwa25@gmail.com'
+      }),
+    });
+
+    const result = await response.json();
     
-    const mailOptions = {
-      from: '"Solflo System Access" <mabukwa25@gmail.com>',
-      to: 'mabukwa25@gmail.com', // Test email
-      subject: 'Test Email from Digital Ocean',
-      html: '<h1>Test Email</h1><p>This is a test email from your Digital Ocean server.</p>',
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent successfully:', result.messageId);
+    if (result.success) {
+      console.log('✅ Test email sent successfully!');
+      console.log('📧 Sent to:', result.details.to);
+      console.log('📨 Message ID:', result.messageId);
+      console.log('⏰ Sent at:', result.details.sentAt);
+    } else {
+      console.error('❌ Failed to send test email:', result.error);
+    }
   } catch (error) {
-    console.error('❌ Email failed:', error.message);
+    console.error('❌ Error:', error.message);
+    console.log('💡 Make sure your Next.js server is running on localhost:3000');
   }
-}
+};
 
+// Run the test
 testEmail();

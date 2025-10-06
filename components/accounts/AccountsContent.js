@@ -69,6 +69,10 @@ export default function AccountsContent({ activeSection }) {
   
   // Overdue section state
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  // Payment totals state
+  const [paymentTotals, setPaymentTotals] = useState(null);
+  const [paymentTotalsLoading, setPaymentTotalsLoading] = useState(false);
 
 
   const router = useRouter();
@@ -84,6 +88,37 @@ export default function AccountsContent({ activeSection }) {
   const getMonthlyLabel = () => {
     return isPaymentDue() ? 'Amount Due' : 'Monthly Amount';
   };
+
+  // Fetch payment totals for all payment records
+  const fetchPaymentTotals = useCallback(async () => {
+    try {
+      setPaymentTotalsLoading(true);
+      
+      console.log('Fetching payment totals for all records...');
+
+      const response = await fetch('/api/payments/totals');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch payment totals');
+      }
+      
+      const data = await response.json();
+      console.log('Payment totals API response:', data);
+      setPaymentTotals(data.totals);
+    } catch (error) {
+      console.error('Error fetching payment totals:', error);
+      // Set default values on error
+      setPaymentTotals({
+        totalDueAmount: 0,
+        totalPaidAmount: 0,
+        totalBalanceDue: 0,
+        totalOverdueAmount: 0,
+        totalAccounts: 0
+      });
+    } finally {
+      setPaymentTotalsLoading(false);
+    }
+  }, []);
 
   // Fetch customers data from customers_grouped table
   const fetchCustomers = useCallback(async (loadMore = false) => {
@@ -130,6 +165,11 @@ export default function AccountsContent({ activeSection }) {
   useEffect(() => {
       fetchCustomers();
   }, [fetchCustomers]);
+
+  // Fetch payment totals when component loads
+  useEffect(() => {
+    fetchPaymentTotals();
+  }, [fetchPaymentTotals]);
 
   // Real-time search filtering
   useEffect(() => {
@@ -245,25 +285,60 @@ export default function AccountsContent({ activeSection }) {
     
     setIsSendingEmail(true);
     try {
-      // Simulate email sending
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
-      setShowInvoiceModal(false);
-      setGeneratedInvoice(null);
-      setSelectedJobForInvoice(null);
-      setInvoiceFormData({
-        clientName: '',
-        clientEmail: '',
-        clientPhone: '',
-        clientAddress: '',
-        paymentTerms: '30 days',
-        dueDate: '',
-        notes: ''
+      // Prepare invoice data for email
+      const invoiceEmailData = {
+        invoiceNumber: generatedInvoice.invoiceNumber,
+        clientName: invoiceFormData.clientName,
+        clientEmail: invoiceFormData.clientEmail,
+        clientPhone: invoiceFormData.clientPhone,
+        clientAddress: invoiceFormData.clientAddress,
+        invoiceDate: generatedInvoice.generatedAt,
+        dueDate: invoiceFormData.dueDate,
+        totalAmount: parseFloat(selectedJobForInvoice.quotation_total_amount || selectedJobForInvoice.actual_cost || 0),
+        vatAmount: parseFloat(selectedJobForInvoice.quotation_vat_amount || 0),
+        subtotal: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
+        items: [{
+          description: `${selectedJobForInvoice.job_type || 'Service'} - ${selectedJobForInvoice.job_description || 'Job completion'}`,
+          quantity: 1,
+          unitPrice: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
+          total: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
+          vehicleRegistration: selectedJobForInvoice.vehicle_registration || 'N/A'
+        }],
+        paymentTerms: invoiceFormData.paymentTerms,
+        notes: invoiceFormData.notes
+      };
+
+      // Send email via API
+      const response = await fetch('/api/send-invoice-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(invoiceEmailData),
       });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
+        setShowInvoiceModal(false);
+        setGeneratedInvoice(null);
+        setSelectedJobForInvoice(null);
+        setInvoiceFormData({
+          clientName: '',
+          clientEmail: '',
+          clientPhone: '',
+          clientAddress: '',
+          paymentTerms: '30 days',
+          dueDate: '',
+          notes: ''
+        });
+      } else {
+        throw new Error(result.error || 'Failed to send invoice email');
+      }
     } catch (error) {
       console.error('Error sending invoice email:', error);
-      toast.error('Failed to send invoice email');
+      toast.error(`Failed to send invoice email: ${error.message}`);
     } finally {
       setIsSendingEmail(false);
     }
@@ -423,7 +498,7 @@ export default function AccountsContent({ activeSection }) {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
           <Card className="hover:shadow-lg transition-shadow duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Company Groups</CardTitle>
@@ -483,7 +558,36 @@ export default function AccountsContent({ activeSection }) {
               <p className="text-xs text-muted-foreground">Fleet size</p>
             </CardContent>
           </Card>
+
+          {/* Total Due Amount Card */}
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Due Amount</CardTitle>
+              <DollarSign className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                {paymentTotalsLoading ? '...' : formatCurrency(paymentTotals?.totalDueAmount || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">Sum of all due_amount columns</p>
+            </CardContent>
+          </Card>
+
+          {/* Total Paid Amount Card */}
+          <Card className="hover:shadow-lg transition-shadow duration-200">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Paid Amount</CardTitle>
+              <CreditCard className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {paymentTotalsLoading ? '...' : formatCurrency(paymentTotals?.totalPaidAmount || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">Sum of all paid_amount columns</p>
+            </CardContent>
+          </Card>
         </div>
+
 
         {/* Search and Company Groups Table */}
         <Card className="hover:shadow-lg transition-shadow duration-200">

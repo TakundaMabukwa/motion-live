@@ -75,6 +75,18 @@ export default function AccountsDashboard() {
   }, [searchTerm, fetchCompanyGroups, activeTab]);
 
   const filteredCompanyGroups = useMemo(() => {
+    console.log('🔍 [FC DASHBOARD] Company groups loaded:', companyGroups.length);
+    console.log('🔍 [FC DASHBOARD] Company groups data:', companyGroups);
+    
+    // Log each group's account numbers for debugging
+    companyGroups.forEach((group, index) => {
+      console.log(`📋 [FC DASHBOARD] Group ${index}:`, {
+        company_group: group.company_group,
+        legal_names: group.legal_names,
+        all_new_account_numbers: group.all_new_account_numbers
+      });
+    });
+    
     return companyGroups;
   }, [companyGroups]);
 
@@ -83,10 +95,20 @@ export default function AccountsDashboard() {
   };
 
   const handleViewDetails = (group) => {
+    console.log('🔍 [FC DASHBOARD] handleViewDetails called for group:', group);
+    console.log('🔍 [FC DASHBOARD] Group company_group:', group.company_group);
+    console.log('🔍 [FC DASHBOARD] Group legal_names:', group.legal_names);
+    console.log('🔍 [FC DASHBOARD] Group all_new_account_numbers:', group.all_new_account_numbers);
+    
     if (group.all_new_account_numbers) {
       // Pass the entire all_new_account_numbers string to the cost centers page
       const encodedAccountNumbers = encodeURIComponent(group.all_new_account_numbers);
+      console.log('🌐 [FC DASHBOARD] Encoded account numbers:', encodedAccountNumbers);
+      console.log('🌐 [FC DASHBOARD] Navigation URL:', `/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
+      
       router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
+    } else {
+      console.log('⚠️ [FC DASHBOARD] No account numbers found for group:', group);
     }
   };
 
@@ -150,6 +172,12 @@ export default function AccountsDashboard() {
                     Data cached
                   </span>
                 )}
+                {/* Debug: Show which groups have ALLI-0001 */}
+                {filteredCompanyGroups.some(group => group.all_new_account_numbers?.includes('ALLI-0001')) && (
+                  <span className="ml-2 text-orange-600">
+                    ⚠️ Found ALLI-0001 in data
+                  </span>
+                )}
               </div>
             )}
 
@@ -184,6 +212,9 @@ export default function AccountsDashboard() {
                                 <div className="mb-1">
                                   <Badge variant="outline" className="text-xs">
                                     {group.company_group || 'N/A'}
+                                    {group.all_new_account_numbers?.includes('ALLI-0001') && (
+                                      <span className="ml-1 text-orange-600">⚠️</span>
+                                    )}
                                   </Badge>
                                 </div>
                                 <div className="font-semibold text-sm">{group.legal_names || 'N/A'}</div>
@@ -192,6 +223,9 @@ export default function AccountsDashboard() {
                                     ? `${group.legal_names_list.length} legal entities`
                                     : 'No legal names'
                                   }
+                                  {group.all_new_account_numbers?.includes('ALLI-0001') && (
+                                    <span className="ml-2 text-orange-600 font-medium">(Has ALLI-0001)</span>
+                                  )}
                                 </div>
                               </div>
                             </TableCell>

@@ -5,10 +5,11 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code'); // The client code (e.g., "MACS", "CGRC")
+    const allNewAccountNumbers = searchParams.get('all_new_account_numbers'); // Comma-separated account numbers
     const includeLegalNames = searchParams.get('includeLegalNames') === 'true';
 
-    if (!code) {
-      return NextResponse.json({ error: 'Code parameter is required' }, { status: 400 });
+    if (!code && !allNewAccountNumbers) {
+      return NextResponse.json({ error: 'Either code or all_new_account_numbers parameter is required' }, { status: 400 });
     }
 
     const supabase = await createClient();
@@ -19,14 +20,34 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log(`Fetching payments data for client code: ${code}`);
+    console.log(`Fetching payments data for: ${allNewAccountNumbers ? 'all_new_account_numbers' : 'code'}: ${allNewAccountNumbers || code}`);
 
-    // First, get the all_new_account_numbers from customers_grouped table
-    const { data: customerGroup, error: groupError } = await supabase
-      .from('customers_grouped')
-      .select('company_group, legal_names, all_new_account_numbers')
-      .ilike('company_group', `${code}%`)
-      .single();
+    let customerGroup;
+    let groupError;
+
+    if (allNewAccountNumbers) {
+      // Direct search using all_new_account_numbers
+      console.log('🔍 Searching customers_grouped by all_new_account_numbers:', allNewAccountNumbers);
+      const result = await supabase
+        .from('customers_grouped')
+        .select('company_group, legal_names, all_new_account_numbers')
+        .eq('all_new_account_numbers', allNewAccountNumbers)
+        .single();
+      
+      customerGroup = result.data;
+      groupError = result.error;
+    } else {
+      // Fallback to code-based search
+      console.log('🔍 Searching customers_grouped by code:', code);
+      const result = await supabase
+        .from('customers_grouped')
+        .select('company_group, legal_names, all_new_account_numbers')
+        .or(`company_group.ilike.%${code}%,company_group.eq.${code},all_new_account_numbers.ilike.%${code}%,all_account_numbers.ilike.%${code}%`)
+        .single();
+      
+      customerGroup = result.data;
+      groupError = result.error;
+    }
 
     if (groupError || !customerGroup) {
       console.log(`No customer group found for code: ${code}`);
@@ -39,12 +60,18 @@ export async function GET(request: NextRequest) {
     console.log('Customer group found:', customerGroup);
 
     // Parse the account numbers from all_new_account_numbers
-    const accountNumbers = customerGroup.all_new_account_numbers
-      ? customerGroup.all_new_account_numbers
+    // Handle comma-separated values like "AVIS-0001, AVIS-0002, AVIS-0003"
+    const accountNumbersSource = allNewAccountNumbers || customerGroup.all_new_account_numbers;
+    const accountNumbers = accountNumbersSource
+      ? accountNumbersSource
           .split(',')
           .map((num: string) => num.trim().toUpperCase())
           .filter((num: string) => num.length > 0)
       : [];
+
+    console.log('🔍 DEBUG: Raw all_new_account_numbers source:', accountNumbersSource);
+    console.log('🔍 DEBUG: Parsed account numbers:', accountNumbers);
+    console.log('🔍 DEBUG: Number of account numbers found:', accountNumbers.length);
 
     if (accountNumbers.length === 0) {
       console.log('No account numbers found for customer group');
@@ -54,15 +81,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('Account numbers to search:', accountNumbers);
+    console.log('🔍 DEBUG: Account numbers to search in payments_ table:', accountNumbers);
+    console.log('🔍 DEBUG: Searching payments_ table for cost_code IN:', accountNumbers);
 
     // Fetch payments data from payments_ table using cost_code
+    // This will find ALL payment records where cost_code matches ANY of the account numbers
     const { data: payments, error: paymentsError } = await supabase
       .from('payments_')
       .select(`
         id,
         company,
         cost_code,
+        reference,
         due_amount,
         paid_amount,
         balance_due,
@@ -84,7 +114,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch payments data' }, { status: 500 });
     }
 
-    console.log(`Found ${payments?.length || 0} payment records`);
+    console.log(`✅ Found ${payments?.length || 0} payment records from payments_ table`);
+    console.log('✅ DEBUG: Payment records found:', payments?.map(p => ({ 
+      cost_code: p.cost_code, 
+      company: p.company,
+      due_amount: p.due_amount,
+      balance_due: p.balance_due
+    })) || []);
+    
+    // Group results by cost_code to show which account numbers had matches
+    const matchesByAccount = {};
+    payments?.forEach(payment => {
+      if (!matchesByAccount[payment.cost_code]) {
+        matchesByAccount[payment.cost_code] = 0;
+      }
+      matchesByAccount[payment.cost_code]++;
+    });
+    console.log('✅ DEBUG: Matches by account number:', matchesByAccount);
 
     // Calculate summary statistics
     const summary = {
@@ -137,6 +183,7 @@ export async function GET(request: NextRequest) {
       monthly_amount: Number(payment.due_amount || 0),
       payment_status: payment.payment_status,
       billing_month: payment.billing_month,
+      reference: payment.reference,
       overdue_30_days: Number(payment.overdue_30_days || 0),
       overdue_60_days: Number(payment.overdue_60_days || 0),
       overdue_90_days: Number(payment.overdue_90_days || 0)

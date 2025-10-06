@@ -129,27 +129,91 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
   const fetchContactInfo = useCallback(async (groups: CompanyGroup[]) => {
     try {
       setLoadingContacts(true);
+      console.log('🔍 [CACHE] Starting contact info fetch for', groups.length, 'company groups');
+      
       const contactPromises = groups.map(async (group) => {
         if (group.all_new_account_numbers) {
-          // Get the first account number and extract prefix
-          const firstAccount = group.all_new_account_numbers.split(',')[0].trim();
-          const prefix = firstAccount.split('-')[0];
+          console.log(`📋 [CACHE] Processing group: ${group.company_group || group.legal_names}`);
+          console.log(`📊 [CACHE] Raw all_new_account_numbers: "${group.all_new_account_numbers}"`);
           
-          // Fetch contact info from customers table using the prefix
-          try {
-            const response = await fetch(`/api/customers/contact-info?prefix=${prefix}`);
-            if (response.ok) {
-              const data = await response.json();
-              if (data.customer) {
-                return {
-                  groupId: group.id,
-                  contact: data.customer
-                };
+          // Split comma-separated account numbers and try each one
+          const accountNumbers = group.all_new_account_numbers
+            .split(',')
+            .map(account => account.trim())
+            .filter(account => account.length > 0);
+          
+          console.log(`🔢 [CACHE] Parsed account numbers:`, accountNumbers);
+          
+          // Try each account number until we find a match
+          for (const accountNumber of accountNumbers) {
+            console.log(`🎯 [CACHE] Trying account number: "${accountNumber}"`);
+            try {
+              const apiUrl = `/api/customers/contact-info?accountNumber=${encodeURIComponent(accountNumber)}`;
+              console.log(`🌐 [CACHE] API call: ${apiUrl}`);
+              
+              const response = await fetch(apiUrl);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.customer) {
+                  console.log(`✅ [CACHE] Found contact info for account ${accountNumber}:`, {
+                    company: data.customer.company,
+                    legal_name: data.customer.legal_name,
+                    trading_name: data.customer.trading_name,
+                    email: data.customer.email,
+                    cell_no: data.customer.cell_no
+                  });
+                  return {
+                    groupId: group.id,
+                    contact: data.customer
+                  };
+                } else {
+                  console.log(`❌ [CACHE] No customer data returned for account ${accountNumber}`);
+                }
+              } else {
+                console.log(`❌ [CACHE] API call failed for account ${accountNumber}:`, response.status, response.statusText);
               }
+            } catch (fetchError) {
+              console.error(`💥 [CACHE] Error fetching contact for account ${accountNumber}:`, fetchError);
             }
-          } catch (fetchError) {
-            console.error(`Error fetching contact for prefix ${prefix}:`, fetchError);
           }
+          
+          // If no exact match found, fallback to prefix-based search for the first account
+          if (accountNumbers.length > 0) {
+            const firstAccount = accountNumbers[0];
+            const prefix = firstAccount.split('-')[0];
+            console.log(`🔄 [CACHE] Fallback: Trying prefix "${prefix}" for first account "${firstAccount}"`);
+            
+            try {
+              const apiUrl = `/api/customers/contact-info?prefix=${prefix}`;
+              console.log(`🌐 [CACHE] Fallback API call: ${apiUrl}`);
+              
+              const response = await fetch(apiUrl);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.customer) {
+                  console.log(`✅ [CACHE] Found contact info using prefix ${prefix}:`, {
+                    company: data.customer.company,
+                    legal_name: data.customer.legal_name,
+                    trading_name: data.customer.trading_name,
+                    email: data.customer.email,
+                    cell_no: data.customer.cell_no
+                  });
+                  return {
+                    groupId: group.id,
+                    contact: data.customer
+                  };
+                } else {
+                  console.log(`❌ [CACHE] No customer data returned for prefix ${prefix}`);
+                }
+              } else {
+                console.log(`❌ [CACHE] Fallback API call failed for prefix ${prefix}:`, response.status, response.statusText);
+              }
+            } catch (fetchError) {
+              console.error(`💥 [CACHE] Error fetching contact for prefix ${prefix}:`, fetchError);
+            }
+          }
+        } else {
+          console.log(`⚠️ [CACHE] No account numbers found for group: ${group.company_group || group.legal_names}`);
         }
         return { groupId: group.id, contact: null };
       });
@@ -162,9 +226,10 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
         }
       });
 
+      console.log(`📈 [CACHE] Contact info fetch completed. Found contacts for ${Object.keys(contactMap).length} groups`);
       setContactInfo(contactMap);
     } catch (error) {
-      console.error('Error fetching contact info:', error);
+      console.error('💥 [CACHE] Error fetching contact info:', error);
       toast.error('Failed to load contact information');
     } finally {
       setLoadingContacts(false);

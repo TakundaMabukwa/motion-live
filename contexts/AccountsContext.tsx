@@ -17,6 +17,7 @@ interface CompanyGroup {
   totalAmountDue: number;
   vehicleCount: number;
   uniqueClientCount: number;
+  hasCostCenters?: boolean;
 }
 
 interface VehicleAmounts {
@@ -60,6 +61,32 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
   const [totalCount, setTotalCount] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
+  // Check if a customer has cost centers by checking payments_ table
+  const checkCustomerHasCostCenters = useCallback(async (accountNumbers: string[]): Promise<boolean> => {
+    if (!accountNumbers || accountNumbers.length === 0) return false;
+    
+    try {
+      const response = await fetch(`/api/payments/check-cost-centers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accountNumbers }),
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to check cost centers');
+        return false;
+      }
+      
+      const data = await response.json();
+      return data.hasCostCenters || false;
+    } catch (error) {
+      console.error('Error checking cost centers:', error);
+      return false;
+    }
+  }, []);
+
   // Fetch company groups data from customers-grouped table
   const fetchCompanyGroups = useCallback(async (search = "") => {
     try {
@@ -74,7 +101,23 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
       
       const newCompanyGroups = data.companyGroups || [];
       
-      setCompanyGroups(newCompanyGroups);
+      // Check which customers have cost centers
+      const companyGroupsWithCostCenters = await Promise.all(
+        newCompanyGroups.map(async (group: CompanyGroup) => {
+          const accountNumbers = group.all_new_account_numbers
+            ? group.all_new_account_numbers.split(',').map((num: string) => num.trim().toUpperCase()).filter((num: string) => num.length > 0)
+            : [];
+          
+          const hasCostCenters = await checkCustomerHasCostCenters(accountNumbers);
+          
+          return {
+            ...group,
+            hasCostCenters
+          };
+        })
+      );
+      
+      setCompanyGroups(companyGroupsWithCostCenters);
       setTotalCount(data.count || newCompanyGroups.length);
       setIsDataLoaded(true);
       
@@ -84,7 +127,7 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [checkCustomerHasCostCenters]);
 
   // Fetch vehicle amounts for a specific prefix
   const fetchVehicleAmounts = useCallback(async (prefix: string): Promise<VehicleAmounts | null> => {

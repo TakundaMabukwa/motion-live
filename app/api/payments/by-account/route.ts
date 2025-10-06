@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
 
-    // Fetch payment record for the specific account number
+    // Fetch payment record for the specific account number from payments_ table
     const { data: payment, error } = await supabase
-      .from('payments')
+      .from('payments_')
       .select('*')
-      .eq('new_account_number', accountNumber)
+      .eq('cost_code', accountNumber)
       .single();
 
     if (error) {

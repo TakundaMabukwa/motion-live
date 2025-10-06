@@ -36,20 +36,23 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Extract vehicle information from job card
+    // Extract vehicle information from job card for new vehicles table
     const vehicleData = {
-      // For vehicles_ip table
-      new_account_number: jobCard.account_id || `JOB-${jobCard.job_number}`,
+      reg: jobCard.vehicle_registration || '',
+      vin: jobCard.vin_numer || '',
+      make: jobCard.vehicle_make || '',
+      model: jobCard.vehicle_model || '',
+      year: jobCard.vehicle_year?.toString() || '',
+      colour: 'Unknown',
       company: jobCard.customer_name || 'Unknown Company',
-      comment: `Added from completed job: ${jobCard.job_number}`,
-      group_name: jobCard.customer_name || 'Default Group',
-      new_registration: jobCard.vehicle_registration || '',
-      beame_1: jobCard.vehicle_make || '',
-      beame_2: jobCard.vehicle_model || '',
-      beame_3: jobCard.vehicle_year?.toString() || '',
-      ip_address: '', // Will be set later if needed
-      products: jobCard.products_required || [],
-      active: true
+      new_account_number: jobCard.customer_name || `JOB-${jobCard.job_number}`,
+      branch: null,
+      fleet_number: null,
+      engine: null,
+      skylink_trailer_unit_ip: jobCard.ip_address || null,
+      total_rental_sub: jobCard.actual_cost ? parseFloat(jobCard.actual_cost.toString()) * 1.15 : 0,
+      total_rental: jobCard.actual_cost || 0,
+      total_sub: jobCard.actual_cost ? parseFloat(jobCard.actual_cost.toString()) * 0.15 : 0
     };
 
     // For vehicle_invoices table
@@ -77,47 +80,27 @@ export async function POST(
     };
 
     const results = {
-      vehicles_ip: null,
-      vehicle_invoices: null,
+      vehicles: null,
       errors: []
     };
 
-    // Add to vehicles_ip table
+    // Add to vehicles table
     try {
-      const { data: vehiclesIpData, error: vehiclesIpError } = await supabase
-        .from('vehicles_ip')
+      const { data: vehiclesData, error: vehiclesError } = await supabase
+        .from('vehicles')
         .insert([vehicleData])
         .select()
         .single();
 
-      if (vehiclesIpError) {
-        console.error('Error adding to vehicles_ip:', vehiclesIpError);
-        results.errors.push(`vehicles_ip: ${vehiclesIpError.message}`);
+      if (vehiclesError) {
+        console.error('Error adding to vehicles table:', vehiclesError);
+        results.errors.push(`vehicles: ${vehiclesError.message}`);
       } else {
-        results.vehicles_ip = vehiclesIpData;
+        results.vehicles = vehiclesData;
       }
     } catch (error) {
-      console.error('Exception adding to vehicles_ip:', error);
-      results.errors.push(`vehicles_ip: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-
-    // Add to vehicle_invoices table
-    try {
-      const { data: invoiceDataResult, error: invoiceError } = await supabase
-        .from('vehicle_invoices')
-        .insert([invoiceData])
-        .select()
-        .single();
-
-      if (invoiceError) {
-        console.error('Error adding to vehicle_invoices:', invoiceError);
-        results.errors.push(`vehicle_invoices: ${invoiceError.message}`);
-      } else {
-        results.vehicle_invoices = invoiceDataResult;
-      }
-    } catch (error) {
-      console.error('Exception adding to vehicle_invoices:', error);
-      results.errors.push(`vehicle_invoices: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Exception adding to vehicles table:', error);
+      results.errors.push(`vehicles: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     // Update job card to mark vehicle as added to inventory
@@ -153,7 +136,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Vehicle successfully added to inventory',
+      message: 'Vehicle successfully added to vehicles table',
       results
     });
 

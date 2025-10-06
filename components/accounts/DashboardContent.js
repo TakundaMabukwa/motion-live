@@ -66,7 +66,7 @@ export default function DashboardContent() {
       <Card className="bg-gradient-to-r from-green-50 to-emerald-50 shadow-xl border-green-200">
         <CardHeader className="text-center">
           <CardTitle className="flex justify-center items-center space-x-2 mb-2 text-green-900 text-2xl">
-            <DollarSign className="w-8 h-8" />
+            {/* <DollarSign className="w-8 h-8" /> */}
             <span>Monthly Subscription Overview</span>
           </CardTitle>
           <p className="text-green-700 text-lg">
