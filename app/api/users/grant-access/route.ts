@@ -65,9 +65,10 @@ export async function POST(request: NextRequest) {
 
     // Create a NEW user account for the email provided in the popup form
     // Using service client to avoid session creation and RLS issues
+    const defaultPw = '123456';
     const { data: authData, error: authError2 } = await serviceSupabase.auth.admin.createUser({
       email: email,
-      password: 'Password@12',
+      password: defaultPw,
       email_confirm: true,
     });
 
@@ -200,7 +201,7 @@ export async function POST(request: NextRequest) {
 
         const emailResult = await sendUserCredentials({
           email: email,
-          password: 'Password@12',
+          password: defaultPw,
           role: role,
           systemName: systemName,
           systemUrl: systemUrl

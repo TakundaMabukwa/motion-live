@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import transporter from '@/lib/email';
 
 export async function POST(request: NextRequest) {
@@ -63,8 +62,8 @@ export async function POST(request: NextRequest) {
             <h2>Hello World! 🌍</h2>
             <p>This is a test email from the Solflo system.</p>
             <p><strong>Email Service Status:</strong> ✅ Working</p>
-            <p><strong>SMTP Server:</strong> mail.solflo.co.za</p>
-            <p><strong>Sent From:</strong> admin@solflo.co.za</p>
+          <p><strong>SMTP Server:</strong> mail.solflo.co.za</p>
+          <p><strong>Sent From:</strong> ${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}</p>
             <p><strong>Sent At:</strong> ${new Date().toLocaleString()}</p>
           </div>
           
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
     `;
 
     const mailOptions = {
-      from: '"Solflo Test" <admin@solflo.co.za>',
+      from: `"Solflo Test" <${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}>`,
       to: testEmail,
       subject: 'Hello World - Solflo Email Test',
       html: emailHTML,
@@ -104,14 +103,16 @@ export async function POST(request: NextRequest) {
     };
 
     const result = await sendWithTimeout();
-    console.log('Test email sent successfully:', result.messageId);
-    
+    interface SendResult { messageId?: string }
+    const res = result as SendResult | undefined;
+    console.log('Test email sent successfully:', res?.messageId);
+
     return NextResponse.json({
       success: true,
       message: `Test email sent successfully to ${testEmail}`,
-      messageId: result.messageId,
+      messageId: res?.messageId,
       details: {
-        from: 'admin@solflo.co.za',
+        from: process.env.ADMIN_EMAIL || 'admin@solflo.co.za',
         to: testEmail,
         subject: 'Hello World - Solflo Email Test',
         sentAt: new Date().toISOString()

@@ -1,7 +1,86 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Image from 'next/image';
+import { Card, CardContent } from '@/components/ui/card';
+
+interface Part {
+  description: string;
+  quantity: number;
+  code: string;
+  supplier: string;
+  cost_per_unit: number;
+  total_cost: number;
+  stock_id?: string;
+  available_stock?: number;
+  date_added?: string;
+  boot_stock?: string; // Add boot_stock indicator field
+}
+
+interface JobCard {
+  id: string;
+  job_number: string;
+  job_date?: string;
+  due_date?: string;
+  completion_date?: string;
+  status?: string;
+  job_status?: string;
+  job_type?: string;
+  job_description?: string;
+  priority?: string;
+  customer_name?: string;
+  customer_address?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  vehicle_registration?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  vehicle_year?: number;
+  assigned_technician_id?: string;
+  technician_name?: string;
+  technician_phone?: string;
+  parts_required?: Part[];
+  products_required?: Record<string, unknown>[];
+  equipment_used?: Record<string, unknown>[];
+  estimated_duration_hours?: number;
+  estimated_cost?: number;
+  ip_address?: string;
+  qr_code?: string;
+  vin_numer?: string;
+  odormeter?: string;
+  created_at: string;
+  updated_at?: string;
+  completion_notes?: string;
+  quotation_number?: string;
+  quotation_products?: Record<string, unknown>[];
+  quotation_total_amount?: number;
+}
+
+interface StockOrder {
+  id: string;
+  order_number?: string;
+  supplier?: string;
+  status?: string;
+  order_items?: Record<string, unknown>[];
+  created_at: string;
+}
+
+interface StockItem {
+  id: number;
+  description?: string;
+  code?: string;
+  supplier?: string;
+  stock_type?: string;
+  quantity?: string;
+  ip_addresses?: string[] | Record<string, string>;
+}
+
+interface StockUpdate {
+  id: number;
+  current_quantity: number;
+  new_quantity: number;
+  difference: number;
+}
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -17,31 +96,33 @@ import {
   Car,
   QrCode,
   Printer,
-  MapPin,
+  // MapPin,
   User,
   Calendar,
   Receipt,
   Download,
   ClipboardList,
   Filter,
-  Save
+  Save,
+  Network
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
 import AssignPartsModal from '@/components/ui-personal/assign-parts-modal';
 import StockOrderModal from '@/components/accounts/StockOrderModal';
+import AssignIPAddressModal from '@/components/inv/components/AssignIPAddressModal';
 import { toast } from 'sonner';
 
 export default function InventoryPage() {
-  const [jobCards, setJobCards] = useState([]);
+  const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedJobCard, setSelectedJobCard] = useState(null);
+  const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
   const [showAssignParts, setShowAssignParts] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
-  const [selectedQRJob, setSelectedQRJob] = useState(null);
+  const [selectedQRJob, setSelectedQRJob] = useState<JobCard | null>(null);
   const [activeTab, setActiveTab] = useState('job-cards');
-  const [stockOrders, setStockOrders] = useState([]);
+  const [stockOrders, setStockOrders] = useState<StockOrder[]>([]);
   const [stockOrdersLoading, setStockOrdersLoading] = useState(false);
   const [stockOrdersSearchTerm, setStockOrdersSearchTerm] = useState('');
   const [selectedStockOrder, setSelectedStockOrder] = useState(null);
@@ -49,17 +130,28 @@ export default function InventoryPage() {
   const [showOrderItemsModal, setShowOrderItemsModal] = useState(false);
   
   // Stock Take state
-  const [stockItems, setStockItems] = useState([]);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [stockTakeMode, setStockTakeMode] = useState(false);
-  const [updatedItems, setUpdatedItems] = useState({});
+  const [updatedItems, setUpdatedItems] = useState<Record<number, StockUpdate>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [stockTakeSearchTerm, setStockTakeSearchTerm] = useState('');
   const [selectedStockType, setSelectedStockType] = useState('all');
-  const [stockTypes, setStockTypes] = useState([]);
+  const [stockTypes, setStockTypes] = useState<string[]>([]);
   const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
-  const [thresholds, setThresholds] = useState({});
+  const [thresholds, setThresholds] = useState<Record<number, number>>({});
   const [defaultThreshold, setDefaultThreshold] = useState(10);
+  
+  // IP address assignment state
+  const [showIpAddressModal, setShowIpAddressModal] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  
+  // Reset selected item when stock take mode changes
+  useEffect(() => {
+    if (stockTakeMode) {
+      setSelectedStockItem(null);
+    }
+  }, [stockTakeMode]);
 
   useEffect(() => {
     fetchJobCards();
@@ -130,7 +222,7 @@ export default function InventoryPage() {
     }
   };
 
-  const filteredJobCards = jobCards.filter(job => {
+  const filteredJobCards = jobCards.filter((job: JobCard) => {
     const matchesSearch = 
       job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -143,15 +235,20 @@ export default function InventoryPage() {
     return matchesSearch && hasNoParts;
   });
 
-  const jobCardsWithParts = jobCards.filter(job => 
+  const jobCardsWithParts = jobCards.filter((job: JobCard) => 
     job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0
   );
 
-  const completedJobs = jobCards.filter(job => 
+  const completedJobs = jobCards.filter((job: JobCard) => 
     job.job_status === 'completed' || job.status === 'completed'
   );
 
-  const filteredStockOrders = stockOrders.filter(order => {
+  interface OrderItem {
+    description?: string;
+    [key: string]: unknown;
+  }
+
+  const filteredStockOrders = stockOrders.filter((order: StockOrder) => {
     if (!stockOrdersSearchTerm) return true;
     
     const searchLower = stockOrdersSearchTerm.toLowerCase();
@@ -160,13 +257,13 @@ export default function InventoryPage() {
       order.supplier?.toLowerCase().includes(searchLower) ||
       order.status?.toLowerCase().includes(searchLower) ||
       (order.order_items && Array.isArray(order.order_items) && 
-       order.order_items.some(item => 
+       order.order_items.some((item: OrderItem) => 
          item.description?.toLowerCase().includes(searchLower)
        ))
     );
   });
 
-  const handleAssignParts = (jobCard) => {
+  const handleAssignParts = (jobCard: JobCard) => {
     setSelectedJobCard(jobCard);
     setShowAssignParts(true);
   };
@@ -177,12 +274,166 @@ export default function InventoryPage() {
     setSelectedJobCard(null);
   };
 
-  const handleShowQRCode = (jobCard) => {
+  const handleBookStock = async (job: JobCard) => {
+    // Show loading toast
+    const loadingToast = toast.loading(`Booking stock for job ${job.job_number}...`);
+    
+    try {
+      // Update the job status to move it to admin
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      
+      console.log('Booking stock for job:', job.id, job.job_number);
+      
+      // Get existing parts or initialize an empty array
+      let existingParts = [];
+      
+      // Safely handle the existing parts
+      if (job.parts_required) {
+        try {
+          // Check if it's an array and make a clean copy
+          if (Array.isArray(job.parts_required)) {
+            existingParts = JSON.parse(JSON.stringify(job.parts_required));
+          } else {
+            console.log('parts_required is not an array:', typeof job.parts_required, job.parts_required);
+            existingParts = [];
+          }
+        } catch (e) {
+          console.error('Error parsing parts_required:', e);
+          existingParts = [];
+        }
+      }
+      
+      console.log('Initial parts array:', existingParts);
+      
+      // Create a boot stock part entry to indicate this is boot stock
+      // Use a simple object structure that's safe for JSONB serialization
+      const bootStockPart: Part = {
+        description: "Boot Stock",
+        quantity: 1,
+        code: "BOOT-STOCK",
+        supplier: "Internal",
+        cost_per_unit: 0,
+        total_cost: 0,
+        stock_id: `boot-stock-${Date.now()}`, // Use simple timestamp without Date object
+        available_stock: 1,
+        date_added: new Date().toISOString(),
+        boot_stock: "yes" // Mark this part as boot stock - this is the key field
+      };
+      
+      // Add boot stock part to the array
+      existingParts.push(bootStockPart);
+      
+      console.log('Updated parts array with boot stock:', existingParts);
+      
+      // Create update data with the parts_required array (no parts_booked field)
+      const updateData = {
+        status: 'admin_created', 
+        updated_at: new Date().toISOString(),
+        parts_required: existingParts // Store boot stock in parts_required as per DB schema
+      };
+      
+      console.log('Update data:', JSON.stringify(updateData));
+      
+      try {
+        console.log(`Updating job_cards with id=${job.id}`);
+        
+        // Make sure parts_required is properly structured before sending to Supabase
+        const cleanPartsData = updateData.parts_required.map((part: Part) => {
+          // Create a clean object with only the properties we need
+          // Make sure all values are proper JSON-serializable types
+          return {
+            description: String(part.description || ''),
+            quantity: Number(part.quantity || 0),
+            code: String(part.code || ''),
+            supplier: String(part.supplier || ''),
+            cost_per_unit: Number(part.cost_per_unit || 0),
+            total_cost: Number(part.total_cost || 0),
+            stock_id: String(part.stock_id || ''),
+            available_stock: Number(part.available_stock || 0),
+            date_added: String(part.date_added || ''),
+            boot_stock: String(part.boot_stock || '') // Ensure boot_stock is included
+          };
+        });
+        
+        // Use the cleaned data for the update
+        const cleanUpdateData = {
+          ...updateData,
+          parts_required: cleanPartsData
+        };
+        
+        console.log('Clean update data:', JSON.stringify(cleanUpdateData));
+        
+        // Use a try-catch specifically for the Supabase call
+        try {
+          // Log the exact API call we're making
+          console.log(`API call: UPDATE job_cards SET data WHERE id = ${job.id}`);
+          console.log('Data being sent:', JSON.stringify(cleanUpdateData));
+          
+          const { data, error: updateError } = await supabase
+            .from('job_cards')
+            .update(cleanUpdateData)
+            .eq('id', job.id)
+            .select();
+            
+          if (updateError) {
+            console.error('Update error message:', updateError.message);
+            console.error('Update error details:', updateError.details);
+            console.error('Update error hint:', updateError.hint);
+            console.error('Update error code:', updateError.code);
+            
+            // Log more details about the error
+            console.error('Full error object:', JSON.stringify(updateError));
+            throw new Error(`Database update failed: ${updateError.message}`);
+          }
+          
+          console.log('Update succeeded with data:', data);
+        } catch (supabaseError) {
+          console.error('Supabase operation failed:', supabaseError);
+          throw supabaseError;
+        }
+        
+        console.log('Update completed successfully');
+        
+        // Success
+        toast.dismiss(loadingToast);
+        toast.success(`Boot stock part added to job ${job.job_number} and moved to admin`);
+        
+        // Refresh job cards to show updated status
+        fetchJobCards();
+      } catch (updateError) {
+        console.error('Caught error during update:', updateError);
+        
+        // Get a meaningful error message if possible
+        let errorMessage = 'Failed to update job status';
+        if (updateError instanceof Error) {
+          errorMessage = updateError.message;
+        }
+        
+        toast.dismiss(loadingToast);
+        toast.error(errorMessage);
+        return;
+      }
+    } catch (error) {
+      console.error('Error in booking stock:', error);
+      
+      // Get a meaningful error message if possible
+      let errorMessage = 'Failed to book stock for this job';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      toast.dismiss(loadingToast);
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleShowQRCode = (jobCard: JobCard) => {
     setSelectedQRJob(jobCard);
     setShowQRCode(true);
   };
 
-  const handlePrintQR = (jobCard) => {
+  const handlePrintQR = (jobCard: JobCard) => {
     if (!jobCard.qr_code) return;
     
     const printWindow = window.open('', '_blank');
@@ -339,7 +590,7 @@ export default function InventoryPage() {
   };
 
   // Handle viewing stock order details or PDF
-  const handleViewStockOrder = (order) => {
+  const handleViewStockOrder = (order: StockOrder & {invoice_link?: string, total_amount_ex_vat?: number}) => {
     setSelectedStockOrder(order);
     if (order.invoice_link) {
       setShowPdfViewer(true);
@@ -347,19 +598,19 @@ export default function InventoryPage() {
       // If no PDF, show order details in a toast
       toast({
         title: "Order Details",
-        description: `Order: ${order.order_number}\nSupplier: ${order.supplier || 'Custom'}\nAmount: R ${parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}\nStatus: ${order.status || 'pending'}`,
+        description: `Order: ${order.order_number}\nSupplier: ${order.supplier || 'Custom'}\nAmount: R ${parseFloat(String(order.total_amount_ex_vat || 0)).toFixed(2)}\nStatus: ${order.status || 'pending'}`,
       });
     }
   };
 
   // Handle viewing order items
-  const handleViewOrderItems = (order) => {
+  const handleViewOrderItems = (order: StockOrder) => {
     setSelectedStockOrder(order);
     setShowOrderItemsModal(true);
   };
 
   // Handle downloading stock order invoice
-  const handleDownloadStockOrderInvoice = (order) => {
+  const handleDownloadStockOrderInvoice = (order: StockOrder & {invoice_link?: string}) => {
     if (order.invoice_link) {
       const link = document.createElement('a');
       link.href = order.invoice_link;
@@ -370,7 +621,7 @@ export default function InventoryPage() {
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -383,7 +634,7 @@ export default function InventoryPage() {
     }
   };
 
-  const getJobTypeColor = (jobType) => {
+  const getJobTypeColor = (jobType: string | undefined) => {
     switch (jobType?.toLowerCase()) {
       case 'installation':
         return 'bg-blue-100 text-blue-800';
@@ -395,15 +646,41 @@ export default function InventoryPage() {
         return 'bg-gray-100 text-gray-800';
     }
   };
+  
+  // We've made all Book Stock buttons always clickable
+  // This function checks if a job has boot stock assigned
+  const hasBootStock = (job: JobCard): boolean => {
+    try {
+      if (!job || !job.parts_required) {
+        return false;
+      }
+      
+      // Check if parts_required is an array
+      if (!Array.isArray(job.parts_required)) {
+        console.warn('parts_required is not an array:', job.parts_required);
+        return false;
+      }
+      
+      // Check if any part has boot_stock="yes"
+      return job.parts_required.some(part => {
+        // Safely check if part is an object and has boot_stock property
+        return part && typeof part === 'object' && part.boot_stock === "yes";
+      });
+    } catch (error) {
+      console.error('Error in hasBootStock:', error);
+      return false;
+    }
+  };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString();
   };
 
-  const handleRefresh = () => {
-    fetchJobCards();
-  };
+  // Function kept for potential future use with a global refresh button
+  // const handleRefresh = () => {
+  //   fetchJobCards();
+  // };
 
   const createTestJobCard = async () => {
     try {
@@ -542,22 +819,38 @@ export default function InventoryPage() {
     }
   };
 
-  const getQuantityDifference = (itemId) => {
-    const update = updatedItems[itemId];
-    if (!update) return null;
-    
-    if (update.difference > 0) {
-      return { type: 'increase', value: update.difference };
-    } else if (update.difference < 0) {
-      return { type: 'decrease', value: Math.abs(update.difference) };
-    }
-    return null;
-  };
+  // This function is available for potential future reporting features
+  // Will be used to display detailed difference information
+  // const getQuantityDifference = (itemId) => {
+  //   const update = updatedItems[itemId];
+  //   if (!update) return null;
+  //   
+  //   if (update.difference > 0) {
+  //     return { type: 'increase', value: update.difference };
+  //   } else if (update.difference < 0) {
+  //     return { type: 'decrease', value: Math.abs(update.difference) };
+  //   }
+  //   return null;
+  // };
 
   const getQuantityDifferenceColor = (difference) => {
     if (difference > 0) return 'text-green-600';
     if (difference < 0) return 'text-red-600';
     return 'text-gray-600';
+  };
+  
+  // Handle IP address assignment completion
+  const handleIPAddressesAssigned = (itemId: number, ipAddresses: string[]) => {
+    // Update the stock item in the local state
+    setStockItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        return {
+          ...item,
+          ip_addresses: ipAddresses
+        };
+      }
+      return item;
+    }));
   };
 
   const getStockTypeColor = (stockType) => {
@@ -657,93 +950,128 @@ export default function InventoryPage() {
           </p>
         </div>
       ) : (
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {filteredJobCards.map((job) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{job.job_number}</CardTitle>
-                    <p className="text-gray-600 text-sm">{job.customer_name}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Badge className={`text-xs ${getStatusColor(job.job_status || job.status)}`}>
-                      {job.job_status || job.status || 'Not Started'}
-                    </Badge>
-                    {job.job_type && (
-                      <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
-                        {job.job_type}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-gray-400" />
-                    <span>{job.vehicle_registration || 'No vehicle'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{job.customer_address || 'No address'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>Due: {formatDate(job.due_date)}</span>
-                  </div>
-                </div>
-
-                {job.job_description && (
-                  <p className="text-gray-600 text-sm line-clamp-2">
-                    {job.job_description}
-                  </p>
-                )}
-
-                <div className="flex justify-between items-center pt-2">
-                  <div className="flex gap-2">
-                    {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleShowQRCode(job)}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        <QrCode className="mr-1 w-3 h-3" />
-                        View QR
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => handleAssignParts(job)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        <Plus className="mr-1 w-3 h-3" />
-                        Assign Parts
-                      </Button>
-                    )}
-                    {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAssignParts(job)}
-                        className="text-green-600 hover:text-green-700"
-                      >
-                        <Plus className="mr-1 w-3 h-3" />
-                        Reassign Parts
-                      </Button>
-                    )}
-                  </div>
-                  {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
-                    <Badge variant="outline" className="bg-green-100 text-green-800 text-xs">
-                      <Package className="mr-1 w-3 h-3" />
-                      {job.parts_required.length} parts
-                    </Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="rounded-lg border bg-white shadow-sm">
+          <div className="relative w-full overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Status</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Due Date</th>
+                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredJobCards.map((job) => (
+                  <tr key={job.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4 align-middle">
+                      <div className="font-medium">{job.job_number}</div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex flex-col">
+                        <span>{job.customer_name}</span>
+                        <span className="text-xs text-gray-500">{job.customer_address || 'No address'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex items-center gap-1">
+                        <Car className="w-4 h-4 text-gray-400" />
+                        <span>{job.vehicle_registration || 'No vehicle'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="truncate max-w-[200px]">
+                        {job.job_description || 'No description'}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex flex-col gap-1">
+                        <Badge className={`text-xs ${getStatusColor(job.job_status || job.status)}`}>
+                          {job.job_status || job.status || 'Not Started'}
+                        </Badge>
+                        {job.job_type && (
+                          <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
+                            {job.job_type}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span>{formatDate(job.due_date)}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex justify-end gap-2">
+                        {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleShowQRCode(job)}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <QrCode className="mr-1 w-3 h-3" />
+                              View QR
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleAssignParts(job)}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Plus className="mr-1 w-3 h-3" />
+                              Reassign Parts
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleBookStock(job)}
+                              className={hasBootStock(job) ? "text-green-600 hover:text-green-700 cursor-pointer" : "text-amber-600 hover:text-amber-700 cursor-pointer"}
+                              disabled={false} // Always enable this button
+                              title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
+                            >
+                              <Package className="mr-1 w-3 h-3" />
+                              Book Stock
+                            </Button>
+                            <Badge variant="outline" className="bg-green-100 text-green-800 text-xs flex items-center">
+                              <Package className="mr-1 w-3 h-3" />
+                              {job.parts_required.length} parts
+                            </Badge>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAssignParts(job)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <Plus className="mr-1 w-3 h-3" />
+                              Assign Parts
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleBookStock(job)}
+                              className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white cursor-pointer" : "bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"}
+                              disabled={false} // Always enable this button
+                              title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
+                            >
+                              <Package className="mr-1 w-3 h-3" />
+                              Book Stock
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -763,82 +1091,99 @@ export default function InventoryPage() {
           <p className="text-gray-500">Jobs will appear here once parts are assigned.</p>
         </div>
       ) : (
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {jobCardsWithParts.map((job) => (
-            <Card key={job.id} className="bg-green-50 hover:shadow-md border-green-200 transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{job.job_number}</CardTitle>
-                    <p className="text-gray-600 text-sm">{job.customer_name}</p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800 text-xs">
-                    <Package className="mr-1 w-3 h-3" />
-                    Parts Assigned
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-gray-400" />
-                    <span>{job.vehicle_registration || 'No vehicle'}</span>
-                  </div>
-                  {job.ip_address && (
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-gray-400" />
-                      <span>IP: {job.ip_address}</span>
-                    </div>
-                  )}
-                  {job.job_type && (
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
-                        {job.job_type}
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-
-                <div className="text-sm">
-                  <p className="font-medium text-gray-700">Assigned Parts:</p>
-                  <div className="space-y-1 mt-1">
-                    {job.parts_required?.slice(0, 3).map((part, index) => (
-                      <div key={index} className="flex justify-between text-gray-600 text-xs">
-                        <span>• {part.description}</span>
-                        <span className="text-green-600">Qty: {part.quantity}</span>
+        <div className="rounded-lg border bg-white shadow-sm">
+          <div className="relative w-full overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Parts</th>
+                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobCardsWithParts.map((job) => (
+                  <tr key={job.id} className="border-b hover:bg-green-50">
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{job.job_number}</span>
+                        {job.ip_address && (
+                          <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
+                        )}
                       </div>
-                    ))}
-                    {job.parts_required?.length > 3 && (
-                      <div className="text-gray-500 text-xs">
-                        +{job.parts_required.length - 3} more parts
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <span>{job.customer_name}</span>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex items-center gap-1">
+                        <Car className="w-4 h-4 text-gray-400" />
+                        <span>{job.vehicle_registration || 'No vehicle'}</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleShowQRCode(job)}
-                    className="text-blue-600 hover:text-blue-700"
-                  >
-                    <QrCode className="mr-1 w-3 h-3" />
-                    View QR
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handlePrintQR(job)}
-                    className="text-green-600 hover:text-green-700"
-                  >
-                    <Printer className="mr-1 w-3 h-3" />
-                    Print
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      {job.job_type && (
+                        <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
+                          {job.job_type}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="space-y-1">
+                        {job.parts_required?.slice(0, 2).map((part, index) => (
+                          <div key={index} className="flex justify-between text-gray-600 text-xs">
+                            <span>• {part.description}</span>
+                            <span className="text-green-600 ml-2">Qty: {part.quantity}</span>
+                          </div>
+                        ))}
+                        {job.parts_required?.length > 2 && (
+                          <div className="text-gray-500 text-xs">
+                            +{job.parts_required.length - 2} more parts
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleShowQRCode(job)}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <QrCode className="mr-1 w-3 h-3" />
+                          View QR
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handlePrintQR(job)}
+                          className="text-green-600 hover:text-green-700"
+                        >
+                          <Printer className="mr-1 w-3 h-3" />
+                          Print
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleBookStock(job)}
+                          className={hasBootStock(job) ? "text-green-600 hover:text-green-700 cursor-pointer" : "text-amber-600 hover:text-amber-700 cursor-pointer"}
+                          disabled={false} // Always enable this button
+                          title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
+                        >
+                          <Package className="mr-1 w-3 h-3" />
+                          Book Stock
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -858,57 +1203,74 @@ export default function InventoryPage() {
           <p className="text-gray-500">Completed jobs will appear here.</p>
         </div>
       ) : (
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {completedJobs.map((job) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{job.job_number}</CardTitle>
-                    <p className="text-gray-600 text-sm">{job.customer_name}</p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800 text-xs">
-                    Completed
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Car className="w-4 h-4 text-gray-400" />
-                    <span>{job.vehicle_registration || 'No vehicle'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span>Completed: {formatDate(job.completion_date)}</span>
-                  </div>
-                </div>
-
-                {job.completion_notes && (
-                  <p className="text-gray-600 text-sm line-clamp-2">
-                    {job.completion_notes}
-                  </p>
-                )}
-
-                {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
-                  <div className="flex justify-between items-center pt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleShowQRCode(job)}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      <QrCode className="mr-1 w-3 h-3" />
-                      View QR
-                    </Button>
-                    <Badge variant="outline" className="text-xs">
-                      {job.parts_required.length} parts used
-                    </Badge>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+        <div className="rounded-lg border bg-white shadow-sm">
+          <div className="relative w-full overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Completion Date</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Notes</th>
+                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedJobs.map((job) => (
+                  <tr key={job.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4 align-middle">
+                      <div className="font-medium">{job.job_number}</div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <span>{job.customer_name}</span>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex items-center gap-1">
+                        <Car className="w-4 h-4 text-gray-400" />
+                        <span>{job.vehicle_registration || 'No vehicle'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span>{formatDate(job.completion_date)}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      {job.completion_notes ? (
+                        <div className="truncate max-w-[200px]">
+                          {job.completion_notes}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">No notes</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 align-middle">
+                      <div className="flex justify-end items-center gap-2">
+                        {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleShowQRCode(job)}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <QrCode className="mr-1 w-3 h-3" />
+                              View QR
+                            </Button>
+                            <Badge variant="outline" className="text-xs">
+                              {job.parts_required.length} parts used
+                            </Badge>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -1065,31 +1427,43 @@ export default function InventoryPage() {
   );
 
   // Stock Take Content
+  // Ready to render stock take content
+
   const stockTakeContent = (
     <div className="space-y-6">
+      {/* IP Address Assignment Modal */}
+      <AssignIPAddressModal
+        isOpen={showIpAddressModal && !!selectedStockItem}
+        onClose={() => setShowIpAddressModal(false)}
+        item={selectedStockItem || { id: 0 }} // Provide a fallback item to prevent errors
+        onAssigned={handleIPAddressesAssigned}
+      />
+      
       {/* Stock Take Header */}
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-gray-900 text-lg">Stock Take</h3>
           <p className="text-gray-600 text-sm">Perform physical stock counts and update inventory</p>
         </div>
-        <Button 
-          onClick={stockTakeMode ? handleCancelStockTake : handleStartStockTake}
-          variant={stockTakeMode ? "outline" : "default"}
-          className={stockTakeMode ? "text-red-600 hover:text-red-700" : ""}
-        >
-          {stockTakeMode ? (
-            <>
-              <AlertCircle className="mr-2 w-4 h-4" />
-              Cancel Stock Take
-            </>
-          ) : (
-            <>
-              <ClipboardList className="mr-2 w-4 h-4" />
-              Start Stock Take
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={stockTakeMode ? handleCancelStockTake : handleStartStockTake}
+            variant={stockTakeMode ? "outline" : "default"}
+            className={stockTakeMode ? "text-red-600 hover:text-red-700" : ""}
+          >
+            {stockTakeMode ? (
+              <>
+                <AlertCircle className="mr-2 w-4 h-4" />
+                Cancel Stock Take
+              </>
+            ) : (
+              <>
+                <ClipboardList className="mr-2 w-4 h-4" />
+                Start Stock Take
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Stock Take Tabs */}
@@ -1244,6 +1618,11 @@ export default function InventoryPage() {
                     Threshold
                   </th>
                 )}
+                {!stockTakeMode && stockTakeActiveTab === 'stock-take' && (
+                  <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                    Actions
+                  </th>
+                )}
                 {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
                   <>
                     <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
@@ -1262,22 +1641,41 @@ export default function InventoryPage() {
                 const currentQuantity = update?.new_quantity ?? parseInt(item.quantity || '0');
                 const difference = update?.difference ?? 0;
                 const isLow = isLowStock(item);
+                const isSelected = selectedStockItem?.id === item.id;
+                const hasIPAddresses = item.ip_addresses && 
+                  (Array.isArray(item.ip_addresses) ? item.ip_addresses.length > 0 : Object.keys(item.ip_addresses).length > 0);
 
                 return (
-                  <tr key={item.id} className={`hover:bg-gray-50 ${getLowStockStyle(item)}`}>
+                  <tr 
+                    key={item.id} 
+                    className={`hover:bg-gray-50 cursor-pointer ${getLowStockStyle(item)} ${isSelected ? 'bg-blue-50' : ''}`}
+                    onClick={() => setSelectedStockItem(item)}
+                  >
                     <td className="px-4 py-3 border border-gray-200 text-sm">
                       <div>
                         <div className="font-medium text-gray-900">{String(item.description || '')}</div>
-                        {item.stock_type && (
-                          <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
-                            {String(item.stock_type)}
-                          </Badge>
-                        )}
-                        {isLow && (
-                          <Badge className="bg-red-100 mt-1 text-red-800 text-xs">
-                            Low Stock
-                          </Badge>
-                        )}
+                        <div className="flex gap-1 flex-wrap mt-1">
+                          {item.stock_type && (
+                            <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
+                              {String(item.stock_type)}
+                            </Badge>
+                          )}
+                          {isLow && (
+                            <Badge className="bg-red-100 text-red-800 text-xs">
+                              Low Stock
+                            </Badge>
+                          )}
+                          {hasIPAddresses && (
+                            <Badge className="bg-indigo-100 text-indigo-800 text-xs">
+                              IP Assigned
+                            </Badge>
+                          )}
+                          {isSelected && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">
+                              Selected
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
@@ -1307,6 +1705,30 @@ export default function InventoryPage() {
                         />
                       </td>
                     )}
+                    {!stockTakeMode && stockTakeActiveTab === 'stock-take' && (
+                      <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                        <div className="flex flex-col gap-1 items-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-indigo-600 hover:text-indigo-700"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent row selection
+                              setSelectedStockItem(item);
+                              setShowIpAddressModal(true);
+                            }}
+                          >
+                            <Network className="mr-1 w-4 h-4" />
+                            {hasIPAddresses ? 'Manage IP' : 'Assign IP'}
+                          </Button>
+                          {hasIPAddresses && (
+                            <span className="text-xs text-indigo-600">
+                              IP{Array.isArray(item.ip_addresses) && item.ip_addresses.length > 1 ? 's' : ''} assigned
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
                       <>
                         <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -1316,6 +1738,7 @@ export default function InventoryPage() {
                             value={currentQuantity}
                             onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                             className="w-20 text-center"
+                            onClick={(e) => e.stopPropagation()} // Prevent row selection when clicking input
                           />
                         </td>
                         <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -1460,11 +1883,12 @@ export default function InventoryPage() {
                 <>
                   {/* QR Code */}
                   <div className="mb-6 text-center">
-                    <img 
+                    <Image
                       src={selectedQRJob.qr_code} 
                       alt="Job QR Code" 
                       className="mx-auto border rounded-lg"
-                      style={{ maxWidth: '200px' }}
+                      width={200}
+                      height={200}
                     />
                     <p className="mt-2 text-gray-500 text-xs">
                       Scan this QR code to access complete job information
@@ -1640,7 +2064,7 @@ export default function InventoryPage() {
                    <AlertCircle className="mx-auto w-12 h-12 text-gray-400" />
                    <h3 className="mt-2 font-medium text-gray-900 text-sm">No PDF Available</h3>
                    <p className="mt-1 text-gray-500 text-sm">
-                     This order doesn't have an invoice PDF attached.
+                     This order doesn&apos;t have an invoice PDF attached.
                    </p>
                  </div>
                </div>
@@ -1732,7 +2156,7 @@ export default function InventoryPage() {
                    <div className="py-8 text-center">
                      <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                      <h3 className="mb-2 font-medium text-gray-900 text-lg">No Order Items</h3>
-                     <p className="text-gray-500">This order doesn't have any items listed.</p>
+                     <p className="text-gray-500">This order doesn&apos;t have any items listed.</p>
                    </div>
                  )}
                </div>

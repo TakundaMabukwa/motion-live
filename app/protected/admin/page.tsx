@@ -26,7 +26,8 @@ import {
   Package,
   Car,
   FileText,
-  Plus
+  Plus,
+  AlertTriangle
 } from 'lucide-react';
 import StatsCard from '@/components/shared/StatsCard';
 import { toast } from 'sonner';
@@ -91,10 +92,37 @@ export default function AdminDashboard() {
   const [partsFilter, setPartsFilter] = useState('all');
   const [selectedJob, setSelectedJob] = useState<JobCard | null>(null);
   const [assignTechnicianOpen, setAssignTechnicianOpen] = useState(false);
+  const [viewJobOpen, setViewJobOpen] = useState(false);
+  const [isEditingVehicle, setIsEditingVehicle] = useState(false);
+  const [editableVehicle, setEditableVehicle] = useState<{
+    registration: string;
+    make: string;
+    model: string;
+    year: string;
+    vin: string;
+    odometer: string;
+  }>({
+    registration: '',
+    make: '',
+    model: '',
+    year: '',
+    vin: '',
+    odometer: ''
+  });
   const [selectedTechnician, setSelectedTechnician] = useState('');
   const [assignmentDate, setAssignmentDate] = useState('');
   const [assignmentTime, setAssignmentTime] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [conflictingJobs, setConflictingJobs] = useState<{
+    id: string;
+    job_number: string;
+    job_date: string;
+    start_time?: string;
+    technician_name?: string;
+    customer_name?: string;
+    job_description?: string;
+  }[]>([]);
+  const [hasSchedulingConflict, setHasSchedulingConflict] = useState(false);
 
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
   const [loadingJobsWithParts, setLoadingJobsWithParts] = useState(false);
@@ -122,17 +150,25 @@ export default function AdminDashboard() {
   const [assignmentTimeForJob, setAssignmentTimeForJob] = useState('');
 
   // FC External-quotation style product selection for installation
-  const [aqProducts, setAqProducts] = useState<any[]>([]);
-  const [aqSelectedProducts, setAqSelectedProducts] = useState<any[]>([]);
+  const [aqProducts, setAqProducts] = useState<Record<string, unknown>[]>([]);
+  const [aqSelectedProducts, setAqSelectedProducts] = useState<Record<string, unknown>[]>([]);
   const [aqLoadingProducts, setAqLoadingProducts] = useState(false);
   const [aqSearchTerm, setAqSearchTerm] = useState('');
   const [aqSelectedType, setAqSelectedType] = useState('all');
   const [aqSelectedCategory, setAqSelectedCategory] = useState('all');
 
   // For deinstall: vehicles from vehicles_ip
-  const [vehiclesIp, setVehiclesIp] = useState<any[]>([]);
+  interface VehicleIp {
+    id: string;
+    new_registration?: string;
+    company?: string;
+    group_name?: string;
+    [key: string]: any; // For other properties that might exist
+  }
+
+  const [vehiclesIp, setVehiclesIp] = useState<VehicleIp[]>([]);
   const [loadingVehiclesIp, setLoadingVehiclesIp] = useState(false);
-  const [selectedVehicleIp, setSelectedVehicleIp] = useState<any>(null);
+  const [selectedVehicleIp, setSelectedVehicleIp] = useState<VehicleIp | null>(null);
 
   const aqProductTypes = [
     'FMS', 'BACKUP', 'MODULE', 'INPUT', 'PFK CAMERA', 'DASHCAM', 'PTT', 'DVR CAMERA'
@@ -189,22 +225,22 @@ export default function AdminDashboard() {
     }
   }, [createJobOpen, fetchAqProducts]);
 
-  const aqAddProduct = (product: any) => {
+  const aqAddProduct = (product: Record<string, unknown>) => {
     const newProduct = {
       id: product.id,
       name: product.product,
       description: product.description,
       type: product.type,
       category: product.category,
-      cashPrice: product.price || 0,
-      cashDiscount: product.discount || 0,
-      rentalPrice: product.rental || 0,
+      cashPrice: (product.price as number) || 0,
+      cashDiscount: (product.discount as number) || 0,
+      rentalPrice: (product.rental as number) || 0,
       rentalDiscount: 0,
-      installationPrice: newJobData.jobType === 'install' ? (product.installation || 0) : 0,
+      installationPrice: newJobData.jobType === 'install' ? ((product.installation as number) || 0) : 0,
       installationDiscount: 0,
-      deInstallationPrice: newJobData.jobType === 'deinstall' ? (product.installation || 0) : 0,
+      deInstallationPrice: newJobData.jobType === 'deinstall' ? ((product.installation as number) || 0) : 0,
       deInstallationDiscount: 0,
-      subscriptionPrice: product.subscription || 0,
+      subscriptionPrice: (product.subscription as number) || 0,
       subscriptionDiscount: 0,
       quantity: 1,
       purchaseType: 'purchase',
@@ -216,7 +252,7 @@ export default function AdminDashboard() {
     setAqSelectedProducts(prev => prev.filter((_, i) => i !== index));
   };
 
-  const aqUpdateProduct = (index: number, field: string, value: any) => {
+  const aqUpdateProduct = (index: number, field: string, value: unknown) => {
     setAqSelectedProducts(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
@@ -226,21 +262,21 @@ export default function AdminDashboard() {
 
   const aqCalcGross = (price: number, discount: number) => Math.max(0, (price || 0) - (discount || 0));
 
-  const aqGetProductTotal = (p: any) => {
+  const aqGetProductTotal = (p: Record<string, unknown>) => {
     let total = 0;
     // cash only for admin job create for now
-    total += aqCalcGross(p.cashPrice, p.cashDiscount);
-    if (newJobData.jobType === 'install') total += aqCalcGross(p.installationPrice, p.installationDiscount || 0);
-    if (newJobData.jobType === 'deinstall') total += aqCalcGross(p.deInstallationPrice, p.deInstallationDiscount || 0);
-    if (p.purchaseType === 'rental' && p.subscriptionPrice) total += aqCalcGross(p.subscriptionPrice, p.subscriptionDiscount || 0);
-    return total * (p.quantity || 1);
+    total += aqCalcGross(p.cashPrice as number, p.cashDiscount as number);
+    if (newJobData.jobType === 'install') total += aqCalcGross(p.installationPrice as number, (p.installationDiscount as number) || 0);
+    if (newJobData.jobType === 'deinstall') total += aqCalcGross(p.deInstallationPrice as number, (p.deInstallationDiscount as number) || 0);
+    if (p.purchaseType === 'rental' && p.subscriptionPrice) total += aqCalcGross(p.subscriptionPrice as number, (p.subscriptionDiscount as number) || 0);
+    return total * ((p.quantity as number) || 1);
   };
 
   const aqSubtotal = aqSelectedProducts.reduce((sum, p) => sum + aqGetProductTotal(p), 0);
   const aqVat = aqSubtotal * 0.15;
   const aqTotal = aqSubtotal + aqVat;
 
-  const handleVehicleIpSelect = (vehicle: any) => {
+  const handleVehicleIpSelect = (vehicle: VehicleIp) => {
     setSelectedVehicleIp(vehicle);
     setNewJobData(prev => ({
       ...prev,
@@ -483,7 +519,145 @@ export default function AdminDashboard() {
     setAssignmentDate(new Date().toISOString().split('T')[0]);
     setAssignmentTime('');
     setAssignmentNotes('');
+    setConflictingJobs([]);
+    setHasSchedulingConflict(false);
     setAssignTechnicianOpen(true);
+  };
+  
+  const handleViewJob = (job: JobCard) => {
+    setSelectedJob(job);
+    setIsEditingVehicle(false);
+    
+    // Handle potentially undefined or null values safely
+    const yearValue = job.vehicle_year !== undefined && job.vehicle_year !== null 
+      ? job.vehicle_year.toString() 
+      : '';
+    
+    // Initialize the editable vehicle fields with current values or empty strings
+    setEditableVehicle({
+      registration: job.vehicle_registration || '',
+      make: job.vehicle_make || '',
+      model: job.vehicle_model || '',
+      year: yearValue,
+      vin: job.vin_numer || '',
+      odometer: job.odormeter || ''
+    });
+    setViewJobOpen(true);
+  };
+
+  const handleSaveVehicleInfo = async () => {
+    if (!selectedJob) return;
+    
+    try {
+      // Prepare loading state
+      toast.loading('Updating vehicle information...');
+      
+      const response = await fetch(`/api/job-cards/${selectedJob.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          // Make sure field names exactly match the schema
+          vehicle_registration: editableVehicle.registration,
+          vehicle_make: editableVehicle.make,
+          vehicle_model: editableVehicle.model,
+          vehicle_year: editableVehicle.year ? parseInt(editableVehicle.year) : null,
+          vin_numer: editableVehicle.vin,
+          odormeter: editableVehicle.odometer
+        }),
+      });
+
+      // Dismiss the loading toast
+      toast.dismiss();
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update vehicle information');
+      }
+      
+      try {
+        // Get the updated job data if available
+        const updatedData = await response.json();
+        
+        if (updatedData && updatedData.data) {
+          // Update from server data if available
+          if (selectedJob) {
+            selectedJob.vehicle_registration = updatedData.data.vehicle_registration || editableVehicle.registration;
+            selectedJob.vehicle_make = updatedData.data.vehicle_make || editableVehicle.make;
+            selectedJob.vehicle_model = updatedData.data.vehicle_model || editableVehicle.model;
+            selectedJob.vehicle_year = updatedData.data.vehicle_year || (editableVehicle.year ? parseInt(editableVehicle.year) : 0);
+            selectedJob.vin_numer = updatedData.data.vin_numer || editableVehicle.vin;
+            selectedJob.odormeter = updatedData.data.odormeter || editableVehicle.odometer;
+          }
+        } else {
+          // Fallback to local data if server doesn't return the updated job
+          if (selectedJob) {
+            selectedJob.vehicle_registration = editableVehicle.registration;
+            selectedJob.vehicle_make = editableVehicle.make;
+            selectedJob.vehicle_model = editableVehicle.model;
+            selectedJob.vehicle_year = editableVehicle.year ? parseInt(editableVehicle.year) : 0;
+            selectedJob.vin_numer = editableVehicle.vin;
+            selectedJob.odormeter = editableVehicle.odometer;
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        // Continue with local data if parsing fails
+        if (selectedJob) {
+          selectedJob.vehicle_registration = editableVehicle.registration;
+          selectedJob.vehicle_make = editableVehicle.make;
+          selectedJob.vehicle_model = editableVehicle.model;
+          selectedJob.vehicle_year = editableVehicle.year ? parseInt(editableVehicle.year) : 0;
+          selectedJob.vin_numer = editableVehicle.vin;
+          selectedJob.odormeter = editableVehicle.odometer;
+        }
+      }
+
+      // Turn off editing mode
+      setIsEditingVehicle(false);
+      toast.success('Vehicle information updated successfully');
+      
+      // Refresh job cards in the background
+      fetchJobCards(true);
+    } catch (error) {
+      console.error('Error updating vehicle information:', error);
+      toast.error(`Failed to update vehicle information: ${error.message}`);
+      // Re-enable editing mode in case of error
+      setIsEditingVehicle(true);
+    }
+  };
+
+  // Check if a technician is already booked within 3 hours of the selected time
+  const checkTechnicianAvailability = async (technicianName: string, date: string, time: string) => {
+    try {
+      // Reset conflict state
+      setHasSchedulingConflict(false);
+      setConflictingJobs([]);
+      
+      // Use the helper function from lib/technician-scheduling.ts
+      const { checkTechnicianAvailability } = await import('@/lib/technician-scheduling');
+      
+      const result = await checkTechnicianAvailability(technicianName, date, time);
+      
+      console.log('Availability result:', result);
+      
+      if (!result.isAvailable && result.conflictingJobs.length > 0) {
+        // Update state with conflicts
+        setConflictingJobs(result.conflictingJobs);
+        setHasSchedulingConflict(true);
+        
+        return {
+          isAvailable: false,
+          conflictingJobs: result.conflictingJobs
+        };
+      }
+      
+      return { isAvailable: true, conflictingJobs: [] };
+    } catch (error) {
+      console.error('Error in checking technician availability:', error);
+      return { isAvailable: true, conflictingJobs: [] };
+    }
   };
 
   const confirmAssignTechnician = async () => {
@@ -498,23 +672,59 @@ export default function AdminDashboard() {
         toast.error('Selected technician not found');
         return;
       }
+      
+      // Check technician availability before assigning
+      await checkTechnicianAvailability(
+        technician.name,
+        assignmentDate,
+        assignmentTime || '09:00'
+      );
+      
+      if (hasSchedulingConflict && conflictingJobs.length > 0) {
+        // Show warning with conflicting job details
+        const conflictMsg = conflictingJobs.map(job => 
+          `- Job ${job.job_number} (${job.customer_name}): ${job.job_description || 'No description'}\n  ${new Date(job.job_date).toLocaleDateString()} at ${job.start_time ? new Date(job.start_time).toLocaleTimeString() : 'unspecified time'}`
+        ).join('\n');
+        
+        const confirmAssignment = window.confirm(
+          `⚠️ SCHEDULING CONFLICT ⚠️\n\n` +
+          `${technician.name} is already assigned to other jobs within 3 hours of the selected time.\n\n` +
+          `Conflicting jobs:\n${conflictMsg}\n\n` +
+          `Do you still want to assign this technician?`
+        );
+        
+        if (!confirmAssignment) {
+          return; // User canceled the assignment
+        }
+        
+        // If user confirms, continue with assignment despite conflict
+        toast.warning('Proceeding with assignment despite scheduling conflict');
+      }
 
-      const assignmentDateTime = `${assignmentDate}T${assignmentTime}:00`;
+      // Show loading toast
+      toast.loading('Assigning technician...');
+      
+      // Check if we're overriding a scheduling conflict
+      const overrideConflict = hasSchedulingConflict && conflictingJobs.length > 0;
 
-      const response = await fetch(`/api/admin/jobs/assign-technician`, {
-        method: 'PUT',
+      // Use our new technician validation API
+      const response = await fetch(`/api/technicians/availability`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           jobId: selectedJob.id,
-          technicianEmail: technician.email,
           technicianName: technician.name,
-          jobDate: assignmentDateTime,
-          startTime: null,
-          endTime: null,
+          jobDate: assignmentDate,
+          startTime: assignmentTime || '09:00',
+          override: overrideConflict, // Pass override flag if conflict was confirmed
+          assignmentNotes: assignmentNotes || null,
         }),
       });
+
+      // Dismiss loading toast
+      toast.dismiss();
 
       const data = await response.json();
 
@@ -525,7 +735,20 @@ export default function AdminDashboard() {
 
       toast.success(data.message || 'Technician assigned successfully');
 
+      // Reset conflict state
+      setHasSchedulingConflict(false);
+      setConflictingJobs([]);
+      
+      // Close dialog and reset values
       setAssignTechnicianOpen(false);
+      setAssignmentTime('');
+      setAssignmentNotes('');
+      
+      // Update selected job with new technician info
+      if (selectedJob) {
+        selectedJob.technician_name = technician.name;
+        selectedJob.assigned_technician_id = technician.id;
+      }
       
       // Refresh data
       fetchJobCards(true);
@@ -726,21 +949,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Helper function to format technician information
-  const formatTechnicianInfo = (technicianName: string, technicianPhone: string) => {
-    if (!technicianName) return null;
-    
-    return (
-      <div className="space-y-1">
-        <p className="font-medium text-gray-600 text-sm">{technicianName}</p>
-        {technicianPhone && (
-          <p className="text-gray-500 text-xs">
-            <span className="font-medium">Email:</span> {technicianPhone}
-          </p>
-        )}
-      </div>
-    );
-  };
+  // Removed unused formatTechnicianInfo function
 
   // Helper function to check if parts are required
   const hasPartsRequired = (job: JobCard) => {
@@ -796,6 +1005,9 @@ export default function AdminDashboard() {
     return matchesSearch && !job.technician_name && hasPartsRequired(job);
   }));
 
+  // These were used for metrics/analytics but aren't currently referenced in the UI
+  // Can uncomment if needed later
+  /*
   const jobCardsWithParts = sortJobs(jobCards.filter(job => 
     hasPartsRequired(job)
   ));
@@ -803,6 +1015,7 @@ export default function AdminDashboard() {
   const completedJobs = jobCards.filter(job => 
     job.status === 'completed'
   );
+  */
 
   const overviewMetrics = [
     {
@@ -915,186 +1128,97 @@ export default function AdminDashboard() {
             </Button>
           </div>
 
-          {/* Job Cards */}
-          <div className="gap-4 grid">
-            {loading ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                <span className="ml-2">Loading job cards...</span>
-              </div>
-            ) : filteredJobCards.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <p className="text-gray-500">No job cards found</p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredJobCards.map((job) => (
-                <Card key={job.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-semibold text-gray-900 text-lg">
-                              {job.job_number}
-                            </h3>
-                            <p className="text-gray-600 text-sm">
-                              Created: {new Date(job.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge className={getStatusColor(job.status)}>
-                              {job.status.replace('_', ' ').toUpperCase()}
-                            </Badge>
-                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
-                              {job.priority.toUpperCase()}
-                            </Badge>
-                            {job.parts_required && job.parts_required.length > 0 && (
-                              <Badge className="bg-purple-100 text-purple-800">
-                                PARTS ASSIGNED
-                              </Badge>
-                            )}
-                            {(job.vehicle_registration || job.vehicle_make || job.vehicle_model) && (
-                              <Badge className="bg-green-100 border-green-200 text-green-800">
-                                <Car className="mr-1 w-3 h-3" />
-                                VEHICLE
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-4">
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Customer</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <UserPlus className="w-4 h-4 text-gray-400" />
-                                {job.customer_name || 'N/A'}
-                              </p>
-                              {job.customer_email && (
-                                <p className="flex items-center gap-2">
-                                  <Mail className="w-4 h-4 text-gray-400" />
-                                  {job.customer_email}
-                                </p>
-                              )}
-                              {job.customer_phone && (
-                                <p className="flex items-center gap-2">
-                                  <Phone className="w-4 h-4 text-gray-400" />
-                                  {job.customer_phone}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Vehicle</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <Car className="w-4 h-4 text-gray-400" />
-                                {job.vehicle_registration || 'No Registration'}
-                              </p>
-                              {job.vehicle_make && job.vehicle_model && (
-                                <p className="text-gray-600">
-                                  {job.vehicle_make} {job.vehicle_model}
-                                </p>
-                              )}
-                              {job.vehicle_year && (
-                                <p className="text-gray-600">
-                                  Year: {job.vehicle_year}
-                                </p>
-                              )}
-                              {job.vin_numer && (
-                                <p className="text-gray-600">
-                                  VIN: {job.vin_numer}
-                                </p>
-                              )}
-                              {job.odormeter && (
-                                <p className="text-gray-600">
-                                  Odometer: {job.odormeter}
-                                </p>
-                              )}
-                              {!job.vehicle_registration && !job.vehicle_make && !job.vehicle_model && (
-                                <p className="text-gray-400 italic">No vehicle information</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                {job.job_type?.toUpperCase() || 'N/A'}
-                              </p>
-                              {job.estimated_duration_hours && (
-                                <p className="text-gray-600">
-                                  Est. Duration: {job.estimated_duration_hours}h
-                                </p>
-                              )}
-                              {job.estimated_cost && (
-                                <p className="text-gray-600">
-                                  Est. Cost: R{job.estimated_cost}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {job.job_description && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Description</h4>
-                            <p className="text-gray-600 text-sm">{job.job_description}</p>
-                          </div>
-                        )}
-
-                        {job.parts_required && job.parts_required.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Parts Assigned</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {job.parts_required.map((part, index) => (
-                                <Badge key={index} variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
-                                  {part.description}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {job.technician_name && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Assigned Technician</h4>
-                            <p className="text-gray-600 text-sm">{job.technician_name}</p>
-                            {job.technician_phone && (
-                              <p className="text-gray-600 text-sm">{job.technician_phone}</p>
-                            )}
-                          </div>
-                        )}
+          {/* Job Cards Table */}
+          <div className="rounded-lg border bg-white shadow-sm">
+            <div className="relative w-full overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                        <span>Job Number</span>
                       </div>
-
-                      <div className="flex flex-col gap-2">
-                        {!job.technician_name ? (
-                          <Button
-                            onClick={() => handleAssignTechnician(job)}
-                            className="flex items-center gap-2"
-                            disabled={!hasPartsRequired(job)}
-                            variant={!hasPartsRequired(job) ? "outline" : "default"}
-                            title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
-                          >
-                            <UserPlus className="w-4 h-4" />
-                            Assign Technician
-                          </Button>
-                        ) : (
-                          <Badge className="bg-green-100 text-green-800">
-                            Assigned: {job.technician_name}
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Priority</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Status</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Created</th>
+                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center">
+                        <div className="flex justify-center items-center py-8">
+                          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                          <span className="ml-2">Loading job cards...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredJobCards.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center">
+                        <p className="text-gray-500 py-8">No job cards found</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredJobCards.map((job) => (
+                      <tr key={job.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex items-center gap-3">
+                            <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                            <div className="font-medium">{job.job_number}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="truncate max-w-[250px]">
+                            {job.job_description || 'No description'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
+                            {job.priority.toUpperCase()}
                           </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <Badge className={getStatusColor(job.status)}>
+                            {job.status.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-4 align-middle text-gray-600">
+                          {new Date(job.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              onClick={() => handleViewJob(job)} 
+                              variant="outline" 
+                              size="sm"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                            >
+                              View
+                            </Button>
+                            <Button
+                              onClick={() => handleAssignTechnician(job)}
+                              variant="default"
+                              size="sm"
+                              className="bg-black hover:bg-gray-800 text-white"
+                              disabled={!hasPartsRequired(job)}
+                              title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
+                            >
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Assign
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )
@@ -1134,163 +1258,148 @@ export default function AdminDashboard() {
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
-
-          {loadingJobsWithParts ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-              <span className="ml-2">Loading jobs with parts...</span>
+          
+          {/* Filters */}
+          <div className="flex sm:flex-row flex-col gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+                <Input
+                  placeholder="Search jobs with parts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-          ) : jobsWithParts.length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Parts</h3>
-                <p className="text-gray-500">There are no jobs that require parts. Parts will appear here when assigned to jobs.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="gap-4 grid">
-              {jobsWithParts.map((job) => (
-                <Card key={job.id} className="hover:shadow-md border-l-4 border-l-purple-500 transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-semibold text-gray-900 text-lg">
-                              {job.job_number}
-                            </h3>
-                            <p className="text-gray-600 text-sm">
-                              Created: {new Date(job.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge className={getStatusColor(job.status)}>
-                              {job.status.replace('_', ' ').toUpperCase()}
-                            </Badge>
-                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
-                              {job.priority.toUpperCase()}
-                            </Badge>
-                            <Badge className="bg-purple-100 text-purple-800">
-                              PARTS ASSIGNED
-                            </Badge>
-                          </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by job type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="install">Install</SelectItem>
+                <SelectItem value="deinstall">Deinstall</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="repair">Repair</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Job Cards Table */}
+          <div className="rounded-lg border bg-white shadow-sm">
+            <div className="relative w-full overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Technician</th>
+                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingJobsWithParts ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center">
+                        <div className="flex justify-center items-center py-8">
+                          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                          <span className="ml-2">Loading jobs with parts...</span>
                         </div>
-
-                        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-4">
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Customer</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <UserPlus className="w-4 h-4 text-gray-400" />
-                                {job.customer_name || 'N/A'}
-                              </p>
-                              {job.customer_email && (
-                                <p className="flex items-center gap-2">
-                                  <Mail className="w-4 h-4 text-gray-400" />
-                                  {job.customer_email}
-                                </p>
-                              )}
-                              {job.customer_phone && (
-                                <p className="flex items-center gap-2">
-                                  <Phone className="w-4 h-4 text-gray-400" />
-                                  {job.customer_phone}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Vehicle</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-gray-400" />
-                                {job.vehicle_registration || 'N/A'}
-                              </p>
-                              {job.vehicle_make && job.vehicle_model && (
-                                <p className="text-gray-600">
-                                  {job.vehicle_make} {job.vehicle_model}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                {job.job_type?.toUpperCase() || 'N/A'}
-                              </p>
-                              {job.estimated_duration_hours && (
-                                <p className="text-gray-600">
-                                  Est. Duration: {job.estimated_duration_hours}h
-                                </p>
-                              )}
-                              {job.estimated_cost && (
-                                <p className="text-gray-600">
-                                  Est. Cost: R{job.estimated_cost}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                      </td>
+                    </tr>
+                  ) : jobsWithParts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-4 text-center">
+                        <div className="py-8 flex flex-col items-center">
+                          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Parts</h3>
+                          <p className="text-gray-500">There are no jobs that require parts. Parts will appear here when assigned to jobs.</p>
                         </div>
-
-                        {job.job_description && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Description</h4>
-                            <p className="text-gray-600 text-sm">{job.job_description}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    jobsWithParts.map((job) => (
+                      <tr key={job.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4 align-middle">
+                          <div className="font-medium">{job.job_number}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(job.created_at).toLocaleDateString()}
                           </div>
-                        )}
-
-                        {job.parts_required && job.parts_required.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Parts Assigned</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {job.parts_required.map((part, index) => (
-                                <Badge key={index} variant="outline" className="bg-purple-50 border-purple-200 text-purple-700">
-                                  {part.description}
-                                </Badge>
-                              ))}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="truncate max-w-[200px]">
+                            {job.job_description || 'No description'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="text-sm">{job.customer_name || 'N/A'}</div>
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                          {job.vehicle_make && job.vehicle_model && (
+                            <div className="text-xs text-gray-500">
+                              {job.vehicle_make} {job.vehicle_model}
                             </div>
-                          </div>
-                        )}
-
-                        {job.technician_name && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Assigned Technician</h4>
-                            <p className="text-gray-600 text-sm">{job.technician_name}</p>
-                            {job.technician_phone && (
-                              <p className="text-gray-600 text-sm">{job.technician_phone}</p>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          {job.technician_name ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              {job.technician_name}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-800">
+                              Unassigned
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              onClick={() => handleViewJob(job)} 
+                              variant="outline" 
+                              size="sm"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                            >
+                              View
+                            </Button>
+                            {!job.technician_name && (
+                              <Button
+                                onClick={() => handleAssignTechnician(job)}
+                                variant="default"
+                                size="sm"
+                                className="bg-black hover:bg-gray-800 text-white"
+                                disabled={!hasPartsRequired(job)}
+                              >
+                                <UserPlus className="w-4 h-4 mr-2" />
+                                Assign
+                              </Button>
                             )}
                           </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        {!job.technician_name ? (
-                          <Button
-                            onClick={() => handleAssignTechnician(job)}
-                            className="flex items-center gap-2"
-                            disabled={!hasPartsRequired(job)}
-                            variant={!hasPartsRequired(job) ? "outline" : "default"}
-                            title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
-                          >
-                            <UserPlus className="w-4 h-4" />
-                            Assign Technician
-                          </Button>
-                        ) : (
-                          <Badge className="bg-green-100 text-green-800">
-                            Assigned: {job.technician_name}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       )
     },
@@ -1309,144 +1418,124 @@ export default function AdminDashboard() {
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
-
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-              <span className="ml-2">Loading jobs...</span>
+          
+          {/* Filters */}
+          <div className="flex sm:flex-row flex-col gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+                <Input
+                  placeholder="Search jobs waiting for parts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-          ) : jobCards.filter(job => !hasPartsRequired(job)).length === 0 ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs Waiting for Parts</h3>
-                <p className="text-gray-500">All jobs have parts assigned. Great job!</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="gap-4 grid">
-              {sortJobs(jobCards.filter(job => !hasPartsRequired(job))).map((job) => (
-                <Card key={job.id} className="hover:shadow-md border-l-4 border-l-orange-500 transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-semibold text-gray-900 text-lg">
-                              {job.job_number}
-                            </h3>
-                            <p className="text-gray-600 text-sm">
-                              Created: {new Date(job.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge className={getStatusColor(job.status)}>
-                              {job.status.replace('_', ' ').toUpperCase()}
-                            </Badge>
-                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
-                              {job.priority.toUpperCase()}
-                            </Badge>
-                            <Badge className="bg-orange-100 border-orange-200 text-orange-800">
-                              NEEDS PARTS
-                            </Badge>
-                            {(job.vehicle_registration || job.vehicle_make || job.vehicle_model) && (
-                              <Badge className="bg-green-100 border-green-200 text-green-800">
-                                <Car className="mr-1 w-3 h-3" />
-                                VEHICLE
-                              </Badge>
-                            )}
-                          </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by job type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="install">Install</SelectItem>
+                <SelectItem value="deinstall">Deinstall</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+                <SelectItem value="repair">Repair</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Job Cards Table */}
+          <div className="rounded-lg border bg-white shadow-sm">
+            <div className="relative w-full overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center">
+                        <div className="flex justify-center items-center py-8">
+                          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                          <span className="ml-2">Loading jobs...</span>
                         </div>
-
-                        <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-4">
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Customer</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <UserPlus className="w-4 h-4 text-gray-400" />
-                                {job.customer_name || 'N/A'}
-                              </p>
-                              {job.customer_email && (
-                                <p className="flex items-center gap-2">
-                                  <Mail className="w-4 h-4 text-gray-400" />
-                                  {job.customer_email}
-                                </p>
-                              )}
-                              {job.customer_phone && (
-                                <p className="flex items-center gap-2">
-                                  <Phone className="w-4 h-4 text-gray-400" />
-                                  {job.customer_phone}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Vehicle</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-gray-400" />
-                                {job.vehicle_registration || 'N/A'}
-                              </p>
-                              {job.vehicle_make && job.vehicle_model && (
-                                <p className="text-gray-600">
-                                  {job.vehicle_make} {job.vehicle_model}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
-                            <div className="space-y-1 text-sm">
-                              <p className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                {job.job_type?.toUpperCase() || 'N/A'}
-                              </p>
-                              {job.estimated_duration_hours && (
-                                <p className="text-gray-600">
-                                  Est. Duration: {job.estimated_duration_hours}h
-                                </p>
-                              )}
-                              {job.estimated_cost && (
-                                <p className="text-gray-600">
-                                  Est. Cost: R{job.estimated_cost}
-                                </p>
-                              )}
-                            </div>
-                          </div>
+                      </td>
+                    </tr>
+                  ) : jobCards.filter(job => !hasPartsRequired(job)).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center">
+                        <div className="py-8 flex flex-col items-center">
+                          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs Waiting for Parts</h3>
+                          <p className="text-gray-500">All jobs have parts assigned. Great job!</p>
                         </div>
-
-                        {job.job_description && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Description</h4>
-                            <p className="text-gray-600 text-sm">{job.job_description}</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    sortJobs(jobCards.filter(job => !hasPartsRequired(job))).map((job) => (
+                      <tr key={job.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4 align-middle">
+                          <div className="font-medium">{job.job_number}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(job.created_at).toLocaleDateString()}
                           </div>
-                        )}
-
-                        {job.technician_name && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 font-medium text-gray-900">Assigned Technician</h4>
-                            <p className="text-gray-600 text-sm">{job.technician_name}</p>
-                            {job.technician_phone && (
-                              <p className="text-gray-600 text-sm">{job.technician_phone}</p>
-                            )}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="truncate max-w-[200px]">
+                            {job.job_description || 'No description'}
                           </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <Badge className="bg-orange-100 border-orange-200 text-orange-800">
-                          Parts Required
-                        </Badge>
-                        <p className="text-gray-500 text-xs text-center">Assign parts before technician</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="text-sm">{job.customer_name || 'N/A'}</div>
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                          {job.vehicle_make && job.vehicle_model && (
+                            <div className="text-xs text-gray-500">
+                              {job.vehicle_make} {job.vehicle_model}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 align-middle">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              onClick={() => handleViewJob(job)} 
+                              variant="outline" 
+                              size="sm"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                            >
+                              View
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       )
     }
@@ -1555,7 +1644,7 @@ export default function AdminDashboard() {
               <Calendar className="w-8 h-8 text-green-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Schedule</h3>
-                <p className="text-gray-600 text-sm">View technicians' calendars and schedule</p>
+                <p className="text-gray-600 text-sm">View technicians&apos; calendars and schedule</p>
               </div>
             </div>
           </CardContent>
@@ -1623,76 +1712,557 @@ export default function AdminDashboard() {
       ))}
 
       {/* Assign Technician Dialog */}
-      <Dialog open={assignTechnicianOpen} onOpenChange={setAssignTechnicianOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Assign Technician</DialogTitle>
+      <Dialog 
+        open={assignTechnicianOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setConflictingJobs([]);
+            setHasSchedulingConflict(false);
+          }
+          setAssignTechnicianOpen(open);
+        }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader className="pb-1">
+            <DialogTitle className="text-lg font-bold flex items-center">
+              <UserPlus className="mr-2 h-5 w-5" />
+              Assign Technician
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-5">
             {selectedJob && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="mb-2 font-medium text-gray-900">Job Details</h4>
-                <div className="space-y-1 text-sm">
-                  <p><strong>Job Number:</strong> {selectedJob.job_number}</p>
-                  <p><strong>Customer:</strong> {selectedJob.customer_name}</p>
-                  <p><strong>Vehicle:</strong> {selectedJob.vehicle_registration}</p>
-                  <p><strong>Job Type:</strong> {selectedJob.job_type}</p>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                {/* Job Header with Number and Priority */}
+                <div className="bg-gray-50 border-b border-gray-200 p-3 flex justify-between items-center">
+                  <div className="flex items-center">
+                    <FileText className="h-4 w-4 text-gray-500 mr-2" />
+                    <h3 className="text-sm font-semibold text-gray-800">Job {selectedJob.job_number}</h3>
+                  </div>
+                  <Badge className={`${getPriorityColor(selectedJob.priority)} text-xs px-2 py-0.5`}>
+                    {selectedJob.priority.toUpperCase()} PRIORITY
+                  </Badge>
+                </div>
+                
+                {/* Job Description */}
+                <div className="p-3 border-b border-gray-200 bg-white">
+                  <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Description</h4>
+                  <p className="text-sm text-gray-700">{selectedJob.job_description || 'No description provided'}</p>
+                </div>
+                
+                {/* Job Details */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 bg-white">
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Customer</h4>
+                    <div className="flex items-center">
+                      <Users className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.customer_name}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Job Type</h4>
+                    <div className="flex items-center">
+                      <Package className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.job_type?.toUpperCase()}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Vehicle</h4>
+                    <div className="flex items-center">
+                      <Car className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.vehicle_registration || 'N/A'}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Due Date</h4>
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.due_date ? new Date(selectedJob.due_date).toLocaleDateString() : 'Not specified'}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Location</h4>
+                    <div className="flex items-center">
+                      <MapPin className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.job_location || 'Not specified'}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Estimated Duration</h4>
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.estimated_duration_hours ? `${selectedJob.estimated_duration_hours} hours` : 'Not specified'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
-            <div>
-              <Label htmlFor="technician">Technician</Label>
-              <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a technician" />
-                </SelectTrigger>
-                <SelectContent>
-                  {technicians.map((technician) => (
-                    <SelectItem key={technician.id} value={technician.name}>
-                      {technician.name} ({technician.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="gap-4 grid grid-cols-2">
-              <div>
-                <Label htmlFor="assignment-date">Assignment Date</Label>
-                <Input
-                  id="assignment-date"
-                  type="date"
-                  value={assignmentDate}
-                  onChange={(e) => setAssignmentDate(e.target.value)}
-                />
+            
+            <div className="border border-gray-200 rounded-lg overflow-hidden mt-3">
+              <div className="bg-gray-50 border-b border-gray-200 p-3">
+                <h3 className="text-sm font-semibold text-gray-800 flex items-center">
+                  <UserPlus className="h-4 w-4 text-gray-500 mr-2" />
+                  Technician Assignment
+                </h3>
               </div>
-              <div>
-                <Label htmlFor="assignment-time">Assignment Time</Label>
-                <Input
-                  id="assignment-time"
-                  type="time"
-                  value={assignmentTime}
-                  onChange={(e) => setAssignmentTime(e.target.value)}
-                />
+              
+              <div className="p-3 space-y-3 bg-white">
+                <div>
+                  <Label htmlFor="technician" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Select Technician *</Label>
+                  <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+                    <SelectTrigger className="w-full border-gray-300 h-9 text-sm">
+                      <SelectValue placeholder="Select a technician" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {technicians.map((technician) => (
+                        <SelectItem key={technician.id} value={technician.name}>
+                          {technician.name} ({technician.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="assignment-date" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Assignment Date *</Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="assignment-date"
+                        type="date"
+                        value={assignmentDate}
+                        onChange={(e) => setAssignmentDate(e.target.value)}
+                        className="pl-8 border-gray-300 h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="assignment-time" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Assignment Time</Label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <Input
+                        id="assignment-time"
+                        type="time"
+                        value={assignmentTime}
+                        onChange={(e) => setAssignmentTime(e.target.value)}
+                        className="pl-8 border-gray-300 h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="assignment-notes" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Notes (Optional)</Label>
+                  <Textarea
+                    id="assignment-notes"
+                    placeholder="Add any notes about this assignment..."
+                    value={assignmentNotes}
+                    onChange={(e) => setAssignmentNotes(e.target.value)}
+                    className="resize-none border-gray-300 h-20 text-sm"
+                  />
+                </div>
+                
+                {/* Scheduling conflict warning */}
+                {hasSchedulingConflict && conflictingJobs.length > 0 && (
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-amber-800">Scheduling Conflict Detected</h4>
+                        <p className="text-sm text-amber-700 mt-1">
+                          This technician already has {conflictingJobs.length} job(s) scheduled within 3 hours of this time slot:
+                        </p>
+                        <ul className="mt-2 text-xs text-amber-700 space-y-1.5">
+                          {conflictingJobs.slice(0, 3).map(job => (
+                            <li key={job.id} className="border-l-2 border-amber-300 pl-2">
+                              <span className="font-semibold">Job #{job.job_number}</span>: {job.customer_name}
+                              <br />
+                              <span className="text-amber-600">
+                                {new Date(job.job_date).toLocaleDateString()} at {job.start_time ? new Date(job.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unspecified time'}
+                              </span>
+                            </li>
+                          ))}
+                          {conflictingJobs.length > 3 && (
+                            <li className="text-amber-600 italic">
+                              + {conflictingJobs.length - 3} more conflicting job(s)
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div>
-              <Label htmlFor="assignment-notes">Notes (Optional)</Label>
-              <Input
-                id="assignment-notes"
-                placeholder="Add any notes about this assignment..."
-                value={assignmentNotes}
-                onChange={(e) => setAssignmentNotes(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAssignTechnicianOpen(false)}>
+            
+            <div className="flex justify-end gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setAssignTechnicianOpen(false)}
+                className="px-4 py-2 font-medium border-gray-300 text-gray-700 text-sm"
+              >
                 Cancel
               </Button>
-              <Button onClick={confirmAssignTechnician} disabled={!selectedTechnician}>
-                Assign Technician
+              <Button 
+                onClick={confirmAssignTechnician} 
+                disabled={!selectedTechnician}
+                className={`font-medium px-4 py-2 text-sm ${hasSchedulingConflict 
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+              >
+                <UserPlus className="mr-1.5 h-4 w-4" />
+                {hasSchedulingConflict ? 'Assign Anyway' : 'Assign Technician'}
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Job Dialog */}
+      <Dialog open={viewJobOpen} onOpenChange={setViewJobOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center">
+              <FileText className="mr-2 h-5 w-5" />
+              Job Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedJob && (
+            <div className="space-y-8">
+              {/* Header with job number, status and badges */}
+              <div className="bg-gray-50 p-5 rounded-lg border border-gray-100">
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Job Number</span>
+                    <h2 className="text-2xl font-bold text-gray-900">{selectedJob.job_number}</h2>
+                    <p className="text-gray-500 text-sm mt-1">Created: {new Date(selectedJob.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      <Badge className={getStatusColor(selectedJob.status)}>
+                        {selectedJob.status.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                      <Badge className={`${getPriorityColor(selectedJob.priority)} border font-semibold`}>
+                        {selectedJob.priority.toUpperCase()}
+                      </Badge>
+                      {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
+                        <Badge className="bg-purple-100 text-purple-800">PARTS ASSIGNED</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main content in a two-column layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left column: Customer and Vehicle Info */}
+                <div className="lg:col-span-1 space-y-6">
+                  {/* Customer Information Card */}
+                  <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                      <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                        <UserPlus className="w-4 h-4 mr-2 text-gray-500" />
+                        Customer Information
+                      </h3>
+                    </div>
+                    <div className="p-5">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{selectedJob.customer_name || 'N/A'}</h4>
+                        </div>
+                        {selectedJob.customer_email && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                            {selectedJob.customer_email}
+                          </div>
+                        )}
+                        {selectedJob.customer_phone && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                            {selectedJob.customer_phone}
+                          </div>
+                        )}
+                        {selectedJob.customer_address && (
+                          <div className="flex items-start gap-2 text-sm text-gray-600">
+                            <MapPin className="w-4 h-4 text-gray-400 mt-1" />
+                            <span className="whitespace-pre-wrap">{selectedJob.customer_address}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vehicle Information Card */}
+                  <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                      <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                        <Car className="w-4 h-4 mr-2 text-gray-500" />
+                        Vehicle Information
+                      </h3>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsEditingVehicle(!isEditingVehicle)}
+                        className="text-xs font-medium"
+                      >
+                        {isEditingVehicle ? 'Cancel' : 'Edit Vehicle'}
+                      </Button>
+                    </div>
+                    <div className="p-5">
+                      {!isEditingVehicle ? (
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{selectedJob.vehicle_registration || 'No Registration'}</h4>
+                          </div>
+                          {selectedJob.vehicle_make && selectedJob.vehicle_model && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Car className="w-4 h-4 text-gray-400" />
+                              {selectedJob.vehicle_make} {selectedJob.vehicle_model}
+                            </div>
+                          )}
+                          {selectedJob.vehicle_year && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Clock className="w-4 h-4 text-gray-400" />
+                              Year: {selectedJob.vehicle_year}
+                            </div>
+                          )}
+                          {selectedJob.vin_numer && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <FileText className="w-4 h-4 text-gray-400" />
+                              VIN: {selectedJob.vin_numer}
+                            </div>
+                          )}
+                          {selectedJob.odormeter && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Package className="w-4 h-4 text-gray-400" />
+                              Odometer: {selectedJob.odormeter}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 gap-4">
+                            <div>
+                              <Label htmlFor="vehicle-registration" className="text-xs text-gray-500 font-medium">Registration</Label>
+                              <Input 
+                                id="vehicle-registration" 
+                                value={editableVehicle.registration} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, registration: e.target.value})}
+                                placeholder="Vehicle Registration"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-make" className="text-xs text-gray-500 font-medium">Make</Label>
+                              <Input 
+                                id="vehicle-make" 
+                                value={editableVehicle.make} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, make: e.target.value})}
+                                placeholder="Vehicle Make"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-model" className="text-xs text-gray-500 font-medium">Model</Label>
+                              <Input 
+                                id="vehicle-model" 
+                                value={editableVehicle.model} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, model: e.target.value})}
+                                placeholder="Vehicle Model"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-year" className="text-xs text-gray-500 font-medium">Year</Label>
+                              <Input 
+                                id="vehicle-year" 
+                                value={editableVehicle.year} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, year: e.target.value})}
+                                placeholder="Vehicle Year"
+                                type="number"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-vin" className="text-xs text-gray-500 font-medium">VIN Number</Label>
+                              <Input 
+                                id="vehicle-vin" 
+                                value={editableVehicle.vin} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, vin: e.target.value})}
+                                placeholder="VIN Number"
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="vehicle-odometer" className="text-xs text-gray-500 font-medium">Odometer</Label>
+                              <Input 
+                                id="vehicle-odometer" 
+                                value={editableVehicle.odometer} 
+                                onChange={(e) => setEditableVehicle({...editableVehicle, odometer: e.target.value})}
+                                placeholder="Odometer Reading"
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end space-x-2 pt-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setIsEditingVehicle(false)}
+                              size="sm"
+                              className="text-xs"
+                            >
+                              Cancel
+                            </Button>
+                            <Button 
+                              onClick={handleSaveVehicleInfo}
+                              className="bg-black hover:bg-gray-800 text-white text-xs"
+                              size="sm"
+                            >
+                              Save Vehicle Information
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right column: Job details, description and parts */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Job Details Card */}
+                  <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                      <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                        <FileText className="w-4 h-4 mr-2 text-gray-500" />
+                        Job Details
+                      </h3>
+                    </div>
+                    <div className="p-5">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-6">
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-1">Job Type</p>
+                          <p className="font-medium">{selectedJob.job_type?.toUpperCase() || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-1">Job Date</p>
+                          <p className="font-medium">
+                            {selectedJob.job_date ? new Date(selectedJob.job_date).toLocaleDateString() : 'Not Scheduled'}
+                          </p>
+                        </div>
+                        {selectedJob.due_date && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Due Date</p>
+                            <p className="font-medium">{new Date(selectedJob.due_date).toLocaleDateString()}</p>
+                          </div>
+                        )}
+                        {selectedJob.estimated_duration_hours && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Est. Duration</p>
+                            <p className="font-medium">{selectedJob.estimated_duration_hours} hours</p>
+                          </div>
+                        )}
+                        {selectedJob.estimated_cost && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Est. Cost</p>
+                            <p className="font-medium">R{selectedJob.estimated_cost}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Description section */}
+                      {selectedJob.job_description && (
+                        <div className="mt-6 pt-6 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Description</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedJob.job_description}</p>
+                        </div>
+                      )}
+                      
+                      {/* Work Notes section */}
+                      {selectedJob.work_notes && (
+                        <div className="mt-6 pt-6 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Work Notes</p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedJob.work_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Parts Required Card */}
+                  {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
+                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                        <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                          <Package className="w-4 h-4 mr-2 text-gray-500" />
+                          Parts Assigned
+                        </h3>
+                      </div>
+                      <div className="p-0">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">Description</th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">Quantity</th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">Code</th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">Supplier</th>
+                                <th className="px-5 py-3 text-right font-medium text-gray-500">Cost</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedJob.parts_required.map((part, index) => (
+                                <tr key={index} className="border-b border-gray-100">
+                                  <td className="px-5 py-3">{part.description}</td>
+                                  <td className="px-5 py-3">{part.quantity}</td>
+                                  <td className="px-5 py-3">{part.code}</td>
+                                  <td className="px-5 py-3">{part.supplier}</td>
+                                  <td className="px-5 py-3 text-right">R{part.total_cost}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-gray-50">
+                                <td colSpan={4} className="px-5 py-3 font-medium text-right">Total:</td>
+                                <td className="px-5 py-3 font-bold text-right">
+                                  R{selectedJob.parts_required.reduce((sum, part) => sum + part.total_cost, 0)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
+                <Button variant="outline" onClick={() => setViewJobOpen(false)}>
+                  Close
+                </Button>
+                {!selectedJob.technician_name && (
+                  <Button
+                    onClick={() => {
+                      setViewJobOpen(false);
+                      setTimeout(() => handleAssignTechnician(selectedJob), 100);
+                    }}
+                    disabled={!hasPartsRequired(selectedJob)}
+                    className="bg-black hover:bg-gray-800 text-white"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Assign Technician
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -1941,7 +2511,7 @@ export default function AdminDashboard() {
                       ) : aqProducts.length === 0 ? (
                         <div className="text-gray-500 text-sm">No products</div>
                       ) : (
-                        aqProducts.map((p: any) => (
+                        aqProducts.map((p: Record<string, unknown>) => (
                           <div key={p.id} className="flex justify-between items-center py-2 border-b">
                             <div>
                               <div className="font-medium text-sm">{p.product}</div>

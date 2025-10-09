@@ -13,10 +13,12 @@ import {
   AlertTriangle, 
   RefreshCw,
   Loader2,
-  Eye
+  Eye,
+  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAccounts } from '@/contexts/AccountsContext';
+// Dynamic import for XLSX to avoid build issues
 
 export default function AccountsClientsSection() {
   const { 
@@ -32,6 +34,7 @@ export default function AccountsClientsSection() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
 
   // Initial load
   useEffect(() => {
@@ -140,7 +143,209 @@ export default function AccountsClientsSection() {
     }
   };
 
+  // Handle Bulk Invoice Generation for All Cost Centers - Single Continuous Excel Sheet
+  const handleBulkInvoice = async () => {
+    try {
+      setIsGeneratingBulkInvoice(true);
+      
+      // Dynamic import of XLSX library
+      const XLSX = await import('xlsx');
+      
+      // Fetch all vehicles grouped by account number
+      const response = await fetch('/api/vehicles/bulk-invoice');
+      if (!response.ok) {
+        throw new Error('Failed to fetch vehicle data');
+      }
+      
+      const data = await response.json();
+      const { groupedVehicles, customerDetails, accountTotals } = data.data;
+      
+      if (Object.keys(groupedVehicles).length === 0) {
+        toast.error('No vehicle data found to generate invoices');
+        return;
+      }
 
+      console.log(`Generating bulk invoice for ${Object.keys(groupedVehicles).length} accounts`);
+      
+      // Create a single continuous invoice data array
+      const allInvoiceData = [];
+      const invoiceResults = [];
+      let successCount = 0;
+      let errorCount = 0;
+      let isFirstInvoice = true;
+
+      // Process each account
+      for (const [accountNumber, vehicles] of Object.entries(groupedVehicles)) {
+        try {
+          const customer = customerDetails[accountNumber];
+          const totals = accountTotals[accountNumber];
+          const companyName = customer?.legal_name || customer?.company || customer?.trading_name || 'Unknown Company';
+          
+          console.log(`Processing invoice for account: ${accountNumber} - ${companyName}`);
+          
+          // Add separator between invoices (except for the first one)
+          if (!isFirstInvoice) {
+            allInvoiceData.push([]); // Empty row
+            allInvoiceData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+            allInvoiceData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+          }
+          isFirstInvoice = false;
+          
+          // Add header information for this account
+          allInvoiceData.push([`${companyName}`]);
+          allInvoiceData.push(['VEHICLE BUREAU SERVICE']);
+          allInvoiceData.push(['Reg No: 2018/095975/07']);
+          allInvoiceData.push(['VAT No: 4580161802']);
+          allInvoiceData.push([]); // Empty row
+          allInvoiceData.push([`INVOICE - ${accountNumber}`]);
+          allInvoiceData.push([`Account: ${accountNumber}`]);
+          allInvoiceData.push([`Date: ${new Date().toLocaleDateString()}`]);
+          allInvoiceData.push([`Client: ${companyName}`]);
+          allInvoiceData.push([]); // Empty row
+          
+          // Add table headers
+          allInvoiceData.push([
+            'Reg/Fleet No', 
+            'Fleet/Reg No', 
+            'Service Type', 
+            'Company', 
+            'Units', 
+            'Unit Price', 
+            'Vat Amount', 
+            'Vat%', 
+            'Total Incl'
+          ]);
+          
+          // Add vehicle data rows
+          let totalAmount = 0;
+          let vehiclesWithZeroAmount = 0;
+          
+          vehicles.forEach((vehicle) => {
+            const totalRentalSub = parseFloat(vehicle.total_rental_sub) || 0;
+            const totalRental = parseFloat(vehicle.total_rental) || 0;
+            const totalSub = parseFloat(vehicle.total_sub) || 0;
+            
+            // Log vehicles with zero amounts for debugging
+            if (totalRentalSub === 0) {
+              vehiclesWithZeroAmount++;
+              console.warn(`Vehicle ${vehicle.id} (${vehicle.reg || vehicle.fleet_number}) has zero total_rental_sub`);
+            }
+            
+            // Determine service type based on amounts
+            let serviceType = 'Vehicle Service';
+            if (totalRental > 0 && totalSub === 0) {
+              serviceType = 'Rental Service';
+            } else if (totalSub > 0 && totalRental === 0) {
+              serviceType = 'Subscription Service';
+            } else if (totalRental > 0 && totalSub > 0) {
+              serviceType = 'Rental & Subscription Service';
+            }
+            
+            // Calculate VAT correctly: total_rental_sub already includes VAT
+            // To get unit price without VAT: total_rental_sub / 1.15
+            // To get VAT amount: total_rental_sub - unit_price_without_vat
+            const unitPriceWithoutVat = totalRentalSub / 1.15;
+            const vatAmount = totalRentalSub - unitPriceWithoutVat;
+            const totalIncludingVat = totalRentalSub; // This is already the total including VAT
+            
+            allInvoiceData.push([
+              vehicle.reg || vehicle.fleet_number || '',
+              vehicle.fleet_number || vehicle.reg || '',
+              serviceType,
+              vehicle.company || '',
+              1, // Units
+              unitPriceWithoutVat,
+              vatAmount,
+              '15%', // VAT percentage
+              totalIncludingVat
+            ]);
+            
+            totalAmount += totalIncludingVat;
+          });
+          
+          // Log statistics for this account
+          console.log(`Account ${accountNumber}: ${vehicles.length} vehicles, ${vehiclesWithZeroAmount} with zero amounts, Total: R${totalAmount.toFixed(2)}`);
+          
+          // Add totals for this account
+          allInvoiceData.push([]); // Empty row
+          allInvoiceData.push(['', '', '', '', '', '', '', 'Total Amount:', totalAmount]);
+          
+          invoiceResults.push({
+            accountNumber: accountNumber,
+            companyName: companyName,
+            status: 'success',
+            message: `Invoice generated successfully`,
+            totalAmount: totalAmount,
+            vehicleCount: vehicles.length
+          });
+          
+          successCount++;
+          
+          // Small delay to prevent overwhelming the browser
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+        } catch (error) {
+          console.error(`Error generating invoice for ${accountNumber}:`, error);
+          invoiceResults.push({
+            accountNumber: accountNumber,
+            companyName: customerDetails[accountNumber]?.legal_name || customerDetails[accountNumber]?.company || 'Unknown',
+            status: 'error',
+            message: error.message
+          });
+          errorCount++;
+        }
+      }
+      
+      // Create a single worksheet with all invoice data
+      const worksheet = XLSX.utils.aoa_to_sheet(allInvoiceData);
+      
+      // Set column widths
+      const colWidths = [
+        { wch: 15 }, // Vehicle Reg
+        { wch: 12 }, // Fleet No
+        { wch: 30 }, // Description
+        { wch: 20 }, // Company
+        { wch: 8 },  // Units
+        { wch: 12 }, // Unit Price
+        { wch: 12 }, // Vat Amount
+        { wch: 8 },  // Vat%
+        { wch: 12 }  // Total Incl
+      ];
+      worksheet['!cols'] = colWidths;
+      
+      // Create workbook with single sheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bulk Invoices');
+      
+      // Save the Excel file
+      const bulkFileName = `Bulk_Invoice_All_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, bulkFileName);
+      
+      // Show summary toast with detailed statistics
+      if (successCount > 0) {
+        const totalVehiclesInExcel = invoiceResults.reduce((sum, result) => sum + (result.vehicleCount || 0), 0);
+        toast.success(`Bulk Invoice Generated: ${successCount} accounts processed, ${totalVehiclesInExcel} vehicles included. ${errorCount} failed.`);
+        
+        // Log detailed statistics
+        console.log('=== BULK INVOICE GENERATION SUMMARY ===');
+        console.log(`Total accounts processed: ${successCount}`);
+        console.log(`Total vehicles included: ${totalVehiclesInExcel}`);
+        console.log(`Failed accounts: ${errorCount}`);
+        console.log(`Total accounts in database: ${Object.keys(groupedVehicles).length}`);
+        console.log('========================================');
+      } else {
+        toast.error('Bulk Invoice Generation Failed: No invoices were generated successfully.');
+      }
+      
+      console.log('Bulk invoice generation results:', invoiceResults);
+      
+    } catch (error) {
+      console.error('Error in bulk invoice generation:', error);
+      toast.error('Failed to generate bulk invoices. Please try again.');
+    } finally {
+      setIsGeneratingBulkInvoice(false);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     if (amount === null || amount === undefined || amount === 0) {
@@ -189,6 +394,14 @@ export default function AccountsClientsSection() {
           <p className="mt-2 text-gray-600">Manage and view all client information with legal names and vehicle amounts</p>
         </div>
         <div className="flex gap-3">
+          <Button 
+            onClick={handleBulkInvoice}
+            disabled={isGeneratingBulkInvoice}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            <FileText className={`w-4 h-4 mr-2 ${isGeneratingBulkInvoice ? 'animate-pulse' : ''}`} />
+            {isGeneratingBulkInvoice ? 'Generating Excel...' : 'Bulk Invoice (Excel)'}
+          </Button>
           <Button 
             onClick={handleRefresh}
             disabled={loading}

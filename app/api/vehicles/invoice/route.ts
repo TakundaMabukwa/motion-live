@@ -106,9 +106,22 @@ export async function GET(request: NextRequest) {
         const vehicleVatAmount = vehicleTotalRentalSub - (vehicleTotalRentalSub / 1.15);
         const vehicleAmountExcludingVat = vehicleTotalRentalSub - vehicleVatAmount;
         
+        // Determine service type based on amounts
+        const vehicleTotalRental = parseFloat(vehicle.total_rental) || 0;
+        const vehicleTotalSub = parseFloat(vehicle.total_sub) || 0;
+        
+        let serviceType = 'Vehicle Service';
+        if (vehicleTotalRental > 0 && vehicleTotalSub === 0) {
+          serviceType = 'Rental Service';
+        } else if (vehicleTotalSub > 0 && vehicleTotalRental === 0) {
+          serviceType = 'Subscription Service';
+        } else if (vehicleTotalRental > 0 && vehicleTotalSub > 0) {
+          serviceType = 'Rental & Subscription Service';
+        }
+
         return {
           id: vehicle.id,
-          description: `Vehicle ${vehicle.reg || vehicle.fleet_number || `#${index + 1}`} - ${vehicle.company || 'N/A'}`,
+          description: `${serviceType} - ${vehicle.reg || vehicle.fleet_number || `#${index + 1}`} - ${vehicle.company || 'N/A'}`,
           reference: vehicle.fleet_number || vehicle.reg || 'N/A',
           dueAmount: vehicleAmountExcludingVat, // Amount excluding VAT
           paidAmount: 0,
@@ -121,9 +134,10 @@ export async function GET(request: NextRequest) {
           reg: vehicle.reg,
           fleetNumber: vehicle.fleet_number,
           company: vehicle.company,
-          totalRental: parseFloat(vehicle.total_rental) || 0,
-          totalSub: parseFloat(vehicle.total_sub) || 0,
+          totalRental: vehicleTotalRental,
+          totalSub: vehicleTotalSub,
           totalRentalSub: vehicleTotalRentalSub,
+          serviceType: serviceType,
           // Updated field names to match component expectations
           vat_amount: vehicleVatAmount,
           unit_price_without_vat: vehicleAmountExcludingVat,

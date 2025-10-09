@@ -10,7 +10,7 @@ import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X
 import { toast } from '@/components/ui/use-toast';
 import DueReportComponent from '@/components/inv/components/due-report';
 import InvoiceReportComponent from '@/components/inv/components/invoice-report';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 
 export default function ClientCostCentersPage() {
@@ -38,6 +38,7 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenterForReport, setSelectedCostCenterForReport] = useState(null);
   const [showInvoiceReport, setShowInvoiceReport] = useState(false);
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
+  const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
 
   useEffect(() => {
     if (code) {
@@ -1931,6 +1932,196 @@ export default function ClientCostCentersPage() {
     }
   };
 
+  // Handle Bulk Invoice Generation - Single Continuous PDF
+  const handleBulkInvoice = async () => {
+    try {
+      setIsGeneratingBulkInvoice(true);
+      
+      // Get all cost centers that have data
+      const costCentersToInvoice = costCentersWithPayments.filter(cc => cc.accountNumber);
+      
+      if (costCentersToInvoice.length === 0) {
+        toast({
+          title: "No Cost Centers",
+          description: "No cost centers found to generate invoices for.",
+        });
+        return;
+      }
+
+      console.log(`Generating bulk invoice for ${costCentersToInvoice.length} cost centers`);
+      
+      // Initialize a single PDF document for all invoices
+      const doc = new jsPDF('landscape');
+      const invoiceResults = [];
+      let successCount = 0;
+      let errorCount = 0;
+      let isFirstInvoice = true;
+
+      for (const costCenter of costCentersToInvoice) {
+        try {
+          console.log(`Processing invoice for cost center: ${costCenter.accountNumber} - ${costCenter.accountName || costCenter.company || 'Unknown'}`);
+          
+          // Add a new page for each cost center (except the first one)
+          if (!isFirstInvoice) {
+            doc.addPage();
+          }
+          isFirstInvoice = false;
+          
+          // Fetch vehicle invoice data for this cost center
+          const response = await fetch(`/api/vehicles/invoice?accountNumber=${costCenter.accountNumber}`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch data for ${costCenter.accountNumber}`);
+          }
+          
+          const data = await response.json();
+          const invoiceData = data.invoiceData;
+          
+          if (!invoiceData || !invoiceData.invoiceItems || invoiceData.invoiceItems.length === 0) {
+            console.log(`No invoice data found for ${costCenter.accountNumber}`);
+            invoiceResults.push({
+              costCenter: costCenter.accountNumber,
+              companyName: costCenter.accountName || costCenter.company || 'Unknown',
+              status: 'no_data',
+              message: 'No vehicle data found'
+            });
+            errorCount++;
+            continue;
+          }
+
+          // Generate invoice for this cost center on current page
+          // Header
+          doc.setFontSize(20);
+          doc.text('Soltrack (PTY) LTD', 20, 20);
+          doc.setFontSize(12);
+          doc.text('VEHICLE BUREAU SERVICE', 20, 30);
+          doc.text(`Reg No: 2018/095975/07`, 20, 40);
+          doc.text(`VAT No: 4580161802`, 20, 50);
+          
+          // Invoice Title with Cost Center Info
+          doc.setFontSize(16);
+          doc.text(`INVOICE - ${costCenter.accountNumber}`, 20, 70);
+          doc.setFontSize(12);
+          doc.text(`Cost Center: ${costCenter.accountName || costCenter.company || 'Unknown'}`, 20, 80);
+          doc.setFontSize(10);
+          doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 90);
+          doc.text(`Client: ${clientLegalName}`, 20, 100);
+          
+          // Table headers
+          const headers = ['Vehicle Reg', 'Fleet No', 'Description', 'Company', 'Units', 'Unit Price', 'Vat Amount', 'Vat%', 'Total Incl'];
+          const startY = 120;
+          let currentY = startY;
+          
+          // Column widths for landscape mode
+          const colWidths = [30, 25, 50, 30, 15, 25, 20, 15, 25];
+          
+          // Draw table headers
+          doc.setFillColor(240, 240, 240);
+          doc.rect(20, currentY - 5, 280, 8, 'F');
+          doc.setFontSize(8);
+          
+          let xPos = 20;
+          headers.forEach((header, index) => {
+            doc.text(header, xPos + 2, currentY);
+            xPos += colWidths[index];
+          });
+          
+          currentY += 10;
+          
+          // Add invoice data rows
+          let totalAmount = 0;
+          invoiceData.invoiceItems.forEach((item, index) => {
+            // Check if we need a new page within this invoice (if it's too long)
+            if (currentY > 180) {
+              doc.addPage();
+              currentY = 20;
+            }
+            
+            const rowData = [
+              item.reg || '',
+              item.fleetNumber || '',
+              item.description || '',
+              item.company || '',
+              '1', // Units
+              item.unit_price_without_vat ? `R ${parseFloat(item.unit_price_without_vat).toFixed(2)}` : 'R 0.00',
+              item.vat_amount ? `R ${parseFloat(item.vat_amount).toFixed(2)}` : 'R 0.00',
+              '15%', // VAT percentage
+              item.total_including_vat ? `R ${parseFloat(item.total_including_vat).toFixed(2)}` : 'R 0.00'
+            ];
+            
+            xPos = 20;
+            rowData.forEach((cell, cellIndex) => {
+              doc.text(cell, xPos + 2, currentY);
+              xPos += colWidths[cellIndex];
+            });
+            
+            totalAmount += parseFloat(item.total_including_vat || 0);
+            currentY += 8;
+          });
+          
+          // Add totals
+          currentY += 10;
+          doc.setFontSize(10);
+          doc.text(`Total Amount: R ${totalAmount.toFixed(2)}`, 20, currentY);
+          
+          const companyName = costCenter.accountName || costCenter.company || 'Unknown';
+          invoiceResults.push({
+            costCenter: costCenter.accountNumber,
+            companyName: companyName,
+            status: 'success',
+            message: `Invoice generated successfully`,
+            totalAmount: totalAmount
+          });
+          
+          successCount++;
+          
+          // Small delay to prevent overwhelming the browser
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+        } catch (error) {
+          console.error(`Error generating invoice for ${costCenter.accountNumber}:`, error);
+          invoiceResults.push({
+            costCenter: costCenter.accountNumber,
+            companyName: costCenter.accountName || costCenter.company || 'Unknown',
+            status: 'error',
+            message: error.message
+          });
+          errorCount++;
+        }
+      }
+      
+      // Save the single combined PDF
+      const mainClientName = clientData?.customers?.[0]?.legal_name || clientData?.customers?.[0]?.company || 'Client';
+      const bulkFileName = `Bulk_Invoice_${mainClientName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(bulkFileName);
+      
+      // Show summary toast
+      if (successCount > 0) {
+        toast({
+          title: "Bulk Invoice Generated",
+          description: `Successfully generated combined invoice with ${successCount} cost centers. ${errorCount} failed.`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Bulk Invoice Generation Failed",
+          description: "No invoices were generated successfully.",
+        });
+      }
+      
+      console.log('Bulk invoice generation results:', invoiceResults);
+      
+    } catch (error) {
+      console.error('Error in bulk invoice generation:', error);
+      toast({
+        variant: "destructive",
+        title: "Bulk Invoice Error",
+        description: "Failed to generate bulk invoices. Please try again.",
+      });
+    } finally {
+      setIsGeneratingBulkInvoice(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center bg-gray-50 min-h-screen">
@@ -2200,6 +2391,24 @@ export default function ClientCostCentersPage() {
                   >
                     <AlertTriangle className="mr-2 w-4 h-4" />
                     Due for All
+                  </Button>
+                  <Button
+                    onClick={() => handleBulkInvoice()}
+                    size="sm"
+                    disabled={isGeneratingBulkInvoice}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingBulkInvoice ? (
+                      <>
+                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 w-4 h-4" />
+                        Bulk Invoice
+                      </>
+                    )}
                   </Button>
                 </div>
                 {costCentersWithPayments.filter(cc => (cc.amountDue || 0) > 0).length > 0 && (

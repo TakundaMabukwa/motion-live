@@ -68,13 +68,13 @@ export async function PATCH(
     const isBeingCompleted = body.job_status === 'Completed' && 
                             currentJob.job_status !== 'Completed';
 
-    // Update the job card
+    // Update the job card without using the non-existent last_vehicle_update column
     const { data: updatedJob, error: updateError } = await supabase
       .from('job_cards')
       .update({
         ...body,
         updated_at: new Date().toISOString(),
-        updated_by: user.id,
+        updated_by: user.id
       })
       .eq('id', id)
       .select()

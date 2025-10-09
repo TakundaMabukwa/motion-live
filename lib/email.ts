@@ -1,19 +1,12 @@
 import nodemailer from 'nodemailer';
 
-// Solflo SMTP configuration
-const transporter = nodemailer.createTransport({
-  host: 'mail.solflo.co.za',
-  port: 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.SOLFLO_EMAIL || 'admin@solflo.co.za',
-    pass: process.env.SOLFLO_PASSWORD || '8n~YFq^z6#|e',
-  },
-  connectionTimeout: 5000, // 5 seconds
-  greetingTimeout: 5000, // 5 seconds
-  socketTimeout: 5000, // 5 seconds
-  pool: false, // Disable connection pooling for faster cleanup
-});
+// Solflo SMTP configuration - use connection URL to satisfy nodemailer typings
+const smtpUser = encodeURIComponent(process.env.ADMIN_EMAIL || process.env.SOLFLO_EMAIL || 'admin@solflo.co.za');
+const smtpPass = encodeURIComponent(process.env.ADMIN_EMAIL_PASSWORD || process.env.SOLFLO_PASSWORD || '8n~YFq^z6#|e');
+const smtpHost = process.env.SOLFO_SMTP_HOST || 'mail.solflo.co.za';
+const smtpPort = process.env.SOLFO_SMTP_PORT || '587';
+const smtpUrl = `smtp://${smtpUser}:${smtpPass}@${smtpHost}:${smtpPort}`;
+const transporter = nodemailer.createTransport(smtpUrl);
 
 export interface InvoiceData {
   invoiceNumber: string;
@@ -263,14 +256,14 @@ export async function sendInvoiceEmail(invoiceData: InvoiceData) {
           ` : ''}
           
           <div style="text-align: center;">
-            <a href="mailto:admin@solflo.co.za?subject=Payment Confirmation - Invoice ${invoiceNumber}" class="button">
+            <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}?subject=Payment Confirmation - Invoice ${invoiceNumber}" class="button">
               Confirm Payment
             </a>
           </div>
           
           <div class="footer">
             <p>Thank you for your business!</p>
-            <p>For any queries regarding this invoice, please contact us at admin@solflo.co.za</p>
+            <p>For any queries regarding this invoice, please contact us at ${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}</p>
             <p>This is an automated invoice from the Solflo system.</p>
           </div>
         </div>
@@ -279,9 +272,9 @@ export async function sendInvoiceEmail(invoiceData: InvoiceData) {
     `;
 
     const mailOptions = {
-      from: '"Solflo Invoicing" <admin@solflo.co.za>',
+      from: `"Solflo Invoicing" <${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}>`,
       to: clientEmail,
-      cc: 'admin@solflo.co.za', // Copy to admin
+      cc: process.env.ADMIN_EMAIL || 'admin@solflo.co.za', // Copy to admin
       subject: `Invoice ${invoiceNumber} - ${clientName}`,
       html: emailHTML,
     };
@@ -305,9 +298,11 @@ export async function sendInvoiceEmail(invoiceData: InvoiceData) {
       });
     };
 
-    const result = await sendWithTimeout();
-    console.log('Invoice email sent successfully:', result.messageId);
-    return { success: true, messageId: result.messageId };
+  const result = await sendWithTimeout();
+  interface SendResult { messageId?: string }
+  const res = result as SendResult | undefined;
+  console.log('Invoice email sent successfully:', res?.messageId);
+  return { success: true, messageId: res?.messageId };
   } catch (error) {
     console.error('Error sending invoice email:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
@@ -465,7 +460,7 @@ export async function sendUserCredentials(credentials: UserCredentials) {
     `;
 
     const mailOptions = {
-      from: '"Solflo System Access" <admin@solflo.co.za>',
+      from: `"Solflo System Access" <${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}>`,
       to: email,
       subject: `Your Solflo Account Access - ${systemName}`,
       html: emailHTML,
@@ -490,11 +485,68 @@ export async function sendUserCredentials(credentials: UserCredentials) {
       });
     };
 
-    const result = await sendWithTimeout();
-    console.log('Email sent successfully via Solflo SMTP:', result.messageId);
-    return { success: true, messageId: result.messageId };
+  const result = await sendWithTimeout();
+  // Nodemailer sendMail result includes useful diagnostic fields like
+  // messageId, accepted, rejected and envelope which help determine
+  // whether the SMTP server accepted the recipient address.
+  const info = result as unknown as {
+    messageId?: string;
+    accepted?: string[];
+    rejected?: string[];
+    envelope?: Record<string, unknown>;
+    response?: string;
+  };
+
+  console.log('Email sent successfully via Solflo SMTP:', info.messageId, 'accepted:', info.accepted, 'rejected:', info.rejected, 'envelope:', info.envelope, 'response:', info.response);
+  return { success: true, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected, envelope: info.envelope };
   } catch (error) {
     console.error('Error sending email via Solflo SMTP:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+export async function sendExistingAccountNotification(opts: { email: string; systemName: string; systemUrl: string }) {
+  try {
+    const { email, systemName, systemUrl } = opts;
+    const emailHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Account Notice</title>
+        <style>body{font-family:Arial, sans-serif;color:#333}</style>
+      </head>
+      <body>
+        <h2>Your ${systemName} account</h2>
+        <p>Hello,</p>
+        <p>There is already an account registered with this email address (${email}) on the ${systemName} system.</p>
+        <p>If you don&apos;t remember your password, you can reset it here: <a href="${systemUrl}/forgot-password">Reset your password</a></p>
+        <p>If you believe this is an error, contact your system administrator.</p>
+        <p>This is an automated message from ${systemName}.</p>
+      </body>
+      </html>
+    `;
+
+    const mailOptions = {
+      from: `"${process.env.ADMIN_EMAIL ? 'Solflo System' : 'Solflo'}" <${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}>`,
+      to: email,
+      subject: `${systemName} account already exists`,
+      html: emailHTML,
+    };
+
+    const sendWithTimeout = async () => {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Email sending timeout')), 7000);
+        transporter.sendMail(mailOptions).then((r) => { clearTimeout(timeout); resolve(r); }).catch((e) => { clearTimeout(timeout); reject(e); });
+      });
+    };
+
+    const result = await sendWithTimeout();
+    const info = result as unknown as { messageId?: string; accepted?: string[]; rejected?: string[]; envelope?: Record<string, unknown>; response?: string };
+    console.log('Existing-account email sent:', info.messageId, info.accepted, info.rejected);
+    return { success: true, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected, envelope: info.envelope };
+  } catch (error) {
+    console.error('Error sending existing-account email:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

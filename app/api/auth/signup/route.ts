@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the user account
+    const defaultPw = '123456';
     const { data, error } = await supabase.auth.signUp({
       email: email,
-      password: password || 'Password@12',
+      password: password || defaultPw,
     });
 
     if (error) {

@@ -54,6 +54,19 @@ export async function GET(request: NextRequest) {
       const unitPriceWithoutVat = totalRentalSub / 1.15;
       const vatAmount = totalRentalSub - unitPriceWithoutVat;
       
+      // Determine service type based on amounts
+      const totalRental = parseFloat(vehicle.total_rental) || 0;
+      const totalSub = parseFloat(vehicle.total_sub) || 0;
+      
+      let serviceType = 'Vehicle Service';
+      if (totalRental > 0 && totalSub === 0) {
+        serviceType = 'Rental Service';
+      } else if (totalSub > 0 && totalRental === 0) {
+        serviceType = 'Subscription Service';
+      } else if (totalRental > 0 && totalSub > 0) {
+        serviceType = 'Rental & Subscription Service';
+      }
+
       return {
         id: vehicle.id,
         created_at: vehicle.created_at,
@@ -70,7 +83,7 @@ export async function GET(request: NextRequest) {
         total_including_vat: totalRentalSub,
         // For compatibility with existing invoice generation
         stock_code: `VEH-${vehicle.reg || vehicle.fleet_number || vehicle.id}`,
-        stock_description: `MONTHLY SERVICE SUBSCRIPTION`,
+        stock_description: serviceType,
         doc_no: `INV-${vehicle.reg || vehicle.fleet_number || vehicle.id}`,
         total_ex_vat: unitPriceWithoutVat,
         total_vat: vatAmount,
