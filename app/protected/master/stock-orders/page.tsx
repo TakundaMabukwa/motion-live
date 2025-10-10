@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Users, FileText, Home, Eye, Download, CheckCircle, Clock, Loader2, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
 import { LogoutButton } from '@/components/logout-button';
@@ -38,7 +38,7 @@ interface PricingItem {
     created_at?: string;
 }
 
-export default function StockOrdersPage() {
+function StockOrdersContent() {
     const searchParams = useSearchParams();
     const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'pricing'>('pending');
     const [selectedOrder, setSelectedOrder] = useState<StockOrder | null>(null);
@@ -1005,5 +1005,20 @@ export default function StockOrdersPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    );
+}
+
+export default function StockOrdersPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-center">
+                    <Loader2 className="mx-auto w-12 h-12 text-gray-400 animate-spin" />
+                    <h3 className="mt-2 font-medium text-gray-900">Loading...</h3>
+                </div>
+            </div>
+        }>
+            <StockOrdersContent />
+        </Suspense>
     );
 }
