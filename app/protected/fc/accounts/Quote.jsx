@@ -452,10 +452,10 @@ export default function CreateQuote() {
 
         {/* Cash Price Section */}
         <div className="space-y-4">
-          <h3 className="font-semibold text-lg">Cash Price</h3>
-          <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
+          <h3 className="font-semibold text-lg">Cash</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label>Cash Price ex VAT</Label>
+              <Label>Cash ex VAT</Label>
               <Input
                 type="number"
                 placeholder="R 0,00"

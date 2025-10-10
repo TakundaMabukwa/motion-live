@@ -27,11 +27,13 @@ import {
   Search,
   X,
   Car,
+  ArrowLeft,
 } from "lucide-react";
 import { FaR } from "react-icons/fa6";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { getVehiclesByAccountNumber } from "@/lib/actions/vehicles";
+import DeinstallationFlow from "./DeinstallationFlow";
 
 export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, accountInfo }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -46,6 +48,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [hasUserSelectedJobType, setHasUserSelectedJobType] = useState(false);
+  const [newEmailRecipient, setNewEmailRecipient] = useState("");
 
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
@@ -55,6 +58,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     loadingVehicles: false,
     vehiclesLoaded: 0,
     totalVehicles: 0,
+    currentStep: 0, // 0: Vehicle selection, 1: Parts selection
+    currentVehicleId: null, // Currently selected vehicle for parts viewing
   });
 
   // Log when vehicles prop changes
@@ -369,6 +374,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     extraNotes: "",
     emailSubject: "",
     emailBody: "",
+    // Email recipients
+    emailRecipients: [],
     quoteFooter:
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
@@ -416,12 +423,15 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   // Update form data when customer prop changes
   useEffect(() => {
     if (customer || accountInfo) {
+      const customerEmail = accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || '';
+      
       setFormData(prev => ({
         ...prev,
         customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || accountInfo?.company || '',
-        customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || '',
+        customerEmail: customerEmail,
         customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || accountInfo?.switchboard || '',
         customerAddress: constructAddress(accountInfo) || constructAddress(customer) || '',
+        emailRecipients: customerEmail ? [customerEmail] : prev.emailRecipients,
       }));
     }
   }, [customer, accountInfo, constructAddress]);
@@ -682,7 +692,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         
         return false;
       case 3:
-        return formData.emailSubject && formData.emailBody;
+        return formData.emailSubject && formData.emailBody && formData.emailRecipients && formData.emailRecipients.length > 0;
       default:
         return false;
     }
@@ -721,6 +731,41 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const handlePreviousStep = () => {
     const prevStep = Math.max(0, currentStep - 1);
     setCurrentStep(prevStep);
+  };
+
+  // Function to add a new email recipient
+  const handleAddRecipient = () => {
+    if (!newEmailRecipient.trim()) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmailRecipient)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    
+    // Check if email is already in the recipients list
+    if (formData.emailRecipients?.some(email => email === newEmailRecipient)) {
+      toast.error("This email is already added");
+      return;
+    }
+    
+    // Add the new recipient
+    setFormData(prev => ({
+      ...prev,
+      emailRecipients: [...(prev.emailRecipients || []), newEmailRecipient]
+    }));
+    
+    // Clear the input field
+    setNewEmailRecipient("");
+  };
+  
+  // Function to remove a recipient
+  const handleRemoveRecipient = (email) => {
+    setFormData(prev => ({
+      ...prev,
+      emailRecipients: prev.emailRecipients.filter(e => e !== email)
+    }));
   };
 
   const handleSubmitQuote = async () => {
@@ -835,6 +880,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         quoteEmailBody: formData.emailBody || `Dear ${formData.customerName},\n\nPlease find attached our quotation for your requested services.\n\nBest regards,\nGot Motion Team`,
         quoteEmailFooter: formData.quoteFooter,
         quoteNotes: formData.extraNotes || '',
+        emailRecipients: formData.emailRecipients || [formData.customerEmail],
         
         // Quote type
         quoteType: 'internal',
@@ -924,6 +970,24 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         : [...prev.selectedVehicles, vehicleId]
     }));
   }, []);
+  
+  // Function to view parts for a specific vehicle
+  const viewVehicleParts = useCallback((vehicleId) => {
+    setDeInstallData(prev => ({
+      ...prev,
+      currentStep: 1, // Move to parts selection step
+      currentVehicleId: vehicleId,
+    }));
+  }, []);
+  
+  // Function to go back to vehicle selection
+  const backToVehicleSelection = useCallback(() => {
+    setDeInstallData(prev => ({
+      ...prev,
+      currentStep: 0,
+      currentVehicleId: null,
+    }));
+  }, []);
 
   const addVehicleProducts = useCallback((vehicle) => {
     const vehicleProducts = deInstallData.vehicleProducts[vehicle.id] || [];
@@ -967,16 +1031,16 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
                 {formData.jobType !== 'deinstall' && (
                   <div className="space-y-2">
-                    <Label htmlFor="purchaseType">Purchase Type *</Label>
+                    <Label htmlFor="purchaseType">Cash Type *</Label>
                     <Select
                       value={formData.purchaseType}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, purchaseType: value }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select purchase type" />
+                        <SelectValue placeholder="Select cash type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="purchase">Purchase</SelectItem>
+                        <SelectItem value="purchase">Cash</SelectItem>
                         <SelectItem value="rental">Rental</SelectItem>
                       </SelectContent>
                     </Select>
@@ -1305,154 +1369,53 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
             {formData.jobType === 'deinstall' && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Vehicle Selection</CardTitle>
+                  <CardTitle>
+                    {deInstallData.currentStep === 0 ? 'Vehicle Selection' : 'Vehicle Parts'}
+                  </CardTitle>
+                  {deInstallData.currentStep === 1 && deInstallData.currentVehicleId && (
+                    <div className="text-sm text-gray-500 mt-1">
+                      {(() => {
+                        const vehicle = deInstallData.availableVehicles.find(v => v.id === deInstallData.currentVehicleId);
+                        return vehicle ? 
+                          `${vehicle.fleet_number || vehicle.reg || 'Unknown'} - ${vehicle.make || ''} ${vehicle.model || ''}` 
+                          : 'Selected Vehicle';
+                      })()}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {deInstallData.loadingVehicles ? (
-                    <div className="py-8 text-center">
-                      <div className="mx-auto mb-4 border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                      <span className="text-gray-600">Loading vehicles...</span>
-                    </div>
-                  ) : !deInstallData.availableVehicles || deInstallData.availableVehicles.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <Car className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                      <h3 className="mb-2 font-medium text-gray-900 text-lg">No vehicles available</h3>
-                      <p className="text-gray-500">This customer has no vehicles assigned for de-installation.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
+                  <DeinstallationFlow
+                    deInstallData={deInstallData}
+                    setDeInstallData={setDeInstallData}
+                    fetchVehiclesFromIP={fetchVehiclesFromIP}
+                    toggleVehicleSelection={toggleVehicleSelection}
+                    addProduct={addProduct}
+                    viewVehicleParts={viewVehicleParts}
+                    backToVehicleSelection={backToVehicleSelection}
+                  />
+                  
+                  {/* Selected vehicles summary */}
+                  {(deInstallData.selectedVehicles || []).length > 0 && (
+                    <div className="bg-blue-50 mt-4 p-4 rounded-lg">
+                      <h4 className="mb-2 font-medium text-blue-900">Selected Vehicles: {(deInstallData.selectedVehicles || []).length}</h4>
                       <div className="space-y-2">
-                        <Label>Select Vehicles for De-installation</Label>
-                        <p className="text-gray-600 text-sm">Choose the vehicles you want to de-install products from:</p>
-                        <div className="text-gray-500 text-xs">
-                          Showing {deInstallData.vehiclesLoaded} of {deInstallData.totalVehicles} vehicles
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3 max-h-64 overflow-y-auto">
-                        {deInstallData.availableVehicles.map((vehicle) => {
-                          const isSelected = deInstallData.selectedVehicles.includes(vehicle.id);
-                          const vehicleProductsList = deInstallData.vehicleProducts[vehicle.id] || [];
+                        {(deInstallData.selectedVehicles || []).map(vehicleId => {
+                          const vehicle = deInstallData.availableVehicles.find(v => v.id === vehicleId);
                           return (
-                            <div
-                              key={vehicle.id}
-                              className={`p-4 border rounded-lg transition-all hover:shadow-md ${
-                                isSelected 
-                                  ? 'border-blue-500 bg-blue-50 shadow-lg' 
-                                  : 'border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-start mb-3">
-                                <div className="flex-1">
-                                  <div className="mb-1 font-bold text-gray-900 text-lg">
-                                    {vehicle.fleet_number || vehicle.reg || 'Unknown Vehicle'}
-                                  </div>
-                                  <div className="text-gray-500 text-sm">
-                                    {vehicle.make || 'Unknown Make'} {vehicle.model || 'Unknown Model'} • {vehicle.year || 'N/A'}
-                                  </div>
-                                  <div className="text-gray-400 text-xs">
-                                    VIN: {vehicle.vin || 'N/A'} • Company: {vehicle.company || 'N/A'}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge 
-                                    variant={isSelected ? 'default' : 'secondary'}
-                                    className="text-xs"
-                                  >
-                                    {isSelected ? 'Selected' : 'Select'}
-                                  </Badge>
-                                  <Button
-                                    size="sm"
-                                    variant={isSelected ? 'outline' : 'default'}
-                                    onClick={() => toggleVehicleSelection(vehicle.id)}
-                                    className={isSelected ? 'text-blue-600 hover:text-blue-700' : ''}
-                                  >
-                                    {isSelected ? 'Deselect' : 'Select'}
-                                  </Button>
-                                </div>
-                              </div>
-                              
-                              {/* Products Dropdown */}
-                              {vehicleProductsList.length > 0 && (
-                                <div className="mt-3">
-                                  <div className="mb-2 font-medium text-gray-700 text-sm">Installed Products:</div>
-                                  <div className="space-y-2">
-                                    {vehicleProductsList.map((product, index) => (
-                                      <div key={product.id} className="flex justify-between items-center bg-gray-50 p-2 border rounded">
-                                        <div className="flex-1">
-                                          <div className="font-medium text-sm">{product.name}</div>
-                                          <div className="text-gray-600 text-xs">
-                                            {product.description} • Code: {product.code}
-                                          </div>
-                                          <div className="text-gray-500 text-xs">
-                                            Type: {product.type} • Category: {product.category}
-                                          </div>
-                                        </div>
-                                        <Button
-                                          size="sm"
-                                          onClick={() => addProduct({
-                                            ...product,
-                                            vehicleId: vehicle.id,
-                                            vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-                                          })}
-                                          className="bg-green-600 hover:bg-green-700"
-                                        >
-                                          <Plus className="w-3 h-3" />
-                                        </Button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {vehicleProductsList.length === 0 && (
-                                <div className="bg-yellow-50 mt-3 p-2 border border-yellow-200 rounded">
-                                  <div className="text-yellow-800 text-sm">
-                                    No products found for this vehicle. A default telematics unit will be added for de-installation.
-                                  </div>
-                                </div>
-                              )}
+                            <div key={vehicleId} className="flex justify-between items-center text-sm">
+                              <span>{vehicle?.new_registration || vehicle?.group_name || 'Unknown'}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => toggleVehicleSelection(vehicleId)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                Remove
+                              </Button>
                             </div>
                           );
                         })}
                       </div>
-                      
-                      {/* Load More Button */}
-                      {deInstallData.vehiclesLoaded < deInstallData.totalVehicles && (
-                        <div className="text-center">
-                          <Button
-                            variant="outline"
-                            onClick={() => fetchVehiclesFromIP(true)}
-                            className="text-blue-600 hover:text-blue-700"
-                          >
-                            Load All Vehicles ({deInstallData.totalVehicles - deInstallData.vehiclesLoaded} remaining)
-                          </Button>
-                        </div>
-                      )}
-                      
-                      {(deInstallData.selectedVehicles || []).length > 0 && (
-                        <div className="bg-blue-50 mt-4 p-4 rounded-lg">
-                          <h4 className="mb-2 font-medium text-blue-900">Selected Vehicles: {(deInstallData.selectedVehicles || []).length}</h4>
-                          <div className="space-y-2">
-                            {(deInstallData.selectedVehicles || []).map(vehicleId => {
-                              const vehicle = deInstallData.availableVehicles.find(v => v.id === vehicleId);
-                              return (
-                                <div key={vehicleId} className="flex justify-between items-center text-sm">
-                                  <span>{vehicle?.new_registration || vehicle?.group_name || 'Unknown'}</span>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => toggleVehicleSelection(vehicleId)}
-                                    className="text-red-600 hover:text-red-700"
-                                  >
-                                    Remove
-                                  </Button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </CardContent>
@@ -1536,11 +1499,11 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             <div>Total Price</div>
                           </div>
                           
-                          {/* Cash Price Row */}
+                          {/* Cash Row */}
                           {product.purchaseType === 'purchase' && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Cash Price ex VAT</Label>
+                                <Label className="text-gray-600 text-xs">Cash ex VAT</Label>
                                 <Input
                                   type="number"
                                   value={product.cashPrice}
@@ -1778,6 +1741,53 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
               <CardTitle>Email Configuration</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Gmail-like Recipients Field */}
+              <div className="space-y-2">
+                <Label htmlFor="emailRecipients">Recipients *</Label>
+                <div className="border rounded-md p-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {(formData.emailRecipients || []).map((email) => (
+                      <div 
+                        key={email} 
+                        className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm"
+                      >
+                        <span>{email}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRecipient(email)}
+                          className="text-blue-700 hover:text-blue-900 focus:outline-none"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <input
+                      id="newEmailRecipient"
+                      type="email"
+                      placeholder="Add recipient..."
+                      value={newEmailRecipient}
+                      onChange={(e) => setNewEmailRecipient(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRecipient())}
+                      className="grow min-w-[150px] border-0 focus:outline-none focus:ring-0 p-1 text-sm"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleAddRecipient}
+                      className="text-xs"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                {(!formData.emailRecipients || formData.emailRecipients.length === 0) && (
+                  <p className="text-red-500 text-xs">Please add at least one recipient</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="emailSubject">Email Subject *</Label>
                 <Input

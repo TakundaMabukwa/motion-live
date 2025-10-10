@@ -28,6 +28,7 @@ import {
   Building2,
   ExternalLink,
   Search,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FaR } from "react-icons/fa6";
@@ -67,6 +68,8 @@ export default function ExternalQuotation() {
     extraNotes: "",
     emailSubject: "",
     emailBody: "",
+    // Email recipients
+    emailRecipients: [],
     quoteFooter:
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
@@ -231,7 +234,8 @@ export default function ExternalQuotation() {
       case 2:
         return selectedProducts.length > 0;
       case 3:
-        return formData.emailSubject && formData.emailBody;
+        return formData.emailSubject && formData.emailBody && 
+               formData.emailRecipients && formData.emailRecipients.length > 0;
       default:
         return false;
     }
@@ -262,6 +266,7 @@ export default function ExternalQuotation() {
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        emailRecipients: formData.emailRecipients || [formData.customerEmail],
         
         // Vehicle information
         vehicle_registration: formData.vehicle_registration,
@@ -362,6 +367,7 @@ export default function ExternalQuotation() {
         extraNotes: "",
         emailSubject: "",
         emailBody: "",
+        emailRecipients: [],
         quoteFooter: "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
       });
     } catch (error) {
@@ -407,7 +413,7 @@ export default function ExternalQuotation() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="purchaseType">Purchase Type *</Label>
+            <Label htmlFor="purchaseType">Cash Type *</Label>
             <Select
               value={formData.purchaseType}
               onValueChange={(value) =>
@@ -415,10 +421,10 @@ export default function ExternalQuotation() {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select purchase type" />
+                <SelectValue placeholder="Select cash type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="purchase">Purchase</SelectItem>
+                <SelectItem value="purchase">Cash</SelectItem>
                 <SelectItem value="rental">Rental</SelectItem>
               </SelectContent>
             </Select>
@@ -632,7 +638,7 @@ export default function ExternalQuotation() {
                    {product.purchaseType === 'purchase' && (
                      <div className="grid grid-cols-4 gap-4 items-center">
                        <div className="space-y-1">
-                         <Label className="text-xs text-gray-600">Cash Price ex VAT</Label>
+                         <Label className="text-xs text-gray-600">Cash ex VAT</Label>
                          <Input
                            type="number"
                            value={product.cashPrice}
@@ -855,6 +861,43 @@ export default function ExternalQuotation() {
     </Card>
   );
 
+  const [newEmailRecipient, setNewEmailRecipient] = useState("");
+  
+  // Function to handle adding a new recipient
+  const handleAddRecipient = () => {
+    if (!newEmailRecipient) return;
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmailRecipient)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    
+    // Check if email is already in the recipients list
+    if (formData.emailRecipients?.some(email => email === newEmailRecipient)) {
+      toast.error("This email is already added");
+      return;
+    }
+    
+    // Add the new recipient
+    setFormData(prev => ({
+      ...prev,
+      emailRecipients: [...(prev.emailRecipients || []), newEmailRecipient]
+    }));
+    
+    // Clear the input field
+    setNewEmailRecipient("");
+  };
+  
+  // Function to remove a recipient
+  const handleRemoveRecipient = (email) => {
+    setFormData(prev => ({
+      ...prev,
+      emailRecipients: prev.emailRecipients.filter(e => e !== email)
+    }));
+  };
+  
   const renderEmailForm = () => (
     <Card className="w-full">
       <CardHeader>
@@ -864,6 +907,53 @@ export default function ExternalQuotation() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Gmail-like Recipients Field */}
+        <div className="space-y-2">
+          <Label htmlFor="emailRecipients">Recipients *</Label>
+          <div className="border rounded-md p-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+            <div className="flex flex-wrap gap-2 mb-2">
+              {(formData.emailRecipients || []).map((email) => (
+                <div 
+                  key={email} 
+                  className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm"
+                >
+                  <span>{email}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRecipient(email)}
+                    className="text-blue-700 hover:text-blue-900 focus:outline-none"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+              <input
+                id="newEmailRecipient"
+                type="email"
+                placeholder="Add recipient..."
+                value={newEmailRecipient}
+                onChange={(e) => setNewEmailRecipient(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRecipient())}
+                className="grow min-w-[150px] border-0 focus:outline-none focus:ring-0 p-1 text-sm"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleAddRecipient}
+                className="text-xs"
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+          {(!formData.emailRecipients || formData.emailRecipients.length === 0) && (
+            <p className="text-red-500 text-xs">Please add at least one recipient</p>
+          )}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="emailSubject">Email Subject *</Label>
           <Input

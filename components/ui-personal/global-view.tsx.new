@@ -214,8 +214,8 @@ export default function GlobalView() {
         </div>
       </div>
 
-      {/* Summary Cards - Total Accounts and Valuation cards removed */}
-      <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
+      {/* Summary Cards */}
+      <div className="gap-6 grid grid-cols-1 md:grid-cols-5">
         {/* Recent Jobs */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
@@ -265,6 +265,40 @@ export default function GlobalView() {
             <div className="mt-1 font-bold text-yellow-600 text-lg">
               {formatCurrency(recentJobs.filter(job => job.status === 'open' || job.job_status === 'open').reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Total Value */}
+        <Card className="border-l-4 border-l-purple-500">
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+            <CardTitle className="font-medium text-sm">Total Value</CardTitle>
+            <DollarSign className="w-4 h-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="font-bold text-purple-600 text-2xl">
+              {formatCurrency(accountSummaries.reduce((sum, account) => sum + account.total_value, 0))}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Combined value
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Total Monthly Payments */}
+        <Card className="border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
+            <CardTitle className="font-medium text-sm">Total Monthly</CardTitle>
+            <TrendingUp className="w-4 h-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="font-bold text-green-600 text-2xl">
+              {formatCurrency(
+                Object.values(paymentData).reduce((sum: number, payment: any) => sum + (payment.totalDue || 0), 0)
+              )}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Monthly payments due
+            </p>
           </CardContent>
         </Card>
       </div>

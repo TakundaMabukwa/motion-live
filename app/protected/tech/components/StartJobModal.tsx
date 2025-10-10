@@ -408,9 +408,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   };
 
   const capturePhoto = () => {
-    if (beforePhotos.length >= 10) {
+    if (beforePhotos.length >= 30) {
       setMaxPhotosReached(true);
-      toast.error('Maximum 10 photos allowed');
+      toast.error('Maximum 30 photos allowed');
       return;
     }
 
@@ -432,9 +432,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   };
 
   const captureAfterPhoto = () => {
-    if (afterPhotos.length >= 10) {
+    if (afterPhotos.length >= 30) {
       setMaxAfterPhotosReached(true);
-      toast.error('Maximum 10 after photos allowed');
+      toast.error('Maximum 30 after photos allowed');
       return;
     }
 
@@ -1203,12 +1203,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       </div>
                        
                        <div className="bottom-4 left-1/2 absolute flex flex-col space-y-2 -translate-x-1/2 transform">
+                         <div className="bg-black/50 text-white rounded-full px-3 py-1 mb-2 text-sm">
+                           {beforePhotos.length}/30 Photos
+                         </div>
                          <Button
                            onClick={capturePhoto}
                           disabled={maxPhotosReached}
                            className="bg-blue-600 hover:bg-blue-700"
                          >
-                          {maxPhotosReached ? 'Max Photos (10)' : 'Capture Photo'}
+                          {maxPhotosReached ? 'Max Photos (30)' : 'Capture Photo'}
                          </Button>
                          
                          {/* Camera Toggle Button for Mobile */}
@@ -1249,27 +1252,32 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 {beforePhotos.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Captured Photos ({beforePhotos.length}/10)</h4>
+                      <h4 className="font-medium">Captured Photos ({beforePhotos.length}/30)</h4>
                       {maxPhotosReached && (
                         <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                           Max Photos Reached
                         </Badge>
                       )}
                     </div>
-                    <div className="gap-4 grid grid-cols-3">
+                    <div className="gap-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 max-h-[400px] overflow-y-auto p-2">
                       {beforePhotos.map((photo, index) => (
                         <div key={index} className="relative">
-                          <img
-                            src={photo}
-                            alt={`Before photo ${index + 1}`}
-                            className="rounded-lg w-full h-24 object-cover"
-                          />
-                          <button
-                            onClick={() => removePhoto(index)}
-                            className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <div className="bg-gray-100 rounded-lg p-1">
+                            <img
+                              src={photo}
+                              alt={`Before photo ${index + 1}`}
+                              className="rounded-lg w-full h-24 object-cover"
+                            />
+                            <div className="absolute top-0 left-0 bg-black/60 text-white text-xs px-2 py-1 rounded-tl-lg rounded-br-lg">
+                              #{index + 1}
+                            </div>
+                            <button
+                              onClick={() => removePhoto(index)}
+                              className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1432,12 +1440,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                  </div>
 
                       <div className="bottom-4 left-1/2 absolute flex flex-col space-y-2 -translate-x-1/2 transform">
+                         <div className="bg-black/50 text-white rounded-full px-3 py-1 mb-2 text-sm">
+                           {afterPhotos.length}/30 Photos
+                         </div>
                  <Button 
                           onClick={captureAfterPhoto}
                           disabled={maxAfterPhotosReached}
                           className="bg-blue-600 hover:bg-blue-700"
                  >
-                          {maxAfterPhotosReached ? 'Max Photos (10)' : 'Capture After Photo'}
+                          {maxAfterPhotosReached ? 'Max Photos (30)' : 'Capture After Photo'}
                  </Button>
 
                         {/* Camera Toggle Button for Mobile */}
@@ -1478,27 +1489,32 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 {afterPhotos.length > 0 && (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Captured After Photos ({afterPhotos.length}/10)</h4>
+                      <h4 className="font-medium">Captured After Photos ({afterPhotos.length}/30)</h4>
                       {maxAfterPhotosReached && (
                         <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                           Max Photos Reached
                         </Badge>
                       )}
                     </div>
-                    <div className="gap-4 grid grid-cols-3">
+                    <div className="gap-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 max-h-[400px] overflow-y-auto p-2">
                       {afterPhotos.map((photo, index) => (
                         <div key={index} className="relative">
-                          <img
-                            src={photo}
-                            alt={`After photo ${index + 1}`}
-                            className="rounded-lg w-full h-24 object-cover"
-                          />
-                          <button
-                            onClick={() => removeAfterPhoto(index)}
-                            className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <div className="bg-gray-100 rounded-lg p-1">
+                            <img
+                              src={photo}
+                              alt={`After photo ${index + 1}`}
+                              className="rounded-lg w-full h-24 object-cover"
+                            />
+                            <div className="absolute top-0 left-0 bg-black/60 text-white text-xs px-2 py-1 rounded-tl-lg rounded-br-lg">
+                              #{index + 1}
+                            </div>
+                            <button
+                              onClick={() => removeAfterPhoto(index)}
+                              className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1546,6 +1562,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div>• Job verified</div>
                     <div>• {beforePhotos.length} before photos captured</div>
                     <div>• {afterPhotos.length} after photos captured</div>
+                    <div>• Total photos: {beforePhotos.length + afterPhotos.length} (Maximum 60 allowed)</div>
                     <div>• Job status updated to {jobData.job_status || 'Completed'}</div>
                     <div>• Completion date recorded</div>
                   </div>

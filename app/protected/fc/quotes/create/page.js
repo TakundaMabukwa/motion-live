@@ -555,10 +555,10 @@ export default function CreateQuote() {
             </div>
 
             <div className="space-y-4">
-              <h4 className="font-medium">Cash Price</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label>Cash Price ex VAT</Label>
+                            <h4 className="font-medium">Cash</h4>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="space-y-1">
+                  <Label>Cash ex VAT</Label>
                   <Input
                     type="number"
                     placeholder="R 0.00"

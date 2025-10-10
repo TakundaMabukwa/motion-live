@@ -25,10 +25,18 @@ export async function POST(request: NextRequest) {
        vehicleRegistration = temporaryRegistration; // Use temporary as vehicle registration
      }
 
-         // Prepare data for customer_quotes table - using all available columns
+         // Generate a SOL- format 6-digit unique number
+     const generateSixDigitNumber = () => {
+       // Generate a random 6-digit number
+       return Math.floor(100000 + Math.random() * 900000);
+     };
+     
+     const uniqueNumber = generateSixDigitNumber();
+     
+     // Prepare data for customer_quotes table - using all available columns
      const quoteData = {
        // Basic quote information
-       job_number: `EXT-${Date.now()}`, // Generate external job number
+       job_number: `SOL-${uniqueNumber}`, // Generate job number with SOL prefix and 6 digits
        quote_date: new Date().toISOString(),
        quote_expiry_date: body.quote_expiry_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
        quote_type: 'external',
@@ -93,8 +101,91 @@ export async function POST(request: NextRequest) {
         details: error.message 
       }, { status: 500 });
     }
+    
+    // Send quotation email
+    try {
+      // Import the sendQuotationEmail function
+      const { sendQuotationEmail } = await import('@/lib/email');
+      
+      // Prepare email recipients
+      let emailRecipients: string[] = [];
+      
+      // If emailRecipients is provided, use that
+      if (body.emailRecipients && Array.isArray(body.emailRecipients) && body.emailRecipients.length > 0) {
+        emailRecipients = body.emailRecipients;
+      }
+      // Otherwise, use customerEmail as fallback
+      else if (body.customerEmail) {
+        emailRecipients = [body.customerEmail];
+      }
+      
+      // Only send email if we have recipients
+      if (emailRecipients.length > 0) {
+        // Format product items for the email
+        interface QuotationProduct {
+          id?: string | number;
+          name?: string;
+          description?: string;
+          quantity?: number;
+          cash_price?: number;
+          cash_discount?: number;
+          total_price?: number;
+          type?: string;
+          category?: string;
+          vehicle_id?: string;
+          vehicleId?: string;
+          vehicle_plate?: string;
+          vehiclePlate?: string;
+          purchase_type?: string;
+          purchaseType?: string;
+          [key: string]: string | number | boolean | undefined;
+        }
+        
+        const formattedProducts = (body.quotationProducts || []).map((product: QuotationProduct) => ({
+          name: product.name || '',
+          description: product.description || '',
+          quantity: product.quantity || 1,
+          unitPrice: (product.cash_price || 0) - (product.cash_discount || 0),
+          total: product.total_price || 0,
+          type: product.type || '',
+          category: product.category || '',
+          vehicleId: product.vehicle_id || product.vehicleId || '',
+          vehiclePlate: product.vehicle_plate || product.vehiclePlate || '',
+          purchaseType: product.purchase_type || product.purchaseType || 'purchase'
+        }));
+        
+        // Send the quotation email
+        const emailResult = await sendQuotationEmail({
+          quoteNumber: data.job_number,
+          jobNumber: data.job_number,
+          jobType: data.job_type || body.jobType || 'install',
+          clientName: data.customer_name || body.customerName || '',
+          clientEmail: emailRecipients,
+          clientPhone: data.customer_phone || body.customerPhone || '',
+          clientAddress: data.customer_address || body.customerAddress || '',
+          quoteDate: data.quote_date || new Date().toISOString(),
+          expiryDate: data.quote_expiry_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          totalAmount: data.quotation_total_amount || body.quotationTotalAmount || 0,
+          vatAmount: data.quotation_vat_amount || body.quotationVatAmount || 0,
+          subtotal: data.quotation_subtotal || body.quotationSubtotal || 0,
+          products: formattedProducts,
+          notes: data.quote_notes || body.extraNotes || '',
+          emailBody: data.quote_email_body || body.emailBody || body.quoteEmailBody || '',
+          emailSubject: data.quote_email_subject || body.emailSubject || body.quoteEmailSubject || '',
+          emailFooter: data.quote_email_footer || body.quoteFooter || body.quoteEmailFooter || '',
+          accountNumber: '' // External quotes don't have account numbers
+        });
+        
+        console.log('External quotation email sending result:', emailResult);
+      } else {
+        console.log('No email recipients provided for external quote, skipping email send');
+      }
+    } catch (emailError) {
+      // Log error but don't fail the quote creation
+      console.error('Error sending external quotation email:', emailError);
+    }
 
-         return NextResponse.json({
+    return NextResponse.json({
        success: true,
        message: 'Customer quote created successfully',
        data: {

@@ -805,7 +805,7 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
           </div>
           {formData.jobType !== 'deinstall' && (
             <div className="space-y-2">
-              <Label htmlFor="purchaseType">Purchase Type *</Label>
+              <Label htmlFor="purchaseType">Cash Type *</Label>
               <Select
                 value={formData.purchaseType}
                 onValueChange={(value) =>
@@ -813,10 +813,10 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select purchase type" />
+                  <SelectValue placeholder="Select cash type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="purchase">Purchase</SelectItem>
+                  <SelectItem value="purchase">Cash</SelectItem>
                   <SelectItem value="rental">Rental</SelectItem>
                 </SelectContent>
               </Select>
@@ -1157,11 +1157,11 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
                         <div>Total Price</div>
                       </div>
                       
-                      {/* Cash Price Row */}
+                      {/* Cash Row */}
                       {product.purchaseType === 'purchase' && (
                         <div className="items-center gap-4 grid grid-cols-4">
                           <div className="space-y-1">
-                            <Label className="text-gray-600 text-xs">Cash Price ex VAT</Label>
+                            <Label className="text-gray-600 text-xs">Cash ex VAT</Label>
                             <Input
                               type="number"
                               value={product.cashPrice}

@@ -505,6 +505,369 @@ export async function sendUserCredentials(credentials: UserCredentials) {
   }
 }
 
+export interface QuotationData {
+  quoteNumber: string;
+  jobNumber: string;
+  jobType: string; // 'install' or 'deinstall' or other
+  clientName: string;
+  clientEmail: string[];
+  clientPhone?: string;
+  clientAddress?: string;
+  quoteDate: string;
+  expiryDate: string;
+  totalAmount: number;
+  vatAmount: number;
+  subtotal: number;
+  products: QuotationProduct[];
+  notes?: string;
+  emailBody?: string;
+  emailSubject?: string;
+  emailFooter?: string;
+  accountNumber?: string;
+}
+
+export interface QuotationProduct {
+  name: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  type?: string;
+  category?: string;
+  vehicleId?: string;
+  vehiclePlate?: string;
+  purchaseType?: string;
+}
+
+export async function sendQuotationEmail(quotationData: QuotationData) {
+  try {
+    const { 
+      quoteNumber, 
+      jobNumber,
+      jobType,
+      clientName, 
+      clientEmail, 
+      clientPhone, 
+      clientAddress,
+      quoteDate, 
+      expiryDate, 
+      totalAmount, 
+      vatAmount, 
+      subtotal, 
+      products,
+      notes,
+      emailBody,
+      emailSubject,
+      emailFooter,
+      accountNumber
+    } = quotationData;
+
+    // Set default email subject and body if not provided
+    const subject = emailSubject || `Quotation ${quoteNumber} for ${clientName}`;
+    const body = emailBody || `Dear ${clientName},\n\nPlease find attached our quotation for your requested services. Please let us know if you have any questions.\n\nBest regards,\nSolflo Team`;
+    const footer = emailFooter || "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.";
+
+    // Generate HTML email template for quotation
+    const emailHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Quotation ${quoteNumber}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #f4f4f4;
+          }
+          .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin: 20px;
+          }
+          .header {
+            background-color: #0070f3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+            margin: -30px -30px 30px -30px;
+          }
+          .quote-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+          }
+          .client-info, .quote-info {
+            flex: 1;
+            min-width: 250px;
+            margin: 10px;
+          }
+          .client-info h3, .quote-info h3 {
+            color: #0070f3;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #0070f3;
+            padding-bottom: 5px;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+          }
+          .items-table th, .items-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+          }
+          .items-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+          }
+          .items-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+          .totals {
+            margin-top: 20px;
+            text-align: right;
+          }
+          .totals table {
+            margin-left: auto;
+            width: 300px;
+            border-collapse: collapse;
+          }
+          .totals td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #ddd;
+          }
+          .totals .total-row {
+            font-weight: bold;
+            font-size: 1.1em;
+            background-color: #0070f3;
+            color: white;
+          }
+          .email-body {
+            margin: 30px 0;
+            white-space: pre-line;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+          }
+          .footer-text {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-left: 4px solid #0070f3;
+            font-style: italic;
+          }
+          .notes {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #6c757d;
+            border-top: 1px solid #e9ecef;
+            padding-top: 20px;
+          }
+          .button {
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: bold;
+          }
+          .button:hover {
+            background-color: #218838;
+          }
+          .job-type-install {
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-left: 10px;
+          }
+          .job-type-deinstall {
+            background-color: #F44336;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-left: 10px;
+          }
+          .job-type-other {
+            background-color: #2196F3;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-left: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Solflo Quotation</h1>
+            <p>Quote #${quoteNumber} 
+              <span class="job-type-${jobType.toLowerCase()}">
+                ${jobType.charAt(0).toUpperCase() + jobType.slice(1)}
+              </span>
+            </p>
+          </div>
+          
+          <div class="quote-details">
+            <div class="client-info">
+              <h3>Client Information:</h3>
+              <p><strong>${clientName}</strong></p>
+              ${clientEmail.length > 0 ? `<p>Email: ${clientEmail.join(', ')}</p>` : ''}
+              ${clientPhone ? `<p>Phone: ${clientPhone}</p>` : ''}
+              ${clientAddress ? `<p>Address: ${clientAddress}</p>` : ''}
+              ${accountNumber ? `<p>Account Number: ${accountNumber}</p>` : ''}
+            </div>
+            
+            <div class="quote-info">
+              <h3>Quotation Details:</h3>
+              <p><strong>Job Number:</strong> ${jobNumber}</p>
+              <p><strong>Quote Date:</strong> ${new Date(quoteDate).toLocaleDateString()}</p>
+              <p><strong>Valid Until:</strong> ${new Date(expiryDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+          
+          <div class="email-body">
+            ${body}
+          </div>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                ${jobType.toLowerCase() === 'deinstall' ? '<th>Vehicle</th>' : ''}
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${products.map(item => `
+                <tr>
+                  <td>${item.name}${item.description ? `<br><small>${item.description}</small>` : ''}</td>
+                  ${jobType.toLowerCase() === 'deinstall' ? `<td>${item.vehiclePlate || 'N/A'}</td>` : ''}
+                  <td>${item.purchaseType || 'N/A'}</td>
+                  <td>${item.quantity}</td>
+                  <td>R ${item.unitPrice.toFixed(2)}</td>
+                  <td>R ${item.total.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="totals">
+            <table>
+              <tr>
+                <td>Subtotal:</td>
+                <td>R ${subtotal.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td>VAT (15%):</td>
+                <td>R ${vatAmount.toFixed(2)}</td>
+              </tr>
+              <tr class="total-row">
+                <td>Total Amount:</td>
+                <td>R ${totalAmount.toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div class="footer-text">
+            ${footer}
+          </div>
+          
+          ${notes ? `
+            <div class="notes">
+              <h4>Additional Notes:</h4>
+              <p>${notes}</p>
+            </div>
+          ` : ''}
+          
+          <div style="text-align: center;">
+            <a href="mailto:${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}?subject=Quote Approval - ${quoteNumber}" class="button">
+              Approve Quote
+            </a>
+          </div>
+          
+          <div class="footer">
+            <p>Thank you for choosing Solflo!</p>
+            <p>For any queries regarding this quotation, please contact us at ${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}</p>
+            <p>This is an automated quotation from the Solflo system.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // If no recipients, return early
+    if (clientEmail.length === 0) {
+      return { success: false, error: 'No email recipients provided' };
+    }
+
+    const mailOptions = {
+      from: `"Solflo Quotations" <${process.env.ADMIN_EMAIL || 'admin@solflo.co.za'}>`,
+      to: clientEmail.join(','),
+      cc: process.env.ADMIN_EMAIL || 'admin@solflo.co.za', // Copy to admin
+      bcc: 'allreceipts@solflo.co.za', // BCC to allreceipts as requested
+      subject: subject,
+      html: emailHTML,
+    };
+
+    // Add timeout wrapper to prevent hanging
+    const sendWithTimeout = async () => {
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Email sending timeout'));
+        }, 10000); // 10 second timeout for quotation emails
+
+        transporter.sendMail(mailOptions)
+          .then((result) => {
+            clearTimeout(timeout);
+            resolve(result);
+          })
+          .catch((error) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+      });
+    };
+
+    const result = await sendWithTimeout();
+    interface SendResult { messageId?: string }
+    const res = result as SendResult | undefined;
+    console.log('Quotation email sent successfully:', res?.messageId);
+    return { success: true, messageId: res?.messageId };
+  } catch (error) {
+    console.error('Error sending quotation email:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 export async function sendExistingAccountNotification(opts: { email: string; systemName: string; systemUrl: string }) {
   try {
     const { email, systemName, systemUrl } = opts;

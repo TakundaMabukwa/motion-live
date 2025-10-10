@@ -129,9 +129,19 @@ export default function EnhancedCustomerDetails({
               type="email"
               placeholder="customer@example.com"
               value={formData.customerEmail}
-              onChange={(e) =>
-                setFormData({ ...formData, customerEmail: e.target.value })
-              }
+              onChange={(e) => {
+                // Keep primary email in customerEmail field for backward compatibility
+                setFormData({ ...formData, customerEmail: e.target.value });
+                
+                // Also update emailRecipients if customerEmail changes
+                // Only add if email is not empty and not already in recipients
+                if (e.target.value && !formData.emailRecipients?.some(r => r === e.target.value)) {
+                  setFormData(prev => ({
+                    ...prev,
+                    emailRecipients: [e.target.value, ...(prev.emailRecipients || [])]
+                  }));
+                }
+              }}
             />
           </div>
         </div>
@@ -155,7 +165,7 @@ export default function EnhancedCustomerDetails({
               placeholder="Enter customer address"
               value={formData.customerAddress}
               onChange={(e) =>
-                setFormData({ ...formData, customerAddress: e.target.address })
+                setFormData({ ...formData, customerAddress: e.target.value })
               }
             />
           </div>
