@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 interface JobConflict {
   id?: string;
@@ -175,139 +176,50 @@ export async function POST(request: NextRequest) {
       jobDate.includes('T') ? jobDate : `${jobDate}T09:00:00`;
     const selectedDateTime = new Date(formattedDate);
 
-    // Check for conflicts using the SQL function
-    let hasConflicts = false;
-    let conflicts: JobConflict[] = [];
-    
-    try {
-      const { data, error } = await supabase.rpc(
-        'check_technician_availability',
-        {
-          p_technician_name: technicianName,
-          p_job_date: selectedDateTime.toISOString()
-        }
-      );
-      
-      if (!error) {
-        // Filter out the current job from conflicts
-        conflicts = (data || []).filter((job: JobConflict) => (job.job_id || job.id) !== jobId);
-        hasConflicts = conflicts.length > 0;
-      } else {
-        throw error;
+    // Use the RPC function to check conflicts or override
+    const { data: result, error: rpcError } = await supabase.rpc(
+      'assign_technician_with_override',
+      {
+        p_job_id: jobId,
+        p_technician_name: technicianName,
+        p_job_date: selectedDateTime.toISOString(),
+        p_override: override || false
       }
-    } catch (error) {
-      console.error('Error checking conflicts with SQL function:', error);
-      
-      // Fallback: Manual check for conflicts on the same day
-      const targetDate = new Date(
-        selectedDateTime.getFullYear(), 
-        selectedDateTime.getMonth(), 
-        selectedDateTime.getDate()
-      );
-      const targetHour = selectedDateTime.getHours();
-      const hoursBuffer = 3;
-      
-      const { data, error: conflictError } = await supabase
-        .from('job_cards')
-        .select('id, job_number, job_date, start_time, technician_name, customer_name')
-        .eq('technician_name', technicianName)
-        .neq('status', 'cancelled')
-        .neq('status', 'completed')
-        .neq('id', jobId);  // Exclude the current job
-      
-      if (conflictError) {
-        console.error('Error checking conflicts manually:', conflictError);
-        return NextResponse.json({
-          success: false,
-          error: 'Failed to check conflicts',
-          details: conflictError.message
-        }, { status: 500 });
-      }
-      
-      // Filter for same day conflicts
-      conflicts = (data || []).filter((job) => {
-        const jobDateTime = job.start_time ? new Date(job.start_time) : new Date(job.job_date);
-        
-        // Skip if invalid date
-        if (isNaN(jobDateTime.getTime())) {
-          console.log('Skipping job with invalid date:', job.job_number);
-          return false;
-        }
-        
-        // Only consider same day jobs by comparing date parts
-        const jobDate = new Date(
-          jobDateTime.getFullYear(), 
-          jobDateTime.getMonth(), 
-          jobDateTime.getDate()
-        );
-        
-        if (jobDate.getTime() !== targetDate.getTime()) {
-          console.log('Skipping job on different date:', job.job_number, jobDate.toDateString(), '≠', targetDate.toDateString());
-          return false;
-        }
-        
-        // For jobs with just a date and no time, use default time (9:00 AM)
-        let jobHour = jobDateTime.getHours();
-        if (jobDateTime.getHours() === 0 && jobDateTime.getMinutes() === 0 && !job.start_time) {
-          jobHour = 9; // Default to 9:00 AM
-        }
-        
-        // Check if within time window (e.g., 3 hours before/after)
-        const hourDiff = Math.abs(jobHour - targetHour);
-        const isConflict = hourDiff <= hoursBuffer;
-        
-        if (isConflict) {
-          console.log('Found conflict:', job.job_number, 'at hour', jobHour, 'vs target hour', targetHour);
-        }
-        
-        return isConflict;
-      });
-      
-      hasConflicts = conflicts.length > 0;
-    }
-    
-    // If conflicts exist and override is false, return the conflicts without updating
-    if (hasConflicts && !override) {
-      return NextResponse.json({
-        success: false,
-        message: 'Technician is already booked within 3 hours',
-        conflicts: conflicts,
-        needsOverride: true
-      }, { status: 409 }); // Conflict status code
-    }
+    );
 
-    // Update the job with the technician assignment
-    const { data: updatedJob, error: updateError } = await supabase
-      .from('job_cards')
-      .update({
-        technician_name: technicianName,
-        job_date: selectedDateTime.toISOString(),
-        start_time: startTime ? `${jobDate}T${startTime}:00` : null,
-        status: 'assigned',
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      })
-      .eq('id', jobId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating job:', updateError);
+    if (rpcError) {
+      console.error('Error calling assign_technician_with_override:', rpcError);
       return NextResponse.json({
         success: false,
         error: 'Failed to assign technician',
-        details: updateError.message
+        details: rpcError.message
       }, { status: 500 });
     }
 
+    // If the function returned conflicts and not overriding
+    if (!result.success && result.conflicts && !override) {
+      return NextResponse.json({
+        success: false,
+        message: result.message,
+        conflicts: result.conflicts,
+        needsOverride: true
+      }, { status: 409 });
+    }
+
+    // If successful
+    if (result.success) {
+      return NextResponse.json({
+        success: true,
+        message: 'Technician assigned successfully',
+        conflicts: result.conflicts || []
+      });
+    }
+
+    // If function failed for other reasons
     return NextResponse.json({
-      success: true,
-      message: override 
-        ? 'Technician assigned successfully (with scheduling override)' 
-        : 'Technician assigned successfully',
-      conflicts: conflicts,
-      job: updatedJob
-    });
+      success: false,
+      error: result.message || 'Failed to assign technician'
+    }, { status: 500 });
   } catch (error) {
     console.error('Error in technician assignment endpoint:', error);
     return NextResponse.json({

@@ -57,11 +57,11 @@ export async function PUT(request: NextRequest, { params }) {
       }, { status: 400 });
     }
 
-    // Update stock quantities and calculate new values
+    // Update stock quantities and store IP addresses
     for (const part of parts) {
       const { data: currentStock, error: stockError } = await supabase
         .from('stock')
-        .select('quantity, cost_excl_vat_zar, total_value')
+        .select('quantity, cost_excl_vat_zar, total_value, ip_addresses')
         .eq('id', part.stock_id)
         .single();
 
@@ -75,11 +75,21 @@ export async function PUT(request: NextRequest, { params }) {
       const costPerUnit = parseFloat(currentStock.cost_excl_vat_zar || '0');
       const newTotalValue = (newQuantity * costPerUnit).toFixed(2);
       
+      // Update IP addresses array
+      let ipAddresses = currentStock.ip_addresses || [];
+      if (!Array.isArray(ipAddresses)) {
+        ipAddresses = [];
+      }
+      if (!ipAddresses.includes(ipAddress)) {
+        ipAddresses.push(ipAddress);
+      }
+      
       const { error: updateError } = await supabase
         .from('stock')
         .update({ 
           quantity: newQuantity.toString(),
-          total_value: newTotalValue
+          total_value: newTotalValue,
+          ip_addresses: ipAddresses
         })
         .eq('id', part.stock_id);
 
@@ -139,7 +149,8 @@ export async function PUT(request: NextRequest, { params }) {
         supplier: part.supplier,
         cost_per_unit: part.cost_per_unit,
         total_cost: part.total_cost,
-        stock_id: part.stock_id
+        stock_id: part.stock_id,
+        assigned_ip: ipAddress
       })),
       total_parts: parts.length,
       total_cost: parts.reduce((sum, part) => sum + (part.total_cost || 0), 0),

@@ -113,13 +113,15 @@ export default function Jobs() {
         
         console.log('User info:', userData);
         
-        // Then fetch jobs - load all jobs based on email address, except if user is admin where role is "tech"
-        let jobsUrl = '/api/jobs?role=tech';
-        if (!userData.isTechAdmin) {
-          // Regular tech users see only their jobs by email
-          jobsUrl += `&technician=${encodeURIComponent(userData.user.email)}`;
-        }
-        // Tech admins see all jobs where role is "tech"
+        // Fetch all jobs for now (remove filtering temporarily)
+        let jobsUrl = '/api/jobs';
+        // TODO: Re-enable filtering once technician_phone field is populated
+        // if (userData.isTechAdmin) {
+        //   // Tech admins see all jobs (no filters)
+        // } else {
+        //   // Regular techs see only their assigned jobs
+        //   jobsUrl += `?technician=${encodeURIComponent(userData.user.email)}`;
+        // }
         
         const jobsResponse = await fetch(jobsUrl);
         if (!jobsResponse.ok) {
@@ -127,10 +129,11 @@ export default function Jobs() {
         }
         const jobsData = await jobsResponse.json();
         
-        console.log('API Response:', jobsData);
-        console.log('User jobs:', jobsData.quotes);
-        console.log('Jobs URL:', jobsUrl);
-        console.log('User data:', userData);
+        console.log('🔍 Jobs API Response:', jobsData);
+        console.log('📋 Jobs URL used:', jobsUrl);
+        console.log('👤 User data:', userData);
+        console.log('📊 Jobs count:', jobsData.quotes?.length || 0);
+        console.log('🔧 Is tech admin:', userData.isTechAdmin);
         // Transform the data to match the expected structure
         const transformedJobs = (jobsData.quotes || []).map(quote => ({
           ...quote,
@@ -237,50 +240,29 @@ export default function Jobs() {
     }
   };
 
-  const handleStartJob = (job: Job) => {
+  const handleStartJob = async (job: Job) => {
     console.log('🎯 Job clicked!');
     console.log('📋 Job details:', job);
     console.log('🆔 Job ID:', job.id);
     console.log('🔢 Job Number:', job.job_number);
-    console.log('👤 Customer:', job.customer_name);
-    console.log('🚗 Vehicle:', job.vehicle_registration);
-    console.log('📝 Description:', job.job_description);
-    console.log('📅 Date:', job.job_date);
-    console.log('⏰ Start Time:', job.start_time);
-    console.log('📊 Status:', job.job_status);
-    console.log('🏷️ Job Type:', job.job_type);
     
-    // Verify this job exists in our current jobs list by job_number (more reliable)
-    const existingJob = userJobs.find(j => j.job_number === job.job_number);
-    if (existingJob) {
-      console.log('✅ Job verified in current jobs list');
-      console.log('📊 Current job status:', existingJob.job_status);
-      console.log('🔍 Verification method: job_number match');
-      toast.success(`Job ${job.job_number} verified successfully!`);
-        } else {
-      console.log('⚠️ Job not found in current jobs list by job_number');
-      // Fallback: try to find by ID
-      const existingJobById = userJobs.find(j => j.id === job.id);
-      if (existingJobById) {
-        console.log('✅ Job found by ID instead');
-        console.log('🔍 Verification method: ID match');
-        toast.success(`Job ${job.job_number || job.id} verified by ID!`);
-      } else {
-        console.log('❌ Job not found by either job_number or ID');
-        toast.error(`Job verification failed! Job not found in current list.`);
-        return; // Don't proceed if job can't be verified
+    try {
+      // Fetch full job details
+      const response = await fetch(`/api/job-cards/${job.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch job details');
       }
+      const fullJobData = await response.json();
+      
+      console.log('📋 Full job data fetched:', fullJobData);
+      toast.success(`Job ${job.job_number} loaded successfully!`);
+      
+      setSelectedJob(fullJobData);
+      setShowStartJobModal(true);
+    } catch (error) {
+      console.error('Error fetching job details:', error);
+      toast.error('Failed to load job details');
     }
-    
-    // Show the exact job number for manual input testing
-    if (job.job_number) {
-      console.log('📋 COPY THIS JOB NUMBER FOR TESTING:', job.job_number);
-      console.log('📋 COPY THIS JOB ID FOR TESTING:', job.id);
-      toast.info(`Job Number: ${job.job_number} - Copy this for testing!`);
-    }
-    
-    setSelectedJob(job);
-    setShowStartJobModal(true);
   };
 
   const handleJobStarted = (jobData: Job) => {
@@ -364,114 +346,121 @@ export default function Jobs() {
 
   const JobTable = ({ jobs, showProgress = false }: { jobs: Job[], showProgress?: boolean }) => (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile Card View */}
+      <div className="block sm:hidden">
+        {jobs.length === 0 ? (
+          <div className="py-12 text-slate-500 text-center">
+            No jobs found
+          </div>
+        ) : (
+          <div className="space-y-3 p-3">
+            {jobs.map((job, index) => (
+              <div key={job.id || index} className="bg-slate-50 p-3 rounded-lg border">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-slate-900 text-sm">{job.customer_name}</h3>
+                    <p className="text-slate-600 text-xs mt-1">{job.job_description || 'N/A'}</p>
+                  </div>
+                  <Badge variant="outline" className={`${getStatusColor(job.job_status)} text-xs`}>
+                    {job.job_status === 'created' ? 'New' : job.job_status}
+                  </Badge>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {job.job_type === 'repair' && job.job_status === 'created' ? (
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleStartJob(job)}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+                      >
+                        <Play className="w-3 h-3 mr-1" />
+                        Start
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleCompleteRepairJob(job)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                      >
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Complete
+                      </Button>
+                    </div>
+                  ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleCompleteRepairJob(job)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Complete Job
+                    </Button>
+                  ) : job.job_status === 'Completed' ? (
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleAddVehicleToInventory(job)}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                    >
+                      <Package className="w-3 h-3 mr-1" />
+                      Add to Vehicles
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleStartJob(job)}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white text-xs"
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      Start Job
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      {/* Desktop Table View */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50 border-slate-200 border-b">
             <tr>
               <th className="p-4 font-medium text-slate-700 text-left">Job Type</th>
               <th className="p-4 font-medium text-slate-700 text-left">Customer</th>
-              {/* <th className="p-4 font-medium text-slate-700 text-left">Products</th> */}
-              {/* <th className="p-4 font-medium text-slate-700 text-left">Scheduled Date</th> */}
               <th className="p-4 font-medium text-slate-700 text-left">Status</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Photos</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-slate-500 text-center">
+                <td colSpan={4} className="py-12 text-slate-500 text-center">
                   No jobs found
                 </td>
               </tr>
             ) : (
-              jobs.map((job, index) => {
-                const jobPhotoCount = 0; // No photos to display here
-                const isVerified = job.job_status === 'in_progress' || job.job_status === 'assigned' || job.job_status === 'completed';
-                
-                return (
-                  <tr key={job.id || index} className="hover:bg-slate-50 border-slate-100 border-b transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline" className={getStatusColor(job.job_status)}>
-                          {job.job_status === 'created' ? 'New' : job.job_status}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="p-4 font-medium text-slate-900">{job.customer_name}</td>
-                    <td className="p-4 text-slate-600">
-                      {job.job_description || 'N/A'}
-                    </td>
-                    {/* <td className="p-4 text-slate-600">
-                      {job.job_date && job.start_time 
-                        ? `${job.job_date.split('T')[0]} at ${job.start_time.split('T')[1]?.split('.')[0] || 'No time'}`
-                        : 'Not scheduled'
-                      }
-                    </td> */}
-                    <td className="p-4">
-                      <Badge variant="outline" className={getStatusColor(job.job_status)}>
-                        {job.job_status === 'created' ? 'New' : job.job_status}
-                      </Badge>
-                    </td>
-                    {/* <td className="p-4">
-                      <div className="flex items-center space-x-2">
-                        {isVerified && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStartJob(job)}
-                            className="flex items-center gap-1 hover:bg-blue-50 border-blue-200 text-blue-600"
-                            disabled={false} // No photosLoading state
-                          >
-                            <Play className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </td> */}
-                    <td className="p-4">
-                      <div className="flex items-center space-x-2">
-                        {job.job_type === 'repair' && job.job_status === 'created' ? (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleStartJob(job)}
-                              className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
-                            >
-                              <Play className="w-4 h-4" />
-                              Start Job
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleCompleteRepairJob(job)}
-                              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Complete
-                            </Button>
-                          </>
-                        ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleCompleteRepairJob(job)}
-                            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Complete Job
-                          </Button>
-                        ) : job.job_status === 'Completed' && !job.vehicle_added_to_inventory ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleAddVehicleToInventory(job)}
-                            className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white"
-                          >
-                            <Package className="w-4 h-4" />
-                            Add to Vehicles
-                          </Button>
-                        ) : (
+              jobs.map((job, index) => (
+                <tr key={job.id || index} className="hover:bg-slate-50 border-slate-100 border-b transition-colors">
+                  <td className="p-4">
+                    <Badge variant="outline" className={getStatusColor(job.job_status)}>
+                      {job.job_status === 'created' ? 'New' : job.job_status}
+                    </Badge>
+                  </td>
+                  <td className="p-4">
+                    <div>
+                      <div className="font-medium text-slate-900">{job.customer_name}</div>
+                      <div className="text-slate-600 text-sm">{job.job_description || 'N/A'}</div>
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <Badge variant="outline" className={getStatusColor(job.job_status)}>
+                      {job.job_status === 'created' ? 'New' : job.job_status}
+                    </Badge>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex items-center space-x-2">
+                      {job.job_type === 'repair' && job.job_status === 'created' ? (
+                        <>
                           <Button 
                             size="sm" 
                             variant="outline"
@@ -479,14 +468,53 @@ export default function Jobs() {
                             className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
                           >
                             <Play className="w-4 h-4" />
-                            Start Job
+                            Start
                           </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleCompleteRepairJob(job)}
+                            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Complete
+                          </Button>
+                        </>
+                      ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleCompleteRepairJob(job)}
+                          className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Complete
+                        </Button>
+                      ) : job.job_status === 'Completed' ? (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleAddVehicleToInventory(job)}
+                          className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <Package className="w-4 h-4" />
+                          Add Vehicle
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleStartJob(job)}
+                          className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <Play className="w-4 h-4" />
+                          Start
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
@@ -551,42 +579,42 @@ export default function Jobs() {
   return (
     <div className="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
       {/* Main Content */}
-      <main className="flex-1 p-6">
-        <div className="mb-6">
-          <div className="flex justify-between items-center">
+      <main className="flex-1 p-3 sm:p-6">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
-              <h2 className="mb-2 font-bold text-slate-900 text-2xl">My Jobs</h2>
+              <h2 className="mb-2 font-bold text-slate-900 text-xl sm:text-2xl">My Jobs</h2>
               {userInfo && (
-                <p className="text-slate-600">
+                <p className="text-slate-600 text-sm sm:text-base">
                   {userInfo.isTechAdmin 
-                    ? "Viewing all assigned jobs (Admin Access)" 
-                    : `Viewing your assigned jobs (${userInfo.user.email})`
+                    ? "Viewing all jobs (Admin)" 
+                    : `Your jobs (${userInfo.user.email.split('@')[0]})`
                   }
                 </p>
               )}
             </div>
             <Button
               onClick={() => setShowCreateRepairJobModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
             >
               <Plus className="mr-2 w-4 h-4" />
-              Create Repair Job
+              <span className="sm:inline">Create Repair Job</span>
             </Button>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="new">New Jobs</TabsTrigger>
-            <TabsTrigger value="open">Open Jobs</TabsTrigger>
-            <TabsTrigger value="repair">Repair Jobs</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
+          <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="new" className="text-xs sm:text-sm">New</TabsTrigger>
+            <TabsTrigger value="open" className="text-xs sm:text-sm">Open</TabsTrigger>
+            <TabsTrigger value="repair" className="text-xs sm:text-sm">Repair</TabsTrigger>
+            <TabsTrigger value="completed" className="text-xs sm:text-sm">Done</TabsTrigger>
           </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
               {/* Statistics Cards */}
-              <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+              <div className="gap-3 sm:gap-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                 <Card className="hover:shadow-lg transition-shadow duration-200">
                   <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
                     <CardTitle className="font-medium text-slate-600 text-sm">
@@ -595,10 +623,11 @@ export default function Jobs() {
                     <Clock className="w-4 h-4 text-orange-600" />
                   </CardHeader>
                   <CardContent>
-                    <div className="font-bold text-slate-900 text-3xl">{stats.serviceUpcoming}</div>
+                    <div className="font-bold text-slate-900 text-2xl sm:text-3xl">{stats.serviceUpcoming}</div>
                     <p className="flex items-center mt-1 text-green-600 text-xs">
                       <TrendingUp className="mr-1 w-3 h-3" />
-                      Scheduled for today
+                      <span className="hidden sm:inline">Scheduled for today</span>
+                      <span className="sm:hidden">Today</span>
                     </p>
                   </CardContent>
                 </Card>
@@ -748,19 +777,21 @@ export default function Jobs() {
         </main>
 
       {/* QR Code Scanner */}
-      <StartJobModal
-        isOpen={showStartJobModal}
-        onClose={() => setShowStartJobModal(false)}
-        job={selectedJob}
-        userJobs={userJobs}
-        onJobStarted={handleJobStarted}
-        onJobCompleted={(jobData) => {
-          // Handle job completion if needed
-          toast.success(`Job ${jobData.job_number} completed successfully!`);
-          setShowStartJobModal(false);
-          fetchUserInfoAndJobs();
-        }}
-      />
+      {selectedJob && (
+        <StartJobModal
+          isOpen={showStartJobModal}
+          onClose={() => setShowStartJobModal(false)}
+          job={selectedJob}
+          userJobs={userJobs}
+          onJobStarted={handleJobStarted}
+          onJobCompleted={(jobData) => {
+            // Handle job completion if needed
+            toast.success(`Job ${jobData.job_number} completed successfully!`);
+            setShowStartJobModal(false);
+            fetchUserInfoAndJobs();
+          }}
+        />
+      )}
 
       {/* Create Repair Job Modal */}
       <CreateRepairJobModal

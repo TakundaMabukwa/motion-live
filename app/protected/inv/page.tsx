@@ -128,6 +128,8 @@ export default function InventoryPage() {
   const [selectedStockOrder, setSelectedStockOrder] = useState(null);
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [showOrderItemsModal, setShowOrderItemsModal] = useState(false);
+  const [allIpAddresses, setAllIpAddresses] = useState([]);
+  const [allStockItems, setAllStockItems] = useState([]);
   
   // Stock Take state
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -155,6 +157,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchJobCards();
+    fetchAllStockItems();
   }, []);
 
   useEffect(() => {
@@ -219,6 +222,31 @@ export default function InventoryPage() {
       toast.error('Failed to load job cards');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const extractIpAddressesFromStock = (stockItems) => {
+    const ipSet = new Set();
+    stockItems.forEach(item => {
+      if (item.ip_addresses && Array.isArray(item.ip_addresses)) {
+        item.ip_addresses.forEach(ip => ipSet.add(ip));
+      }
+    });
+    return Array.from(ipSet).map(ip => ({ ip_address: ip }));
+  };
+
+  const fetchAllStockItems = async () => {
+    try {
+      const response = await fetch('/api/stock');
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock items');
+      }
+      const data = await response.json();
+      const stockItems = data.stock || [];
+      setAllStockItems(stockItems);
+      setAllIpAddresses(extractIpAddressesFromStock(stockItems));
+    } catch (error) {
+      console.error('Error fetching stock items:', error);
     }
   };
 
@@ -1858,6 +1886,8 @@ export default function InventoryPage() {
           }}
           jobCard={selectedJobCard}
           onPartsAssigned={handlePartsAssigned}
+          allIpAddresses={allIpAddresses}
+          allStockItems={allStockItems}
         />
       )}
 
@@ -1883,12 +1913,11 @@ export default function InventoryPage() {
                 <>
                   {/* QR Code */}
                   <div className="mb-6 text-center">
-                    <Image
+                    <img
                       src={selectedQRJob.qr_code} 
                       alt="Job QR Code" 
                       className="mx-auto border rounded-lg"
-                      width={200}
-                      height={200}
+                      style={{ width: '200px', height: '200px' }}
                     />
                     <p className="mt-2 text-gray-500 text-xs">
                       Scan this QR code to access complete job information

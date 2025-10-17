@@ -108,8 +108,6 @@ export async function POST(
       const { error: updateError } = await supabase
         .from('job_cards')
         .update({
-          vehicle_added_to_inventory: true,
-          vehicle_added_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           updated_by: user.id
         })

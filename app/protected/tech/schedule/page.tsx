@@ -21,7 +21,8 @@ import {
   Calendar,
   XCircle,
   Car,
-  Play
+  Play,
+  Info
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -56,6 +57,7 @@ export default function TechSchedule() {
   const [showVinScanner, setShowVinScanner] = useState(false);
   const [showTechnicianCalendar, setShowTechnicianCalendar] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState(null);
+  const [technicianColors, setTechnicianColors] = useState({});
 
   const pathname = usePathname();
 
@@ -86,27 +88,24 @@ export default function TechSchedule() {
       let jobsResponse;
       let data;
       
+      // Fetch jobs based on tech_admin status (same as job page)
+      let jobsUrl = '/api/jobs';
       if (userData.isTechAdmin) {
-        console.log('Tech Admin: Fetching all technician jobs for calendar...');
-        jobsResponse = await fetch('/api/job-cards/schedule');
+        // Tech admins see all jobs (no filters)
+        console.log('Tech Admin: Fetching all jobs for calendar...');
+      } else {
+        // Regular techs see only their assigned jobs
+        jobsUrl += `?technician=${encodeURIComponent(userData.user.email)}`;
+        console.log('Regular Tech: Fetching only own jobs for calendar...');
+      }
+      
+      jobsResponse = await fetch(jobsUrl);
       if (!jobsResponse.ok) {
         throw new Error('Failed to fetch jobs');
       }
-        data = await jobsResponse.json();
+      data = await jobsResponse.json();
       console.log('API Response:', data);
-        console.log('Fetched all technician jobs:', data.jobs);
-      } else {
-        console.log('Regular Tech: Fetching only own jobs for calendar...');
-        const jobsUrl = `/api/jobs?role=tech&technician=${encodeURIComponent(userData.user.email)}`;
-        jobsResponse = await fetch(jobsUrl);
-        if (!jobsResponse.ok) {
-          throw new Error('Failed to fetch jobs');
-        }
-        data = await jobsResponse.json();
-        console.log('API Response:', data);
-        console.log('Fetched own jobs:', data.quotes);
       console.log('Jobs URL:', jobsUrl);
-      }
       
       console.log('User data:', userData);
       
@@ -144,8 +143,8 @@ export default function TechSchedule() {
         return colorMap[colorName?.toLowerCase()] || '#6B7280';
       };
       
-      // Handle different data structures based on user role
-      const jobsToProcess = userData.isTechAdmin ? data.jobs : data.quotes;
+      // Use quotes array from API response
+      const jobsToProcess = data.quotes;
       
       if (!jobsToProcess || jobsToProcess.length === 0) {
         console.log('No jobs returned from API');
@@ -158,87 +157,46 @@ export default function TechSchedule() {
       jobsToProcess.forEach(job => {
         console.log('Processing job:', job);
         
-        if (userData.isTechAdmin) {
-          // Admin view - use new API structure
-          if (job.job_date && job.technician_name) {
-            const dateKey = job.job_date.split('T')[0]; // Extract date part only
-            console.log('Date key:', dateKey);
-            
+        // Process jobs from API response
+        if (job.job_date) {
+          const dateKey = job.job_date.split('T')[0]; // Extract date part
           if (!jobsByDate[dateKey]) {
             jobsByDate[dateKey] = [];
           }
           
           const jobData = {
-              id: job.id,
-              customerName: job.customer_name,
-              customerEmail: job.customer_email,
-              customerPhone: job.customer_phone,
-              customerAddress: job.job_location,
-              productName: job.job_description || 'Job Service',
+            id: job.id,
+            jobNumber: job.job_number,
+            customerName: job.customer_name,
+            customerEmail: job.customer_email,
+            customerPhone: job.customer_phone,
+            customerAddress: job.customer_address,
+            productName: job.job_description || 'Job Service',
             quantity: 1,
-              technician: job.technician_name,
-              technicianEmail: job.technician_phone, // This contains the email
-              technicianColor: getColorHex(job.technician_color), // Convert color name to hex
-              time: job.start_time ? new Date(job.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
+            technician: job.technician_name || job.technician_phone,
+            technicianEmail: job.technician_phone,
+            technicianColor: getColorHex(job.technician_color) || '#6B7280',
+            time: job.start_time ? job.start_time.split('T')[1]?.substring(0, 5) : 'No time',
             date: dateKey,
-              jobType: job.job_type,
-              status: job.status,
-              priority: job.priority,
-              totalAmount: job.estimated_cost || 0,
-              subtotal: job.estimated_cost || 0,
-              vehicleRegistration: job.vehicle_registration,
-              estimatedDuration: job.estimated_duration_hours
-            };
-            
-            console.log('Processed job data:', jobData);
+            jobType: job.job_type,
+            totalAmount: job.estimated_cost || job.quotation_total_amount || 0,
+            subtotal: job.estimated_cost || job.quotation_total_amount || 0,
+            status: job.status,
+            jobStatus: job.job_status
+          };
+          
           jobsByDate[dateKey].push(jobData);
           
           // Track technician jobs for availability
-            if (!technicianJobs[job.technician_name]) {
-              technicianJobs[job.technician_name] = [];
-            }
-            technicianJobs[job.technician_name].push(jobData);
-            
-            // Track technician colors
-            colors[job.technician_name] = getColorHex(job.technician_color);
+          const techKey = job.technician_name || job.technician_phone;
+          if (!technicianJobs[techKey]) {
+            technicianJobs[techKey] = [];
           }
-        } else {
-          // Regular tech view - use old API structure
-          if (job.job_date && job.technician_phone) {
-            const dateKey = job.job_date.split('T')[0]; // Extract date part from timestamp
-            if (!jobsByDate[dateKey]) {
-              jobsByDate[dateKey] = [];
-            }
-            
-            const jobData = {
-              id: job.id,
-              jobNumber: job.job_number,
-              customerName: job.customer_name,
-              customerEmail: job.customer_email,
-              customerPhone: job.customer_phone,
-              customerAddress: job.customer_address,
-              productName: job.job_description || 'Job Service',
-              quantity: 1,
-              technician: job.technician_phone, // This contains the email
-              technicianEmail: job.technician_phone,
-              technicianColor: '#6B7280', // Default color for regular techs
-              time: job.start_time ? job.start_time.split('T')[1]?.split('.')[0] : 'No time set',
-              date: dateKey,
-              jobType: job.job_type,
-              totalAmount: job.estimated_cost || job.quotation_total_amount || 0,
-              subtotal: job.estimated_cost || job.quotation_total_amount || 0,
-              status: job.status,
-              priority: job.priority,
-              jobStatus: job.job_status
-            };
-            
-            jobsByDate[dateKey].push(jobData);
-            
-            // Track technician jobs for availability
-            if (!technicianJobs[job.technician_phone]) {
-              technicianJobs[job.technician_phone] = [];
-            }
-            technicianJobs[job.technician_phone].push(jobData);
+          technicianJobs[techKey].push(jobData);
+          
+          // Track technician colors
+          if (job.technician_color) {
+            colors[techKey] = getColorHex(job.technician_color);
           }
         }
       });
@@ -419,6 +377,8 @@ export default function TechSchedule() {
     console.log('Vehicle selected for job:', { job: selectedJob, vehicle });
   };
 
+
+
   const handleCloseVinScanner = () => {
     setShowVinScanner(false);
     setSelectedJob(null);
@@ -441,40 +401,58 @@ export default function TechSchedule() {
   return (
     <div className="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
       {/* Main Content */}
-      <main className="flex-1 p-6">
-        <div className="mb-6">
-          <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
+      <main className="flex-1 p-3 sm:p-6">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex flex-col gap-4">
             <div>
-          <h2 className="mb-2 font-bold text-slate-900 text-2xl">Schedule</h2>
-          <p className="text-slate-600">Manage your daily schedule and job assignments</p>
+              <h2 className="mb-2 font-bold text-slate-900 text-xl sm:text-2xl">Schedule</h2>
+              <p className="text-slate-600 text-sm sm:text-base">Manage your daily schedule and job assignments</p>
             </div>
-            
-            {/* Technician Color Legend - Only for Tech Admins */}
-            {userInfo?.isTechAdmin && Object.keys(technicianColors).length > 0 && (
-              <Card className="lg:w-auto">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Info className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-gray-700 text-sm">Technician Colors</span>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {Object.entries(technicianColors).map(([name, color]) => (
-                      <div key={name} className="flex items-center gap-2">
-                        <div 
-                          className="border border-gray-300 rounded-full w-3 h-3"
-                          style={{ backgroundColor: color }}
-                        ></div>
-                        <span className="text-gray-600 text-xs">{name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-6">
+        {/* Team Availability - Mobile Only */}
+        {userInfo?.isTechAdmin && (
+          <Card className="shadow-lg mb-4 sm:mb-6 lg:hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="w-5 h-5" />
+                Team Availability
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {Object.keys(teamAvailability).length === 0 ? (
+                  <p className="text-gray-500 text-sm col-span-2">No technicians assigned</p>
+                ) : (
+                  Object.entries(teamAvailability).map(([technicianEmail, availability]) => (
+                    <div 
+                      key={technicianEmail} 
+                      className="flex flex-col items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg transition-colors cursor-pointer"
+                      onClick={() => handleTechnicianClick(technicianEmail, availability)}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        {availability.isAvailable ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        <p className="font-medium text-sm">
+                          {technicianEmail.split('@')[0]}
+                        </p>
+                      </div>
+                      <Badge variant={availability.isAvailable ? "default" : "secondary"} className="text-xs">
+                        {availability.todaysJobs.length} jobs today
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="hidden lg:flex justify-between items-center mb-6">
           <div className="flex items-center space-x-4">
             <Button
               variant="outline"
@@ -513,9 +491,9 @@ export default function TechSchedule() {
           </div>
         </div>
 
-        <div className="gap-6 grid grid-cols-1 lg:grid-cols-3">
-          {/* Calendar Section - Left Side */}
-          <div className="lg:col-span-2">
+        <div className="hidden lg:grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-4">
+          {/* Calendar Section - Left Side - Hidden on Mobile */}
+          <div className="lg:col-span-3">
             <Card className="shadow-lg">
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-center">
@@ -578,14 +556,12 @@ export default function TechSchedule() {
                               {events.map((event, eventIndex) => (
                                 <div
                                   key={eventIndex}
-                                  className={`shadow-sm hover:shadow-md p-2 border-l-4 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
-                                    userInfo?.isTechAdmin ? '' : 'bg-blue-100 border-blue-300 text-blue-800'
-                                  }`}
-                                  style={userInfo?.isTechAdmin ? {
+                                  className="shadow-sm hover:shadow-md p-2 border-l-4 rounded-lg text-xs transition-all duration-200 cursor-pointer"
+                                  style={{
                                     backgroundColor: `${event.technicianColor}15`,
                                     borderLeftColor: event.technicianColor,
                                     color: event.technicianColor
-                                  } : {}}
+                                  }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleJobClick(event);
@@ -607,11 +583,7 @@ export default function TechSchedule() {
                                       <span className="opacity-80 text-xs">{event.technician}</span>
                                     </div>
                                   )}
-                                  {event.priority && (
-                                    <div className={`text-xs px-2 py-1 rounded-full inline-block ${getPriorityColor(event.priority)}`}>
-                                      {event.priority}
-                                    </div>
-                                  )}
+
                                 </div>
                               ))}
                             </div>
@@ -626,7 +598,7 @@ export default function TechSchedule() {
           </div>
 
           {/* Right Side - Team Availability and Job Cards */}
-          <div className="space-y-6 lg:col-span-1">
+          <div className="lg:col-span-1">
             {/* Team Availability Section - Only for Tech Admins */}
             {userInfo?.isTechAdmin && (
             <Card className="shadow-lg">
@@ -777,7 +749,7 @@ export default function TechSchedule() {
 
       {/* Technician Calendar Modal */}
       <Dialog open={showTechnicianCalendar} onOpenChange={setShowTechnicianCalendar}>
-        <DialogContent className="max-w-6xl max-h-[90vh]">
+        <DialogContent className="max-w-sm sm:max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="w-5 h-5" />
@@ -786,107 +758,91 @@ export default function TechSchedule() {
           </DialogHeader>
           <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
             {selectedTechnician && (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* Technician Info */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex items-center gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {selectedTechnician.isAvailable ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <CheckCircle className="w-4 h-4 text-green-500" />
                       ) : (
-                        <XCircle className="w-5 h-5 text-red-500" />
+                        <XCircle className="w-4 h-4 text-red-500" />
                       )}
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 text-sm">
                         {selectedTechnician.email?.split('@')[0]}
                       </span>
                     </div>
-                    <Badge variant={selectedTechnician.isAvailable ? "default" : "secondary"}>
-                      {selectedTechnician.isAvailable ? "Available" : "Busy"}
+                    <Badge variant={selectedTechnician.isAvailable ? "default" : "secondary"} className="text-xs">
+                      {selectedTechnician.todaysJobs?.length || 0} jobs today
                     </Badge>
-                    <span className="text-gray-600">
-                      {selectedTechnician.totalJobs} total jobs
-                    </span>
                   </div>
                 </div>
 
-                {/* Calendar */}
+                {/* Mini Calendar - Only show dates with jobs */}
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="pb-2">
                     <div className="flex justify-between items-center">
-                      <CardTitle className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5" />
-                        Calendar View
+                      <CardTitle className="text-base">
+                        {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
                       </CardTitle>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigateMonth(-1)}
-                          className="p-0 w-8 h-8"
+                          className="p-0 w-6 h-6"
                         >
-                          <ChevronLeft className="w-4 h-4" />
+                          <ChevronLeft className="w-3 h-3" />
                         </Button>
-                        <span className="min-w-[120px] font-medium text-gray-900 text-center">
-                          {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-                        </span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigateMonth(1)}
-                          className="p-0 w-8 h-8"
+                          className="p-0 w-6 h-6"
                         >
-                          <ChevronRight className="w-4 h-4" />
+                          <ChevronRight className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-2">
                     {/* Days of week header */}
-                    <div className="gap-0 grid grid-cols-7 mb-2">
+                    <div className="gap-0 grid grid-cols-7 mb-1">
                       {DAYS.map(day => (
-                        <div key={day} className="p-3 border-b font-medium text-gray-500 text-sm text-center">
-                          {day}
+                        <div key={day} className="p-1 font-medium text-gray-500 text-xs text-center">
+                          {day.charAt(0)}
                         </div>
                       ))}
                     </div>
 
-                    {/* Calendar grid */}
-                    <div className="gap-0 grid grid-cols-7 border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Calendar grid - Compact */}
+                    <div className="gap-0 grid grid-cols-7 border border-gray-200 rounded overflow-hidden">
                       {getDaysInMonth(currentDate).map((day, index) => {
-                        const events = getEventsForDate(day).filter(event => 
-                          event.technician === selectedTechnician.email
+                        const technicianJobs = getEventsForDate(day).filter(event => 
+                          event.technician === selectedTechnician.email || 
+                          event.technicianEmail === selectedTechnician.email
                         );
-                        const dateKey = day ? formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
+                        const hasJobs = technicianJobs.length > 0;
 
                         return (
                           <div
                             key={index}
                             className={`
-                              min-h-[100px] p-2 border border-gray-100 transition-colors
+                              min-h-[30px] p-1 border border-gray-100 text-center transition-colors
                               ${day ? 'hover:bg-gray-50' : 'bg-gray-25'}
+                              ${hasJobs ? 'bg-blue-50 border-blue-200' : ''}
                             `}
                           >
                             {day && (
                               <>
-                                <div className="mb-1 font-medium text-gray-900">
+                                <div className={`text-xs font-medium ${
+                                  hasJobs ? 'text-blue-800' : 'text-gray-900'
+                                }`}>
                                   {day}
                                 </div>
-                                <div className="space-y-1">
-                                  {events.map((event, eventIndex) => (
-                                    <div
-                                      key={eventIndex}
-                                      className="bg-blue-100 hover:bg-blue-200 p-1 rounded text-blue-800 text-xs cursor-pointer"
-                                      onClick={() => handleJobClick(event)}
-                                    >
-                                      <div className="font-medium truncate">
-                                        {event.customerName}
-                                      </div>
-                                      <div className="text-blue-600">
-                                        {event.time}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
+                                {hasJobs && (
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full mx-auto mt-1"></div>
+                                )}
                               </>
                             )}
                           </div>
@@ -896,38 +852,40 @@ export default function TechSchedule() {
                   </CardContent>
                 </Card>
 
-                {/* Today's Jobs for this Technician */}
+                {/* Jobs List */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="w-5 h-5" />
-                      Today's Jobs
-                    </CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">All Jobs</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {selectedTechnician.todaysJobs?.length === 0 ? (
-                        <p className="text-gray-500 text-sm">No jobs scheduled for today</p>
-                      ) : (
-                        selectedTechnician.todaysJobs.map((job, index) => (
-                          <div
-                            key={index}
-                            className="hover:bg-gray-50 p-3 border rounded-lg transition-colors cursor-pointer"
-                            onClick={() => handleJobClick(job)}
-                          >
-                            <div className="flex justify-between items-center mb-2">
-                              <h4 className="font-medium text-sm">{job.customerName}</h4>
-                              <Badge variant="outline" className="text-xs">
-                                {job.time}
-                              </Badge>
+                    <div className="space-y-2 max-h-40 sm:max-h-60 overflow-y-auto">
+                      {(() => {
+                        const allTechJobs = Object.values(jobs).flat().filter(job => 
+                          job.technician === selectedTechnician.email || 
+                          job.technicianEmail === selectedTechnician.email
+                        );
+                        
+                        return allTechJobs.length === 0 ? (
+                          <p className="text-gray-500 text-sm">No jobs assigned</p>
+                        ) : (
+                          allTechJobs.map((job, index) => (
+                            <div
+                              key={index}
+                              className="hover:bg-gray-50 p-3 sm:p-2 border rounded transition-colors cursor-pointer"
+                              onClick={() => handleJobClick(job)}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                                <h4 className="font-medium text-sm">{job.customerName}</h4>
+                                <Badge variant="outline" className="text-xs w-fit">
+                                  {job.date} {job.time}
+                                </Badge>
+                              </div>
+                              <p className="text-gray-600 text-xs mt-1">{job.productName}</p>
                             </div>
-                            <div className="space-y-1 text-gray-600 text-xs">
-                              <p><Package className="inline mr-1 w-3 h-3" />{job.productName}</p>
-                              <p><MapPin className="inline mr-1 w-3 h-3" />{job.customerAddress}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          ))
+                        );
+                      })()
+                      }
                     </div>
                   </CardContent>
                 </Card>

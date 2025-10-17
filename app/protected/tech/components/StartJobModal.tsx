@@ -86,15 +86,16 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       
       // Show toast with job information
       if (jobData.job_number) {
-        toast.success(`Starting job: ${jobData.job_number} - ${jobData.customer_name || 'Unknown Customer'}`);
+        toast.success(`Job loaded: ${jobData.job_number} - ${jobData.customer_name || 'Unknown Customer'}`);
       }
       
       if (jobData.status === 'Active' || jobData.job_status === 'Active') {
         console.log('Setting step to job-active');
         setCurrentStep('job-active');
-      } else {
-        console.log('Setting step to qr-scan');
-        setCurrentStep('qr-scan');
+      } else if (jobData.job_number && currentStep === 'qr-scan') {
+        // If job is loaded and we're on QR scan step, move to vehicle details
+        console.log('Job loaded, moving to vehicle-details');
+        setCurrentStep('vehicle-details');
       }
     }
   }, [isOpen, jobData]);
@@ -306,10 +307,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   // Initialize QR scanner when modal opens
   useEffect(() => {
     if (isOpen && currentStep === 'qr-scan') {
-      // Small delay to ensure DOM is ready
+      // Auto-start scanner on mobile and desktop
       const timer = setTimeout(() => {
+        console.log('Auto-starting QR scanner...');
         startQrScanner();
-      }, 100);
+      }, 500); // Longer delay for mobile
       
       return () => clearTimeout(timer);
     } else {
@@ -341,18 +343,60 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   }, [currentStep]);
   
   const startQrScanner = async () => {
-    if (qrReader || isQrScanning) return;
+    console.log('🎯 startQrScanner called');
+    console.log('Current state:', { qrReader: !!qrReader, isQrScanning });
+    
+    if (qrReader || isQrScanning) {
+      console.log('❌ Scanner already running, returning');
+      return;
+    }
     
     try {
+      console.log('📱 Checking camera API availability...');
+      
+      // Check if camera API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.log('❌ Camera API not available');
+        toast.error('Camera not supported on this device. Please use manual input.');
+        return;
+      }
+      
+      console.log('✅ Camera API available, requesting permissions...');
+
+      // Request camera permission explicitly
+      let stream;
+      try {
+        // Try back camera first (better for QR scanning)
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: 'environment',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        });
+      } catch (backError) {
+        console.log('Back camera failed, trying front camera:', backError);
+        try {
+          // Fallback to front camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: 'user',
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            }
+          });
+        } catch (frontError) {
+          console.log('Front camera failed, trying any camera:', frontError);
+          // Last resort: any available camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true
+          });
+        }
+      }
+      
       // Create new QR reader instance
       const reader = new BrowserQRCodeReader();
       setQrReader(reader);
-      
-      // Get camera stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      
       setQrStream(stream);
       setIsQrScanning(true);
       
@@ -376,9 +420,23 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         }
       );
       
+      console.log('✅ QR scanner started successfully');
+      toast.success('QR scanner started! Point camera at QR code.');
+      
     } catch (error) {
       console.error('Failed to start QR scanner:', error);
-      toast.error('Failed to start QR scanner. Please use manual input.');
+      
+      // Provide specific error messages for mobile
+      if (error.name === 'NotAllowedError') {
+        toast.error('Camera permission denied. Please allow camera access and try again.');
+      } else if (error.name === 'NotFoundError') {
+        toast.error('No camera found on this device.');
+      } else if (error.name === 'NotReadableError') {
+        toast.error('Camera is in use by another app. Please close other camera apps.');
+      } else {
+        toast.error('Failed to start QR scanner. Please use manual input.');
+      }
+      
       setIsQrScanning(false);
     }
   };
@@ -485,23 +543,47 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         qrData = { job_number: qrCode };
       }
       
-      // Check if the QR code contains a job_number
-      if (!qrData.job_number) {
-        toast.error('Invalid QR code format. No job number found.');
+      // Check if the QR code contains a job_number or job_id
+      if (!qrData.job_number && !qrData.job_id) {
+        toast.error('Invalid QR code format. No job number or ID found.');
         return;
       }
       
-      // Verify QR code job_number matches the job from job_cards table
-      if (qrData.job_number === jobData.job_number) {
-        toast.success('QR code verified! Job number matches. Proceeding to photo capture...');
-        console.log('QR verified, setting step to before-photos');
+      // Find matching job in userJobs by job_number
+      const matchingJob = userJobs.find(job => 
+        job.job_number === qrData.job_number || 
+        job.job_number === qrData.job_id
+      );
+      
+      if (matchingJob) {
+        // Fetch full job details
+        const fullJobData = await fetchFullJobDetails(matchingJob.id);
         
-                 // IMPORTANT: Stop QR scanner camera before transitioning
-         stopQrScanner();
-         
-         setCurrentStep('vehicle-details');
+        // Update jobData with the full job details
+        setJobData(fullJobData);
+        
+        // Pre-fill vehicle details if available in QR code
+        if (qrData.vehicle_registration || qrData.vehicle_make || qrData.vehicle_model) {
+          setVehicleDetails(prev => ({
+            ...prev,
+            vehicle_year: qrData.vehicle_year || prev.vehicle_year,
+            vehicle_make: qrData.vehicle_make || prev.vehicle_make,
+            vehicle_model: qrData.vehicle_model || prev.vehicle_model,
+            vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
+            vin_numer: qrData.vin_numer || prev.vin_numer,
+            odormeter: qrData.odormeter || prev.odormeter,
+          }));
+        }
+        
+        toast.success(`QR code verified! Job ${matchingJob.job_number} loaded successfully.`);
+        console.log('QR verified, setting step to vehicle-details');
+        
+        // Stop QR scanner camera before transitioning
+        stopQrScanner();
+        
+        setCurrentStep('vehicle-details');
       } else {
-        toast.error(`QR code job number (${qrData.job_number}) does not match job (${jobData.job_number})`);
+        toast.error(`Job ${qrData.job_number || qrData.job_id} not found.`);
       }
     } catch (error) {
       console.error('Error verifying QR code:', error);
@@ -511,55 +593,71 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     }
   };
 
+  const fetchFullJobDetails = async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/job-cards/${jobId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch job details');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching full job details:', error);
+      throw error;
+    }
+  };
+
   const fetchJobById = async (jobId: string) => {
+    console.log('🔍 fetchJobById called with:', jobId);
+    
     if (!jobId.trim()) {
+      console.log('❌ Empty job ID');
       toast.error('Please enter a job ID');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Fetching job by ID/Number:', jobId);
+      console.log('📋 Available jobs count:', userJobs.length);
+      console.log('📋 Searching by job_number field');
       
-      // First try to find the job in the current jobs list by job_number
-      const existingJob = userJobs.find(job => 
-        job.job_number === jobId || job.id === jobId
-      );
-      
-      if (existingJob) {
-        console.log('Job found in current jobs list:', existingJob);
-        setJobData(existingJob);
-        toast.success(`Job ${existingJob.job_number} loaded successfully! Proceeding to vehicle details...`);
+      // Find matching job in userJobs by job_number
+      const matchingJob = userJobs.find(job => {
+        const matches = [
+          job.job_number === jobId,
+          job.job_number?.toLowerCase().includes(jobId.toLowerCase()),
+          job.job_number?.includes(jobId)
+        ];
         
-        // IMPORTANT: Stop QR scanner camera before transitioning
+        console.log(`🔍 Checking job:`, {
+          job_number: job.job_number,
+          customer: job.customer_name,
+          searchTerm: jobId,
+          exactMatch: job.job_number === jobId,
+          partialMatch: job.job_number?.toLowerCase().includes(jobId.toLowerCase())
+        });
+        
+        return matches.some(match => match);
+      });
+      
+      if (matchingJob) {
+        console.log('✅ Job found:', matchingJob);
+        
+        // Fetch full job details
+        const fullJobData = await fetchFullJobDetails(matchingJob.id);
+        setJobData(fullJobData);
+        
+        toast.success(`Job ${matchingJob.job_number} loaded successfully!`);
+        
         stopQrScanner();
-        
-        // Go to vehicle details step
-        console.log('Setting step to vehicle-details');
-        setCurrentStep('vehicle-details');
-        
-        return;
-      }
-      
-      // If not found in current list, try API call (but this might fail due to UUID format)
-      console.log('Job not found in current list, trying API call...');
-      const response = await fetch(`/api/job-cards/${jobId}`);
-      
-      if (response.ok) {
-        const job = await response.json();
-        console.log('Job loaded successfully from API:', job);
-        setJobData(job);
-        toast.success(`Job ${job.job_number} loaded successfully! Proceeding to vehicle details...`);
-        
-        // Go to vehicle details step
-        console.log('Setting step to vehicle-details');
         setCurrentStep('vehicle-details');
       } else {
-        toast.error('Job not found. Please check the job ID/Number.');
+        console.log('❌ No matching job found for:', jobId);
+        console.log('📋 Available job numbers:', userJobs.map(j => j.job_number));
+        toast.error(`Job "${jobId}" not found (${userJobs.length} jobs available).`);
       }
     } catch (error) {
-      console.error('Error fetching job:', error);
-      toast.error('Failed to fetch job data. Please use a job from the current list.');
+      console.error('💥 Error in fetchJobById:', error);
+      toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -831,46 +929,83 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   if (!isOpen) return null;
 
   return (
-    <div className="z-50 fixed inset-0 flex justify-center items-center bg-black/50 p-4">
-      <div className="bg-white shadow-xl rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                 <div className="flex justify-between items-center p-4 border-b">
-           <h2 className="font-semibold text-xl">Start Job: {jobData?.job_number || 'Enter Job ID'}</h2>
-           <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4"
+      style={{ zIndex: 9999 }}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+                 <div className="flex justify-between items-center p-3 sm:p-4 border-b">
+           <h2 className="font-semibold text-lg sm:text-xl truncate pr-2">
+             Start Job: {jobData?.job_number || 'Enter Job ID'}
+           </h2>
+           <button 
+             onClick={(e) => {
+               console.log('Close button clicked');
+               e.preventDefault();
+               e.stopPropagation();
+               handleClose();
+             }} 
+             className="text-gray-500 hover:text-gray-700 flex-shrink-0"
+             type="button"
+           >
              <X className="w-5 h-5" />
            </button>
          </div>
 
-        <div className="p-6" key={currentStep}>
+        <div 
+          className="p-3 sm:p-6" 
+          key={currentStep}
+          onClick={(e) => {
+            console.log('Modal body clicked');
+            e.stopPropagation();
+          }}
+        >
           {/* Debug info */}
           <div className="bg-gray-100 mb-4 p-2 rounded text-xs">
             <strong>Debug:</strong> Current step: {currentStep} | Job number: {jobData?.job_number}
+            <br />
+            <button 
+              onClick={() => {
+                console.log('🔥 TEST BUTTON CLICKED!');
+                alert('Test button works!');
+              }}
+              className="mt-2 px-2 py-1 bg-red-500 text-white rounded text-xs"
+            >
+              TEST CLICK
+            </button>
           </div>
           
           {/* Progress Steps */}
-          <div className="flex justify-center space-x-4 mb-6">
+          <div className="flex justify-center space-x-1 sm:space-x-4 mb-4 sm:mb-6 overflow-x-auto">
             {[
-              { key: 'qr-scan', label: 'Job Verification', icon: QrCode },
-              { key: 'vehicle-details', label: 'Vehicle Details', icon: Camera },
-              { key: 'before-photos', label: 'Before Photos', icon: Camera },
-              { key: 'job-active', label: 'Job Active', icon: CheckCircle },
-              { key: 'after-photos', label: 'After Photos', icon: Camera },
-              { key: 'complete', label: 'Job Completed', icon: CheckCircle },
+              { key: 'qr-scan', label: 'Verify', icon: QrCode },
+              { key: 'vehicle-details', label: 'Details', icon: Camera },
+              { key: 'before-photos', label: 'Before', icon: Camera },
+              { key: 'job-active', label: 'Active', icon: CheckCircle },
+              { key: 'after-photos', label: 'After', icon: Camera },
+              { key: 'complete', label: 'Done', icon: CheckCircle },
             ].map((step, index) => {
               const Icon = step.icon;
               const isActive = currentStep === step.key;
               const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
               
               return (
-                <div key={step.key} className="flex items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    isActive ? 'bg-blue-600 text-white' :
-                    isCompleted ? 'bg-green-500 text-white' :
-                    'bg-gray-200 text-gray-600'
-                  }`}>
-                    {isCompleted ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+                <div key={step.key} className="flex flex-col sm:flex-row items-center">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${
+                      isActive ? 'bg-blue-600 text-white' :
+                      isCompleted ? 'bg-green-500 text-white' :
+                      'bg-gray-200 text-gray-600'
+                    }`}>
+                      {isCompleted ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
+                    </div>
+                    <span className="text-xs mt-1 text-center hidden sm:block">{step.label}</span>
                   </div>
-                  {index < 6 && (
-                    <div className={`w-12 h-1 mx-2 ${
+                  {index < 5 && (
+                    <div className={`w-6 sm:w-12 h-1 mx-1 sm:mx-2 ${
                       isCompleted ? 'bg-green-500' : 'bg-gray-200'
                     }`} />
                   )}
@@ -895,95 +1030,115 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </p>
                 </div>
                 
-                <div className="gap-6 grid grid-cols-1 lg:grid-cols-2">
+                <div className="gap-4 sm:gap-6 grid grid-cols-1 lg:grid-cols-2">
                   {/* QR Scanner */}
-                  <div className="space-y-4">
-                    <Label className="font-medium text-base">QR Code Scanner</Label>
+                  <div className="space-y-3 sm:space-y-4">
+                    <Label className="font-medium text-sm sm:text-base">QR Code Scanner</Label>
                     <div className="border rounded-lg min-h-[300px] overflow-hidden">
-                      {isQrScanning ? (
-                        <video
-                          id="qr-video"
-                          autoPlay
-                          playsInline
-                          muted
-                          className="w-full h-64 object-cover"
-                        />
-                      ) : (
+                      <video
+                        id="qr-video"
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-64 object-cover"
+                        style={{ display: isQrScanning ? 'block' : 'none' }}
+                      />
+                      
+                      {!isQrScanning && (
                         <div className="flex justify-center items-center bg-gray-50 h-64">
                           <div className="text-center">
                             <QrCode className="mx-auto mb-2 w-16 h-16 text-gray-400" />
-                            <p className="text-gray-500">Click Start Scanner to begin</p>
-                            <Button 
-                              onClick={startQrScanner}
-                              className="mt-2"
-                              disabled={isQrScanning}
-                            >
-                              <Camera className="mr-2 w-4 h-4" />
-                              Start Scanner
-                            </Button>
-                 </div>
-                   </div>
+                            <p className="text-gray-500 mb-2">Starting QR scanner...</p>
+                            <div className="text-gray-400 text-xs">
+                              <p>📱 Allow camera permissions when prompted</p>
+                              <p>🔒 Ensure site has camera access in browser settings</p>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <button 
+                                onClick={() => {
+                                  console.log('🔥 Camera permission button clicked!');
+                                  alert('Camera button clicked! Check console.');
+                                  startQrScanner();
+                                }}
+                                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg w-full"
+                              >
+                                Request Camera Permission
+                              </button>
+                              
+                              <button 
+                                onClick={() => {
+                                  console.log('🔥 Start scanner button clicked!');
+                                  alert('Start scanner clicked!');
+                                  startQrScanner();
+                                }}
+                                className="mt-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg w-full"
+                              >
+                                Start Scanner
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       )}
                    </div>
                     <p className="text-gray-500 text-sm text-center">
                       Position the QR code within the frame to scan
                     </p>
-                    {isQrScanning && (
+                    <div className="flex gap-2">
+                      {isQrScanning && (
+                        <Button 
+                          onClick={stopQrScanner}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Stop Scanner
+                        </Button>
+                      )}
+                      
                       <Button 
-                        onClick={stopQrScanner}
+                        onClick={() => {
+                          stopQrScanner();
+                          setTimeout(() => startQrScanner(), 500);
+                        }}
                         variant="outline"
-                        className="w-full"
+                        className="flex-1"
                       >
-                        Stop Scanner
+                        Restart Scanner
                       </Button>
-                    )}
+                    </div>
                  </div>
 
                   {/* Manual Input */}
-                  <div className="space-y-4">
-                    <Label className="font-medium text-base">Manual Job Entry</Label>
-                    <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
+                    <Label className="font-medium text-sm sm:text-base">Manual Job Entry</Label>
+                    <div className="space-y-3 sm:space-y-4">
                  <div className="space-y-2">
-                        <Label htmlFor="manualJobId">Job Number or Job ID</Label>
+                        <Label htmlFor="manualJobId" className="text-sm">Job Number or Job ID</Label>
                    <Input
                      id="manualJobId"
                      value={manualJobId}
                      onChange={(e) => setManualJobId(e.target.value)}
-                          placeholder="Enter job number (e.g., JOB-123...) or job ID"
-                          className="text-lg"
+                          placeholder="Enter job number..."
+                          className="text-sm sm:text-lg"
                    />
                  </div>
 
-                   <Button 
-                     onClick={() => fetchJobById(manualJobId)}
-                     disabled={loading || !manualJobId.trim()}
-                     className="w-full"
+                   <button 
+                     onClick={() => {
+                       console.log('🔥 Load Job button clicked!');
+                       console.log('📝 Manual Job ID:', manualJobId);
+                       
+                       if (!manualJobId.trim()) {
+                         alert('Please enter a job ID first!');
+                         return;
+                       }
+                       
+                       fetchJobById(manualJobId);
+                     }}
+                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm sm:text-base"
                    >
-                     {loading ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
                         Load Job
-                   </Button>
-                      
-                      {/* Show available job numbers for easy copying */}
-                      {userJobs && userJobs.length > 0 && (
-                        <div className="bg-blue-50 p-3 border border-blue-200 rounded-lg">
-                          <p className="mb-2 font-medium text-blue-800 text-sm">Available Job Numbers:</p>
-                          <div className="space-y-1">
-                            {userJobs.slice(0, 3).map((job, index) => (
-                              <div key={index} className="flex justify-between items-center text-blue-700 text-xs">
-                                <span>{job.customer_name || 'Unknown Customer'}</span>
-                                <code className="bg-blue-100 px-2 py-1 rounded text-blue-800">
-                                  {job.job_number}
-                                </code>
-                     </div>
-                            ))}
-                            {userJobs.length > 3 && (
-                              <p className="mt-2 text-blue-600 text-xs">
-                                +{userJobs.length - 3} more jobs available
-                              </p>
-                           )}
-                         </div>
-                             </div>
-                           )}
+                   </button>
                          </div>
                          </div>
                        </div>
@@ -1035,7 +1190,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   <p className="mb-2 text-blue-800">
                     Please enter the details of the vehicle and work area. All fields are optional.
                   </p>
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                  <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="vehicleYear">Vehicle Year</Label>
                       <Input
@@ -1092,18 +1247,19 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => setCurrentStep('before-photos')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
                   >
                     {loading ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
-                    Next: Capture Before Photos
+                    <span className="hidden sm:inline">Next: Capture Before Photos</span>
+                    <span className="sm:hidden">Next: Before Photos</span>
                   </Button>
                   <Button
                     onClick={() => setCurrentStep('before-photos')}
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 text-sm sm:text-base"
                   >
                     Skip & Continue
                   </Button>

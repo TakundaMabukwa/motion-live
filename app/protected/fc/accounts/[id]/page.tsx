@@ -30,7 +30,7 @@ import CustomerJobCards from '@/components/ui-personal/customer-job-cards';
 import ClientQuoteForm from '@/components/ui-personal/client-quote-form';
 import ClientJobCards from '@/components/ui-personal/client-job-cards';
 import AccountDashboard from '@/components/ui-personal/account-dashboard';
-import VehicleMapView from '@/components/ui-personal/vehicle-map-view';
+
 import { toast } from 'sonner';
 import { getVehiclesByAccountNumber, type Vehicle, type VehiclesResponse } from '@/lib/actions/vehicles';
 
@@ -392,15 +392,22 @@ function AccountDetailPageContent() {
 
       case 'map':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="font-semibold text-xl">Live Vehicle Map</h2>
-              <Badge variant="outline">Live Feed</Badge>
-            </div>
-            
-            <VehicleMapView 
-              vehicles={vehicles}
-              customer={customer}
+          <div className="-m-6 h-screen">
+            <div 
+              ref={(el) => {
+                if (el && !el.querySelector('.mapboxgl-map')) {
+                  import('mapbox-gl').then((mapboxgl) => {
+                    mapboxgl.default.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+                    new mapboxgl.default.Map({
+                      container: el,
+                      style: 'mapbox://styles/mapbox/streets-v12',
+                      center: [28.0473, -26.2041],
+                      zoom: 10
+                    });
+                  });
+                }
+              }}
+              className="w-full h-full"
             />
           </div>
         );

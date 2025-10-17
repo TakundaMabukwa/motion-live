@@ -186,7 +186,7 @@ export default function AppLayout({
                 </div>
                 <div>
                   <h1 className="font-bold text-xl">{title}</h1>
-                  {subtitle && <p className="opacity-90 text-blue-100 text-sm">{subtitle}</p>}
+                  {subtitle && <p className="opacity-90 text-blue-100 text-sm hidden sm:block">{subtitle}</p>}
                 </div>
               </div>
             </div>

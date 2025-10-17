@@ -103,18 +103,18 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-sm sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="w-5 h-5" />
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5" />
             Job Details
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Job Status */}
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold text-lg">Job #{job.id}</h3>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+            <h3 className="font-semibold text-base sm:text-lg">Job #{job.id}</h3>
             <Badge className={getStatusColor(job.jobStatus || 'pending')}>
               {getStatusIcon(job.jobStatus || 'pending')}
               <span className="ml-1">{job.jobStatus || 'Pending'}</span>
@@ -130,29 +130,29 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+              <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Customer Name</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Customer Name</label>
                   <p className="text-sm">{job.customerName || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Email</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Email</label>
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gray-400" />
-                    <p className="text-sm">{job.customerEmail || 'N/A'}</p>
+                    <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+                    <p className="text-sm break-all">{job.customerEmail || 'N/A'}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Phone</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Phone</label>
                   <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-gray-400" />
+                    <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                     <p className="text-sm">{job.customerPhone || 'N/A'}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Address</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Address</label>
                   <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                     <p className="text-sm">{job.customerAddress || 'N/A'}</p>
                   </div>
                 </div>
@@ -169,21 +169,21 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+              <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Product/Service</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Product/Service</label>
                   <p className="text-sm">{job.productName || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Quantity</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Quantity</label>
                   <p className="text-sm">{job.quantity || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Job Type</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Job Type</label>
                   <p className="text-sm">{job.jobType || 'N/A'}</p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Technician</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Technician</label>
                   <p className="text-sm">{job.technician || 'N/A'}</p>
                 </div>
               </div>
@@ -193,24 +193,24 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           {/* Schedule Information */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="w-4 h-4" />
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                 Schedule Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+              <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Date</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Date</label>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                     <p className="text-sm">{job.date || 'N/A'}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Time</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Time</label>
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-400" />
+                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
                     <p className="text-sm">{job.time || 'N/A'}</p>
                   </div>
                 </div>
@@ -221,21 +221,21 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           {/* Financial Information */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <DollarSign className="w-4 h-4" />
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
                 Financial Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+              <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Subtotal</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Subtotal</label>
                   <p className="font-semibold text-sm">
                     R {job.subtotal ? parseFloat(job.subtotal).toFixed(2) : '0.00'}
                   </p>
                 </div>
                 <div>
-                  <label className="font-medium text-gray-500 text-sm">Total Amount</label>
+                  <label className="font-medium text-gray-500 text-xs sm:text-sm">Total Amount</label>
                   <p className="font-semibold text-sm">
                     R {job.totalAmount ? parseFloat(job.totalAmount).toFixed(2) : '0.00'}
                   </p>
@@ -245,18 +245,18 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           </Card>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
               Close
             </Button>
             <Button 
               onClick={handleStartJob}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 w-full sm:w-auto"
             >
-              <Play className="w-4 h-4" />
+              <Play className="w-3 h-3 sm:w-4 sm:h-4" />
               Start Job
             </Button>
-            <Button>
+            <Button className="w-full sm:w-auto">
               Update Status
             </Button>
           </div>

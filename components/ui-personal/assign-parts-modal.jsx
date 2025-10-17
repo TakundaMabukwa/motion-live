@@ -23,27 +23,31 @@ export default function AssignPartsModal({
   isOpen, 
   onClose, 
   jobCard, 
-  onPartsAssigned 
+  onPartsAssigned,
+  allIpAddresses = [],
+  allStockItems = []
 }) {
-  const [stockItems, setStockItems] = useState([]);
   const [selectedParts, setSelectedParts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [ipAddress, setIpAddress] = useState('');
   const [showQRCode, setShowQRCode] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [ipAddresses, setIpAddresses] = useState([]);
+  const [showIpDropdown, setShowIpDropdown] = useState(false);
+
 
   useEffect(() => {
     if (isOpen) {
-      fetchStockItems();
       setSelectedParts([]);
       setSearchTerm('');
       setIpAddress('');
       setShowQRCode(false);
       setQrCodeUrl('');
       setShowDropdown(false);
+      setIpAddresses([]);
+      setShowIpDropdown(false);
     }
   }, [isOpen]);
 
@@ -53,32 +57,64 @@ export default function AssignPartsModal({
       if (showDropdown && !event.target.closest('.dropdown-container')) {
         setShowDropdown(false);
       }
+      if (showIpDropdown && !event.target.closest('.ip-dropdown-container')) {
+        setShowIpDropdown(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showIpDropdown]);
 
-  const fetchStockItems = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/stock');
-      if (!response.ok) {
-        throw new Error('Failed to fetch stock items');
+
+
+  const getAllIpAddressesWithParts = () => {
+    const ipMap = new Map();
+    allStockItems.forEach(item => {
+      if (item.ip_addresses && Array.isArray(item.ip_addresses)) {
+        item.ip_addresses.forEach(ip => {
+          if (!ipMap.has(ip)) {
+            ipMap.set(ip, []);
+          }
+          ipMap.get(ip).push(item.description || item.code || 'Unknown Part');
+        });
       }
-      const data = await response.json();
-      setStockItems(data.stock || []);
-    } catch (error) {
-      console.error('Error fetching stock items:', error);
-      toast.error('Failed to load stock items');
-    } finally {
-      setLoading(false);
-    }
+    });
+    return Array.from(ipMap.entries()).map(([ip, parts]) => ({
+      ip_address: ip,
+      parts: parts
+    }));
   };
 
-  const filteredStockItems = stockItems.filter(item => {
+  const fetchIpAddresses = (searchTerm) => {
+    const allIpsWithParts = getAllIpAddressesWithParts();
+    
+    if (!searchTerm || searchTerm.length < 2) {
+      setIpAddresses(allIpsWithParts);
+      setShowIpDropdown(allIpsWithParts.length > 0);
+      return;
+    }
+
+    const filtered = allIpsWithParts.filter(ip => 
+      ip.ip_address?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setIpAddresses(filtered);
+    setShowIpDropdown(true);
+  };
+
+  const handleIpAddressChange = (value) => {
+    setIpAddress(value);
+    fetchIpAddresses(value);
+  };
+
+  const selectIpAddress = (ip) => {
+    setIpAddress(ip.ip_address);
+    setShowIpDropdown(false);
+  };
+
+  const filteredStockItems = allStockItems.filter(item => {
     const matchesSearch = 
       item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -117,6 +153,9 @@ export default function AssignPartsModal({
     // Clear search and hide dropdown
     setSearchTerm('');
     setShowDropdown(false);
+    
+    // Update IP address suggestions based on selected parts
+    fetchIpAddresses(ipAddress);
   };
 
   const removePart = (stockId) => {
@@ -444,18 +483,43 @@ export default function AssignPartsModal({
 
         {!showQRCode ? (
           <div className="space-y-6">
-            {/* IP Address Input */}
+            {/* IP Address Input with Autocomplete */}
             <div>
               <label className="block mb-2 font-medium text-gray-700 text-sm">
                 IP Address *
               </label>
-              <Input
-                type="text"
-                placeholder="Enter IP address (e.g., 192.168.1.100)"
-                value={ipAddress}
-                onChange={(e) => setIpAddress(e.target.value)}
-                className="w-full"
-              />
+              <div className="relative ip-dropdown-container">
+                <Input
+                  type="text"
+                  placeholder="Enter IP address (e.g., 192.168.1.100)"
+                  value={ipAddress}
+                  onChange={(e) => handleIpAddressChange(e.target.value)}
+                  onFocus={() => fetchIpAddresses(ipAddress)}
+                  className="w-full"
+                />
+                {showIpDropdown && (
+                  <div className="z-50 absolute bg-white shadow-lg mt-1 border border-gray-200 rounded-lg w-full h-80vh overflow-y-auto">
+                    {ipAddresses.length === 0 ? (
+                      <div className="p-3 text-gray-500 text-sm">
+                        No matching IP addresses found
+                      </div>
+                    ) : (
+                      ipAddresses.map((ip, index) => (
+                        <div
+                          key={index}
+                          className="hover:bg-gray-50 p-3 border-gray-100 border-b last:border-b-0 cursor-pointer"
+                          onClick={() => selectIpAddress(ip)}
+                        >
+                          <div className="font-medium text-gray-900">{ip.ip_address}</div>
+                          <div className="text-gray-500 text-sm">
+                            ({ip.parts?.join(', ') || 'No parts assigned'})
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Stock Search with Dropdown */}

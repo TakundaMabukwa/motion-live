@@ -29,7 +29,7 @@ import {
   Phone,
   Mail,
   MapPin,
-  RefreshCw
+  RefreshCw,
 } from "lucide-react";
 
 export default function AccountsDashboard() {
@@ -125,6 +125,7 @@ export default function AccountsDashboard() {
       case 'global':
         return <GlobalView />;
       
+
       case 'companies':
         return (
           <>

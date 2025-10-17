@@ -26,8 +26,7 @@ import {
   Package,
   Car,
   FileText,
-  Plus,
-  AlertTriangle
+  Plus
 } from 'lucide-react';
 import StatsCard from '@/components/shared/StatsCard';
 import { toast } from 'sonner';
@@ -113,16 +112,9 @@ export default function AdminDashboard() {
   const [assignmentDate, setAssignmentDate] = useState('');
   const [assignmentTime, setAssignmentTime] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
-  const [conflictingJobs, setConflictingJobs] = useState<{
-    id: string;
-    job_number: string;
-    job_date: string;
-    start_time?: string;
-    technician_name?: string;
-    customer_name?: string;
-    job_description?: string;
-  }[]>([]);
-  const [hasSchedulingConflict, setHasSchedulingConflict] = useState(false);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<any>(null);
+
 
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
   const [loadingJobsWithParts, setLoadingJobsWithParts] = useState(false);
@@ -519,8 +511,6 @@ export default function AdminDashboard() {
     setAssignmentDate(new Date().toISOString().split('T')[0]);
     setAssignmentTime('');
     setAssignmentNotes('');
-    setConflictingJobs([]);
-    setHasSchedulingConflict(false);
     setAssignTechnicianOpen(true);
   };
   
@@ -628,37 +618,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Check if a technician is already booked within 3 hours of the selected time
-  const checkTechnicianAvailability = async (technicianName: string, date: string, time: string) => {
-    try {
-      // Reset conflict state
-      setHasSchedulingConflict(false);
-      setConflictingJobs([]);
-      
-      // Use the helper function from lib/technician-scheduling.ts
-      const { checkTechnicianAvailability } = await import('@/lib/technician-scheduling');
-      
-      const result = await checkTechnicianAvailability(technicianName, date, time);
-      
-      console.log('Availability result:', result);
-      
-      if (!result.isAvailable && result.conflictingJobs.length > 0) {
-        // Update state with conflicts
-        setConflictingJobs(result.conflictingJobs);
-        setHasSchedulingConflict(true);
-        
-        return {
-          isAvailable: false,
-          conflictingJobs: result.conflictingJobs
-        };
-      }
-      
-      return { isAvailable: true, conflictingJobs: [] };
-    } catch (error) {
-      console.error('Error in checking technician availability:', error);
-      return { isAvailable: true, conflictingJobs: [] };
-    }
-  };
+
 
   const confirmAssignTechnician = async () => {
     if (!selectedJob || !selectedTechnician) {
@@ -672,42 +632,11 @@ export default function AdminDashboard() {
         toast.error('Selected technician not found');
         return;
       }
-      
-      // Check technician availability before assigning
-      await checkTechnicianAvailability(
-        technician.name,
-        assignmentDate,
-        assignmentTime || '09:00'
-      );
-      
-      if (hasSchedulingConflict && conflictingJobs.length > 0) {
-        // Show warning with conflicting job details
-        const conflictMsg = conflictingJobs.map(job => 
-          `- Job ${job.job_number} (${job.customer_name}): ${job.job_description || 'No description'}\n  ${new Date(job.job_date).toLocaleDateString()} at ${job.start_time ? new Date(job.start_time).toLocaleTimeString() : 'unspecified time'}`
-        ).join('\n');
-        
-        const confirmAssignment = window.confirm(
-          `⚠️ SCHEDULING CONFLICT ⚠️\n\n` +
-          `${technician.name} is already assigned to other jobs within 3 hours of the selected time.\n\n` +
-          `Conflicting jobs:\n${conflictMsg}\n\n` +
-          `Do you still want to assign this technician?`
-        );
-        
-        if (!confirmAssignment) {
-          return; // User canceled the assignment
-        }
-        
-        // If user confirms, continue with assignment despite conflict
-        toast.warning('Proceeding with assignment despite scheduling conflict');
-      }
 
       // Show loading toast
       toast.loading('Assigning technician...');
-      
-      // Check if we're overriding a scheduling conflict
-      const overrideConflict = hasSchedulingConflict && conflictingJobs.length > 0;
 
-      // Use our new technician validation API
+      // Use our technician validation API
       const response = await fetch(`/api/technicians/availability`, {
         method: 'POST',
         headers: {
@@ -718,7 +647,7 @@ export default function AdminDashboard() {
           technicianName: technician.name,
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
-          override: overrideConflict, // Pass override flag if conflict was confirmed
+          override: false, // First attempt without override
           assignmentNotes: assignmentNotes || null,
         }),
       });
@@ -728,17 +657,18 @@ export default function AdminDashboard() {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      // If there's a conflict and we need override confirmation
+      if (response.status === 409 && data.needsOverride && data.conflicts) {
+        setConflictData(data);
+        setConflictDialogOpen(true);
+        return;
+      } else if (!response.ok) {
         toast.error(data.error || 'Failed to assign technician');
         return;
+      } else {
+        toast.success(data.message || 'Technician assigned successfully');
       }
 
-      toast.success(data.message || 'Technician assigned successfully');
-
-      // Reset conflict state
-      setHasSchedulingConflict(false);
-      setConflictingJobs([]);
-      
       // Close dialog and reset values
       setAssignTechnicianOpen(false);
       setAssignmentTime('');
@@ -754,6 +684,56 @@ export default function AdminDashboard() {
       fetchJobCards(true);
     } catch (error) {
       console.error('Error assigning technician:', error);
+      toast.error('Failed to assign technician');
+    }
+  };
+
+  const handleOverrideAssignment = async () => {
+    if (!selectedJob || !selectedTechnician) return;
+
+    try {
+      const technician = technicians.find(t => t.name === selectedTechnician);
+      if (!technician) return;
+
+      toast.loading('Assigning technician with override...');
+      
+      const response = await fetch(`/api/technicians/availability`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId: selectedJob.id,
+          technicianName: technician.name,
+          jobDate: assignmentDate,
+          startTime: assignmentTime || '09:00',
+          override: true,
+        }),
+      });
+      
+      toast.dismiss();
+      const data = await response.json();
+      
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to assign technician');
+        return;
+      }
+      
+      toast.success('Technician assigned successfully with scheduling override');
+      
+      setConflictDialogOpen(false);
+      setAssignTechnicianOpen(false);
+      setAssignmentTime('');
+      setAssignmentNotes('');
+      
+      if (selectedJob) {
+        selectedJob.technician_name = technician.name;
+        selectedJob.assigned_technician_id = technician.id;
+      }
+      
+      fetchJobCards(true);
+    } catch (error) {
+      console.error('Error overriding assignment:', error);
       toast.error('Failed to assign technician');
     }
   };
@@ -1714,13 +1694,7 @@ export default function AdminDashboard() {
       {/* Assign Technician Dialog */}
       <Dialog 
         open={assignTechnicianOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            setConflictingJobs([]);
-            setHasSchedulingConflict(false);
-          }
-          setAssignTechnicianOpen(open);
-        }}>
+        onOpenChange={setAssignTechnicianOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader className="pb-1">
             <DialogTitle className="text-lg font-bold flex items-center">
@@ -1870,37 +1844,7 @@ export default function AdminDashboard() {
                     className="resize-none border-gray-300 h-20 text-sm"
                   />
                 </div>
-                
-                {/* Scheduling conflict warning */}
-                {hasSchedulingConflict && conflictingJobs.length > 0 && (
-                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                    <div className="flex items-start">
-                      <AlertTriangle className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-amber-800">Scheduling Conflict Detected</h4>
-                        <p className="text-sm text-amber-700 mt-1">
-                          This technician already has {conflictingJobs.length} job(s) scheduled within 3 hours of this time slot:
-                        </p>
-                        <ul className="mt-2 text-xs text-amber-700 space-y-1.5">
-                          {conflictingJobs.slice(0, 3).map(job => (
-                            <li key={job.id} className="border-l-2 border-amber-300 pl-2">
-                              <span className="font-semibold">Job #{job.job_number}</span>: {job.customer_name}
-                              <br />
-                              <span className="text-amber-600">
-                                {new Date(job.job_date).toLocaleDateString()} at {job.start_time ? new Date(job.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'unspecified time'}
-                              </span>
-                            </li>
-                          ))}
-                          {conflictingJobs.length > 3 && (
-                            <li className="text-amber-600 italic">
-                              + {conflictingJobs.length - 3} more conflicting job(s)
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
             
@@ -1915,12 +1859,10 @@ export default function AdminDashboard() {
               <Button 
                 onClick={confirmAssignTechnician} 
                 disabled={!selectedTechnician}
-                className={`font-medium px-4 py-2 text-sm ${hasSchedulingConflict 
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white' 
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+                className="font-medium px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <UserPlus className="mr-1.5 h-4 w-4" />
-                {hasSchedulingConflict ? 'Assign Anyway' : 'Assign Technician'}
+                Assign Technician
               </Button>
             </div>
           </div>
@@ -2662,6 +2604,58 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Dialog */}
+      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-amber-600">⚠️ Scheduling Conflict</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 font-semibold">
+                ⚠️ WARNING: This will create a double booking!
+              </p>
+              <p className="text-red-700 text-sm mt-1">
+                {selectedTechnician} is already assigned to other jobs within 3 hours of the selected time.
+              </p>
+            </div>
+            
+            {conflictData?.conflicts && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
+                {conflictData.conflicts.map((job: any) => (
+                  <div key={job.id} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
+                    <div className="font-semibold text-amber-800">Job #{job.job_number}</div>
+                    <div className="text-sm text-amber-700">
+                      Customer: {job.customer_name}<br/>
+                      Time: {job.start_time ? new Date(job.start_time).toLocaleString() : 'Not provided'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <p className="text-gray-600 text-sm">
+              Proceeding will override the scheduling conflict. Do you want to continue?
+            </p>
+            
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setConflictDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleOverrideAssignment}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                Assign Anyway
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
