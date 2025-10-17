@@ -72,66 +72,81 @@ export function LoginForm({
   };
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Enter your email below to login to your account
+    <div className={cn("flex flex-col gap-6 items-center px-4", className)} {...props}>
+      <Card className="w-full max-w-md rounded-xl shadow-xl">
+        <CardHeader className="text-center pt-6">
+          <CardTitle className="text-3xl font-semibold">Sign In</CardTitle>
+          <CardDescription className="text-blue-600">
+            Access the fleet management dashboard to manage your vehicles,
+            drivers, and trips.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-6 pb-6">
           <form onSubmit={handleLogin}>
-            <div className="flex flex-col gap-6">
-              <div className="gap-2 grid">
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="name@example.com"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="bg-white border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-              <div className="gap-2 grid">
+
+              <div className="flex flex-col gap-2">
                 <div className="flex items-center">
                   <Label htmlFor="password">Password</Label>
                   <Link
                     href="/auth/forgot-password"
-                    className="inline-block ml-auto text-sm hover:underline underline-offset-4"
+                    className="inline-block ml-auto text-sm text-blue-600 hover:underline underline-offset-2"
                   >
-                    Forgot your password?
+                    Forgot password?
                   </Link>
                 </div>
                 <Input
                   id="password"
                   type="password"
                   required
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="bg-white border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
+
               {error && <p className="text-red-500 text-sm">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+
+              <div className="flex items-center gap-3">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <label htmlFor="remember" className="text-sm font-medium text-gray-700">
+                  Remember me
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-3"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </div>
-            <div className="mt-4 text-sm text-center">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/auth/sign-up"
-                className="underline underline-offset-4"
-              >
-                Sign up
-              </Link>
-            </div>
-            <div className="mt-2 text-gray-500 text-xs text-center">
-              <Link href="/dashboard" className="hover:underline">
-                View Dashboard
-              </Link>
-            </div>
           </form>
+
+          <div className="mt-4 text-sm text-center">
+            Don&apos;t have an account?{' '}
+            <Link href="/auth/sign-up" className="text-blue-600 hover:underline">
+              Sign up
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
