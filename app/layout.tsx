@@ -12,15 +12,15 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Soltrack Motion Live",
-  description: "Vehicle tracking and job management system by Soltrack",
+  title: "Solflo",
+  description: "Vehicle tracking and job management system",
   manifest: "/manifest.json",
   themeColor: "#1e40af",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Soltrack"
+    title: "Solflo"
   }
 };
 
@@ -38,6 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/soltrack-vehicle-tracking-logo-transparent.png" />
         <Script
           src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"
           strategy="beforeInteractive"

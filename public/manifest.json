@@ -1,7 +1,7 @@
 {
-  "name": "Soltrack Motion Live",
-  "short_name": "Soltrack",
-  "description": "Vehicle tracking and job management system by Soltrack",
+  "name": "Solflo",
+  "short_name": "Solflo",
+  "description": "Vehicle tracking and job management system",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -10,15 +10,15 @@
   "categories": ["business", "productivity"],
   "icons": [
     {
-      "src": "/soltrack-logo.jpg",
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/soltrack-logo.jpg",
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]
