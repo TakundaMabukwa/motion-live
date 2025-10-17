@@ -214,6 +214,7 @@ export default function AdminJobsPage() {
   };
 
   const confirmAssignTechnician = async () => {
+    console.log('FUNCTION CALLED: confirmAssignTechnician started');
     if (!selectedTechnician || !jobDate) {
       toast.error('Please fill in all required fields');
       return;
@@ -227,17 +228,59 @@ export default function AdminJobsPage() {
         return;
       }
 
-      console.log('Assigning technician:', selectedTech.name, 'Email:', selectedTech.email);
-
-      // Update the job with technician assignment
-      const response = await fetch(`/api/admin/jobs/assign-technician`, {
+      console.log(`STEP 1: Starting assignment for ${selectedTech.name} (${selectedTech.email})`);
+      
+      // Generate email from technician name if no email exists
+      let technicianEmail = selectedTech.email;
+      if (!technicianEmail || technicianEmail.includes('@company.com')) {
+        // Generate email from name: "John Smith" -> "john.smith@soltrack.co.za"
+        const emailName = selectedTech.name
+          .toLowerCase()
+          .replace(/\s+/g, '.')
+          .replace(/[^a-z0-9.]/g, '');
+        technicianEmail = `${emailName}@soltrack.co.za`;
+        console.log(`Generated email from name: ${technicianEmail}`);
+      }
+      
+      console.log(`STEP 2: Using technician email: ${technicianEmail}`);
+      
+      // STEP 3: Pre-update the job_cards table with technician_phone (email) to trigger stock transfers
+      console.log('STEP 3: Pre-updating job_cards with technician_phone...');
+      const preUpdateResponse = await fetch(`/api/job-cards/${selectedJob?.id}/assign-technician`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          technician_id: selectedTech.id,
+          technician_name: selectedTech.name,
+          technician_email: technicianEmail,
+          assignment_date: jobDate,
+          assignment_notes: `Assigned via admin panel on ${new Date().toISOString()}`
+        }),
+      });
+      
+      if (!preUpdateResponse.ok) {
+        const errorData = await preUpdateResponse.json();
+        console.error('Pre-update failed:', errorData);
+        toast.error(`Failed to update technician assignment: ${errorData.error}`);
+        return;
+      }
+      
+      const preUpdateResult = await preUpdateResponse.json();
+      console.log('STEP 3: Pre-update successful:', preUpdateResult);
+      toast.success('Technician assigned and stock transfers initiated!');
+      
+      // STEP 4: Also update via the admin endpoint for compatibility
+      console.log('STEP 4: Updating via admin endpoint...');
+      const adminResponse = await fetch(`/api/admin/jobs/assign-technician`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           jobId: selectedJob?.id,
-          technicianEmail: selectedTech.email,
+          technicianEmail: technicianEmail,
           technicianName: selectedTech.name,
           jobDate: jobDate,
           startTime: startTime || null,
@@ -245,15 +288,17 @@ export default function AdminJobsPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to assign technician');
+      if (!adminResponse.ok) {
+        const errorData = await adminResponse.json();
+        console.warn('Admin endpoint failed, but main assignment succeeded:', errorData);
+        // Don't fail here since the main assignment worked
+      } else {
+        const adminResult = await adminResponse.json();
+        console.log('STEP 4: Admin update successful:', adminResult);
       }
-
-      const result = await response.json();
-      console.log('Assignment result:', result);
-
-      toast.success(`Job assigned successfully! ${selectedTech.name} will handle this job.`);
+      
+      toast.success('Technician assignment completed successfully!');
+      
       setAssignTechnicianOpen(false);
       setSelectedJob(null);
       setSelectedTechnician('');
@@ -262,8 +307,8 @@ export default function AdminJobsPage() {
       setEndTime('');
       fetchAdminJobs(); // Refresh the jobs list
     } catch (error) {
-      console.error('Error assigning technician:', error);
-      toast.error('Error: Please alert tech team. Assignment failed.');
+      console.error('Assignment failed:', error);
+      toast.error(`Assignment failed: ${error.message}`);
     }
   };
 
@@ -825,7 +870,10 @@ export default function AdminJobsPage() {
               <Button variant="outline" onClick={() => setAssignTechnicianOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={confirmAssignTechnician} disabled={!selectedTechnician || !jobDate}>
+              <Button 
+                onClick={confirmAssignTechnician}
+                disabled={!selectedTechnician || !jobDate}
+              >
                 Assign Technician
               </Button>
             </div>

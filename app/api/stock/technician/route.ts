@@ -43,7 +43,11 @@ function getStockTypeFromSupplier(supplier: string): string {
 }
 
 // Define the complete inventory structure here as fallback
-const COMPLETE_INVENTORY = {
+type InventoryItem = { description?: string; count?: number };
+type SupplierInventory = { [itemCode: string]: InventoryItem };
+type Inventory = { [supplier: string]: SupplierInventory | InventoryItem };
+
+const COMPLETE_INVENTORY: Inventory = {
   "CST ELECTRONICS": {
     "ML9092 TSL/2.2K": { "description": "TAG READER WITH 2K RESISTOR 24V", "count": 0 }
   },
@@ -245,13 +249,64 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Use the technician's stock data if it exists, otherwise use the complete inventory
-    const stockData = technicianStock?.stock || COMPLETE_INVENTORY;
+    // Merge the COMPLETE_INVENTORY with the technician's stock so we always return
+    // every item (default count 0) but prefer technician counts when present.
+  const techStockObj: Inventory = technicianStock?.stock || {};
+
+  // Deep clone COMPLETE_INVENTORY so we don't mutate the constant
+  const mergedStock: Inventory = JSON.parse(JSON.stringify(COMPLETE_INVENTORY));
+
+    // Overlay technician stock onto the merged inventory. This will:
+    // - keep items from COMPLETE_INVENTORY that aren't in techStock
+    // - add items that exist only in techStock
+    // - prefer technician count/description when present
+    Object.entries(techStockObj).forEach(([supplier, items]) => {
+      if (!mergedStock[supplier]) mergedStock[supplier] = {};
+      // items may be a SupplierInventory or a single InventoryItem
+      const supplierItems = items as SupplierInventory | InventoryItem;
+      if ((supplierItems as InventoryItem).count !== undefined || (supplierItems as InventoryItem).description !== undefined) {
+        // Single item provided directly under supplier key. Normalize to itemCode = supplier
+        const itemData = supplierItems as InventoryItem;
+        const existing = (mergedStock[supplier] as SupplierInventory)[supplier] || {};
+        (mergedStock[supplier] as SupplierInventory)[supplier] = {
+          description: itemData.description ?? existing.description ?? supplier,
+          count: typeof itemData.count === 'number' ? (itemData.count as number) : (existing.count ?? 0)
+        };
+      } else {
+        // Regular supplierItems mapping
+        Object.entries(supplierItems as SupplierInventory).forEach(([itemCode, itemData]) => {
+          const existing = (mergedStock[supplier] as SupplierInventory)[itemCode] || {};
+          (mergedStock[supplier] as SupplierInventory)[itemCode] = {
+            description: itemData?.description ?? existing.description ?? itemCode,
+            count: typeof itemData?.count === 'number' ? (itemData.count as number) : (existing.count ?? 0)
+          };
+        });
+      }
+    });
+
+    const stockData = mergedStock;
     const processedStock: ProcessedStockItem[] = [];
 
     // Parse the nested structure: supplier -> item_code -> {count, description}
     Object.entries(stockData).forEach(([supplier, supplierItems]) => {
-      Object.entries(supplierItems as any).forEach(([itemCode, itemData]: [string, any]) => {
+      const supItems = supplierItems as SupplierInventory | InventoryItem;
+      if ((supItems as InventoryItem).count !== undefined || (supItems as InventoryItem).description !== undefined) {
+        // Single item case: itemCode is supplier
+        const itemData = supItems as InventoryItem;
+        processedStock.push({
+          id: `${supplier}-${supplier}`,
+          quantity: (itemData.count || 0).toString(),
+          technician_email: user.email!,
+          code: supplier,
+          description: itemData.description || 'No description available',
+          supplier: supplier,
+          cost_excl_vat_zar: 0,
+          usd: 0,
+          stock_type: getStockTypeFromSupplier(supplier)
+        });
+      } else {
+        const supplierItemsTyped = supItems as SupplierInventory;
+        Object.entries(supplierItemsTyped).forEach(([itemCode, itemData]) => {
         processedStock.push({
           id: `${supplier}-${itemCode}`, // Create unique ID
           quantity: (itemData.count || 0).toString(), // Always include count, default to 0
@@ -264,6 +319,7 @@ export async function GET() {
           stock_type: getStockTypeFromSupplier(supplier)
         });
       });
+      }
     });
 
     console.log(`Processed ${processedStock.length} stock items for technician ${user.email}`);

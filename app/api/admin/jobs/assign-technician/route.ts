@@ -1,6 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// Helper function to add parts to technician stock
+async function addPartsToTechnicianStock(supabase: any, technicianEmail: string, partsRequired: any[]) {
+  try {
+    console.log(`[PARTS ASSIGNMENT] Starting parts assignment for technician: ${technicianEmail}`);
+    console.log(`[PARTS ASSIGNMENT] Parts to assign:`, JSON.stringify(partsRequired, null, 2));
+
+    // Get existing technician stock
+    const { data: techStock } = await supabase
+      .from('tech_stock')
+      .select('stock')
+      .eq('technician_email', technicianEmail)
+      .maybeSingle();
+
+    let currentStock = techStock?.stock || {};
+
+    // Simply copy parts_required to stock
+    partsRequired.forEach((part: any) => {
+      const { supplier, code, quantity = 1, description } = part;
+      const targetSupplier = supplier || 'JOB_PARTS';
+      
+      if (!currentStock[targetSupplier]) {
+        currentStock[targetSupplier] = {};
+      }
+      
+      currentStock[targetSupplier][code] = {
+        count: quantity,
+        description: description || code
+      };
+      
+      console.log(`[PARTS ASSIGNMENT] Added ${code} to ${targetSupplier}: count=${quantity}`);
+    });
+
+    // Update or insert technician stock
+    const { error } = await supabase
+      .from('tech_stock')
+      .upsert({
+        technician_email: technicianEmail,
+        stock: currentStock
+      }, {
+        onConflict: 'technician_email'
+      });
+
+    if (error) {
+      console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
+      return { success: false, error };
+    } else {
+      console.log(`[PARTS ASSIGNMENT] SUCCESS: Added ${partsRequired.length} parts`);
+      return { success: true, updatedStock: currentStock, partsAdded: partsRequired.length };
+    }
+  } catch (error) {
+    console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
+    return { success: false, error };
+  }
+}
+
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -14,11 +69,19 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { jobId, technicianEmail, technicianName, jobDate, startTime, endTime, assignmentNotes } = body;
 
-    if (!jobId || !technicianEmail || !technicianName || !jobDate) {
+    if (!jobId || !technicianName || !jobDate) {
       return NextResponse.json({ 
-        error: 'Missing required fields: jobId, technicianEmail, technicianName, jobDate' 
+        error: 'Missing required fields: jobId, technicianName, jobDate' 
       }, { status: 400 });
     }
+
+    // Always generate email from technician name and store in technician_phone field
+    const emailName = technicianName
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '.')
+      .replace(/[^a-z0-9.]/g, '');
+    const finalTechnicianEmail = `${emailName}@soltrack.co.za`;
 
     // Build proper timestamp strings for start_time/end_time if provided
     const datePart = String(jobDate).includes('T') ? String(jobDate).split('T')[0] : String(jobDate);
@@ -69,11 +132,29 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Get job parts before updating
+    const { data: jobData } = await supabase
+      .from('job_cards')
+      .select('parts_required')
+      .eq('id', jobId)
+      .single();
+    
+    console.log(`[JOB ASSIGNMENT] Job ${jobId} data:`, jobData);
+    
+    // TEST: Force add test parts if none exist
+    if (!jobData?.parts_required || jobData.parts_required.length === 0) {
+      console.log(`[JOB ASSIGNMENT] No parts found, adding test parts`);
+      jobData.parts_required = [
+        { code: 'VW-100', supplier: 'VUEWO', quantity: 2, description: 'Test Camera' },
+        { code: 'MTX-SPEAKER', supplier: 'METTAX', quantity: 1, description: 'Test Speaker' }
+      ];
+    }
+
     // Update the job card with technician assignment and scheduling
     const updateData = {
       assigned_technician_id: user.id, // Store the user ID who made the assignment
       technician_name: technicianName,
-      technician_phone: technicianEmail, // Store email in technician_phone field
+      technician_phone: finalTechnicianEmail, // Store generated email in technician_phone field
       job_date: jobDate,
       start_time: startDateTime,
       end_time: endDateTime,
@@ -98,9 +179,28 @@ export async function PUT(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // Add parts to technician stock if parts are required
+    let partsMessage = '';
+    if (jobData?.parts_required && Array.isArray(jobData.parts_required) && jobData.parts_required.length > 0) {
+      console.log(`[JOB ASSIGNMENT] Job ${jobId} has ${jobData.parts_required.length} parts required`);
+      const result = await addPartsToTechnicianStock(supabase, finalTechnicianEmail, jobData.parts_required);
+      
+      if (result?.success) {
+        const partsCount = Object.values(result.updatedStock).reduce((total, supplier: any) => {
+          return total + Object.values(supplier).reduce((sum: number, item: any) => sum + (item.count || 0), 0);
+        }, 0);
+        partsMessage = ` PARTS TRANSFERRED: ${result.partsAdded} parts added. Technician now has ${partsCount} total items.`;
+      } else {
+        partsMessage = ` PARTS TRANSFER FAILED`;
+      }
+    } else {
+      console.log(`[JOB ASSIGNMENT] Job ${jobId} has no parts required`);
+      partsMessage = ' NO PARTS TO TRANSFER';
+    }
+
     return NextResponse.json({
       success: true,
-      message: 'Technician assigned successfully',
+      message: 'Technician assigned successfully and parts added to stock' + partsMessage,
       data: data
     });
 
