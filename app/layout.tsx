@@ -50,10 +50,14 @@ export default function RootLayout({
         />
         <Script id="register-sw" strategy="afterInteractive">
           {`
-            if ('serviceWorker' in navigator) {
+            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
               navigator.serviceWorker.register('/sw.js')
-                .then(() => console.log('SW registered'))
-                .catch(() => console.log('SW registration failed'));
+                .then((registration) => {
+                  console.log('SW registered:', registration.scope);
+                })
+                .catch((error) => {
+                  console.log('SW registration failed:', error);
+                });
             }
           `}
         </Script>

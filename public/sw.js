@@ -1,24 +1,34 @@
-const CACHE_NAME = 'motion-live-v1';
+const CACHE_NAME = 'solflo-v1';
 const urlsToCache = [
-  '/',
-  '/protected/tech',
-  '/protected/admin',
-  '/protected/fc',
-  '/protected/inv'
+  '/'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        return cache.addAll(urlsToCache).catch(() => {
+          console.log('Cache addAll failed');
+        });
+      })
   );
 });
 
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        return response || fetch(event.request);
-      })
-  );
+  if (event.request.method === 'GET') {
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          return response || fetch(event.request);
+        })
+        .catch(() => {
+          return fetch(event.request);
+        })
+    );
+  }
 });
