@@ -109,6 +109,7 @@ export default function AdminDashboard() {
     odometer: ''
   });
   const [selectedTechnician, setSelectedTechnician] = useState('');
+  const [selectedTechnicians, setSelectedTechnicians] = useState([]);
   const [assignmentDate, setAssignmentDate] = useState('');
   const [assignmentTime, setAssignmentTime] = useState('');
   const [assignmentNotes, setAssignmentNotes] = useState('');
@@ -508,8 +509,30 @@ export default function AdminDashboard() {
   const handleAssignTechnician = (job: JobCard) => {
     setSelectedJob(job);
     setSelectedTechnician('');
-    setAssignmentDate(new Date().toISOString().split('T')[0]);
-    setAssignmentTime('');
+    
+    // For reassignment, populate with current technicians, date, and time
+    const currentTechnicians = [];
+    let currentDate = new Date().toISOString().split('T')[0];
+    let currentTime = '';
+    
+    if (job.technician_name) {
+      const technicianNames = job.technician_name.split(', ');
+      currentTechnicians.push(...technicianNames);
+      
+      // Get current date and time from the job if available
+      if (job.job_date) {
+        currentDate = new Date(job.job_date).toISOString().split('T')[0];
+      }
+      // Extract time from job_date if it includes time, or use a separate time field if available
+      if (job.job_date && job.job_date.includes('T')) {
+        const timeStr = new Date(job.job_date).toTimeString().slice(0, 5);
+        currentTime = timeStr;
+      }
+    }
+    
+    setSelectedTechnicians(currentTechnicians);
+    setAssignmentDate(currentDate);
+    setAssignmentTime(currentTime);
     setAssignmentNotes('');
     setAssignTechnicianOpen(true);
   };
@@ -621,20 +644,21 @@ export default function AdminDashboard() {
 
 
   const confirmAssignTechnician = async () => {
-    if (!selectedJob || !selectedTechnician) {
-      toast.error('Please select a technician');
+    if (!selectedJob || selectedTechnicians.length === 0) {
+      toast.error('Please select at least one technician');
       return;
     }
 
     try {
-      const technician = technicians.find(t => t.name === selectedTechnician);
-      if (!technician) {
-        toast.error('Selected technician not found');
-        return;
-      }
-
       // Show loading toast
-      toast.loading('Assigning technician...');
+      toast.loading('Assigning technician(s)...');
+
+      // Create comma-separated technician names and emails
+      const technicianNames = selectedTechnicians.join(', ');
+      const technicianEmails = selectedTechnicians.map(name => {
+        const tech = technicians.find(t => t.name === name);
+        return tech ? tech.email : name;
+      }).join(', ');
 
       // Use our technician validation API
       const response = await fetch(`/api/technicians/availability`, {
@@ -644,7 +668,7 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           jobId: selectedJob.id,
-          technicianName: technician.name,
+          technicianName: technicianNames,
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
           override: false, // First attempt without override
@@ -663,39 +687,47 @@ export default function AdminDashboard() {
         setConflictDialogOpen(true);
         return;
       } else if (!response.ok) {
-        toast.error(data.error || 'Failed to assign technician');
+        toast.error(data.error || 'Failed to assign technician(s)');
         return;
       } else {
-        toast.success(data.message || 'Technician assigned successfully');
+        toast.success(data.message || `Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully`);
       }
 
       // Close dialog and reset values
       setAssignTechnicianOpen(false);
       setAssignmentTime('');
       setAssignmentNotes('');
+      setSelectedTechnicians([]);
       
       // Update selected job with new technician info
       if (selectedJob) {
-        selectedJob.technician_name = technician.name;
-        selectedJob.assigned_technician_id = technician.id;
+        selectedJob.technician_name = technicianNames;
+        selectedJob.assigned_technician_id = selectedTechnicians.map(name => {
+          const tech = technicians.find(t => t.name === name);
+          return tech ? tech.id : name;
+        }).join(', ');
       }
       
       // Refresh data
       fetchJobCards(true);
     } catch (error) {
       console.error('Error assigning technician:', error);
-      toast.error('Failed to assign technician');
+      toast.error('Failed to assign technician(s)');
     }
   };
 
   const handleOverrideAssignment = async () => {
-    if (!selectedJob || !selectedTechnician) return;
+    if (!selectedJob || selectedTechnicians.length === 0) return;
 
     try {
-      const technician = technicians.find(t => t.name === selectedTechnician);
-      if (!technician) return;
-
       toast.loading('Assigning technician with override...');
+      
+      // Create comma-separated technician names and emails
+      const technicianNames = selectedTechnicians.join(', ');
+      const technicianEmails = selectedTechnicians.map(name => {
+        const tech = technicians.find(t => t.name === name);
+        return tech ? tech.email : name;
+      }).join(', ');
       
       const response = await fetch(`/api/technicians/availability`, {
         method: 'POST',
@@ -704,10 +736,11 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           jobId: selectedJob.id,
-          technicianName: technician.name,
+          technicianName: technicianNames,
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
           override: true,
+          assignmentNotes: assignmentNotes || null,
         }),
       });
       
@@ -719,16 +752,20 @@ export default function AdminDashboard() {
         return;
       }
       
-      toast.success('Technician assigned successfully with scheduling override');
+      toast.success(`Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully with scheduling override`);
       
       setConflictDialogOpen(false);
       setAssignTechnicianOpen(false);
       setAssignmentTime('');
       setAssignmentNotes('');
+      setSelectedTechnicians([]);
       
       if (selectedJob) {
-        selectedJob.technician_name = technician.name;
-        selectedJob.assigned_technician_id = technician.id;
+        selectedJob.technician_name = technicianNames;
+        selectedJob.assigned_technician_id = selectedTechnicians.map(name => {
+          const tech = technicians.find(t => t.name === name);
+          return tech ? tech.id : name;
+        }).join(', ');
       }
       
       fetchJobCards(true);
@@ -1359,7 +1396,17 @@ export default function AdminDashboard() {
                             >
                               View
                             </Button>
-                            {!job.technician_name && (
+                            {job.technician_name ? (
+                              <Button
+                                onClick={() => handleAssignTechnician(job)}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Re-assign
+                              </Button>
+                            ) : (
                               <Button
                                 onClick={() => handleAssignTechnician(job)}
                                 variant="default"
@@ -1784,14 +1831,27 @@ export default function AdminDashboard() {
               </div>
               
               <div className="p-3 space-y-3 bg-white">
+                {selectedJob?.technician_name && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
+                    <h4 className="text-xs font-semibold text-yellow-800 mb-1 uppercase">Current Assignment</h4>
+                    <p className="text-sm text-yellow-700">Currently assigned to: <strong>{selectedJob.technician_name}</strong></p>
+                  </div>
+                )}
                 <div>
-                  <Label htmlFor="technician" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Select Technician *</Label>
-                  <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+                  <Label htmlFor="technician" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">
+                    {selectedJob?.technician_name ? 'Select New Technician *' : 'Select Technician *'}
+                  </Label>
+                  <Select value={selectedTechnician} onValueChange={(value) => {
+                    if (value && !selectedTechnicians.includes(value)) {
+                      setSelectedTechnicians(prev => [...prev, value]);
+                    }
+                    setSelectedTechnician('');
+                  }}>
                     <SelectTrigger className="w-full border-gray-300 h-9 text-sm">
                       <SelectValue placeholder="Select a technician" />
                     </SelectTrigger>
                     <SelectContent>
-                      {technicians.map((technician) => (
+                      {technicians.filter(tech => !selectedTechnicians.includes(tech.name)).map((technician) => (
                         <SelectItem key={technician.id} value={technician.name}>
                           {technician.name} ({technician.email})
                         </SelectItem>
@@ -1799,6 +1859,24 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                {selectedTechnicians.length > 0 && (
+                  <div>
+                    <Label className="block text-xs font-semibold text-gray-600 mb-2 uppercase">Selected Technicians</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTechnicians.map((techName, index) => (
+                        <div key={index} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                          <span>{techName}</span>
+                          <button
+                            onClick={() => setSelectedTechnicians(prev => prev.filter((_, i) => i !== index))}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -1858,11 +1936,11 @@ export default function AdminDashboard() {
               </Button>
               <Button 
                 onClick={confirmAssignTechnician} 
-                disabled={!selectedTechnician}
+                disabled={selectedTechnicians.length === 0}
                 className="font-medium px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <UserPlus className="mr-1.5 h-4 w-4" />
-                Assign Technician
+                Assign Technician{selectedTechnicians.length > 1 ? 's' : ''}
               </Button>
             </div>
           </div>
@@ -2625,8 +2703,8 @@ export default function AdminDashboard() {
             
             {conflictData?.conflicts && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
-                {conflictData.conflicts.map((job: any) => (
-                  <div key={job.id} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
+                {conflictData.conflicts.map((job: any, index: number) => (
+                  <div key={job.id || job.job_number || index} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
                     <div className="font-semibold text-amber-800">Job #{job.job_number}</div>
                     <div className="text-sm text-amber-700">
                       Customer: {job.customer_name}<br/>

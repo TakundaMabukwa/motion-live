@@ -54,21 +54,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform the data to match the expected format
-    const transformedQuotes = data?.map(job => ({
-      ...job, // Include all job fields
-      total_amount: job.estimated_cost || job.quotation_total_amount || 0,
-      jobs: [
-        {
-          id: job.id,
-          product_name: job.job_description || 'Job Service',
-          quantity: 1,
-          subtotal: job.estimated_cost || job.quotation_total_amount || 0,
-          technician: job.technician_name,
-          date: job.job_date,
-          time: job.start_time
-        }
-      ]
-    })) || [];
+    const transformedQuotes = data?.map(job => {
+      console.log('Job:', job.id, 'technician_name:', job.technician_name);
+      return {
+        ...job,
+        total_amount: job.estimated_cost || job.quotation_total_amount || 0,
+        jobs: [
+          {
+            id: job.id,
+            product_name: job.job_description || 'Job Service',
+            quantity: 1,
+            subtotal: job.estimated_cost || job.quotation_total_amount || 0,
+            technician: job.technician_name,
+            date: job.job_date,
+            time: job.start_time
+          }
+        ]
+      };
+    }) || [];
 
     console.log('Jobs API - Filters applied:', { status, company, role, technician });
     console.log('Jobs API - Fetched jobs:', transformedQuotes.length, 'records');

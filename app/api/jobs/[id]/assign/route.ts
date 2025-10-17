@@ -13,7 +13,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const jobId = await params.id;
     const body = await request.json();
-    const { technician, date, time } = body;
+    const { technician, date, time, override } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -23,15 +23,55 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Technician, date, and time are required' }, { status: 400 });
     }
 
-    // Find the technician by email to get their name
-    const { data: technicianData, error: techError } = await supabase
-      .from('technicians')
-      .select('id, name')
-      .eq('email', technician)
-      .single();
+    // Handle multiple technicians (comma-separated emails)
+    const technicianEmails = technician.split(',').map(email => email.trim());
+    const technicianNames = [];
+    const technicianIds = [];
 
-    if (techError || !technicianData) {
-      return NextResponse.json({ error: 'Technician not found' }, { status: 404 });
+    // Get all technician data for the provided emails
+    for (const email of technicianEmails) {
+      const { data: techData, error: techError } = await supabase
+        .from('technicians')
+        .select('id, name')
+        .eq('email', email)
+        .single();
+      
+      if (techData) {
+        technicianNames.push(techData.name);
+        technicianIds.push(techData.id);
+      }
+    }
+
+    if (technicianNames.length === 0) {
+      return NextResponse.json({ error: 'No valid technicians found' }, { status: 404 });
+    }
+
+    const combinedNames = technicianNames.join(', ');
+    const combinedIds = technicianIds.join(', ');
+
+    // Check for conflicts unless override is true
+    if (!override) {
+      const conflicts = [];
+      for (const email of technicianEmails) {
+        const { data: conflictJobs } = await supabase
+          .from('job_cards')
+          .select('job_number, customer_name, start_time')
+          .eq('technician_phone', email)
+          .eq('job_date', date)
+          .neq('id', jobId);
+        
+        if (conflictJobs && conflictJobs.length > 0) {
+          conflicts.push(...conflictJobs);
+        }
+      }
+      
+      if (conflicts.length > 0) {
+        return NextResponse.json({
+          error: 'Scheduling conflict detected',
+          needsOverride: true,
+          conflicts: conflicts
+        }, { status: 409 });
+      }
     }
 
     // Combine date and time
@@ -41,15 +81,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { data: updatedJob, error: updateError } = await supabase
       .from('job_cards')
       .update({
-        assigned_technician_id: technicianData.id,
-        technician_name: technicianData.name,
-        technician_phone: technician, // Using technician_phone instead of technician_email
+        assigned_technician_id: combinedIds,
+        technician_name: combinedNames,
+        technician_phone: technician, // Store comma-separated emails in technician_phone field
         job_date: date,
         start_time: time,
         updated_at: new Date().toISOString(),
-        updated_by: user.id, // Use actual user ID
-        // Add assignment details to work_notes
-        work_notes: `Technician assigned: ${technicianData.name} (${technician}) on ${date} at ${time}`
+        updated_by: user.id,
+        work_notes: `Technician${technicianNames.length > 1 ? 's' : ''} assigned: ${combinedNames} (${technician}) on ${date} at ${time}`
       })
       .eq('id', jobId)
       .select('*')
@@ -60,12 +99,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Failed to assign technician' }, { status: 500 });
     }
 
+    console.log('Job card updated successfully:', updatedJob);
+
     // Create a schedule entry for this job
     const scheduleData = {
       job_card_id: jobId,
-      technician_id: technicianData.id,
-      technician_name: technicianData.name,
-      technician_email: technician, // Keep this as email for schedule table
+      technician_id: combinedIds,
+      technician_name: combinedNames,
+      technician_email: technician, // Store comma-separated emails
       job_number: updatedJob.job_number,
       job_type: updatedJob.job_type,
       job_description: updatedJob.job_description,
@@ -75,7 +116,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       scheduled_date: assignmentDateTime,
       estimated_duration_hours: updatedJob.estimated_duration_hours || 2,
       status: 'scheduled',
-      notes: `Assigned on ${date} at ${time}`,
+      notes: `Assigned to ${combinedNames} on ${date} at ${time}`,
       created_by: user.id,
       updated_by: user.id
     };

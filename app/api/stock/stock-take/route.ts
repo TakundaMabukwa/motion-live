@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+interface StockItem {
+  count: number;
+  description: string;
+}
+
+interface SupplierStock {
+  [itemCode: string]: StockItem;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -18,6 +27,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid stock updates data' }, { status: 400 });
     }
 
+    // Get current technician stock
+    const { data: currentTechStock, error: fetchError } = await supabase
+      .from('tech_stock')
+      .select('stock')
+      .eq('technician_email', user.email)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching technician stock:', fetchError);
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+
+    const currentStock = currentTechStock?.stock || {};
     let updatedCount = 0;
     const errors = [];
 
@@ -32,64 +54,45 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Get current stock item to calculate new total value
-        const { data: currentStock, error: fetchError } = await supabase
-          .from('stock')
-          .select('cost_excl_vat_zar')
-          .eq('id', id)
-          .single();
-
-        if (fetchError) {
-          console.error(`Error fetching stock item ${id}:`, fetchError);
-          errors.push(`Failed to fetch item ${id}: ${fetchError.message}`);
-          continue;
+        // Find the supplier that contains this item code
+        let itemFound = false;
+        for (const [, supplierItems] of Object.entries(currentStock as Record<string, SupplierStock>)) {
+          if (supplierItems[id]) {
+            // Update the count in the nested structure
+            supplierItems[id].count = new_quantity;
+            itemFound = true;
+            break;
+          }
         }
 
-        // Calculate new total value
-        const costPerUnit = parseFloat(currentStock.cost_excl_vat_zar || '0');
-        const newTotalValue = (new_quantity * costPerUnit).toFixed(2);
-
-        // Update the stock quantity and total value
-        const { error: updateError } = await supabase
-          .from('stock')
-          .update({ 
-            quantity: new_quantity.toString(),
-            total_value: newTotalValue,
-            created_at: new Date().toISOString()
-          })
-          .eq('id', id);
-
-        if (updateError) {
-          console.error(`Error updating stock item ${id}:`, updateError);
-          errors.push(`Failed to update item ${id}: ${updateError.message}`);
+        if (!itemFound) {
+          errors.push(`Item ${id} not found in stock`);
           continue;
-        }
-
-        // Log the stock take change
-        const { error: logError } = await supabase
-          .from('stock_take_log')
-          .insert({
-            stock_item_id: id,
-            previous_quantity: current_quantity,
-            new_quantity: new_quantity,
-            difference: difference,
-            stock_take_date: stock_take_date,
-            notes: notes,
-            performed_by: user.id,
-            created_at: new Date().toISOString()
-          });
-
-        if (logError) {
-          console.error(`Error logging stock take for item ${id}:`, logError);
-          // Don't fail the entire operation for logging errors
         }
 
         updatedCount++;
       } catch (error) {
         console.error(`Error processing stock update for item ${update.id}:`, error);
-        errors.push(`Error processing item ${update.id}: ${error.message}`);
+        errors.push(`Error processing item ${update.id}: ${(error as Error).message}`);
       }
     }
+
+    // Update the technician stock
+    const { error: updateError } = await supabase
+      .from('tech_stock')
+      .upsert({
+        technician_email: user.email,
+        stock: currentStock,
+        created_at: new Date().toISOString()
+      });
+
+    if (updateError) {
+      console.error('Error updating technician stock:', updateError);
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    // Log the stock take change (optional - you might want to create a log table for this)
+    // For now, we'll skip the logging as the structure changed
 
     // Return results
     const response = {

@@ -13,7 +13,7 @@ const techSidebarItems = [
   { name: 'Dashboard', href: '/protected/tech', icon: BarChart3 },
   { name: 'Schedule', href: '/protected/tech/schedule', icon: Calendar },
   { name: 'Jobs', href: '/protected/tech/job', icon: Briefcase },
-  // { name: 'Boot Stock', href: '/protected/tech/boot-stock', icon: Package },
+  { name: 'Boot Stock', href: '/protected/tech/boot-stock', icon: Package },
   // { name: 'VIN Scanner', href: '/protected/tech/test-vin', icon: Camera },
 ];
 

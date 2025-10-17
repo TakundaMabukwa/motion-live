@@ -31,10 +31,13 @@ export default function JobsPage() {
   const [assignTechnicianOpen, setAssignTechnicianOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [selectedTechnician, setSelectedTechnician] = useState('');
+  const [selectedTechnicians, setSelectedTechnicians] = useState([]);
   const [installationDate, setInstallationDate] = useState('');
   const [installationTime, setInstallationTime] = useState('');
   const [quotes, setQuotes] = useState([]);
   const [technicians, setTechnicians] = useState([]);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictData, setConflictData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedQuotes, setExpandedQuotes] = useState({});
   const [refreshing, setRefreshing] = useState(false);
@@ -167,37 +170,103 @@ export default function JobsPage() {
     console.log('Selected quote for assignment:', quote);
     setSelectedQuote(quote);
     setSelectedTechnician('');
-    setInstallationDate('');
-    setInstallationTime('');
+    
+    // For reassignment, populate with current technicians, date, and time
+    const currentTechnicians = [];
+    let currentDate = '';
+    let currentTime = '';
+    
+    if (quote.jobs.some(job => job.technician)) {
+      const technicianNames = quote.jobs[0]?.technician?.split(', ') || [];
+      currentTechnicians.push(...technicianNames);
+      
+      // Get current date and time from the job
+      currentDate = quote.jobs[0]?.date || '';
+      currentTime = quote.jobs[0]?.time || '';
+    }
+    
+    setSelectedTechnicians(currentTechnicians);
+    setInstallationDate(currentDate);
+    setInstallationTime(currentTime);
     setAssignTechnicianOpen(true);
   };
 
   const confirmAssignTechnician = async () => {
-    if (!selectedTechnician || !installationDate || !installationTime) {
-      toast.error('Please fill in all fields');
+    if (selectedTechnicians.length === 0 || !installationDate || !installationTime) {
+      toast.error('Please select at least one technician and fill in all fields');
       return;
     }
 
     try {
-      // Find the selected technician's email
-      const selectedTech = technicians.find(tech => tech.name === selectedTechnician);
-      if (!selectedTech) {
-        toast.error('Selected technician not found');
-        return;
-      }
+      const technicianEmails = selectedTechnicians.map(name => {
+        const tech = technicians.find(t => t.name === name);
+        return tech ? tech.email : name;
+      }).join(', ');
 
-      console.log('Assigning technician:', selectedTech.name, 'Email:', selectedTech.email);
+      console.log('Assigning technicians:', selectedTechnicians, 'Emails:', technicianEmails);
+      console.log('Job ID being assigned:', selectedQuote.id);
 
-      // Update the quote_products with technician assignment
       const response = await fetch(`/api/jobs/${selectedQuote.id}/assign`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          technician: selectedTech.email, // Send email instead of name
+          technician: technicianEmails,
           date: installationDate,
           time: installationTime,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 409 && errorData.needsOverride) {
+          setConflictData(errorData);
+          setConflictDialogOpen(true);
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to assign technician');
+      }
+
+      const result = await response.json();
+      console.log('Assignment result:', result);
+
+      const isReassignment = selectedQuote.jobs.some(job => job.technician);
+      toast.success(`Job ${isReassignment ? 're-assigned' : 'assigned'} successfully! ${selectedTechnicians.join(', ')} will handle this installation.`);
+      setAssignTechnicianOpen(false);
+      setSelectedQuote(null);
+      setSelectedTechnician('');
+      setSelectedTechnicians([]);
+      setInstallationDate('');
+      setInstallationTime('');
+      
+      setTimeout(() => {
+        fetchJobs();
+      }, 500);
+    } catch (error) {
+      console.error('Error assigning technician:', error);
+      const isReassignment = selectedQuote?.jobs.some(job => job.technician);
+      toast.error(`Error: Please alert tech team. ${isReassignment ? 'Re-assignment' : 'Assignment'} failed.`);
+    }
+  };
+
+  const handleOverrideAssignment = async () => {
+    try {
+      const technicianEmails = selectedTechnicians.map(name => {
+        const tech = technicians.find(t => t.name === name);
+        return tech ? tech.email : name;
+      }).join(', ');
+
+      const response = await fetch(`/api/jobs/${selectedQuote.id}/assign`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          technician: technicianEmails,
+          date: installationDate,
+          time: installationTime,
+          override: true,
         }),
       });
 
@@ -206,19 +275,25 @@ export default function JobsPage() {
         throw new Error(errorData.error || 'Failed to assign technician');
       }
 
-      const result = await response.json();
-      console.log('Assignment result:', result);
-
-      toast.success(`Job assigned successfully! ${selectedTech.name} will handle this installation.`);
+      const isReassignment = selectedQuote.jobs.some(job => job.technician);
+      toast.success(`Job ${isReassignment ? 're-assigned' : 'assigned'} successfully with override! ${selectedTechnicians.join(', ')} will handle this installation.`);
+      
+      // Close dialogs and reset form
+      setConflictDialogOpen(false);
       setAssignTechnicianOpen(false);
       setSelectedQuote(null);
       setSelectedTechnician('');
+      setSelectedTechnicians([]);
       setInstallationDate('');
       setInstallationTime('');
-      fetchJobs(); // Refresh the jobs list
+      
+      // Refresh jobs list
+      setTimeout(() => {
+        fetchJobs();
+      }, 500);
     } catch (error) {
-      console.error('Error assigning technician:', error);
-      toast.error('Error: Please alert tech team. Assignment failed.');
+      console.error('Error overriding assignment:', error);
+      toast.error('Failed to override assignment');
     }
   };
 
@@ -436,15 +511,26 @@ export default function JobsPage() {
                               R {quote.total_amount?.toFixed(2) || '0.00'}
                             </td>
                             <td className="px-4 py-3 text-gray-900">
-                              <Button
-                                size="sm"
-                                onClick={() => handleAssignTechnician(quote)}
-                                disabled={quote.jobs.some(job => job.technician)}
-                                variant={quote.jobs.some(job => job.technician) ? "outline" : "default"}
-                                className={quote.jobs.some(job => job.technician) ? "text-gray-400 cursor-not-allowed" : ""}
-                              >
-                                {quote.jobs.some(job => job.technician) ? 'Already Assigned' : 'Assign Technician'}
-                              </Button>
+                              <div className="flex gap-2">
+                                {quote.jobs.some(job => job.technician) ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleAssignTechnician(quote)}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                    Re-assign
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAssignTechnician(quote)}
+                                  >
+                                    Assign Technician
+                                  </Button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                             {expandedQuotes[quote.id] && (
@@ -622,7 +708,9 @@ export default function JobsPage() {
       <Dialog open={assignTechnicianOpen} onOpenChange={setAssignTechnicianOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign Technician</DialogTitle>
+            <DialogTitle>
+              {selectedQuote?.jobs.some(job => job.technician) ? 'Re-assign Technician' : 'Assign Technician'}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {selectedQuote && (
@@ -631,6 +719,9 @@ export default function JobsPage() {
                 <div className="space-y-1 text-sm">
                   <p><strong>Customer:</strong> {selectedQuote.customer_name}</p>
                   <p><strong>Products:</strong> {selectedQuote.jobs.length} item(s)</p>
+                  {selectedQuote.jobs.some(job => job.technician) && (
+                    <p><strong>Current Technician:</strong> {selectedQuote.jobs[0]?.technician}</p>
+                  )}
                   {selectedQuote.jobs.map((job, index) => (
                     <p key={index} className="text-gray-600">
                       • {job.product_name} (Qty: {job.quantity})
@@ -640,13 +731,18 @@ export default function JobsPage() {
               </div>
             )}
             <div>
-              <Label htmlFor="technician">Technician</Label>
-              <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+              <Label htmlFor="technician">Select Technicians</Label>
+              <Select value={selectedTechnician} onValueChange={(value) => {
+                if (value && !selectedTechnicians.includes(value)) {
+                  setSelectedTechnicians(prev => [...prev, value]);
+                }
+                setSelectedTechnician('');
+              }}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a technician" />
+                  <SelectValue placeholder="Select technicians" />
                 </SelectTrigger>
                 <SelectContent>
-                  {technicians.map((technician) => (
+                  {technicians.filter(tech => !selectedTechnicians.includes(tech.name)).map((technician) => (
                     <SelectItem key={technician.id} value={technician.name}>
                       {technician.name} ({technician.email})
                     </SelectItem>
@@ -654,6 +750,24 @@ export default function JobsPage() {
                 </SelectContent>
               </Select>
             </div>
+            {selectedTechnicians.length > 0 && (
+              <div>
+                <Label>Selected Technicians</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedTechnicians.map((techName, index) => (
+                    <div key={index} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                      <span>{techName}</span>
+                      <button
+                        onClick={() => setSelectedTechnicians(prev => prev.filter((_, i) => i !== index))}
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <Label htmlFor="installation-date">Installation Date</Label>
               <Input
@@ -676,8 +790,52 @@ export default function JobsPage() {
               <Button variant="outline" onClick={() => setAssignTechnicianOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={confirmAssignTechnician} disabled={!selectedTechnician || !installationDate || !installationTime}>
-                Assign Technician
+              <Button onClick={confirmAssignTechnician} disabled={selectedTechnicians.length === 0 || !installationDate || !installationTime}>
+                {selectedQuote?.jobs.some(job => job.technician) ? 'Re-assign Technician' : 'Assign Technician'}{selectedTechnicians.length > 1 ? 's' : ''}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Dialog */}
+      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-amber-600">⚠️ Scheduling Conflict</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 font-semibold">WARNING: This will create a double booking!</p>
+              <p className="text-red-700 text-sm mt-1">
+                One or more selected technicians are already assigned to other jobs at this time.
+              </p>
+            </div>
+            
+            {conflictData?.conflicts && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
+                {conflictData.conflicts.map((job, index) => (
+                  <div key={index} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
+                    <div className="font-semibold text-amber-800">Job #{job.job_number}</div>
+                    <div className="text-sm text-amber-700">
+                      Customer: {job.customer_name}<br/>
+                      Time: {job.start_time ? new Date(job.start_time).toLocaleString() : 'Not provided'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <p className="text-gray-600 text-sm">
+              Do you want to proceed with the assignment anyway?
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setConflictDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleOverrideAssignment} className="bg-amber-600 hover:bg-amber-700 text-white">
+                Assign Anyway
               </Button>
             </div>
           </div>
