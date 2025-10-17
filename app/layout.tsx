@@ -15,13 +15,18 @@ export const metadata: Metadata = {
   title: "Solflo",
   description: "Vehicle tracking and job management system",
   manifest: "/manifest.json",
-  themeColor: "#1e40af",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Solflo"
   }
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#1e40af"
 };
 
 const geistSans = Geist({
