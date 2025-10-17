@@ -68,7 +68,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   }, [vehicles]);
 
   // New function to fetch vehicles from vehicles table
-  const fetchVehiclesFromIP = useCallback(async (loadAll = false) => {
+  const fetchVehiclesFromIP = useCallback(async (loadAll = true) => {
     if (!accountInfo?.new_account_number) {
       console.log('No account number available for fetching vehicles');
       return;
@@ -77,17 +77,18 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     try {
       setDeInstallData(prev => ({ ...prev, loadingVehicles: true }));
       
-      // Fetch vehicles from vehicles table for this account using server action
-      const result = await getVehiclesByAccountNumber(accountInfo.new_account_number, 1, loadAll ? 1000 : 5);
+      // Fetch ALL vehicles from vehicles table for this account using server action
+      // For de-installation, we want to show all vehicles by default
+      const result = await getVehiclesByAccountNumber(accountInfo.new_account_number, 1, loadAll ? 1000 : 1000);
       
       if (result.success) {
         const allAccountVehicles = result.vehicles || [];
         
         console.log('Fetched all vehicles for account:', allAccountVehicles);
         
-        // Determine how many vehicles to show initially
-        const initialCount = loadAll ? allAccountVehicles.length : Math.min(5, allAccountVehicles.length);
-        const vehiclesToShow = allAccountVehicles.slice(0, initialCount);
+        // For de-installation, show all vehicles by default
+        const initialCount = allAccountVehicles.length;
+        const vehiclesToShow = allAccountVehicles;
         
         // Update available vehicles in deInstallData
         setDeInstallData(prev => ({ 
@@ -97,7 +98,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           vehiclesLoaded: initialCount
         }));
         
-        // Process each vehicle and create default products for de-installation
+        // Process each vehicle and create products based on rental fields
         const vehicleProducts = {};
         for (const vehicle of vehiclesToShow) {
           if (!vehicle.id) {
@@ -105,131 +106,43 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
             continue;
           }
           
-          // Create default products for de-installation based on vehicle equipment
-          const defaultProducts = [];
+          const products = [];
+          const rentalFields = [
+            'skylink_trailer_unit_rental', 'skylink_trailer_sub', 'sky_on_batt_ign_rental', 'sky_on_batt_sub',
+            'skylink_voice_kit_rental', 'skylink_voice_kit_sub', 'sky_scout_12v_rental', 'sky_scout_12v_sub',
+            'sky_scout_24v_rental', 'sky_scout_24v_sub', 'skylink_pro_rental', 'skylink_pro_sub',
+            'sky_idata_rental', 'sky_ican_rental', 'industrial_panic_rental', 'flat_panic_rental',
+            'buzzer_rental', 'tag_rental', 'tag_reader_rental', 'keypad_rental', 'early_warning_rental',
+            'cia_rental', 'fm_unit_rental', 'fm_unit_sub', 'gps_rental', 'gsm_rental', 'tag_rental_',
+            'tag_reader_rental_', 'main_fm_harness_rental', 'beame_1_rental', 'beame_1_sub',
+            'beame_2_rental', 'beame_2_sub', 'beame_3_rental', 'beame_3_sub', 'beame_4_rental',
+            'beame_4_sub', 'beame_5_rental', 'beame_5_sub', 'single_probe_rental', 'single_probe_sub',
+            'dual_probe_rental', 'dual_probe_sub', '_7m_harness_for_probe_rental', 'tpiece_rental',
+            'idata_rental', '_1m_extension_cable_rental', '_3m_extension_cable_rental', '_4ch_mdvr_rental',
+            '_4ch_mdvr_sub', '_5ch_mdvr_rental', '_5ch_mdvr_sub', '_8ch_mdvr_rental', '_8ch_mdvr_sub',
+            'a2_dash_cam_rental', 'a2_dash_cam_sub'
+          ];
           
-          // Check for various equipment types and create products accordingly
-          if (vehicle.skylink_trailer_unit_serial_number || vehicle.skylink_trailer_unit_ip) {
-            defaultProducts.push({
-              id: `skylink-trailer-${vehicle.id}`,
-              name: "Skylink Trailer Unit",
-              description: "Trailer telematics unit with GPS tracking",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 500,
-              price: 0,
-              rental: 0,
-              code: 'SKYLINK_TRAILER',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
+          rentalFields.forEach(field => {
+            if (vehicle[field] && vehicle[field] !== '') {
+              products.push({
+                id: `${field}-${vehicle.id}`,
+                name: field.replace(/_/g, ' ').replace(/rental|sub/g, '').trim(),
+                description: `Value: ${vehicle[field]} - De-installation of ${field.replace(/_/g, ' ')}`,
+                type: "RENTAL",
+                category: "HARDWARE",
+                installation_price: 0,
+                de_installation_price: 500,
+                price: 0,
+                rental: 0,
+                code: field.toUpperCase(),
+                vehicleId: vehicle.id,
+                vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+              });
+            }
+          });
           
-          if (vehicle.sky_on_batt_ign_unit_serial_number || vehicle.sky_on_batt_ign_unit_ip) {
-            defaultProducts.push({
-              id: `sky-batt-ign-${vehicle.id}`,
-              name: "Sky On Battery Ignition Unit",
-              description: "Battery ignition telematics unit",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 500,
-              price: 0,
-              rental: 0,
-              code: 'SKY_BATT_IGN',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          if (vehicle.skylink_voice_kit_serial_number || vehicle.skylink_voice_kit_ip) {
-            defaultProducts.push({
-              id: `skylink-voice-${vehicle.id}`,
-              name: "Skylink Voice Kit",
-              description: "Voice communication kit",
-              type: "COMMUNICATION",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 300,
-              price: 0,
-              rental: 0,
-              code: 'SKYLINK_VOICE',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          if (vehicle.sky_scout_12v_serial_number || vehicle.sky_scout_12v_ip) {
-            defaultProducts.push({
-              id: `sky-scout-12v-${vehicle.id}`,
-              name: "Sky Scout 12V",
-              description: "12V Scout monitoring unit",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 400,
-              price: 0,
-              rental: 0,
-              code: 'SKY_SCOUT_12V',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          if (vehicle.sky_scout_24v_serial_number || vehicle.sky_scout_24v_ip) {
-            defaultProducts.push({
-              id: `sky-scout-24v-${vehicle.id}`,
-              name: "Sky Scout 24V",
-              description: "24V Scout monitoring unit",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 400,
-              price: 0,
-              rental: 0,
-              code: 'SKY_SCOUT_24V',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          if (vehicle.skylink_pro_serial_number || vehicle.skylink_pro_ip) {
-            defaultProducts.push({
-              id: `skylink-pro-${vehicle.id}`,
-              name: "Skylink Pro Unit",
-              description: "Professional telematics unit",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 600,
-              price: 0,
-              rental: 0,
-              code: 'SKYLINK_PRO',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          // If no specific equipment found, create a default telematics unit
-          if (defaultProducts.length === 0) {
-            defaultProducts.push({
-              id: `default-${vehicle.id}`,
-              name: "Telematics Unit",
-              description: "Standard telematics unit with GPS tracking",
-              type: "FMS",
-              category: "HARDWARE",
-              installation_price: 0,
-              de_installation_price: 500,
-              price: 0,
-              rental: 0,
-              code: 'DEFAULT',
-              vehicleId: vehicle.id,
-              vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-            });
-          }
-          
-          vehicleProducts[vehicle.id] = defaultProducts;
+          vehicleProducts[vehicle.id] = products;
         }
         
         setDeInstallData(prev => ({ ...prev, vehicleProducts }));
@@ -514,8 +427,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   // Fetch vehicles from vehicles_ip when job type changes to deinstall
   useEffect(() => {
     if (formData.jobType === 'deinstall' && accountInfo?.new_account_number) {
-      console.log('Job type changed to deinstall, fetching vehicles from vehicles_ip');
-      fetchVehiclesFromIP(false); // Load first 5 vehicles initially
+      console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
+      fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
     }
   }, [formData.jobType, accountInfo?.new_account_number, fetchVehiclesFromIP]);
 
@@ -552,8 +465,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   useEffect(() => {
     // Only fetch when job type changes and user has actually selected a job type
     if (formData.jobType === 'deinstall' && accountInfo?.new_account_number && hasUserSelectedJobType) {
-      console.log('Job type changed to deinstall, fetching vehicles from vehicles_ip');
-      fetchVehiclesFromIP(false); // Load first 5 vehicles initially
+      console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
+      fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
     } else if (formData.jobType === 'install' && hasUserSelectedJobType) {
       console.log('Job type changed to install, fetching product items');
       fetchProductItems();
@@ -575,7 +488,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       const vehicleWithProducts = {
         id: product.id,
         name: product.name,
-        description: product.description,
+        description: product.description + ' - marked for de-install',
         type: product.type,
         category: product.category,
         code: product.code || 'N/A',
@@ -708,6 +621,15 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     }
     
     const nextStep = Math.min(steps.length - 1, currentStep + 1);
+    
+    // When moving to email step, ensure customer email is in recipients
+    if (nextStep === 3 && formData.customerEmail && !formData.emailRecipients.includes(formData.customerEmail)) {
+      setFormData(prev => ({
+        ...prev,
+        emailRecipients: [...prev.emailRecipients, formData.customerEmail]
+      }));
+    }
+    
     setCurrentStep(nextStep);
     
     if (nextStep === 1) {
@@ -1392,6 +1314,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                     addProduct={addProduct}
                     viewVehicleParts={viewVehicleParts}
                     backToVehicleSelection={backToVehicleSelection}
+                    selectedProducts={selectedProducts}
                   />
                   
                   {/* Selected vehicles summary */}

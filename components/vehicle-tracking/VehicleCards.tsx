@@ -4,7 +4,9 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Car, Target, Wifi, Hash } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Car, Target, Wifi, Hash, Search, X } from 'lucide-react';
 import VehicleDetailsModal from './VehicleDetailsModal';
 import { Vehicle } from '@/lib/actions/vehicles';
 
@@ -18,6 +20,7 @@ interface VehicleCardsProps {
 export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelect, accountNumber }: VehicleCardsProps) {
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
   const [selectedVehicleForTracking, setSelectedVehicleForTracking] = useState<Vehicle | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const getVehicleDisplayName = (vehicle: Vehicle) => {
     return vehicle.fleet_number || vehicle.reg || `Vehicle ${vehicle.id}`;
@@ -37,102 +40,89 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
     );
   }
 
+  const filteredVehicles = vehicles.filter(vehicle => {
+    if (!searchTerm) return true;
+    const registration = (vehicle.reg || vehicle.fleet_number || '').toLowerCase();
+    return registration.includes(searchTerm.toLowerCase());
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="font-semibold text-xl">Vehicle Fleet</h2>
-        <Badge variant="outline">{vehicles.length} vehicles</Badge>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search by registration..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-8 h-8 text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <Badge variant="outline">{filteredVehicles.length} vehicles</Badge>
+        </div>
       </div>
       
-      <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {vehicles.map((vehicle) => {
-          const displayName = getVehicleDisplayName(vehicle);
-          const isSelected = selectedVehicle?.id === vehicle.id;
-
-          return (
-            <Card 
-              key={vehicle.id} 
-              className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-              }`}
-              onClick={() => onVehicleSelect?.(vehicle)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex justify-center items-center bg-blue-100 rounded-lg w-10 h-10">
-                      <Car className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="font-semibold text-gray-900 text-lg">
-                        {vehicle.reg || 'No Registration'}
-                      </CardTitle>
-                    </div>
-                  </div>
-                  <Badge variant="outline">
-                    Vehicle
-                  </Badge>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-3">
-                {/* Fleet Number and Registration prominently displayed */}
-                <div className="space-y-2">
-                  {vehicle.fleet_number && (
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Hash className="w-4 h-4 text-blue-600" />
-                      <span><strong>Fleet #:</strong> {vehicle.fleet_number}</span>
-                    </div>
-                  )}
-                  
-                  {vehicle.reg && (
-                    <div className="flex items-center space-x-2 text-sm">
-                      <Car className="w-4 h-4 text-green-600" />
-                      <span><strong>Registration:</strong> {vehicle.reg}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Additional vehicle details */}
-                <div className="space-y-2">
-                  {vehicle.make && vehicle.model && (
-                    <div className="text-gray-600 text-sm">
-                      <strong>Vehicle:</strong> {vehicle.make} {vehicle.model}
-                    </div>
-                  )}
-                  
-                  {vehicle.year && (
-                    <div className="text-gray-600 text-sm">
-                      <strong>Year:</strong> {vehicle.year}
-                    </div>
-                  )}
-                  
-                  {vehicle.colour && (
-                    <div className="text-gray-600 text-sm">
-                      <strong>Color:</strong> {vehicle.colour}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="pt-2">
-                  <Button 
-                    variant="outline"
-                    size="sm"
-                    className="bg-blue-50 hover:bg-blue-100 border-blue-200 w-full text-blue-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedVehicleForTracking(vehicle);
-                      setTrackingModalOpen(true);
-                    }}
-                  >
-                    <Target className="mr-2 w-3 h-3" />
-                    View Vehicle Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader className="bg-white">
+            <TableRow>
+              <TableHead>Fleet Number</TableHead>
+              <TableHead>Registration</TableHead>
+              <TableHead>Make</TableHead>
+              <TableHead>Model</TableHead>
+              <TableHead>Year</TableHead>
+              <TableHead>Color</TableHead>
+              <TableHead>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredVehicles.map((vehicle, index) => {
+              const isSelected = selectedVehicle?.id === vehicle.id;
+              const isEven = index % 2 === 0;
+              return (
+                <TableRow 
+                  key={vehicle.id} 
+                  className={`cursor-pointer ${
+                    isSelected ? 'bg-blue-50' : isEven ? 'bg-gray-50' : 'bg-white'
+                  } hover:bg-gray-100`}
+                  onClick={() => onVehicleSelect?.(vehicle)}
+                >
+                  <TableCell className="font-medium">
+                    {vehicle.fleet_number || 'N/A'}
+                  </TableCell>
+                  <TableCell>{vehicle.reg || 'No Registration'}</TableCell>
+                  <TableCell>{vehicle.make || 'N/A'}</TableCell>
+                  <TableCell>{vehicle.model || 'N/A'}</TableCell>
+                  <TableCell>{vehicle.year || 'N/A'}</TableCell>
+                  <TableCell>{vehicle.colour || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVehicleForTracking(vehicle);
+                        setTrackingModalOpen(true);
+                      }}
+                    >
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </div>
       
       {/* Vehicle Details Modal */}

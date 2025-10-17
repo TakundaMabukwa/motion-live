@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowLeft, Car, Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AlertTriangle, ArrowLeft, Car, Plus, Search, X } from "lucide-react";
 
 const DeinstallationFlow = ({ 
   deInstallData, 
@@ -14,8 +16,10 @@ const DeinstallationFlow = ({
   toggleVehicleSelection, 
   addProduct,
   viewVehicleParts,
-  backToVehicleSelection
+  backToVehicleSelection,
+  selectedProducts
 }) => {
+  const [searchTerm, setSearchTerm] = useState("");
   if (deInstallData.loadingVehicles) {
     return (
       <div className="py-8 text-center">
@@ -39,60 +43,69 @@ const DeinstallationFlow = ({
   if (deInstallData.currentStep === 0) {
     return (
       <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Select a Vehicle</Label>
-          <p className="text-gray-600 text-sm">Choose a vehicle to view its installed products:</p>
-          <div className="text-gray-500 text-xs">
-            Showing {deInstallData.vehiclesLoaded} of {deInstallData.totalVehicles} vehicles
+        <div className="flex justify-between items-center mb-3">
+          <Label>Select Vehicle ({deInstallData.totalVehicles})</Label>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search by plate..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-8 h-8 text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
         
-        <div className="space-y-3 max-h-64 overflow-y-auto">
-          {deInstallData.availableVehicles.map((vehicle) => (
-            <div
-              key={vehicle.id}
-              className="p-4 border rounded-lg transition-all hover:shadow-md border-gray-200 hover:border-gray-300 cursor-pointer"
-              onClick={() => viewVehicleParts(vehicle.id)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="mb-1 font-bold text-gray-900 text-lg">
-                    {vehicle.fleet_number || vehicle.reg || 'Unknown Vehicle'}
-                  </div>
-                  <div className="text-gray-500 text-sm">
-                    {vehicle.make || 'Unknown Make'} {vehicle.model || 'Unknown Model'} • {vehicle.year || 'N/A'}
-                  </div>
-                  <div className="text-gray-400 text-xs">
-                    VIN: {vehicle.vin || 'N/A'} • Company: {vehicle.company || 'N/A'}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    viewVehicleParts(vehicle.id);
-                  }}
-                >
-                  View Parts
-                </Button>
-              </div>
-            </div>
-          ))}
+        <div className="max-h-80 overflow-y-auto border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Plate Number</TableHead>
+                <TableHead>Make</TableHead>
+                <TableHead>Model</TableHead>
+                <TableHead>Year</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {deInstallData.availableVehicles
+                .filter(vehicle => {
+                  if (!searchTerm) return true;
+                  const plate = (vehicle.fleet_number || vehicle.reg || '').toLowerCase();
+                  return plate.includes(searchTerm.toLowerCase());
+                })
+                .map((vehicle) => (
+                  <TableRow key={vehicle.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
+                      {vehicle.fleet_number || vehicle.reg || 'Unknown Vehicle'}
+                    </TableCell>
+                    <TableCell>{vehicle.make || 'Unknown'}</TableCell>
+                    <TableCell>{vehicle.model || ''}</TableCell>
+                    <TableCell>{vehicle.year || 'N/A'}</TableCell>
+                    <TableCell>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => viewVehicleParts(vehicle.id)}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
         </div>
         
-        {/* Load More Button */}
-        {deInstallData.vehiclesLoaded < deInstallData.totalVehicles && (
-          <div className="text-center">
-            <Button
-              variant="outline"
-              onClick={() => fetchVehiclesFromIP(true)}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              Load All Vehicles ({deInstallData.totalVehicles - deInstallData.vehiclesLoaded} remaining)
-            </Button>
-          </div>
-        )}
+        {/* All vehicles are now loaded by default for de-installation */}
       </div>
     );
   }
@@ -138,29 +151,33 @@ const DeinstallationFlow = ({
           <div className="space-y-2">
             <h3 className="font-medium text-gray-700">Installed Products on {vehicleName}:</h3>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {vehicleProductsList.map((product) => (
-                <div key={product.id} className="flex justify-between items-start p-4 border rounded-lg bg-gray-50">
-                  <div className="flex-1">
-                    <div className="font-medium">{product.name}</div>
-                    <div className="text-gray-600 text-sm">{product.description}</div>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <Badge variant="secondary" className="text-xs">Code: {product.code}</Badge>
-                      <Badge variant="outline" className="text-xs">Type: {product.type}</Badge>
-                      <Badge variant="outline" className="text-xs">Category: {product.category}</Badge>
+              {vehicleProductsList.map((product) => {
+                const isSelected = selectedProducts.some(p => p.id === product.id);
+                return (
+                  <div key={product.id} className={`flex justify-between items-start p-4 border rounded-lg ${isSelected ? 'bg-gray-200 opacity-50' : 'bg-gray-50'}`}>
+                    <div className="flex-1">
+                      <div className="font-medium">{product.name}</div>
+                      <div className="text-gray-600 text-sm">{product.description}</div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="text-xs">Code: {product.code}</Badge>
+                        <Badge variant="outline" className="text-xs">Type: {product.type}</Badge>
+                        <Badge variant="outline" className="text-xs">Category: {product.category}</Badge>
+                      </div>
                     </div>
+                    <Button
+                      onClick={() => addProduct({
+                        ...product,
+                        vehicleId: deInstallData.currentVehicleId,
+                        vehiclePlate: vehicle ? (vehicle.fleet_number || vehicle.reg || 'Unknown') : 'Unknown'
+                      })}
+                      disabled={isSelected}
+                      className={isSelected ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}
+                    >
+                      {isSelected ? 'Added' : 'Add to Quote'}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => addProduct({
-                      ...product,
-                      vehicleId: deInstallData.currentVehicleId,
-                      vehiclePlate: vehicle ? (vehicle.fleet_number || vehicle.reg || 'Unknown') : 'Unknown'
-                    })}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    Add to Quote
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : (
