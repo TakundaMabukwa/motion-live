@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PWA Icons</title>
+</head>
+<body>
+    <canvas id="canvas192" width="192" height="192" style="border:1px solid #000;"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="border:1px solid #000;"></canvas>
+    
+    <script>
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+            // Generate 192x192 icon
+            const canvas192 = document.getElementById('canvas192');
+            const ctx192 = canvas192.getContext('2d');
+            ctx192.drawImage(img, 0, 0, 192, 192);
+            
+            // Generate 512x512 icon
+            const canvas512 = document.getElementById('canvas512');
+            const ctx512 = canvas512.getContext('2d');
+            ctx512.drawImage(img, 0, 0, 512, 512);
+            
+            // Download links
+            const link192 = document.createElement('a');
+            link192.download = 'icon-192x192.png';
+            link192.href = canvas192.toDataURL();
+            link192.click();
+            
+            setTimeout(() => {
+                const link512 = document.createElement('a');
+                link512.download = 'icon-512x512.png';
+                link512.href = canvas512.toDataURL();
+                link512.click();
+            }, 1000);
+        };
+        img.src = './soltrack-logo.jpg';
+    </script>
+</body>
+</html>
