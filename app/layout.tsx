@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
+import PWAInstallPrompt from "@/components/pwa-install-prompt";
 import "./globals.css";
 import 'mapbox-gl/dist/mapbox-gl.css';
 import Script from "next/script";
@@ -71,6 +72,7 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
+          <PWAInstallPrompt />
         </ThemeProvider>
       </body>
     </html>

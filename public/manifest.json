@@ -1,14 +1,48 @@
 {
-  "name": "Solflo",
+  "name": "Solflo - Vehicle Tracking & Job Management",
   "short_name": "Solflo",
-  "description": "Vehicle tracking and job management system",
+  "description": "Professional vehicle tracking and job management system for technicians and administrators",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1e40af",
-  "orientation": "portrait-primary",
-  "categories": ["business", "productivity"],
+  "orientation": "any",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/soltrack-vehicle-tracking-logo-transparent.png",
       "sizes": "192x192",
@@ -17,9 +51,23 @@
     },
     {
       "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/soltrack-vehicle-tracking-logo-transparent.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
     }
   ]
 }
