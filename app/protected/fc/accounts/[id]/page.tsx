@@ -51,6 +51,8 @@ function AccountDetailPageContent() {
   const [showClientQuote, setShowClientQuote] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [requestCache, setRequestCache] = useState(new Map());
+  const [activeRequests, setActiveRequests] = useState(new Set());
 
   useEffect(() => {
     if (accountId) {
@@ -112,9 +114,29 @@ function AccountDetailPageContent() {
   };
 
   const fetchVehicles = async (page: number = 1) => {
+    const requestKey = `vehicles-${accountId}-${page}`;
+    
+    // Check if request is already in progress
+    if (activeRequests.has(requestKey)) {
+      console.log('⏳ [ACCOUNT DETAILS] Request already in progress for:', requestKey);
+      return;
+    }
+    
+    // Check cache first (valid for 30 seconds)
+    const cached = requestCache.get(requestKey);
+    if (cached && Date.now() - cached.timestamp < 30000) {
+      console.log('💾 [ACCOUNT DETAILS] Using cached data for:', requestKey);
+      setVehicles(cached.data.vehicles);
+      setVehiclesTotalCount(cached.data.totalCount);
+      setVehiclesTotalPages(cached.data.totalPages);
+      setLoading(false);
+      return;
+    }
+    
     try {
       console.log('🚗 [ACCOUNT DETAILS] Fetching vehicles for account:', accountId, 'page:', page);
       
+      setActiveRequests(prev => new Set(prev).add(requestKey));
       setVehiclesLoading(true);
       
       // Use the account-specific vehicles API endpoint with pagination
@@ -134,6 +156,17 @@ function AccountDetailPageContent() {
         setVehicles(data.vehicles);
         setVehiclesTotalCount(data.totalCount);
         setVehiclesTotalPages(data.totalPages);
+        
+        // Cache the result
+        setRequestCache(prev => new Map(prev).set(requestKey, {
+          data: {
+            vehicles: data.vehicles,
+            totalCount: data.totalCount,
+            totalPages: data.totalPages
+          },
+          timestamp: Date.now()
+        }));
+        
         console.log('✅ [ACCOUNT DETAILS] Vehicles loaded successfully for account:', accountId);
       } else {
         console.error('❌ [ACCOUNT DETAILS] API returned error:', data.error);
@@ -151,6 +184,11 @@ function AccountDetailPageContent() {
     } finally {
       setVehiclesLoading(false);
       setLoading(false);
+      setActiveRequests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestKey);
+        return newSet;
+      });
     }
   };
 

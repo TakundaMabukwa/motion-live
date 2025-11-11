@@ -20,12 +20,13 @@ export async function GET(request: NextRequest) {
 
     console.log('Fetching cost centers for account numbers:', allNewAccountNumbers);
 
-    // Parse comma-separated account numbers and normalize them
-    const accountNumbers = allNewAccountNumbers
-      .split(',')
-      .map(num => num.trim())
-      .filter(num => num)
-      .map(num => num.toUpperCase()); // Normalize to uppercase
+    // Parse, deduplicate and normalize account numbers
+    const accountNumbers = [...new Set(
+      allNewAccountNumbers
+        .split(',')
+        .map(num => num.trim().toUpperCase())
+        .filter(num => num)
+    )];
     
     if (accountNumbers.length === 0) {
       return NextResponse.json({ 
@@ -35,58 +36,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('Parsed and normalized account numbers:', accountNumbers);
+    console.log('Deduplicated account numbers:', accountNumbers);
 
-    // Query cost_centers table using case-insensitive matching
-    // First try exact match with normalized case
-    let { data: costCenters, error } = await supabase
+    // Single optimized query with case-insensitive matching
+    const { data: costCenters, error } = await supabase
       .from('cost_centers')
       .select('*')
-      .in('cost_code', accountNumbers)
+      .or(accountNumbers.map(num => `cost_code.ilike.${num}`).join(','))
       .order('cost_code', { ascending: true });
-
-    // If no exact matches found, try case-insensitive search
-    if (!costCenters || costCenters.length === 0) {
-      console.log('No exact matches found, trying case-insensitive search...');
-      
-      // Build case-insensitive query using OR conditions
-      const caseInsensitiveConditions = accountNumbers.map(num => 
-        `cost_code.ilike.%${num}%`
-      ).join(',');
-      
-      const { data: caseInsensitiveResults, error: caseInsensitiveError } = await supabase
-        .from('cost_centers')
-        .select('*')
-        .or(caseInsensitiveConditions)
-        .order('cost_code', { ascending: true });
-      
-      if (caseInsensitiveError) {
-        console.error('Case-insensitive search error:', caseInsensitiveError);
-      } else {
-        costCenters = caseInsensitiveResults;
-        console.log('Case-insensitive search results:', costCenters?.length || 0);
-      }
-    }
-
-    // If still no results, try trimming whitespace from cost_code in database
-    if (!costCenters || costCenters.length === 0) {
-      console.log('No case-insensitive matches found, trying whitespace-trimmed search...');
-      
-      // Get all cost centers and filter manually to handle whitespace
-      const { data: allCostCenters, error: allError } = await supabase
-        .from('cost_centers')
-        .select('*')
-        .order('cost_code', { ascending: true });
-      
-      if (!allError && allCostCenters) {
-        // Filter manually to handle whitespace in cost_code
-        costCenters = allCostCenters.filter(center => {
-          const normalizedCostCode = center.cost_code?.trim().toUpperCase();
-          return accountNumbers.includes(normalizedCostCode);
-        });
-        console.log('Whitespace-trimmed search results:', costCenters?.length || 0);
-      }
-    }
 
     if (error) {
       console.error('Error fetching cost centers:', error);

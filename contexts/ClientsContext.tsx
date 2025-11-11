@@ -107,108 +107,64 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
     }
   }, []);
 
-  // Fetch contact info for each company group
+  // Fetch contact info for each company group using batch API
   const fetchContactInfo = useCallback(async (groups: CompanyGroup[]) => {
     try {
       setLoadingContacts(true);
-      console.log('🔍 Starting contact info fetch for', groups.length, 'company groups');
+      console.log('🔍 Starting batch contact info fetch for', groups.length, 'company groups');
       
-      const contactPromises = groups.map(async (group) => {
+      // Collect all unique account numbers from all groups
+      const allAccountNumbers = new Set<string>();
+      const groupAccountMap: Record<string, string[]> = {};
+      
+      groups.forEach(group => {
         if (group.all_new_account_numbers) {
-          console.log(`📋 Processing group: ${group.company_group || group.legal_names}`);
-          console.log(`📊 Raw all_new_account_numbers: "${group.all_new_account_numbers}"`);
-          
-          // Split comma-separated account numbers and try each one
           const accountNumbers = group.all_new_account_numbers
             .split(',')
             .map(account => account.trim())
             .filter(account => account.length > 0);
           
-          console.log(`🔢 Parsed account numbers:`, accountNumbers);
-          
-          // Try each account number until we find a match
-          for (const accountNumber of accountNumbers) {
-            console.log(`🎯 Trying account number: "${accountNumber}"`);
-            try {
-              const apiUrl = `/api/customers/contact-info?accountNumber=${encodeURIComponent(accountNumber)}`;
-              console.log(`🌐 API call: ${apiUrl}`);
-              
-              const response = await fetch(apiUrl);
-            if (response.ok) {
-              const data = await response.json();
-              if (data.customer) {
-                  console.log(`✅ Found contact info for account ${accountNumber}:`, {
-                    company: data.customer.company,
-                    legal_name: data.customer.legal_name,
-                    trading_name: data.customer.trading_name,
-                    email: data.customer.email,
-                    cell_no: data.customer.cell_no
-                  });
-                return {
-                  groupId: group.id,
-                  contact: data.customer
-                };
-                } else {
-                  console.log(`❌ No customer data returned for account ${accountNumber}`);
-                }
-              } else {
-                console.log(`❌ API call failed for account ${accountNumber}:`, response.status, response.statusText);
-              }
-            } catch (fetchError) {
-              console.error(`💥 Error fetching contact for account ${accountNumber}:`, fetchError);
-            }
-          }
-          
-          // If no exact match found, fallback to prefix-based search for the first account
-          if (accountNumbers.length > 0) {
-            const firstAccount = accountNumbers[0];
-            const prefix = firstAccount.split('-')[0];
-            console.log(`🔄 Fallback: Trying prefix "${prefix}" for first account "${firstAccount}"`);
-            
-            try {
-              const apiUrl = `/api/customers/contact-info?prefix=${prefix}`;
-              console.log(`🌐 Fallback API call: ${apiUrl}`);
-              
-              const response = await fetch(apiUrl);
-              if (response.ok) {
-                const data = await response.json();
-                if (data.customer) {
-                  console.log(`✅ Found contact info using prefix ${prefix}:`, {
-                    company: data.customer.company,
-                    legal_name: data.customer.legal_name,
-                    trading_name: data.customer.trading_name,
-                    email: data.customer.email,
-                    cell_no: data.customer.cell_no
-                  });
-                  return {
-                    groupId: group.id,
-                    contact: data.customer
-                  };
-                } else {
-                  console.log(`❌ No customer data returned for prefix ${prefix}`);
-                }
-              } else {
-                console.log(`❌ Fallback API call failed for prefix ${prefix}:`, response.status, response.statusText);
-            }
-          } catch (fetchError) {
-              console.error(`💥 Error fetching contact for prefix ${prefix}:`, fetchError);
-            }
-          }
-        } else {
-          console.log(`⚠️ No account numbers found for group: ${group.company_group || group.legal_names}`);
+          groupAccountMap[group.id] = accountNumbers;
+          accountNumbers.forEach(account => allAccountNumbers.add(account));
         }
-        return { groupId: group.id, contact: null };
       });
-
-      const contactResults = await Promise.all(contactPromises);
+      
+      const accountNumbersArray = Array.from(allAccountNumbers);
+      console.log('📊 Batch fetching contact info for', accountNumbersArray.length, 'unique account numbers');
+      
+      // Make single batch API call
+      const response = await fetch('/api/customers/contact-info/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accountNumbers: accountNumbersArray }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch batch contact info');
+      }
+      
+      const data = await response.json();
+      const customerMap = data.customers || {};
+      
+      console.log('✅ Batch API returned', data.found, 'customers out of', data.requested, 'requested');
+      
+      // Map customers back to groups
       const contactMap: Record<string, ContactInfo> = {};
-      contactResults.forEach(result => {
-        if (result.contact) {
-          contactMap[result.groupId] = result.contact;
+      groups.forEach(group => {
+        const accountNumbers = groupAccountMap[group.id] || [];
+        
+        // Find first matching customer for this group
+        for (const accountNumber of accountNumbers) {
+          if (customerMap[accountNumber]) {
+            contactMap[group.id] = customerMap[accountNumber];
+            break;
+          }
         }
       });
-
-      console.log(`📈 Contact info fetch completed. Found contacts for ${Object.keys(contactMap).length} groups`);
+      
+      console.log(`📈 Contact info mapping completed. Found contacts for ${Object.keys(contactMap).length} groups`);
       setContactInfo(contactMap);
     } catch (error) {
       console.error('💥 Error fetching contact info:', error);

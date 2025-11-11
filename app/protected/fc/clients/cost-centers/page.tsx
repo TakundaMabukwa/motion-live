@@ -38,6 +38,7 @@ function ClientCostCentersContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [accountNumbers, setAccountNumbers] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isRequestInProgress, setIsRequestInProgress] = useState(false);
   
   const itemsPerPage = 50;
 
@@ -89,7 +90,13 @@ function ClientCostCentersContent() {
   const paginatedCostCenters = filteredCostCenters.slice(startIndex, endIndex);
 
   const fetchCostCenters = async (allNewAccountNumbers: string) => {
+    if (isRequestInProgress) {
+      console.log('⏳ [COST CENTERS] Request already in progress, skipping duplicate call');
+      return;
+    }
+    
     try {
+      setIsRequestInProgress(true);
       setLoading(true);
       console.log('🔍 [COST CENTERS] Fetching cost centers from database for account numbers:', allNewAccountNumbers);
       
@@ -129,6 +136,7 @@ function ClientCostCentersContent() {
       toast.error('Failed to load cost centers from database');
     } finally {
       setLoading(false);
+      setIsRequestInProgress(false);
     }
   };
 

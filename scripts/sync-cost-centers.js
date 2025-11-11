@@ -1,85 +1,97 @@
-#!/usr/bin/env node
-
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config({ path: '.env.local' });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function syncCostCenters() {
   try {
-    console.log('🏢 Syncing cost centers from vehicles...');
-    
-    // Get unique account numbers and companies from vehicles
-    const { data: vehicles, error } = await supabase
+    console.log('🔄 Starting cost centers sync...');
+
+    // Get all unique new_account_numbers from vehicles
+    const { data: vehicles, error: vehiclesError } = await supabase
       .from('vehicles')
-      .select('company, new_account_number')
+      .select('new_account_number, company')
       .not('new_account_number', 'is', null)
-      .not('company', 'is', null);
-      
-    if (error) {
-      console.error('❌ Error fetching vehicles:', error.message);
-      return;
+      .neq('new_account_number', '');
+
+    if (vehiclesError) {
+      throw vehiclesError;
     }
-    
-    console.log(`🚛 Found ${vehicles.length} vehicles with account numbers`);
-    
-    // Create unique combinations of company and account number
-    const uniqueCombinations = new Map();
-    
-    vehicles.forEach(vehicle => {
-      const key = `${vehicle.company}|${vehicle.new_account_number}`;
-      if (!uniqueCombinations.has(key)) {
-        uniqueCombinations.set(key, {
-          company: vehicle.company,
-          cost_code: vehicle.new_account_number
-        });
+
+    console.log(`📊 Found ${vehicles.length} vehicle records`);
+
+    // Get unique combinations
+    const uniqueAccounts = vehicles.reduce((acc, vehicle) => {
+      if (vehicle.new_account_number && !acc[vehicle.new_account_number]) {
+        acc[vehicle.new_account_number] = vehicle.company || vehicle.new_account_number.split('-')[0];
       }
-    });
-    
-    console.log(`📋 Found ${uniqueCombinations.size} unique company-code combinations`);
-    
-    // Clear existing cost centers
-    const { error: deleteError } = await supabase
+      return acc;
+    }, {});
+
+    console.log(`🔢 Found ${Object.keys(uniqueAccounts).length} unique account numbers`);
+
+    // Get existing cost centers
+    const { data: existingCostCenters, error: costCentersError } = await supabase
       .from('cost_centers')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-      
-    if (deleteError) {
-      console.error('❌ Error clearing cost centers:', deleteError.message);
+      .select('cost_code');
+
+    if (costCentersError) {
+      throw costCentersError;
+    }
+
+    const existingCodes = new Set(existingCostCenters.map(cc => cc.cost_code));
+    console.log(`📋 Found ${existingCodes.size} existing cost centers`);
+
+    // Find missing cost centers
+    const missingCostCenters = Object.entries(uniqueAccounts)
+      .filter(([costCode]) => !existingCodes.has(costCode))
+      .map(([costCode, company]) => ({
+        cost_code: costCode,
+        company: company,
+        created_at: new Date().toISOString()
+      }));
+
+    if (missingCostCenters.length === 0) {
+      console.log('✅ All cost centers are already synced!');
       return;
     }
-    
-    console.log('🗑️ Cleared existing cost centers');
-    
-    // Insert new cost centers
-    const costCentersToInsert = Array.from(uniqueCombinations.values());
-    
-    const { error: insertError } = await supabase
+
+    console.log(`➕ Inserting ${missingCostCenters.length} missing cost centers:`);
+    missingCostCenters.forEach(cc => {
+      console.log(`   - ${cc.cost_code} (${cc.company})`);
+    });
+
+    // Insert missing cost centers
+    const { data: insertedData, error: insertError } = await supabase
       .from('cost_centers')
-      .insert(costCentersToInsert);
-      
+      .insert(missingCostCenters)
+      .select('*');
+
     if (insertError) {
-      console.error('❌ Error inserting cost centers:', insertError.message);
-      return;
+      throw insertError;
     }
-    
-    console.log(`✅ Inserted ${costCentersToInsert.length} cost centers`);
-    
-    // Show sample of inserted data
-    console.log('\n📋 Sample cost centers:');
-    costCentersToInsert.slice(0, 10).forEach(center => {
-      console.log(`   ${center.company} → ${center.cost_code}`);
-    });
-    
+
+    console.log(`✅ Successfully inserted ${insertedData.length} cost centers`);
+
+    // Verify sync
+    const { data: finalCount, error: countError } = await supabase
+      .from('cost_centers')
+      .select('cost_code', { count: 'exact' });
+
+    if (countError) {
+      throw countError;
+    }
+
+    console.log(`📊 Final cost centers count: ${finalCount.length}`);
+    console.log('🎉 Cost centers sync completed successfully!');
+
   } catch (error) {
-    console.error('💥 Script failed:', error.message);
+    console.error('❌ Error syncing cost centers:', error);
     process.exit(1);
   }
 }
 
-if (require.main === module) {
-  syncCostCenters();
-}
+// Run the sync
+syncCostCenters();

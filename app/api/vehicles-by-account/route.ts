@@ -47,20 +47,16 @@ export async function GET(request: NextRequest) {
     // If we found a customer group, fetch vehicles where new_account_number matches any of the comma-separated values
     if (customerGroup && customerGroup.length > 0) {
       const allAccountNumbers = customerGroup[0].all_new_account_numbers;
-      console.log('All account numbers from group:', allAccountNumbers);
       
-      // Split the comma-separated account numbers and create OR conditions
-      const accountNumbers = allAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0);
-      console.log('Individual account numbers:', accountNumbers);
+      // Split and deduplicate account numbers
+      const accountNumbers = [...new Set(
+        allAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0)
+      )];
       
-      // Create OR conditions for each account number
-      const orConditions = accountNumbers.map(acc => `new_account_number.eq.${acc}`).join(',');
-      console.log('OR conditions:', orConditions);
-      
-      query = query.or(orConditions);
+      // Use IN clause instead of OR for better performance
+      query = query.in('new_account_number', accountNumbers);
     } else {
       // If no customer group found, try direct match
-      console.log('No customer group found, trying direct match');
       query = query.eq('new_account_number', accountNumber);
     }
 
