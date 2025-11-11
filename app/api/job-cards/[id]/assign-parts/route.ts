@@ -1,6 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+// Helper function to add parts to technician stock
+async function addPartsToTechnicianStock(supabase: any, technicianEmail: string, partsRequired: any[]) {
+  try {
+    console.log(`[PARTS ASSIGNMENT] Starting parts assignment for technician: ${technicianEmail}`);
+    console.log(`[PARTS ASSIGNMENT] Parts to assign:`, JSON.stringify(partsRequired, null, 2));
+
+    // Get existing technician stock
+    const { data: techStock } = await supabase
+      .from('tech_stock')
+      .select('assigned_parts')
+      .eq('technician_email', technicianEmail)
+      .maybeSingle();
+
+    let currentParts = techStock?.assigned_parts || [];
+
+    // Simply copy the parts_required array as-is, preserving all details
+    const newParts = [...currentParts, ...partsRequired];
+
+    // Update or insert technician stock
+    const { error } = await supabase
+      .from('tech_stock')
+      .upsert({
+        technician_email: technicianEmail,
+        assigned_parts: newParts
+      }, {
+        onConflict: 'technician_email'
+      });
+
+    if (error) {
+      console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
+      return { success: false, error };
+    } else {
+      console.log(`[PARTS ASSIGNMENT] SUCCESS: Added ${partsRequired.length} parts`);
+      return { success: true, totalParts: newParts.length, partsAdded: partsRequired.length };
+    }
+  } catch (error) {
+    console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
+    return { success: false, error };
+  }
+}
+
 export async function PUT(request: NextRequest, { params }) {
   try {
     const supabase = await createClient();
@@ -99,8 +140,21 @@ export async function PUT(request: NextRequest, { params }) {
       return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
     }
 
+    // If technician is already assigned, copy parts to tech_stock
+    let techStockMessage = '';
+    if (jobCard.technician_phone || finalTechnicianEmail) {
+      const techEmail = finalTechnicianEmail || jobCard.technician_phone;
+      const result = await addPartsToTechnicianStock(supabase, techEmail, parts);
+      
+      if (result?.success) {
+        techStockMessage = ` Parts copied to technician stock (${result.partsAdded} items).`;
+      } else {
+        techStockMessage = ` Warning: Failed to copy parts to technician stock.`;
+      }
+    }
+
     return NextResponse.json({
-      message: finalTechnicianEmail ? 'Parts and technician assigned successfully' : 'Parts assigned successfully',
+      message: (finalTechnicianEmail ? 'Parts and technician assigned successfully' : 'Parts assigned successfully') + techStockMessage,
       job: updatedJob,
       qr_code: qrCodeUrl
     });

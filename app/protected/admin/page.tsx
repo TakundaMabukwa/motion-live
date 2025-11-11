@@ -660,9 +660,9 @@ export default function AdminDashboard() {
         return tech ? tech.email : name;
       }).join(', ');
 
-      // Use our technician validation API
-      const response = await fetch(`/api/technicians/availability`, {
-        method: 'POST',
+      // Use direct assignment API instead of RPC
+      const response = await fetch(`/api/admin/jobs/assign-technician`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -671,7 +671,6 @@ export default function AdminDashboard() {
           technicianName: technicianNames,
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
-          override: false, // First attempt without override
           assignmentNotes: assignmentNotes || null,
         }),
       });
@@ -729,8 +728,8 @@ export default function AdminDashboard() {
         return tech ? tech.email : name;
       }).join(', ');
       
-      const response = await fetch(`/api/technicians/availability`, {
-        method: 'POST',
+      const response = await fetch(`/api/admin/jobs/assign-technician`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -739,7 +738,6 @@ export default function AdminDashboard() {
           technicianName: technicianNames,
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
-          override: true,
           assignmentNotes: assignmentNotes || null,
         }),
       });

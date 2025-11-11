@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 interface JobConflict {
   id?: string;
@@ -176,49 +175,57 @@ export async function POST(request: NextRequest) {
       jobDate.includes('T') ? jobDate : `${jobDate}T09:00:00`;
     const selectedDateTime = new Date(formattedDate);
 
-    // Use the RPC function to check conflicts or override
+    // Call the function with parts transfer logic
     const { data: result, error: rpcError } = await supabase.rpc(
       'assign_technician_with_override',
       {
         p_job_id: jobId,
         p_technician_name: technicianName,
-        p_job_date: selectedDateTime.toISOString(),
+        p_job_date: formattedDate,
         p_override: override || false
       }
     );
+    
+    const functionResult = result;
 
     if (rpcError) {
       console.error('Error calling assign_technician_with_override:', rpcError);
+      console.error('RPC Error details:', JSON.stringify(rpcError, null, 2));
       return NextResponse.json({
         success: false,
         error: 'Failed to assign technician',
-        details: rpcError.message
+        details: rpcError.message,
+        hint: rpcError.hint || 'Check server logs for more details'
       }, { status: 500 });
     }
 
     // If the function returned conflicts and not overriding
-    if (!result.success && result.conflicts && !override) {
+    if (!functionResult.success && functionResult.conflicts && !override) {
       return NextResponse.json({
         success: false,
-        message: result.message,
-        conflicts: result.conflicts,
+        message: functionResult.message,
+        conflicts: functionResult.conflicts,
         needsOverride: true
       }, { status: 409 });
     }
 
     // If successful
-    if (result.success) {
+    if (functionResult.success) {
+      const partsMessage = functionResult.parts_transferred > 0 
+        ? ` Parts transferred: ${functionResult.parts_transferred} items.`
+        : '';
+        
       return NextResponse.json({
         success: true,
-        message: 'Technician assigned successfully',
-        conflicts: result.conflicts || []
+        message: 'Technician assigned successfully' + partsMessage,
+        conflicts: functionResult.conflicts || []
       });
     }
 
     // If function failed for other reasons
     return NextResponse.json({
       success: false,
-      error: result.message || 'Failed to assign technician'
+      error: functionResult.message || 'Failed to assign technician'
     }, { status: 500 });
   } catch (error) {
     console.error('Error in technician assignment endpoint:', error);

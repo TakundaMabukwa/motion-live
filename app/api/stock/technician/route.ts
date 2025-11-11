@@ -240,7 +240,7 @@ export async function GET() {
 
     const { data: technicianStock, error } = await supabase
       .from('tech_stock')
-      .select('stock, technician_email')
+      .select('assigned_parts, technician_email')
       .eq('technician_email', user.email)
       .maybeSingle();
 
@@ -249,80 +249,26 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Merge the COMPLETE_INVENTORY with the technician's stock so we always return
-    // every item (default count 0) but prefer technician counts when present.
-  const techStockObj: Inventory = technicianStock?.stock || {};
-
-  // Deep clone COMPLETE_INVENTORY so we don't mutate the constant
-  const mergedStock: Inventory = JSON.parse(JSON.stringify(COMPLETE_INVENTORY));
-
-    // Overlay technician stock onto the merged inventory. This will:
-    // - keep items from COMPLETE_INVENTORY that aren't in techStock
-    // - add items that exist only in techStock
-    // - prefer technician count/description when present
-    Object.entries(techStockObj).forEach(([supplier, items]) => {
-      if (!mergedStock[supplier]) mergedStock[supplier] = {};
-      // items may be a SupplierInventory or a single InventoryItem
-      const supplierItems = items as SupplierInventory | InventoryItem;
-      if ((supplierItems as InventoryItem).count !== undefined || (supplierItems as InventoryItem).description !== undefined) {
-        // Single item provided directly under supplier key. Normalize to itemCode = supplier
-        const itemData = supplierItems as InventoryItem;
-        const existing = (mergedStock[supplier] as SupplierInventory)[supplier] || {};
-        (mergedStock[supplier] as SupplierInventory)[supplier] = {
-          description: itemData.description ?? existing.description ?? supplier,
-          count: typeof itemData.count === 'number' ? (itemData.count as number) : (existing.count ?? 0)
-        };
-      } else {
-        // Regular supplierItems mapping
-        Object.entries(supplierItems as SupplierInventory).forEach(([itemCode, itemData]) => {
-          const existing = (mergedStock[supplier] as SupplierInventory)[itemCode] || {};
-          (mergedStock[supplier] as SupplierInventory)[itemCode] = {
-            description: itemData?.description ?? existing.description ?? itemCode,
-            count: typeof itemData?.count === 'number' ? (itemData.count as number) : (existing.count ?? 0)
-          };
-        });
-      }
-    });
-
-    const stockData = mergedStock;
+    // Get assigned parts directly as array
+    const assignedParts = technicianStock?.assigned_parts || [];
     const processedStock: ProcessedStockItem[] = [];
 
-    // Parse the nested structure: supplier -> item_code -> {count, description}
-    Object.entries(stockData).forEach(([supplier, supplierItems]) => {
-      const supItems = supplierItems as SupplierInventory | InventoryItem;
-      if ((supItems as InventoryItem).count !== undefined || (supItems as InventoryItem).description !== undefined) {
-        // Single item case: itemCode is supplier
-        const itemData = supItems as InventoryItem;
-        processedStock.push({
-          id: `${supplier}-${supplier}`,
-          quantity: (itemData.count || 0).toString(),
-          technician_email: user.email!,
-          code: supplier,
-          description: itemData.description || 'No description available',
-          supplier: supplier,
-          cost_excl_vat_zar: 0,
-          usd: 0,
-          stock_type: getStockTypeFromSupplier(supplier)
-        });
-      } else {
-        const supplierItemsTyped = supItems as SupplierInventory;
-        Object.entries(supplierItemsTyped).forEach(([itemCode, itemData]) => {
-        processedStock.push({
-          id: `${supplier}-${itemCode}`, // Create unique ID
-          quantity: (itemData.count || 0).toString(), // Always include count, default to 0
-          technician_email: user.email!,
-          code: itemCode,
-          description: itemData.description || 'No description available',
-          supplier: supplier,
-          cost_excl_vat_zar: 0,
-          usd: 0,
-          stock_type: getStockTypeFromSupplier(supplier)
-        });
+    // Convert assigned parts to the expected format
+    assignedParts.forEach((part: any, index: number) => {
+      processedStock.push({
+        id: part.stock_id || `part-${index}`,
+        quantity: (part.quantity || 1).toString(),
+        technician_email: user.email!,
+        code: part.code || part.serial_number || 'N/A',
+        description: part.description || 'No description available',
+        supplier: part.supplier || 'JOB_PARTS',
+        cost_excl_vat_zar: parseFloat(part.cost_per_unit || '0'),
+        usd: 0,
+        stock_type: getStockTypeFromSupplier(part.supplier || 'JOB_PARTS')
       });
-      }
     });
 
-    console.log(`Processed ${processedStock.length} stock items for technician ${user.email}`);
+    console.log(`Processed ${processedStock.length} assigned parts for technician ${user.email}`);
 
     return NextResponse.json({ 
       stock: processedStock,
