@@ -36,6 +36,19 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // Check if job type is install or installation (case insensitive)
+    const jobType = (jobCard.job_type || '').toLowerCase();
+    const isInstallJob = jobType === 'install' || jobType === 'installation';
+
+    if (!isInstallJob) {
+      return NextResponse.json({
+        success: true,
+        message: 'Job completed successfully. Vehicle not added to inventory (not an install job)',
+        jobType: jobCard.job_type,
+        isInstallJob: false
+      });
+    }
+
     // Extract vehicle information from job card for new vehicles table
     const vehicleData = {
       reg: jobCard.vehicle_registration || '',
@@ -45,32 +58,32 @@ export async function POST(
       year: jobCard.vehicle_year?.toString() || '',
       colour: 'Unknown',
       company: jobCard.customer_name || 'Unknown Company',
-      new_account_number: jobCard.customer_name || `JOB-${jobCard.job_number}`,
+      new_account_number: jobCard.new_account_number || `JOB-${jobCard.job_number}`,
       branch: null,
       fleet_number: null,
       engine: null,
       skylink_trailer_unit_ip: jobCard.ip_address || null,
-      total_rental_sub: jobCard.actual_cost ? parseFloat(jobCard.actual_cost.toString()) * 1.15 : 0,
-      total_rental: jobCard.actual_cost || 0,
-      total_sub: jobCard.actual_cost ? parseFloat(jobCard.actual_cost.toString()) * 0.15 : 0
+      total_rental_sub: jobCard.quotation_subtotal || 0,
+      total_rental: jobCard.quotation_total_amount || 0,
+      total_sub: jobCard.quotation_vat_amount || 0
     };
 
     // For vehicle_invoices table
     const invoiceData = {
-      new_account_number: jobCard.account_id || `JOB-${jobCard.job_number}`,
+      new_account_number: jobCard.new_account_number || `JOB-${jobCard.job_number}`,
       company: jobCard.customer_name || 'Unknown Company',
       group_name: jobCard.customer_name || 'Default Group',
       stock_code: `VEH-${jobCard.vehicle_registration || jobCard.job_number}`,
       stock_description: `${jobCard.vehicle_make || 'Vehicle'} ${jobCard.vehicle_model || ''} ${jobCard.vehicle_year || ''}`.trim(),
       doc_no: `INV-${jobCard.job_number}`,
-      total_ex_vat: jobCard.actual_cost || 0,
-      total_vat: (jobCard.actual_cost || 0) * 0.15, // Assuming 15% VAT
-      total_incl_vat: (jobCard.actual_cost || 0) * 1.15,
-      one_month: jobCard.actual_cost || 0,
+      total_ex_vat: jobCard.quotation_subtotal || 0,
+      total_vat: jobCard.quotation_vat_amount || 0,
+      total_incl_vat: jobCard.quotation_total_amount || 0,
+      one_month: jobCard.quotation_subtotal || 0,
       '2nd_month': 0,
       '3rd_month': 0,
-      amount_due: (jobCard.actual_cost || 0) * 1.15,
-      monthly_amount: jobCard.actual_cost || 0,
+      amount_due: jobCard.quotation_total_amount || 0,
+      monthly_amount: jobCard.quotation_subtotal || 0,
       beame: jobCard.vehicle_make || '',
       beame_2: jobCard.vehicle_model || '',
       beame_3: jobCard.vehicle_year?.toString() || '',
@@ -134,7 +147,9 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Vehicle successfully added to vehicles table',
+      message: 'Install job completed - Vehicle successfully added to vehicles table',
+      jobType: jobCard.job_type,
+      isInstallJob: true,
       results
     });
 

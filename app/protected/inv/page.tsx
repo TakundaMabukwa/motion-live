@@ -132,6 +132,8 @@ export default function InventoryPage() {
   const [allStockItems, setAllStockItems] = useState([]);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [newItemData, setNewItemData] = useState({ category_code: '', serial_number: '' });
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [generatedQR, setGeneratedQR] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadOrder, setUploadOrder] = useState(null);
   const [uploadItems, setUploadItems] = useState([]);
@@ -171,6 +173,9 @@ export default function InventoryPage() {
     }
     if (activeTab === 'stock-take') {
       fetchStockItems();
+    }
+    if (activeTab === 'boot-stock') {
+      fetchBootStock();
     }
   }, [activeTab]);
 
@@ -470,8 +475,51 @@ export default function InventoryPage() {
   };
 
   const handleShowQRCode = (jobCard: JobCard) => {
+    if (!jobCard.qr_code) {
+      const qrData = {
+        job_number: jobCard.job_number,
+        job_id: jobCard.id,
+        customer_name: jobCard.customer_name,
+        vehicle_registration: jobCard.vehicle_registration,
+        job_type: jobCard.job_type,
+        parts_required: jobCard.parts_required || [],
+        technician: jobCard.technician_name,
+        created_at: jobCard.created_at
+      };
+      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
+      jobCard.qr_code = qrCodeUrl;
+    }
     setSelectedQRJob(jobCard);
     setShowQRCode(true);
+  };
+
+  const handleGenerateJobQR = (jobCard: JobCard) => {
+    const qrData = {
+      job_number: jobCard.job_number,
+      job_id: jobCard.id,
+      customer_name: jobCard.customer_name,
+      vehicle_registration: jobCard.vehicle_registration,
+      job_type: jobCard.job_type,
+      parts_required: jobCard.parts_required || [],
+      technician: jobCard.technician_name,
+      created_at: jobCard.created_at
+    };
+
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
+    
+    // Update the job with the new QR code
+    setSelectedQRJob({...jobCard, qr_code: qrCodeUrl});
+  };
+
+  const handleDownloadQR = (jobCard: JobCard) => {
+    if (!jobCard.qr_code) return;
+    
+    const link = document.createElement('a');
+    link.href = jobCard.qr_code;
+    link.download = `qr-code-${jobCard.job_number}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handlePrintQR = (jobCard: JobCard) => {
@@ -873,6 +921,29 @@ export default function InventoryPage() {
     }
   };
 
+  const generateQRCode = () => {
+    const selectedJob = jobCardsWithParts[0] || filteredJobCards[0];
+    if (!selectedJob) {
+      toast.error('No job available to generate QR code');
+      return;
+    }
+
+    const qrData = {
+      job_number: selectedJob.job_number,
+      job_id: selectedJob.id,
+      customer_name: selectedJob.customer_name,
+      vehicle_registration: selectedJob.vehicle_registration,
+      job_type: selectedJob.job_type,
+      parts_required: selectedJob.parts_required || [],
+      technician: selectedJob.technician_name,
+      created_at: selectedJob.created_at
+    };
+
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
+    setGeneratedQR(qrCodeUrl);
+    setShowQRModal(true);
+  };
+
   const createTestStockItems = async () => {
     try {
       const response = await fetch('/api/stock/test', {
@@ -1049,6 +1120,41 @@ export default function InventoryPage() {
     return colors[stockType] || 'bg-gray-100 text-gray-800';
   };
 
+  // Boot stock state
+  const [bootStock, setBootStock] = useState([]);
+  const [bootStockLoading, setBootStockLoading] = useState(false);
+
+  // Fetch boot stock from tech_stock
+  const fetchBootStock = async () => {
+    try {
+      setBootStockLoading(true);
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: techStock, error } = await supabase
+        .from('tech_stock')
+        .select('assigned_parts')
+        .eq('technician_email', user.email)
+        .single();
+
+      if (error) {
+        console.error('Error fetching tech stock:', error);
+        return;
+      }
+
+      const assignedParts = techStock?.assigned_parts || [];
+      const bootStockItems = assignedParts.filter(item => item.boot_stock === 'yes');
+      setBootStock(bootStockItems);
+    } catch (error) {
+      console.error('Error fetching boot stock:', error);
+    } finally {
+      setBootStockLoading(false);
+    }
+  };
+
   // Threshold management functions
   const handleThresholdChange = (itemId, newThreshold) => {
     setThresholds(prev => ({
@@ -1201,7 +1307,7 @@ export default function InventoryPage() {
                               className="text-blue-600 hover:text-blue-700"
                             >
                               <QrCode className="mr-1 w-3 h-3" />
-                              View QR
+                              View QR: 1
                             </Button>
                             <Button
                               size="sm"
@@ -1340,7 +1446,7 @@ export default function InventoryPage() {
                           className="text-blue-600 hover:text-blue-700"
                         >
                           <QrCode className="mr-1 w-3 h-3" />
-                          View QR
+                          View QR: 1
                         </Button>
 
                         <Button
@@ -1434,7 +1540,7 @@ export default function InventoryPage() {
                               className="text-blue-600 hover:text-blue-700"
                             >
                               <QrCode className="mr-1 w-3 h-3" />
-                              View QR
+                              View QR: 1
                             </Button>
                             <Badge variant="outline" className="text-xs">
                               {job.parts_required.length} parts used
@@ -1657,6 +1763,13 @@ export default function InventoryPage() {
           >
             <Plus className="mr-2 w-4 h-4" />
             Add New Item
+          </Button>
+          <Button 
+            onClick={generateQRCode}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <QrCode className="mr-2 w-4 h-4" />
+            Generate QR
           </Button>
         </div>
       </div>
@@ -1986,6 +2099,85 @@ export default function InventoryPage() {
     </div>
   );
 
+  // Boot stock content
+  const bootStockContent = (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="font-semibold text-xl">Boot Stock</h2>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{bootStock.length} items</Badge>
+          <Button onClick={fetchBootStock} variant="outline" size="sm">
+            <RefreshCw className="mr-2 w-4 h-4" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {bootStockLoading ? (
+        <div className="py-12 text-center">
+          <div className="mx-auto mb-4 border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+          <span>Loading boot stock...</span>
+        </div>
+      ) : bootStock.length === 0 ? (
+        <div className="py-12 text-center">
+          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">No boot stock assigned</h3>
+          <p className="text-gray-500">Boot stock items will appear here when assigned to your technician account.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="border border-gray-200 w-full border-collapse">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Description
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Code
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Quantity
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                  Supplier
+                </th>
+                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                  Date Added
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {bootStock.map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 border border-gray-200 text-sm">
+                    <div className="font-medium text-gray-900">{item.description}</div>
+                    <Badge className="bg-green-100 text-green-800 text-xs mt-1">
+                      Boot Stock
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
+                    {item.code}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                    <Badge variant="outline" className="text-xs">
+                      {item.quantity}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
+                    {item.supplier}
+                  </td>
+                  <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm text-center">
+                    {item.date_added ? new Date(item.date_added).toLocaleDateString() : 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
   const tabs = [
     {
       value: 'job-cards',
@@ -2010,6 +2202,12 @@ export default function InventoryPage() {
       label: 'Items on Order',
       icon: Receipt,
       content: stockOrdersContent
+    },
+    {
+      value: 'boot-stock',
+      label: 'Boot Stock',
+      icon: Package,
+      content: bootStockContent
     },
     {
       value: 'stock-take',
@@ -2203,6 +2401,13 @@ export default function InventoryPage() {
                     >
                       <Printer className="mr-2 w-4 h-4" />
                       Print Complete Job Details
+                    </Button>
+                    <Button 
+                      onClick={() => handleDownloadQR(selectedQRJob)}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <Download className="mr-2 w-4 h-4" />
+                      Download QR
                     </Button>
                   </div>
                 </>
@@ -2436,6 +2641,30 @@ export default function InventoryPage() {
                  </tbody>
                </table>
              </div>
+           </div>
+         </DialogContent>
+       </Dialog>
+
+       {/* QR Code Modal */}
+       <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
+         <DialogContent className="sm:max-w-md">
+           <DialogHeader>
+             <DialogTitle>Generated QR Code</DialogTitle>
+           </DialogHeader>
+           <div className="flex flex-col items-center space-y-4">
+             {generatedQR && (
+               <div className="p-4 bg-white border rounded-lg">
+                 <img src={generatedQR} alt="QR Code" className="w-64 h-64" />
+               </div>
+             )}
+             <p className="text-sm text-gray-600 text-center">
+               Scan this QR code to access inventory information
+             </p>
+           </div>
+           <div className="flex justify-end mt-6">
+             <Button onClick={() => setShowQRModal(false)}>
+               Close
+             </Button>
            </div>
          </DialogContent>
        </Dialog>

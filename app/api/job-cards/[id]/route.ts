@@ -68,14 +68,24 @@ export async function PATCH(
     const isBeingCompleted = body.job_status === 'Completed' && 
                             currentJob.job_status !== 'Completed';
 
-    // Update the job card without using the non-existent last_vehicle_update column
+    // Prepare update data - remove technician if job is being completed
+    const updateData = {
+      ...body,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id
+    };
+
+    // If job is being completed, remove technician assignment
+    if (isBeingCompleted) {
+      updateData.assigned_technician_id = null;
+      updateData.technician_name = null;
+      updateData.technician_phone = null;
+    }
+
+    // Update the job card
     const { data: updatedJob, error: updateError } = await supabase
       .from('job_cards')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -85,10 +95,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
     }
 
-    // If job is being completed, automatically add vehicle to inventory
-    if (isBeingCompleted && !currentJob.vehicle_added_to_inventory) {
+    // If job is being completed, handle vehicle addition based on job type
+    if (isBeingCompleted) {
       try {
-        // Call the add-vehicle endpoint internally
+        // Call the add-vehicle endpoint internally (it will check job type)
         const addVehicleResponse = await fetch(`${request.nextUrl.origin}/api/job-cards/${id}/add-vehicle`, {
           method: 'POST',
           headers: {
@@ -101,13 +111,13 @@ export async function PATCH(
 
         if (addVehicleResponse.ok) {
           const addVehicleResult = await addVehicleResponse.json();
-          console.log('Vehicle automatically added to inventory:', addVehicleResult);
+          console.log('Job completion processed:', addVehicleResult.message);
         } else {
-          console.error('Failed to automatically add vehicle to inventory:', await addVehicleResponse.text());
+          console.error('Failed to process job completion:', await addVehicleResponse.text());
         }
       } catch (error) {
-        console.error('Error automatically adding vehicle to inventory:', error);
-        // Don't fail the job completion if vehicle addition fails
+        console.error('Error processing job completion:', error);
+        // Don't fail the job completion if vehicle processing fails
       }
     }
 

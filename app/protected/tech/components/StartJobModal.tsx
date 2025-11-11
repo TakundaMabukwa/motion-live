@@ -408,11 +408,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         (result, error) => {
           if (result) {
             console.log('QR Code scanned:', result.getText());
-            setQrCode(result.getText());
+            const scannedCode = result.getText();
+            setQrCode(scannedCode);
             setIsQrScanning(false);
             stopQrScanner();
-            // Auto-verify the scanned QR code
-            handleQrCodeSubmit();
+            
+            // Auto-verify the scanned QR code with validation
+            setTimeout(() => {
+              validateScannedCode(scannedCode);
+            }, 100);
           }
           if (error && error.name !== 'NotFoundException') {
             console.log('QR scan error:', error);
@@ -523,6 +527,101 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     setMaxAfterPhotosReached(false);
   };
 
+  const validateScannedCode = async (scannedCode: string) => {
+    if (!scannedCode.trim()) {
+      toast.error('Invalid QR code');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log('Validating scanned QR code:', scannedCode);
+      
+      // Try to parse the QR code as JSON
+      let qrData;
+      try {
+        qrData = JSON.parse(scannedCode);
+        console.log('Parsed QR data:', qrData);
+      } catch (parseError) {
+        console.log('QR code is not JSON, treating as plain text');
+        qrData = { job_number: scannedCode };
+      }
+      
+      // Check if the QR code contains a job_number or job_id
+      if (!qrData.job_number && !qrData.job_id) {
+        toast.error('❌ Invalid job number');
+        return;
+      }
+      
+      const scannedJobNumber = qrData.job_number || qrData.job_id;
+      
+      // Find matching job in userJobs by job_number
+      const matchingJob = userJobs.find(job => 
+        job.job_number === scannedJobNumber
+      );
+      
+      if (!matchingJob) {
+        toast.error(`❌ Invalid job number`);
+        return;
+      }
+      
+      // Get current user info to validate technician
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('❌ User not authenticated');
+        return;
+      }
+      
+      // Check if current user is assigned to this job
+      const userEmail = user.email;
+      const jobTechnicianEmail = matchingJob.technician_phone; // This field stores email
+      
+      if (jobTechnicianEmail && userEmail !== jobTechnicianEmail) {
+        toast.error(`❌ Wrong technician`);
+        return;
+      }
+      
+      // If we have a current job loaded, validate against it
+      if (jobData && jobData.job_number) {
+        if (scannedJobNumber !== jobData.job_number) {
+          toast.error(`❌ Wrong job! Expected: ${jobData.job_number}, Scanned: ${scannedJobNumber}`);
+          return;
+        }
+      }
+      
+      // Fetch full job details
+      const fullJobData = await fetchFullJobDetails(matchingJob.id);
+      
+      // Update jobData with the full job details
+      setJobData(fullJobData);
+      
+      // Pre-fill vehicle details if available in QR code
+      if (qrData.vehicle_registration || qrData.vehicle_make || qrData.vehicle_model) {
+        setVehicleDetails(prev => ({
+          ...prev,
+          vehicle_year: qrData.vehicle_year || prev.vehicle_year,
+          vehicle_make: qrData.vehicle_make || prev.vehicle_make,
+          vehicle_model: qrData.vehicle_model || prev.vehicle_model,
+          vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
+          vin_numer: qrData.vin_numer || prev.vin_numer,
+          odormeter: qrData.odormeter || prev.odormeter,
+        }));
+      }
+      
+      toast.success(`✅ Job verified! ${matchingJob.job_number}`);
+      console.log('QR verified, setting step to vehicle-details');
+      
+      setCurrentStep('vehicle-details');
+    } catch (error) {
+      console.error('Error validating QR code:', error);
+      toast.error('Failed to validate QR code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleQrCodeSubmit = async () => {
     if (!qrCode.trim()) {
       toast.error('Please enter a QR code');
@@ -549,10 +648,28 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         return;
       }
       
+      const scannedJobNumber = qrData.job_number || qrData.job_id;
+      
+      // If we have a current job loaded, validate against it
+      if (jobData && jobData.job_number) {
+        if (scannedJobNumber !== jobData.job_number) {
+          toast.error(`❌ Wrong job! Expected: ${jobData.job_number}, Scanned: ${scannedJobNumber}`);
+          return;
+        }
+        
+        toast.success(`✅ QR code verified! Correct job: ${jobData.job_number}`);
+        console.log('QR verified for current job, proceeding to vehicle-details');
+        
+        // Stop QR scanner camera before transitioning
+        stopQrScanner();
+        
+        setCurrentStep('vehicle-details');
+        return;
+      }
+      
       // Find matching job in userJobs by job_number
       const matchingJob = userJobs.find(job => 
-        job.job_number === qrData.job_number || 
-        job.job_number === qrData.job_id
+        job.job_number === scannedJobNumber
       );
       
       if (matchingJob) {
@@ -575,7 +692,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           }));
         }
         
-        toast.success(`QR code verified! Job ${matchingJob.job_number} loaded successfully.`);
+        toast.success(`✅ QR code verified! Job ${matchingJob.job_number} loaded successfully.`);
         console.log('QR verified, setting step to vehicle-details');
         
         // Stop QR scanner camera before transitioning
@@ -583,7 +700,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         
         setCurrentStep('vehicle-details');
       } else {
-        toast.error(`Job ${qrData.job_number || qrData.job_id} not found.`);
+        toast.error(`❌ Job ${scannedJobNumber} not found in your assigned jobs.`);
       }
     } catch (error) {
       console.error('Error verifying QR code:', error);
@@ -639,22 +756,40 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         return matches.some(match => match);
       });
       
-      if (matchingJob) {
-        console.log('✅ Job found:', matchingJob);
-        
-        // Fetch full job details
-        const fullJobData = await fetchFullJobDetails(matchingJob.id);
-        setJobData(fullJobData);
-        
-        toast.success(`Job ${matchingJob.job_number} loaded successfully!`);
-        
-        stopQrScanner();
-        setCurrentStep('vehicle-details');
-      } else {
+      if (!matchingJob) {
         console.log('❌ No matching job found for:', jobId);
-        console.log('📋 Available job numbers:', userJobs.map(j => j.job_number));
-        toast.error(`Job "${jobId}" not found (${userJobs.length} jobs available).`);
+        toast.error(`❌ Invalid job number`);
+        return;
       }
+      
+      // Get current user info to validate technician
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast.error('❌ User not authenticated');
+        return;
+      }
+      
+      // Check if current user is assigned to this job
+      const userEmail = user.email;
+      const jobTechnicianEmail = matchingJob.technician_phone; // This field stores email
+      
+      if (jobTechnicianEmail && userEmail !== jobTechnicianEmail) {
+        toast.error(`❌ Wrong technician`);
+        return;
+      }
+      
+      console.log('✅ Job found:', matchingJob);
+      
+      // Fetch full job details
+      const fullJobData = await fetchFullJobDetails(matchingJob.id);
+      setJobData(fullJobData);
+      
+      toast.success(`✅ Job verified! ${matchingJob.job_number}`);
+      
+      stopQrScanner();
+      setCurrentStep('vehicle-details');
     } catch (error) {
       console.error('💥 Error in fetchJobById:', error);
       toast.error(`Error: ${error.message}`);
@@ -930,235 +1065,206 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4"
-      style={{ zIndex: 9999 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
     >
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-2xl h-full max-h-[95vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-                 <div className="flex justify-between items-center p-3 sm:p-4 border-b">
-           <h2 className="font-semibold text-lg sm:text-xl truncate pr-2">
-             Start Job: {jobData?.job_number || 'Enter Job ID'}
-           </h2>
-           <button 
-             onClick={(e) => {
-               console.log('Close button clicked');
-               e.preventDefault();
-               e.stopPropagation();
-               handleClose();
-             }} 
-             className="text-gray-500 hover:text-gray-700 flex-shrink-0"
-             type="button"
-           >
-             <X className="w-5 h-5" />
-           </button>
-         </div>
-
-        <div 
-          className="p-3 sm:p-6" 
-          key={currentStep}
-          onClick={(e) => {
-            console.log('Modal body clicked');
-            e.stopPropagation();
-          }}
-        >
-          {/* Debug info */}
-          <div className="bg-gray-100 mb-4 p-2 rounded text-xs">
-            <strong>Debug:</strong> Current step: {currentStep} | Job number: {jobData?.job_number}
-            <br />
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <QrCode className="w-4 h-4 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-lg text-gray-900 truncate">
+                  {jobData?.customer_name || 'Start Job'}
+                </h2>
+                {(() => {
+                  // Extract vehicle registration from job description
+                  const description = jobData?.job_description || '';
+                  const regMatch = description.match(/REG - ([A-Z0-9]+)/);
+                  const vehicleReg = regMatch ? regMatch[1] : jobData?.vehicle_registration;
+                  
+                  return vehicleReg && (
+                    <p className="text-sm text-gray-500 truncate">{vehicleReg}</p>
+                  );
+                })()}
+              </div>
+            </div>
             <button 
-              onClick={() => {
-                console.log('🔥 TEST BUTTON CLICKED!');
-                alert('Test button works!');
-              }}
-              className="mt-2 px-2 py-1 bg-red-500 text-white rounded text-xs"
+              onClick={handleClose}
+              className="p-2 hover:bg-red-100 rounded-lg transition-colors border border-gray-300 bg-white shadow-sm flex-shrink-0"
             >
-              TEST CLICK
+              <X className="w-5 h-5 text-gray-700" />
             </button>
           </div>
-          
-          {/* Progress Steps */}
-          <div className="flex justify-center space-x-1 sm:space-x-4 mb-4 sm:mb-6 overflow-x-auto">
-            {[
-              { key: 'qr-scan', label: 'Verify', icon: QrCode },
-              { key: 'vehicle-details', label: 'Details', icon: Camera },
-              { key: 'before-photos', label: 'Before', icon: Camera },
-              { key: 'job-active', label: 'Active', icon: CheckCircle },
-              { key: 'after-photos', label: 'After', icon: Camera },
-              { key: 'complete', label: 'Done', icon: CheckCircle },
-            ].map((step, index) => {
-              const Icon = step.icon;
-              const isActive = currentStep === step.key;
-              const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
-              
-              return (
-                <div key={step.key} className="flex flex-col sm:flex-row items-center">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center ${
-                      isActive ? 'bg-blue-600 text-white' :
-                      isCompleted ? 'bg-green-500 text-white' :
-                      'bg-gray-200 text-gray-600'
-                    }`}>
-                      {isCompleted ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    </div>
-                    <span className="text-xs mt-1 text-center hidden sm:block">{step.label}</span>
-                  </div>
-                  {index < 5 && (
-                    <div className={`w-6 sm:w-12 h-1 mx-1 sm:mx-2 ${
-                      isCompleted ? 'bg-green-500' : 'bg-gray-200'
-                    }`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        </div>
 
-          {/* Step 1: QR Code Scan */}
-          {currentStep === 'qr-scan' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <QrCode className="w-5 h-5" />
-                  <span>Job Verification</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="mb-4 text-center">
-                  <p className="text-gray-600">
-                    Verify the job by scanning the QR code or entering the job ID manually
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 sm:p-6">
+            {/* Progress Steps */}
+            <div className="flex items-center justify-between mb-6 sm:mb-8 px-2 sm:px-4 overflow-x-auto">
+              {[
+                { key: 'qr-scan', label: 'Verify', icon: QrCode },
+                { key: 'vehicle-details', label: 'Details', icon: Car },
+                { key: 'before-photos', label: 'Before', icon: Camera },
+                { key: 'job-active', label: 'Active', icon: CheckCircle },
+                { key: 'after-photos', label: 'After', icon: Camera },
+                { key: 'complete', label: 'Done', icon: CheckCircle },
+              ].map((step, index) => {
+                const Icon = step.icon;
+                const isActive = currentStep === step.key;
+                const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
+                
+                return (
+                  <div key={step.key} className="flex items-center flex-shrink-0">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                        isActive ? 'bg-blue-600 border-blue-600 text-white shadow-lg' :
+                        isCompleted ? 'bg-green-500 border-green-500 text-white' :
+                        'bg-white border-gray-300 text-gray-400'
+                      }`}>
+                        {isCompleted && !isActive ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-4 h-4 sm:w-5 sm:h-5" />}
+                      </div>
+                      <span className={`text-xs mt-1 sm:mt-2 font-medium hidden sm:block ${
+                        isActive ? 'text-blue-600' :
+                        isCompleted ? 'text-green-600' :
+                        'text-gray-400'
+                      }`}>{step.label}</span>
+                    </div>
+                    {index < 5 && (
+                      <div className={`w-6 sm:w-12 h-0.5 mx-1 sm:mx-3 transition-colors ${
+                        isCompleted ? 'bg-green-500' : 'bg-gray-200'
+                      }`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Step 1: QR Code Scan */}
+            {currentStep === 'qr-scan' && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Job Verification</h3>
+                  <p className="text-gray-600 text-sm">
+                    Scan the QR code or enter the job ID to verify and start the job
                   </p>
                 </div>
                 
-                <div className="gap-4 sm:gap-6 grid grid-cols-1 lg:grid-cols-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* QR Scanner */}
-                  <div className="space-y-3 sm:space-y-4">
-                    <Label className="font-medium text-sm sm:text-base">QR Code Scanner</Label>
-                    <div className="border rounded-lg min-h-[300px] overflow-hidden">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-2 mb-4">
+                      <QrCode className="w-5 h-5 text-blue-600" />
+                      <h4 className="font-medium text-gray-900">QR Scanner</h4>
+                    </div>
+                    
+                    <div className="bg-white border-2 border-dashed border-gray-300 rounded-lg overflow-hidden">
                       <video
                         id="qr-video"
                         autoPlay
                         playsInline
                         muted
-                        className="w-full h-64 object-cover"
+                        className="w-full h-48 object-cover"
                         style={{ display: isQrScanning ? 'block' : 'none' }}
                       />
                       
                       {!isQrScanning && (
-                        <div className="flex justify-center items-center bg-gray-50 h-64">
-                          <div className="text-center">
-                            <QrCode className="mx-auto mb-2 w-16 h-16 text-gray-400" />
-                            <p className="text-gray-500 mb-2">Starting QR scanner...</p>
-                            <div className="text-gray-400 text-xs">
-                              <p>📱 Allow camera permissions when prompted</p>
-                              <p>🔒 Ensure site has camera access in browser settings</p>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <button 
-                                onClick={() => {
-                                  console.log('🔥 Camera permission button clicked!');
-                                  alert('Camera button clicked! Check console.');
-                                  startQrScanner();
-                                }}
-                                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg w-full"
-                              >
-                                Request Camera Permission
-                              </button>
-                              
-                              <button 
-                                onClick={() => {
-                                  console.log('🔥 Start scanner button clicked!');
-                                  alert('Start scanner clicked!');
-                                  startQrScanner();
-                                }}
-                                className="mt-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg w-full"
-                              >
-                                Start Scanner
-                              </button>
-                            </div>
+                        <div className="flex flex-col items-center justify-center h-48 text-center p-4">
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                            <QrCode className="w-6 h-6 text-blue-600" />
                           </div>
+                          <p className="text-gray-600 text-sm mb-4">Camera ready to scan</p>
+                          <Button 
+                            onClick={startQrScanner}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            Start Scanner
+                          </Button>
                         </div>
                       )}
-                   </div>
-                    <p className="text-gray-500 text-sm text-center">
-                      Position the QR code within the frame to scan
-                    </p>
-                    <div className="flex gap-2">
-                      {isQrScanning && (
+                    </div>
+                    
+                    {isQrScanning && (
+                      <div className="flex gap-2 mt-3">
                         <Button 
                           onClick={stopQrScanner}
                           variant="outline"
+                          size="sm"
                           className="flex-1"
                         >
-                          Stop Scanner
+                          Stop
                         </Button>
-                      )}
-                      
-                      <Button 
-                        onClick={() => {
-                          stopQrScanner();
-                          setTimeout(() => startQrScanner(), 500);
-                        }}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        Restart Scanner
-                      </Button>
-                    </div>
-                 </div>
+                        <Button 
+                          onClick={() => {
+                            stopQrScanner();
+                            setTimeout(() => startQrScanner(), 500);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          Restart
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Manual Input */}
-                  <div className="space-y-3 sm:space-y-4">
-                    <Label className="font-medium text-sm sm:text-base">Manual Job Entry</Label>
-                    <div className="space-y-3 sm:space-y-4">
-                 <div className="space-y-2">
-                        <Label htmlFor="manualJobId" className="text-sm">Job Number or Job ID</Label>
-                   <Input
-                     id="manualJobId"
-                     value={manualJobId}
-                     onChange={(e) => setManualJobId(e.target.value)}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex items-center space-x-2 mb-4">
+                      <div className="w-5 h-5 bg-green-600 rounded flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">#</span>
+                      </div>
+                      <h4 className="font-medium text-gray-900">Manual Entry</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="manualJobId" className="text-sm font-medium text-gray-700">Job Number</Label>
+                        <Input
+                          id="manualJobId"
+                          value={manualJobId}
+                          onChange={(e) => setManualJobId(e.target.value)}
                           placeholder="Enter job number..."
-                          className="text-sm sm:text-lg"
-                   />
-                 </div>
-
-                   <button 
-                     onClick={() => {
-                       console.log('🔥 Load Job button clicked!');
-                       console.log('📝 Manual Job ID:', manualJobId);
-                       
-                       if (!manualJobId.trim()) {
-                         alert('Please enter a job ID first!');
-                         return;
-                       }
-                       
-                       fetchJobById(manualJobId);
-                     }}
-                     className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm sm:text-base"
-                   >
+                          className="mt-1"
+                        />
+                      </div>
+                      
+                      <Button 
+                        onClick={() => fetchJobById(manualJobId)}
+                        disabled={!manualJobId.trim() || loading}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                         Load Job
-                   </button>
-                         </div>
-                         </div>
+                      </Button>
+                    </div>
+                  </div>
                        </div>
                        
                 {/* Current QR Code Display */}
                 {qrCode && (
-                  <div className="bg-blue-50 mt-4 p-3 border border-blue-200 rounded-lg">
-                    <Label className="font-medium text-blue-800 text-sm">Scanned QR Code:</Label>
-                    <div className="mt-1 text-blue-700 text-sm break-all">
+                  <div className="bg-blue-50 p-4 border border-blue-200 rounded-xl">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <CheckCircle className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-blue-800 text-sm">QR Code Detected</span>
+                    </div>
+                    <div className="text-blue-700 text-sm break-all mb-3 font-mono bg-white p-2 rounded border">
                       {qrCode}
-                         </div>
-                    <div className="flex gap-2 mt-2">
+                    </div>
+                    <div className="flex gap-2">
                       <Button 
                         onClick={handleQrCodeSubmit} 
                         disabled={loading || !qrCode.trim()}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-blue-600 hover:bg-blue-700 flex-1"
                       >
                         {loading ? <Loader2 className="mr-2 w-3 h-3 animate-spin" /> : null}
-                        Verify QR Code
+                        Verify Code
                       </Button>
                       <Button 
                         onClick={() => setQrCode('')} 
@@ -1170,287 +1276,205 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
 
 
-          {/* Step 2: Vehicle Details */}
-          {currentStep === 'vehicle-details' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Car className="w-5 h-5" />
-                  <span>Enter Vehicle Details (Optional)</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <p className="mb-2 text-blue-800">
-                    Please enter the details of the vehicle and work area. All fields are optional.
+            {/* Step 2: Vehicle Details */}
+            {currentStep === 'vehicle-details' && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Vehicle Details</h3>
+                  <p className="text-gray-600 text-sm">
+                    Enter vehicle information for this job (all fields optional)
                   </p>
-                  <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="vehicleYear">Vehicle Year</Label>
+                </div>
+                
+                <div className="bg-gray-50 rounded-xl p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="vehicleYear" className="text-sm font-medium text-gray-700">Vehicle Year</Label>
                       <Input
                         id="vehicleYear"
                         value={vehicleDetails.vehicle_year}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_year: e.target.value }))}
-                        placeholder="e.g., 2020"
+                        placeholder="2020"
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="vehicleMake">Vehicle Make</Label>
+                    <div>
+                      <Label htmlFor="vehicleMake" className="text-sm font-medium text-gray-700">Vehicle Make</Label>
                       <Input
                         id="vehicleMake"
                         value={vehicleDetails.vehicle_make}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_make: e.target.value }))}
-                        placeholder="e.g., Toyota"
+                        placeholder="Toyota"
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="vehicleModel">Vehicle Model</Label>
+                    <div>
+                      <Label htmlFor="vehicleModel" className="text-sm font-medium text-gray-700">Vehicle Model</Label>
                       <Input
                         id="vehicleModel"
                         value={vehicleDetails.vehicle_model}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_model: e.target.value }))}
-                        placeholder="e.g., Camry"
+                        placeholder="Camry"
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="vehicleRegistration">Vehicle Registration</Label>
+                    <div>
+                      <Label htmlFor="vehicleRegistration" className="text-sm font-medium text-gray-700">Registration</Label>
                       <Input
                         id="vehicleRegistration"
                         value={vehicleDetails.vehicle_registration}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_registration: e.target.value }))}
-                        placeholder="e.g., ABC123"
+                        placeholder="ABC123"
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="vinNumber">VIN Number</Label>
+                    <div>
+                      <Label htmlFor="vinNumber" className="text-sm font-medium text-gray-700">VIN Number</Label>
                       <Input
                         id="vinNumber"
                         value={vehicleDetails.vin_numer}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vin_numer: e.target.value }))}
-                        placeholder="e.g., 12345678901234567"
+                        placeholder="17-digit VIN"
+                        className="mt-1"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="odometer">Odometer Reading</Label>
+                    <div>
+                      <Label htmlFor="odometer" className="text-sm font-medium text-gray-700">Odometer</Label>
                       <Input
                         id="odometer"
                         value={vehicleDetails.odormeter}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, odormeter: e.target.value }))}
-                        placeholder="e.g., 123456"
+                        placeholder="123456"
+                        className="mt-1"
                       />
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+                
+                <div className="flex gap-3">
                   <Button
                     onClick={() => setCurrentStep('before-photos')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
-                    {loading ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
-                    <span className="hidden sm:inline">Next: Capture Before Photos</span>
-                    <span className="sm:hidden">Next: Before Photos</span>
+                    Continue to Photos
                   </Button>
                   <Button
                     onClick={() => setCurrentStep('before-photos')}
                     variant="outline"
-                    className="flex-1 text-sm sm:text-base"
+                    className="px-6"
                   >
-                    Skip & Continue
+                    Skip
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {/* Step 3: Before Photos */}
-          {currentStep === 'before-photos' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Camera className="w-5 h-5" />
-                  <span>Capture Before Photos</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                                 <div className="bg-green-50 p-4 rounded-lg">
-                   <p className="mb-2 text-green-800">
-                     Please capture photos of the vehicle/work area before starting the job.
-                     You can take multiple photos as needed.
-                   </p>
-                   
-                   {/* Mobile-specific instructions */}
-                   <div className="bg-blue-50 p-3 border-blue-400 border-l-4 rounded">
-                     <h5 className="mb-2 font-medium text-blue-900">📱 Mobile Camera Tips:</h5>
-                     <ul className="space-y-1 text-blue-800 text-sm">
-                       <li>• Hold device steady for clear photos</li>
-                       <li>• Ensure good lighting for best results</li>
-                       <li>• Use "Switch Camera" button to toggle between front/back cameras</li>
-                       <li>• Allow camera permissions when prompted</li>
-                     </ul>
-                   </div>
-                 </div>
+            {/* Step 3: Before Photos */}
+            {currentStep === 'before-photos' && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Capture Before Photos</h3>
+                  <p className="text-gray-600 text-sm">
+                    Take photos of the vehicle/work area before starting the job
+                  </p>
+                </div>
 
-                                 {/* Camera View */}
-                 <div className="relative">
-                  {/* Debug Info */}
-                  <div className="bg-gray-100 mb-2 p-2 rounded text-xs">
-                    <strong>Camera Debug:</strong> 
-                    Stream: {streamRef.current ? 'Active' : 'None'} | 
-                    Video Ref: {videoRef.current ? 'Ready' : 'None'} | 
-                    Force Update: {forceUpdate ? 'Yes' : 'No'}
-                  </div>
-                  
-                  {/* Video Element - Always render this */}
-                  <div className="bg-gray-900 rounded-lg w-full h-64 overflow-hidden">
-                       <video
-                         ref={videoRef}
-                         autoPlay
-                         playsInline
-                         muted
-                      className="w-full h-full object-cover"
+                {/* Camera View */}
+                <div className="relative">
+                  <div className="bg-gray-900 rounded-xl overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-64 object-cover"
                       style={{ display: streamRef.current ? 'block' : 'none' }}
-                       />
-                       <canvas ref={canvasRef} className="hidden" />
+                    />
+                    <canvas ref={canvasRef} className="hidden" />
                     
-                    {/* Show placeholder when no stream */}
                     {!streamRef.current && (
-                      <div className="flex flex-col justify-center items-center h-full text-white">
-                        <Camera className="mb-4 w-16 h-16 text-gray-400" />
-                        <p className="mb-4 text-center">Camera not accessible</p>
-                        <div className="space-y-2">
-                          <Button
-                            onClick={startCamera}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            Start Camera
-                          </Button>
-                          
-                          <Button
-                            onClick={testCameraAccess}
-                            variant="outline"
-                            className="bg-white/90 hover:bg-white text-gray-800"
-                          >
-                            Test Camera Access
-                          </Button>
-                          
-                          <div className="text-gray-400 text-xs text-center">
-                            <p>• Ensure camera permissions are enabled</p>
-                            <p>• Try refreshing the page</p>
-                            <p>• Check browser settings</p>
-                            <p>• Close other camera apps (Zoom, Teams, etc.)</p>
-                            <p>• Use Chrome, Firefox, or Edge browser</p>
-                          </div>
+                      <div className="flex flex-col items-center justify-center h-64 text-center p-6">
+                        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                          <Camera className="w-8 h-8 text-gray-400" />
                         </div>
+                        <p className="text-gray-400 mb-4">Camera not accessible</p>
+                        <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
+                          Start Camera
+                        </Button>
                       </div>
                     )}
                   </div>
                   
-                  {/* Camera Controls - Only show when stream is active */}
                   {streamRef.current && (
-                    <>
-                      <div className="mt-4 text-gray-600 text-sm text-center">
-                        Camera Status: Active | Stream: {streamRef.current.getVideoTracks().length} video track(s)
-                      </div>
-                       
-                       <div className="bottom-4 left-1/2 absolute flex flex-col space-y-2 -translate-x-1/2 transform">
-                         <div className="bg-black/50 text-white rounded-full px-3 py-1 mb-2 text-sm">
-                           {beforePhotos.length}/30 Photos
-                         </div>
-                         <Button
-                           onClick={capturePhoto}
-                          disabled={maxPhotosReached}
-                           className="bg-blue-600 hover:bg-blue-700"
-                         >
-                          {maxPhotosReached ? 'Max Photos (30)' : 'Capture Photo'}
-                         </Button>
-                         
-                         {/* Camera Toggle Button for Mobile */}
-                         <Button
-                           onClick={() => {
-                             stopCamera();
-                             setTimeout(() => startCamera(), 500);
-                           }}
-                           variant="outline"
-                           size="sm"
-                           className="bg-white/90 hover:bg-white text-gray-800"
-                         >
-                           Switch Camera
-                         </Button>
-                        
-                        {/* Manual Refresh Button */}
-                         <Button
-                          onClick={() => {
-                            console.log('Manual camera refresh requested');
-                            stopCamera();
-                            setTimeout(() => {
-                              console.log('Restarting camera after manual refresh...');
-                              startCamera();
-                            }, 1000);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/90 hover:bg-white text-gray-800"
-                        >
-                          Refresh Camera
-                         </Button>
-                         </div>
-                    </>
-                   )}
-                 </div>
+                    <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                      <Button
+                        onClick={capturePhoto}
+                        disabled={maxPhotosReached}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      >
+                        {maxPhotosReached ? 'Max Photos (30)' : `Capture Photo (${beforePhotos.length}/30)`}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          stopCamera();
+                          setTimeout(() => startCamera(), 500);
+                        }}
+                        variant="outline"
+                        className="sm:w-auto"
+                      >
+                        Switch Camera
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-                {/* Captured Photos */}
                 {beforePhotos.length > 0 && (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Captured Photos ({beforePhotos.length}/30)</h4>
-                      {maxPhotosReached && (
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                          Max Photos Reached
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="gap-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 max-h-[400px] overflow-y-auto p-2">
+                    <h4 className="font-medium text-gray-900">Captured Photos ({beforePhotos.length})</h4>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 max-h-48 overflow-y-auto">
                       {beforePhotos.map((photo, index) => (
-                        <div key={index} className="relative">
-                          <div className="bg-gray-100 rounded-lg p-1">
-                            <img
-                              src={photo}
-                              alt={`Before photo ${index + 1}`}
-                              className="rounded-lg w-full h-24 object-cover"
-                            />
-                            <div className="absolute top-0 left-0 bg-black/60 text-white text-xs px-2 py-1 rounded-tl-lg rounded-br-lg">
-                              #{index + 1}
-                            </div>
-                            <button
-                              onClick={() => removePhoto(index)}
-                              className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                        <div key={index} className="relative group">
+                          <img
+                            src={photo}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-16 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                          <button
+                            onClick={() => removePhoto(index)}
+                            className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <Button
-                  onClick={handleBeforePhotosComplete}
-                  disabled={beforePhotos.length === 0 || isSubmitting}
-                  className="bg-green-600 hover:bg-green-700 w-full"
-                >
-                  {isSubmitting ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
-                  Complete & Start Job
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleBeforePhotosComplete}
+                    disabled={beforePhotos.length === 0 || isSubmitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Complete & Start Job
+                  </Button>
+                  <Button
+                    onClick={() => setCurrentStep('job-active')}
+                    variant="outline"
+                    className="px-6"
+                  >
+                    Skip
+                  </Button>
+                </div>
+              </div>
+            )}
 
           {/* Step 3: Job Active */}
           {currentStep === 'job-active' && (
@@ -1505,189 +1529,107 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
              </Card>
            )}
 
-          {/* Step 4: After Photos */}
-          {currentStep === 'after-photos' && (
-             <Card>
-               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Camera className="w-5 h-5" />
-                  <span>Capture After Photos</span>
-                 </CardTitle>
-               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="mb-2 text-green-800">
-                    Please capture photos of the completed work. These photos will be used to document the finished job.
-                    You can take multiple photos as needed.
+            {/* Step 4: After Photos */}
+            {currentStep === 'after-photos' && (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Capture After Photos</h3>
+                  <p className="text-gray-600 text-sm">
+                    Take photos of the completed work to document the finished job
                   </p>
-                  
-                  {/* Mobile-specific instructions */}
-                  <div className="bg-blue-50 p-3 border-blue-400 border-l-4 rounded">
-                    <h5 className="mb-2 font-medium text-blue-900">📱 Mobile Camera Tips:</h5>
-                    <ul className="space-y-1 text-blue-800 text-sm">
-                      <li>• Hold device steady for clear photos</li>
-                      <li>• Ensure good lighting for best results</li>
-                      <li>• Use "Switch Camera" button to toggle between front/back cameras</li>
-                      <li>• Allow camera permissions when prompted</li>
-                    </ul>
-                  </div>
-                 </div>
-                 
+                </div>
+
                 {/* Camera View */}
                 <div className="relative">
-                  {/* Debug Info */}
-                  <div className="bg-gray-100 mb-2 p-2 rounded text-xs">
-                    <strong>Camera Debug:</strong> 
-                    Stream: {streamRef.current ? 'Active' : 'None'} | 
-                    Video Ref: {videoRef.current ? 'Ready' : 'None'} | 
-                    Force Update: {forceUpdate ? 'Yes' : 'No'}
-                     </div>
-                  
-                  {/* Video Element - Always render this */}
-                  <div className="bg-gray-900 rounded-lg w-full h-64 overflow-hidden">
+                  <div className="bg-gray-900 rounded-xl overflow-hidden">
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-64 object-cover"
                       style={{ display: streamRef.current ? 'block' : 'none' }}
                     />
                     <canvas ref={canvasRef} className="hidden" />
                     
-                    {/* Show placeholder when no stream */}
                     {!streamRef.current && (
-                      <div className="flex flex-col justify-center items-center h-full text-white">
-                        <Camera className="mb-4 w-16 h-16 text-gray-400" />
-                        <p className="mb-4 text-center">Camera not accessible</p>
-                        <div className="space-y-2">
-                          <Button
-                            onClick={startCamera}
-                            className="bg-blue-600 hover:bg-blue-700"
-                          >
-                            Start Camera
-                          </Button>
-                          
-                          <Button
-                            onClick={testCameraAccess}
-                            variant="outline"
-                            className="bg-white/90 hover:bg-white text-gray-800"
-                          >
-                            Test Camera Access
-                          </Button>
-                          
-                          <div className="text-gray-400 text-xs text-center">
-                            <p>• Ensure camera permissions are enabled</p>
-                            <p>• Try refreshing the page</p>
-                            <p>• Check browser settings</p>
-                            <p>• Close other camera apps (Zoom, Teams, etc.)</p>
-                            <p>• Use Chrome, Firefox, or Edge browser</p>
-                     </div>
-                     </div>
-                     </div>
-                    )}
-                   </div>
-                  
-                  {/* Camera Controls - Only show when stream is active */}
-                  {streamRef.current && (
-                    <>
-                      <div className="mt-4 text-gray-600 text-sm text-center">
-                        Camera Status: Active | Stream: {streamRef.current.getVideoTracks().length} video track(s)
-                 </div>
-
-                      <div className="bottom-4 left-1/2 absolute flex flex-col space-y-2 -translate-x-1/2 transform">
-                         <div className="bg-black/50 text-white rounded-full px-3 py-1 mb-2 text-sm">
-                           {afterPhotos.length}/30 Photos
-                         </div>
-                 <Button 
-                          onClick={captureAfterPhoto}
-                          disabled={maxAfterPhotosReached}
-                          className="bg-blue-600 hover:bg-blue-700"
-                 >
-                          {maxAfterPhotosReached ? 'Max Photos (30)' : 'Capture After Photo'}
-                 </Button>
-
-                        {/* Camera Toggle Button for Mobile */}
-                        <Button
-                          onClick={() => {
-                            stopCamera();
-                            setTimeout(() => startCamera(), 500);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/90 hover:bg-white text-gray-800"
-                        >
-                          Switch Camera
-                        </Button>
-                        
-                        {/* Manual Refresh Button */}
-                        <Button
-                          onClick={() => {
-                            console.log('Manual camera refresh requested');
-                            stopCamera();
-                            setTimeout(() => {
-                              console.log('Restarting camera after manual refresh...');
-                              startCamera();
-                            }, 1000);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="bg-white/90 hover:bg-white text-gray-800"
-                        >
-                          Refresh Camera
+                      <div className="flex flex-col items-center justify-center h-64 text-center p-6">
+                        <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                          <Camera className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-gray-400 mb-4">Camera not accessible</p>
+                        <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
+                          Start Camera
                         </Button>
                       </div>
-                    </>
+                    )}
+                  </div>
+                  
+                  {streamRef.current && (
+                    <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                      <Button
+                        onClick={captureAfterPhoto}
+                        disabled={maxAfterPhotosReached}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                      >
+                        {maxAfterPhotosReached ? 'Max Photos (30)' : `Capture Photo (${afterPhotos.length}/30)`}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          stopCamera();
+                          setTimeout(() => startCamera(), 500);
+                        }}
+                        variant="outline"
+                        className="sm:w-auto"
+                      >
+                        Switch Camera
+                      </Button>
+                    </div>
                   )}
                 </div>
 
-                {/* Captured After Photos */}
                 {afterPhotos.length > 0 && (
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Captured After Photos ({afterPhotos.length}/30)</h4>
-                      {maxAfterPhotosReached && (
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                          Max Photos Reached
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="gap-4 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 max-h-[400px] overflow-y-auto p-2">
+                    <h4 className="font-medium text-gray-900">Captured Photos ({afterPhotos.length})</h4>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 max-h-48 overflow-y-auto">
                       {afterPhotos.map((photo, index) => (
-                        <div key={index} className="relative">
-                          <div className="bg-gray-100 rounded-lg p-1">
-                            <img
-                              src={photo}
-                              alt={`After photo ${index + 1}`}
-                              className="rounded-lg w-full h-24 object-cover"
-                            />
-                            <div className="absolute top-0 left-0 bg-black/60 text-white text-xs px-2 py-1 rounded-tl-lg rounded-br-lg">
-                              #{index + 1}
-                            </div>
-                            <button
-                              onClick={() => removeAfterPhoto(index)}
-                              className="-top-2 -right-2 absolute bg-red-500 hover:bg-red-600 p-1 rounded-full text-white"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
+                        <div key={index} className="relative group">
+                          <img
+                            src={photo}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-16 object-cover rounded-lg border-2 border-gray-200"
+                          />
+                          <button
+                            onClick={() => removeAfterPhoto(index)}
+                            className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 p-1 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <Button
-                  onClick={handleAfterPhotosComplete}
-                  disabled={afterPhotos.length === 0 || isSubmitting}
-                  className="bg-green-600 hover:bg-green-700 w-full"
-                >
-                  {isSubmitting ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
-                  Complete Job
-                 </Button>
-               </CardContent>
-             </Card>
-           )}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleAfterPhotosComplete}
+                    disabled={afterPhotos.length === 0 || isSubmitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Complete Job
+                  </Button>
+                  <Button
+                    onClick={() => setCurrentStep('complete')}
+                    variant="outline"
+                    className="px-6"
+                  >
+                    Skip
+                  </Button>
+                </div>
+              </div>
+            )}
 
           {/* Step 5: Complete */}
           {currentStep === 'complete' && (
@@ -1730,8 +1672,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
               </CardContent>
             </Card>
           )}
-                 </div>
-       </div>
-     </div>
-   );
- }
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
