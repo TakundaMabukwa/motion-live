@@ -95,10 +95,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
     }
 
-    // If job is being completed, handle vehicle addition based on job type
+    // If job is being completed, handle vehicle addition and stock deduction
     if (isBeingCompleted) {
       try {
-        // Call the add-vehicle endpoint internally (it will check job type)
+        // First, deduct stock from technician's boot stock
+        if (currentJob.technician_phone && currentJob.parts_required && currentJob.assigned_technician_id) {
+          console.log(`Deducting stock for technician: ${currentJob.technician_phone} (ID: ${currentJob.assigned_technician_id})`);
+          await deductTechnicianStock(currentJob.technician_phone, currentJob.parts_required, currentJob.assigned_technician_id);
+        }
+        
+        // Then call the add-vehicle endpoint internally (it will check job type)
         const addVehicleResponse = await fetch(`${request.nextUrl.origin}/api/job-cards/${id}/add-vehicle`, {
           method: 'POST',
           headers: {
@@ -118,6 +124,80 @@ export async function PATCH(
       } catch (error) {
         console.error('Error processing job completion:', error);
         // Don't fail the job completion if vehicle processing fails
+      }
+    }
+
+    // Function to deduct stock from technician's boot stock
+    async function deductTechnicianStock(technicianEmail: string, partsRequired: any[], technicianId: string) {
+      try {
+        console.log(`Attempting to deduct stock for technician: ${technicianEmail}`);
+        
+        // Validate that the technician email matches the assigned technician
+        if (!technicianEmail || !technicianId) {
+          console.log('Missing technician email or ID, skipping stock deduction');
+          return;
+        }
+
+        // Get technician's current stock
+        const { data: techStock, error: fetchError } = await supabase
+          .from('tech_stock')
+          .select('assigned_parts, technician_email')
+          .eq('technician_email', technicianEmail)
+          .single();
+
+        if (fetchError || !techStock) {
+          console.log('No tech stock found for technician:', technicianEmail);
+          return;
+        }
+
+        // Double-check that we have the correct technician's stock
+        if (techStock.technician_email !== technicianEmail) {
+          console.error(`Technician email mismatch! Expected: ${technicianEmail}, Got: ${techStock.technician_email}`);
+          return;
+        }
+
+        const assignedParts = techStock.assigned_parts || [];
+        let updatedParts = [...assignedParts];
+        let stockDeducted = false;
+
+        // Match parts required with boot stock and deduct quantities
+        partsRequired.forEach(requiredPart => {
+          const stockIndex = updatedParts.findIndex(stockPart => 
+            stockPart.code === requiredPart.code && 
+            stockPart.boot_stock === 'yes'
+          );
+
+          if (stockIndex !== -1) {
+            const currentQty = parseInt(updatedParts[stockIndex].quantity) || 0;
+            const requiredQty = parseInt(requiredPart.quantity) || 0;
+            const newQty = Math.max(0, currentQty - requiredQty);
+            
+            updatedParts[stockIndex] = {
+              ...updatedParts[stockIndex],
+              quantity: newQty,
+              available_stock: newQty
+            };
+            
+            stockDeducted = true;
+            console.log(`Deducted ${requiredQty} of ${requiredPart.code} from technician stock`);
+          }
+        });
+
+        // Update technician's stock if any deductions were made
+        if (stockDeducted) {
+          const { error: updateError } = await supabase
+            .from('tech_stock')
+            .update({ assigned_parts: updatedParts })
+            .eq('technician_email', technicianEmail);
+
+          if (updateError) {
+            console.error('Error updating technician stock:', updateError);
+          } else {
+            console.log('Successfully updated technician stock');
+          }
+        }
+      } catch (error) {
+        console.error('Error deducting technician stock:', error);
       }
     }
 
