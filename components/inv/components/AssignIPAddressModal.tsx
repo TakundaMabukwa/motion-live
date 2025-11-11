@@ -18,6 +18,7 @@ interface StockItem {
   description?: string;
   code?: string;
   supplier?: string;
+  serial_number?: string;
   ip_addresses?: string[] | Record<string, string>;
 }
 
@@ -30,8 +31,9 @@ interface AssignIPAddressModalProps {
 
 export default function AssignIPAddressModal({ isOpen, onClose, item, onAssigned }: AssignIPAddressModalProps) {
   const [ipAddresses, setIPAddresses] = useState<IPAddress[]>([]);
+  const [serialNumber, setSerialNumber] = useState<string>('');
   
-  // Initialize IP addresses from the item when the modal opens
+  // Initialize IP addresses and serial number from the item when the modal opens
   useEffect(() => {
     if (item && item.ip_addresses) {
       try {
@@ -48,6 +50,8 @@ export default function AssignIPAddressModal({ isOpen, onClose, item, onAssigned
     } else {
       setIPAddresses([]);
     }
+    
+    setSerialNumber(item?.serial_number || '');
   }, [item]);
 
   const validateIPAddress = (ip: string): boolean => {
@@ -92,6 +96,24 @@ export default function AssignIPAddressModal({ isOpen, onClose, item, onAssigned
     }
 
     try {
+      // Update serial number if changed
+      if (serialNumber !== item?.serial_number) {
+        const serialResponse = await fetch('/api/stock', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: item.id,
+            serial_number: serialNumber
+          }),
+        });
+
+        if (!serialResponse.ok) {
+          throw new Error('Failed to update serial number');
+        }
+      }
+
       const response = await fetch('/api/stock/stock-take/ip', {
         method: 'POST',
         headers: {
@@ -108,12 +130,12 @@ export default function AssignIPAddressModal({ isOpen, onClose, item, onAssigned
       }
 
       await response.json();
-      toast.success('IP addresses updated successfully');
+      toast.success('Updated successfully');
       onAssigned(item.id, validIPs);
       onClose();
     } catch (error) {
-      console.error('Error updating IP addresses:', error);
-      toast.error('Failed to update IP addresses');
+      console.error('Error updating:', error);
+      toast.error('Failed to update');
     }
   };
 
@@ -140,6 +162,15 @@ export default function AssignIPAddressModal({ isOpen, onClose, item, onAssigned
           {item?.code && (
             <p className="text-sm text-gray-600">Code: {item.code}</p>
           )}
+          <div className="mt-2">
+            <label className="text-sm font-medium text-gray-700">Serial Number:</label>
+            <Input
+              value={serialNumber}
+              onChange={(e) => setSerialNumber(e.target.value)}
+              placeholder="Enter serial number"
+              className="mt-1"
+            />
+          </div>
         </div>
 
           <div className="space-y-3 mb-6">

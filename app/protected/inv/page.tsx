@@ -130,6 +130,11 @@ export default function InventoryPage() {
   const [showOrderItemsModal, setShowOrderItemsModal] = useState(false);
   const [allIpAddresses, setAllIpAddresses] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [newItemData, setNewItemData] = useState({ category_code: '', serial_number: '' });
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadOrder, setUploadOrder] = useState(null);
+  const [uploadItems, setUploadItems] = useState([]);
   
   // Stock Take state
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -168,6 +173,12 @@ export default function InventoryPage() {
       fetchStockItems();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'stock-take') {
+      fetchStockItems();
+    }
+  }, [stockTakeActiveTab]);
 
   const fetchStockOrders = async () => {
     try {
@@ -239,7 +250,9 @@ export default function InventoryPage() {
     try {
       const response = await fetch('/api/stock');
       if (!response.ok) {
-        throw new Error('Failed to fetch stock items');
+        const errorText = await response.text();
+        console.error('Stock API error:', response.status, errorText);
+        throw new Error(`Failed to fetch stock items: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       const stockItems = data.stock || [];
@@ -733,6 +746,133 @@ export default function InventoryPage() {
     }
   };
 
+  const handleUploadToStock = (order) => {
+    if (!order.order_items || !Array.isArray(order.order_items)) {
+      toast.error('No items found in this order');
+      return;
+    }
+
+    // Prepare items for serial number entry
+    const items = [];
+    order.order_items.forEach((item, itemIndex) => {
+      const quantity = parseInt(item.quantity) || 1;
+      for (let i = 0; i < quantity; i++) {
+        items.push({
+          id: `${itemIndex}-${i}`,
+          description: item.description || 'Custom Item',
+          serialNumber: '',
+          categoryCode: item.description?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10) || 'ORDERED'
+        });
+      }
+    });
+
+    setUploadOrder(order);
+    setUploadItems(items);
+    setShowUploadModal(true);
+  };
+
+  const handleUploadSingle = async (item) => {
+    if (!item.serialNumber.trim()) {
+      toast.error('Please enter a serial number');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/stock-orders/upload-to-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          orderId: uploadOrder.id,
+          items: [item]
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload item');
+      }
+
+      toast.success(`Successfully uploaded ${item.description}`);
+      // Remove uploaded item from list
+      setUploadItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (error) {
+      console.error('Error uploading item:', error);
+      toast.error(error.message || 'Failed to upload item');
+    }
+  };
+
+  const handleConfirmUpload = async () => {
+    const itemsToUpload = uploadItems.filter(item => item.serialNumber.trim());
+    if (itemsToUpload.length === 0) {
+      toast.error('Please enter serial numbers for at least one item');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/stock-orders/upload-to-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          orderId: uploadOrder.id,
+          items: itemsToUpload
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload to stock');
+      }
+
+      const result = await response.json();
+      toast.success(`Successfully uploaded ${result.itemsCreated} items to stock`);
+      setShowUploadModal(false);
+      fetchStockOrders();
+    } catch (error) {
+      console.error('Error uploading to stock:', error);
+      toast.error(error.message || 'Failed to upload to stock');
+    }
+  };
+
+  const updateSerialNumber = (itemId, serialNumber) => {
+    setUploadItems(prev => prev.map(item => 
+      item.id === itemId ? { ...item, serialNumber } : item
+    ));
+  };
+
+  const handleAddNewItem = async () => {
+    if (!newItemData.category_code || !newItemData.serial_number) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newItemData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create item');
+      }
+
+      toast.success('New item added successfully');
+      setShowAddItemModal(false);
+      setNewItemData({ category_code: '', serial_number: '' });
+      fetchStockItems();
+    } catch (error) {
+      console.error('Error adding new item:', error);
+      toast.error(error.message || 'Failed to add new item');
+    }
+  };
+
   const createTestStockItems = async () => {
     try {
       const response = await fetch('/api/stock/test', {
@@ -758,16 +898,33 @@ export default function InventoryPage() {
   // Stock Take Functions
   const fetchStockItems = async () => {
     try {
-      const response = await fetch('/api/stock');
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (selectedStockType !== 'all') {
+        params.append('category', selectedStockType);
+      }
+      
+      // Add view parameter based on active tab
+      if (stockTakeActiveTab === 'thresholds') {
+        params.append('view', 'thresholds');
+      }
+      
+      const response = await fetch(`/api/stock?${params}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch stock items');
+        const errorText = await response.text();
+        console.error('Stock API error:', response.status, errorText);
+        throw new Error(`Failed to fetch stock items: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       setStockItems(data.stock || []);
       
-      // Extract unique stock types
-      const types = [...new Set(data.stock?.map(item => item.stock_type).filter(Boolean))];
-      setStockTypes(types);
+      // Fetch categories for filter
+      const categoriesResponse = await fetch('/api/inventory-categories');
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        const categoryOptions = categoriesData.categories?.map(cat => cat.code) || [];
+        setStockTypes(categoryOptions);
+      }
     } catch (error) {
       console.error('Error fetching stock items:', error);
       toast.error('Failed to load stock items');
@@ -1185,15 +1342,7 @@ export default function InventoryPage() {
                           <QrCode className="mr-1 w-3 h-3" />
                           View QR
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handlePrintQR(job)}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <Printer className="mr-1 w-3 h-3" />
-                          Print
-                        </Button>
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -1443,6 +1592,17 @@ export default function InventoryPage() {
                         <Package className="mr-1 w-3 h-3" />
                         View Items
                       </Button>
+                      {order.status === 'paid' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleUploadToStock(order)}
+                          className="text-orange-600 hover:text-orange-700 text-xs"
+                        >
+                          <Package className="mr-1 w-3 h-3" />
+                          Upload to Stock
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1490,6 +1650,13 @@ export default function InventoryPage() {
                 Start Stock Take
               </>
             )}
+          </Button>
+          <Button 
+            onClick={() => setShowAddItemModal(true)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Plus className="mr-2 w-4 h-4" />
+            Add New Item
           </Button>
         </div>
       </div>
@@ -1557,7 +1724,7 @@ export default function InventoryPage() {
             <div className="relative flex-1">
               <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
               <Input
-                placeholder="Search stock items by description, code, or supplier..."
+                placeholder="Search stock items by serial number..."
                 value={stockTakeSearchTerm}
                 onChange={(e) => setStockTakeSearchTerm(e.target.value)}
                 className="pl-10"
@@ -1570,7 +1737,7 @@ export default function InventoryPage() {
                 onChange={(e) => setSelectedStockType(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
-                <option value="all">All Types</option>
+                <option value="all">All Categories</option>
                 {stockTypes.map(type => (
                   <option key={type} value={type}>{type}</option>
                 ))}
@@ -1580,6 +1747,16 @@ export default function InventoryPage() {
               <RefreshCw className="mr-2 w-4 h-4" />
               Refresh
             </Button>
+            {stockTakeActiveTab === 'stock-take' && (
+              <Button 
+                onClick={() => setShowAddItemModal(true)}
+                className="bg-green-600 hover:bg-green-700"
+                size="sm"
+              >
+                <Plus className="mr-2 w-4 h-4" />
+                Add New Item
+              </Button>
+            )}
           </div>
         </>
       ) : (
@@ -1633,7 +1810,7 @@ export default function InventoryPage() {
                   Code
                 </th>
                 <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
-                  Supplier
+                  Serial Number
                 </th>
                 <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
                   Type
@@ -1681,7 +1858,7 @@ export default function InventoryPage() {
                   >
                     <td className="px-4 py-3 border border-gray-200 text-sm">
                       <div>
-                        <div className="font-medium text-gray-900">{String(item.description || '')}</div>
+                        <div className="font-medium text-gray-900">{item.description || item.code || 'No description'}</div>
                         <div className="flex gap-1 flex-wrap mt-1">
                           {item.stock_type && (
                             <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
@@ -1710,7 +1887,7 @@ export default function InventoryPage() {
                       {item.code || 'N/A'}
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
-                      {item.supplier || 'N/A'}
+                      {item.serial_number || 'N/A'}
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-sm text-center">
                       <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
@@ -2190,6 +2367,116 @@ export default function InventoryPage() {
                  )}
                </div>
              )}
+           </div>
+         </DialogContent>
+       </Dialog>
+
+       {/* Upload to Stock Modal */}
+       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+         <DialogContent className="max-w-2xl max-h-[90vh]">
+           <DialogHeader>
+             <DialogTitle>Upload Order Items to Stock</DialogTitle>
+           </DialogHeader>
+           <div className="space-y-4">
+             <div className="flex justify-between items-center">
+               <p className="text-sm text-gray-600">Enter serial numbers for {uploadItems.length} items:</p>
+               <div className="flex gap-3">
+                 <Button variant="outline" onClick={() => setShowUploadModal(false)}>
+                   Cancel
+                 </Button>
+                 <Button onClick={handleConfirmUpload} className="bg-green-600 hover:bg-green-700">
+                   Upload All ({uploadItems.filter(item => item.serialNumber.trim()).length})
+                 </Button>
+               </div>
+             </div>
+             <div className="text-sm text-gray-600 mb-2">
+               {uploadItems.filter(item => item.serialNumber.trim()).length} of {uploadItems.length} items ready
+             </div>
+             <div className="bg-white rounded border max-h-96 overflow-y-auto">
+               <table className="w-full">
+                 <thead className="bg-gray-50 sticky top-0">
+                   <tr>
+                     <th className="text-left p-3 text-sm font-medium text-gray-700">#</th>
+                     <th className="text-left p-3 text-sm font-medium text-gray-700">Description</th>
+                     <th className="text-left p-3 text-sm font-medium text-gray-700">Category</th>
+                     <th className="text-left p-3 text-sm font-medium text-gray-700">Serial Number</th>
+                     <th className="text-center p-3 text-sm font-medium text-gray-700">Action</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {uploadItems.map((item, index) => (
+                     <tr key={item.id} className="border-t hover:bg-gray-50">
+                       <td className="p-3 text-sm text-gray-600">{index + 1}</td>
+                       <td className="p-3">
+                         <div className="font-medium text-sm text-gray-900">{item.description}</div>
+                       </td>
+                       <td className="p-3">
+                         <Badge variant="outline" className="text-xs">{item.categoryCode}</Badge>
+                       </td>
+                       <td className="p-3">
+                         <Input
+                           value={item.serialNumber}
+                           onChange={(e) => updateSerialNumber(item.id, e.target.value)}
+                           placeholder="Enter serial number"
+                           className="w-full"
+                         />
+                       </td>
+                       <td className="p-3 text-center">
+                         <Button
+                           size="sm"
+                           onClick={() => handleUploadSingle(item)}
+                           disabled={!item.serialNumber.trim()}
+                           className="bg-blue-600 hover:bg-blue-700 text-xs"
+                         >
+                           Upload
+                         </Button>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           </div>
+         </DialogContent>
+       </Dialog>
+
+       {/* Add New Item Modal */}
+       <Dialog open={showAddItemModal} onOpenChange={setShowAddItemModal}>
+         <DialogContent className="sm:max-w-md">
+           <DialogHeader>
+             <DialogTitle>Add New Inventory Item</DialogTitle>
+           </DialogHeader>
+           <div className="space-y-4">
+             <div>
+               <label className="text-sm font-medium text-gray-700">Category Code</label>
+               <select
+                 value={newItemData.category_code}
+                 onChange={(e) => setNewItemData({...newItemData, category_code: e.target.value})}
+                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+               >
+                 <option value="">Select category...</option>
+                 {stockTypes.map(type => (
+                   <option key={type} value={type}>{type}</option>
+                 ))}
+               </select>
+             </div>
+             <div>
+               <label className="text-sm font-medium text-gray-700">Serial Number</label>
+               <Input
+                 value={newItemData.serial_number}
+                 onChange={(e) => setNewItemData({...newItemData, serial_number: e.target.value})}
+                 placeholder="Enter serial number"
+                 className="mt-1"
+               />
+             </div>
+           </div>
+           <div className="flex justify-end gap-3 mt-6">
+             <Button variant="outline" onClick={() => setShowAddItemModal(false)}>
+               Cancel
+             </Button>
+             <Button onClick={handleAddNewItem} className="bg-green-600 hover:bg-green-700">
+               Add Item
+             </Button>
            </div>
          </DialogContent>
        </Dialog>

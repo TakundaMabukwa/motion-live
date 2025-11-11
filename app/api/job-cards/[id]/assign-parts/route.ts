@@ -75,6 +75,7 @@ export async function PUT(request: NextRequest, { params }) {
     // Prepare update data
     const updateData = {
       parts_required: parts,
+      qr_code: qrCodeUrl,
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };

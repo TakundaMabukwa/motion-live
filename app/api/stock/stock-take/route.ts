@@ -27,23 +27,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid stock updates data' }, { status: 400 });
     }
 
-    // Get current technician stock
-    const { data: currentTechStock, error: fetchError } = await supabase
-      .from('tech_stock')
-      .select('stock')
-      .eq('technician_email', user.email)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error('Error fetching technician stock:', fetchError);
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
-    }
-
-    const currentStock = currentTechStock?.stock || {};
     let updatedCount = 0;
     const errors = [];
 
-    // Process each stock update
+    // Process each stock update using new inventory system
     for (const update of stock_updates) {
       try {
         const { id, current_quantity, new_quantity, difference } = update;
@@ -54,19 +41,17 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Find the supplier that contains this item code
-        let itemFound = false;
-        for (const [, supplierItems] of Object.entries(currentStock as Record<string, SupplierStock>)) {
-          if (supplierItems[id]) {
-            // Update the count in the nested structure
-            supplierItems[id].count = new_quantity;
-            itemFound = true;
-            break;
-          }
-        }
+        // Update inventory category total_count
+        const { error: updateError } = await supabase
+          .from('inventory_categories')
+          .update({ 
+            total_count: new_quantity,
+            date_adjusted: new Date().toISOString().split('T')[0]
+          })
+          .eq('code', id);
 
-        if (!itemFound) {
-          errors.push(`Item ${id} not found in stock`);
+        if (updateError) {
+          errors.push(`Failed to update item ${id}: ${updateError.message}`);
           continue;
         }
 
@@ -76,23 +61,6 @@ export async function POST(request: NextRequest) {
         errors.push(`Error processing item ${update.id}: ${(error as Error).message}`);
       }
     }
-
-    // Update the technician stock
-    const { error: updateError } = await supabase
-      .from('tech_stock')
-      .upsert({
-        technician_email: user.email,
-        stock: currentStock,
-        created_at: new Date().toISOString()
-      });
-
-    if (updateError) {
-      console.error('Error updating technician stock:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    // Log the stock take change (optional - you might want to create a log table for this)
-    // For now, we'll skip the logging as the structure changed
 
     // Return results
     const response = {
