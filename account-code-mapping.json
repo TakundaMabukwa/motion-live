@@ -1,0 +1,542 @@
+[
+  {
+    "company": "AIRPORT PETS",
+    "old_code": "AIRP-0001",
+    "new_code": "AIPE-0001"
+  },
+  {
+    "company": "S.G. CONSUMER - DIV OF SUPER GROUP TRADING (PTY) LTD",
+    "old_code": "SGCO-0001",
+    "new_code": "S.CO-0001"
+  },
+  {
+    "company": "ALL-DANQUAH CC",
+    "old_code": "ALLD-0001",
+    "new_code": "ALL--0001"
+  },
+  {
+    "company": "ANELIZIA KRUGER",
+    "old_code": "ANEL-0001",
+    "new_code": "ANKR-0001"
+  },
+  {
+    "company": "ARUNNA PROPERTIES PTY LTD",
+    "old_code": "ARUN-0001",
+    "new_code": "ARPT-0001"
+  },
+  {
+    "company": "ASTRID KALIDY",
+    "old_code": "ASTR-0001",
+    "new_code": "ASKA-0001"
+  },
+  {
+    "company": "AUMA SOUTH AFRICA (PTY) LTD",
+    "old_code": "AUMA-0001",
+    "new_code": "AUSO-0001"
+  },
+  {
+    "company": "BARLINE CATERING & HOSPITALITY CC",
+    "old_code": "BARL-0001",
+    "new_code": "BACA-0001"
+  },
+  {
+    "company": "BOITLOTLO TRADING",
+    "old_code": "BOIT-0001",
+    "new_code": "BOTR-0001"
+  },
+  {
+    "company": "BLUE SKIES",
+    "old_code": "BLUE-0001",
+    "new_code": "BLSK-0001"
+  },
+  {
+    "company": "BUZZ BEZUIDENHOUT",
+    "old_code": "BUZZ-0001",
+    "new_code": "BUBE-0001"
+  },
+  {
+    "company": "CAKE DECOR AFRICA (PTY) LTD",
+    "old_code": "CAKE-0001",
+    "new_code": "CADE-0001"
+  },
+  {
+    "company": "CAMBRIDGE FOOD (PTY) LTD T/A JDS CASH & CARRY",
+    "old_code": "CAMB-0001",
+    "new_code": "CAFO-0001"
+  },
+  {
+    "company": "CASTER JAN MAHLANGU",
+    "old_code": "CAST-0001",
+    "new_code": "CAJA-0001"
+  },
+  {
+    "company": "COUNTRYWIDE GEARBOX REPAIRS CC",
+    "old_code": "CGRC-0001",
+    "new_code": "COGE-0001"
+  },
+  {
+    "company": "DATA CONNECTIVITY SOLUTIONS (Pty) Ltd",
+    "old_code": "DATA-0001",
+    "new_code": "DACO-0001"
+  },
+  {
+    "company": "DAWN WING",
+    "old_code": "DAWN-0001",
+    "new_code": "DAWI-0001"
+  },
+  {
+    "company": "CJP VAN VUUREN",
+    "old_code": "CJPV-0001",
+    "new_code": "CJVA-0001"
+  },
+  {
+    "company": "COLLEEN VAN DER LAAN",
+    "old_code": "COLL-0001",
+    "new_code": "COVA-0001"
+  },
+  {
+    "company": "CONCISE PERFORMANCE FUELS",
+    "old_code": "CCRC-0001",
+    "new_code": "COPE-0001"
+  },
+  {
+    "company": "DA ROCHA INTERIORS",
+    "old_code": "DARO-0001",
+    "new_code": "ROIN-0001"
+  },
+  {
+    "company": "ELIZABETH JOUBERT",
+    "old_code": "ELIZ-0001",
+    "new_code": "ELJO-0001"
+  },
+  {
+    "company": "DARRYL MYBURGH",
+    "old_code": "DARR-0001",
+    "new_code": "DAMY-0001"
+  },
+  {
+    "company": "DELABRA TRADING CC",
+    "old_code": "DELA-0001",
+    "new_code": "DETR-0001"
+  },
+  {
+    "company": "DOMINIQUE HAUPTFLEISCH JONES",
+    "old_code": "DOMI-0001",
+    "new_code": "DOHA-0001"
+  },
+  {
+    "company": "DU PLESSIS SAND",
+    "old_code": "DUPL-0001",
+    "new_code": "PLSA-0001"
+  },
+  {
+    "company": "E.P.S. COURIER SERVICES CC",
+    "old_code": "EPSC-0001",
+    "new_code": "E.CO-0001"
+  },
+  {
+    "company": "EDGE TELEMATICS (PTY) LTD - JVZ CONSTRUCTION",
+    "old_code": "EDGE-0001, EDGE-0002, EDGE-0003, EDGE-0004, EDGE-0005, EDGE-0006, EDGE-0007, EDGE-0008, EDGE-0009, EDGE-0010, EDGE-0011, EDGE-0012, EDGE-0013, EDGE-0014, EDGE-0015, EDGE-0016, EDGE-0017, EDGE-0018, EDGE-0019, EDGE-0020, EDGE-0021, EDGE-0022, EDGE-0023, EDGE-0024, EDGE-0025, EDGE-0026, EDGE-0027, EDGE-0028, EDGE-0029, EDGE-0030, EDGE-0031",
+    "new_code": "EDTE-0001"
+  },
+  {
+    "company": "ELECTRICAL BOARD MNF (PTY) LTD",
+    "old_code": "ELEC-0001",
+    "new_code": "ELBO-0001"
+  },
+  {
+    "company": "Energyrite",
+    "old_code": "ENER-0001",
+    "new_code": "ENER-0001"
+  },
+  {
+    "company": "EURO STEEL PIPE (PTY) LTD",
+    "old_code": "EURO-0001",
+    "new_code": "EUST-0001"
+  },
+  {
+    "company": "FIRST GLOVE RECLAMATION CC",
+    "old_code": "FIRS-0001",
+    "new_code": "FIGL-0001"
+  },
+  {
+    "company": "FOURWAYS CAR SECURITY & SOUND (PTY) LTD",
+    "old_code": "FOUR-0001",
+    "new_code": "FOCA-0001"
+  },
+  {
+    "company": "FUEL SPEC (PTY) LTD",
+    "old_code": "FUEL-0001",
+    "new_code": "FUSP-0001"
+  },
+  {
+    "company": "GABI MURPHY",
+    "old_code": "GABI-0001",
+    "new_code": "GAMU-0001"
+  },
+  {
+    "company": "HILTON MARK DESIGN CC",
+    "old_code": "HILT-0001",
+    "new_code": "HIMA-0001"
+  },
+  {
+    "company": "HARVEY ROOFING PRODUCTS",
+    "old_code": "HARV-0001",
+    "new_code": "HARO-0001"
+  },
+  {
+    "company": "GARY SHANDLER",
+    "old_code": "GARY-0001",
+    "new_code": "GASH-0001"
+  },
+  {
+    "company": "GRAVMAX AFRICA (PTY) LTD",
+    "old_code": "GRAV-0001",
+    "new_code": "GRAF-0001"
+  },
+  {
+    "company": "ATV cc",
+    "old_code": "ATVC-0001",
+    "new_code": "ATVX-0001"
+  },
+  {
+    "company": "GLOBAL COMMS UHF - (NEW)",
+    "old_code": "GLOB-0001",
+    "new_code": "GLCO-0001"
+  },
+  {
+    "company": "GOOD EARTH GROUP (PTY) LTD",
+    "old_code": "TYRE-0001",
+    "new_code": "GOEA-0001"
+  },
+  {
+    "company": "GOODYEAR - UITENHAGE - SG MOBILITY",
+    "old_code": "GOOD-0002",
+    "new_code": "GOOD-0001"
+  },
+  {
+    "company": "GRAHAM ALRIC TAYLOR",
+    "old_code": "GRAH-0001",
+    "new_code": "GRAL-0001"
+  },
+  {
+    "company": "HENLEY AIR (PTY) LTD",
+    "old_code": "HENL-0001",
+    "new_code": "HEAI-0001"
+  },
+  {
+    "company": "HITACHI CONSTRUCTION MACHINERY SOUTHERN AFRICA CO (PTY) LTD",
+    "old_code": "HITA-0001",
+    "new_code": "HICO-0001"
+  },
+  {
+    "company": "JCCM Agri Trading",
+    "old_code": "JCCM-0001",
+    "new_code": "JCAG-0001"
+  },
+  {
+    "company": "Intando Yesinthu Trading",
+    "old_code": "INYT-0001",
+    "new_code": "INYE-0001"
+  },
+  {
+    "company": "ICONIC VENTURES (PTY) LTD",
+    "old_code": "ICON-0001",
+    "new_code": "ICVE-0001"
+  },
+  {
+    "company": "Freight Surveillance International",
+    "old_code": "FRSI-0001",
+    "new_code": "FRSU-0001"
+  },
+  {
+    "company": "KARIN NOTHNAGEL",
+    "old_code": "KARI-0001",
+    "new_code": "KANO-0001"
+  },
+  {
+    "company": "JOHANN LOUBSER",
+    "old_code": "JOLO-0001",
+    "new_code": "JOLO-0001"
+  },
+  {
+    "company": "KEYLAND ADMINISTRATION CC",
+    "old_code": "KEYL-0001",
+    "new_code": "KEAD-0001"
+  },
+  {
+    "company": "Kerizzma SteeL",
+    "old_code": "KEIR-0001",
+    "new_code": "KEST-0001"
+  },
+  {
+    "company": "KENBERT LOGISTICS",
+    "old_code": "KENB-0001",
+    "new_code": "KELO-0001"
+  },
+  {
+    "company": "L.E.C.E (LECE001)",
+    "old_code": "LECE-0001",
+    "new_code": "L.(L-0001"
+  },
+  {
+    "company": "JORDAN SHANDLER",
+    "old_code": "JORD-0001",
+    "new_code": "JOSH-0001"
+  },
+  {
+    "company": "JPD VAN DEN BERG",
+    "old_code": "JPDV-0001",
+    "new_code": "JPVA-0001"
+  },
+  {
+    "company": "KARGO",
+    "old_code": "KARG-0014, KARG-0005",
+    "new_code": "KARG-0001"
+  },
+  {
+    "company": "L.J VILJOEN",
+    "old_code": "LJVI-0001",
+    "new_code": "L.VI-0001"
+  },
+  {
+    "company": "LC BLUE ENGINEERING AND CONSULTING PTY LTD",
+    "old_code": "LCBL-0001",
+    "new_code": "BLEN-0001"
+  },
+  {
+    "company": "LINKTEL CC TA MULTICOMM",
+    "old_code": "LINK-0001",
+    "new_code": "LIMU-0001"
+  },
+  {
+    "company": "LTS",
+    "old_code": "LTSB-0001, LTSB-0002",
+    "new_code": "LTSX-0001"
+  },
+  {
+    "company": "LUBERN VEEVOERE (PTY) LTD",
+    "old_code": "LUBE-0001",
+    "new_code": "LUVE-0001"
+  },
+  {
+    "company": "MARCUS GOLDRING",
+    "old_code": "MARC-0001",
+    "new_code": "MAGO-0001"
+  },
+  {
+    "company": "Lebone College",
+    "old_code": "LEBP-0001",
+    "new_code": "LECO-0001"
+  },
+  {
+    "company": "MACSTEEL",
+    "old_code": "MACS-0001,MACS-0002,MACS-0003,MACS-0004,MACS-0005,MACS-0006,MACS-0007,MACS-0008,MACS-0009,MACS-0010,MACS-0011,MACS-0012,MACS-0013,MACS-0014,MACS-0015,MACS-0016,MACS-0017,MACS-0018,MACS-0019,MACS-0020,MACS-0021,MACS-0022,MACS-0023,MACS-0024,MACS-0025,MACS-0026,MACS-0027,MACS-0028,MACS-0029,MACS-0030,MACS-0031,MACS-0032,MACS-0033,MACS-0034,MACS-0035,MACS-0036,MACS-0037,MACS-0038",
+    "new_code": "MACS-0001"
+  },
+  {
+    "company": "MAGDA VENTER",
+    "old_code": "MAGD-0001",
+    "new_code": "MAVE-0001"
+  },
+  {
+    "company": "MANIE VAN DER SCHYFF",
+    "old_code": "MANI-0001",
+    "new_code": "MAVA-0001"
+  },
+  {
+    "company": "MAIBAZE CRANE & TRUCK HIRE",
+    "old_code": "MAIB-0001",
+    "new_code": "MACR-0001"
+  },
+  {
+    "company": "MASS PETROLEUM (PTY) LTD",
+    "old_code": "MASS-0001",
+    "new_code": "MAPE-0001"
+  },
+  {
+    "company": "Mnandi Fuels",
+    "old_code": "MNAN-0001",
+    "new_code": "MNFU-0001"
+  },
+  {
+    "company": "MBSA COURRIER SERVICES",
+    "old_code": "MBSA-0001",
+    "new_code": "MBCO-0001"
+  },
+  {
+    "company": "MIKE JANKELOWITZ",
+    "old_code": "MIKE-0001",
+    "new_code": "MIJA-0001"
+  },
+  {
+    "company": "MJB CROSS BORDER (PTY) LTD",
+    "old_code": "MJBC-0001",
+    "new_code": "MJCR-0001"
+  },
+  {
+    "company": "NN METALS (PTY) LTD",
+    "old_code": "NNME-0001",
+    "new_code": "META-0001"
+  },
+  {
+    "company": "NNS LOGISTICS (PTY) LTD",
+    "old_code": "NNSL-0001",
+    "new_code": "NNLO-0001"
+  },
+  {
+    "company": "PAUL SCHROEDER",
+    "old_code": "PAUL-0002",
+    "new_code": "PASC-0001"
+  },
+  {
+    "company": "PERI VALASIS",
+    "old_code": "PERI-0001",
+    "new_code": "PEVA-0001"
+  },
+  {
+    "company": "PETERBILL TRANSPORT (PTY) LTD",
+    "old_code": "PETR-0001",
+    "new_code": "PETR-0001"
+  },
+  {
+    "company": "PHILLIP FOURIE",
+    "old_code": "PHIL-0001",
+    "new_code": "PHFO-0001"
+  },
+  {
+    "company": "PIMSTEIN (MICHAEL) FAMILY TRUST",
+    "old_code": "PIMS-0001",
+    "new_code": "PI(M-0001"
+  },
+  {
+    "company": "PIRTEK (RUSTENBURG) (PTY) LTD",
+    "old_code": "PIRT-0001",
+    "new_code": "PI(R-0001"
+  },
+  {
+    "company": "REEL PAPERS (PTY) LTD",
+    "old_code": "REEL-0001",
+    "new_code": "REPA-0001"
+  },
+  {
+    "company": "RIGHT CORRUGATED CONTAINERS",
+    "old_code": "RICC-0001",
+    "new_code": "RICO-0001"
+  },
+  {
+    "company": "SA LOADBODIE PARTS (PTY) LTD",
+    "old_code": "SALO-0001",
+    "new_code": "LOPA-0001"
+  },
+  {
+    "company": "SANDVIK - (SG MOBILITY)",
+    "old_code": "SAND-0001",
+    "new_code": "SAND-0001"
+  },
+  {
+    "company": "SCANIA SOUTH AFRICA (PTY) LTD",
+    "old_code": null,
+    "new_code": "SCSO-0001"
+  },
+  {
+    "company": "SEVEN DAYS TRADING 125 (PTY) LTD",
+    "old_code": "FAIT-0001",
+    "new_code": "SEDA-0001"
+  },
+  {
+    "company": "SMART SOLVENTS CC",
+    "old_code": "SMAR-0001",
+    "new_code": "SMSO-0001"
+  },
+  {
+    "company": "SOLARSH PROPERTIES CC",
+    "old_code": "SOLA-0001",
+    "new_code": "SOLA-0001"
+  },
+  {
+    "company": "STEEL GRAIN LOGISTICS (PTY) LTD",
+    "old_code": "STEE-0001",
+    "new_code": "STGR-0001"
+  },
+  {
+    "company": "STRUCMAC CC",
+    "old_code": "STRU-0001",
+    "new_code": "STRU-0001"
+  },
+  {
+    "company": "SUNIGEN HOLDINGS (PTY) LTD",
+    "old_code": "SUNI-0001",
+    "new_code": "SUNI-0001"
+  },
+  {
+    "company": "SIVERFERN ANGITU (PTY) LTD",
+    "old_code": "SIAN-0001",
+    "new_code": "SIAN-0001"
+  },
+  {
+    "company": "TALOC PROJECTS (PTY) LTD",
+    "old_code": "TALO-0001",
+    "new_code": "TALO-0001"
+  },
+  {
+    "company": "THE SPAR GROUP LIMITED",
+    "old_code": "SPAR-0001, SPAR-0002",
+    "new_code": "SPAR-0001"
+  },
+  {
+    "company": "TALISMAN FOUNDATION",
+    "old_code": "TALI-0001",
+    "new_code": "TAFO-0001"
+  },
+  {
+    "company": "TRIANGLE SERVICES (PTY) LTD",
+    "old_code": "TRIA-0001",
+    "new_code": "TRIA-0001"
+  },
+  {
+    "company": "TURNOVER TRADING 72 CC",
+    "old_code": "TURN-0001",
+    "new_code": "TURN-0001"
+  },
+  {
+    "company": "U-RENT JHB 1067",
+    "old_code": "RENT-0001",
+    "new_code": "U-JH-0001"
+  },
+  {
+    "company": "VDM",
+    "old_code": "VDMM-0001",
+    "new_code": "VDMX-0001"
+  },
+  {
+    "company": "TYRE SOLUTIONS - (SG MOBILITY)",
+    "old_code": "SGMO-0001, SGMO-0002, SGMO-0003, SGMO-0004, SGMO-0005",
+    "new_code": "TYSO-0001"
+  },
+  {
+    "company": "WATERFORD CARRIERS (PTY) LTD",
+    "old_code": "WATE-0001, WATE-0002, WATE-0003, WATE-0004, WATE-0005, WATE-0006, WATE-0007",
+    "new_code": "WACA-0001"
+  },
+  {
+    "company": "ALLIED STEELRODE (PTY) LTD",
+    "old_code": "ALLI-0001",
+    "new_code": "ALST-0001"
+  },
+  {
+    "company": "AVIS VAN",
+    "old_code": "AVIS-0001",
+    "new_code": "AVVA-0001"
+  },
+  {
+    "company": "EDGE - MY CITI",
+    "old_code": "EDGE-0001",
+    "new_code": "EDGE-0001"
+  },
+  {
+    "company": "ACTIVE TELEMATICS",
+    "old_code": "ACTI-0001",
+    "new_code": "ACTE-0001"
+  }
+]

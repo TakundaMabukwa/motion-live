@@ -14,7 +14,8 @@ export async function PUT(request: NextRequest, { params }) {
     const resolvedParams = await params;
     const jobId = resolvedParams.id;
     const body = await request.json();
-    const { parts, ipAddress, technician_id, technician_name, technician_email } = body;
+    const { inventory_items, ipAddress, technician_id, technician_name, technician_email } = body;
+    const parts = inventory_items || [];
 
     // Always generate email from technician name and store in technician_phone field
     let finalTechnicianEmail = technician_email;
@@ -44,60 +45,18 @@ export async function PUT(request: NextRequest, { params }) {
 
 
 
-    // Validate parts and check stock availability
-    const stockErrors = [];
-    for (const part of parts) {
-      const { data: stockItem, error: stockError } = await supabase
-        .from('stock')
-        .select('quantity')
-        .eq('id', part.stock_id)
-        .single();
-
-      if (stockError || !stockItem) {
-        stockErrors.push(`Stock item ${part.stock_id} not found`);
-        continue;
-      }
-
-      const currentStock = parseInt(stockItem.quantity || '0');
-      if (currentStock < part.quantity) {
-        stockErrors.push(`Insufficient stock for item ${part.description}. Available: ${currentStock}, Required: ${part.quantity}`);
-      }
-    }
-
-    if (stockErrors.length > 0) {
-      return NextResponse.json({ 
-        error: 'Stock validation failed', 
-        details: stockErrors 
-      }, { status: 400 });
-    }
-
-    // Update stock quantities
-    for (const part of parts) {
-      const { data: currentStock, error: stockError } = await supabase
-        .from('stock')
-        .select('quantity, cost_excl_vat_zar, total_value, ip_addresses')
-        .eq('id', part.stock_id)
-        .single();
-
-      if (stockError) continue;
-
-      const currentQuantity = parseInt(currentStock.quantity || '0');
-      const newQuantity = currentQuantity - part.quantity;
-      const costPerUnit = parseFloat(currentStock.cost_excl_vat_zar || '0');
-      const newTotalValue = (newQuantity * costPerUnit).toFixed(2);
-      
-      let ipAddresses = currentStock.ip_addresses || [];
-      if (!Array.isArray(ipAddresses)) ipAddresses = [];
-      if (!ipAddresses.includes(ipAddress)) ipAddresses.push(ipAddress);
-      
+    // Assign inventory items to job and technician
+    for (const item of parts) {
       await supabase
-        .from('stock')
-        .update({ 
-          quantity: newQuantity.toString(),
-          total_value: newTotalValue,
-          ip_addresses: ipAddresses
+        .from('inventory_items')
+        .update({
+          status: 'ASSIGNED',
+          assigned_to_technician: finalTechnicianEmail,
+          assigned_date: new Date().toISOString(),
+          job_card_id: jobId
         })
-        .eq('id', part.stock_id);
+        .eq('id', item.inventory_item_id)
+        .eq('status', 'IN STOCK');
     }
 
 
