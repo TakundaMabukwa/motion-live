@@ -469,22 +469,7 @@ export default function AccountsClientsSection() {
         <CardHeader>
           <CardTitle className="text-lg">Client Company Groups</CardTitle>
           <p className="text-gray-600 text-sm">All clients with their legal names, account information, and vehicle amounts</p>
-          {!loading && customerStats.withoutCostCenters > 0 && (
-            <div className="flex items-center gap-4 mt-2">
-              <div className="flex items-center gap-1">
-                <div className="bg-green-500 rounded-full w-3 h-3"></div>
-                <span className="text-gray-600 text-sm">
-                  {customerStats.withCostCenters} with cost centers
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="bg-gray-400 rounded-full w-3 h-3"></div>
-                <span className="text-gray-600 text-sm">
-                  {customerStats.withoutCostCenters} without cost centers
-                </span>
-              </div>
-            </div>
-          )}
+
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -498,27 +483,18 @@ export default function AccountsClientsSection() {
                </TableHeader>
               <TableBody>
                 {filteredCompanyGroups.map((group, index) => {
-                  const hasCostCenters = group.hasCostCenters !== false; // Default to true if not set
-                  const isGreyedOut = !hasCostCenters;
-                  
                   return (
                     <TableRow 
                       key={group.id} 
-                      className={`
-                        ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                        ${isGreyedOut ? 'opacity-50' : ''}
-                      `}
+                      className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
                     >
                       <TableCell>
-                        <div className={`font-medium text-sm ${isGreyedOut ? 'text-gray-400' : 'text-gray-900'}`}>
+                        <div className="font-medium text-sm text-gray-900">
                           {group.company_group || 'N/A'}
-                          {isGreyedOut && (
-                            <span className="ml-2 text-gray-400 text-xs">(No cost centers)</span>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className={`text-sm ${isGreyedOut ? 'text-gray-400' : 'text-gray-900'}`}>
+                        <div className="text-sm text-gray-900">
                           {group.legal_names_list?.slice(0, 2).join(', ') || 'N/A'}
                           {group.legal_names_list?.length > 2 && (
                             <span className="text-gray-500 text-xs"> +{group.legal_names_list.length - 2} more</span>
@@ -532,8 +508,6 @@ export default function AccountsClientsSection() {
                             onClick={() => handleViewClients(group)}
                             size="sm"
                             variant="outline"
-                            disabled={isGreyedOut}
-                            className={isGreyedOut ? 'cursor-not-allowed' : ''}
                           >
                             <Eye className="mr-1 w-4 h-4" />
                             View Clients
