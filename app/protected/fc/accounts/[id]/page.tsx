@@ -20,7 +20,7 @@ import {
   Navigation,
   Gauge,
   Calendar,
-  Map,
+  Map as MapIcon,
   Quote
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
@@ -256,7 +256,7 @@ function AccountDetailPageContent() {
           { id: 'vehicles', label: 'Vehicles', icon: Car },
           { id: 'jobs', label: 'Jobs', icon: FileText },
           { id: 'client-quotes', label: 'Quotes', icon: Quote },
-          { id: 'map', label: 'Live Map', icon: Map }
+          { id: 'map', label: 'Live Map', icon: MapIcon }
         ].map((tabItem) => {
           const Icon = tabItem.icon;
           const isActive = tab === tabItem.id;

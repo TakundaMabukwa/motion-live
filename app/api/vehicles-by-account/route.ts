@@ -25,40 +25,11 @@ export async function GET(request: NextRequest) {
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
 
-    // First, find the customer group that contains this account number in all_new_account_numbers
-    const { data: customerGroup, error: groupError } = await supabase
-      .from('customers_grouped')
-      .select('all_new_account_numbers')
-      .ilike('all_new_account_numbers', `%${accountNumber}%`)
-      .limit(1);
-
-    if (groupError) {
-      console.error('Error fetching customer group:', groupError);
-      return NextResponse.json({ error: 'Failed to fetch customer group' }, { status: 500 });
-    }
-
-    console.log('Found customer group:', customerGroup);
-
-    // Build the query with pagination
+    // Build the query with pagination - only match exact cost code
     let query = supabase
       .from('vehicles')
-      .select('*', { count: 'exact' });
-
-    // If we found a customer group, fetch vehicles where new_account_number matches any of the comma-separated values
-    if (customerGroup && customerGroup.length > 0) {
-      const allAccountNumbers = customerGroup[0].all_new_account_numbers;
-      
-      // Split and deduplicate account numbers
-      const accountNumbers = [...new Set(
-        allAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0)
-      )];
-      
-      // Use IN clause instead of OR for better performance
-      query = query.in('new_account_number', accountNumbers);
-    } else {
-      // If no customer group found, try direct match
-      query = query.eq('new_account_number', accountNumber);
-    }
+      .select('*', { count: 'exact' })
+      .eq('new_account_number', accountNumber);
 
     // Apply pagination and ordering
     query = query
