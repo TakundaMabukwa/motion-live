@@ -1345,6 +1345,71 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
               </Card>
             )}
 
+            {/* Vehicle Equipment Listing */}
+            {vehicles && vehicles.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vehicle Equipment Inventory</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {vehicles.map((vehicle, vehicleIndex) => {
+                      // Define all equipment fields to check
+                      const equipmentFields = [
+                        'skylink_trailer_unit_serial_number', 'skylink_trailer_unit_ip', 'sky_on_batt_ign_unit_serial_number', 'sky_on_batt_ign_unit_ip',
+                        'skylink_voice_kit_serial_number', 'skylink_voice_kit_ip', 'sky_scout_12v_serial_number', 'sky_scout_12v_ip',
+                        'sky_scout_24v_serial_number', 'sky_scout_24v_ip', 'skylink_pro_serial_number', 'skylink_pro_ip',
+                        'skylink_sim_card_no', 'skylink_data_number', 'sky_safety', 'sky_idata', 'sky_ican', 'industrial_panic',
+                        'flat_panic', 'buzzer', 'tag', 'tag_reader', 'keypad', 'keypad_waterproof', 'early_warning', 'cia',
+                        'fm_unit', 'sim_card_number', 'data_number', 'gps', 'gsm', 'tag_', 'tag_reader_', 'main_fm_harness',
+                        'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5', 'fuel_probe_1', 'fuel_probe_2',
+                        '_7m_harness_for_probe', 'tpiece', 'idata', '_1m_extension_cable', '_3m_extension_cable',
+                        '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr', 'a2_dash_cam', 'a3_dash_cam_ai', 'corpconnect_sim_no',
+                        'corpconnect_data_no', 'sim_id', '_5m_cable_for_camera_4pin', '_5m_cable_6pin', '_10m_cable_for_camera_4pin',
+                        'a2_mec_5', 'vw400_dome_1', 'vw400_dome_2', 'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2',
+                        'vw502_dual_lens_camera', 'vw303_driver_facing_camera', 'vw502f_road_facing_camera',
+                        'vw306_dvr_road_facing_for_4ch_8ch', 'vw306m_a2_dash_cam', 'dms01_driver_facing', 'adas_02_road_facing',
+                        'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb', 'sd_card_480gb', 'sd_card_256gb',
+                        'sd_card_512gb', 'sd_card_250gb', 'mic', 'speaker', 'pfk_main_unit', 'pfk_corpconnect_sim_number',
+                        'pfk_corpconnect_data_number', 'breathaloc', 'pfk_road_facing', 'pfk_driver_facing', 'pfk_dome_1',
+                        'pfk_dome_2', 'pfk_5m', 'pfk_10m', 'pfk_15m', 'pfk_20m', 'roller_door_switches'
+                      ];
+                      
+                      // Filter to only show fields with values
+                      const installedEquipment = equipmentFields.filter(field => 
+                        vehicle[field] && vehicle[field].toString().trim() !== ''
+                      );
+                      
+                      if (installedEquipment.length === 0) return null;
+                      
+                      return (
+                        <div key={vehicleIndex} className="border rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Car className="w-4 h-4 text-blue-600" />
+                            <h4 className="font-semibold">
+                              {vehicle.fleet_number || vehicle.reg || 'Unknown Vehicle'} - {vehicle.make} {vehicle.model}
+                            </h4>
+                            <Badge variant="outline">{installedEquipment.length} items</Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {installedEquipment.map(field => (
+                              <div key={field} className="bg-gray-50 p-2 rounded text-sm">
+                                <div className="font-medium text-gray-700">
+                                  {field.replace(/_/g, ' ').replace(/^_/, '').toUpperCase()}
+                                </div>
+                                <div className="text-gray-600">{vehicle[field]}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Selected Products */}
             {(selectedProducts || []).length > 0 && (
               <Card>
