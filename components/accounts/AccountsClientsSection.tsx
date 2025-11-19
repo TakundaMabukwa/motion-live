@@ -143,34 +143,54 @@ export default function AccountsClientsSection() {
     }
   };
 
-  // Handle Bulk Invoice Generation - Server-side Excel generation
+  // Handle Bulk Invoice Generation - Async with progress
   const handleBulkInvoice = async () => {
     try {
       setIsGeneratingBulkInvoice(true);
       
-      // Generate Excel on server and download directly
-      const response = await fetch('/api/vehicles/bulk-invoice-excel');
-      if (!response.ok) {
-        throw new Error('Failed to generate Excel file');
-      }
+      // Start async job
+      const startResponse = await fetch('/api/vehicles/bulk-invoice-async', { method: 'POST' });
+      const { jobId } = await startResponse.json();
       
-      // Download the Excel file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Bulk_Invoice_All_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      toast.success('Excel generation started! Please wait...');
       
-      toast.success('Bulk Invoice Generated and Downloaded Successfully!');
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/vehicles/bulk-invoice-async?jobId=${jobId}`);
+          
+          if (statusResponse.headers.get('content-type')?.includes('spreadsheet')) {
+            // File is ready
+            clearInterval(pollInterval);
+            const blob = await statusResponse.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Bulk_Invoice_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            toast.success('Excel file downloaded successfully!');
+            setIsGeneratingBulkInvoice(false);
+          } else {
+            const status = await statusResponse.json();
+            if (status.status === 'failed') {
+              clearInterval(pollInterval);
+              throw new Error(status.message);
+            }
+            // Continue polling
+          }
+        } catch (error) {
+          clearInterval(pollInterval);
+          throw error;
+        }
+      }, 2000); // Check every 2 seconds
       
     } catch (error) {
       console.error('Error generating bulk invoice:', error);
       toast.error('Failed to generate bulk invoice. Please try again.');
-    } finally {
       setIsGeneratingBulkInvoice(false);
     }
   };
