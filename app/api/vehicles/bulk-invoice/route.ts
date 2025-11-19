@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     while (hasMore) {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select('id, reg, fleet_number, company, account_number, new_account_number, total_rental_sub, total_rental, total_sub, skylink_trailer_unit_serial_number, skylink_pro_serial_number, sky_on_batt_ign_unit_serial_number, skylink_voice_kit_serial_number, sky_scout_12v_serial_number, sky_scout_24v_serial_number, _4ch_mdvr, _5ch_mdvr, _8ch_mdvr, a2_dash_cam, a3_dash_cam_ai, pfk_main_unit, breathaloc, consultancy, maintenance, after_hours, controlroom, roaming, sky_safety, sky_idata, sky_ican, industrial_panic, flat_panic, buzzer, tag, tag_reader, keypad, keypad_waterproof, early_warning, cia, fm_unit, gps, gsm, main_fm_harness, beame_1, beame_2, beame_3, beame_4, beame_5, fuel_probe_1, fuel_probe_2, _7m_harness_for_probe, tpiece, idata, _1m_extension_cable, _3m_extension_cable, vw400_dome_1, vw400_dome_2, vw300_dakkie_dome_1, vw300_dakkie_dome_2, vw502_dual_lens_camera, vw303_driver_facing_camera, vw502f_road_facing_camera, dms01_driver_facing, adas_02_road_facing, vw100ip_driver_facing_ip, sd_card_1tb, sd_card_2tb, sd_card_480gb, sd_card_256gb, sd_card_512gb, sd_card_250gb, mic, speaker, pfk_road_facing, pfk_driver_facing, pfk_dome_1, pfk_dome_2, roller_door_switches')
         .not('new_account_number', 'is', null)
         .order('new_account_number', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);
