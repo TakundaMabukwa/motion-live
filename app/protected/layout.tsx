@@ -4,9 +4,9 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main>
-      <div>
-        <div>
+    <main className="min-h-screen bg-background">
+      <div className="w-full">
+        <div className="w-full">
           {children}
         </div>
       </div>

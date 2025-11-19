@@ -343,8 +343,7 @@ export default function AccountsClientsSection() {
           
           successCount++;
           
-          // Small delay to prevent overwhelming the browser
-          await new Promise(resolve => setTimeout(resolve, 50));
+
           
         } catch (error) {
           console.error(`Error generating invoice for ${accountNumber}:`, error);
