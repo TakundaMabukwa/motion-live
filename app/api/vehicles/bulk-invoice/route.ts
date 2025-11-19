@@ -16,30 +16,38 @@ export async function GET(request: NextRequest) {
       'Cache-Control': 'public, max-age=300, stale-while-revalidate=600'
     };
     
-    // Fetch vehicles and customers in parallel
-    const [vehiclesResult, customersResult] = await Promise.all([
-      // Fetch all vehicles in one query (remove pagination for speed)
-      supabase
+    // Fetch all vehicles with larger page size for better performance
+    let allVehicles = [];
+    let page = 0;
+    const pageSize = 2000; // Larger page size
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: vehicles, error } = await supabase
         .from('vehicles')
         .select('reg, fleet_number, company, account_number, new_account_number, total_rental_sub, total_rental, total_sub, skylink_trailer_unit_serial_number, skylink_pro_serial_number, sky_on_batt_ign_unit_serial_number, skylink_voice_kit_serial_number, sky_scout_12v_serial_number, sky_scout_24v_serial_number, _4ch_mdvr, _5ch_mdvr, _8ch_mdvr, a2_dash_cam, a3_dash_cam_ai, pfk_main_unit, breathaloc, consultancy, maintenance, after_hours, controlroom, roaming')
         .not('new_account_number', 'is', null)
         .order('new_account_number', { ascending: true })
-        .limit(5000),
-      
-      // Fetch all customers in parallel
-      supabase
-        .from('customers')
-        .select('legal_name, company, trading_name, new_account_number, account_number')
-    ]);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+      }
+
+      allVehicles = allVehicles.concat(vehicles);
+      hasMore = vehicles.length === pageSize;
+      page++;
+    }
+    
+    // Fetch customers in parallel while vehicles are being processed
+    const customersResult = await supabase
+      .from('customers')
+      .select('legal_name, company, trading_name, new_account_number, account_number');
     
     console.timeEnd('Vehicle Fetch');
     
-    if (vehiclesResult.error) {
-      console.error('Error fetching vehicles:', vehiclesResult.error);
-      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
-    }
-    
-    const vehicles = vehiclesResult.data || [];
+    const vehicles = allVehicles;
 
 
 
@@ -73,7 +81,7 @@ export async function GET(request: NextRequest) {
     // Get unique account numbers
     const accountNumbers = Object.keys(groupedVehicles);
 
-    // Use customers data from parallel fetch
+    // Use customers data from fetch
     const customerDetails = {};
     if (!customersResult.error && customersResult.data) {
       customersResult.data.forEach(customer => {
