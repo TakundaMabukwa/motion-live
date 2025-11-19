@@ -11,10 +11,47 @@ export async function GET() {
   try {
     console.time('Server Excel Generation');
     
-    // Fetch data using existing logic
-    const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/vehicles/bulk-invoice`);
-    const data = await response.json();
-    const { groupedVehicles, customerDetails } = data.data;
+    // Fetch vehicles directly on server
+    let allVehicles = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('reg, fleet_number, company, account_number, new_account_number, total_rental_sub, skylink_pro_serial_number, _4ch_mdvr, pfk_main_unit')
+        .not('new_account_number', 'is', null)
+        .order('new_account_number', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) throw error;
+      allVehicles = allVehicles.concat(vehicles || []);
+      hasMore = (vehicles?.length || 0) === pageSize;
+      page++;
+    }
+
+    // Group vehicles by account
+    const groupedVehicles = allVehicles.reduce((acc, vehicle) => {
+      const accountNumber = vehicle.new_account_number;
+      if (!acc[accountNumber]) acc[accountNumber] = [];
+      acc[accountNumber].push(vehicle);
+      return acc;
+    }, {});
+
+    // Fetch customers
+    const accountNumbers = Object.keys(groupedVehicles);
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('legal_name, company, trading_name, new_account_number, account_number');
+
+    const customerDetails = {};
+    customers?.forEach(customer => {
+      const key = customer.new_account_number || customer.account_number;
+      if (key && accountNumbers.includes(key)) {
+        customerDetails[key] = customer;
+      }
+    });
     
     // Generate Excel on server
     const allInvoiceData = [];
