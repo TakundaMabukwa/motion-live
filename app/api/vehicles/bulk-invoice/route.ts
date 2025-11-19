@@ -11,15 +11,15 @@ export async function GET(request: NextRequest) {
     console.time('Total API Time');
     console.time('Vehicle Fetch');
     
-    // Add cache headers for 5 minutes
+    // Disable cache for debugging
     const headers = {
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=600'
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
     };
     
-    // Fetch all vehicles with larger page size for better performance
+    // Fetch all vehicles with pagination (Supabase max 1000 per query)
     let allVehicles = [];
     let page = 0;
-    const pageSize = 2000; // Larger page size
+    const pageSize = 1000; // Supabase max limit
     let hasMore = true;
 
     while (hasMore) {
@@ -35,8 +35,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
       }
 
-      allVehicles = allVehicles.concat(vehicles);
-      hasMore = vehicles.length === pageSize;
+      allVehicles = allVehicles.concat(vehicles || []);
+      console.log(`Fetched page ${page + 1}: ${vehicles?.length || 0} vehicles (total so far: ${allVehicles.length})`);
+      hasMore = (vehicles?.length || 0) === pageSize;
       page++;
     }
     
