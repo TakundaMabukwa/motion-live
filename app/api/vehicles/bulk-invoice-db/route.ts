@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     
     for (const [accountNumber, vehicles] of Object.entries(groupedVehicles)) {
       const customer = customerDetails[accountNumber]
-      const companyName = customer?.legal_name || customer?.company || customer?.trading_name || 'Unknown Company'
+      const companyName = customer?.legal_name || customer?.company || customer?.trading_name || ''
       
       if (!isFirstInvoice) {
         allInvoiceData.push([])
