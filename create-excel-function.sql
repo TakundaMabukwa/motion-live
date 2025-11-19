@@ -30,6 +30,7 @@ BEGIN
     (COALESCE(v.total_rental_sub, v.total_rental, 0) * 1.15) as total_amount,
     CURRENT_DATE as invoice_date
   FROM vehicles v
-  WHERE (account_id_param = 'all' OR v.account_number = account_id_param);
+  WHERE (account_id_param = 'all' OR v.account_number = account_id_param)
+  LIMIT 10000;
 END;
 $$;
