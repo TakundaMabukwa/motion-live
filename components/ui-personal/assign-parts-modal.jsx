@@ -30,7 +30,7 @@ export default function AssignPartsModal({
   const [categories, setCategories] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [ipSearchTerm, setIpSearchTerm] = useState('');
+  const [ipAddress, setIpAddress] = useState('');
 
   const fetchInventoryItems = async () => {
     try {
@@ -56,9 +56,8 @@ export default function AssignPartsModal({
       setSearchTerm('');
       setShowQRCode(false);
       setQrCodeUrl('');
-
       setSelectedCategory('all');
-      setIpSearchTerm('');
+      setIpAddress('');
       fetchInventoryItems();
     }
   }, [isOpen]);
@@ -82,7 +81,8 @@ export default function AssignPartsModal({
         quantity: 1,
         available_stock: parseInt(item.quantity || '0'),
         cost_per_unit: parseFloat(item.cost_excl_vat_zar || '0'),
-        total_cost: parseFloat(item.cost_excl_vat_zar || '0')
+        total_cost: parseFloat(item.cost_excl_vat_zar || '0'),
+        ip_address: ipAddress || ''
       }]);
     }
   };
@@ -120,7 +120,7 @@ export default function AssignPartsModal({
         },
         body: JSON.stringify({
           inventory_items: selectedParts,
-          ipAddress: '192.168.1.1'
+          ipAddress: ipAddress
         }),
       });
       
@@ -180,12 +180,12 @@ export default function AssignPartsModal({
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Select IP Address</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">IP Address</label>
                 <Input
                   type="text"
-                  placeholder="Enter IP address..."
-                  value={ipSearchTerm}
-                  onChange={(e) => setIpSearchTerm(e.target.value)}
+                  placeholder="Enter IP address for installation..."
+                  value={ipAddress}
+                  onChange={(e) => setIpAddress(e.target.value)}
                   className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -212,11 +212,6 @@ export default function AssignPartsModal({
                       // Apply category filter
                       const matchesCategory = selectedCategory === 'all' || item.category?.description === selectedCategory;
                       if (!matchesCategory) return false;
-                      
-                      // Apply IP search first
-                      if (ipSearchTerm) {
-                        return item.serial_number?.toLowerCase().includes(ipSearchTerm.toLowerCase());
-                      }
                       
                       // Apply search (searches description and serial number)
                       if (searchTerm) {

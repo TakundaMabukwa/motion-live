@@ -111,6 +111,7 @@ import DashboardTabs from '@/components/shared/DashboardTabs';
 import AssignPartsModal from '@/components/ui-personal/assign-parts-modal';
 import StockOrderModal from '@/components/accounts/StockOrderModal';
 import AssignIPAddressModal from '@/components/inv/components/AssignIPAddressModal';
+import CreateRepairJobModal from '@/components/inv/CreateRepairJobModal';
 import { toast } from 'sonner';
 
 export default function InventoryPage() {
@@ -173,9 +174,6 @@ export default function InventoryPage() {
     }
     if (activeTab === 'stock-take') {
       fetchStockItems();
-    }
-    if (activeTab === 'boot-stock') {
-      fetchBootStock();
     }
   }, [activeTab]);
 
@@ -921,6 +919,25 @@ export default function InventoryPage() {
     }
   };
 
+  const fetchCategoriesForModal = async () => {
+    try {
+      const response = await fetch('/api/inventory-categories');
+      if (response.ok) {
+        const data = await response.json();
+        const categoryOptions = data.categories?.map(cat => cat.code) || [];
+        setStockTypes(categoryOptions);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showAddItemModal && stockTypes.length === 0) {
+      fetchCategoriesForModal();
+    }
+  }, [showAddItemModal]);
+
   const generateQRCode = () => {
     const selectedJob = jobCardsWithParts[0] || filteredJobCards[0];
     if (!selectedJob) {
@@ -1178,11 +1195,10 @@ export default function InventoryPage() {
 
   const filteredStockItems = stockItems.filter(item => {
     const matchesSearch = 
-      item.description?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
-      item.code?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
-      item.supplier?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
+      item.serial_number?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
+      item.category_code?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
     
-    const matchesType = selectedStockType === 'all' || item.stock_type === selectedStockType;
+    const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
     
     return matchesSearch && matchesType;
   }).sort((a, b) => {
@@ -1653,9 +1669,9 @@ export default function InventoryPage() {
                     {formatDate(order.order_date)}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                    <div className="font-medium">R {parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}</div>
+                    <div className="font-medium">{parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}</div>
                     {order.total_amount_usd && (
-                      <div className="text-gray-500 text-xs">$ {parseFloat(order.total_amount_usd).toFixed(2)}</div>
+                      <div className="text-gray-500 text-xs">{parseFloat(order.total_amount_usd).toFixed(2)}</div>
                     )}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -1764,13 +1780,6 @@ export default function InventoryPage() {
             <Plus className="mr-2 w-4 h-4" />
             Add New Item
           </Button>
-          <Button 
-            onClick={generateQRCode}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <QrCode className="mr-2 w-4 h-4" />
-            Generate QR
-          </Button>
         </div>
       </div>
 
@@ -1860,16 +1869,6 @@ export default function InventoryPage() {
               <RefreshCw className="mr-2 w-4 h-4" />
               Refresh
             </Button>
-            {stockTakeActiveTab === 'stock-take' && (
-              <Button 
-                onClick={() => setShowAddItemModal(true)}
-                className="bg-green-600 hover:bg-green-700"
-                size="sm"
-              >
-                <Plus className="mr-2 w-4 h-4" />
-                Add New Item
-              </Button>
-            )}
           </div>
         </>
       ) : (
@@ -1917,16 +1916,10 @@ export default function InventoryPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
-                  Item Description
-                </th>
-                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
-                  Code
-                </th>
-                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
                   Serial Number
                 </th>
                 <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                  Type
+                  Category
                 </th>
                 <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
                   Current Qty
@@ -1970,41 +1963,28 @@ export default function InventoryPage() {
                     onClick={() => setSelectedStockItem(item)}
                   >
                     <td className="px-4 py-3 border border-gray-200 text-sm">
-                      <div>
-                        <div className="font-medium text-gray-900">{item.description || item.code || 'No description'}</div>
-                        <div className="flex gap-1 flex-wrap mt-1">
-                          {item.stock_type && (
-                            <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
-                              {String(item.stock_type)}
-                            </Badge>
-                          )}
-                          {isLow && (
-                            <Badge className="bg-red-100 text-red-800 text-xs">
-                              Low Stock
-                            </Badge>
-                          )}
-                          {hasIPAddresses && (
-                            <Badge className="bg-indigo-100 text-indigo-800 text-xs">
-                              IP Assigned
-                            </Badge>
-                          )}
-                          {isSelected && (
-                            <Badge className="bg-blue-100 text-blue-800 text-xs">
-                              Selected
-                            </Badge>
-                          )}
-                        </div>
+                      <div className="font-medium text-gray-900">{item.serial_number || 'N/A'}</div>
+                      <div className="flex gap-1 flex-wrap mt-1">
+                        {isLow && (
+                          <Badge className="bg-red-100 text-red-800 text-xs">
+                            Low Stock
+                          </Badge>
+                        )}
+                        {hasIPAddresses && (
+                          <Badge className="bg-indigo-100 text-indigo-800 text-xs">
+                            IP Assigned
+                          </Badge>
+                        )}
+                        {isSelected && (
+                          <Badge className="bg-blue-100 text-blue-800 text-xs">
+                            Selected
+                          </Badge>
+                        )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
-                      {item.code || 'N/A'}
-                    </td>
-                    <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
-                      {item.serial_number || 'N/A'}
-                    </td>
                     <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                      <Badge className={`text-xs ${getStockTypeColor(item.stock_type)}`}>
-                        {item.stock_type || 'N/A'}
+                      <Badge className="bg-blue-100 text-blue-800 text-xs">
+                        {item.category_code || 'N/A'}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -2200,14 +2180,8 @@ export default function InventoryPage() {
     {
       value: 'stock-orders',
       label: 'Items on Order',
-      icon: Receipt,
-      content: stockOrdersContent
-    },
-    {
-      value: 'boot-stock',
-      label: 'Boot Stock',
       icon: Package,
-      content: bootStockContent
+      content: stockOrdersContent
     },
     {
       value: 'stock-take',
@@ -2246,8 +2220,12 @@ export default function InventoryPage() {
         icon={Package}
       />
       
-      {/* Create Order Button */}
-      <div className="flex justify-end">
+      {/* Create Order and Repair Job Buttons */}
+      <div className="flex justify-end gap-3">
+        <CreateRepairJobModal 
+          onJobCreated={fetchJobCards} 
+          onAssignParts={handleAssignParts}
+        />
         <StockOrderModal onOrderSubmitted={fetchStockOrders} />
       </div>
 

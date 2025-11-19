@@ -11,16 +11,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch all inventory categories
-    const { data: categories, error } = await supabase
-      .from('inventory_categories')
-      .select('code, description')
-      .order('description', { ascending: true });
+    // Get unique codes from inventory_items
+    const { data: items, error } = await supabase
+      .from('inventory_items')
+      .select('category_code')
+      .not('category_code', 'is', null);
 
     if (error) {
-      console.error('Error fetching categories:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Get unique codes that actually have items
+    const uniqueCodes = [...new Set(items?.map(item => item.category_code?.trim()).filter(Boolean))];
+    
+    // Return only categories that have matching items
+    const categories = uniqueCodes.map(code => ({ code, description: code }));
 
     return NextResponse.json({ categories: categories || [] });
   } catch (error) {

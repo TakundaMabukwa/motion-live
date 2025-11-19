@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         if (!categoryGroups[categoryCode]) {
           categoryGroups[categoryCode] = {
             id: categoryCode,
-            description: item.inventory_categories?.description || 'No description',
+            description: item.inventory_categories?.description || categoryCode,
             code: item.inventory_categories?.code || categoryCode,
             supplier: 'N/A',
             stock_type: item.inventory_categories?.description || 'N/A',

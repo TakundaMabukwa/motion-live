@@ -41,14 +41,14 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Update inventory category total_count
+        // Update inventory item status based on new quantity
         const { error: updateError } = await supabase
-          .from('inventory_categories')
+          .from('inventory_items')
           .update({ 
-            total_count: new_quantity,
+            status: new_quantity > 0 ? 'IN STOCK' : 'OUT OF STOCK',
             date_adjusted: new Date().toISOString().split('T')[0]
           })
-          .eq('code', id);
+          .eq('id', id);
 
         if (updateError) {
           errors.push(`Failed to update item ${id}: ${updateError.message}`);
