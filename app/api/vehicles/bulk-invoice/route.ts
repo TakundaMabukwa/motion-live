@@ -8,16 +8,33 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // Fetch all vehicles grouped by new_account_number
-    const { data: vehicles, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .order('new_account_number', { ascending: true });
+    // Fetch all vehicles with pagination to handle large datasets
+    let allVehicles = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error('Error fetching vehicles:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+    while (hasMore) {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('*, account_number')
+        .not('new_account_number', 'is', null)
+        .order('new_account_number', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+      }
+
+      allVehicles = allVehicles.concat(vehicles);
+      hasMore = vehicles.length === pageSize;
+      page++;
     }
+
+    const vehicles = allVehicles;
+
+
 
     // Group vehicles by new_account_number
     const groupedVehicles = vehicles.reduce((acc, vehicle) => {

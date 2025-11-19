@@ -186,21 +186,17 @@ export default function AccountsClientsSection() {
           // Add separator between invoices (except for the first one)
           if (!isFirstInvoice) {
             allInvoiceData.push([]); // Empty row
-            allInvoiceData.push(['', '', '', '', '', '', '', '', '']); // Empty row
-            allInvoiceData.push(['', '', '', '', '', '', '', '', '']); // Empty row
+            allInvoiceData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
+            allInvoiceData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
           }
           isFirstInvoice = false;
           
           // Add header information for this account
           allInvoiceData.push([`${companyName}`]);
-          allInvoiceData.push(['VEHICLE BUREAU SERVICE']);
-          allInvoiceData.push(['Reg No: 2018/095975/07']);
-          allInvoiceData.push(['VAT No: 4580161802']);
           allInvoiceData.push([]); // Empty row
           allInvoiceData.push([`INVOICE - ${accountNumber}`]);
           allInvoiceData.push([`Account: ${accountNumber}`]);
           allInvoiceData.push([`Date: ${new Date().toLocaleDateString()}`]);
-          allInvoiceData.push([`Client: ${companyName}`]);
           allInvoiceData.push([]); // Empty row
           
           // Add table headers
@@ -209,11 +205,12 @@ export default function AccountsClientsSection() {
             'Fleet/Reg No', 
             'Service Type', 
             'Company', 
+            'Account Number',
             'Units', 
             'Unit Price', 
-            'Vat Amount', 
-            'Vat%', 
-            'Total Incl'
+            'Total Excl VAT',
+            'VAT Amount',
+            'Total Incl VAT'
           ]);
           
           // Add vehicle data rows
@@ -221,46 +218,111 @@ export default function AccountsClientsSection() {
           let vehiclesWithZeroAmount = 0;
           
           vehicles.forEach((vehicle) => {
+            // Get vehicle identifier - prefer reg over fleet_number
+            const regFleetNo = vehicle.reg ? vehicle.reg : (vehicle.fleet_number || '');
+            
+            // Use total_rental_sub as main amount
             const totalRentalSub = parseFloat(vehicle.total_rental_sub) || 0;
-            const totalRental = parseFloat(vehicle.total_rental) || 0;
-            const totalSub = parseFloat(vehicle.total_sub) || 0;
             
-            // Log vehicles with zero amounts for debugging
-            if (totalRentalSub === 0) {
-              vehiclesWithZeroAmount++;
-              console.warn(`Vehicle ${vehicle.id} (${vehicle.reg || vehicle.fleet_number}) has zero total_rental_sub`);
+            // Process all vehicles, even with 0 amount
+            {
+              // Detect service type based on available fields
+              let serviceType = '';
+              
+              // Check for specific service fields to determine type
+              const serviceFields = [
+                'skylink_trailer_unit_serial_number', 'sky_on_batt_ign_unit_serial_number',
+                'skylink_voice_kit_serial_number', 'sky_scout_12v_serial_number', 'sky_scout_24v_serial_number',
+                'skylink_pro_serial_number', 'sky_safety', 'sky_idata', 'sky_ican', 'industrial_panic',
+                'flat_panic', 'buzzer', 'tag', 'tag_reader', 'keypad', 'keypad_waterproof',
+                'early_warning', 'cia', 'fm_unit', 'gps', 'gsm', 'main_fm_harness',
+                'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5',
+                'fuel_probe_1', 'fuel_probe_2', '_7m_harness_for_probe', 'tpiece', 'idata',
+                '_1m_extension_cable', '_3m_extension_cable', '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr',
+                'a2_dash_cam', 'a3_dash_cam_ai', 'vw400_dome_1', 'vw400_dome_2',
+                'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2', 'vw502_dual_lens_camera',
+                'vw303_driver_facing_camera', 'vw502f_road_facing_camera', 'dms01_driver_facing',
+                'adas_02_road_facing', 'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb',
+                'sd_card_480gb', 'sd_card_256gb', 'sd_card_512gb', 'sd_card_250gb',
+                'mic', 'speaker', 'pfk_main_unit', 'breathaloc', 'pfk_road_facing',
+                'pfk_driver_facing', 'pfk_dome_1', 'pfk_dome_2', 'roller_door_switches',
+                'consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'
+              ];
+              
+              // Check if vehicle has any of these service fields
+              const hasServiceFields = serviceFields.some(field => 
+                vehicle[field] && vehicle[field].toString().trim() !== ''
+              );
+              
+              // Check total_rental and total_sub to determine service type suffix
+              const totalRental = parseFloat(vehicle.total_rental) || 0;
+              const totalSub = parseFloat(vehicle.total_sub) || 0;
+              
+              if (hasServiceFields) {
+                // Use specific field names as service types
+                let baseService = '';
+                if (vehicle.skylink_trailer_unit_serial_number) baseService = 'Skylink Trailer Unit';
+                else if (vehicle.skylink_pro_serial_number) baseService = 'Skylink Pro';
+                else if (vehicle.sky_on_batt_ign_unit_serial_number) baseService = 'Sky On Batt IGN Unit';
+                else if (vehicle.skylink_voice_kit_serial_number) baseService = 'Skylink Voice Kit';
+                else if (vehicle.sky_scout_12v_serial_number) baseService = 'Sky Scout 12V';
+                else if (vehicle.sky_scout_24v_serial_number) baseService = 'Sky Scout 24V';
+                else if (vehicle._4ch_mdvr) baseService = '4CH MDVR';
+                else if (vehicle._5ch_mdvr) baseService = '5CH MDVR';
+                else if (vehicle._8ch_mdvr) baseService = '8CH MDVR';
+                else if (vehicle.a2_dash_cam) baseService = 'A2 Dash Cam';
+                else if (vehicle.a3_dash_cam_ai) baseService = 'A3 Dash Cam AI';
+                else if (vehicle.pfk_main_unit) baseService = 'PFK Main Unit';
+                else if (vehicle.breathaloc) baseService = 'Breathaloc';
+                else if (vehicle.consultancy) baseService = 'Consultancy';
+                else if (vehicle.maintenance) baseService = 'Maintenance';
+                else if (vehicle.after_hours) baseService = 'After Hours';
+                else if (vehicle.controlroom) baseService = 'Control Room';
+                else if (vehicle.roaming) baseService = 'Roaming';
+                
+                // Add rental/subscription suffix
+                if (totalRental > 0 && totalSub > 0) {
+                  serviceType = `${baseService} - Rental and Subscription`;
+                } else if (totalRental > 0) {
+                  serviceType = `${baseService} - Rental`;
+                } else if (totalSub > 0) {
+                  serviceType = `${baseService} - Subscription`;
+                } else {
+                  serviceType = baseService;
+                }
+              } else {
+                // No service fields, use rental/sub or default
+                if (totalRental > 0 && totalSub > 0) {
+                  serviceType = 'Monthly Rental and Subscription';
+                } else if (totalRental > 0) {
+                  serviceType = 'Monthly Rental';
+                } else if (totalSub > 0) {
+                  serviceType = 'Monthly Subscription';
+                } else {
+                  serviceType = 'Skylink rental monthly fee';
+                }
+              }
+              
+              // Calculate VAT amounts (total_rental_sub is VAT excluded)
+              const totalExclVat = totalRentalSub;
+              const vatAmount = totalExclVat * 0.15;
+              const totalInclVat = totalExclVat + vatAmount;
+              
+              allInvoiceData.push([
+                regFleetNo,
+                regFleetNo,
+                serviceType,
+                vehicle.company || companyName,
+                vehicle.account_number || '',
+                1,
+                totalExclVat.toFixed(2),
+                totalExclVat.toFixed(2),
+                vatAmount.toFixed(2),
+                totalInclVat.toFixed(2)
+              ]);
+              
+              totalAmount += totalInclVat;
             }
-            
-            // Determine service type based on amounts
-            let serviceType = 'Vehicle Service';
-            if (totalRental > 0 && totalSub === 0) {
-              serviceType = 'Rental Service';
-            } else if (totalSub > 0 && totalRental === 0) {
-              serviceType = 'Subscription Service';
-            } else if (totalRental > 0 && totalSub > 0) {
-              serviceType = 'Rental & Subscription Service';
-            }
-            
-            // Calculate VAT correctly: total_rental_sub already includes VAT
-            // To get unit price without VAT: total_rental_sub / 1.15
-            // To get VAT amount: total_rental_sub - unit_price_without_vat
-            const unitPriceWithoutVat = totalRentalSub / 1.15;
-            const vatAmount = totalRentalSub - unitPriceWithoutVat;
-            const totalIncludingVat = totalRentalSub; // This is already the total including VAT
-            
-            allInvoiceData.push([
-              vehicle.reg || vehicle.fleet_number || '',
-              vehicle.fleet_number || vehicle.reg || '',
-              serviceType,
-              vehicle.company || '',
-              1, // Units
-              unitPriceWithoutVat,
-              vatAmount,
-              '15%', // VAT percentage
-              totalIncludingVat
-            ]);
-            
-            totalAmount += totalIncludingVat;
           });
           
           // Log statistics for this account
@@ -268,7 +330,7 @@ export default function AccountsClientsSection() {
           
           // Add totals for this account
           allInvoiceData.push([]); // Empty row
-          allInvoiceData.push(['', '', '', '', '', '', '', 'Total Amount:', totalAmount]);
+          allInvoiceData.push(['', '', '', '', '', '', '', '', 'Total Amount:', totalAmount]);
           
           invoiceResults.push({
             accountNumber: accountNumber,
@@ -305,11 +367,12 @@ export default function AccountsClientsSection() {
         { wch: 12 }, // Fleet No
         { wch: 30 }, // Description
         { wch: 20 }, // Company
+        { wch: 15 }, // Account Number
         { wch: 8 },  // Units
         { wch: 12 }, // Unit Price
-        { wch: 12 }, // Vat Amount
-        { wch: 8 },  // Vat%
-        { wch: 12 }  // Total Incl
+        { wch: 12 }, // Total Excl VAT
+        { wch: 12 }, // VAT Amount
+        { wch: 12 }  // Total Incl VAT
       ];
       worksheet['!cols'] = colWidths;
       
