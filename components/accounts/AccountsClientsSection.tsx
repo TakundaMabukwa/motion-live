@@ -143,278 +143,33 @@ export default function AccountsClientsSection() {
     }
   };
 
-  // Handle Bulk Invoice Generation for All Cost Centers - Single Continuous Excel Sheet
+  // Handle Bulk Invoice Generation - Server-side Excel generation
   const handleBulkInvoice = async () => {
     try {
       setIsGeneratingBulkInvoice(true);
       
-      // Dynamic import of XLSX library
-      const XLSX = await import('xlsx');
-      
-      // Fetch all vehicles grouped by account number
-      const response = await fetch('/api/vehicles/bulk-invoice');
+      // Generate Excel on server and download directly
+      const response = await fetch('/api/vehicles/bulk-invoice-excel');
       if (!response.ok) {
-        throw new Error('Failed to fetch vehicle data');
+        throw new Error('Failed to generate Excel file');
       }
       
-      const data = await response.json();
-      const { groupedVehicles, customerDetails, accountTotals } = data.data;
+      // Download the Excel file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bulk_Invoice_All_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
       
-      if (Object.keys(groupedVehicles).length === 0) {
-        toast.error('No vehicle data found to generate invoices');
-        return;
-      }
-
-      console.log(`Generating bulk invoice for ${Object.keys(groupedVehicles).length} accounts`);
-      console.time('Excel Generation');
-      
-      // Create a single continuous invoice data array
-      const allInvoiceData = [];
-      const invoiceResults = [];
-      let successCount = 0;
-      let errorCount = 0;
-      let isFirstInvoice = true;
-      let totalVehiclesProcessed = 0;
-
-      // Process each account
-      for (const [accountNumber, vehicles] of Object.entries(groupedVehicles)) {
-        totalVehiclesProcessed += vehicles.length;
-        try {
-          const customer = customerDetails[accountNumber];
-          const totals = accountTotals[accountNumber];
-          const companyName = customer?.legal_name || customer?.company || customer?.trading_name || 'Unknown Company';
-          
-          console.log(`Processing invoice for account: ${accountNumber} - ${companyName}`);
-          
-          // Add separator between invoices (except for the first one)
-          if (!isFirstInvoice) {
-            allInvoiceData.push([]); // Empty row
-            allInvoiceData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
-            allInvoiceData.push(['', '', '', '', '', '', '', '', '', '']); // Empty row
-          }
-          isFirstInvoice = false;
-          
-          // Add header information for this account
-          allInvoiceData.push([`${companyName}`]);
-          allInvoiceData.push([]); // Empty row
-          allInvoiceData.push([`INVOICE - ${accountNumber}`]);
-          allInvoiceData.push([`Account: ${accountNumber}`]);
-          allInvoiceData.push([`Date: ${new Date().toLocaleDateString()}`]);
-          allInvoiceData.push([]); // Empty row
-          
-          // Add table headers
-          allInvoiceData.push([
-            'Reg/Fleet No', 
-            'Fleet/Reg No', 
-            'Service Type', 
-            'Company', 
-            'Account Number',
-            'Units', 
-            'Unit Price', 
-            'Total Excl VAT',
-            'VAT Amount',
-            'Total Incl VAT'
-          ]);
-          
-          // Add vehicle data rows
-          let totalAmount = 0;
-          let vehiclesWithZeroAmount = 0;
-          let vehiclesProcessed = 0;
-          
-          vehicles.forEach((vehicle) => {
-            vehiclesProcessed++;
-            // Get vehicle identifier - prefer reg over fleet_number
-            const regFleetNo = vehicle.reg ? vehicle.reg : (vehicle.fleet_number || '');
-            
-            // Use total_rental_sub as main amount
-            const totalRentalSub = parseFloat(vehicle.total_rental_sub) || 0;
-            
-            // Process all vehicles, even with 0 amount
-            {
-              // Detect service type based on available fields
-              let serviceType = '';
-              
-              // Check for specific service fields to determine type
-              const serviceFields = [
-                'skylink_trailer_unit_serial_number', 'sky_on_batt_ign_unit_serial_number',
-                'skylink_voice_kit_serial_number', 'sky_scout_12v_serial_number', 'sky_scout_24v_serial_number',
-                'skylink_pro_serial_number', 'sky_safety', 'sky_idata', 'sky_ican', 'industrial_panic',
-                'flat_panic', 'buzzer', 'tag', 'tag_reader', 'keypad', 'keypad_waterproof',
-                'early_warning', 'cia', 'fm_unit', 'gps', 'gsm', 'main_fm_harness',
-                'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5',
-                'fuel_probe_1', 'fuel_probe_2', '_7m_harness_for_probe', 'tpiece', 'idata',
-                '_1m_extension_cable', '_3m_extension_cable', '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr',
-                'a2_dash_cam', 'a3_dash_cam_ai', 'vw400_dome_1', 'vw400_dome_2',
-                'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2', 'vw502_dual_lens_camera',
-                'vw303_driver_facing_camera', 'vw502f_road_facing_camera', 'dms01_driver_facing',
-                'adas_02_road_facing', 'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb',
-                'sd_card_480gb', 'sd_card_256gb', 'sd_card_512gb', 'sd_card_250gb',
-                'mic', 'speaker', 'pfk_main_unit', 'breathaloc', 'pfk_road_facing',
-                'pfk_driver_facing', 'pfk_dome_1', 'pfk_dome_2', 'roller_door_switches',
-                'consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'
-              ];
-              
-              // Check if vehicle has any of these service fields
-              const hasServiceFields = serviceFields.some(field => 
-                vehicle[field] && vehicle[field].toString().trim() !== ''
-              );
-              
-              // Check total_rental and total_sub to determine service type suffix
-              const totalRental = parseFloat(vehicle.total_rental) || 0;
-              const totalSub = parseFloat(vehicle.total_sub) || 0;
-              
-              if (hasServiceFields) {
-                // Use specific field names as service types
-                let baseService = '';
-                if (vehicle.skylink_trailer_unit_serial_number) baseService = 'Skylink Trailer Unit';
-                else if (vehicle.skylink_pro_serial_number) baseService = 'Skylink Pro';
-                else if (vehicle.sky_on_batt_ign_unit_serial_number) baseService = 'Sky On Batt IGN Unit';
-                else if (vehicle.skylink_voice_kit_serial_number) baseService = 'Skylink Voice Kit';
-                else if (vehicle.sky_scout_12v_serial_number) baseService = 'Sky Scout 12V';
-                else if (vehicle.sky_scout_24v_serial_number) baseService = 'Sky Scout 24V';
-                else if (vehicle._4ch_mdvr) baseService = '4CH MDVR';
-                else if (vehicle._5ch_mdvr) baseService = '5CH MDVR';
-                else if (vehicle._8ch_mdvr) baseService = '8CH MDVR';
-                else if (vehicle.a2_dash_cam) baseService = 'A2 Dash Cam';
-                else if (vehicle.a3_dash_cam_ai) baseService = 'A3 Dash Cam AI';
-                else if (vehicle.pfk_main_unit) baseService = 'PFK Main Unit';
-                else if (vehicle.breathaloc) baseService = 'Breathaloc';
-                else if (vehicle.consultancy) baseService = 'Consultancy';
-                else if (vehicle.maintenance) baseService = 'Maintenance';
-                else if (vehicle.after_hours) baseService = 'After Hours';
-                else if (vehicle.controlroom) baseService = 'Control Room';
-                else if (vehicle.roaming) baseService = 'Roaming';
-                
-                // Add rental/subscription suffix
-                if (totalRental > 0 && totalSub > 0) {
-                  serviceType = `${baseService} - Rental and Subscription`;
-                } else if (totalRental > 0) {
-                  serviceType = `${baseService} - Rental`;
-                } else if (totalSub > 0) {
-                  serviceType = `${baseService} - Subscription`;
-                } else {
-                  serviceType = baseService;
-                }
-              } else {
-                // No service fields, use rental/sub or default
-                if (totalRental > 0 && totalSub > 0) {
-                  serviceType = 'Monthly Rental and Subscription';
-                } else if (totalRental > 0) {
-                  serviceType = 'Monthly Rental';
-                } else if (totalSub > 0) {
-                  serviceType = 'Monthly Subscription';
-                } else {
-                  serviceType = 'Skylink rental monthly fee';
-                }
-              }
-              
-              // Calculate VAT amounts (total_rental_sub is VAT excluded)
-              const totalExclVat = totalRentalSub;
-              const vatAmount = totalExclVat * 0.15;
-              const totalInclVat = totalExclVat + vatAmount;
-              
-              allInvoiceData.push([
-                regFleetNo,
-                regFleetNo,
-                serviceType,
-                vehicle.company || companyName,
-                vehicle.account_number || '',
-                1,
-                totalExclVat.toFixed(2),
-                totalExclVat.toFixed(2),
-                vatAmount.toFixed(2),
-                totalInclVat.toFixed(2)
-              ]);
-              
-              totalAmount += totalInclVat;
-            }
-          });
-          
-          // Log statistics for this account
-          console.log(`Account ${accountNumber}: ${vehicles.length} vehicles, ${vehiclesProcessed} processed, ${vehiclesWithZeroAmount} with zero amounts, Total: R${totalAmount.toFixed(2)}`);
-          
-          // Add totals for this account
-          allInvoiceData.push([]); // Empty row
-          allInvoiceData.push(['', '', '', '', '', '', '', '', 'Total Amount:', totalAmount]);
-          
-          invoiceResults.push({
-            accountNumber: accountNumber,
-            companyName: companyName,
-            status: 'success',
-            message: `Invoice generated successfully`,
-            totalAmount: totalAmount,
-            vehicleCount: vehicles.length
-          });
-          
-          successCount++;
-          
-
-          
-        } catch (error) {
-          console.error(`Error generating invoice for ${accountNumber}:`, error);
-          invoiceResults.push({
-            accountNumber: accountNumber,
-            companyName: customerDetails[accountNumber]?.legal_name || customerDetails[accountNumber]?.company || 'Unknown',
-            status: 'error',
-            message: error.message
-          });
-          errorCount++;
-        }
-      }
-      
-      console.timeEnd('Excel Generation');
-      console.log(`Processed ${totalVehiclesProcessed} vehicles across ${successCount} accounts`);
-      console.time('Excel File Creation');
-      
-      // Create a single worksheet with all invoice data
-      const worksheet = XLSX.utils.aoa_to_sheet(allInvoiceData);
-      
-      // Set column widths
-      const colWidths = [
-        { wch: 15 }, // Vehicle Reg
-        { wch: 12 }, // Fleet No
-        { wch: 30 }, // Description
-        { wch: 20 }, // Company
-        { wch: 15 }, // Account Number
-        { wch: 8 },  // Units
-        { wch: 12 }, // Unit Price
-        { wch: 12 }, // Total Excl VAT
-        { wch: 12 }, // VAT Amount
-        { wch: 12 }  // Total Incl VAT
-      ];
-      worksheet['!cols'] = colWidths;
-      
-      // Create workbook with single sheet
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bulk Invoices');
-      
-      // Save the Excel file
-      const bulkFileName = `Bulk_Invoice_All_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(workbook, bulkFileName);
-      
-      console.timeEnd('Excel File Creation');
-      
-      // Show summary toast with detailed statistics
-      if (successCount > 0) {
-        const totalVehiclesInExcel = invoiceResults.reduce((sum, result) => sum + (result.vehicleCount || 0), 0);
-        toast.success(`Bulk Invoice Generated: ${successCount} accounts processed, ${totalVehiclesInExcel} vehicles included. ${errorCount} failed.`);
-        
-        // Log detailed statistics
-        console.log('=== BULK INVOICE GENERATION SUMMARY ===');
-        console.log(`Total accounts processed: ${successCount}`);
-        console.log(`Total vehicles included: ${totalVehiclesInExcel}`);
-        console.log(`Failed accounts: ${errorCount}`);
-        console.log(`Total accounts in database: ${Object.keys(groupedVehicles).length}`);
-        console.log('========================================');
-      } else {
-        toast.error('Bulk Invoice Generation Failed: No invoices were generated successfully.');
-      }
-      
-      console.log('Bulk invoice generation results:', invoiceResults);
+      toast.success('Bulk Invoice Generated and Downloaded Successfully!');
       
     } catch (error) {
-      console.error('Error in bulk invoice generation:', error);
-      toast.error('Failed to generate bulk invoices. Please try again.');
+      console.error('Error generating bulk invoice:', error);
+      toast.error('Failed to generate bulk invoice. Please try again.');
     } finally {
       setIsGeneratingBulkInvoice(false);
     }
