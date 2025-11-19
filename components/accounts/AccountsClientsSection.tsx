@@ -166,6 +166,7 @@ export default function AccountsClientsSection() {
       }
 
       console.log(`Generating bulk invoice for ${Object.keys(groupedVehicles).length} accounts`);
+      console.time('Excel Generation');
       
       // Create a single continuous invoice data array
       const allInvoiceData = [];
@@ -173,9 +174,11 @@ export default function AccountsClientsSection() {
       let successCount = 0;
       let errorCount = 0;
       let isFirstInvoice = true;
+      let totalVehiclesProcessed = 0;
 
       // Process each account
       for (const [accountNumber, vehicles] of Object.entries(groupedVehicles)) {
+        totalVehiclesProcessed += vehicles.length;
         try {
           const customer = customerDetails[accountNumber];
           const totals = accountTotals[accountNumber];
@@ -359,6 +362,10 @@ export default function AccountsClientsSection() {
         }
       }
       
+      console.timeEnd('Excel Generation');
+      console.log(`Processed ${totalVehiclesProcessed} vehicles across ${successCount} accounts`);
+      console.time('Excel File Creation');
+      
       // Create a single worksheet with all invoice data
       const worksheet = XLSX.utils.aoa_to_sheet(allInvoiceData);
       
@@ -384,6 +391,8 @@ export default function AccountsClientsSection() {
       // Save the Excel file
       const bulkFileName = `Bulk_Invoice_All_Accounts_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(workbook, bulkFileName);
+      
+      console.timeEnd('Excel File Creation');
       
       // Show summary toast with detailed statistics
       if (successCount > 0) {
