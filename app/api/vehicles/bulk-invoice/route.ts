@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     while (hasMore) {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('reg, fleet_number, company, account_number, new_account_number, total_rental_sub, total_rental, total_sub, skylink_trailer_unit_serial_number, skylink_pro_serial_number, sky_on_batt_ign_unit_serial_number, skylink_voice_kit_serial_number, sky_scout_12v_serial_number, sky_scout_24v_serial_number, _4ch_mdvr, _5ch_mdvr, _8ch_mdvr, a2_dash_cam, a3_dash_cam_ai, pfk_main_unit, breathaloc, consultancy, maintenance, after_hours, controlroom, roaming')
+        .select('*')
         .not('new_account_number', 'is', null)
         .order('new_account_number', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1);

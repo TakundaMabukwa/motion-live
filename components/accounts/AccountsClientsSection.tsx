@@ -216,8 +216,10 @@ export default function AccountsClientsSection() {
           // Add vehicle data rows
           let totalAmount = 0;
           let vehiclesWithZeroAmount = 0;
+          let vehiclesProcessed = 0;
           
           vehicles.forEach((vehicle) => {
+            vehiclesProcessed++;
             // Get vehicle identifier - prefer reg over fleet_number
             const regFleetNo = vehicle.reg ? vehicle.reg : (vehicle.fleet_number || '');
             
@@ -326,7 +328,7 @@ export default function AccountsClientsSection() {
           });
           
           // Log statistics for this account
-          console.log(`Account ${accountNumber}: ${vehicles.length} vehicles, ${vehiclesWithZeroAmount} with zero amounts, Total: R${totalAmount.toFixed(2)}`);
+          console.log(`Account ${accountNumber}: ${vehicles.length} vehicles, ${vehiclesProcessed} processed, ${vehiclesWithZeroAmount} with zero amounts, Total: R${totalAmount.toFixed(2)}`);
           
           // Add totals for this account
           allInvoiceData.push([]); // Empty row
