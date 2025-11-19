@@ -143,54 +143,48 @@ export default function AccountsClientsSection() {
     }
   };
 
-  // Handle Bulk Invoice Generation - Async with progress
+  // Handle Bulk Invoice Generation - Database with Storage
   const handleBulkInvoice = async () => {
     try {
       setIsGeneratingBulkInvoice(true);
+      toast.success('Generating Excel file in database...');
       
-      // Start async job
-      const startResponse = await fetch('/api/vehicles/bulk-invoice-async', { method: 'POST' });
-      const { jobId } = await startResponse.json();
+      // Call database-based Excel generation
+      const response = await fetch('/api/vehicles/bulk-invoice-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: 'all' })
+      });
       
-      toast.success('Excel generation started! Please wait...');
+      if (!response.ok) {
+        throw new Error('Failed to generate Excel file');
+      }
       
-      // Poll for completion
-      const pollInterval = setInterval(async () => {
-        try {
-          const statusResponse = await fetch(`/api/vehicles/bulk-invoice-async?jobId=${jobId}`);
-          
-          if (statusResponse.headers.get('content-type')?.includes('spreadsheet')) {
-            // File is ready
-            clearInterval(pollInterval);
-            const blob = await statusResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Bulk_Invoice_${new Date().toISOString().split('T')[0]}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-            toast.success('Excel file downloaded successfully!');
-            setIsGeneratingBulkInvoice(false);
-          } else {
-            const status = await statusResponse.json();
-            if (status.status === 'failed') {
-              clearInterval(pollInterval);
-              throw new Error(status.message);
-            }
-            // Continue polling
-          }
-        } catch (error) {
-          clearInterval(pollInterval);
-          throw error;
-        }
-      }, 2000); // Check every 2 seconds
+      const result = await response.json();
+      
+      if (result.success && result.downloadUrl) {
+        // Download the file from Supabase Storage
+        const downloadResponse = await fetch(result.downloadUrl);
+        const blob = await downloadResponse.blob();
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.fileName;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast.success(`Excel file generated! ${result.recordCount} records processed.`);
+      } else {
+        throw new Error('Invalid response from server');
+      }
       
     } catch (error) {
       console.error('Error generating bulk invoice:', error);
       toast.error('Failed to generate bulk invoice. Please try again.');
+    } finally {
       setIsGeneratingBulkInvoice(false);
     }
   };
