@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Wrench, User, Car, FileText, Search } from 'lucide-react';
+import { Wrench, User, Car, FileText, Search, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CreateRepairJobModalProps {
@@ -22,10 +22,11 @@ interface CostCenter {
 }
 
 interface Vehicle {
-  registration: string;
+  reg: string;
   make: string;
   model: string;
   year: number;
+  [key: string]: any;
 }
 
 export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: CreateRepairJobModalProps) {
@@ -37,7 +38,10 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
   const [costCenterSearch, setCostCenterSearch] = useState('');
   const [showCostCenterDropdown, setShowCostCenterDropdown] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehiclesByCostCenter, setVehiclesByCostCenter] = useState<Record<string, Vehicle[]>>({});
   const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [selectedVehicleDetails, setSelectedVehicleDetails] = useState(null);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
   
   const [formData, setFormData] = useState({
     // Job details
@@ -88,13 +92,39 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       
-      const { data, error } = await supabase
+      // Get all cost centers
+      const { data: costCentersData, error: costCentersError } = await supabase
         .from('cost_centers')
         .select('id, cost_code, company')
         .order('cost_code');
         
-      if (!error) {
-        setCostCenters(data || []);
+      if (!costCentersError && costCentersData) {
+        setCostCenters(costCentersData);
+        
+        // Get all cost codes
+        const costCodes = costCentersData.map(center => center.cost_code);
+        
+        // Fetch all vehicles that match any cost code
+        const { data: vehiclesData, error: vehiclesError } = await supabase
+          .from('vehicles')
+          .select('reg, make, model, year, fleet_number, new_account_number')
+          .in('new_account_number', costCodes)
+          .order('reg');
+          
+        if (!vehiclesError && vehiclesData) {
+          // Group vehicles by cost center
+          const vehiclesByCostCenter = {};
+          vehiclesData.forEach(vehicle => {
+            const costCenter = vehicle.new_account_number;
+            if (!vehiclesByCostCenter[costCenter]) {
+              vehiclesByCostCenter[costCenter] = [];
+            }
+            vehiclesByCostCenter[costCenter].push(vehicle);
+          });
+          
+          // Store vehicles grouped by cost center
+          setVehiclesByCostCenter(vehiclesByCostCenter);
+        }
       }
     } catch (error) {
       console.error('Error fetching cost centers:', error);
@@ -108,6 +138,7 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
   };
 
   const handleCostCenterSelect = async (costCenter: CostCenter) => {
+    console.log('NEW VERSION - Cost center selected:', costCenter.cost_code);
     handleInputChange('cost_center', costCenter.cost_code);
     setCostCenterSearch(`${costCenter.cost_code} - ${costCenter.company}`);
     setShowCostCenterDropdown(false);
@@ -118,19 +149,9 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       customer_name: costCenter.company || costCenter.cost_code
     }));
     
-    // Fetch vehicles for this cost center
-    setLoadingVehicles(true);
-    try {
-      const vehiclesResponse = await fetch(`/api/vehicles/by-cost-center?cost_center=${costCenter.cost_code}`);
-      if (vehiclesResponse.ok) {
-        const vehiclesData = await vehiclesResponse.json();
-        setVehicles(vehiclesData.vehicles || []);
-      }
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-    } finally {
-      setLoadingVehicles(false);
-    }
+    // Set vehicles for this cost center from pre-loaded data
+    setVehicles(vehiclesByCostCenter[costCenter.cost_code] || []);
+    console.log('Available vehicles for', costCenter.cost_code, ':', vehiclesByCostCenter[costCenter.cost_code] || []);
     
     // Try to fetch additional customer information
     try {
@@ -149,6 +170,33 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       }
     } catch (error) {
       console.error('Error fetching customer info:', error);
+    }
+  };
+
+  const handleSelectVehicle = (vehicle: Vehicle) => {
+    setFormData(prev => ({
+      ...prev,
+      vehicle_registration: vehicle.fleet_number || vehicle.reg,
+      vehicle_make: vehicle.make,
+      vehicle_model: vehicle.model,
+      vehicle_year: vehicle.year?.toString() || ''
+    }));
+    toast.success(`Selected vehicle: ${vehicle.fleet_number || vehicle.reg}`);
+  };
+
+  const handleViewVehicle = async (vehicle: Vehicle) => {
+    try {
+      const response = await fetch(`/api/vehicles/details?registration=${vehicle.reg}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedVehicleDetails(data.vehicle);
+        setShowVehicleModal(true);
+      } else {
+        toast.error('Failed to load vehicle details');
+      }
+    } catch (error) {
+      console.error('Error fetching vehicle details:', error);
+      toast.error('Failed to load vehicle details');
     }
   };
 
@@ -365,69 +413,69 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
               <h3 className="font-medium">Vehicle Information</h3>
             </div>
             <div className="space-y-4">
-              {vehicles.length > 0 && (
+              {!formData.cost_center ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-800">Please select a cost center in Step 1 to view available vehicles.</p>
+                  <p className="text-xs text-yellow-600 mt-1">Debug: cost_center = "{formData.cost_center}"</p>
+                </div>
+              ) : loadingVehicles ? (
+                <div className="text-sm text-gray-500">Loading vehicles...</div>
+              ) : vehicles.length > 0 ? (
                 <div>
-                  <Label>Select Vehicle</Label>
-                  <select
-                    onChange={(e) => {
-                      const selectedVehicle = vehicles.find(v => v.registration === e.target.value);
-                      if (selectedVehicle) {
-                        setFormData(prev => ({
-                          ...prev,
-                          vehicle_registration: selectedVehicle.registration,
-                          vehicle_make: selectedVehicle.make,
-                          vehicle_model: selectedVehicle.model,
-                          vehicle_year: selectedVehicle.year?.toString() || ''
-                        }));
-                      }
-                    }}
-                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  >
-                    <option value="">Select a vehicle...</option>
-                    {vehicles.map((vehicle) => (
-                      <option key={vehicle.registration} value={vehicle.registration}>
-                        {vehicle.registration} - {vehicle.make} {vehicle.model} ({vehicle.year})
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Available Vehicles</Label>
+                  <div className="max-h-60 overflow-y-auto border rounded-md">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Fleet/Reg</th>
+                          <th className="px-3 py-2 text-left">Make/Model</th>
+                          <th className="px-3 py-2 text-left">Year</th>
+                          <th className="px-3 py-2 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vehicles.map((vehicle) => (
+                          <tr key={vehicle.reg} className="border-t hover:bg-gray-50">
+                            <td className="px-3 py-2">{vehicle.fleet_number || vehicle.reg}</td>
+                            <td className="px-3 py-2">{vehicle.make} {vehicle.model}</td>
+                            <td className="px-3 py-2">{vehicle.year}</td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="flex gap-2 justify-center">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewVehicle(vehicle)}
+                                  className="text-xs"
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSelectVehicle(vehicle)}
+                                  className="text-xs bg-blue-600 hover:bg-blue-700"
+                                >
+                                  Select
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : formData.cost_center && (
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                  <p className="text-sm text-gray-600">No vehicles found for cost center: {formData.cost_center}</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Vehicle Registration</Label>
-                  <Input
-                    value={formData.vehicle_registration}
-                    onChange={(e) => handleInputChange('vehicle_registration', e.target.value)}
-                    placeholder="Enter registration"
-                  />
+              
+              {formData.vehicle_registration && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded">
+                  <p className="text-sm text-green-800">
+                    Selected Vehicle: <strong>{formData.vehicle_registration}</strong> - {formData.vehicle_make} {formData.vehicle_model} ({formData.vehicle_year})
+                  </p>
                 </div>
-                <div>
-                  <Label>Vehicle Make</Label>
-                  <Input
-                    value={formData.vehicle_make}
-                    onChange={(e) => handleInputChange('vehicle_make', e.target.value)}
-                    placeholder="e.g., Toyota"
-                  />
-                </div>
-                <div>
-                  <Label>Vehicle Model</Label>
-                  <Input
-                    value={formData.vehicle_model}
-                    onChange={(e) => handleInputChange('vehicle_model', e.target.value)}
-                    placeholder="e.g., Camry"
-                  />
-                </div>
-                <div>
-                  <Label>Vehicle Year</Label>
-                  <Input
-                    value={formData.vehicle_year}
-                    onChange={(e) => handleInputChange('vehicle_year', e.target.value)}
-                    placeholder="e.g., 2020"
-                  />
-                </div>
-              </div>
-              {loadingVehicles && (
-                <div className="text-sm text-gray-500">Loading vehicles...</div>
               )}
             </div>
           </div>
@@ -438,13 +486,14 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-green-600 hover:bg-green-700">
-          <Wrench className="mr-2 w-4 h-4" />
-          Create Repair Job
-        </Button>
-      </DialogTrigger>
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button className="bg-green-600 hover:bg-green-700">
+            <Wrench className="mr-2 w-4 h-4" />
+            Create Repair Job
+          </Button>
+        </DialogTrigger>
       
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -523,6 +572,77 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
           </div>
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      {/* Vehicle Details Modal */}
+      <Dialog open={showVehicleModal} onOpenChange={setShowVehicleModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Vehicle Details - {selectedVehicleDetails?.reg || selectedVehicleDetails?.registration}</DialogTitle>
+          </DialogHeader>
+          {selectedVehicleDetails && (
+            <div className="space-y-6">
+              {/* Basic Vehicle Info */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Registration:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.reg || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Make:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.make || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Model:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.model || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Year:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.year || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">VIN:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.vin || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Engine:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.engine || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Colour:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.colour || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 text-sm">Fleet Number:</span>
+                  <p className="text-gray-900">{selectedVehicleDetails.fleet_number || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Equipment Details */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg">Installed Equipment</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {Object.entries(selectedVehicleDetails)
+                    .filter(([key, value]) => 
+                      value && 
+                      value !== '' && 
+                      !['id', 'created_at', 'company', 'new_account_number', 'branch', 'unique_id', 'reg', 'make', 'model', 'vin', 'engine', 'year', 'colour', 'fleet_number', 'account_number'].includes(key)
+                    )
+                    .map(([key, value]) => (
+                      <div key={key} className="bg-white p-3 border rounded">
+                        <span className="font-medium text-gray-700 text-sm capitalize">
+                          {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                        </span>
+                        <p className="text-gray-900 text-sm">{String(value)}</p>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

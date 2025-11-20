@@ -12,6 +12,7 @@ export default function Layout({ children }) {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [showLowStockModal, setShowLowStockModal] = useState(false);
   const [lowStockItems, setLowStockItems] = useState([]);
+  const [isClient, setIsClient] = useState(false);
 
   // Fetch low stock items
   const fetchLowStockItems = async () => {
@@ -30,11 +31,19 @@ export default function Layout({ children }) {
   };
 
   useEffect(() => {
+    setIsClient(true);
     fetchLowStockItems();
     // Refresh every 5 minutes
     const interval = setInterval(fetchLowStockItems, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    // Update button state after client hydration
+    if (isClient) {
+      // Force re-render to update disabled state
+    }
+  }, [isClient, lowStockCount]);
 
   const handleNotificationClick = () => {
     if (lowStockCount > 0) {
@@ -67,7 +76,7 @@ export default function Layout({ children }) {
                 size="sm" 
                 onClick={handleNotificationClick}
                 className="relative hover:bg-blue-600 text-white"
-                disabled={lowStockCount === 0}
+                disabled={!isClient || lowStockCount === 0}
               >
                 <Bell className="w-5 h-5" />
                 {lowStockCount > 0 && (

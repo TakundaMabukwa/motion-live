@@ -162,6 +162,53 @@ export default function AssignPartsModal({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Job Information Section */}
+        {jobCard && (
+          <div className="bg-gray-50 p-4 rounded-lg mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Customer:</span>
+                <p className="text-gray-900">{jobCard.customer_name || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Vehicle:</span>
+                <p className="text-gray-900">{jobCard.vehicle_registration || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Job Type:</span>
+                <p className="text-gray-900">{jobCard.job_type || 'N/A'}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Quotation:</span>
+                <p className="text-gray-900">{jobCard.quotation_number || 'N/A'}</p>
+              </div>
+
+              <div>
+                <span className="font-medium text-gray-700">Status:</span>
+                <p className="text-gray-900">{jobCard.job_status || jobCard.status || 'N/A'}</p>
+              </div>
+            </div>
+            {jobCard.job_description && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <span className="font-medium text-gray-700">Description:</span>
+                <p className="text-gray-900 text-sm">{jobCard.job_description}</p>
+              </div>
+            )}
+            {jobCard.quotation_products && Array.isArray(jobCard.quotation_products) && jobCard.quotation_products.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <span className="font-medium text-gray-700">Items Required:</span>
+                <div className="mt-2 space-y-1">
+                  {jobCard.quotation_products.map((product, index) => (
+                    <div key={index} className="text-sm text-gray-900 bg-white p-2 rounded border">
+                      {product.description || product.name || `Product ${index + 1}`}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {!showQRCode ? (
           <div className="h-[75vh] flex flex-col">
             {/* Controls */}

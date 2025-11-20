@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
 
     const { data: vehicles, error } = await supabase
       .from('vehicles')
-      .select('registration, make, model, year')
-      .eq('account_number', costCenter)
-      .order('registration');
+      .select('reg, make, model, year, fleet_number')
+      .eq('new_account_number', costCenter)
+      .order('reg');
 
     if (error) {
       console.error('Error fetching vehicles:', error);

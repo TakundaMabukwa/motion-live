@@ -1265,9 +1265,8 @@ export default function InventoryPage() {
                   <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
                   <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
                   <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
+                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
                   <th className="py-3 px-4 text-left font-medium text-gray-500">Status</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Due Date</th>
                   <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
                 </tr>
               </thead>
@@ -1275,13 +1274,18 @@ export default function InventoryPage() {
                 {filteredJobCards.map((job) => (
                   <tr key={job.id} className="border-b hover:bg-gray-50">
                     <td className="py-3 px-4 align-middle">
-                      <div className="font-medium">{job.job_number}</div>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{job.job_number}</span>
+                        {job.quotation_number && (
+                          <span className="text-xs text-gray-500">Quote: {job.quotation_number}</span>
+                        )}
+                        {job.ip_address && (
+                          <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 align-middle">
-                      <div className="flex flex-col">
-                        <span>{job.customer_name}</span>
-                        <span className="text-xs text-gray-500">{job.customer_address || 'No address'}</span>
-                      </div>
+                      <span>{job.customer_name}</span>
                     </td>
                     <td className="py-3 px-4 align-middle">
                       <div className="flex items-center gap-1">
@@ -1290,88 +1294,36 @@ export default function InventoryPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 align-middle">
-                      <div className="truncate max-w-[200px]">
-                        {job.job_description || 'No description'}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex flex-col gap-1">
-                        <Badge className={`text-xs ${getStatusColor(job.job_status || job.status)}`}>
-                          {job.job_status || job.status || 'Not Started'}
+                      {job.job_type && (
+                        <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
+                          {job.job_type}
                         </Badge>
-                        {job.job_type && (
-                          <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
-                            {job.job_type}
-                          </Badge>
-                        )}
-                      </div>
+                      )}
                     </td>
                     <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>{formatDate(job.due_date)}</span>
-                      </div>
+                      <Badge className={getStatusColor(job.job_status || job.status)}>
+                        {job.job_status || job.status || 'NOT STARTED'}
+                      </Badge>
                     </td>
                     <td className="py-3 px-4 align-middle">
                       <div className="flex justify-end gap-2">
-                        {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleShowQRCode(job)}
-                              className="text-blue-600 hover:text-blue-700"
-                            >
-                              <QrCode className="mr-1 w-3 h-3" />
-                              View QR: 1
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleAssignParts(job)}
-                              className="text-green-600 hover:text-green-700"
-                            >
-                              <Plus className="mr-1 w-3 h-3" />
-                              Reassign Parts
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleBookStock(job)}
-                              className={hasBootStock(job) ? "text-green-600 hover:text-green-700 cursor-pointer" : "text-amber-600 hover:text-amber-700 cursor-pointer"}
-                              disabled={false} // Always enable this button
-                              title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
-                            >
-                              <Package className="mr-1 w-3 h-3" />
-                              Book Stock
-                            </Button>
-                            <Badge variant="outline" className="bg-green-100 text-green-800 text-xs flex items-center">
-                              <Package className="mr-1 w-3 h-3" />
-                              {job.parts_required.length} parts
-                            </Badge>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => handleAssignParts(job)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <Plus className="mr-1 w-3 h-3" />
-                              Assign Parts
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => handleBookStock(job)}
-                              className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white cursor-pointer" : "bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"}
-                              disabled={false} // Always enable this button
-                              title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
-                            >
-                              <Package className="mr-1 w-3 h-3" />
-                              Book Stock
-                            </Button>
-                          </>
-                        )}
+                        <Button
+                          size="sm"
+                          onClick={() => handleAssignParts(job)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <Plus className="mr-1 w-3 h-3" />
+                          Assign Parts
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleBookStock(job)}
+                          className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
+                          title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
+                        >
+                          <Package className="mr-1 w-3 h-3" />
+                          Book Stock
+                        </Button>
                       </div>
                     </td>
                   </tr>
