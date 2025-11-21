@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendInvoiceEmail, InvoiceData } from '@/lib/email';
+import { sendInvoiceEmail } from '@/lib/notification-email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare invoice data
-    const invoiceData: InvoiceData = {
+    const invoiceData = {
       invoiceNumber: body.invoiceNumber,
       clientName: body.clientName,
-      clientEmail: body.clientEmail,
+      clientEmails: [body.clientEmail], // Convert single email to array
       clientPhone: body.clientPhone || '',
       clientAddress: body.clientAddress || '',
       invoiceDate: body.invoiceDate || new Date().toISOString(),
@@ -36,7 +36,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Invoice email sent successfully',
-        messageId: result.messageId
+        totalSent: result.totalSent,
+        results: result.results
       });
     } else {
       return NextResponse.json({

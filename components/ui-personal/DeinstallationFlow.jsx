@@ -118,11 +118,18 @@ const DeinstallationFlow = ({
       ? `${vehicle.fleet_number || vehicle.reg || 'Unknown'}`
       : 'Unknown Vehicle';
     
-    // Define all equipment fields to check
-    const equipmentFields = [
-      'skylink_trailer_unit_serial_number', 'skylink_trailer_unit_ip', 'sky_on_batt_ign_unit_serial_number', 'sky_on_batt_ign_unit_ip',
-      'skylink_voice_kit_serial_number', 'skylink_voice_kit_ip', 'sky_scout_12v_serial_number', 'sky_scout_12v_ip',
-      'sky_scout_24v_serial_number', 'sky_scout_24v_ip', 'skylink_pro_serial_number', 'skylink_pro_ip',
+    // Define equipment groups (serial_number and ip pairs)
+    const equipmentGroups = [
+      { base: 'skylink_trailer_unit', name: 'Skylink Trailer Unit' },
+      { base: 'sky_on_batt_ign_unit', name: 'Sky On Batt IGN Unit' },
+      { base: 'skylink_voice_kit', name: 'Skylink Voice Kit' },
+      { base: 'sky_scout_12v', name: 'Sky Scout 12V' },
+      { base: 'sky_scout_24v', name: 'Sky Scout 24V' },
+      { base: 'skylink_pro', name: 'Skylink Pro' }
+    ];
+    
+    // Single field equipment
+    const singleFields = [
       'skylink_sim_card_no', 'skylink_data_number', 'sky_safety', 'sky_idata', 'sky_ican', 'industrial_panic',
       'flat_panic', 'buzzer', 'tag', 'tag_reader', 'keypad', 'keypad_waterproof', 'early_warning', 'cia',
       'fm_unit', 'sim_card_number', 'data_number', 'gps', 'gsm', 'tag_', 'tag_reader_', 'main_fm_harness',
@@ -139,22 +146,59 @@ const DeinstallationFlow = ({
       'pfk_dome_2', 'pfk_5m', 'pfk_10m', 'pfk_15m', 'pfk_20m', 'roller_door_switches'
     ];
     
-    // Get installed equipment (fields with values)
-    const installedEquipment = vehicle ? equipmentFields.filter(field => 
-      vehicle[field] && vehicle[field].toString().trim() !== ''
-    ).map(field => ({
-      id: `${field}-${vehicle.id}`,
-      fieldName: field,
-      name: field.replace(/_/g, ' ').replace(/^_/, '').toUpperCase(),
-      value: vehicle[field],
-      description: `De-installation of ${field.replace(/_/g, ' ')} - Value: ${vehicle[field]}`,
-      type: "HARDWARE",
-      category: "EQUIPMENT",
-      de_installation_price: 500,
-      code: field.toUpperCase(),
-      vehicleId: vehicle.id,
-      vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-    })) : [];
+    // Get installed equipment (grouped and single)
+    const installedEquipment = vehicle ? (() => {
+      const equipment = [];
+      
+      // Process grouped equipment (serial_number + ip pairs)
+      equipmentGroups.forEach(group => {
+        const serialField = `${group.base}_serial_number`;
+        const ipField = `${group.base}_ip`;
+        const hasSerial = vehicle[serialField] && vehicle[serialField].toString().trim() !== '';
+        const hasIp = vehicle[ipField] && vehicle[ipField].toString().trim() !== '';
+        
+        if (hasSerial || hasIp) {
+          const values = [];
+          if (hasSerial) values.push(`S/N: ${vehicle[serialField]}`);
+          if (hasIp) values.push(`IP: ${vehicle[ipField]}`);
+          
+          equipment.push({
+            id: `${group.base}-${vehicle.id}`,
+            fieldName: group.base,
+            name: group.name,
+            value: values.join(', '),
+            description: `De-installation of ${group.name} - ${values.join(', ')}`,
+            type: "HARDWARE",
+            category: "EQUIPMENT",
+            de_installation_price: 500,
+            code: group.base.toUpperCase(),
+            vehicleId: vehicle.id,
+            vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+          });
+        }
+      });
+      
+      // Process single field equipment
+      singleFields.forEach(field => {
+        if (vehicle[field] && vehicle[field].toString().trim() !== '') {
+          equipment.push({
+            id: `${field}-${vehicle.id}`,
+            fieldName: field,
+            name: field.replace(/_/g, ' ').replace(/^_/, '').toUpperCase(),
+            value: vehicle[field],
+            description: `De-installation of ${field.replace(/_/g, ' ')} - Value: ${vehicle[field]}`,
+            type: "HARDWARE",
+            category: "EQUIPMENT",
+            de_installation_price: 500,
+            code: field.toUpperCase(),
+            vehicleId: vehicle.id,
+            vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+          });
+        }
+      });
+      
+      return equipment;
+    })() : [];
     
     return (
       <div className="space-y-4">
@@ -220,10 +264,7 @@ const DeinstallationFlow = ({
                     <div className="flex-1">
                       <div className="font-medium text-sm">{equipment.name}</div>
                       <div className="text-gray-600 text-xs mt-1">
-                        <span className="font-medium">Value:</span> {equipment.value}
-                      </div>
-                      <div className="text-gray-500 text-xs mt-1">
-                        Field: {equipment.fieldName}
+                        <span className="font-medium">Details:</span> {equipment.value}
                       </div>
                     </div>
                     <Button
