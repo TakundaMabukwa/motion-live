@@ -54,7 +54,6 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const [deInstallData, setDeInstallData] = useState({
     availableVehicles: vehicles || [],
     selectedVehicles: [],
-    vehicleProducts: {}, // Map of vehicle to their installed products
     loadingVehicles: false,
     vehiclesLoaded: 0,
     totalVehicles: 0,
@@ -98,54 +97,11 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           vehiclesLoaded: initialCount
         }));
         
-        // Process each vehicle and create products based on rental fields
-        const vehicleProducts = {};
-        for (const vehicle of vehiclesToShow) {
-          if (!vehicle.id) {
-            console.warn('Vehicle missing ID:', vehicle);
-            continue;
-          }
-          
-          const products = [];
-          const rentalFields = [
-            'skylink_trailer_unit_rental', 'skylink_trailer_sub', 'sky_on_batt_ign_rental', 'sky_on_batt_sub',
-            'skylink_voice_kit_rental', 'skylink_voice_kit_sub', 'sky_scout_12v_rental', 'sky_scout_12v_sub',
-            'sky_scout_24v_rental', 'sky_scout_24v_sub', 'skylink_pro_rental', 'skylink_pro_sub',
-            'sky_idata_rental', 'sky_ican_rental', 'industrial_panic_rental', 'flat_panic_rental',
-            'buzzer_rental', 'tag_rental', 'tag_reader_rental', 'keypad_rental', 'early_warning_rental',
-            'cia_rental', 'fm_unit_rental', 'fm_unit_sub', 'gps_rental', 'gsm_rental', 'tag_rental_',
-            'tag_reader_rental_', 'main_fm_harness_rental', 'beame_1_rental', 'beame_1_sub',
-            'beame_2_rental', 'beame_2_sub', 'beame_3_rental', 'beame_3_sub', 'beame_4_rental',
-            'beame_4_sub', 'beame_5_rental', 'beame_5_sub', 'single_probe_rental', 'single_probe_sub',
-            'dual_probe_rental', 'dual_probe_sub', '_7m_harness_for_probe_rental', 'tpiece_rental',
-            'idata_rental', '_1m_extension_cable_rental', '_3m_extension_cable_rental', '_4ch_mdvr_rental',
-            '_4ch_mdvr_sub', '_5ch_mdvr_rental', '_5ch_mdvr_sub', '_8ch_mdvr_rental', '_8ch_mdvr_sub',
-            'a2_dash_cam_rental', 'a2_dash_cam_sub'
-          ];
-          
-          rentalFields.forEach(field => {
-            if (vehicle[field] && vehicle[field] !== '') {
-              products.push({
-                id: `${field}-${vehicle.id}`,
-                name: field.replace(/_/g, ' ').replace(/rental|sub/g, '').trim(),
-                description: `Value: ${vehicle[field]} - De-installation of ${field.replace(/_/g, ' ')}`,
-                type: "RENTAL",
-                category: "HARDWARE",
-                installation_price: 0,
-                de_installation_price: 500,
-                price: 0,
-                rental: 0,
-                code: field.toUpperCase(),
-                vehicleId: vehicle.id,
-                vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
-              });
-            }
-          });
-          
-          vehicleProducts[vehicle.id] = products;
-        }
+        // The vehicles are now available in deInstallData.availableVehicles
+        // Equipment will be processed in the DeinstallationFlow component
+        console.log('Vehicles loaded for de-installation:', vehiclesToShow.length);
         
-        setDeInstallData(prev => ({ ...prev, vehicleProducts }));
+        // Vehicle products will be processed dynamically in DeinstallationFlow
       } else {
         console.warn('Failed to fetch vehicles for account:', result.error);
         toast.error('Failed to load vehicles for de-installation');
@@ -911,16 +867,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     }));
   }, []);
 
-  const addVehicleProducts = useCallback((vehicle) => {
-    const vehicleProducts = deInstallData.vehicleProducts[vehicle.id] || [];
-    vehicleProducts.forEach(product => {
-      addProduct({
-        ...product,
-        vehicleId: vehicle.id,
-        vehiclePlate: vehicle.plate_number
-      });
-    });
-  }, [deInstallData.vehicleProducts, addProduct]);
+  // Removed addVehicleProducts as equipment is now processed dynamically
 
   const renderStepContent = () => {
     switch (currentStep) {

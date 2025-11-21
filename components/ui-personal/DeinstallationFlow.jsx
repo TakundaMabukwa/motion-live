@@ -20,6 +20,7 @@ const DeinstallationFlow = ({
   selectedProducts
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEquipment, setSelectedEquipment] = useState([]);
   if (deInstallData.loadingVehicles) {
     return (
       <div className="py-8 text-center">
@@ -113,10 +114,47 @@ const DeinstallationFlow = ({
   // Step 2: Parts Selection for the selected vehicle
   if (deInstallData.currentStep === 1 && deInstallData.currentVehicleId) {
     const vehicle = deInstallData.availableVehicles.find(v => v.id === deInstallData.currentVehicleId);
-    const vehicleProductsList = deInstallData.vehicleProducts[deInstallData.currentVehicleId] || [];
     const vehicleName = vehicle 
       ? `${vehicle.fleet_number || vehicle.reg || 'Unknown'}`
       : 'Unknown Vehicle';
+    
+    // Define all equipment fields to check
+    const equipmentFields = [
+      'skylink_trailer_unit_serial_number', 'skylink_trailer_unit_ip', 'sky_on_batt_ign_unit_serial_number', 'sky_on_batt_ign_unit_ip',
+      'skylink_voice_kit_serial_number', 'skylink_voice_kit_ip', 'sky_scout_12v_serial_number', 'sky_scout_12v_ip',
+      'sky_scout_24v_serial_number', 'sky_scout_24v_ip', 'skylink_pro_serial_number', 'skylink_pro_ip',
+      'skylink_sim_card_no', 'skylink_data_number', 'sky_safety', 'sky_idata', 'sky_ican', 'industrial_panic',
+      'flat_panic', 'buzzer', 'tag', 'tag_reader', 'keypad', 'keypad_waterproof', 'early_warning', 'cia',
+      'fm_unit', 'sim_card_number', 'data_number', 'gps', 'gsm', 'tag_', 'tag_reader_', 'main_fm_harness',
+      'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5', 'fuel_probe_1', 'fuel_probe_2',
+      '_7m_harness_for_probe', 'tpiece', 'idata', '_1m_extension_cable', '_3m_extension_cable',
+      '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr', 'a2_dash_cam', 'a3_dash_cam_ai', 'corpconnect_sim_no',
+      'corpconnect_data_no', 'sim_id', '_5m_cable_for_camera_4pin', '_5m_cable_6pin', '_10m_cable_for_camera_4pin',
+      'a2_mec_5', 'vw400_dome_1', 'vw400_dome_2', 'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2',
+      'vw502_dual_lens_camera', 'vw303_driver_facing_camera', 'vw502f_road_facing_camera',
+      'vw306_dvr_road_facing_for_4ch_8ch', 'vw306m_a2_dash_cam', 'dms01_driver_facing', 'adas_02_road_facing',
+      'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb', 'sd_card_480gb', 'sd_card_256gb',
+      'sd_card_512gb', 'sd_card_250gb', 'mic', 'speaker', 'pfk_main_unit', 'pfk_corpconnect_sim_number',
+      'pfk_corpconnect_data_number', 'breathaloc', 'pfk_road_facing', 'pfk_driver_facing', 'pfk_dome_1',
+      'pfk_dome_2', 'pfk_5m', 'pfk_10m', 'pfk_15m', 'pfk_20m', 'roller_door_switches'
+    ];
+    
+    // Get installed equipment (fields with values)
+    const installedEquipment = vehicle ? equipmentFields.filter(field => 
+      vehicle[field] && vehicle[field].toString().trim() !== ''
+    ).map(field => ({
+      id: `${field}-${vehicle.id}`,
+      fieldName: field,
+      name: field.replace(/_/g, ' ').replace(/^_/, '').toUpperCase(),
+      value: vehicle[field],
+      description: `De-installation of ${field.replace(/_/g, ' ')} - Value: ${vehicle[field]}`,
+      type: "HARDWARE",
+      category: "EQUIPMENT",
+      de_installation_price: 500,
+      code: field.toUpperCase(),
+      vehicleId: vehicle.id,
+      vehiclePlate: vehicle.fleet_number || vehicle.reg || 'Unknown'
+    })) : [];
     
     return (
       <div className="space-y-4">
@@ -130,50 +168,75 @@ const DeinstallationFlow = ({
             Back to Vehicles
           </Button>
           
+          <Badge variant="outline" className="text-sm">
+            {installedEquipment.length} items installed
+          </Badge>
+        </div>
+        
+        {/* Vehicle Info */}
+        <div className="bg-blue-50 p-3 rounded-lg border">
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">
-              {deInstallData.selectedVehicles.includes(deInstallData.currentVehicleId) 
-                ? 'Selected for de-installation' 
-                : 'Not selected'}
-            </Badge>
-            <Button
-              size="sm"
-              variant={deInstallData.selectedVehicles.includes(deInstallData.currentVehicleId) ? 'outline' : 'default'}
-              onClick={() => toggleVehicleSelection(deInstallData.currentVehicleId)}
-            >
-              {deInstallData.selectedVehicles.includes(deInstallData.currentVehicleId) ? 'Deselect' : 'Select for Quote'}
-            </Button>
+            <Car className="w-4 h-4 text-blue-600" />
+            <span className="font-medium text-blue-900">{vehicleName}</span>
+            {vehicle && (
+              <span className="text-blue-700 text-sm">
+                {vehicle.make} {vehicle.model} {vehicle.year && `(${vehicle.year})`}
+              </span>
+            )}
           </div>
         </div>
         
-        {/* List of products/parts on this vehicle */}
-        {vehicleProductsList.length > 0 ? (
+        {/* List of installed equipment */}
+        {installedEquipment.length > 0 ? (
           <div className="space-y-2">
-            <h3 className="font-medium text-gray-700">Installed Products on {vehicleName}:</h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {vehicleProductsList.map((product) => {
-                const isSelected = selectedProducts.some(p => p.id === product.id);
+            <div className="flex justify-between items-center">
+              <h3 className="font-medium text-gray-700">Installed Equipment:</h3>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  // Add all equipment to quote
+                  installedEquipment.forEach(equipment => {
+                    const isAlreadySelected = selectedProducts.some(p => p.id === equipment.id);
+                    if (!isAlreadySelected) {
+                      addProduct(equipment);
+                    }
+                  });
+                }}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add All
+              </Button>
+            </div>
+            
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {installedEquipment.map((equipment) => {
+                const isSelected = selectedProducts.some(p => p.id === equipment.id);
                 return (
-                  <div key={product.id} className={`flex justify-between items-start p-4 border rounded-lg ${isSelected ? 'bg-gray-200 opacity-50' : 'bg-gray-50'}`}>
+                  <div key={equipment.id} className={`flex justify-between items-start p-3 border rounded-lg transition-colors ${
+                    isSelected ? 'bg-green-50 border-green-200' : 'bg-gray-50 hover:bg-gray-100'
+                  }`}>
                     <div className="flex-1">
-                      <div className="font-medium">{product.name}</div>
-                      <div className="text-gray-600 text-sm">{product.description}</div>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        <Badge variant="secondary" className="text-xs">Code: {product.code}</Badge>
-                        <Badge variant="outline" className="text-xs">Type: {product.type}</Badge>
-                        <Badge variant="outline" className="text-xs">Category: {product.category}</Badge>
+                      <div className="font-medium text-sm">{equipment.name}</div>
+                      <div className="text-gray-600 text-xs mt-1">
+                        <span className="font-medium">Value:</span> {equipment.value}
+                      </div>
+                      <div className="text-gray-500 text-xs mt-1">
+                        Field: {equipment.fieldName}
                       </div>
                     </div>
                     <Button
-                      onClick={() => addProduct({
-                        ...product,
-                        vehicleId: deInstallData.currentVehicleId,
-                        vehiclePlate: vehicle ? (vehicle.fleet_number || vehicle.reg || 'Unknown') : 'Unknown'
-                      })}
+                      size="sm"
+                      onClick={() => addProduct(equipment)}
                       disabled={isSelected}
-                      className={isSelected ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'}
+                      className={`text-xs ${
+                        isSelected 
+                          ? 'bg-green-600 text-white cursor-not-allowed' 
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
                     >
-                      {isSelected ? 'Added' : 'Add to Quote'}
+                      {isSelected ? 'Added' : 'Add'}
                     </Button>
                   </div>
                 );
@@ -185,32 +248,9 @@ const DeinstallationFlow = ({
             <div className="flex items-center gap-3">
               <AlertTriangle className="text-yellow-500 w-5 h-5" />
               <div>
-                <h4 className="font-medium text-yellow-800">No products found</h4>
-                <p className="text-yellow-700 text-sm">This vehicle has no registered products. A default telematics unit will be added for de-installation.</p>
+                <h4 className="font-medium text-yellow-800">No equipment found</h4>
+                <p className="text-yellow-700 text-sm">This vehicle has no registered equipment in the system.</p>
               </div>
-            </div>
-            <div className="mt-4">
-              <Button
-                onClick={() => {
-                  // Add a default product for de-installation
-                  addProduct({
-                    id: `default-${deInstallData.currentVehicleId}`,
-                    name: "Telematics Unit",
-                    description: "Default telematics unit for de-installation",
-                    type: "FMS",
-                    category: "HARDWARE",
-                    installation_price: 0,
-                    de_installation_price: 500,
-                    price: 0,
-                    rental: 0,
-                    code: 'DEFAULT_TELEMATICS',
-                    vehicleId: deInstallData.currentVehicleId,
-                    vehiclePlate: vehicle ? (vehicle.fleet_number || vehicle.reg || 'Unknown') : 'Unknown'
-                  });
-                }}
-              >
-                Add Default Telematics Unit
-              </Button>
             </div>
           </div>
         )}
