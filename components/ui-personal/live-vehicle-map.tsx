@@ -25,6 +25,7 @@ const PORT_MAPPING: Record<string, number> = {
 
 interface Vehicle {
   id: string;
+  reg?: string;
   group_name?: string;
   new_registration?: string;
   beame_1?: string;
@@ -53,6 +54,9 @@ interface LiveVehicleMapProps {
 export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleMapProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [liveVehicles, setLiveVehicles] = useState<Vehicle[]>(vehicles);
+  const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -60,65 +64,90 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
 
 
   useEffect(() => {
-    setLiveVehicles([]);
+    setLiveVehicles(vehicles);
+    loadAllVehicles();
   }, [vehicles]);
+
+  const loadAllVehicles = async () => {
+    try {
+      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountNumber)}&page=1&limit=1000`);
+      const data = await response.json();
+      if (data.success) {
+        setAllVehicles(data.vehicles);
+      }
+    } catch (error) {
+      console.error('Error loading all vehicles:', error);
+    }
+  };
+
+  const loadMoreVehicles = async (newPage: number) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountNumber)}&page=${newPage}&limit=10`);
+      const data = await response.json();
+      if (data.success) {
+        setLiveVehicles(data.vehicles);
+        setPage(newPage);
+      }
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (eventSourceRef.current) return;
     
     const prefix = accountNumber.split('-')[0].toUpperCase();
-    console.log('Connecting to EventSource:', `/api/ws-proxy?prefix=${prefix}`);
     const eventSource = new EventSource(`/api/ws-proxy?prefix=${prefix}`);
     eventSourceRef.current = eventSource;
 
-    eventSource.onopen = () => {
-      console.log('EventSource connected');
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('EventSource error:', error);
-    };
+    eventSource.onopen = () => {};
+    eventSource.onerror = () => {};
 
     eventSource.onmessage = (event) => {
-      console.log('EventSource message:', event.data);
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'telematics' && data.vehicle && data.location) {
-          console.log('Processing vehicle:', data.vehicle.plate);
-        setLiveVehicles(prev => {
-          const existingIndex = prev.findIndex(v => 
-            v.live_data?.plate === data.vehicle.plate
-          );
-          
-          const vehicleData = {
-            id: data.vehicle.plate,
-            group_name: data.vehicle.plate,
-            new_registration: data.vehicle.registration,
-            beame_1: data.vehicle.fleetNumber?.trim(),
-            beame_2: '',
-            live_data: {
-              plate: data.vehicle.plate,
-              speed: data.telemetry.speed,
-              latitude: data.location.latitude,
-              longitude: data.location.longitude,
-              last_update: data.location.timestamp,
-              quality: '',
-              mileage: data.telemetry.mileage,
-              head: '',
-              geozone: data.telemetry.geozone || '',
-              driver_name: data.telemetry.driverName || '',
-              address: '',
-              status: data.telemetry.status || ''
+        
+        if (data.plate && data.lat && data.lng) {
+          const updateVehicle = (vehicles: Vehicle[]) => {
+            const existingIndex = vehicles.findIndex(v => 
+              v.reg === data.plate || 
+              v.reg === data.reg ||
+              v.group_name === data.plate || 
+              v.new_registration === data.plate ||
+              v.group_name === data.reg || 
+              v.new_registration === data.reg ||
+              v.beame_1 === data.plate ||
+              v.beame_1 === data.reg
+            );
+            
+            if (existingIndex !== -1) {
+              const updated = [...vehicles];
+              updated[existingIndex] = {
+                ...updated[existingIndex],
+                live_data: {
+                  plate: data.plate,
+                  speed: data.speed || 0,
+                  latitude: data.lat,
+                  longitude: data.lng,
+                  last_update: data.time,
+                  quality: '',
+                  mileage: 0,
+                  head: '',
+                  geozone: '',
+                  driver_name: '',
+                  address: ''
+                }
+              };
+              return updated;
             }
+            return vehicles;
           };
           
-          if (existingIndex !== -1) {
-            const updated = [...prev];
-            updated[existingIndex] = vehicleData;
-            return updated;
-          }
-          return [...prev, vehicleData];
-        });
+          setLiveVehicles(updateVehicle);
+          setAllVehicles(updateVehicle);
         }
       } catch (error) {
         console.error('Error parsing message:', error);
@@ -266,24 +295,47 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
         <div className="p-4 border-b border-gray-200">
           <h3 className="flex items-center gap-2 font-semibold text-gray-900">
             <Car className="w-5 h-5" />
-            Vehicle Fleet ({liveVehicles.length})
+            Vehicles ({liveVehicles.length})
           </h3>
           <div className="flex gap-2 mt-2">
             <Badge variant="default" className="text-xs">
               {vehiclesWithLiveData.length} active
             </Badge>
             <Badge variant="secondary" className="text-xs">
-              {vehicles.length - vehiclesWithLiveData.length} inactive
+              {liveVehicles.length - vehiclesWithLiveData.length} inactive
             </Badge>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => loadMoreVehicles(page - 1)}
+              disabled={page === 1 || loading}
+              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
+            >
+              ← Prev
+            </button>
+            <span className="px-3 py-1 text-xs">Page {page}</span>
+            <button
+              onClick={() => loadMoreVehicles(page + 1)}
+              disabled={loading}
+              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
+            >
+              Next →
+            </button>
           </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-3">
-            {liveVehicles.map((vehicle) => {
+            {liveVehicles.sort((a, b) => {
+              const aHasLive = !!a.live_data;
+              const bHasLive = !!b.live_data;
+              if (aHasLive && !bHasLive) return -1;
+              if (!aHasLive && bHasLive) return 1;
+              return 0;
+            }).map((vehicle) => {
                 const isSelected = selectedVehicle?.id === vehicle.id;
                 const hasLiveData = !!vehicle.live_data;
-                const plate = vehicle.group_name || vehicle.new_registration || 'Unknown Plate';
+                const plate = vehicle.reg || vehicle.group_name || vehicle.new_registration || 'Unknown';
                 
                 return (
                   <div
