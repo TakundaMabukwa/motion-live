@@ -57,6 +57,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const vehicleLookupRef = useRef<Map<string, number>>(new Map());
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -66,6 +67,22 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   useEffect(() => {
     setLiveVehicles(vehicles);
     loadAllVehicles();
+    
+    // Build lookup map for fast matching
+    const lookupMap = new Map<string, number>();
+    vehicles.forEach((vehicle, index) => {
+      const keys = [
+        vehicle.reg?.trim(),
+        vehicle.group_name?.trim(),
+        vehicle.new_registration?.trim(),
+        vehicle.beame_1?.trim()
+      ].filter(Boolean);
+      
+      keys.forEach(key => {
+        if (key) lookupMap.set(key, index);
+      });
+    });
+    vehicleLookupRef.current = lookupMap;
   }, [vehicles]);
 
   const loadAllVehicles = async () => {
@@ -112,17 +129,11 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
         
         if (data.plate && data.lat && data.lng) {
           const updateVehicle = (vehicles: Vehicle[]) => {
-            const startTime = performance.now();
-            const existingIndex = vehicles.findIndex(v => 
-              v.reg?.trim() === data.plate?.trim() || 
-              v.reg?.trim() === data.reg?.trim() ||
-              v.group_name?.trim() === data.plate?.trim() || 
-              v.new_registration?.trim() === data.plate?.trim() ||
-              v.group_name?.trim() === data.reg?.trim() || 
-              v.new_registration?.trim() === data.reg?.trim() ||
-              v.beame_1?.trim() === data.plate?.trim() ||
-              v.beame_1?.trim() === data.reg?.trim()
-            );
+            const plateTrimmed = data.plate?.trim();
+            const regTrimmed = data.reg?.trim();
+            
+            let existingIndex = vehicleLookupRef.current.get(plateTrimmed) ?? 
+                               vehicleLookupRef.current.get(regTrimmed) ?? -1;
             
             if (existingIndex !== -1) {
               const updated = [...vehicles];
@@ -142,8 +153,6 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                   address: ''
                 }
               };
-              const endTime = performance.now();
-              console.log(`✅ Updated vehicle in ${(endTime - startTime).toFixed(2)}ms`);
               return updated;
             }
             return vehicles;
@@ -399,25 +408,21 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                     {hasLiveData && (
                       <div className="mt-2 text-gray-600 text-xs space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Location:</span>
-                          <span>{vehicle.live_data!.latitude.toFixed(4)}, {vehicle.live_data!.longitude.toFixed(4)}</span>
+                          <span className="text-gray-500">Lat:</span>
+                          <span className="font-mono">{vehicle.live_data!.latitude.toFixed(6)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Mileage:</span>
-                          <span>{vehicle.live_data!.mileage.toLocaleString()} km</span>
+                          <span className="text-gray-500">Lng:</span>
+                          <span className="font-mono">{vehicle.live_data!.longitude.toFixed(6)}</span>
                         </div>
-                        {vehicle.live_data!.driver_name && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Driver:</span>
-                            <span>{vehicle.live_data!.driver_name}</span>
-                          </div>
-                        )}
-                        {vehicle.live_data!.geozone && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Zone:</span>
-                            <span>{vehicle.live_data!.geozone}</span>
-                          </div>
-                        )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Speed:</span>
+                          <span>{vehicle.live_data!.speed} km/h</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Updated:</span>
+                          <span>{formatLastUpdate(vehicle.live_data!.last_update)}</span>
+                        </div>
                       </div>
                     )}
                   </div>
