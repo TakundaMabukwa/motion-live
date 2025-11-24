@@ -31,18 +31,34 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const WebSocket = (await import('ws')).default;
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, {
+        perMessageDeflate: false,
+        handshakeTimeout: 5000
+      });
+      let isClosed = false;
 
       ws.on('message', (data) => {
-        controller.enqueue(`data: ${data}\n\n`);
+        if (!isClosed) {
+          try {
+            controller.enqueue(`data: ${data}\n\n`);
+          } catch (e) {
+            isClosed = true;
+          }
+        }
       });
 
       ws.on('error', () => {
-        controller.close();
+        if (!isClosed) {
+          isClosed = true;
+          try { controller.close(); } catch (e) {}
+        }
       });
 
       ws.on('close', () => {
-        controller.close();
+        if (!isClosed) {
+          isClosed = true;
+          try { controller.close(); } catch (e) {}
+        }
       });
     }
   });

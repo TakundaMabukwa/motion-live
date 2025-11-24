@@ -83,7 +83,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   const loadMoreVehicles = async (newPage: number) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountNumber)}&page=${newPage}&limit=10`);
+      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountNumber)}&page=${newPage}&limit=30`);
       const data = await response.json();
       if (data.success) {
         setLiveVehicles(data.vehicles);
@@ -112,15 +112,16 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
         
         if (data.plate && data.lat && data.lng) {
           const updateVehicle = (vehicles: Vehicle[]) => {
+            const startTime = performance.now();
             const existingIndex = vehicles.findIndex(v => 
-              v.reg === data.plate || 
-              v.reg === data.reg ||
-              v.group_name === data.plate || 
-              v.new_registration === data.plate ||
-              v.group_name === data.reg || 
-              v.new_registration === data.reg ||
-              v.beame_1 === data.plate ||
-              v.beame_1 === data.reg
+              v.reg?.trim() === data.plate?.trim() || 
+              v.reg?.trim() === data.reg?.trim() ||
+              v.group_name?.trim() === data.plate?.trim() || 
+              v.new_registration?.trim() === data.plate?.trim() ||
+              v.group_name?.trim() === data.reg?.trim() || 
+              v.new_registration?.trim() === data.reg?.trim() ||
+              v.beame_1?.trim() === data.plate?.trim() ||
+              v.beame_1?.trim() === data.reg?.trim()
             );
             
             if (existingIndex !== -1) {
@@ -141,13 +142,15 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                   address: ''
                 }
               };
+              const endTime = performance.now();
+              console.log(`✅ Updated vehicle in ${(endTime - startTime).toFixed(2)}ms`);
               return updated;
             }
             return vehicles;
           };
           
-          setLiveVehicles(updateVehicle);
-          setAllVehicles(updateVehicle);
+          setLiveVehicles(prev => updateVehicle(prev));
+          setAllVehicles(prev => updateVehicle(prev));
         }
       } catch (error) {
         console.error('Error parsing message:', error);
@@ -193,11 +196,12 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   useEffect(() => {
     if (!mapInstance.current) return;
 
-    liveVehicles.forEach(vehicle => {
-      if (vehicle.live_data) {
-        const existingMarker = markersRef.current.find(m => (m as any).vehicleId === vehicle.id);
-        
-        if (existingMarker) {
+    const updateMarkers = () => {
+      liveVehicles.forEach(vehicle => {
+        if (vehicle.live_data) {
+          const existingMarker = markersRef.current.find(m => (m as any).vehicleId === vehicle.id);
+          
+          if (existingMarker) {
           const currentLngLat = existingMarker.getLngLat();
           const newLngLat: [number, number] = [vehicle.live_data.longitude, vehicle.live_data.latitude];
           
@@ -207,7 +211,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
           );
           
           if (distance > 0.0001) {
-            const steps = 60;
+            const steps = 30;
             let step = 0;
             
             const animate = () => {
@@ -250,9 +254,12 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
 
           (marker as any).vehicleId = vehicle.id;
           markersRef.current.push(marker);
+          }
         }
-      }
-    });
+      });
+    };
+    
+    updateMarkers();
   }, [liveVehicles, selectedVehicle]);
 
   const handleVehicleClick = (vehicle: Vehicle) => {
@@ -305,23 +312,25 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
               {liveVehicles.length - vehiclesWithLiveData.length} inactive
             </Badge>
           </div>
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => loadMoreVehicles(page - 1)}
-              disabled={page === 1 || loading}
-              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
-            >
-              ← Prev
-            </button>
-            <span className="px-3 py-1 text-xs">Page {page}</span>
-            <button
-              onClick={() => loadMoreVehicles(page + 1)}
-              disabled={loading}
-              className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
-            >
-              Next →
-            </button>
-          </div>
+          {allVehicles.length > 30 && (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => loadMoreVehicles(page - 1)}
+                disabled={page === 1 || loading}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
+              >
+                ← Prev
+              </button>
+              <span className="px-3 py-1 text-xs">Page {page}</span>
+              <button
+                onClick={() => loadMoreVehicles(page + 1)}
+                disabled={loading || liveVehicles.length < 30}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">

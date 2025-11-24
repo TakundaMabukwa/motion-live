@@ -141,7 +141,7 @@ function AccountDetailPageContent() {
       setVehiclesLoading(true);
       
       // Use the account-specific vehicles API endpoint with pagination
-      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountId)}&page=${page}&limit=10`);
+      const response = await fetch(`/api/vehicles-by-account?account_number=${encodeURIComponent(accountId)}&page=${page}&limit=30`);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -330,7 +330,7 @@ function AccountDetailPageContent() {
                 {vehiclesTotalPages > 1 && (
                   <div className="flex justify-between items-center mt-6">
                     <div className="text-gray-700 text-sm">
-                      Showing {((vehiclesPage - 1) * 10) + 1} to {Math.min(vehiclesPage * 10, vehiclesTotalCount)} of {vehiclesTotalCount} vehicles
+                      Showing {((vehiclesPage - 1) * 30) + 1} to {Math.min(vehiclesPage * 30, vehiclesTotalCount)} of {vehiclesTotalCount} vehicles
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
