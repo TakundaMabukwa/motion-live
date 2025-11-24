@@ -67,12 +67,24 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
     if (eventSourceRef.current) return;
     
     const prefix = accountNumber.split('-')[0].toUpperCase();
+    console.log('Connecting to EventSource:', `/api/ws-proxy?prefix=${prefix}`);
     const eventSource = new EventSource(`/api/ws-proxy?prefix=${prefix}`);
     eventSourceRef.current = eventSource;
 
+    eventSource.onopen = () => {
+      console.log('EventSource connected');
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('EventSource error:', error);
+    };
+
     eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'telematics' && data.vehicle && data.location) {
+      console.log('EventSource message:', event.data);
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'telematics' && data.vehicle && data.location) {
+          console.log('Processing vehicle:', data.vehicle.plate);
         setLiveVehicles(prev => {
           const existingIndex = prev.findIndex(v => 
             v.live_data?.plate === data.vehicle.plate
@@ -107,6 +119,9 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
           }
           return [...prev, vehicleData];
         });
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error);
       }
     };
 
