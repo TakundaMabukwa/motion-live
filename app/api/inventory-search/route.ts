@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (query && query.length >= 2) {
-      dbQuery = dbQuery.ilike('serial_number', `%${query}%`);
+      // For stock take, only match by category code (not description)
+      dbQuery = dbQuery.ilike('category_code', `%${query}%`);
     }
 
     const { data: items, error } = await dbQuery

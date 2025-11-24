@@ -24,7 +24,7 @@ import {
   Quote
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
-import LiveVehicleMap from '@/components/vehicle-tracking/LiveVehicleMap';
+import LiveVehicleMap from '@/components/ui-personal/live-vehicle-map';
 import VehicleCards from '@/components/vehicle-tracking/VehicleCards';
 import CustomerJobCards from '@/components/ui-personal/customer-job-cards';
 import ClientQuoteForm from '@/components/ui-personal/client-quote-form';
@@ -430,23 +430,39 @@ function AccountDetailPageContent() {
 
       case 'map':
         return (
-          <div className="-m-6 h-screen">
-            <div 
-              ref={(el) => {
-                if (el && !el.querySelector('.mapboxgl-map')) {
-                  import('mapbox-gl').then((mapboxgl) => {
-                    mapboxgl.default.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-                    new mapboxgl.default.Map({
-                      container: el,
-                      style: 'mapbox://styles/mapbox/streets-v12',
-                      center: [28.0473, -26.2041],
-                      zoom: 10
-                    });
-                  });
-                }
-              }}
-              className="w-full h-full"
-            />
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="font-semibold text-xl">Live Vehicle Map</h2>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">
+                  {vehicles.filter(v => v.live_data).length} active vehicles
+                </Badge>
+                <Badge variant="secondary">
+                  {vehicles.length} total vehicles
+                </Badge>
+                {vehiclesLoading && (
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
+                    Loading...
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {vehicles.length === 0 && !vehiclesLoading ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <MapPin className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                  <h3 className="mb-2 font-medium text-gray-900 text-lg">No vehicles found</h3>
+                  <p className="text-gray-500">No vehicles available for mapping.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <LiveVehicleMap 
+                vehicles={vehicles}
+                accountNumber={customer?.new_account_number || accountId}
+              />
+            )}
           </div>
         );
 
