@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import LiveVehicleMap from '@/components/ui-personal/live-vehicle-map';
+import { MapPin } from 'lucide-react';
 import VehicleCards from '@/components/vehicle-tracking/VehicleCards';
 import CustomerJobCards from '@/components/ui-personal/customer-job-cards';
 import ClientQuoteForm from '@/components/ui-personal/client-quote-form';
@@ -440,29 +441,12 @@ function AccountDetailPageContent() {
                 <Badge variant="secondary">
                   {vehicles.length} total vehicles
                 </Badge>
-                {vehiclesLoading && (
-                  <div className="flex items-center gap-2 text-gray-500 text-sm">
-                    <div className="border-b-2 border-blue-600 rounded-full w-4 h-4 animate-spin"></div>
-                    Loading...
-                  </div>
-                )}
               </div>
             </div>
-            
-            {vehicles.length === 0 && !vehiclesLoading ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <MapPin className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                  <h3 className="mb-2 font-medium text-gray-900 text-lg">No vehicles found</h3>
-                  <p className="text-gray-500">No vehicles available for mapping.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <LiveVehicleMap 
-                vehicles={vehicles}
-                accountNumber={customer?.new_account_number || accountId}
-              />
-            )}
+            <LiveVehicleMap 
+              vehicles={vehicles}
+              accountNumber={customer?.new_account_number || accountId}
+            />
           </div>
         );
 

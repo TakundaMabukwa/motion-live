@@ -1,17 +1,27 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+
+(mapboxgl as any).accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { 
-  MapPin, 
-  Car, 
-  Navigation, 
-  Clock, 
-  Gauge,
-  Target
-} from 'lucide-react';
+import { Car, Clock, Gauge, Target } from 'lucide-react';
+
+const PORT_MAPPING: Record<string, number> = {
+  'AIXX': 8001, 'ALDA': 8002, 'ALST': 8003, 'AVVA': 8004, 'BACA': 8005,
+  'BLUE': 8006, 'CONC': 8007, 'COUN': 8008, 'DACO': 8009, 'DAWN': 8010,
+  'DELA': 8011, 'DUPL': 8012, 'EDGE': 8013, 'ELIZ': 8014, 'EPSC': 8015,
+  'EUXX': 8016, 'FIRS': 8017, 'FRSU': 8018, 'FUSP': 8019, 'GOEA': 8020,
+  'GRAV': 8021, 'HIMA': 8022, 'HITA': 8023, 'ICON': 8024, 'INTA': 8025,
+  'JCAG': 8026, 'JOLO': 8027, 'KANO': 8028, 'KEAD': 8029, 'KELO': 8030,
+  'KERI': 8031, 'LECO': 8032, 'LTSX': 8033, 'MACS': 8034, 'MAGO': 8035,
+  'MAIB': 8036, 'MASS': 8037, 'MAVA': 8038, 'META': 8039, 'MNFU': 8040,
+  'NNSL': 8041, 'PETE': 8042, 'PIRT': 8043, 'PRCR': 8044, 'RIGH': 8045,
+  'SEVE': 8046, 'SGMO': 8047, 'SIVE': 8048, 'SPAR': 8049, 'STGR': 8050,
+  'STRU': 8051, 'TALI': 8052, 'TRIA': 8053, 'TYSO': 8054, 'VDMX': 8055,
+  'WACA': 8056
+};
 
 interface Vehicle {
   id: string;
@@ -31,6 +41,7 @@ interface Vehicle {
     geozone: string;
     driver_name: string;
     address: string;
+    status?: string;
   };
 }
 
@@ -41,36 +52,93 @@ interface LiveVehicleMapProps {
 
 export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleMapProps) {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-  const [mapCenter, setMapCenter] = useState([-26.308411, 28.139126]); // Default to Johannesburg
-  const [mapZoom, setMapZoom] = useState(10);
+  const [liveVehicles, setLiveVehicles] = useState<Vehicle[]>(vehicles);
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
+  const mapInstance = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
 
   useEffect(() => {
-    // Initialize Mapbox
-    if (typeof window !== 'undefined' && !mapInstance.current) {
-      // @ts-ignore
-      const mapboxgl = window.mapboxgl;
-      if (!mapboxgl) {
-        console.warn('Mapbox GL JS not loaded');
-        return;
-      }
-      
-      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoiZXhhbXBsZSIsImEiOiJjbGV4YW1wbGUifQ.example';
-      mapboxgl.accessToken = token;
-      
-      mapInstance.current = new mapboxgl.Map({
-        container: mapRef.current!,
-        style: 'mapbox://styles/mapbox/streets-v11',
-        center: mapCenter,
-        zoom: mapZoom
-      });
+    setLiveVehicles([]);
+  }, [vehicles]);
 
-      // Add navigation controls
-      mapInstance.current.addControl(new mapboxgl.NavigationControl());
-    }
+  useEffect(() => {
+    if (eventSourceRef.current) return;
+    
+    const prefix = accountNumber.split('-')[0].toUpperCase();
+    const eventSource = new EventSource(`/api/ws-proxy?prefix=${prefix}`);
+    eventSourceRef.current = eventSource;
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'telematics' && data.vehicle && data.location) {
+        setLiveVehicles(prev => {
+          const existingIndex = prev.findIndex(v => 
+            v.live_data?.plate === data.vehicle.plate
+          );
+          
+          const vehicleData = {
+            id: data.vehicle.plate,
+            group_name: data.vehicle.plate,
+            new_registration: data.vehicle.registration,
+            beame_1: data.vehicle.fleetNumber?.trim(),
+            beame_2: '',
+            live_data: {
+              plate: data.vehicle.plate,
+              speed: data.telemetry.speed,
+              latitude: data.location.latitude,
+              longitude: data.location.longitude,
+              last_update: data.location.timestamp,
+              quality: '',
+              mileage: data.telemetry.mileage,
+              head: '',
+              geozone: data.telemetry.geozone || '',
+              driver_name: data.telemetry.driverName || '',
+              address: '',
+              status: data.telemetry.status || ''
+            }
+          };
+          
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = vehicleData;
+            return updated;
+          }
+          return [...prev, vehicleData];
+        });
+      }
+    };
 
     return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [accountNumber]);
+
+  useEffect(() => {
+    if (!mapRef.current || mapInstance.current) return;
+
+    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+
+    mapInstance.current = new mapboxgl.Map({
+      container: mapRef.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [28.139126, -26.308411],
+      zoom: 10,
+      attributionControl: false,
+      trackResize: true,
+      preserveDrawingBuffer: true
+    });
+
+    (mapInstance.current as any)._requestManager._skuToken = '';
+
+    mapInstance.current.addControl(new mapboxgl.NavigationControl());
+
+    return () => {
+      markersRef.current.forEach(marker => marker.remove());
       if (mapInstance.current) {
         mapInstance.current.remove();
         mapInstance.current = null;
@@ -79,29 +147,51 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   }, []);
 
   useEffect(() => {
-    if (mapInstance.current) {
-      // @ts-ignore
-      const mapboxgl = window.mapboxgl;
-      if (!mapboxgl) return;
-      
-      // Clear existing markers
-      const markers = document.querySelectorAll('.mapboxgl-marker');
-      markers.forEach(marker => marker.remove());
+    if (!mapInstance.current) return;
 
-      // Add markers for vehicles with live data
-      vehicles.forEach(vehicle => {
-        if (vehicle.live_data) {
+    liveVehicles.forEach(vehicle => {
+      if (vehicle.live_data) {
+        const existingMarker = markersRef.current.find(m => (m as any).vehicleId === vehicle.id);
+        
+        if (existingMarker) {
+          const currentLngLat = existingMarker.getLngLat();
+          const newLngLat: [number, number] = [vehicle.live_data.longitude, vehicle.live_data.latitude];
+          
+          const distance = Math.sqrt(
+            Math.pow(newLngLat[0] - currentLngLat.lng, 2) + 
+            Math.pow(newLngLat[1] - currentLngLat.lat, 2)
+          );
+          
+          if (distance > 0.0001) {
+            const steps = 60;
+            let step = 0;
+            
+            const animate = () => {
+              if (step <= steps) {
+                const progress = step / steps;
+                const lng = currentLngLat.lng + (newLngLat[0] - currentLngLat.lng) * progress;
+                const lat = currentLngLat.lat + (newLngLat[1] - currentLngLat.lat) * progress;
+                existingMarker.setLngLat([lng, lat]);
+                step++;
+                requestAnimationFrame(animate);
+              }
+            };
+            animate();
+          }
+          
+          const el = existingMarker.getElement();
+          el.style.backgroundColor = selectedVehicle?.id === vehicle.id ? '#3b82f6' : '#10b981';
+        } else {
           const el = document.createElement('div');
-          el.className = 'vehicle-marker';
           el.style.width = '20px';
           el.style.height = '20px';
           el.style.borderRadius = '50%';
           el.style.backgroundColor = selectedVehicle?.id === vehicle.id ? '#3b82f6' : '#10b981';
           el.style.border = '2px solid white';
           el.style.cursor = 'pointer';
+          el.style.transition = 'all 0.3s ease';
 
-          // Add marker to map
-          new mapboxgl.Marker(el)
+          const marker = new mapboxgl.Marker(el)
             .setLngLat([vehicle.live_data.longitude, vehicle.live_data.latitude])
             .setPopup(
               new mapboxgl.Popup({ offset: 25 }).setHTML(`
@@ -112,38 +202,23 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                 </div>
               `)
             )
-            .addTo(mapInstance.current);
+            .addTo(mapInstance.current!);
 
-          // Update map center if this is the selected vehicle
-          if (selectedVehicle?.id === vehicle.id) {
-            mapInstance.current.flyTo({
-              center: [vehicle.live_data.longitude, vehicle.live_data.latitude],
-              zoom: 15
-            });
-          }
+          (marker as any).vehicleId = vehicle.id;
+          markersRef.current.push(marker);
         }
-      });
-
-      // Update map center based on vehicles with live data
-      const vehiclesWithLiveData = vehicles.filter(v => v.live_data);
-      if (vehiclesWithLiveData.length > 0 && !selectedVehicle) {
-        const avgLat = vehiclesWithLiveData.reduce((sum, v) => sum + v.live_data!.latitude, 0) / vehiclesWithLiveData.length;
-        const avgLng = vehiclesWithLiveData.reduce((sum, v) => sum + v.live_data!.longitude, 0) / vehiclesWithLiveData.length;
-        
-        mapInstance.current.flyTo({
-          center: [avgLng, avgLat],
-          zoom: 12
-        });
       }
-    }
-  }, [vehicles, selectedVehicle]);
+    });
+  }, [liveVehicles, selectedVehicle]);
 
   const handleVehicleClick = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     if (vehicle.live_data && mapInstance.current) {
       mapInstance.current.flyTo({
         center: [vehicle.live_data.longitude, vehicle.live_data.latitude],
-        zoom: 15
+        zoom: 15,
+        duration: 1500,
+        essential: true
       });
     }
   };
@@ -151,6 +226,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
   const formatLastUpdate = (timestamp: string) => {
     if (!timestamp) return 'Never';
     const date = new Date(timestamp);
+    date.setHours(date.getHours() + 2);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -163,52 +239,33 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
     return `${diffDays}d ago`;
   };
 
-  const vehiclesWithLiveData = vehicles.filter(v => v.live_data);
+  const vehiclesWithLiveData = liveVehicles.filter(v => v.live_data);
 
   return (
-    <div className="gap-6 grid grid-cols-1 lg:grid-cols-2">
-      {/* Map Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5" />
-            Live Vehicle Map
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div 
-            ref={mapRef} 
-            className="rounded-lg w-full h-96"
-            style={{ minHeight: '400px' }}
-          />
-          {vehiclesWithLiveData.length === 0 && (
-            <div className="absolute inset-0 flex justify-center items-center bg-gray-50 rounded-lg">
-              <div className="text-center">
-                <Navigation className="mx-auto mb-2 w-8 h-8 text-gray-400" />
-                <p className="text-gray-500">No vehicles with live data available</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex h-[600px] max-h-[600px] overflow-hidden">
+      <div className="flex-1 relative">
+        <div ref={mapRef} className="w-full h-full" />
+      </div>
 
-      {/* Vehicle Info Cards */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <div className="w-1/4 bg-white border-l border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200">
+          <h3 className="flex items-center gap-2 font-semibold text-gray-900">
             <Car className="w-5 h-5" />
-            Vehicle Fleet ({vehicles.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {vehicles.length === 0 ? (
-              <div className="py-8 text-center">
-                <Car className="mx-auto mb-2 w-8 h-8 text-gray-400" />
-                <p className="text-gray-500 text-sm">No vehicles found</p>
-              </div>
-            ) : (
-              vehicles.map((vehicle) => {
+            Vehicle Fleet ({liveVehicles.length})
+          </h3>
+          <div className="flex gap-2 mt-2">
+            <Badge variant="default" className="text-xs">
+              {vehiclesWithLiveData.length} active
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              {vehicles.length - vehiclesWithLiveData.length} inactive
+            </Badge>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-3">
+            {liveVehicles.map((vehicle) => {
                 const isSelected = selectedVehicle?.id === vehicle.id;
                 const hasLiveData = !!vehicle.live_data;
                 const plate = vehicle.group_name || vehicle.new_registration || 'Unknown Plate';
@@ -226,48 +283,36 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                     onClick={() => handleVehicleClick(vehicle)}
                   >
                     <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium text-gray-900">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">
                           {plate}
                         </div>
-                        <div className="mt-1 text-gray-500 text-xs">
+                        <div className="mt-1 text-gray-500 text-xs truncate">
                           {vehicle.beame_1 || vehicle.beame_2 || 'No description'}
                         </div>
                       </div>
-                      <div className="text-right">
-                        {hasLiveData ? (
-                          <>
-                            <div className="flex items-center gap-1 text-green-600 text-xs">
+                      <div className="ml-2 flex-shrink-0">
+                        {hasLiveData && (
+                          <div className="text-xs space-y-1">
+                            <div className="flex items-center gap-1 text-green-600">
                               <Clock className="w-3 h-3" />
                               <span>{formatLastUpdate(vehicle.live_data!.last_update)}</span>
                             </div>
-                            {vehicle.live_data!.speed !== undefined && (
-                              <div className="flex items-center gap-1 mt-1 text-gray-500 text-xs">
-                                <Gauge className="w-3 h-3" />
-                                <span>{vehicle.live_data!.speed} km/h</span>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-1 text-gray-400 text-xs">
-                            <Clock className="w-3 h-3" />
-                            <span>No live data</span>
+                            <div className="flex items-center gap-1 text-gray-700">
+                              <Gauge className="w-3 h-3" />
+                              <span>{vehicle.live_data!.speed} km/h</span>
+                            </div>
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-1 mt-2 flex-wrap">
                       <Badge 
                         variant={hasLiveData ? 'default' : 'secondary'}
                         className="text-xs"
                       >
                         {hasLiveData ? 'Active' : 'Inactive'}
                       </Badge>
-                      {vehicle.live_data?.geozone && (
-                        <Badge variant="outline" className="text-xs">
-                          {vehicle.live_data.geozone}
-                        </Badge>
-                      )}
                       {isSelected && (
                         <Badge variant="outline" className="bg-blue-100 text-xs">
                           <Target className="mr-1 w-3 h-3" />
@@ -276,18 +321,35 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
                       )}
                     </div>
                     {hasLiveData && (
-                      <div className="mt-2 text-gray-500 text-xs">
-                        <div>Lat: {vehicle.live_data!.latitude.toFixed(4)}</div>
-                        <div>Lng: {vehicle.live_data!.longitude.toFixed(4)}</div>
+                      <div className="mt-2 text-gray-600 text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Location:</span>
+                          <span>{vehicle.live_data!.latitude.toFixed(4)}, {vehicle.live_data!.longitude.toFixed(4)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Mileage:</span>
+                          <span>{vehicle.live_data!.mileage.toLocaleString()} km</span>
+                        </div>
+                        {vehicle.live_data!.driver_name && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Driver:</span>
+                            <span>{vehicle.live_data!.driver_name}</span>
+                          </div>
+                        )}
+                        {vehicle.live_data!.geozone && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Zone:</span>
+                            <span>{vehicle.live_data!.geozone}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
-              })
-            )}
+              })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
