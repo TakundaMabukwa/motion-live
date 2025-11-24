@@ -26,6 +26,7 @@ const PORT_MAPPING: Record<string, number> = {
 interface Vehicle {
   id: string;
   reg?: string;
+  fleet_number?: string;
   group_name?: string;
   new_registration?: string;
   beame_1?: string;
@@ -73,9 +74,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
     vehicles.forEach((vehicle, index) => {
       const keys = [
         vehicle.reg?.trim(),
-        vehicle.group_name?.trim(),
-        vehicle.new_registration?.trim(),
-        vehicle.beame_1?.trim()
+        vehicle.fleet_number?.trim()
       ].filter(Boolean);
       
       keys.forEach(key => {
