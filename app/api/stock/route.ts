@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         container,
         direction,
         notes,
-        inventory_categories!category_code (
+        inventory_categories!inventory_items_category_fkey (
           code,
           description,
           total_count
@@ -88,17 +88,28 @@ export async function GET(request: NextRequest) {
       processedStock = Object.values(categoryGroups) || [];
     } else {
       // Return individual items for stock take
-      processedStock = stock?.map(item => ({
-        id: item.id,
-        description: item.inventory_categories?.description || 'No description',
-        code: item.inventory_categories?.code || item.serial_number,
-        supplier: 'N/A',
-        stock_type: item.inventory_categories?.description || 'N/A',
-        quantity: '1',
-        serial_number: item.serial_number,
-        status: item.status,
-        category_code: item.category_code
-      })) || [];
+      processedStock = stock?.map(item => {
+        const categoryDesc = item.inventory_categories?.description || item.category_code;
+        console.log('Processing item:', item.serial_number, 'categoryDesc:', categoryDesc);
+        return {
+          id: item.id,
+          description: categoryDesc,
+          code: item.category_code,
+          supplier: 'N/A',
+          stock_type: categoryDesc,
+          quantity: '1',
+          serial_number: item.serial_number,
+          status: item.status,
+          category_code: item.category_code,
+          category_description: categoryDesc,
+          category: {
+            description: categoryDesc,
+            code: item.category_code
+          }
+        };
+      }) || [];
+      
+      console.log('Final processedStock sample:', processedStock[0]);
     }
 
     return NextResponse.json({ stock: processedStock });

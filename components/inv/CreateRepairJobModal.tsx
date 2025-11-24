@@ -42,6 +42,8 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
   const [loadingVehicles, setLoadingVehicles] = useState(false);
   const [selectedVehicleDetails, setSelectedVehicleDetails] = useState(null);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [vehicleItems, setVehicleItems] = useState([]);
+  const [selectedItemsForRepair, setSelectedItemsForRepair] = useState([]);
   
   const [formData, setFormData] = useState({
     // Job details
@@ -104,10 +106,10 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
         // Get all cost codes
         const costCodes = costCentersData.map(center => center.cost_code);
         
-        // Fetch all vehicles that match any cost code
+        // Fetch all vehicles with equipment fields
         const { data: vehiclesData, error: vehiclesError } = await supabase
           .from('vehicles')
-          .select('reg, make, model, year, fleet_number, new_account_number')
+          .select('*')
           .in('new_account_number', costCodes)
           .order('reg');
           
@@ -143,11 +145,18 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
     setCostCenterSearch(`${costCenter.cost_code} - ${costCenter.company}`);
     setShowCostCenterDropdown(false);
     
-    // Auto-fill customer name with cost center company name
+    // Reset vehicle selection when cost center changes
     setFormData(prev => ({
       ...prev,
-      customer_name: costCenter.company || costCenter.cost_code
+      customer_name: costCenter.company || costCenter.cost_code,
+      vehicle_registration: '',
+      vehicle_make: '',
+      vehicle_model: '',
+      vehicle_year: ''
     }));
+    
+    // Clear vehicle items
+    setVehicleItems([]);
     
     // Set vehicles for this cost center from pre-loaded data
     setVehicles(vehiclesByCostCenter[costCenter.cost_code] || []);
@@ -173,7 +182,7 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
     }
   };
 
-  const handleSelectVehicle = (vehicle: Vehicle) => {
+  const handleSelectVehicle = async (vehicle: Vehicle) => {
     setFormData(prev => ({
       ...prev,
       vehicle_registration: vehicle.fleet_number || vehicle.reg,
@@ -181,7 +190,70 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       vehicle_model: vehicle.model,
       vehicle_year: vehicle.year?.toString() || ''
     }));
+    
+    // Extract items directly from vehicle data if available
+    const items = extractVehicleItems(vehicle);
+    setVehicleItems(items);
+    
     toast.success(`Selected vehicle: ${vehicle.fleet_number || vehicle.reg}`);
+  };
+
+  const extractVehicleItems = (vehicle: any) => {
+    const items = [];
+    const equipmentFields = [
+      'skylink_trailer_unit_serial_number', 'skylink_trailer_unit_ip',
+      'sky_on_batt_ign_unit_serial_number', 'sky_on_batt_ign_unit_ip',
+      'skylink_voice_kit_serial_number', 'skylink_voice_kit_ip',
+      'sky_scout_12v_serial_number', 'sky_scout_12v_ip',
+      'sky_scout_24v_serial_number', 'sky_scout_24v_ip',
+      'skylink_pro_serial_number', 'skylink_pro_ip',
+      'skylink_sim_card_no', 'skylink_data_number',
+      'sky_safety', 'sky_idata', 'sky_ican',
+      'industrial_panic', 'flat_panic', 'buzzer',
+      'tag', 'tag_reader', 'keypad', 'keypad_waterproof',
+      'early_warning', 'cia', 'fm_unit',
+      'sim_card_number', 'data_number', 'gps', 'gsm',
+      'tag_', 'tag_reader_', 'main_fm_harness',
+      'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5',
+      'fuel_probe_1', 'fuel_probe_2', '_7m_harness_for_probe',
+      'tpiece', 'idata', '_1m_extension_cable', '_3m_extension_cable',
+      '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr',
+      'a2_dash_cam', 'a3_dash_cam_ai',
+      'corpconnect_sim_no', 'corpconnect_data_no', 'sim_id',
+      '_5m_cable_for_camera_4pin', '_5m_cable_6pin', '_10m_cable_for_camera_4pin',
+      'a2_mec_5', 'vw400_dome_1', 'vw400_dome_2',
+      'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2',
+      'vw502_dual_lens_camera', 'vw303_driver_facing_camera',
+      'vw502f_road_facing_camera', 'vw306_dvr_road_facing_for_4ch_8ch',
+      'vw306m_a2_dash_cam', 'dms01_driver_facing', 'adas_02_road_facing',
+      'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb',
+      'sd_card_480gb', 'sd_card_256gb', 'sd_card_512gb', 'sd_card_250gb',
+      'mic', 'speaker', 'pfk_main_unit',
+      'pfk_corpconnect_sim_number', 'pfk_corpconnect_data_number',
+      'breathaloc', 'pfk_road_facing', 'pfk_driver_facing',
+      'pfk_dome_1', 'pfk_dome_2', 'pfk_5m', 'pfk_10m', 'pfk_15m', 'pfk_20m',
+      'roller_door_switches'
+    ];
+    
+    equipmentFields.forEach(field => {
+      const value = vehicle[field];
+      if (value && value !== '' && value !== null) {
+        items.push({
+          field,
+          name: field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: String(value),
+          selected: false
+        });
+      }
+    });
+    
+    return items;
+  };
+
+  const toggleItemSelection = (index: number) => {
+    setVehicleItems(prev => prev.map((item, i) => 
+      i === index ? { ...item, selected: !item.selected } : item
+    ));
   };
 
   const handleViewVehicle = async (vehicle: Vehicle) => {
@@ -242,6 +314,16 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
         
         job_number: `REPAIR-${Date.now()}-${Math.random().toString(36).substring(7)}`,
         job_date: new Date().toISOString(),
+        
+        // Store selected items for repair in quotation_products
+        quotation_products: vehicleItems.filter(item => item.selected).map(item => ({
+          name: item.name,
+          description: `Repair: ${item.name}`,
+          type: 'repair',
+          field: item.field,
+          current_value: item.value,
+          quantity: 1
+        })),
       };
 
       const response = await fetch('/api/job-cards', {
@@ -261,7 +343,6 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       setCurrentStep(0);
       setFormData({
         job_type: 'repair',
-
         cost_center: '',
         job_description: '',
         customer_name: '',
@@ -273,6 +354,8 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
         vehicle_model: '',
         vehicle_year: ''
       });
+      setVehicleItems([]);
+      setSelectedItemsForRepair([]);
       
       onJobCreated();
       
@@ -413,42 +496,31 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
               <h3 className="font-medium">Vehicle Information</h3>
             </div>
             <div className="space-y-4">
-              {!formData.cost_center ? (
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-sm text-yellow-800">Please select a cost center in Step 1 to view available vehicles.</p>
-                  <p className="text-xs text-yellow-600 mt-1">Debug: cost_center = "{formData.cost_center}"</p>
-                </div>
-              ) : loadingVehicles ? (
-                <div className="text-sm text-gray-500">Loading vehicles...</div>
-              ) : vehicles.length > 0 ? (
-                <div>
-                  <Label>Available Vehicles</Label>
-                  <div className="max-h-60 overflow-y-auto border rounded-md">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left">Fleet/Reg</th>
-                          <th className="px-3 py-2 text-left">Make/Model</th>
-                          <th className="px-3 py-2 text-left">Year</th>
-                          <th className="px-3 py-2 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {vehicles.map((vehicle) => (
-                          <tr key={vehicle.reg} className="border-t hover:bg-gray-50">
-                            <td className="px-3 py-2">{vehicle.fleet_number || vehicle.reg}</td>
-                            <td className="px-3 py-2">{vehicle.make} {vehicle.model}</td>
-                            <td className="px-3 py-2">{vehicle.year}</td>
-                            <td className="px-3 py-2 text-center">
-                              <div className="flex gap-2 justify-center">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleViewVehicle(vehicle)}
-                                  className="text-xs"
-                                >
-                                  View
-                                </Button>
+              {!formData.vehicle_registration ? (
+                !formData.cost_center ? (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-sm text-yellow-800">Please select a cost center in Step 1 to view available vehicles.</p>
+                  </div>
+                ) : vehicles.length > 0 ? (
+                  <div>
+                    <Label>Available Vehicles</Label>
+                    <div className="max-h-60 overflow-y-auto border rounded-md">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left">Fleet/Reg</th>
+                            <th className="px-3 py-2 text-left">Make/Model</th>
+                            <th className="px-3 py-2 text-left">Year</th>
+                            <th className="px-3 py-2 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {vehicles.map((vehicle) => (
+                            <tr key={vehicle.reg} className="border-t hover:bg-gray-50">
+                              <td className="px-3 py-2">{vehicle.fleet_number || vehicle.reg}</td>
+                              <td className="px-3 py-2">{vehicle.make} {vehicle.model}</td>
+                              <td className="px-3 py-2">{vehicle.year}</td>
+                              <td className="px-3 py-2 text-center">
                                 <Button
                                   size="sm"
                                   onClick={() => handleSelectVehicle(vehicle)}
@@ -456,25 +528,79 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
                                 >
                                   Select
                                 </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ) : formData.cost_center && (
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-                  <p className="text-sm text-gray-600">No vehicles found for cost center: {formData.cost_center}</p>
-                </div>
-              )}
+                ) : (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                    <p className="text-sm text-gray-600">No vehicles found for cost center: {formData.cost_center}</p>
+                  </div>
+                )
+              ) : null}
               
               {formData.vehicle_registration && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded">
-                  <p className="text-sm text-green-800">
-                    Selected Vehicle: <strong>{formData.vehicle_registration}</strong> - {formData.vehicle_make} {formData.vehicle_model} ({formData.vehicle_year})
-                  </p>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-green-50 border border-green-200 rounded">
+                    <p className="text-sm text-green-800">
+                      Selected Vehicle: <strong>{formData.vehicle_registration}</strong> - {formData.vehicle_make} {formData.vehicle_model} ({formData.vehicle_year})
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          vehicle_registration: '',
+                          vehicle_make: '',
+                          vehicle_model: '',
+                          vehicle_year: ''
+                        }));
+                        setVehicleItems([]);
+                      }}
+                      className="text-xs"
+                    >
+                      Change Vehicle
+                    </Button>
+                  </div>
+                  
+                  {vehicleItems.length > 0 ? (
+                    <div>
+                      <Label>Items on Vehicle - Select items to repair</Label>
+                      <div className="max-h-80 overflow-y-auto border rounded-md">
+                        <div className="p-3 bg-blue-50 border-b">
+                          <p className="text-sm font-medium text-blue-800">
+                            {vehicleItems.filter(item => item.selected).length} of {vehicleItems.length} items selected for repair
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 p-2">
+                          {vehicleItems.map((item, index) => (
+                            <div key={index} className={`flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50 ${
+                              item.selected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
+                            }`} onClick={() => toggleItemSelection(index)}>
+                              <input
+                                type="checkbox"
+                                checked={item.selected}
+                                onChange={() => toggleItemSelection(index)}
+                                className="mr-3"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium text-sm text-gray-900">{item.name}</div>
+                                <div className="text-xs text-gray-600 mt-1">Current Value: <span className="font-mono">{item.value}</span></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded">
+                      <p className="text-sm text-gray-600">No equipment found on this vehicle</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -554,10 +680,10 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
               {currentStep === steps.length - 1 ? (
                 <Button
                   onClick={handleSubmit}
-                  disabled={!canProceed() || isSubmitting}
+                  disabled={!canProceed() || isSubmitting || vehicleItems.filter(item => item.selected).length === 0}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  {isSubmitting ? 'Creating...' : 'Create & Assign Parts'}
+                  {isSubmitting ? 'Creating...' : `Create Repair Job (${vehicleItems.filter(item => item.selected).length} items)`}
                 </Button>
               ) : (
                 <Button

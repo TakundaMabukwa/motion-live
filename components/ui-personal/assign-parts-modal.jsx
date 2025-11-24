@@ -164,45 +164,134 @@ export default function AssignPartsModal({
 
         {/* Job Information Section */}
         {jobCard && (
-          <div className="bg-gray-50 p-4 rounded-lg mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg mb-4 border border-blue-200">
+            {console.log('Full Job Card Data:', jobCard)}
+            <div className="flex justify-between items-start mb-3">
               <div>
-                <span className="font-medium text-gray-700">Customer:</span>
-                <p className="text-gray-900">{jobCard.customer_name || 'N/A'}</p>
+                <h3 className="font-bold text-lg text-gray-900">{jobCard.customer_name || 'N/A'}</h3>
+                <p className="text-sm text-gray-600">Job #{jobCard.job_number} • {jobCard.quotation_number || 'No Quote'}</p>
               </div>
-              <div>
-                <span className="font-medium text-gray-700">Vehicle:</span>
-                <p className="text-gray-900">{jobCard.vehicle_registration || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Job Type:</span>
-                <p className="text-gray-900">{jobCard.job_type || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Quotation:</span>
-                <p className="text-gray-900">{jobCard.quotation_number || 'N/A'}</p>
-              </div>
-
-              <div>
-                <span className="font-medium text-gray-700">Status:</span>
-                <p className="text-gray-900">{jobCard.job_status || jobCard.status || 'N/A'}</p>
+              <div className="text-right">
+                <div className="font-bold text-xl text-blue-600">
+                  {jobCard.quotation_total_amount ? `${jobCard.quotation_products?.length || 0} items` : 'No Items'}
+                </div>
+                <Badge className={`text-xs ${
+                  jobCard.job_type === 'deinstall' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {jobCard.job_type?.toUpperCase() || 'N/A'}
+                </Badge>
               </div>
             </div>
-            {jobCard.job_description && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <span className="font-medium text-gray-700">Description:</span>
-                <p className="text-gray-900 text-sm">{jobCard.job_description}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div>
+                <span className="text-gray-500 text-xs">Vehicle</span>
+                <p className="font-medium text-gray-900">
+                  {(() => {
+                    if (jobCard.quotation_products && jobCard.quotation_products[0]?.vehicle_plate) {
+                      return jobCard.quotation_products[0].vehicle_plate;
+                    }
+                    if (jobCard.vehicle_registration && jobCard.vehicle_registration !== 'N/A') {
+                      return jobCard.vehicle_registration;
+                    }
+                    if (jobCard.job_description) {
+                      const regMatch = jobCard.job_description.match(/REG:\s*([\w\d]+)/);
+                      if (regMatch) return regMatch[1];
+                      const startMatch = jobCard.job_description.match(/^([\w\d]+)\s*-/);
+                      if (startMatch) return startMatch[1];
+                    }
+                    return 'N/A';
+                  })()} 
+                </p>
+              </div>
+              <div>
+                <span className="text-gray-500 text-xs">Status</span>
+                <p className="font-medium text-gray-900">{jobCard.job_status || jobCard.status || 'Pending'}</p>
+              </div>
+              <div>
+                <span className="text-gray-500 text-xs">Items</span>
+                <p className="font-medium text-gray-900">{jobCard.quotation_products?.length || 0} items</p>
+              </div>
+              <div>
+                <span className="text-gray-500 text-xs">Priority</span>
+                <p className="font-medium text-gray-900">{jobCard.priority || 'Normal'}</p>
+              </div>
+            </div>
+            {jobCard.job_description && jobCard.job_description.includes('DE-INSTALL') && (
+              <div className="mt-3 pt-3 border-t border-gray-300">
+                <div className="bg-white p-3 rounded border">
+                  {(() => {
+                    const desc = jobCard.job_description;
+                    const skyMatch = desc.match(/SKY\s*-\s*([\d\.]+)/);
+                    const snMatch = desc.match(/S\/N\s*-\s*(\w+)/);
+                    const simMatch = desc.match(/SIM\s*-\s*([\d]+)/);
+                    const beameMatches = desc.match(/BEAME\s*-\s*(\w+)/g);
+                    const deinstallMatch = desc.match(/DEINSTALL\s*-\s*([\d\.]+)/);
+                    
+                    return (
+                      <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+                        {skyMatch && (
+                          <div>
+                            <span className="text-gray-500">Sky IP</span>
+                            <p className="font-medium">{skyMatch[1]}</p>
+                          </div>
+                        )}
+                        {snMatch && (
+                          <div>
+                            <span className="text-gray-500">S/N</span>
+                            <p className="font-medium">{snMatch[1]}</p>
+                          </div>
+                        )}
+                        {simMatch && (
+                          <div>
+                            <span className="text-gray-500">SIM</span>
+                            <p className="font-medium">{simMatch[1]}</p>
+                          </div>
+                        )}
+                        {deinstallMatch && (
+                          <div>
+                            <span className="text-gray-500">Deinstall</span>
+                            <p className="font-medium text-red-600">{deinstallMatch[1]}</p>
+                          </div>
+                        )}
+                        {beameMatches && (
+                          <div>
+                            <span className="text-gray-500">BEAME</span>
+                            <p className="font-medium">{beameMatches.length} units</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()} 
+                </div>
               </div>
             )}
             {jobCard.quotation_products && Array.isArray(jobCard.quotation_products) && jobCard.quotation_products.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <span className="font-medium text-gray-700">Items Required:</span>
+              <div className="mt-3 pt-3 border-t border-gray-300">
+                <span className="font-medium text-gray-700 text-sm">Items to Remove:</span>
+                {console.log('Quotation Products:', jobCard.quotation_products)}
                 <div className="mt-2 space-y-1">
-                  {jobCard.quotation_products.map((product, index) => (
-                    <div key={index} className="text-sm text-gray-900 bg-white p-2 rounded border">
-                      {product.description || product.name || `Product ${index + 1}`}
-                    </div>
-                  ))}
+                  {jobCard.quotation_products.map((product, index) => {
+                    console.log(`Product ${index}:`, product);
+                    const valueMatch = product.description?.match(/Value:\s*(\d+)\s*-\s*(.+)/);
+                    const extractedValue = valueMatch ? valueMatch[1] : null;
+                    
+                    return (
+                      <div key={index} className="bg-white p-2 rounded border flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-900">
+                            {product.name || `Item ${index + 1}`}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {extractedValue && `Original: R${extractedValue} • `}
+                            {product.type}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500">Qty: {product.quantity || 1}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -226,16 +315,18 @@ export default function AssignPartsModal({
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">IP Address</label>
-                <Input
-                  type="text"
-                  placeholder="Enter IP address for installation..."
-                  value={ipAddress}
-                  onChange={(e) => setIpAddress(e.target.value)}
-                  className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              {jobCard?.job_type !== 'deinstall' && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">IP Address</label>
+                  <Input
+                    type="text"
+                    placeholder="Enter IP address for installation..."
+                    value={ipAddress}
+                    onChange={(e) => setIpAddress(e.target.value)}
+                    className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Search by Serial Number</label>
                 <Input

@@ -115,6 +115,7 @@ import CreateRepairJobModal from '@/components/inv/CreateRepairJobModal';
 import { toast } from 'sonner';
 
 export default function InventoryPage() {
+  console.log('InventoryPage component rendering');
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -132,7 +133,8 @@ export default function InventoryPage() {
   const [allIpAddresses, setAllIpAddresses] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [newItemData, setNewItemData] = useState({ category_code: '', serial_number: '' });
+  const [newItemData, setNewItemData] = useState({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
+  const [showNewCategoryFields, setShowNewCategoryFields] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [generatedQR, setGeneratedQR] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -147,7 +149,7 @@ export default function InventoryPage() {
   const [publishing, setPublishing] = useState(false);
   const [stockTakeSearchTerm, setStockTakeSearchTerm] = useState('');
   const [selectedStockType, setSelectedStockType] = useState('all');
-  const [stockTypes, setStockTypes] = useState<string[]>([]);
+  const [stockTypes, setStockTypes] = useState<(string | {code: string, description: string})[]>([]);
   const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
   const [thresholds, setThresholds] = useState<Record<number, number>>({});
   const [defaultThreshold, setDefaultThreshold] = useState(10);
@@ -166,22 +168,53 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchJobCards();
     fetchAllStockItems();
+    // Force fetch stock items on mount
+    console.log('Component mounted, forcing fetchStockItems');
+    fetchStockItems();
+    // Also fetch categories on mount
+    fetchCategories();
   }, []);
 
   useEffect(() => {
+    console.log('activeTab changed to:', activeTab);
     if (activeTab === 'stock-orders') {
       fetchStockOrders();
     }
     if (activeTab === 'stock-take') {
+      console.log('Calling fetchStockItems because activeTab is stock-take');
       fetchStockItems();
     }
   }, [activeTab]);
+
+  // Debug: Log current activeTab
+  console.log('Current activeTab:', activeTab);
 
   useEffect(() => {
     if (activeTab === 'stock-take') {
       fetchStockItems();
     }
   }, [stockTakeActiveTab]);
+
+  // Debug: Log stockItems changes
+  useEffect(() => {
+    console.log('stockItems state changed:', stockItems.length, 'items');
+    if (stockItems.length > 0) {
+      console.log('First stockItem:', stockItems[0]);
+      console.log('Sample category info:', {
+        category_code: stockItems[0].category_code,
+        category_description: stockItems[0].category_description
+      });
+    }
+  }, [stockItems]);
+
+  // Debug: Log stockTypes changes
+  useEffect(() => {
+    console.log('stockTypes state changed:', stockTypes.length, 'categories');
+    if (stockTypes.length > 0) {
+      console.log('First stockType:', stockTypes[0]);
+      console.log('All stockTypes:', stockTypes);
+    }
+  }, [stockTypes]);
 
   const fetchStockOrders = async () => {
     try {
@@ -261,6 +294,12 @@ export default function InventoryPage() {
       const stockItems = data.stock || [];
       setAllStockItems(stockItems);
       setAllIpAddresses(extractIpAddressesFromStock(stockItems));
+      
+      // Also set stockItems for Stock Take tab if it's empty
+      if (stockItems.length > 0) {
+        console.log('Setting stockItems from fetchAllStockItems');
+        setStockItems(stockItems);
+      }
     } catch (error) {
       console.error('Error fetching stock items:', error);
     }
@@ -890,29 +929,68 @@ export default function InventoryPage() {
   };
 
   const handleAddNewItem = async () => {
-    if (!newItemData.category_code || !newItemData.serial_number) {
-      toast.error('Please fill in all fields');
-      return;
+    // Validate required fields
+    if (showNewCategoryFields) {
+      if (!newItemData.new_category_code || !newItemData.new_category_description || !newItemData.serial_number) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+    } else {
+      if (!newItemData.category_code || !newItemData.serial_number) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
     }
 
     try {
-      const response = await fetch('/api/stock', {
+      let categoryCode = newItemData.category_code;
+      
+      // Create new category if needed
+      if (showNewCategoryFields) {
+        const categoryResponse = await fetch('/api/inventory-categories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code: newItemData.new_category_code,
+            description: newItemData.new_category_description
+          }),
+        });
+
+        if (!categoryResponse.ok) {
+          const errorData = await categoryResponse.json();
+          throw new Error(errorData.error || 'Failed to create category');
+        }
+        
+        categoryCode = newItemData.new_category_code;
+        toast.success('New category created successfully');
+      }
+
+      // Create the inventory item
+      const itemResponse = await fetch('/api/stock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newItemData),
+        body: JSON.stringify({
+          category_code: categoryCode,
+          serial_number: newItemData.serial_number,
+          quantity: newItemData.quantity
+        }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!itemResponse.ok) {
+        const errorData = await itemResponse.json();
         throw new Error(errorData.error || 'Failed to create item');
       }
 
       toast.success('New item added successfully');
       setShowAddItemModal(false);
-      setNewItemData({ category_code: '', serial_number: '' });
+      setNewItemData({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
+      setShowNewCategoryFields(false);
       fetchStockItems();
+      fetchCategories(); // Refresh categories list
     } catch (error) {
       console.error('Error adding new item:', error);
       toast.error(error.message || 'Failed to add new item');
@@ -924,8 +1002,7 @@ export default function InventoryPage() {
       const response = await fetch('/api/inventory-categories');
       if (response.ok) {
         const data = await response.json();
-        const categoryOptions = data.categories?.map(cat => cat.code) || [];
-        setStockTypes(categoryOptions);
+        setStockTypes(data.categories || []);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -983,8 +1060,47 @@ export default function InventoryPage() {
     }
   };
 
+  const createTestCategories = async () => {
+    try {
+      const response = await fetch('/api/inventory-categories/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create test categories');
+      }
+      
+      const data = await response.json();
+      console.log('Test categories created:', data);
+      toast.success('Test categories created successfully');
+      // Refresh categories after creation
+      fetchCategories();
+    } catch (error) {
+      console.error('Error creating test categories:', error);
+      toast.error('Failed to create test categories');
+    }
+  };
+
+  const testCategoriesAPI = async () => {
+    try {
+      console.log('Testing categories API...');
+      const response = await fetch('/api/inventory-categories');
+      console.log('Categories API response status:', response.status);
+      const data = await response.json();
+      console.log('Categories API response data:', data);
+      toast.success(`Found ${data.categories?.length || 0} categories`);
+    } catch (error) {
+      console.error('Error testing categories API:', error);
+      toast.error('Failed to test categories API');
+    }
+  };
+
   // Stock Take Functions
   const fetchStockItems = async () => {
+    console.log('fetchStockItems called, activeTab:', activeTab, 'stockTakeActiveTab:', stockTakeActiveTab);
     try {
       // Build query parameters
       const params = new URLSearchParams();
@@ -997,6 +1113,7 @@ export default function InventoryPage() {
         params.append('view', 'thresholds');
       }
       
+      console.log('Fetching stock with params:', params.toString());
       const response = await fetch(`/api/stock?${params}`);
       if (!response.ok) {
         const errorText = await response.text();
@@ -1004,18 +1121,38 @@ export default function InventoryPage() {
         throw new Error(`Failed to fetch stock items: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
+      console.log('Stock items received:', data.stock?.slice(0, 2)); // Log first 2 items
+      console.log('Setting stockItems state with:', data.stock?.length, 'items');
       setStockItems(data.stock || []);
+      console.log('StockItems state updated');
       
-      // Fetch categories for filter
-      const categoriesResponse = await fetch('/api/inventory-categories');
-      if (categoriesResponse.ok) {
-        const categoriesData = await categoriesResponse.json();
-        const categoryOptions = categoriesData.categories?.map(cat => cat.code) || [];
-        setStockTypes(categoryOptions);
-      }
+      // Always fetch categories for filter dropdown
+      await fetchCategories();
     } catch (error) {
       console.error('Error fetching stock items:', error);
       toast.error('Failed to load stock items');
+    }
+  };
+
+  // Separate function to fetch categories
+  const fetchCategories = async () => {
+    try {
+      console.log('Fetching categories...');
+      const categoriesResponse = await fetch('/api/inventory-categories');
+      console.log('Categories response status:', categoriesResponse.status);
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        console.log('Categories API response:', categoriesData);
+        console.log('Categories array:', categoriesData.categories);
+        console.log('Setting stockTypes with:', categoriesData.categories?.length || 0, 'categories');
+        setStockTypes(categoriesData.categories || []);
+      } else {
+        console.error('Categories API error:', categoriesResponse.status);
+        const errorText = await categoriesResponse.text();
+        console.error('Categories API error text:', errorText);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -1228,23 +1365,7 @@ export default function InventoryPage() {
           <RefreshCw className="mr-2 w-4 h-4" />
           Refresh
         </Button>
-        <Button onClick={createTestJobCard} variant="outline" size="sm" className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800">
-          <Plus className="mr-2 w-4 h-4" />
-          Create Test Job
-        </Button>
-        <Button onClick={createTestStockItems} variant="outline" size="sm" className="bg-purple-100 hover:bg-purple-200 text-purple-800">
-          <User className="mr-2 w-4 h-4" />
-          Create Test Stock
-        </Button>
-        <Button 
-          onClick={() => window.open('/test-vehicle-verification', '_blank')} 
-          variant="outline" 
-          size="sm"
-          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-        >
-          <Car className="mr-2 w-4 h-4" />
-          Test Vehicle Verification
-        </Button>
+
       </div>
 
       {/* Job Cards */}
@@ -1739,7 +1860,10 @@ export default function InventoryPage() {
       <div className="border-gray-200 border-b">
         <nav className="flex space-x-8 -mb-px">
           <button
-            onClick={() => setStockTakeActiveTab('stock-take')}
+            onClick={() => {
+              console.log('Stock Take sub-tab clicked');
+              setStockTakeActiveTab('stock-take');
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               stockTakeActiveTab === 'stock-take'
                 ? 'border-blue-500 text-blue-600'
@@ -1749,7 +1873,10 @@ export default function InventoryPage() {
             Stock Take
           </button>
           <button
-            onClick={() => setStockTakeActiveTab('thresholds')}
+            onClick={() => {
+              console.log('Thresholds sub-tab clicked');
+              setStockTakeActiveTab('thresholds');
+            }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               stockTakeActiveTab === 'thresholds'
                 ? 'border-blue-500 text-blue-600'
@@ -1812,9 +1939,14 @@ export default function InventoryPage() {
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
                 <option value="all">All Categories</option>
-                {stockTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
+                {stockTypes.map(type => {
+                  console.log('Rendering category option:', type);
+                  return (
+                    <option key={type.code} value={type.code}>
+                      {type.code} - {type.description}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <Button onClick={fetchStockItems} variant="outline" size="sm">
@@ -1854,6 +1986,8 @@ export default function InventoryPage() {
       )}
 
       {/* Stock Items Table */}
+      {console.log('Rendering stock table, filteredStockItems.length:', filteredStockItems.length)}
+      {filteredStockItems.length > 0 && console.log('First filtered item:', filteredStockItems[0])}
       {filteredStockItems.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
@@ -1899,7 +2033,12 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {filteredStockItems.map((item) => {
+              {filteredStockItems.map((item, index) => {
+                if (index === 0) {
+                  console.log('First item in render:', item);
+                  console.log('Category code:', item.category_code);
+                  console.log('Category description:', item.category_description);
+                }
                 const update = updatedItems[item.id];
                 const currentQuantity = update?.new_quantity ?? parseInt(item.quantity || '0');
                 const difference = update?.difference ?? 0;
@@ -1916,6 +2055,9 @@ export default function InventoryPage() {
                   >
                     <td className="px-4 py-3 border border-gray-200 text-sm">
                       <div className="font-medium text-gray-900">{item.serial_number || 'N/A'}</div>
+                      {item.description && item.description !== 'No description' && (
+                        <div className="text-xs text-gray-600 mt-1">{item.description}</div>
+                      )}
                       <div className="flex gap-1 flex-wrap mt-1">
                         {isLow && (
                           <Badge className="bg-red-100 text-red-800 text-xs">
@@ -1936,7 +2078,10 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-sm text-center">
                       <Badge className="bg-blue-100 text-blue-800 text-xs">
-                        {item.category_code || 'N/A'}
+                        {item.category_code && item.category_description ? 
+                          `${item.category_code} - ${item.category_description}` : 
+                          item.category_code || 'N/A'
+                        }
                       </Badge>
                     </td>
                     <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -2357,7 +2502,10 @@ export default function InventoryPage() {
       <DashboardTabs
         tabs={tabs}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={(newTab) => {
+          console.log('Tab change requested:', newTab);
+          setActiveTab(newTab);
+        }}
       />
 
              {/* PDF Viewer Modal for Stock Orders */}
@@ -2601,24 +2749,70 @@ export default function InventoryPage() {
 
        {/* Add New Item Modal */}
        <Dialog open={showAddItemModal} onOpenChange={setShowAddItemModal}>
-         <DialogContent className="sm:max-w-md">
+         <DialogContent className="w-[99vw] max-h-[90vh]">
            <DialogHeader>
              <DialogTitle>Add New Inventory Item</DialogTitle>
            </DialogHeader>
            <div className="space-y-4">
-             <div>
-               <label className="text-sm font-medium text-gray-700">Category Code</label>
-               <select
-                 value={newItemData.category_code}
-                 onChange={(e) => setNewItemData({...newItemData, category_code: e.target.value})}
-                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-               >
-                 <option value="">Select category...</option>
-                 {stockTypes.map(type => (
-                   <option key={type} value={type}>{type}</option>
-                 ))}
-               </select>
-             </div>
+             {!showNewCategoryFields ? (
+               <div>
+                 <label className="text-sm font-medium text-gray-700">Category</label>
+                 <div className="flex gap-2 mt-1">
+                   <select
+                     value={newItemData.category_code}
+                     onChange={(e) => setNewItemData({...newItemData, category_code: e.target.value})}
+                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                   >
+                     <option value="">Select category...</option>
+                     {stockTypes.map(type => (
+                       <option key={typeof type === 'string' ? type : type.code} value={typeof type === 'string' ? type : type.code}>
+                         {typeof type === 'string' ? type : `${type.code} - ${type.description}`}
+                       </option>
+                     ))}
+                   </select>
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={() => setShowNewCategoryFields(true)}
+                   >
+                     <Plus className="w-4 h-4" />
+                   </Button>
+                 </div>
+               </div>
+             ) : (
+               <>
+                 <div className="flex justify-between items-center">
+                   <label className="text-sm font-medium text-gray-700">Create New Category</label>
+                   <Button
+                     type="button"
+                     variant="ghost"
+                     size="sm"
+                     onClick={() => setShowNewCategoryFields(false)}
+                   >
+                     Back to existing
+                   </Button>
+                 </div>
+                 <div>
+                   <label className="text-sm font-medium text-gray-700">Category Code</label>
+                   <Input
+                     value={newItemData.new_category_code}
+                     onChange={(e) => setNewItemData({...newItemData, new_category_code: e.target.value.toUpperCase()})}
+                     placeholder="e.g. GPS, CABLE, SENSOR"
+                     className="mt-1"
+                   />
+                 </div>
+                 <div>
+                   <label className="text-sm font-medium text-gray-700">Category Description</label>
+                   <Input
+                     value={newItemData.new_category_description}
+                     onChange={(e) => setNewItemData({...newItemData, new_category_description: e.target.value})}
+                     placeholder="e.g. GPS Tracking Devices"
+                     className="mt-1"
+                   />
+                 </div>
+               </>
+             )}
              <div>
                <label className="text-sm font-medium text-gray-700">Serial Number</label>
                <Input
@@ -2628,9 +2822,23 @@ export default function InventoryPage() {
                  className="mt-1"
                />
              </div>
+             <div>
+               <label className="text-sm font-medium text-gray-700">Quantity</label>
+               <Input
+                 type="number"
+                 min="1"
+                 value={newItemData.quantity}
+                 onChange={(e) => setNewItemData({...newItemData, quantity: parseInt(e.target.value) || 1})}
+                 className="mt-1"
+               />
+             </div>
            </div>
            <div className="flex justify-end gap-3 mt-6">
-             <Button variant="outline" onClick={() => setShowAddItemModal(false)}>
+             <Button variant="outline" onClick={() => {
+               setShowAddItemModal(false);
+               setShowNewCategoryFields(false);
+               setNewItemData({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
+             }}>
                Cancel
              </Button>
              <Button onClick={handleAddNewItem} className="bg-green-600 hover:bg-green-700">
