@@ -352,7 +352,7 @@ export default function LiveVehicleMap({ vehicles, accountNumber }: LiveVehicleM
             }).map((vehicle) => {
                 const isSelected = selectedVehicle?.id === vehicle.id;
                 const hasLiveData = !!vehicle.live_data;
-                const plate = vehicle.reg || vehicle.group_name || vehicle.new_registration || 'Unknown';
+                const plate = vehicle.reg || vehicle.fleet_number || vehicle.group_name || vehicle.new_registration || vehicle.id;
                 
                 return (
                   <div

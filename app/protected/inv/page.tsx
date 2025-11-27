@@ -1331,9 +1331,8 @@ export default function InventoryPage() {
   };
 
   const filteredStockItems = stockItems.filter(item => {
-    const matchesSearch = 
-      item.serial_number?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase()) ||
-      item.category_code?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
+    const matchesSearch = !stockTakeSearchTerm ||
+      item.serial_number?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
     
     const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
     

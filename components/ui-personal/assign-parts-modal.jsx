@@ -26,8 +26,8 @@ export default function AssignPartsModal({
   const [showQRCode, setShowQRCode] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [categories, setCategories] = useState([]);
+  const [selectedStockType, setSelectedStockType] = useState('all');
+  const [stockTypes, setStockTypes] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [ipAddress, setIpAddress] = useState('');
@@ -35,16 +35,20 @@ export default function AssignPartsModal({
   const fetchInventoryItems = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/inventory-items');
-      if (!response.ok) throw new Error('Failed to fetch inventory');
-      const data = await response.json();
-      setAllStockItems(data.items || []);
+      const response = await fetch('/api/stock');
       
-      // Extract unique categories from category descriptions
-      const uniqueCategories = [...new Set((data.items || []).map(item => item.category?.description).filter(Boolean))];
-      setCategories(uniqueCategories);
+      if (!response.ok) throw new Error('Failed to fetch stock');
+      const data = await response.json();
+      const stockArray = Array.isArray(data.stock) ? data.stock : [];
+      setAllStockItems(stockArray);
+      
+      const categoriesResponse = await fetch('/api/inventory-categories');
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        setStockTypes(categoriesData.categories || []);
+      }
     } catch (error) {
-      toast.error('Failed to load inventory items');
+      toast.error('Failed to load stock items');
     } finally {
       setLoading(false);
     }
@@ -56,13 +60,21 @@ export default function AssignPartsModal({
       setSearchTerm('');
       setShowQRCode(false);
       setQrCodeUrl('');
-      setSelectedCategory('all');
+      setSelectedStockType('all');
       setIpAddress('');
       fetchInventoryItems();
     }
   }, [isOpen]);
 
   const addPart = (item) => {
+    const currentQty = parseInt(item.quantity || '0');
+    const selectedQty = selectedParts.find(p => p.stock_id === item.id)?.quantity || 0;
+    
+    if (selectedQty >= currentQty) {
+      toast.error('No more stock available for this item');
+      return;
+    }
+    
     const existingPart = selectedParts.find(part => part.stock_id === item.id);
     
     if (existingPart) {
@@ -74,9 +86,9 @@ export default function AssignPartsModal({
     } else {
       setSelectedParts(prev => [...prev, {
         stock_id: item.id,
-        description: String(item.category?.description || ''),
+        description: String(item.category?.description || item.description || ''),
         serial_number: String(item.serial_number || ''),
-        code: String(item.code || ''),
+        code: String(item.category_code || item.code || ''),
         supplier: String(item.supplier || ''),
         quantity: 1,
         available_stock: parseInt(item.quantity || '0'),
@@ -85,9 +97,23 @@ export default function AssignPartsModal({
         ip_address: ipAddress || ''
       }]);
     }
+    
+    setAllStockItems(prev => prev.map(stockItem => 
+      stockItem.id === item.id 
+        ? { ...stockItem, quantity: String(currentQty - selectedQty - 1) }
+        : stockItem
+    ));
   };
 
   const removePart = (stockId) => {
+    const part = selectedParts.find(p => p.stock_id === stockId);
+    if (part) {
+      setAllStockItems(prev => prev.map(item => 
+        item.id === stockId 
+          ? { ...item, quantity: String(parseInt(item.quantity || '0') + part.quantity) }
+          : item
+      ));
+    }
     setSelectedParts(prev => prev.filter(part => part.stock_id !== stockId));
   };
 
@@ -165,22 +191,19 @@ export default function AssignPartsModal({
         {/* Job Information Section */}
         {jobCard && (
           <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg mb-4 border border-blue-200">
-            {console.log('Full Job Card Data:', jobCard)}
             <div className="flex justify-between items-start mb-3">
               <div>
                 <h3 className="font-bold text-lg text-gray-900">{jobCard.customer_name || 'N/A'}</h3>
-                <p className="text-sm text-gray-600">Job #{jobCard.job_number} • {jobCard.quotation_number || 'No Quote'}</p>
+                <p className="text-sm text-gray-600">Job #{jobCard.job_number}</p>
+                {jobCard.quotation_number && (
+                  <p className="text-xs text-gray-500">{jobCard.quotation_number}</p>
+                )}
               </div>
-              <div className="text-right">
-                <div className="font-bold text-xl text-blue-600">
-                  {jobCard.quotation_total_amount ? `${jobCard.quotation_products?.length || 0} items` : 'No Items'}
-                </div>
-                <Badge className={`text-xs ${
-                  jobCard.job_type === 'deinstall' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {jobCard.job_type?.toUpperCase() || 'N/A'}
-                </Badge>
-              </div>
+              <Badge className={`text-xs ${
+                jobCard.job_type === 'deinstall' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+              }`}>
+                {jobCard.job_type?.toUpperCase() || 'N/A'}
+              </Badge>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div>
@@ -208,7 +231,7 @@ export default function AssignPartsModal({
                 <p className="font-medium text-gray-900">{jobCard.job_status || jobCard.status || 'Pending'}</p>
               </div>
               <div>
-                <span className="text-gray-500 text-xs">Items</span>
+                <span className="text-gray-500 text-xs">Quote Items</span>
                 <p className="font-medium text-gray-900">{jobCard.quotation_products?.length || 0} items</p>
               </div>
               <div>
@@ -265,36 +288,7 @@ export default function AssignPartsModal({
                 </div>
               </div>
             )}
-            {jobCard.quotation_products && Array.isArray(jobCard.quotation_products) && jobCard.quotation_products.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-gray-300">
-                <span className="font-medium text-gray-700 text-sm">Items to Remove:</span>
-                {console.log('Quotation Products:', jobCard.quotation_products)}
-                <div className="mt-2 space-y-1">
-                  {jobCard.quotation_products.map((product, index) => {
-                    console.log(`Product ${index}:`, product);
-                    const valueMatch = product.description?.match(/Value:\s*(\d+)\s*-\s*(.+)/);
-                    const extractedValue = valueMatch ? valueMatch[1] : null;
-                    
-                    return (
-                      <div key={index} className="bg-white p-2 rounded border flex justify-between items-center">
-                        <div className="flex-1">
-                          <div className="font-medium text-sm text-gray-900">
-                            {product.name || `Item ${index + 1}`}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {extractedValue && `Original: R${extractedValue} • `}
-                            {product.type}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500">Qty: {product.quantity || 1}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+
           </div>
         )}
 
@@ -303,15 +297,15 @@ export default function AssignPartsModal({
             {/* Controls */}
             <div className="mb-4 space-y-3">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Category</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Type</label>
                 <select 
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  value={selectedStockType}
+                  onChange={(e) => setSelectedStockType(e.target.value)}
                   className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {stockTypes.map(type => (
+                    <option key={type.code} value={type.code}>{type.code} - {type.description}</option>
                   ))}
                 </select>
               </div>
@@ -328,10 +322,10 @@ export default function AssignPartsModal({
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Search by Serial Number</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Search</label>
                 <Input
                   type="text"
-                  placeholder="Type serial number..."
+                  placeholder="Search by serial number, description, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -347,18 +341,14 @@ export default function AssignPartsModal({
                 <div className="h-full overflow-y-auto">
                   <div className="bg-white rounded border">
                     {allStockItems.filter(item => {
-                      // Apply category filter
-                      const matchesCategory = selectedCategory === 'all' || item.category?.description === selectedCategory;
-                      if (!matchesCategory) return false;
+                      const matchesSearch = !searchTerm ||
+                        item.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        item.category?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        item.category_code?.toLowerCase().includes(searchTerm.toLowerCase());
                       
-                      // Apply search (searches description and serial number)
-                      if (searchTerm) {
-                        return item.category?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               item.serial_number?.toLowerCase().includes(searchTerm.toLowerCase());
-                      }
+                      const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
                       
-                      // Show all items in selected category
-                      return true;
+                      return matchesSearch && matchesType;
                     }).slice(0, 100).map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
@@ -367,9 +357,11 @@ export default function AssignPartsModal({
                       >
                         <div>
                           <div className="font-medium text-sm text-gray-900">{item.category?.description || 'No description'}</div>
-                          <div className="text-xs text-gray-600">{item.serial_number || 'No serial'}</div>
+                          <div className="text-xs text-gray-600">{item.serial_number || 'No serial'} • {item.category_code || 'N/A'}</div>
                         </div>
-                        <Badge variant="secondary" className="text-xs px-2 py-1 bg-blue-100 text-blue-800">{item.status || 'Available'}</Badge>
+                        <Badge variant="secondary" className={`text-xs px-2 py-1 ${
+                          parseInt(item.quantity || '0') === 0 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                        }`}>Qty: {item.quantity || 0}</Badge>
                       </div>
                     ))}
                   </div>
@@ -433,12 +425,56 @@ export default function AssignPartsModal({
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="text-center">
               <CheckCircle className="mx-auto mb-4 w-12 h-12 text-green-600" />
               <h3 className="mb-2 font-semibold text-gray-900 text-lg">Parts Assigned Successfully!</h3>
               <p className="text-gray-600">QR code has been generated and stored for this job.</p>
             </div>
+            
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-gray-900 mb-3">Job Information</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-500">Job Number:</span>
+                  <p className="font-medium">{jobCard?.job_number}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Customer:</span>
+                  <p className="font-medium">{jobCard?.customer_name}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Vehicle:</span>
+                  <p className="font-medium">{jobCard?.vehicle_registration || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Job Type:</span>
+                  <p className="font-medium">{jobCard?.job_type?.toUpperCase() || 'N/A'}</p>
+                </div>
+                {ipAddress && (
+                  <div className="col-span-2">
+                    <span className="text-gray-500">IP Address:</span>
+                    <p className="font-medium">{ipAddress}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-semibold text-gray-900 mb-3">Assigned Parts ({selectedParts.length})</h4>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {selectedParts.map((part, index) => (
+                  <div key={index} className="bg-white p-2 rounded border flex justify-between items-center">
+                    <div>
+                      <div className="font-medium text-sm">{part.description}</div>
+                      <div className="text-xs text-gray-500">{part.serial_number}</div>
+                    </div>
+                    <Badge variant="outline" className="text-xs">Qty: {part.quantity}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
             <div className="text-center">
               <img 
                 src={qrCodeUrl} 
