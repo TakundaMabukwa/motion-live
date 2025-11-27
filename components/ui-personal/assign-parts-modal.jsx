@@ -63,58 +63,73 @@ export default function AssignPartsModal({
       setSelectedStockType('all');
       setIpAddress('');
       fetchInventoryItems();
+      
+      // Pre-populate with existing parts and IP address
+      if (jobCard?.parts_required && Array.isArray(jobCard.parts_required)) {
+        const existingParts = jobCard.parts_required.map(part => ({
+          stock_id: part.stock_id || part.id,
+          description: String(part.description || ''),
+          serial_number: String(part.serial_number || ''),
+          code: String(part.code || ''),
+          supplier: String(part.supplier || ''),
+          quantity: part.quantity || 1,
+          cost_per_unit: parseFloat(part.cost_per_unit || '0'),
+          total_cost: parseFloat(part.total_cost || '0'),
+          ip_address: part.ip_address || ''
+        }));
+        setSelectedParts(existingParts);
+        
+        // Set IP address from first part if available
+        if (existingParts.length > 0 && existingParts[0].ip_address) {
+          setIpAddress(existingParts[0].ip_address);
+        }
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, jobCard]);
 
   const addPart = (item) => {
-    const currentQty = parseInt(item.quantity || '0');
-    const selectedQty = selectedParts.find(p => p.stock_id === item.id)?.quantity || 0;
-    
-    if (selectedQty >= currentQty) {
-      toast.error('No more stock available for this item');
+    const alreadySelected = selectedParts.find(part => part.stock_id === item.id);
+    if (alreadySelected) {
+      toast.error('This item is already selected');
       return;
     }
     
-    const existingPart = selectedParts.find(part => part.stock_id === item.id);
+    setSelectedParts(prev => [...prev, {
+      stock_id: item.id,
+      description: String(item.category?.description || item.description || ''),
+      serial_number: String(item.serial_number || ''),
+      code: String(item.category_code || item.code || ''),
+      supplier: String(item.supplier || ''),
+      quantity: 1,
+      cost_per_unit: parseFloat(item.cost_excl_vat_zar || '0'),
+      total_cost: parseFloat(item.cost_excl_vat_zar || '0'),
+      ip_address: ipAddress || ''
+    }]);
     
-    if (existingPart) {
-      setSelectedParts(prev => prev.map(part => 
-        part.stock_id === item.id 
-          ? { ...part, quantity: part.quantity + 1 }
-          : part
-      ));
-    } else {
-      setSelectedParts(prev => [...prev, {
-        stock_id: item.id,
-        description: String(item.category?.description || item.description || ''),
-        serial_number: String(item.serial_number || ''),
-        code: String(item.category_code || item.code || ''),
-        supplier: String(item.supplier || ''),
-        quantity: 1,
-        available_stock: parseInt(item.quantity || '0'),
-        cost_per_unit: parseFloat(item.cost_excl_vat_zar || '0'),
-        total_cost: parseFloat(item.cost_excl_vat_zar || '0'),
-        ip_address: ipAddress || ''
-      }]);
-    }
-    
-    setAllStockItems(prev => prev.map(stockItem => 
-      stockItem.id === item.id 
-        ? { ...stockItem, quantity: String(currentQty - selectedQty - 1) }
-        : stockItem
-    ));
+    setAllStockItems(prev => prev.filter(stockItem => stockItem.id !== item.id));
   };
 
-  const removePart = (stockId) => {
+  const removePart = async (stockId) => {
     const part = selectedParts.find(p => p.stock_id === stockId);
-    if (part) {
-      setAllStockItems(prev => prev.map(item => 
-        item.id === stockId 
-          ? { ...item, quantity: String(parseInt(item.quantity || '0') + part.quantity) }
-          : item
-      ));
+    if (!part) return;
+    
+    try {
+      const response = await fetch(`/api/job-cards/${jobCard.id}/unassign-part`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_id: stockId, part })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to unassign');
+      }
+      
+      setSelectedParts(prev => prev.filter(p => p.stock_id !== stockId));
+      toast.success('Part removed from job');
+    } catch (error) {
+      toast.error(error.message || 'Failed to remove part');
     }
-    setSelectedParts(prev => prev.filter(part => part.stock_id !== stockId));
   };
 
   const updatePartQuantity = (stockId, newQuantity) => {
@@ -156,6 +171,10 @@ export default function AssignPartsModal({
       }
 
       const result = await response.json();
+      
+      // Remove assigned items from the available list
+      const assignedIds = selectedParts.map(p => p.stock_id);
+      setAllStockItems(prev => prev.filter(item => !assignedIds.includes(item.id)));
       
       if (result.qr_code) {
         setQrCodeUrl(result.qr_code);
@@ -341,6 +360,9 @@ export default function AssignPartsModal({
                 <div className="h-full overflow-y-auto">
                   <div className="bg-white rounded border">
                     {allStockItems.filter(item => {
+                      const isSelected = selectedParts.some(p => p.stock_id === item.id);
+                      if (isSelected) return false;
+                      
                       const matchesSearch = !searchTerm ||
                         item.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         item.category?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -360,8 +382,8 @@ export default function AssignPartsModal({
                           <div className="text-xs text-gray-600">{item.serial_number || 'No serial'} • {item.category_code || 'N/A'}</div>
                         </div>
                         <Badge variant="secondary" className={`text-xs px-2 py-1 ${
-                          parseInt(item.quantity || '0') === 0 ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                        }`}>Qty: {item.quantity || 0}</Badge>
+                          item.status === 'ASSIGNED' || item.status === 'OUT OF STOCK' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                        }`}>{item.status || 'IN STOCK'}</Badge>
                       </div>
                     ))}
                   </div>

@@ -86,18 +86,19 @@ export async function PUT(request: NextRequest, { params }) {
 
 
 
-    // Assign inventory items to job and technician
+    // First, add items to job (update job_cards with parts_required)
+    // This is done later in the code when updating the job card
+    
+    // Then, delete items from inventory_items
     for (const item of parts) {
+      const itemId = item.stock_id || item.inventory_item_id;
+      if (!itemId) continue;
+      
+      // Delete the item from inventory
       await supabase
         .from('inventory_items')
-        .update({
-          status: 'ASSIGNED',
-          assigned_to_technician: finalTechnicianEmail,
-          assigned_date: new Date().toISOString(),
-          job_card_id: jobId
-        })
-        .eq('id', item.inventory_item_id)
-        .eq('status', 'IN STOCK');
+        .delete()
+        .eq('id', itemId);
     }
 
 

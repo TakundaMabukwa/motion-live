@@ -1534,19 +1534,17 @@ export default function InventoryPage() {
                           className="text-blue-600 hover:text-blue-700"
                         >
                           <QrCode className="mr-1 w-3 h-3" />
-                          View QR: 1
+                          View QR
                         </Button>
 
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleBookStock(job)}
-                          className={hasBootStock(job) ? "text-green-600 hover:text-green-700 cursor-pointer" : "text-amber-600 hover:text-amber-700 cursor-pointer"}
-                          disabled={false} // Always enable this button
-                          title={hasBootStock(job) ? "Boot stock already assigned but you can book again" : "Book boot stock and move job to admin"}
+                          onClick={() => handleAssignParts(job)}
+                          className="text-green-600 hover:text-green-700"
                         >
-                          <Package className="mr-1 w-3 h-3" />
-                          Book Stock
+                          <RefreshCw className="mr-1 w-3 h-3" />
+                          Re-Open Job
                         </Button>
                       </div>
                     </td>
