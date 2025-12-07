@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
+export const dynamic = 'force-dynamic';
+
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -61,7 +63,7 @@ async function generateExcelInBackground(jobId: string) {
     
     jobs.set(jobId, { status: 'processing', progress: 20, message: 'Fetching data...' });
     
-    const { data: vehicles } = await supabase
+    const { data: vehicles } = await getSupabase()
       .from('vehicles')
       .select('reg, fleet_number, company, new_account_number, total_rental_sub')
       .not('new_account_number', 'is', null)
@@ -74,7 +76,7 @@ async function generateExcelInBackground(jobId: string) {
       return acc;
     }, {}) || {};
     
-    const { data: customers } = await supabase
+    const { data: customers } = await getSupabase()
       .from('customers')
       .select('legal_name, company, new_account_number, account_number');
     
