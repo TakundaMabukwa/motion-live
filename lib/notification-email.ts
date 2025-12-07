@@ -1,10 +1,18 @@
 import notificationapi from 'notificationapi-node-server-sdk';
 
-// Initialize NotificationAPI
-notificationapi.init(
-  process.env.NOTIFICATIONAPI_CLIENT_ID!,
-  process.env.NOTIFICATIONAPI_CLIENT_SECRET!
-);
+let isInitialized = false;
+
+function ensureInitialized() {
+  if (!isInitialized) {
+    const clientId = process.env.NOTIFICATIONAPI_CLIENT_ID;
+    const clientSecret = process.env.NOTIFICATIONAPI_CLIENT_SECRET;
+    
+    if (clientId && clientSecret) {
+      notificationapi.init(clientId, clientSecret);
+      isInitialized = true;
+    }
+  }
+}
 
 export interface EmailRecipient {
   id: string;
@@ -22,6 +30,8 @@ export async function sendEmail(
   recipients: EmailRecipient[],
   emailData: EmailData
 ) {
+  ensureInitialized();
+  
   try {
     const results = [];
     
