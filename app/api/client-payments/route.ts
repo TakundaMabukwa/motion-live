@@ -85,7 +85,6 @@ export async function GET(request: NextRequest) {
     console.log('🔍 DEBUG: Searching payments_ table for cost_code IN:', accountNumbers);
 
     // Fetch payments data from payments_ table using cost_code
-    // This will find ALL payment records where cost_code matches ANY of the account numbers
     const { data: payments, error: paymentsError } = await supabase
       .from('payments_')
       .select(`
