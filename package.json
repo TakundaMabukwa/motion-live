@@ -2,7 +2,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS='--max-old-space-size=2048' UV_THREADPOOL_SIZE=1 next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=1536' UV_THREADPOOL_SIZE=1 next build",
     "start": "next start",
     "lint": "next lint",
     "import-inventory": "node scripts/import-inventory-excel.js"
