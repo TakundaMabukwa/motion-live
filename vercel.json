@@ -1,8 +1,0 @@
-{
-  "build": {
-    "env": {
-      "NODE_OPTIONS": "--max-old-space-size=1536",
-      "UV_THREADPOOL_SIZE": "1"
-    }
-  }
-}
