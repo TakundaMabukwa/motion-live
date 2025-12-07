@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
-const supabase = createClient(
+export const dynamic = 'force-dynamic';
+
+const getSupabase = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -18,7 +20,7 @@ export async function GET() {
     let hasMore = true;
 
     while (hasMore) {
-      const { data: vehicles, error } = await supabase
+      const { data: vehicles, error } = await getSupabase()
         .from('vehicles')
         .select('reg, fleet_number, company, account_number, new_account_number, total_rental_sub, skylink_pro_serial_number, _4ch_mdvr, pfk_main_unit')
         .not('new_account_number', 'is', null)
@@ -41,7 +43,7 @@ export async function GET() {
 
     // Fetch customers
     const accountNumbers = Object.keys(groupedVehicles);
-    const { data: customers } = await supabase
+    const { data: customers } = await getSupabase()
       .from('customers')
       .select('legal_name, company, trading_name, new_account_number, account_number');
 
