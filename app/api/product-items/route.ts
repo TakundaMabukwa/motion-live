@@ -4,33 +4,54 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Authentication required' },
-        { status: 401 }
-      );
+    // Try to get user, but don't fail if session is missing
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Log for debugging
+    if (!user) {
+      console.warn('No user session found in product-items API');
     }
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const category = searchParams.get('category');
     const search = searchParams.get('search');
+    const getFilters = searchParams.get('filters');
+
+    // If filters requested, return unique types and categories
+    if (getFilters === 'true') {
+      const { data: products, error } = await supabase
+        .from('product_items')
+        .select('type, category');
+
+      if (error) {
+        console.error('Database error:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch filters', details: error.message },
+          { status: 500 }
+        );
+      }
+
+      const types = [...new Set(products?.map(p => p.type).filter(Boolean))].sort();
+      const categories = [...new Set(products?.map(p => p.category).filter(Boolean))].sort();
+
+      return NextResponse.json({ types, categories });
+    }
 
     let query = supabase
       .from('product_items')
       .select('*')
       .order('product', { ascending: true });
 
-    // Filter by type if provided
-    if (type) {
-      query = query.eq('type', type);
+    // Filter by type if provided (case-insensitive)
+    if (type && type !== 'all') {
+      query = query.ilike('type', type);
     }
 
-    // Filter by category if provided
-    if (category) {
-      query = query.eq('category', category);
+    // Filter by category if provided (case-insensitive)
+    if (category && category !== 'all') {
+      query = query.ilike('category', category);
     }
 
     // Search functionality

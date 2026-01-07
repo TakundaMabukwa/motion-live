@@ -49,6 +49,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [hasUserSelectedJobType, setHasUserSelectedJobType] = useState(false);
   const [newEmailRecipient, setNewEmailRecipient] = useState("");
+  const [productTypes, setProductTypes] = useState([]);
+  const [productCategories, setProductCategories] = useState([]);
 
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
@@ -271,14 +273,12 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     { id: 3, title: "Email", subtitle: "Send quote to customer", icon: Mail },
   ];
 
-  // Product types and categories for filtering
-  const productTypes = [
-    "FMS", "BACKUP", "MODULE", "INPUT", "PFK CAMERA", "DASHCAM", "PTT", "DVR CAMERA"
-  ];
 
-  const productCategories = [
-    "HARDWARE", "MODULES", "INPUTS", "CAMERA EQUIPMENT", "AI MOVEMENT DETECTION", "PTT RADIOS"
-  ];
+
+  // Fetch filters on mount
+  useEffect(() => {
+    fetchFilters();
+  }, []);
 
   // Debounce search term
   useEffect(() => {
@@ -312,6 +312,19 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       fetchCustomerData(accountInfo.new_account_number);
     }
   }, [accountInfo?.new_account_number, fetchCustomerData]);
+
+  const fetchFilters = async () => {
+    try {
+      const res = await fetch('/api/product-items?filters=true');
+      if (res.ok) {
+        const data = await res.json();
+        setProductTypes(data.types || []);
+        setProductCategories(data.categories || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch filters:', error);
+    }
+  };
 
   const fetchVehicleProducts = useCallback(async () => {
     if (!vehicles || vehicles.length === 0) {

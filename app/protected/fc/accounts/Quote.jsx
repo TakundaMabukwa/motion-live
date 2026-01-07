@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from '@/lib/supabase/client';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,17 +62,30 @@ export default function CreateQuote() {
     stockItems: [],
   });
 
-  // Stock items from the image
-  const availableStockItems = [
-    "DASHCAM",
-    "AI DASHCAM",
-    "BACKUP",
-    "BREATHALOK",
-    "Dashcam Cab Facing",
-    "Dashcam Forward Facing",
-    "DVR CAMERA",
-    "FMS",
-  ];
+  const [stockPricing, setStockPricing] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    fetchStockPricing();
+  }, []);
+
+  const fetchStockPricing = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_pricing')
+        .select('id, description, cost_excl_vat_zar, rental_price, installation_price');
+      
+      if (error) throw error;
+      setStockPricing(data || []);
+    } catch (error) {
+      console.error('Error fetching stock pricing:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const availableStockItems = stockPricing.map(item => item.description);
 
   const steps = [
     {
@@ -99,12 +113,48 @@ export default function CreateQuote() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleStockItemToggle = (item) => {
-    setFormData((prev) => ({
+  const handleStockItemToggle = (itemDescription) => {
+    const isSelected = formData.selectedStockItems.includes(itemDescription);
+    const stockItem = stockPricing.find(item => item.description === itemDescription);
+    
+    if (isSelected) {
+      // Remove item and recalculate prices
+      const newSelectedItems = formData.selectedStockItems.filter((i) => i !== itemDescription);
+      setFormData((prev) => ({
+        ...prev,
+        selectedStockItems: newSelectedItems,
+      }));
+      recalculatePrices(newSelectedItems);
+    } else {
+      // Add item and recalculate prices
+      const newSelectedItems = [...formData.selectedStockItems, itemDescription];
+      setFormData((prev) => ({
+        ...prev,
+        selectedStockItems: newSelectedItems,
+      }));
+      recalculatePrices(newSelectedItems);
+    }
+  };
+
+  const recalculatePrices = (selectedItems) => {
+    let totalCash = 0;
+    let totalRental = 0;
+    let totalInstallation = 0;
+
+    selectedItems.forEach(itemDesc => {
+      const stockItem = stockPricing.find(item => item.description === itemDesc);
+      if (stockItem) {
+        totalCash += parseFloat(stockItem.cost_excl_vat_zar || 0);
+        totalRental += parseFloat(stockItem.rental_price || 0);
+        totalInstallation += parseFloat(stockItem.installation_price || 0);
+      }
+    });
+
+    setFormData(prev => ({
       ...prev,
-      selectedStockItems: prev.selectedStockItems.includes(item)
-        ? prev.selectedStockItems.filter((i) => i !== item)
-        : [...prev.selectedStockItems, item],
+      cashPrice: totalCash,
+      rentalPrice: totalRental,
+      installationPrice: totalInstallation,
     }));
   };
 
@@ -225,31 +275,48 @@ export default function CreateQuote() {
         {formData.jobType === "install" && formData.stockType && (
           <div className="space-y-2">
             <Label>Available Stock Items</Label>
-            <div className="p-4 border rounded-lg max-h-48 overflow-y-auto">
-              <div className="gap-3 grid grid-cols-1">
-                {availableStockItems.map((item) => (
-                  <div key={item} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`install-${item}`}
-                      checked={formData.selectedStockItems.includes(item)}
-                      onCheckedChange={() => handleStockItemToggle(item)}
-                    />
-                    <Label
-                      htmlFor={`install-${item}`}
-                      className="font-normal text-sm cursor-pointer"
-                    >
-                      {item}
-                    </Label>
+            {loading ? (
+              <div className="p-4 text-center text-gray-500">Loading stock items...</div>
+            ) : (
+              <>
+                <div className="p-4 border rounded-lg max-h-48 overflow-y-auto">
+                  <div className="gap-3 grid grid-cols-1">
+                    {availableStockItems.map((item) => {
+                      const stockItem = stockPricing.find(s => s.description === item);
+                      return (
+                        <div key={item} className="flex items-center justify-between space-x-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`install-${item}`}
+                              checked={formData.selectedStockItems.includes(item)}
+                              onCheckedChange={() => handleStockItemToggle(item)}
+                            />
+                            <Label
+                              htmlFor={`install-${item}`}
+                              className="font-normal text-sm cursor-pointer"
+                            >
+                              {item}
+                            </Label>
+                          </div>
+                          {stockItem && (
+                            <span className="text-xs text-gray-500">
+                              Cash: R{parseFloat(stockItem.cost_excl_vat_zar || 0).toFixed(2)} | 
+                              Rental: R{parseFloat(stockItem.rental_price || 0).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            </div>
-            {formData.selectedStockItems.length > 0 && (
-              <div className="mt-2">
-                <p className="text-gray-600 text-sm">
-                  Selected items: {formData.selectedStockItems.join(", ")}
-                </p>
-              </div>
+                </div>
+                {formData.selectedStockItems.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-gray-600 text-sm">
+                      Selected items: {formData.selectedStockItems.join(", ")}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

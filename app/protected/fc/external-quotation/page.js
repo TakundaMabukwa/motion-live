@@ -48,6 +48,8 @@ export default function ExternalQuotation() {
   const [selectedType, setSelectedType] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
+  const [productCategories, setProductCategories] = useState([]);
 
   const [formData, setFormData] = useState({
     jobType: "",
@@ -97,22 +99,43 @@ export default function ExternalQuotation() {
     { id: 3, title: "Email", subtitle: "Send quote to customer", icon: Mail },
   ];
 
-  // Product types and categories for filtering
-  const productTypes = [
-    "FMS", "BACKUP", "MODULE", "INPUT", "PFK CAMERA", "DASHCAM", "PTT", "DVR CAMERA"
-  ];
 
-  const productCategories = [
-    "HARDWARE", "MODULES", "INPUTS", "CAMERA EQUIPMENT", "AI MOVEMENT DETECTION", "PTT RADIOS"
-  ];
 
   const handleVehiclesSelectedFromDetails = (vehicles) => {
     setSelectedVehiclesFromDetails(vehicles);
   };
 
   useEffect(() => {
+    fetchFilters();
+  }, []);
+
+  // Force emailRecipients to always be an array
+  useEffect(() => {
+    if (formData.emailRecipients && !Array.isArray(formData.emailRecipients)) {
+      console.warn('emailRecipients is not an array, fixing:', formData.emailRecipients);
+      setFormData(prev => ({
+        ...prev,
+        emailRecipients: []
+      }));
+    }
+  }, [formData.emailRecipients]);
+
+  useEffect(() => {
     fetchProductItems();
   }, [selectedType, selectedCategory, searchTerm]);
+
+  const fetchFilters = async () => {
+    try {
+      const res = await fetch('/api/product-items?filters=true');
+      if (res.ok) {
+        const data = await res.json();
+        setProductTypes(data.types || []);
+        setProductCategories(data.categories || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch filters:', error);
+    }
+  };
 
   const fetchProductItems = async () => {
     setLoadingProducts(true);
@@ -150,6 +173,14 @@ export default function ExternalQuotation() {
   };
 
   const addProduct = (product) => {
+    // Check if product already exists
+    if (selectedProducts.some(p => p.id === product.id)) {
+      toast.error('Product already added', {
+        description: `${product.product} is already in your quote`,
+      });
+      return;
+    }
+
     const newProduct = {
       id: product.id,
       name: product.product,
@@ -167,7 +198,7 @@ export default function ExternalQuotation() {
       subscriptionPrice: product.subscription || 0,
       subscriptionDiscount: 0,
       quantity: 1,
-      purchaseType: formData.purchaseType, // "purchase" or "rental"
+      purchaseType: formData.purchaseType,
     };
     setSelectedProducts([...selectedProducts, newProduct]);
   };
@@ -235,7 +266,7 @@ export default function ExternalQuotation() {
         return selectedProducts.length > 0;
       case 3:
         return formData.emailSubject && formData.emailBody && 
-               formData.emailRecipients && formData.emailRecipients.length > 0;
+               Array.isArray(formData.emailRecipients) && formData.emailRecipients.length > 0;
       default:
         return false;
     }
@@ -266,7 +297,9 @@ export default function ExternalQuotation() {
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
-        emailRecipients: formData.emailRecipients || [formData.customerEmail],
+        emailRecipients: Array.isArray(formData.emailRecipients) && formData.emailRecipients.length > 0 
+          ? formData.emailRecipients 
+          : [formData.customerEmail],
         
         // Vehicle information
         vehicle_registration: formData.vehicle_registration,
@@ -339,11 +372,66 @@ export default function ExternalQuotation() {
         throw new Error(result.error || 'Failed to create customer quote');
       }
 
-      // Show success toast
-      toast.success('External quote created successfully!', {
-        description: `Job Number: ${result.data.job_number} - Customer: ${result.data.customer_name} - Quote Date: ${new Date(result.data.quote_date).toLocaleDateString()} - Total: R${result.data.quotation_total_amount}`,
-        duration: 5000,
-      });
+      // Send email using NotificationAPI
+      try {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const port = window.location.port;
+        const baseUrl = `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+
+        const emailResponse = await fetch(`${baseUrl}/api/send-quotation-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteNumber: result.data.job_number,
+            jobNumber: result.data.job_number,
+            jobType: formData.jobType,
+            clientName: formData.customerName,
+            clientEmails: formData.emailRecipients || [formData.customerEmail],
+            clientPhone: formData.customerPhone,
+            clientAddress: formData.customerAddress,
+            quoteDate: new Date().toISOString(),
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            totalAmount: totalAmount,
+            vatAmount: vatAmount,
+            subtotal: subtotal,
+            products: quotationData.quotationProducts.map(p => ({
+              name: p.name,
+              description: p.description,
+              quantity: p.quantity,
+              unitPrice: p.total_price / p.quantity,
+              total: p.total_price,
+              purchaseType: p.purchase_type
+            })),
+            notes: formData.extraNotes,
+            emailBody: formData.emailBody,
+            emailSubject: formData.emailSubject,
+            emailFooter: formData.quoteFooter,
+          }),
+        });
+
+        const emailResult = await emailResponse.json();
+        
+        if (emailResult.success) {
+          toast.success('External quote created and email sent successfully!', {
+            description: `Job Number: ${result.data.job_number} - Sent to ${emailResult.totalSent} recipients`,
+            duration: 5000,
+          });
+        } else {
+          toast.success('External quote created successfully!', {
+            description: `Job Number: ${result.data.job_number} - Email failed: ${emailResult.error}`,
+            duration: 5000,
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending email:', emailError);
+        toast.success('External quote created successfully!', {
+          description: `Job Number: ${result.data.job_number} - Email could not be sent`,
+          duration: 5000,
+        });
+      }
       
       // Reset form
       setCurrentStep(0);
@@ -581,7 +669,7 @@ export default function ExternalQuotation() {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Selected Products</h3>
             {selectedProducts.map((product, index) => (
-              <Card key={product.id} className="p-4">
+              <Card key={`${product.id}-${index}`} className="p-4">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h4 className="font-semibold">{product.name}</h4>
@@ -874,8 +962,11 @@ export default function ExternalQuotation() {
       return;
     }
     
+    // Ensure emailRecipients is an array
+    const currentRecipients = Array.isArray(formData.emailRecipients) ? formData.emailRecipients : [];
+    
     // Check if email is already in the recipients list
-    if (formData.emailRecipients?.some(email => email === newEmailRecipient)) {
+    if (currentRecipients.some(email => email === newEmailRecipient)) {
       toast.error("This email is already added");
       return;
     }
@@ -883,7 +974,7 @@ export default function ExternalQuotation() {
     // Add the new recipient
     setFormData(prev => ({
       ...prev,
-      emailRecipients: [...(prev.emailRecipients || []), newEmailRecipient]
+      emailRecipients: [...currentRecipients, newEmailRecipient]
     }));
     
     // Clear the input field
@@ -892,9 +983,10 @@ export default function ExternalQuotation() {
   
   // Function to remove a recipient
   const handleRemoveRecipient = (email) => {
+    const currentRecipients = Array.isArray(formData.emailRecipients) ? formData.emailRecipients : [];
     setFormData(prev => ({
       ...prev,
-      emailRecipients: prev.emailRecipients.filter(e => e !== email)
+      emailRecipients: currentRecipients.filter(e => e !== email)
     }));
   };
   
@@ -912,28 +1004,32 @@ export default function ExternalQuotation() {
           <Label htmlFor="emailRecipients">Recipients *</Label>
           <div className="border rounded-md p-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
             <div className="flex flex-wrap gap-2 mb-2">
-              {(formData.emailRecipients || []).map((email) => (
+              {formData.emailRecipients && Array.isArray(formData.emailRecipients) && formData.emailRecipients.length > 0 ? (
                 <div 
-                  key={email} 
                   className="flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm"
                 >
-                  <span>{email}</span>
+                  <span>{formData.emailRecipients[0]}</span>
                   <button
                     type="button"
-                    onClick={() => handleRemoveRecipient(email)}
+                    onClick={() => handleRemoveRecipient(formData.emailRecipients[0])}
                     className="text-blue-700 hover:text-blue-900 focus:outline-none"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
-              ))}
+              ) : null}
               <input
                 id="newEmailRecipient"
                 type="email"
                 placeholder="Add recipient..."
                 value={newEmailRecipient}
                 onChange={(e) => setNewEmailRecipient(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRecipient())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddRecipient();
+                  }
+                }}
                 className="grow min-w-[150px] border-0 focus:outline-none focus:ring-0 p-1 text-sm"
               />
             </div>
@@ -949,7 +1045,7 @@ export default function ExternalQuotation() {
               </Button>
             </div>
           </div>
-          {(!formData.emailRecipients || formData.emailRecipients.length === 0) && (
+          {(!formData.emailRecipients || !Array.isArray(formData.emailRecipients) || formData.emailRecipients.length === 0) && (
             <p className="text-red-500 text-xs">Please add at least one recipient</p>
           )}
         </div>
