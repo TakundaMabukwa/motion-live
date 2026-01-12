@@ -12,7 +12,7 @@ export default function UserActivityPage() {
   const filteredUsers = users.filter(user => {
     const allowedRoles = ['fc', 'accounts', 'inv', 'admin', 'tech'];
     return allowedRoles.includes(user.role);
-  });
+  }).sort((a, b) => a.email.localeCompare(b.email));
 
   useEffect(() => {
     fetchUsers();

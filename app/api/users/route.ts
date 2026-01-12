@@ -7,7 +7,10 @@ export async function GET() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing environment variables');
+      console.error('Missing environment variables:', { 
+        hasUrl: !!supabaseUrl, 
+        hasServiceKey: !!supabaseServiceKey 
+      });
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
@@ -18,7 +21,14 @@ export async function GET() {
       }
     });
 
-    // Get all users from public.users table
+    // Get auth data first to get last_sign_in_at
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+    if (authError) {
+      console.error('Auth error:', authError);
+      return NextResponse.json({ error: 'Auth access denied. Check service role key.' }, { status: 403 });
+    }
+
+    // Get users from public.users table
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('*');
@@ -26,13 +36,6 @@ export async function GET() {
     if (usersError) {
       console.error('Users error:', usersError);
       throw usersError;
-    }
-
-    // Get auth data for all users
-    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-    if (authError) {
-      console.error('Auth error:', authError);
-      throw authError;
     }
 
     // Combine users table data with auth last_sign_in_at
