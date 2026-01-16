@@ -14,7 +14,6 @@ export default function MasterLayout({
 
   const navigation = [
     { name: 'Home', href: '/protected/master', icon: Home },
-    { name: 'Users', href: '/protected/master/users', icon: Users },
     { name: 'User Activity', href: '/protected/master/user-activity', icon: Activity },
     { name: 'Invoices', href: '/protected/master/invoices', icon: FileText },
     { name: 'Stock Orders', href: '/protected/master/stock-orders', icon: Package },

@@ -98,7 +98,7 @@ export default function MasterDashboard() {
     return (
         <>
         <div className="flex bg-gray-50 min-h-screen">
-            <MasterSidebar invoiceBadgeCount={invoiceStats.unapprovedInvoicesCount} />
+            {/* <MasterSidebar invoiceBadgeCount={invoiceStats.unapprovedInvoicesCount} /> */}
             {/* Main Content */}
             <div className="flex-1 p-8">
                 <div className="mx-auto max-w-7xl">

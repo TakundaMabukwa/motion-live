@@ -473,7 +473,7 @@ function StockOrdersContent() {
     return (
         <div className="flex bg-gray-50 min-h-screen">
             {/* Sidebar */}
-            <div className="bg-white shadow-lg w-64">
+            {/* <div className="bg-white shadow-lg w-64">
                 <div className="p-6 border-b">
                     <h1 className="font-bold text-gray-900 text-xl">Dashboard</h1>
                 </div>
@@ -504,7 +504,7 @@ function StockOrdersContent() {
                         </div>
                     </div>
                 </nav>
-            </div>
+            </div> */}
 
             {/* Main Content */}
             <div className="flex-1 p-8">
