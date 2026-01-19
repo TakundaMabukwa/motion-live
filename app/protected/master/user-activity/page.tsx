@@ -69,6 +69,9 @@ export default function UserActivityPage() {
     clientQuotes: 0,
     creators: [] as string[] 
   });
+  const [dailyActivity, setDailyActivity] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [dateFilter, setDateFilter] = useState('7'); // days
   
   const [searchEmail, setSearchEmail] = useState('');
   
@@ -82,7 +85,8 @@ export default function UserActivityPage() {
   useEffect(() => {
     fetchUsers();
     fetchWeeklyStats();
-  }, []);
+    fetchDailyActivity();
+  }, [dateFilter]);
 
   const fetchUsers = async () => {
     try {
@@ -163,6 +167,59 @@ export default function UserActivityPage() {
       });
     } catch (error) {
       console.error('Error fetching weekly stats:', error);
+    }
+  };
+
+  const fetchDailyActivity = async () => {
+    try {
+      const supabase = createClient();
+      const daysBack = new Date();
+      daysBack.setDate(daysBack.getDate() - parseInt(dateFilter));
+      
+      // Fetch job cards from selected period
+      const { data: jobCardsData } = await supabase
+        .from('job_cards')
+        .select('created_by, updated_by, job_number, customer_name, quotation_total_amount, job_type, created_at, updated_at')
+        .gte('created_at', daysBack.toISOString())
+        .order('created_at', { ascending: false });
+      
+      // Fetch quotes from selected period
+      const { data: quotesData } = await supabase
+        .from('customer_quotes')
+        .select('created_by, updated_by, job_number, customer_name, quotation_total_amount, quote_type, created_at, updated_at')
+        .gte('created_at', daysBack.toISOString())
+        .order('created_at', { ascending: false });
+      
+      // Fetch user details
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, email');
+      
+      const userMap = new Map();
+      usersData?.forEach(user => userMap.set(user.id, user.email));
+      
+      // Combine and format data
+      const formattedJobCards = (jobCardsData || []).map(item => ({
+        ...item,
+        type: 'job_card',
+        creator_email: userMap.get(item.created_by) || 'Unknown',
+        updater_email: item.updated_by ? userMap.get(item.updated_by) || 'Unknown' : null
+      }));
+      
+      const formattedQuotes = (quotesData || []).map(item => ({
+        ...item,
+        type: 'quote',
+        creator_email: userMap.get(item.created_by) || 'Unknown',
+        updater_email: item.updated_by ? userMap.get(item.updated_by) || 'Unknown' : null
+      }));
+      
+      // Combine and sort by created_at (most recent first)
+      const combinedActivity = [...formattedJobCards, ...formattedQuotes]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      setDailyActivity(combinedActivity);
+    } catch (error) {
+      console.error('Error fetching daily activity:', error);
     }
   };
 
@@ -765,110 +822,250 @@ export default function UserActivityPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-700">Job Cards (7d)</CardTitle>
-              <FileText className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{weeklyStats.jobCards}</div>
-              <p className="text-xs text-gray-500 font-medium mt-1">{formatCurrency(weeklyStats.totalAmount)}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-700">Quotations (7d)</CardTitle>
-              <DollarSign className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{weeklyStats.quotations}</div>
-              <div className="flex justify-between text-xs text-gray-500 font-medium mt-1">
-                <span>External: {weeklyStats.externalQuotes}</span>
-                <span>Client: {weeklyStats.clientQuotes}</span>
-              </div>
-              <p className="text-xs text-gray-500 font-medium mt-1">{formatCurrency(weeklyStats.quotationAmount || 0)}</p>
-            </CardContent>
-          </Card>
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'dashboard'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'users'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              User Management
+            </button>
+          </nav>
         </div>
 
-        <Card className="shadow-sm">
-          <CardHeader className="bg-slate-700 text-white">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                All Users
-              </CardTitle>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search by email..."
-                  value={searchEmail}
-                  onChange={(e) => setSearchEmail(e.target.value)}
-                  className="pl-10 pr-4 py-2 text-sm bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="text-center py-8">Loading users...</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {loading && (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">Loading users...</td>
-                      </tr>
-                    )}
+        {/* Tab Content */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-700">Job Cards (7d)</CardTitle>
+                  <FileText className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">{weeklyStats.jobCards}</div>
+                  <p className="text-xs text-gray-500 font-medium mt-1">{formatCurrency(weeklyStats.totalAmount)}</p>
+                </CardContent>
+              </Card>
 
-                    {filteredUsers.map(user => (
-                      <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className={`w-3 h-3 rounded-full ${getStatusColor(user.last_sign_in_at)} shadow-sm`}></div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center text-xs font-bold text-white mr-3 shadow-sm">
-                              {user.email.split('@')[0].split('.').map(s=>s[0]).slice(0,2).join('').toUpperCase()}
-                            </div>
-                            <div className="text-sm font-medium text-gray-900">{user.email}</div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <Badge className="bg-gray-600 text-white">
-                            {user.role || 'No role'}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <Button
-                            size="sm"
-                            onClick={() => fetchUserJobCards(user.id, user.email)}
-                            className="bg-gray-600 hover:bg-gray-700 text-white"
-                          >
-                            <FileText className="w-3 h-3 mr-1" />
-                            View Stats
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <Card className="border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-700">Quotations (7d)</CardTitle>
+                  <DollarSign className="h-4 w-4 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">{weeklyStats.quotations}</div>
+                  <div className="flex justify-between text-xs text-gray-500 font-medium mt-1">
+                    <span>Ext: {weeklyStats.externalQuotes}</span>
+                    <span>Client: {weeklyStats.clientQuotes}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium mt-1">{formatCurrency(weeklyStats.quotationAmount || 0)}</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-700">Active Users</CardTitle>
+                  <Users className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{weeklyStats.creators.length}</div>
+                  <p className="text-xs text-gray-500 font-medium mt-1">Creating content</p>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-l-orange-500 shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-700">Total Value (7d)</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {formatCurrency((weeklyStats.totalAmount || 0) + (weeklyStats.quotationAmount || 0))}
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium mt-1">Jobs + Quotes</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="shadow-sm">
+              <CardHeader className="bg-slate-700 text-white">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Recent Activity
+                  </CardTitle>
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="px-3 py-1 text-sm bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="1">Last 24 hours</option>
+                    <option value="3">Last 3 days</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {dailyActivity.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No activity in the selected period
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Number</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Customer</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Created By</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Modified By</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {dailyActivity.map((item, index) => (
+                          <tr key={`${item.type}-${item.job_number}-${index}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <Badge className={`text-xs px-2 py-1 ${
+                                item.type === 'quote' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {item.type === 'quote' ? 'Quote' : 'Job Card'}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 font-medium text-blue-600">{item.job_number}</td>
+                            <td className="px-4 py-3">{item.customer_name || 'N/A'}</td>
+                            <td className="px-4 py-3 font-bold text-green-600">
+                              {formatCurrency(item.quotation_total_amount || 0)}
+                            </td>
+                            <td className="px-4 py-3">{item.creator_email}</td>
+                            <td className="px-4 py-3">
+                              {item.updater_email ? (
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{item.updater_email}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {item.updated_at ? new Date(item.updated_at).toLocaleDateString() : ''}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-sm">Not modified</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">
+                              {new Date(item.created_at).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <Card className="shadow-sm">
+              <CardHeader className="bg-slate-700 text-white">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    All Users
+                  </CardTitle>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="Search by email..."
+                      value={searchEmail}
+                      onChange={(e) => setSearchEmail(e.target.value)}
+                      className="pl-10 pr-4 py-2 text-sm bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loading ? (
+                  <div className="text-center py-8">Loading users...</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Email</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {loading && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">Loading users...</td>
+                          </tr>
+                        )}
+
+                        {filteredUsers.map(user => (
+                          <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className={`w-3 h-3 rounded-full ${getStatusColor(user.last_sign_in_at)} shadow-sm`}></div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center text-xs font-bold text-white mr-3 shadow-sm">
+                                  {user.email.split('@')[0].split('.').map(s=>s[0]).slice(0,2).join('').toUpperCase()}
+                                </div>
+                                <div className="text-sm font-medium text-gray-900">{user.email}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <Badge className="bg-gray-600 text-white">
+                                {user.role || 'No role'}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <Button
+                                size="sm"
+                                onClick={() => fetchUserJobCards(user.id, user.email)}
+                                className="bg-gray-600 hover:bg-gray-700 text-white"
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                View Stats
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
