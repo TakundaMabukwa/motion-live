@@ -10,7 +10,21 @@ import {
   Search, 
   X, 
   CheckCircle,
-  Printer
+  Printer,
+  FileText,
+  Wrench,
+  User,
+  Car,
+  Calendar,
+  ClipboardList,
+  AlertTriangle,
+  MessageSquare,
+  DollarSign,
+  MapPin,
+  Clock,
+  Phone,
+  Mail,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -87,17 +101,35 @@ export default function AssignPartsModal({
     }
   }, [isOpen, jobCard]);
 
-  const addPart = (item) => {
+  const addPart = async (item) => {
     const alreadySelected = selectedParts.find(part => part.stock_id === item.id);
     if (alreadySelected) {
       toast.error('This item is already selected');
       return;
     }
     
+    let serialNumber = item.serial_number || '';
+    
+    // If no serial number, fetch an available one from inventory_items for this category
+    if (!serialNumber && item.category_code) {
+      try {
+        const response = await fetch(`/api/inventory/get-serial?category_code=${encodeURIComponent(item.category_code)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.serial_number) {
+            serialNumber = data.serial_number;
+            toast.success(`Auto-assigned serial: ${serialNumber}`);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching serial number:', error);
+      }
+    }
+    
     setSelectedParts(prev => [...prev, {
       stock_id: item.id,
       description: String(item.category?.description || item.description || ''),
-      serial_number: String(item.serial_number || ''),
+      serial_number: String(serialNumber),
       code: String(item.category_code || item.code || ''),
       supplier: String(item.supplier || ''),
       quantity: 1,
@@ -207,107 +239,186 @@ export default function AssignPartsModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Job Information Section */}
+        {/* Clean Single Page Job Information */}
         {jobCard && (
-          <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg mb-4 border border-blue-200">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h3 className="font-bold text-lg text-gray-900">{jobCard.customer_name || 'N/A'}</h3>
-                <p className="text-sm text-gray-600">Job #{jobCard.job_number}</p>
-                {jobCard.quotation_number && (
-                  <p className="text-xs text-gray-500">{jobCard.quotation_number}</p>
-                )}
-              </div>
-              <Badge className={`text-xs ${
-                jobCard.job_type === 'deinstall' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-              }`}>
-                {jobCard.job_type?.toUpperCase() || 'N/A'}
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div>
-                <span className="text-gray-500 text-xs">Vehicle</span>
-                <p className="font-medium text-gray-900">
-                  {(() => {
-                    if (jobCard.quotation_products && jobCard.quotation_products[0]?.vehicle_plate) {
-                      return jobCard.quotation_products[0].vehicle_plate;
-                    }
-                    if (jobCard.vehicle_registration && jobCard.vehicle_registration !== 'N/A') {
-                      return jobCard.vehicle_registration;
-                    }
-                    if (jobCard.job_description) {
-                      const regMatch = jobCard.job_description.match(/REG:\s*([\w\d]+)/);
-                      if (regMatch) return regMatch[1];
-                      const startMatch = jobCard.job_description.match(/^([\w\d]+)\s*-/);
-                      if (startMatch) return startMatch[1];
-                    }
-                    return 'N/A';
-                  })()} 
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500 text-xs">Status</span>
-                <p className="font-medium text-gray-900">{jobCard.job_status || jobCard.status || 'Pending'}</p>
-              </div>
-              <div>
-                <span className="text-gray-500 text-xs">Quote Items</span>
-                <p className="font-medium text-gray-900">{jobCard.quotation_products?.length || 0} items</p>
-              </div>
-              <div>
-                <span className="text-gray-500 text-xs">Priority</span>
-                <p className="font-medium text-gray-900">{jobCard.priority || 'Normal'}</p>
-              </div>
-            </div>
-            {jobCard.job_description && jobCard.job_description.includes('DE-INSTALL') && (
-              <div className="mt-3 pt-3 border-t border-gray-300">
-                <div className="bg-white p-3 rounded border">
-                  {(() => {
-                    const desc = jobCard.job_description;
-                    const skyMatch = desc.match(/SKY\s*-\s*([\d\.]+)/);
-                    const snMatch = desc.match(/S\/N\s*-\s*(\w+)/);
-                    const simMatch = desc.match(/SIM\s*-\s*([\d]+)/);
-                    const beameMatches = desc.match(/BEAME\s*-\s*(\w+)/g);
-                    const deinstallMatch = desc.match(/DEINSTALL\s*-\s*([\d\.]+)/);
-                    
-                    return (
-                      <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
-                        {skyMatch && (
-                          <div>
-                            <span className="text-gray-500">Sky IP</span>
-                            <p className="font-medium">{skyMatch[1]}</p>
-                          </div>
-                        )}
-                        {snMatch && (
-                          <div>
-                            <span className="text-gray-500">S/N</span>
-                            <p className="font-medium">{snMatch[1]}</p>
-                          </div>
-                        )}
-                        {simMatch && (
-                          <div>
-                            <span className="text-gray-500">SIM</span>
-                            <p className="font-medium">{simMatch[1]}</p>
-                          </div>
-                        )}
-                        {deinstallMatch && (
-                          <div>
-                            <span className="text-gray-500">Deinstall</span>
-                            <p className="font-medium text-red-600">{deinstallMatch[1]}</p>
-                          </div>
-                        )}
-                        {beameMatches && (
-                          <div>
-                            <span className="text-gray-500">BEAME</span>
-                            <p className="font-medium">{beameMatches.length} units</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()} 
+          <div className="mb-3 border border-gray-200 rounded-lg overflow-hidden">
+            {/* Compact Header Bar */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2">
+              <div className="flex items-center justify-between text-white">
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-lg">#{jobCard.job_number}</span>
+                  <span className="text-blue-200">•</span>
+                  <span>{jobCard.customer_name || 'No Customer'}</span>
+                  <span className="text-blue-200">•</span>
+                  <span className="font-mono">{jobCard.vehicle_registration || jobCard.quotation_products?.[0]?.vehicle_plate || 'No Reg'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={`text-xs ${
+                    jobCard.job_type === 'deinstall' ? 'bg-red-500 text-white' : 
+                    jobCard.job_type === 'install' ? 'bg-green-500 text-white' :
+                    'bg-blue-200 text-blue-800'
+                  }`}>
+                    {jobCard.job_type?.toUpperCase() || 'N/A'}
+                  </Badge>
+                  <Badge className="bg-white/20 text-white text-xs font-bold">
+                    R {(jobCard.quotation_total_amount || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                  </Badge>
                 </div>
               </div>
-            )}
+            </div>
 
+            {/* Single Page Content Grid */}
+            <div className="bg-gray-50 p-3">
+              <div className="grid grid-cols-12 gap-3">
+                
+                {/* Left - Info Cards (Compact) */}
+                <div className="col-span-3 space-y-2">
+                  {/* Customer & Vehicle Combined */}
+                  <div className="bg-white p-2 rounded border text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-400 text-[10px] uppercase">Customer</span>
+                        <p className="font-semibold text-gray-900 truncate">{jobCard.customer_name || 'N/A'}</p>
+                        {jobCard.customer_phone && <p className="text-gray-500 text-[10px]">{jobCard.customer_phone}</p>}
+                      </div>
+                      <div>
+                        <span className="text-gray-400 text-[10px] uppercase">Vehicle</span>
+                        <p className="font-semibold text-gray-900">{jobCard.vehicle_registration || 'N/A'}</p>
+                        {jobCard.vehicle_make && <p className="text-gray-500 text-[10px]">{jobCard.vehicle_make} {jobCard.vehicle_model}</p>}
+                      </div>
+                    </div>
+                    {jobCard.ip_address && (
+                      <div className="mt-2 pt-2 border-t">
+                        <span className="text-gray-400 text-[10px] uppercase">IP Address</span>
+                        <p className="font-mono font-semibold text-blue-600">{jobCard.ip_address}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notes - If Any */}
+                  {(jobCard.special_instructions || jobCard.quote_notes || jobCard.job_description) && (
+                    <div className="bg-amber-50 p-2 rounded border border-amber-200 text-xs">
+                      <div className="flex items-center gap-1 text-amber-700 mb-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span className="font-semibold text-[10px] uppercase">Notes</span>
+                      </div>
+                      <p className="text-gray-700 text-[11px] leading-tight">
+                        {jobCard.special_instructions || jobCard.quote_notes || jobCard.job_description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Already Assigned Parts */}
+                  {jobCard.parts_required && jobCard.parts_required.length > 0 && (
+                    <div className="bg-blue-50 p-2 rounded border border-blue-200 text-xs">
+                      <div className="flex items-center gap-1 text-blue-700 mb-1">
+                        <Package className="w-3 h-3" />
+                        <span className="font-semibold text-[10px] uppercase">Assigned ({jobCard.parts_required.length})</span>
+                      </div>
+                      <div className="space-y-1 max-h-20 overflow-y-auto">
+                        {jobCard.parts_required.map((part, idx) => (
+                          <div key={idx} className="flex items-center gap-1 text-[10px]">
+                            <span className="text-gray-600 truncate flex-1">{part.description || part.name}</span>
+                            {part.serial_number && <span className="font-mono text-blue-600">{part.serial_number}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right - Quotation Products Table */}
+                <div className="col-span-9">
+                  <div className="bg-white rounded border h-full flex flex-col">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 border-b">
+                      <div className="flex items-center gap-2">
+                        <ClipboardList className="w-3.5 h-3.5 text-purple-600" />
+                        <span className="font-semibold text-purple-800 text-sm">Quotation Products</span>
+                        <Badge className="bg-purple-600 text-white text-[10px] px-1.5">
+                          {jobCard.quotation_products?.length || 0}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    {/* Products Table */}
+                    <div className="flex-1 overflow-y-auto max-h-40">
+                      {jobCard.quotation_products && jobCard.quotation_products.length > 0 ? (
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 sticky top-0">
+                            <tr className="text-left text-gray-500 text-[10px] uppercase">
+                              <th className="px-2 py-1.5 font-medium">Product</th>
+                              <th className="px-2 py-1.5 font-medium">Type</th>
+                              <th className="px-2 py-1.5 font-medium">Vehicle</th>
+                              <th className="px-2 py-1.5 font-medium">S/N</th>
+                              <th className="px-2 py-1.5 font-medium">IP</th>
+                              <th className="px-2 py-1.5 font-medium text-center">Qty</th>
+                              <th className="px-2 py-1.5 font-medium text-right">Price</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {jobCard.quotation_products.map((product, index) => {
+                              const snMatch = product.description?.match(/S\/N:\s*(\w+)/i);
+                              const ipMatch = product.description?.match(/IP:\s*([\d.]+)/i);
+                              const serialNumber = snMatch ? snMatch[1] : null;
+                              const ipAddr = ipMatch ? ipMatch[1] : null;
+                              
+                              return (
+                                <tr key={index} className="hover:bg-gray-50">
+                                  <td className="px-2 py-1.5">
+                                    <span className="font-medium text-gray-900">{product.name || product.product_name || 'N/A'}</span>
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1">
+                                      {product.type || 'N/A'}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {product.vehicle_plate && (
+                                      <span className="font-mono font-semibold text-green-700">{product.vehicle_plate}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {serialNumber && (
+                                      <span className="font-mono text-purple-700 bg-purple-50 px-1 rounded">{serialNumber}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">
+                                    {ipAddr && (
+                                      <span className="font-mono text-blue-700 bg-blue-50 px-1 rounded">{ipAddr}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center">
+                                    <span className="text-gray-600">{product.quantity || 1}</span>
+                                  </td>
+                                  <td className="px-2 py-1.5 text-right">
+                                    <span className="font-semibold text-green-700">
+                                      R {(product.cash_price || product.total_price || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-gray-50 border-t">
+                            <tr>
+                              <td colSpan="6" className="px-2 py-1.5 text-right font-semibold text-gray-700">Total:</td>
+                              <td className="px-2 py-1.5 text-right font-bold text-green-700">
+                                R {(jobCard.quotation_total_amount || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      ) : (
+                        <div className="p-4 text-center text-gray-400">
+                          <Package className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                          <p className="text-xs">No quotation products</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -374,12 +485,23 @@ export default function AssignPartsModal({
                     }).slice(0, 100).map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
-                        className="p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer transition-colors flex justify-between items-center"
+                        className="p-3 border-b last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors flex justify-between items-center"
                         onClick={() => addPart(item)}
                       >
                         <div>
                           <div className="font-medium text-sm text-gray-900">{item.category?.description || 'No description'}</div>
-                          <div className="text-xs text-gray-600">{item.serial_number || 'No serial'} • {item.category_code || 'N/A'}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {item.serial_number ? (
+                              <Badge className="bg-green-100 text-green-800 text-xs">
+                                S/N: {item.serial_number}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-blue-100 text-blue-800 text-xs">
+                                Auto-assign S/N
+                              </Badge>
+                            )}
+                            <span className="text-xs text-gray-500">{item.category_code || 'N/A'}</span>
+                          </div>
                         </div>
                         <Badge variant="secondary" className={`text-xs px-2 py-1 ${
                           item.status === 'ASSIGNED' || item.status === 'OUT OF STOCK' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
@@ -410,7 +532,20 @@ export default function AssignPartsModal({
                           <div key={`${part.stock_id}-${index}`} className="p-3 border-b last:border-b-0 flex justify-between items-center">
                             <div className="flex-1">
                               <div className="font-medium text-sm text-gray-900">{part.description}</div>
-                              <div className="text-xs text-gray-500">{part.serial_number}</div>
+                              <div className="flex items-center gap-2 mt-1">
+                                {part.serial_number ? (
+                                  <Badge className="bg-green-100 text-green-800 text-xs">
+                                    S/N: {part.serial_number}
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                                    No Serial
+                                  </Badge>
+                                )}
+                                {part.code && (
+                                  <span className="text-xs text-gray-500">{part.code}</span>
+                                )}
+                              </div>
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm">{part.quantity}</span>
