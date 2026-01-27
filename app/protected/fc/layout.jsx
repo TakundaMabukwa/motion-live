@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import AppLayout from '@/components/shared/AppLayout';
 import { ClientsProvider } from '@/contexts/ClientsContext';
+import UniversalLayout from '@/components/shared/UniversalLayout';
 import { 
   Building2, 
   FileText,
@@ -44,17 +45,19 @@ export default function Layout({ children }) {
   }
 
   return (
-    <AppLayout
-      title="Field Coordinator"
-      subtitle="CUSTOMER RELATIONSHIP MANAGEMENT"
-      sidebarItems={fcSidebarItems}
-      userRole="field_coordinator"
-      userName="FC User"
-      showSidebar={false}
-    >
-      <ClientsProvider>
-        {children}
-      </ClientsProvider>
-    </AppLayout>
+    <UniversalLayout currentRole="fc">
+      <AppLayout
+        title="Field Coordinator"
+        subtitle="CUSTOMER RELATIONSHIP MANAGEMENT"
+        sidebarItems={fcSidebarItems}
+        userRole="field_coordinator"
+        userName="FC User"
+        showSidebar={false}
+      >
+        <ClientsProvider>
+          {children}
+        </ClientsProvider>
+      </AppLayout>
+    </UniversalLayout>
   );
 }

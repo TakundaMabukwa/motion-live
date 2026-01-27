@@ -1,0 +1,16 @@
+{
+  "name": "excel-analyzer",
+  "version": "1.0.0",
+  "description": "Excel file analyzer for bulk invoice system",
+  "main": "excel-reader.js",
+  "scripts": {
+    "start": "node excel-reader.js",
+    "analyze": "node excel-reader.js"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "keywords": ["excel", "invoice", "bulk", "analysis"],
+  "author": "",
+  "license": "MIT"
+}

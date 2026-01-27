@@ -1,15 +1,19 @@
+import UniversalLayout from '@/components/shared/UniversalLayout';
+
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-background">
-      <div className="w-full">
+    <UniversalLayout currentRole="protected">
+      <main className="min-h-screen bg-background">
         <div className="w-full">
-          {children}
+          <div className="w-full">
+            {children}
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </UniversalLayout>
   );
 }

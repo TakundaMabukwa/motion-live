@@ -1,0 +1,3 @@
+CSV Companies vs Vehicles Table:
+
+✓ "Edge - JVZ Construction" -> EDGE-0043 | MATCHES (1 vehicles)

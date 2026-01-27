@@ -1244,17 +1244,210 @@ export default function AdminDashboard() {
       label: 'Overview',
       icon: BarChart3,
       content: (
-        <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-          {overviewMetrics.map((metric) => (
-            <StatsCard
-              key={metric.title}
-              title={metric.title}
-              value={metric.value}
-              subtitle={metric.subtitle}
-              icon={metric.icon}
-              color={metric.color}
-            />
-          ))}
+        <div className="space-y-6">
+          <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            {overviewMetrics.map((metric) => (
+              <StatsCard
+                key={metric.title}
+                title={metric.title}
+                value={metric.value}
+                subtitle={metric.subtitle}
+                icon={metric.icon}
+                color={metric.color}
+              />
+            ))}
+          </div>
+
+          {/* Technicians with Their Jobs */}
+          <div className="mt-8">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="font-semibold text-gray-900 text-xl">Technicians & Their Jobs</h2>
+                <p className="mt-1 text-gray-600 text-sm">View all technicians and their assigned jobs</p>
+              </div>
+              <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              {technicians.map((technician) => {
+                const techJobs = jobCards.filter(job => 
+                  job.technician_name && job.technician_name.includes(technician.name)
+                );
+                
+                return (
+                  <Card key={technician.id} className="overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-blue-500 p-3 rounded-full">
+                            <Users className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">{technician.name}</CardTitle>
+                            <p className="text-blue-700 text-sm">{technician.email}</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-blue-600 text-white">
+                          {techJobs.length} Job{techJobs.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {techJobs.length === 0 ? (
+                        <div className="p-6 text-center text-gray-500">
+                          No jobs assigned
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b">
+                              <tr>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Job #</th>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Customer</th>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Type</th>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Status</th>
+                                <th className="py-2 px-4 text-left font-medium text-gray-500">Date</th>
+                                <th className="py-2 px-4 text-right font-medium text-gray-500">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {techJobs.map((job) => (
+                                <tr key={job.id} className="border-b hover:bg-gray-50">
+                                  <td className="py-2 px-4">
+                                    <div className="font-medium">{job.job_number}</div>
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <div className="text-sm">{job.customer_name || 'N/A'}</div>
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                                    {job.vehicle_make && job.vehicle_model && (
+                                      <div className="text-xs text-gray-500">
+                                        {job.vehicle_make} {job.vehicle_model}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <div className="text-sm">{job.job_type?.toUpperCase() || 'N/A'}</div>
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <Badge className={getStatusColor(job.status)}>
+                                      {job.status.replace('_', ' ').toUpperCase()}
+                                    </Badge>
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <div className="text-sm">
+                                      {job.job_date ? new Date(job.job_date).toLocaleDateString() : 'Not scheduled'}
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-4">
+                                    <div className="flex justify-end">
+                                      <Button 
+                                        onClick={() => handleViewJob(job)} 
+                                        variant="outline" 
+                                        size="sm"
+                                      >
+                                        View
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {/* Unassigned Jobs */}
+              {jobCards.filter(job => !job.technician_name).length > 0 && (
+                <Card className="overflow-hidden border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100 border-b border-orange-200">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-orange-500 p-3 rounded-full">
+                          <Clock className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Unassigned Jobs</CardTitle>
+                          <p className="text-orange-700 text-sm">Jobs waiting for technician assignment</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-orange-600 text-white">
+                        {jobCards.filter(job => !job.technician_name).length} Job{jobCards.filter(job => !job.technician_name).length !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="py-2 px-4 text-left font-medium text-gray-500">Job #</th>
+                            <th className="py-2 px-4 text-left font-medium text-gray-500">Customer</th>
+                            <th className="py-2 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                            <th className="py-2 px-4 text-left font-medium text-gray-500">Type</th>
+                            <th className="py-2 px-4 text-left font-medium text-gray-500">Status</th>
+                            <th className="py-2 px-4 text-right font-medium text-gray-500">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {jobCards.filter(job => !job.technician_name).map((job) => (
+                            <tr key={job.id} className="border-b hover:bg-gray-50">
+                              <td className="py-2 px-4">
+                                <div className="font-medium">{job.job_number}</div>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="text-sm">{job.customer_name || 'N/A'}</div>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="text-sm">{job.job_type?.toUpperCase() || 'N/A'}</div>
+                              </td>
+                              <td className="py-2 px-4">
+                                <Badge className={getStatusColor(job.status)}>
+                                  {job.status.replace('_', ' ').toUpperCase()}
+                                </Badge>
+                              </td>
+                              <td className="py-2 px-4">
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    onClick={() => handleViewJob(job)} 
+                                    variant="outline" 
+                                    size="sm"
+                                  >
+                                    View
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleAssignTechnician(job)}
+                                    variant="default"
+                                    size="sm"
+                                    className="bg-black hover:bg-gray-800 text-white"
+                                    disabled={!hasPartsRequired(job)}
+                                  >
+                                    <UserPlus className="w-4 h-4 mr-1" />
+                                    Assign
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </div>
       )
     },

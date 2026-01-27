@@ -64,8 +64,9 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Case 2: Accessing wrong role path
+    // Case 2: Accessing wrong role path (skip for master users - they can view any role)
     if (
+      role !== 'master' &&
       currentPath &&
       allowedRoles.includes(currentPath) &&
       currentPath !== role

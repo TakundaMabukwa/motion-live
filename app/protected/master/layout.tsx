@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, FileText, Package, Activity } from 'lucide-react';
 import { LogoutButton } from '@/components/logout-button';
+import UniversalLayout from '@/components/shared/UniversalLayout';
 
 export default function MasterLayout({
   children,
@@ -21,43 +22,45 @@ export default function MasterLayout({
   ];
 
   return (
-    <div className="flex bg-gray-50 min-h-screen">
-      {/* Sidebar */}
-      <div className="bg-white shadow-lg w-64">
-        <div className="p-6 border-b">
-          <h1 className="font-bold text-gray-900 text-xl">Master Dashboard</h1>
-        </div>
-        <nav className="mt-6">
-          <div className="space-y-2 px-4">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center px-3 py-2 rounded-md transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="mr-3 w-5 h-5" />
-                  {item.name}
-                </Link>
-              );
-            })}
-            <div className="flex items-center hover:bg-gray-50 px-3 py-2 rounded-md text-gray-600 hover:text-gray-900">
-              <LogoutButton />
-            </div>
+    <UniversalLayout currentRole="master">
+      <div className="flex bg-gray-50 min-h-screen">
+        {/* Sidebar */}
+        <div className="bg-white shadow-lg w-64">
+          <div className="p-6 border-b">
+            <h1 className="font-bold text-gray-900 text-xl">Master Dashboard</h1>
           </div>
-        </nav>
-      </div>
+          <nav className="mt-6">
+            <div className="space-y-2 px-4">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center px-3 py-2 rounded-md transition-colors ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="mr-3 w-5 h-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+              <div className="flex items-center hover:bg-gray-50 px-3 py-2 rounded-md text-gray-600 hover:text-gray-900">
+                <LogoutButton />
+              </div>
+            </div>
+          </nav>
+        </div>
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {children}
+        {/* Main Content */}
+        <div className="flex-1">
+          {children}
+        </div>
       </div>
-    </div>
+    </UniversalLayout>
   );
 }

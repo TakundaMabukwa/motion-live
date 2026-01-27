@@ -229,6 +229,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
   const [formData, setFormData] = useState({
     jobType: "",
+    jobSubType: "",
     description: "",
     purchaseType: "purchase", // "purchase" or "rental"
     customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
@@ -558,7 +559,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return formData.jobType && formData.description && formData.purchaseType;
+        return formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
       case 1:
         return formData.customerName && formData.customerEmail && formData.customerPhone;
       case 2:
@@ -737,6 +738,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       const quotationData = {
         // Job details
         jobType: formData.jobType,
+        jobSubType: formData.jobSubType,
         jobDescription: formData.description,
         purchaseType: formData.purchaseType,
         quotationJobType: formData.jobType,
@@ -858,6 +860,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       // Reset form data
       setFormData({
         jobType: "",
+        jobSubType: "",
         description: "",
         purchaseType: "purchase",
         customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
@@ -949,7 +952,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                   <Select
                     value={formData.jobType}
                     onValueChange={(value) => {
-                      setFormData(prev => ({ ...prev, jobType: value }));
+                      setFormData(prev => ({ ...prev, jobType: value, jobSubType: "" }));
                       setHasUserSelectedJobType(true);
                     }}
                   >
@@ -962,6 +965,34 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                     </SelectContent>
                   </Select>
                 </div>
+
+                {formData.jobType && (
+                  <div className="space-y-2">
+                    <Label htmlFor="jobSubType">Sub Category *</Label>
+                    <Select
+                      value={formData.jobSubType}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, jobSubType: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select sub category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formData.jobType === 'install' ? (
+                          <>
+                            <SelectItem value="new_install">New Install</SelectItem>
+                            <SelectItem value="reinstall">Reinstall</SelectItem>
+                            <SelectItem value="additional_install">Additional Install</SelectItem>
+                          </>
+                        ) : (
+                          <SelectItem value="decommission">Decommission</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
 
                 {formData.jobType !== 'deinstall' && (
                   <div className="space-y-2">

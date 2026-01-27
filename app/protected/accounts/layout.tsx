@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AccountsTopBar from '@/components/accounts/AccountsTopBar';
 import AccountsContent from '@/components/accounts/AccountsContent';
 import { AccountsProvider } from '@/contexts/AccountsContext';
+import UniversalLayout from '@/components/shared/UniversalLayout';
 
 function AccountsLayoutContent() {
   const searchParams = useSearchParams();
@@ -37,10 +38,12 @@ function AccountsLayoutContent() {
 
 export default function AccountsLayout() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <AccountsProvider>
-        <AccountsLayoutContent />
-      </AccountsProvider>
-    </Suspense>
+    <UniversalLayout currentRole="accounts">
+      <Suspense fallback={<div>Loading...</div>}>
+        <AccountsProvider>
+          <AccountsLayoutContent />
+        </AccountsProvider>
+      </Suspense>
+    </UniversalLayout>
   );
 }

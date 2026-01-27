@@ -1,6 +1,7 @@
 'use client';
 
 import AppLayout from '@/components/shared/AppLayout';
+import UniversalLayout from '@/components/shared/UniversalLayout';
 import { 
   BarChart3, 
   Calendar,
@@ -19,14 +20,16 @@ const techSidebarItems = [
 
 export default function TechLayout({ children }) {
   return (
-    <AppLayout
-      title="Technician Portal"
-      subtitle="VEHICLE TRACKING SERVICES"
-      sidebarItems={techSidebarItems}
-      userRole="technician"
-      userName="Tech Skyflow"
-    >
-      {children}
-    </AppLayout>
+    <UniversalLayout currentRole="tech">
+      <AppLayout
+        title="Technician Portal"
+        subtitle="VEHICLE TRACKING SERVICES"
+        sidebarItems={techSidebarItems}
+        userRole="technician"
+        userName="Tech Skyflow"
+      >
+        {children}
+      </AppLayout>
+    </UniversalLayout>
   );
 }

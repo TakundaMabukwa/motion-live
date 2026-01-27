@@ -35,7 +35,8 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
     ip_address: '',
     comment: '',
     products: [],
-    active: true
+    active: true,
+    roaming: false
   });
 
   const [loading, setLoading] = useState(false);
@@ -105,7 +106,8 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
       ip_address: '',
       comment: '',
       products: [],
-      active: true
+      active: true,
+      roaming: false
     });
     setError('');
     onClose();
@@ -266,6 +268,17 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
                   className="border-gray-300 rounded"
                 />
                 <Label htmlFor="active">Vehicle is active</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="roaming"
+                  checked={vehicleData.roaming || false}
+                  onChange={(e) => setVehicleData(prev => ({ ...prev, roaming: e.target.checked }))}
+                  className="border-gray-300 rounded"
+                />
+                <Label htmlFor="roaming">Activate Roaming</Label>
               </div>
             </CardContent>
           </Card>
