@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { redirectToRoleDashboard } from "@/lib/auth-utils";
+import { startSession } from "@/lib/activity-tracking";
 
 export function LoginForm({
   className,
@@ -59,6 +60,11 @@ export function LoginForm({
         router.push('/auth/first-time-login');
         return;
       }
+
+      // Start session tracking
+      console.log('Starting session tracking...');
+      await startSession();
+      console.log('Session started successfully');
 
       // Redirect to role-specific dashboard using utility function
       await redirectToRoleDashboard(router, user.id);

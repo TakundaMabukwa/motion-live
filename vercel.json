@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-overdue",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/close-inactive-sessions",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}
