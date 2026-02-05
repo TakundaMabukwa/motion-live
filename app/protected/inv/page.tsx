@@ -108,7 +108,8 @@ import {
   Filter,
   Save,
   Network,
-  Eye
+  Eye,
+  Bell
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
@@ -179,6 +180,13 @@ export default function InventoryPage() {
     // Also fetch categories on mount
     fetchCategories();
   }, []);
+
+  // Get urgent decommission jobs
+  const urgentDecommissionJobs = jobCards.filter(job => 
+    job.job_type === 'deinstall' && 
+    job.decommission_date && 
+    !job.technician_name
+  );
 
   useEffect(() => {
     console.log('activeTab changed to:', activeTab);
@@ -1282,6 +1290,7 @@ export default function InventoryPage() {
   // Boot stock state
   const [bootStock, setBootStock] = useState([]);
   const [bootStockLoading, setBootStockLoading] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Fetch boot stock from tech_stock
   const fetchBootStock = async () => {
@@ -2379,11 +2388,73 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <DashboardHeader
-        title="Inventory Management"
-        subtitle="Manage job cards, assign parts, and track inventory"
-        icon={Package}
-      />
+      <div className="flex items-center justify-between">
+        <DashboardHeader
+          title="Inventory Management"
+          subtitle="Manage job cards, assign parts, and track inventory"
+          icon={Package}
+        />
+        
+        {/* Notification Bell */}
+        <div className="relative">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="relative"
+          >
+            <Bell className="w-5 h-5" />
+            {urgentDecommissionJobs.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {urgentDecommissionJobs.length}
+              </span>
+            )}
+          </Button>
+          
+          {/* Notifications Dropdown */}
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border z-50">
+              <div className="p-4 border-b">
+                <h3 className="font-semibold text-gray-900">Urgent Decommission Jobs</h3>
+                <p className="text-xs text-gray-500 mt-1">Jobs with decommission dates requiring parts assignment</p>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {urgentDecommissionJobs.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No urgent decommission jobs</p>
+                  </div>
+                ) : (
+                  urgentDecommissionJobs.map((job) => (
+                    <div 
+                      key={job.id} 
+                      className="p-4 border-b hover:bg-amber-50 cursor-pointer"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        handleAssignParts(job);
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{job.job_number}</p>
+                          <p className="text-sm text-gray-600 mt-1">{job.customer_name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{job.vehicle_registration}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-amber-700 font-semibold">Decom Date</p>
+                          <p className="text-sm text-amber-900 font-medium">
+                            {new Date(job.decommission_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
       
       {/* Create Order and Repair Job Buttons */}
       <div className="flex justify-end gap-3">

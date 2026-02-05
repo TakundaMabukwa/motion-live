@@ -27,7 +27,8 @@ import {
   Package,
   Car,
   FileText,
-  Plus
+  Plus,
+  Bell
 } from 'lucide-react';
 import StatsCard from '@/components/shared/StatsCard';
 import { toast } from 'sonner';
@@ -118,6 +119,7 @@ export default function AdminDashboard() {
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictData, setConflictData] = useState<any>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
 
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
@@ -508,6 +510,13 @@ export default function AdminDashboard() {
     fetchTechnicians();
     fetchJobsWithParts();
   }, [fetchJobCards, fetchTechnicians, fetchJobsWithParts]);
+
+  // Get urgent decommission jobs (with decommission date and no technician)
+  const urgentDecommissionJobs = jobCards.filter(job => 
+    job.job_type === 'deinstall' && 
+    job.decommission_date && 
+    !job.technician_name
+  );
 
   const handleAssignTechnician = (job: JobCard) => {
     setSelectedJob(job);
@@ -1182,57 +1191,65 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    filteredJobCards.map((job) => (
-                      <tr key={job.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4 align-middle">
-                          <div className="flex items-center gap-3">
-                            <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
-                            <div className="font-medium">{job.job_number}</div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="truncate max-w-[250px]">
-                            {job.job_description || 'No description'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
-                            {job.priority.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <Badge className={getStatusColor(job.status)}>
-                            {job.status.replace('_', ' ').toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 align-middle text-gray-600">
-                          {new Date(job.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              onClick={() => handleViewJob(job)} 
-                              variant="outline" 
-                              size="sm"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                            >
-                              View
-                            </Button>
-                            <Button
-                              onClick={() => handleAssignTechnician(job)}
-                              variant="default"
-                              size="sm"
-                              className="bg-black hover:bg-gray-800 text-white"
-                              disabled={!hasPartsRequired(job)}
-                              title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
-                            >
-                              <UserPlus className="w-4 h-4 mr-2" />
-                              Assign
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                    filteredJobCards.map((job) => {
+                      const shouldBlink = job.job_type === 'deinstall' && job.decommission_date && !job.technician_name;
+                      return (
+                        <tr key={job.id} className={`border-b hover:bg-gray-50 ${shouldBlink ? 'bg-amber-50' : ''}`}>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex items-center gap-3">
+                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                              <div className="font-medium">{job.job_number}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="truncate max-w-[250px]">
+                              {job.job_description || 'No description'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
+                              {job.priority.toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <Badge className={getStatusColor(job.status)}>
+                              {job.status.replace('_', ' ').toUpperCase()}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 align-middle text-gray-600">
+                            {new Date(job.created_at).toLocaleDateString()}
+                            {shouldBlink && job.decommission_date && (
+                              <div className="text-xs text-amber-700 font-medium mt-1">
+                                Decom: {new Date(job.decommission_date).toLocaleDateString()}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                onClick={() => handleViewJob(job)} 
+                                variant="outline" 
+                                size="sm"
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                              >
+                                View
+                              </Button>
+                              <Button
+                                onClick={() => handleAssignTechnician(job)}
+                                variant="default"
+                                size="sm"
+                                className="bg-black hover:bg-gray-800 text-white"
+                                disabled={!hasPartsRequired(job)}
+                                title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
+                              >
+                                <UserPlus className="w-4 h-4 mr-2" />
+                                Assign
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1833,9 +1850,71 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center space-x-2">
-        <BarChart3 className="w-6 h-6 text-blue-600" />
-        <h1 className="font-bold text-gray-900 text-2xl">Admin Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <BarChart3 className="w-6 h-6 text-blue-600" />
+          <h1 className="font-bold text-gray-900 text-2xl">Admin Dashboard</h1>
+        </div>
+        
+        {/* Notification Bell */}
+        <div className="relative">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="relative"
+          >
+            <Bell className="w-5 h-5" />
+            {urgentDecommissionJobs.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {urgentDecommissionJobs.length}
+              </span>
+            )}
+          </Button>
+          
+          {/* Notifications Dropdown */}
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border z-50">
+              <div className="p-4 border-b">
+                <h3 className="font-semibold text-gray-900">Urgent Decommission Jobs</h3>
+                <p className="text-xs text-gray-500 mt-1">Jobs with decommission dates requiring technician assignment</p>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {urgentDecommissionJobs.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No urgent decommission jobs</p>
+                  </div>
+                ) : (
+                  urgentDecommissionJobs.map((job) => (
+                    <div 
+                      key={job.id} 
+                      className="p-4 border-b hover:bg-amber-50 cursor-pointer"
+                      onClick={() => {
+                        setNotificationsOpen(false);
+                        handleAssignTechnician(job);
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900">{job.job_number}</p>
+                          <p className="text-sm text-gray-600 mt-1">{job.customer_name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{job.vehicle_registration}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-amber-700 font-semibold">Decom Date</p>
+                          <p className="text-sm text-amber-900 font-medium">
+                            {new Date(job.decommission_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Overview Cards Section */}
@@ -2005,122 +2084,171 @@ export default function AdminDashboard() {
       <Dialog 
         open={assignTechnicianOpen} 
         onOpenChange={setAssignTechnicianOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader className="pb-1">
-            <DialogTitle className="text-lg font-bold flex items-center">
-              <UserPlus className="mr-2 h-5 w-5" />
-              Assign Technician
+        <DialogContent className="w-[90vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Assign Technician to Job #{selectedJob?.job_number}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-5">
+          <div className="space-y-4">
             {selectedJob && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                {/* Job Header with Number and Priority */}
-                <div className="bg-gray-50 border-b border-gray-200 p-3 flex justify-between items-center">
-                  <div className="flex items-center">
-                    <FileText className="h-4 w-4 text-gray-500 mr-2" />
-                    <h3 className="text-sm font-semibold text-gray-800">Job {selectedJob.job_number}</h3>
-                  </div>
-                  <Badge className={`${getPriorityColor(selectedJob.priority)} text-xs px-2 py-0.5`}>
-                    {selectedJob.priority.toUpperCase()} PRIORITY
-                  </Badge>
-                </div>
-                
-                {/* Job Description */}
-                <div className="p-3 border-b border-gray-200 bg-white">
-                  <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Description</h4>
-                  <p className="text-sm text-gray-700">{selectedJob.job_description || 'No description provided'}</p>
-                </div>
-                
-                {/* Job Details */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-3 bg-white">
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Customer</h4>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.customer_name}</span>
+              <>
+                {/* Job Overview Card */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 border-b p-3 flex justify-between items-center">
+                    <h3 className="font-semibold text-gray-900">Job Information</h3>
+                    <div className="flex gap-2">
+                      <Badge className={getPriorityColor(selectedJob.priority)}>
+                        {selectedJob.priority.toUpperCase()}
+                      </Badge>
+                      <Badge className={getStatusColor(selectedJob.status)}>
+                        {selectedJob.status.toUpperCase()}
+                      </Badge>
                     </div>
                   </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Contact Person</h4>
-                    <div className="flex items-center">
-                      <User className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.contact_person || 'Not specified'}</span>
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
+                      <p className="text-sm text-gray-900">{selectedJob.job_description || 'No description'}</p>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Job Type</h4>
-                    <div className="flex items-center">
-                      <Package className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.job_type?.toUpperCase()}</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Vehicle</h4>
-                    <div className="flex items-center">
-                      <Car className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.vehicle_registration || 'N/A'}</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Due Date</h4>
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.due_date ? new Date(selectedJob.due_date).toLocaleDateString() : 'Not specified'}</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Location</h4>
-                    <div className="flex items-center">
-                      <MapPin className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.job_location || 'Not specified'}</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Estimated Duration</h4>
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 text-gray-400 mr-1" />
-                      <span className="text-sm text-gray-800">{selectedJob.estimated_duration_hours ? `${selectedJob.estimated_duration_hours} hours` : 'Not specified'}</span>
-                    </div>
-                  </div>
-                  
-                  {selectedJob.decommission_date && (
-                    <div className="col-span-2">
-                      <h4 className="text-xs font-semibold text-amber-600 mb-1 uppercase">⚠️ Decommission Date</h4>
-                      <div className="flex items-center p-2 bg-amber-50 rounded-md border border-amber-200">
-                        <Calendar className="h-4 w-4 text-amber-500 mr-2" />
-                        <span className="text-sm text-amber-800 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
-                        <Badge className="ml-auto bg-amber-100 text-amber-800 text-xs">Urgent Assignment Required</Badge>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Job Type</p>
+                        <p className="text-sm text-gray-900">{selectedJob.job_type?.toUpperCase()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Due Date</p>
+                        <p className="text-sm text-gray-900">{selectedJob.due_date ? new Date(selectedJob.due_date).toLocaleDateString() : 'Not set'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Est. Duration</p>
+                        <p className="text-sm text-gray-900">{selectedJob.estimated_duration_hours ? `${selectedJob.estimated_duration_hours}h` : 'Not set'}</p>
                       </div>
                     </div>
-                  )}
+                    {selectedJob.decommission_date && (
+                      <div className="bg-amber-50 border border-amber-200 rounded p-3">
+                        <p className="text-xs text-amber-700 font-semibold mb-1">⚠️ DECOMMISSION DATE</p>
+                        <p className="text-sm text-amber-900 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+
+                {/* Customer & Contact Card */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 border-b p-3">
+                    <h3 className="font-semibold text-gray-900">Customer Information</h3>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Customer Name</p>
+                      <p className="text-sm text-gray-900 font-medium">{selectedJob.customer_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Contact Person</p>
+                      <p className="text-sm text-gray-900">{selectedJob.contact_person || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Email</p>
+                      <p className="text-sm text-gray-900">{selectedJob.customer_email || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Phone</p>
+                      <p className="text-sm text-gray-900">{selectedJob.customer_phone || 'Not provided'}</p>
+                    </div>
+                    {selectedJob.customer_address && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500 font-medium mb-1">Address</p>
+                        <p className="text-sm text-gray-900">{selectedJob.customer_address}</p>
+                      </div>
+                    )}
+                    {selectedJob.job_location && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500 font-medium mb-1">Job Location</p>
+                        <p className="text-sm text-gray-900">{selectedJob.job_location}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vehicle Card */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 border-b p-3">
+                    <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
+                  </div>
+                  <div className="p-4 grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Registration</p>
+                      <p className="text-sm text-gray-900 font-medium">{selectedJob.vehicle_registration || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Make</p>
+                      <p className="text-sm text-gray-900">{selectedJob.vehicle_make || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Model</p>
+                      <p className="text-sm text-gray-900">{selectedJob.vehicle_model || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Parts Assigned Card */}
+                {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 border-b p-3">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Parts to {selectedJob.job_type === 'install' ? 'Install' : 'Deinstall'} ({selectedJob.parts_required.length})
+                      </h3>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {selectedJob.parts_required.map((part, index) => (
+                        <div key={index} className="p-3 border-b last:border-b-0 hover:bg-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{part.description}</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Code: {part.code} • Qty: {part.quantity} • Supplier: {part.supplier}
+                              </p>
+                              {part.serial_number && (
+                                <p className="text-xs text-blue-600 mt-1">Serial: {part.serial_number}</p>
+                              )}
+                              {part.ip_address && (
+                                <p className="text-xs text-blue-600 mt-1">IP: {part.ip_address}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-gray-900">R{part.total_cost}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-gray-50 border-t p-3 flex justify-between items-center">
+                      <span className="text-sm font-semibold text-gray-900">Total Cost</span>
+                      <span className="text-sm font-bold text-gray-900">
+                        R{selectedJob.parts_required.reduce((sum, part) => sum + (parseFloat(part.total_cost) || 0), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
-            
-            <div className="border border-gray-200 rounded-lg overflow-hidden mt-3">
-              <div className="bg-gray-50 border-b border-gray-200 p-3">
-                <h3 className="text-sm font-semibold text-gray-800 flex items-center">
-                  <UserPlus className="h-4 w-4 text-gray-500 mr-2" />
-                  Technician Assignment
-                </h3>
+            {/* Technician Assignment Card */}
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-gray-50 border-b p-3">
+                <h3 className="font-semibold text-gray-900">Technician Assignment</h3>
               </div>
-              
-              <div className="p-3 space-y-3 bg-white">
+              <div className="p-4 space-y-4">
                 {selectedJob?.technician_name && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-                    <h4 className="text-xs font-semibold text-yellow-800 mb-1 uppercase">Current Assignment</h4>
-                    <p className="text-sm text-yellow-700">Currently assigned to: <strong>{selectedJob.technician_name}</strong></p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                    <p className="text-xs text-yellow-700 font-semibold mb-1">CURRENT ASSIGNMENT</p>
+                    <p className="text-sm text-yellow-900">Currently assigned to: <strong>{selectedJob.technician_name}</strong></p>
                   </div>
                 )}
                 <div>
-                  <Label htmlFor="technician" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">
+                  <Label className="text-sm font-medium mb-2 block">
                     {selectedJob?.technician_name ? 'Select New Technician *' : 'Select Technician *'}
                   </Label>
                   <Select value={selectedTechnician} onValueChange={(value) => {
@@ -2143,14 +2271,14 @@ export default function AdminDashboard() {
                 </div>
                 {selectedTechnicians.length > 0 && (
                   <div>
-                    <Label className="block text-xs font-semibold text-gray-600 mb-2 uppercase">Selected Technicians</Label>
+                    <Label className="text-sm font-medium mb-2 block">Selected Technicians</Label>
                     <div className="flex flex-wrap gap-2">
                       {selectedTechnicians.map((techName, index) => (
-                        <div key={index} className="flex items-center bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                        <div key={index} className="flex items-center bg-blue-100 text-blue-800 px-3 py-1.5 rounded text-sm">
                           <span>{techName}</span>
                           <button
                             onClick={() => setSelectedTechnicians(prev => prev.filter((_, i) => i !== index))}
-                            className="ml-2 text-blue-600 hover:text-blue-800"
+                            className="ml-2 text-blue-600 hover:text-blue-800 font-bold"
                           >
                             ×
                           </button>
@@ -2160,68 +2288,54 @@ export default function AdminDashboard() {
                   </div>
                 )}
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="assignment-date" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Assignment Date *</Label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <Input
-                        id="assignment-date"
-                        type="date"
-                        value={assignmentDate}
-                        onChange={(e) => setAssignmentDate(e.target.value)}
-                        className="pl-8 border-gray-300 h-9 text-sm"
-                      />
-                    </div>
+                    <Label className="text-sm font-medium mb-2 block">Assignment Date *</Label>
+                    <Input
+                      id="assignment-date"
+                      type="date"
+                      value={assignmentDate}
+                      onChange={(e) => setAssignmentDate(e.target.value)}
+                    />
                   </div>
                   
                   <div>
-                    <Label htmlFor="assignment-time" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Assignment Time</Label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <Input
-                        id="assignment-time"
-                        type="time"
-                        value={assignmentTime}
-                        onChange={(e) => setAssignmentTime(e.target.value)}
-                        className="pl-8 border-gray-300 h-9 text-sm"
-                      />
-                    </div>
+                    <Label className="text-sm font-medium mb-2 block">Assignment Time</Label>
+                    <Input
+                      id="assignment-time"
+                      type="time"
+                      value={assignmentTime}
+                      onChange={(e) => setAssignmentTime(e.target.value)}
+                    />
                   </div>
                 </div>
                 
                 <div>
-                  <Label htmlFor="assignment-notes" className="block text-xs font-semibold text-gray-600 mb-1 uppercase">Notes (Optional)</Label>
+                  <Label className="text-sm font-medium mb-2 block">Notes (Optional)</Label>
                   <Textarea
                     id="assignment-notes"
                     placeholder="Add any notes about this assignment..."
                     value={assignmentNotes}
                     onChange={(e) => setAssignmentNotes(e.target.value)}
-                    className="resize-none border-gray-300 h-20 text-sm"
+                    rows={3}
                   />
                 </div>
-
               </div>
             </div>
             
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2">
               <Button 
                 variant="outline" 
                 onClick={() => setAssignTechnicianOpen(false)}
-                className="px-4 py-2 font-medium border-gray-300 text-gray-700 text-sm"
               >
                 Cancel
               </Button>
               <Button 
                 onClick={confirmAssignTechnician} 
                 disabled={selectedTechnicians.length === 0}
-                className="font-medium px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700"
               >
-                <UserPlus className="mr-1.5 h-4 w-4" />
+                <UserPlus className="mr-2 w-4 h-4" />
                 Assign Technician{selectedTechnicians.length > 1 ? 's' : ''}
               </Button>
             </div>
