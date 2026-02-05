@@ -55,6 +55,8 @@ export async function POST(request: NextRequest) {
        customer_email: body.customerEmail || '',
        customer_phone: body.customerPhone || '',
        customer_address: body.customerAddress || '',
+       contact_person: body.contactPerson || '',
+       decommission_date: body.decommissionDate || null,
        
        // Vehicle information
        vehicle_registration: body.vehicle_registration || null,

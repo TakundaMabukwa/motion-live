@@ -19,6 +19,7 @@ import {
   Filter,
   RefreshCw,
   UserPlus,
+  User,
   Calendar,
   MapPin,
   Phone,
@@ -56,6 +57,8 @@ interface JobCard {
   customer_email: string;
   customer_phone: string;
   customer_address: string;
+  contact_person: string;
+  decommission_date: string;
   vehicle_registration: string;
   vehicle_make: string;
   vehicle_model: string;
@@ -1514,9 +1517,16 @@ export default function AdminDashboard() {
                 <thead>
                   <tr className="bg-gray-50 border-b">
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Priority</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Contact Person</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Due Date</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Location</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Est. Duration</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Decommission Date</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Technician</th>
                     <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
                   </tr>
@@ -1524,7 +1534,7 @@ export default function AdminDashboard() {
                 <tbody>
                   {loadingJobsWithParts ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
+                      <td colSpan={13} className="p-4 text-center">
                         <div className="flex justify-center items-center py-8">
                           <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
                           <span className="ml-2">Loading jobs with parts...</span>
@@ -1533,7 +1543,7 @@ export default function AdminDashboard() {
                     </tr>
                   ) : jobsWithParts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
+                      <td colSpan={13} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
                           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                           <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Parts</h3>
@@ -1542,77 +1552,139 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    jobsWithParts.map((job) => (
-                      <tr key={job.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4 align-middle">
-                          <div className="font-medium">{job.job_number}</div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(job.created_at).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="truncate max-w-[200px]">
-                            {job.job_description || 'No description'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="text-sm">{job.customer_name || 'N/A'}</div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
-                          {job.vehicle_make && job.vehicle_model && (
-                            <div className="text-xs text-gray-500">
-                              {job.vehicle_make} {job.vehicle_model}
+                    jobsWithParts.map((job) => {
+                      // Check if job should blink (decommission jobs with decommission date but no technician)
+                      const shouldBlink = job.job_type === 'deinstall' && job.decommission_date && !job.technician_name;
+                      
+                      return (
+                        <tr 
+                          key={job.id} 
+                          className={`border-b hover:bg-gray-50 ${shouldBlink ? 'animate-pulse bg-amber-50 border-amber-200' : ''}`}
+                        >
+                          <td className="py-3 px-4 align-middle">
+                            <div className="font-medium flex items-center gap-2">
+                              {job.job_number}
+                              {shouldBlink && (
+                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>
+                              )}
                             </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          {job.technician_name ? (
-                            <Badge className="bg-green-100 text-green-800">
-                              {job.technician_name}
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-gray-100 text-gray-800">
-                              Unassigned
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              onClick={() => handleViewJob(job)} 
-                              variant="outline" 
-                              size="sm"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                            <div className="text-xs text-gray-500">
+                              {new Date(job.created_at).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <Badge 
+                              className={
+                                job.priority === 'high' 
+                                  ? 'bg-red-100 text-red-800' 
+                                  : job.priority === 'medium'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-green-100 text-green-800'
+                              }
                             >
-                              View
-                            </Button>
-                            {job.technician_name ? (
-                              <Button
-                                onClick={() => handleAssignTechnician(job)}
-                                variant="outline"
-                                size="sm"
-                                className="flex items-center gap-1"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                                Re-assign
-                              </Button>
-                            ) : (
-                              <Button
-                                onClick={() => handleAssignTechnician(job)}
-                                variant="default"
-                                size="sm"
-                                className="bg-black hover:bg-gray-800 text-white"
-                                disabled={!hasPartsRequired(job)}
-                              >
-                                <UserPlus className="w-4 h-4 mr-2" />
-                                Assign
-                              </Button>
+                              {job.priority?.toUpperCase() || 'MEDIUM'}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="truncate max-w-[200px] text-sm">
+                              {job.job_description || 'No description'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm font-medium">{job.customer_name || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">{job.customer_email || ''}</div>
+                            <div className="text-xs text-gray-500">{job.customer_phone || ''}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.contact_person || 'Not specified'}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                job.job_type === 'deinstall' 
+                                  ? 'border-red-300 text-red-700' 
+                                  : 'border-blue-300 text-blue-700'
+                              }
+                            >
+                              {job.job_type?.toUpperCase() || 'N/A'}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                            {job.vehicle_make && job.vehicle_model && (
+                              <div className="text-xs text-gray-500">
+                                {job.vehicle_make} {job.vehicle_model}
+                              </div>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.due_date ? new Date(job.due_date).toLocaleDateString() : 'Not specified'}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.job_location || 'Not specified'}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.estimated_duration_hours ? `${job.estimated_duration_hours}h` : 'Not specified'}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            {job.decommission_date ? (
+                              <div className={`text-sm font-medium ${shouldBlink ? 'text-amber-700' : 'text-red-600'}`}>
+                                {new Date(job.decommission_date).toLocaleDateString()}
+                                {shouldBlink && <div className="text-xs text-amber-600">⚠️ Needs Assignment</div>}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-400">N/A</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            {job.technician_name ? (
+                              <Badge className="bg-green-100 text-green-800">
+                                {job.technician_name}
+                              </Badge>
+                            ) : (
+                              <Badge className={shouldBlink ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-800"}>
+                                Unassigned
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                onClick={() => handleViewJob(job)} 
+                                variant="outline" 
+                                size="sm"
+                                className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                              >
+                                View
+                              </Button>
+                              {job.technician_name ? (
+                                <Button
+                                  onClick={() => handleAssignTechnician(job)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-1"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  Re-assign
+                                </Button>
+                              ) : (
+                                <Button
+                                  onClick={() => handleAssignTechnician(job)}
+                                  variant="default"
+                                  size="sm"
+                                  className={shouldBlink ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse" : "bg-black hover:bg-gray-800 text-white"}
+                                  disabled={!hasPartsRequired(job)}
+                                >
+                                  <UserPlus className="w-4 h-4 mr-2" />
+                                  {shouldBlink ? 'Assign Now!' : 'Assign'}
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1971,6 +2043,14 @@ export default function AdminDashboard() {
                   </div>
                   
                   <div>
+                    <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Contact Person</h4>
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 text-gray-400 mr-1" />
+                      <span className="text-sm text-gray-800">{selectedJob.contact_person || 'Not specified'}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
                     <h4 className="text-xs font-semibold text-gray-600 mb-1 uppercase">Job Type</h4>
                     <div className="flex items-center">
                       <Package className="h-4 w-4 text-gray-400 mr-1" />
@@ -2009,6 +2089,17 @@ export default function AdminDashboard() {
                       <span className="text-sm text-gray-800">{selectedJob.estimated_duration_hours ? `${selectedJob.estimated_duration_hours} hours` : 'Not specified'}</span>
                     </div>
                   </div>
+                  
+                  {selectedJob.decommission_date && (
+                    <div className="col-span-2">
+                      <h4 className="text-xs font-semibold text-amber-600 mb-1 uppercase">⚠️ Decommission Date</h4>
+                      <div className="flex items-center p-2 bg-amber-50 rounded-md border border-amber-200">
+                        <Calendar className="h-4 w-4 text-amber-500 mr-2" />
+                        <span className="text-sm text-amber-800 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
+                        <Badge className="ml-auto bg-amber-100 text-amber-800 text-xs">Urgent Assignment Required</Badge>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2190,6 +2281,12 @@ export default function AdminDashboard() {
                         <div>
                           <h4 className="font-semibold text-gray-900">{selectedJob.customer_name || 'N/A'}</h4>
                         </div>
+                        {selectedJob.contact_person && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium">Contact:</span> {selectedJob.contact_person}
+                          </div>
+                        )}
                         {selectedJob.customer_email && (
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Mail className="w-4 h-4 text-gray-400" />
@@ -2206,6 +2303,16 @@ export default function AdminDashboard() {
                           <div className="flex items-start gap-2 text-sm text-gray-600">
                             <MapPin className="w-4 h-4 text-gray-400 mt-1" />
                             <span className="whitespace-pre-wrap">{selectedJob.customer_address}</span>
+                          </div>
+                        )}
+                        {selectedJob.decommission_date && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Calendar className="w-4 h-4 text-amber-400" />
+                            <span className="font-medium text-amber-700">Decommission Date:</span> 
+                            <span className="text-amber-800 font-semibold">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
+                            <div className="bg-amber-100 text-amber-800 px-2 py-1 rounded-full text-xs font-medium">
+                              ⚠️ Requires Attention
+                            </div>
                           </div>
                         )}
                       </div>

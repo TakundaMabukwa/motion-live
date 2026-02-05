@@ -32,6 +32,8 @@ interface JobCard {
   customer_address?: string;
   customer_email?: string;
   customer_phone?: string;
+  contact_person?: string;
+  decommission_date?: string;
   vehicle_registration?: string;
   vehicle_make?: string;
   vehicle_model?: string;
@@ -41,6 +43,7 @@ interface JobCard {
   technician_phone?: string;
   parts_required?: Part[];
   products_required?: Record<string, unknown>[];
+  quotation_products?: Record<string, unknown>[];
   equipment_used?: Record<string, unknown>[];
   estimated_duration_hours?: number;
   estimated_cost?: number;
@@ -104,7 +107,8 @@ import {
   ClipboardList,
   Filter,
   Save,
-  Network
+  Network,
+  Eye
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
@@ -140,6 +144,7 @@ export default function InventoryPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadOrder, setUploadOrder] = useState(null);
   const [uploadItems, setUploadItems] = useState([]);
+  const [selectedDeinstallJob, setSelectedDeinstallJob] = useState<JobCard | null>(null);
   
   // Stock Take state
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -1391,26 +1396,74 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredJobCards.map((job) => (
-                  <tr key={job.id} className="border-b hover:bg-gray-50">
+                {filteredJobCards.map((job) => {
+                  const hasDecommissionDate = job.decommission_date && job.decommission_date.trim() !== '';
+                  const shouldBlink = hasDecommissionDate && !job.technician_name;
+                  
+                  return (
+                    <tr 
+                      key={job.id} 
+                      className={`border-b hover:bg-gray-50 ${
+                        shouldBlink 
+                          ? 'animate-pulse bg-amber-50 border-amber-200 shadow-md' 
+                          : hasDecommissionDate 
+                          ? 'bg-yellow-50 border-yellow-200' 
+                          : ''
+                      }`}
+                    >
                     <td className="py-3 px-4 align-middle">
                       <div className="flex flex-col">
-                        <span className="font-medium">{job.job_number}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{job.job_number}</span>
+                          {shouldBlink && (
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>
+                              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
+                                URGENT
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         {job.quotation_number && (
                           <span className="text-xs text-gray-500">Quote: {job.quotation_number}</span>
                         )}
                         {job.ip_address && (
                           <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
                         )}
+                        {job.contact_person && (
+                          <span className="text-xs text-blue-600">Contact: {job.contact_person}</span>
+                        )}
+                        {job.decommission_date && (
+                          <span className={`text-xs font-medium ${
+                            shouldBlink 
+                              ? 'text-amber-700 animate-pulse' 
+                              : 'text-amber-600'
+                          }`}>
+                            ⚠️ Decommission: {new Date(job.decommission_date).toLocaleDateString()}
+                            {shouldBlink && <span className="ml-1 text-red-600">- NEEDS ASSIGNMENT!</span>}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4 align-middle">
-                      <span>{job.customer_name}</span>
+                      <div className="flex flex-col">
+                        <span>{job.customer_name}</span>
+                        {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
+                          <span className="text-xs text-red-600 font-medium">
+                            De-installing {job.quotation_products.length} item(s)
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 align-middle">
                       <div className="flex items-center gap-1">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <span>{job.vehicle_registration || 'No vehicle'}</span>
+                        <div className="flex flex-col">
+                          <span>{job.vehicle_registration || 'No vehicle'}</span>
+                          {job.vehicle_make && job.vehicle_model && (
+                            <span className="text-xs text-gray-500">{job.vehicle_make} {job.vehicle_model}</span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="py-3 px-4 align-middle">
@@ -1427,27 +1480,45 @@ export default function InventoryPage() {
                     </td>
                     <td className="py-3 px-4 align-middle">
                       <div className="flex justify-end gap-2">
+                        {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedDeinstallJob(job)}
+                            className={`text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 ${
+                              shouldBlink ? 'animate-pulse shadow-lg' : ''
+                            }`}
+                          >
+                            <Eye className="mr-1 w-3 h-3" />
+                            View De-installation
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           onClick={() => handleAssignParts(job)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                          className={`bg-blue-600 hover:bg-blue-700 text-white ${
+                            shouldBlink ? 'animate-pulse shadow-lg ring-2 ring-amber-300' : ''
+                          }`}
                         >
                           <Plus className="mr-1 w-3 h-3" />
-                          Assign Parts
+                          {shouldBlink ? 'Assign Parts URGENT' : 'Assign Parts'}
                         </Button>
                         <Button
                           size="sm"
                           onClick={() => handleBookStock(job)}
-                          className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
+                          className={`${hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"} ${
+                            shouldBlink ? 'animate-pulse shadow-lg ring-2 ring-amber-300' : ''
+                          }`}
                           title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
                         >
                           <Package className="mr-1 w-3 h-3" />
-                          Book Stock
+                          {shouldBlink ? 'Book Stock URGENT' : 'Book Stock'}
                         </Button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -2842,6 +2913,119 @@ export default function InventoryPage() {
                Add Item
              </Button>
            </div>
+         </DialogContent>
+       </Dialog>
+
+       {/* De-installation Details Modal */}
+       <Dialog open={!!selectedDeinstallJob} onOpenChange={(open) => !open && setSelectedDeinstallJob(null)}>
+         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+           <DialogHeader>
+             <DialogTitle className="text-red-600">
+               De-installation Details - {selectedDeinstallJob?.quote_id}
+             </DialogTitle>
+           </DialogHeader>
+           {selectedDeinstallJob && (
+             <div className="space-y-6">
+               {/* Job Information */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <h3 className="text-lg font-semibold">Job Information</h3>
+                   <p><strong>Customer:</strong> {selectedDeinstallJob.cost_center}</p>
+                   <p><strong>Contact Person:</strong> {selectedDeinstallJob.contact_person || 'Not specified'}</p>
+                   <p><strong>Quote ID:</strong> {selectedDeinstallJob.quote_id}</p>
+                   <p><strong>Status:</strong> <Badge variant={selectedDeinstallJob.status === 'active' ? 'default' : 'secondary'}>{selectedDeinstallJob.status}</Badge></p>
+                 </div>
+                 <div className="space-y-2">
+                   <h3 className="text-lg font-semibold">De-installation Schedule</h3>
+                   {selectedDeinstallJob.decommission_date ? (
+                     <>
+                       <p><strong>Decommission Date:</strong> {new Date(selectedDeinstallJob.decommission_date).toLocaleDateString()}</p>
+                       <Badge variant="destructive" className="animate-pulse">
+                         Scheduled for Decommission
+                       </Badge>
+                     </>
+                   ) : (
+                     <p className="text-gray-500">No decommission date set</p>
+                   )}
+                 </div>
+               </div>
+
+               {/* Vehicle Information */}
+               {selectedDeinstallJob.vehicles && selectedDeinstallJob.vehicles.length > 0 && (
+                 <div className="space-y-3">
+                   <h3 className="text-lg font-semibold">Vehicles Affected</h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                     {selectedDeinstallJob.vehicles.map((vehicle, index) => (
+                       <Card key={index} className="border-red-200">
+                         <CardContent className="p-3">
+                           <div className="flex items-center space-x-2">
+                             <Car className="h-4 w-4 text-red-600" />
+                             <div>
+                               <p className="font-medium">{vehicle.registration}</p>
+                               <p className="text-sm text-gray-600">{vehicle.make} {vehicle.model}</p>
+                               {vehicle.fleet_number && (
+                                 <p className="text-sm text-gray-500">Fleet: {vehicle.fleet_number}</p>
+                               )}
+                             </div>
+                           </div>
+                         </CardContent>
+                       </Card>
+                     ))}
+                   </div>
+                 </div>
+               )}
+
+               {/* De-installation Items */}
+               {selectedDeinstallJob.items && selectedDeinstallJob.items.length > 0 && (
+                 <div className="space-y-3">
+                   <h3 className="text-lg font-semibold">Equipment to be De-installed</h3>
+                   <div className="overflow-x-auto">
+                     <table className="w-full border-collapse border border-gray-300">
+                       <thead>
+                         <tr className="bg-red-50">
+                           <th className="border border-gray-300 px-3 py-2 text-left">Item</th>
+                           <th className="border border-gray-300 px-3 py-2 text-center">Quantity</th>
+                           <th className="border border-gray-300 px-3 py-2 text-left">Code</th>
+                           <th className="border border-gray-300 px-3 py-2 text-right">Unit Cost</th>
+                           <th className="border border-gray-300 px-3 py-2 text-right">Total</th>
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {selectedDeinstallJob.items.map((item, index) => (
+                           <tr key={index}>
+                             <td className="border border-gray-300 px-3 py-2">{item.description}</td>
+                             <td className="border border-gray-300 px-3 py-2 text-center">{item.quantity}</td>
+                             <td className="border border-gray-300 px-3 py-2">{item.code}</td>
+                             <td className="border border-gray-300 px-3 py-2 text-right">R{item.cost_per_unit?.toFixed(2) || '0.00'}</td>
+                             <td className="border border-gray-300 px-3 py-2 text-right">R{item.total_cost?.toFixed(2) || '0.00'}</td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+               )}
+
+               {/* Action Buttons */}
+               <div className="flex justify-end space-x-3">
+                 <Button
+                   variant="outline"
+                   onClick={() => setSelectedDeinstallJob(null)}
+                 >
+                   Close
+                 </Button>
+                 <Button
+                   className="bg-red-600 hover:bg-red-700 text-white"
+                   onClick={() => {
+                     // Handle assign technician for decommission
+                     console.log('Assign technician for decommission:', selectedDeinstallJob.quote_id);
+                   }}
+                 >
+                   Assign Technician
+                 </Button>
+               </div>
+             </div>
+           )}
          </DialogContent>
        </Dialog>
     </div>

@@ -153,6 +153,8 @@ export default function QuotesDashboard() {
           customerEmail: quote.customer_email,
           customerPhone: quote.customer_phone,
           customerAddress: quote.customer_address,
+          contactPerson: quote.contact_person,
+          decommissionDate: quote.decommission_date,
           vehicleRegistration: quote.vehicle_registration,
           vehicleMake: quote.vehicle_make,
           vehicleModel: quote.vehicle_model,

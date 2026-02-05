@@ -53,12 +53,15 @@ export default function ExternalQuotation() {
 
   const [formData, setFormData] = useState({
     jobType: "",
+    jobSubType: "",
     description: "",
     purchaseType: "purchase", // "purchase" or "rental"
     customerName: "",
     customerEmail: "",
     customerPhone: "",
     customerAddress: "",
+    contactPerson: "",
+    decommissionDate: "",
     // Vehicle information
     vehicle_registration: "",
     vehicle_make: "",
@@ -240,8 +243,8 @@ export default function ExternalQuotation() {
       total += deInstallationGross;
     }
 
-    // Add subscription if rental with discount
-    if (product.purchaseType === 'rental' && product.subscriptionPrice) {
+    // Add subscription if available (for rental, install, or deinstall jobs with subscription)
+    if ((product.purchaseType === 'rental' || formData.jobType === 'install' || formData.jobType === 'deinstall') && product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
       total += subscriptionGross;
     }
@@ -256,7 +259,12 @@ export default function ExternalQuotation() {
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return formData.jobType && formData.description && formData.purchaseType;
+        const basicRequirements = formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
+        // If it's a decommission job, also require decommission date
+        if (formData.jobType === 'deinstall' && formData.jobSubType === 'decommission') {
+          return basicRequirements && formData.decommissionDate;
+        }
+        return basicRequirements;
       case 1:
         // Require customer details only
         return formData.customerName && 
@@ -287,6 +295,7 @@ export default function ExternalQuotation() {
       const quotationData = {
         // Job details
         jobType: formData.jobType,
+        jobSubType: formData.jobSubType,
         jobDescription: formData.description,
         description: formData.description,
         purchaseType: formData.purchaseType,
@@ -297,6 +306,8 @@ export default function ExternalQuotation() {
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        contactPerson: formData.contactPerson,
+        decommissionDate: formData.decommissionDate,
         emailRecipients: Array.isArray(formData.emailRecipients) && formData.emailRecipients.length > 0 
           ? formData.emailRecipients 
           : [formData.customerEmail],
@@ -318,21 +329,21 @@ export default function ExternalQuotation() {
           category: product.category,
           quantity: product.quantity,
           purchase_type: product.purchaseType,
-          cash_price: product.cashPrice,
-          cash_discount: product.cashDiscount,
-          cash_gross: calculateGrossAmount(product.cashPrice, product.cashDiscount),
-          rental_price: product.rentalPrice,
-          rental_discount: product.rentalDiscount,
-          rental_gross: calculateGrossAmount(product.rentalPrice, product.rentalDiscount),
-          installation_price: product.installationPrice,
-          installation_discount: product.installationDiscount,
-          installation_gross: calculateGrossAmount(product.installationPrice, product.installationDiscount),
-          de_installation_price: product.deInstallationPrice,
-          de_installation_discount: product.deInstallationDiscount,
-          de_installation_gross: calculateGrossAmount(product.deInstallationPrice, product.deInstallationDiscount),
-          subscription_price: product.subscriptionPrice,
-          subscription_discount: product.subscriptionDiscount,
-          subscription_gross: calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount),
+          cash_price: product.cashPrice || 0,
+          cash_discount: product.cashDiscount || 0,
+          cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
+          rental_price: product.rentalPrice || 0,
+          rental_discount: product.rentalDiscount || 0,
+          rental_gross: calculateGrossAmount(product.rentalPrice || 0, product.rentalDiscount || 0),
+          installation_price: product.installationPrice || 0,
+          installation_discount: product.installationDiscount || 0,
+          installation_gross: calculateGrossAmount(product.installationPrice || 0, product.installationDiscount || 0),
+          de_installation_price: product.deInstallationPrice || 0,
+          de_installation_discount: product.deInstallationDiscount || 0,
+          de_installation_gross: calculateGrossAmount(product.deInstallationPrice || 0, product.deInstallationDiscount || 0),
+          subscription_price: product.subscriptionPrice || 0,
+          subscription_discount: product.subscriptionDiscount || 0,
+          subscription_gross: calculateGrossAmount(product.subscriptionPrice || 0, product.subscriptionDiscount || 0),
           total_price: getProductTotal(product)
         })),
         
@@ -438,12 +449,15 @@ export default function ExternalQuotation() {
       setSelectedProducts([]);
       setFormData({
         jobType: "",
+        jobSubType: "",
         description: "",
         purchaseType: "purchase",
         customerName: "",
         customerEmail: "",
         customerPhone: "",
         customerAddress: "",
+        contactPerson: "",
+        decommissionDate: "",
         // Vehicle information (not stored in database)
         vehicle_registration: "",
         vehicle_make: "",
@@ -488,7 +502,7 @@ export default function ExternalQuotation() {
             <Select
               value={formData.jobType}
               onValueChange={(value) =>
-                setFormData({ ...formData, jobType: value })
+                setFormData({ ...formData, jobType: value, jobSubType: "" })
               }
             >
               <SelectTrigger>
@@ -496,10 +510,36 @@ export default function ExternalQuotation() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="install">Installation</SelectItem>
-                {/* <SelectItem value="deinstall">De-installation</SelectItem> */}
+                <SelectItem value="deinstall">De-installation</SelectItem>
               </SelectContent>
             </Select>
           </div>
+          
+          {formData.jobType && (
+            <div className="space-y-2">
+              <Label htmlFor="jobSubType">Sub Category *</Label>
+              <Select
+                value={formData.jobSubType}
+                onValueChange={(value) => setFormData({ ...formData, jobSubType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select sub category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {formData.jobType === 'install' ? (
+                    <>
+                      <SelectItem value="new_install">New Install</SelectItem>
+                      <SelectItem value="reinstall">Reinstall</SelectItem>
+                      <SelectItem value="additional_install">Additional Install</SelectItem>
+                    </>
+                  ) : (
+                    <SelectItem value="decommission">Decommission</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
           <div className="space-y-2">
             <Label htmlFor="purchaseType">Cash Type *</Label>
             <Select
@@ -531,6 +571,25 @@ export default function ExternalQuotation() {
             className="min-h-20"
           />
         </div>
+        
+        {/* Decommission Date Field */}
+        {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
+          <div className="space-y-2">
+            <Label htmlFor="decommissionDate">Decommission Date *</Label>
+            <Input
+              id="decommissionDate"
+              type="date"
+              value={formData.decommissionDate}
+              onChange={(e) =>
+                setFormData({ ...formData, decommissionDate: e.target.value })
+              }
+              min={new Date().toISOString().split('T')[0]}
+            />
+            <p className="text-sm text-amber-600">
+              ⚠️ Note: Both Helpdesk and Ria will be automatically notified when beames are decommissioned.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -868,7 +927,7 @@ export default function ExternalQuotation() {
                    )}
 
                    {/* Subscription Row */}
-                   {product.purchaseType === 'rental' && product.subscriptionPrice > 0 && (
+                   {(product.purchaseType === 'rental' || formData.jobType === 'install' || formData.jobType === 'deinstall') && (
                      <div className="grid grid-cols-4 gap-4 items-center">
                        <div className="space-y-1">
                          <Label className="text-xs text-gray-600">Monthly Subscription</Label>

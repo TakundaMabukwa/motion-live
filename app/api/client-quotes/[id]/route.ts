@@ -94,6 +94,8 @@ export async function PUT(
         customer_email: clientQuote.customer_email || '',
         customer_phone: clientQuote.customer_phone || '',
         customer_address: clientQuote.customer_address || '',
+        contact_person: clientQuote.contact_person || '',
+        decommission_date: clientQuote.decommission_date || null,
         account_id: clientQuote.account_id,
         new_account_number: clientQuote.new_account_number, // Copy the new_account_number field
         

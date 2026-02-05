@@ -123,6 +123,20 @@ export default function EnhancedCustomerDetails({
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="contactPerson">Contact Person</Label>
+            <Input
+              id="contactPerson"
+              placeholder="Enter contact person name"
+              value={formData.contactPerson || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, contactPerson: e.target.value })
+              }
+            />
+          </div>
+        </div>
+        
+        <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+          <div className="space-y-2">
             <Label htmlFor="customerEmail">Email Address *</Label>
             <Input
               id="customerEmail"

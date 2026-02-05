@@ -98,6 +98,8 @@ export async function POST(request: NextRequest) {
       customer_email: body.customerEmail || body.customer_email || '',
       customer_phone: body.customerPhone || body.customer_phone || '',
       customer_address: body.customerAddress || body.customer_address || '',
+      contact_person: body.contactPerson || body.contact_person || '',
+      decommission_date: body.decommissionDate || body.decommission_date || null,
       
       // Vehicle information
       vehicle_id: body.vehicleId || body.vehicle_id || null,

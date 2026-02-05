@@ -16,7 +16,7 @@ export async function GET() {
     // Fetch all vehicles
     const { data: vehicles, error } = await getSupabase()
       .from('vehicles')
-      .select('new_account_number, reg, fleet_number, total_rental_sub')
+      .select('new_account_number, reg, fleet_number, total_rental_sub, total_rental, total_sub')
       .not('new_account_number', 'is', null)
       .order('new_account_number', { ascending: true });
 
@@ -44,15 +44,36 @@ export async function GET() {
 
     // Generate Excel
     const data = [];
-    data.push(['CLIENT ACCOUNT NO.', 'GROUP CODE', 'DESCRIPTION', 'QTY', 'PRICE EX.', 'PRICE INCL.', 'TOTAL INCL.']);
+    data.push(['ITEM CODE', 'CLIENT ACCOUNT NO.', 'GROUP CODE', 'DESCRIPTION', 'QTY', 'PRICE EX.', 'PRICE INCL.', 'TOTAL INCL.']);
 
     for (const [account, vehicleList] of Object.entries(grouped)) {
       vehicleList.forEach(v => {
-        const priceEx = parseFloat(v.total_rental_sub) || 0;
+        const totalRentalSub = parseFloat(v.total_rental_sub) || 0;
+        const totalRental = parseFloat(v.total_rental) || 0;
+        const totalSub = parseFloat(v.total_sub) || 0;
+        
+        let itemCode = 'TOTAL RENTAL SUB';
+        let priceEx = totalRentalSub;
+        
+        // If total_rental_sub is 0 or missing (DEFAULT case), check breakdown
+        if (totalRentalSub === 0) {
+          if (totalRental > 0 && totalSub === 0) {
+            itemCode = 'TOTAL RENTAL';
+            priceEx = totalRental;
+          } else if (totalSub > 0 && totalRental === 0) {
+            itemCode = 'TOTAL SUB';
+            priceEx = totalSub;
+          } else if (totalRental > 0 && totalSub > 0) {
+            itemCode = 'TOTAL RENTAL & SUB';
+            priceEx = totalRental + totalSub;
+          }
+        }
+        
         const vat = priceEx * 0.15;
         const priceIncl = priceEx + vat;
 
         data.push([
+          itemCode,
           account,
           v.reg || v.fleet_number || '',
           'Monthly Subscription',

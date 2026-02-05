@@ -36,7 +36,7 @@ async function insertVehiclesFromExcel() {
   const { data: vehicles } = await supabase.from('vehicles').select('company, new_account_number, reg');
   const { data: edgeAccounts } = await supabase.from('vehicles').select('new_account_number').ilike('new_account_number', 'EDGE-%').order('new_account_number', { ascending: false });
   
-  const existingRegs = new Set(vehicles.map(v => v.reg?.toUpperCase()));
+  const existingRegs = new Set(vehicles.map(v => v.reg?.toUpperCase().replace(/\s+/g, '')));
   const companiesInDB = new Map();
   vehicles.forEach(v => companiesInDB.set(v.company.toUpperCase(), v.new_account_number));
   
@@ -55,7 +55,7 @@ async function insertVehiclesFromExcel() {
       : [group.trim()];
     
     regs.forEach(reg => {
-      if (existingRegs.has(reg.toUpperCase())) return;
+      if (existingRegs.has(reg.toUpperCase().replace(/\s+/g, ''))) return;
       
       let accountNumber = companiesInDB.get(client.toUpperCase());
       

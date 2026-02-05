@@ -236,6 +236,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
     customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || "",
     customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
+    contactPerson: accountInfo?.branch_person_name || customer?.branch_person_name || "",
+    decommissionDate: "",
     // Vehicle information
     vehicle_registration: "",
     vehicle_make: "",
@@ -543,8 +545,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       total += deInstallationGross;
     }
 
-    // Add subscription if rental with discount
-    if (product.purchaseType === 'rental' && product.subscriptionPrice) {
+    // Add subscription if available (for rental, deinstall, or install jobs with subscription)
+    if ((product.purchaseType === 'rental' || formData.jobType === 'deinstall' || formData.jobType === 'install') && product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
       total += subscriptionGross;
     }
@@ -559,7 +561,12 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
+        const basicRequirements = formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
+        // If it's a decommission job, also require decommission date
+        if (formData.jobType === 'deinstall' && formData.jobSubType === 'decommission') {
+          return basicRequirements && formData.decommissionDate;
+        }
+        return basicRequirements;
       case 1:
         return formData.customerName && formData.customerEmail && formData.customerPhone;
       case 2:
@@ -691,13 +698,22 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           type: product.type,
           category: product.category,
           quantity: product.quantity,
-          purchase_type: 'service',
-          cash_price: product.cashPrice,
-          cash_discount: product.cashDiscount,
-          cash_gross: calculateGrossAmount(product.cashPrice, product.cashDiscount),
-          de_installation_price: product.deInstallationPrice,
-          de_installation_discount: product.deInstallationDiscount,
-          de_installation_gross: calculateGrossAmount(product.deInstallationPrice, product.deInstallationDiscount),
+          purchase_type: product.purchaseType || 'service',
+          cash_price: product.cashPrice || 0,
+          cash_discount: product.cashDiscount || 0,
+          cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
+          rental_price: product.rentalPrice || 0,
+          rental_discount: product.rentalDiscount || 0,
+          rental_gross: calculateGrossAmount(product.rentalPrice || 0, product.rentalDiscount || 0),
+          installation_price: product.installationPrice || 0,
+          installation_discount: product.installationDiscount || 0,
+          installation_gross: calculateGrossAmount(product.installationPrice || 0, product.installationDiscount || 0),
+          de_installation_price: product.deInstallationPrice || 0,
+          de_installation_discount: product.deInstallationDiscount || 0,
+          de_installation_gross: calculateGrossAmount(product.deInstallationPrice || 0, product.deInstallationDiscount || 0),
+          subscription_price: product.subscriptionPrice || 0,
+          subscription_discount: product.subscriptionDiscount || 0,
+          subscription_gross: calculateGrossAmount(product.subscriptionPrice || 0, product.subscriptionDiscount || 0),
           total_price: getProductTotal(product),
           vehicle_id: product.vehicleId,
           vehicle_plate: product.vehiclePlate,
@@ -713,21 +729,21 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           category: product.category,
           quantity: product.quantity,
           purchase_type: product.purchaseType,
-          cash_price: product.cashPrice,
-          cash_discount: product.cashDiscount,
-          cash_gross: calculateGrossAmount(product.cashPrice, product.cashDiscount),
-          rental_price: product.rentalPrice,
-          rental_discount: product.rentalDiscount,
-          rental_gross: calculateGrossAmount(product.rentalPrice, product.rentalDiscount),
-          installation_price: product.installationPrice,
-          installation_discount: product.installationDiscount,
-          installation_gross: calculateGrossAmount(product.installationPrice, product.installationDiscount),
-          de_installation_price: product.deInstallationPrice,
-          de_installation_discount: product.deInstallationDiscount,
-          de_installation_gross: calculateGrossAmount(product.deInstallationPrice, product.deInstallationDiscount),
-          subscription_price: product.subscriptionPrice,
-          subscription_discount: product.subscriptionDiscount,
-          subscription_gross: calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount),
+          cash_price: product.cashPrice || 0,
+          cash_discount: product.cashDiscount || 0,
+          cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
+          rental_price: product.rentalPrice || 0,
+          rental_discount: product.rentalDiscount || 0,
+          rental_gross: calculateGrossAmount(product.rentalPrice || 0, product.rentalDiscount || 0),
+          installation_price: product.installationPrice || 0,
+          installation_discount: product.installationDiscount || 0,
+          installation_gross: calculateGrossAmount(product.installationPrice || 0, product.installationDiscount || 0),
+          de_installation_price: product.deInstallationPrice || 0,
+          de_installation_discount: product.deInstallationDiscount || 0,
+          de_installation_gross: calculateGrossAmount(product.deInstallationPrice || 0, product.deInstallationDiscount || 0),
+          subscription_price: product.subscriptionPrice || 0,
+          subscription_discount: product.subscriptionDiscount || 0,
+          subscription_gross: calculateGrossAmount(product.subscriptionPrice || 0, product.subscriptionDiscount || 0),
           total_price: getProductTotal(product)
         }));
       }
@@ -748,6 +764,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         customerEmail: formData.customerEmail,
         customerPhone: formData.customerPhone,
         customerAddress: formData.customerAddress,
+        contactPerson: formData.contactPerson,
+        decommissionDate: formData.decommissionDate,
         
         // Vehicle information
         vehicleRegistration: formData.vehicle_registration || '',
@@ -867,6 +885,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
         customerPhone: accountInfo?.cell_no || customer?.cell_no || customer?.switchboard || "",
         customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
+        contactPerson: accountInfo?.branch_person_name || customer?.branch_person_name || "",
+        decommissionDate: "",
         // Vehicle information
         vehicle_registration: "",
         vehicle_make: "",
@@ -1024,6 +1044,40 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                 />
               </div>
 
+              {/* Decommission Date Field */}
+              {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
+                <div className="space-y-2">
+                  <Label htmlFor="decommissionDate">Decommission Date *</Label>
+                  <Input
+                    id="decommissionDate"
+                    type="date"
+                    value={formData.decommissionDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, decommissionDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-sm text-amber-600">
+                    ⚠️ Note: Both Helpdesk and Ria will be automatically notified when beames are decommissioned.
+                  </p>
+                </div>
+              )}
+
+              {/* Decommission Date Field */}
+              {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
+                <div className="space-y-2">
+                  <Label htmlFor="decommissionDate">Decommission Date *</Label>
+                  <Input
+                    id="decommissionDate"
+                    type="date"
+                    value={formData.decommissionDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, decommissionDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-sm text-amber-600">
+                    ⚠️ Note: Both Helpdesk and Ria will be automatically notified when beames are decommissioned.
+                  </p>
+                </div>
+              )}
+
               {/* Vehicle Information Note */}
               <div className="bg-blue-50 p-3 border border-blue-200 rounded-lg">
                 <div className="flex items-start gap-2">
@@ -1056,6 +1110,18 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="contactPerson">Contact Person</Label>
+                  <Input
+                    id="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
+                    placeholder="Enter contact person name"
+                  />
+                </div>
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="customerEmail">Email *</Label>
                   <Input
@@ -1640,7 +1706,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                           )}
 
                           {/* Subscription Row */}
-                          {product.purchaseType === 'rental' && product.subscriptionPrice > 0 && (
+                          {(product.purchaseType === 'rental' || formData.jobType === 'deinstall' || formData.jobType === 'install') && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Monthly Subscription</Label>
@@ -1893,4 +1959,4 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       </div>
     </div>
   );
-} 
+}
