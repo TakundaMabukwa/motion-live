@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 
-export default function ValidateCustomerPage() {
+function ValidateCustomerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -458,5 +458,13 @@ export default function ValidateCustomerPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ValidateCustomerPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <ValidateCustomerContent />
+    </Suspense>
   );
 }
