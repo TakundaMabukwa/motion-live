@@ -88,6 +88,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Package, 
   Search,
@@ -164,6 +171,33 @@ export default function InventoryPage() {
   const [showIpAddressModal, setShowIpAddressModal] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
   
+  const handleMoveJob = async (jobId: string, destination: string) => {
+    const loadingToast = toast.loading(`Moving job to ${destination}...`);
+    try {
+      const response = await fetch(`/api/job-cards/${jobId}/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ destination }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to move job to ${destination}`);
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job successfully moved to ${destination}`);
+      fetchJobCards(); // Refresh the job cards list
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      toast.error(errorMessage);
+      console.error(`Error moving job to ${destination}:`, error);
+    }
+  };
+
   // Reset selected item when stock take mode changes
   useEffect(() => {
     if (stockTakeMode) {
@@ -1391,17 +1425,17 @@ export default function InventoryPage() {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="relative w-full overflow-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Status</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50/80 border-b border-gray-200">
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Type</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1412,51 +1446,36 @@ export default function InventoryPage() {
                   return (
                     <tr 
                       key={job.id} 
-                      className={`border-b hover:bg-gray-50 ${
-                        shouldBlink 
-                          ? 'animate-pulse bg-amber-50 border-amber-200 shadow-md' 
-                          : hasDecommissionDate 
+                      className={`border-b border-gray-100 transition-colors hover:bg-gray-50/50 ${
+                        hasDecommissionDate 
                           ? 'bg-yellow-50 border-yellow-200' 
                           : ''
                       }`}
                     >
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex flex-col">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{job.job_number}</span>
-                          {shouldBlink && (
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>
-                              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
-                                URGENT
-                              </span>
-                            </div>
-                          )}
+                          <span className="font-semibold text-gray-900">{job.job_number}</span>
                         </div>
                         {job.quotation_number && (
-                          <span className="text-xs text-gray-500">Quote: {job.quotation_number}</span>
+                          <span className="text-xs text-gray-500 font-medium">Quote: {job.quotation_number}</span>
                         )}
                         {job.ip_address && (
                           <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
                         )}
                         {job.contact_person && (
-                          <span className="text-xs text-blue-600">Contact: {job.contact_person}</span>
+                          <span className="text-xs text-blue-600 font-medium">Contact: {job.contact_person}</span>
                         )}
                         {job.decommission_date && (
-                          <span className={`text-xs font-medium ${
-                            shouldBlink 
-                              ? 'text-amber-700 animate-pulse' 
-                              : 'text-amber-600'
-                          }`}>
-                            ⚠️ Decommission: {new Date(job.decommission_date).toLocaleDateString()}
-                            {shouldBlink && <span className="ml-1 text-red-600">- NEEDS ASSIGNMENT!</span>}
+                          <span className="text-xs text-amber-600 font-medium">
+                            Decommission: {new Date(job.decommission_date).toLocaleDateString()}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex flex-col">
-                        <span>{job.customer_name}</span>
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium text-gray-900">{job.customer_name}</span>
                         {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
                           <span className="text-xs text-red-600 font-medium">
                             De-installing {job.quotation_products.length} item(s)
@@ -1464,39 +1483,37 @@ export default function InventoryPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-1">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex items-center gap-2">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <div className="flex flex-col">
-                          <span>{job.vehicle_registration || 'No vehicle'}</span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
                           {job.vehicle_make && job.vehicle_model && (
                             <span className="text-xs text-gray-500">{job.vehicle_make} {job.vehicle_model}</span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       {job.job_type && (
-                        <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
+                        <Badge variant="outline" className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}>
                           {job.job_type}
                         </Badge>
                       )}
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <Badge className={getStatusColor(job.job_status || job.status)}>
+                    <td className="py-4 px-6 align-middle">
+                      <Badge className={`${getStatusColor(job.job_status || job.status)} font-medium`}>
                         {job.job_status || job.status || 'NOT STARTED'}
                       </Badge>
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end gap-2">
                         {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => setSelectedDeinstallJob(job)}
-                            className={`text-red-600 hover:text-red-700 border-red-300 hover:border-red-400 ${
-                              shouldBlink ? 'animate-pulse shadow-lg' : ''
-                            }`}
+                            className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
                           >
                             <Eye className="mr-1 w-3 h-3" />
                             View De-installation
@@ -1505,24 +1522,30 @@ export default function InventoryPage() {
                         <Button
                           size="sm"
                           onClick={() => handleAssignParts(job)}
-                          className={`bg-blue-600 hover:bg-blue-700 text-white ${
-                            shouldBlink ? 'animate-pulse shadow-lg ring-2 ring-amber-300' : ''
-                          }`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Plus className="mr-1 w-3 h-3" />
-                          {shouldBlink ? 'Assign Parts URGENT' : 'Assign Parts'}
+                          Assign Parts
                         </Button>
                         <Button
                           size="sm"
                           onClick={() => handleBookStock(job)}
-                          className={`${hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"} ${
-                            shouldBlink ? 'animate-pulse shadow-lg ring-2 ring-amber-300' : ''
-                          }`}
+                          className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
                           title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
                         >
                           <Package className="mr-1 w-3 h-3" />
-                          {shouldBlink ? 'Book Stock URGENT' : 'Book Stock'}
+                          Book Stock
                         </Button>
+                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
+                          <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
+                            <SelectValue placeholder="Move to..." />
+                          </SelectTrigger>
+                          <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
+                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
+                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
+                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </td>
                   </tr>
@@ -1550,62 +1573,62 @@ export default function InventoryPage() {
           <p className="text-gray-500">Jobs will appear here once parts are assigned.</p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="relative w-full overflow-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Parts</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50/80 border-b border-gray-200">
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Type</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Parts</th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {jobCardsWithParts.map((job) => (
-                  <tr key={job.id} className="border-b hover:bg-green-50">
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{job.job_number}</span>
+                  <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-green-50/50">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-gray-900">{job.job_number}</span>
                         {job.ip_address && (
                           <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <span>{job.customer_name}</span>
+                    <td className="py-4 px-6 align-middle">
+                      <span className="font-medium text-gray-900">{job.customer_name}</span>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-1">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex items-center gap-2">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <span>{job.vehicle_registration || 'No vehicle'}</span>
+                        <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       {job.job_type && (
-                        <Badge variant="outline" className={`text-xs ${getJobTypeColor(job.job_type)}`}>
+                        <Badge variant="outline" className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}>
                           {job.job_type}
                         </Badge>
                       )}
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       <div className="space-y-1">
                         {job.parts_required?.slice(0, 2).map((part, index) => (
                           <div key={index} className="flex justify-between text-gray-600 text-xs">
-                            <span>• {part.description}</span>
-                            <span className="text-green-600 ml-2">Qty: {part.quantity}</span>
+                            <span className="font-medium">• {part.description}</span>
+                            <span className="text-green-600 ml-2 font-medium">Qty: {part.quantity}</span>
                           </div>
                         ))}
                         {job.parts_required?.length > 2 && (
-                          <div className="text-gray-500 text-xs">
+                          <div className="text-gray-500 text-xs font-medium">
                             +{job.parts_required.length - 2} more parts
                           </div>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
@@ -1626,6 +1649,16 @@ export default function InventoryPage() {
                           <RefreshCw className="mr-1 w-3 h-3" />
                           Re-Open Job
                         </Button>
+                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
+                          <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
+                            <SelectValue placeholder="Move to..." />
+                          </SelectTrigger>
+                          <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
+                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
+                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
+                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </td>
                   </tr>
@@ -1652,50 +1685,50 @@ export default function InventoryPage() {
           <p className="text-gray-500">Completed jobs will appear here.</p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white shadow-sm">
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
           <div className="relative w-full overflow-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Completion Date</th>
-                  <th className="py-3 px-4 text-left font-medium text-gray-500">Notes</th>
-                  <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50/80 border-b border-gray-200">
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Completion Date</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Notes</th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {completedJobs.map((job) => (
-                  <tr key={job.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4 align-middle">
-                      <div className="font-medium">{job.job_number}</div>
+                  <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="font-semibold text-gray-900">{job.job_number}</div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <span>{job.customer_name}</span>
+                    <td className="py-4 px-6 align-middle">
+                      <span className="font-medium text-gray-900">{job.customer_name}</span>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-1">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex items-center gap-2">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <span>{job.vehicle_registration || 'No vehicle'}</span>
+                        <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
-                      <div className="flex items-center gap-1">
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>{formatDate(job.completion_date)}</span>
+                        <span className="text-gray-700">{formatDate(job.completion_date)}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       {job.completion_notes ? (
-                        <div className="truncate max-w-[200px]">
+                        <div className="truncate max-w-[200px] text-gray-700">
                           {job.completion_notes}
                         </div>
                       ) : (
-                        <span className="text-gray-500">No notes</span>
+                        <span className="text-gray-400 italic">No notes</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 align-middle">
+                    <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end items-center gap-2">
                         {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
                           <>
@@ -1713,6 +1746,16 @@ export default function InventoryPage() {
                             </Badge>
                           </>
                         )}
+                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
+                          <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
+                            <SelectValue placeholder="Move to..." />
+                          </SelectTrigger>
+                          <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
+                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
+                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
+                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </td>
                   </tr>

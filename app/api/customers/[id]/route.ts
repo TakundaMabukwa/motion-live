@@ -61,4 +61,49 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error('Error in customer detail GET:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const supabase = await createClient();
+    
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const customerId = id;
+    const body = await request.json();
+
+    if (!customerId) {
+      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
+    }
+
+    console.log('Updating customer:', customerId, 'with data:', body);
+
+    // Update customer in customers table
+    const { data: updatedCustomer, error } = await supabase
+      .from('customers')
+      .update(body)
+      .eq('id', customerId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating customer:', error);
+      return NextResponse.json({ error: 'Failed to update customer', details: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      customer: updatedCustomer,
+      message: 'Customer updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error in customer PUT:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 } 

@@ -210,13 +210,16 @@ export default function AccountsDashboard() {
                           <TableRow key={group.id} className="hover:bg-gray-50">
                             <TableCell className="font-medium">
                               <div>
-                                <div className="mb-1">
+                                <div className="mb-1 flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs">
                                     {group.company_group || 'N/A'}
-                                    {group.all_new_account_numbers?.includes('ALLI-0001') && (
-                                      <span className="ml-1 text-orange-600">⚠️</span>
-                                    )}
                                   </Badge>
+                                  {group.validate && (
+                                    <Badge variant="default" className="text-xs bg-green-600">
+                                      <CheckCircle className="w-3 h-3 mr-1" />
+                                      Validated
+                                    </Badge>
+                                  )}
                                 </div>
                                 <div className="font-semibold text-sm">{group.legal_names || 'N/A'}</div>
                                 <div className="text-xs text-gray-500">
@@ -224,9 +227,6 @@ export default function AccountsDashboard() {
                                     ? `${group.legal_names_list.length} legal entities`
                                     : 'No legal names'
                                   }
-                                  {group.all_new_account_numbers?.includes('ALLI-0001') && (
-                                    <span className="ml-2 text-orange-600 font-medium">(Has ALLI-0001)</span>
-                                  )}
                                 </div>
                               </div>
                             </TableCell>
@@ -287,10 +287,23 @@ export default function AccountsDashboard() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              <ThreeDotsMenu
-                                onViewDetails={() => handleViewDetails(group)}
-                                onGiveAccess={() => handleGiveAccess(group)}
-                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const accountNumbers = group.all_new_account_numbers;
+                                    router.push(`/protected/fc/validate?account=${encodeURIComponent(accountNumbers)}`);
+                                  }}
+                                  className="text-xs h-8"
+                                >
+                                  Validate
+                                </Button>
+                                <ThreeDotsMenu
+                                  onViewDetails={() => handleViewDetails(group)}
+                                  onGiveAccess={() => handleGiveAccess(group)}
+                                />
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

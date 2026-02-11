@@ -29,11 +29,13 @@ import {
   ExternalLink,
   Search,
   X,
+  Car,
 } from "lucide-react";
 import { toast } from "sonner";
 import { FaR } from "react-icons/fa6";
 import Link from "next/link";
 import EnhancedCustomerDetails from "@/components/ui-personal/EnhancedCustomerDetails";
+import VehicleDetailsForm from "@/components/ui-personal/VehicleDetailsForm";
 
 export default function ExternalQuotation() {
   const pathname = usePathname();
@@ -50,6 +52,7 @@ export default function ExternalQuotation() {
   const [selectedVehiclesFromDetails, setSelectedVehiclesFromDetails] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
 
   const [formData, setFormData] = useState({
     jobType: "",
@@ -94,12 +97,18 @@ export default function ExternalQuotation() {
     },
     {
       id: 2,
+      title: "Vehicle Details",
+      subtitle: "Add vehicle information",
+      icon: Car,
+    },
+    {
+      id: 3,
       title: "Quote Details",
       subtitle: "Pricing and terms",
       // icon: <FaR />
       icon: FaR
     },
-    { id: 3, title: "Email", subtitle: "Send quote to customer", icon: Mail },
+    { id: 4, title: "Email", subtitle: "Send quote to customer", icon: Mail },
   ];
 
 
@@ -271,8 +280,10 @@ export default function ExternalQuotation() {
                formData.customerEmail && 
                formData.customerPhone;
       case 2:
-        return selectedProducts.length > 0;
+        return true; // Always allow proceeding from vehicle details
       case 3:
+        return selectedProducts.length > 0;
+      case 4:
         return formData.emailSubject && formData.emailBody && 
                Array.isArray(formData.emailRecipients) && formData.emailRecipients.length > 0;
       default:
@@ -287,6 +298,9 @@ export default function ExternalQuotation() {
     setSubmitError(null);
 
     try {
+      // If vehicles are present, use the first one for single-vehicle fields
+      const primaryVehicle = vehicles[0] || {};
+
       // Calculate totals
       const subtotal = getTotalQuoteAmount();
       const vatAmount = subtotal * 0.15; // 15% VAT
@@ -313,9 +327,10 @@ export default function ExternalQuotation() {
           : [formData.customerEmail],
         
         // Vehicle information
-        vehicle_registration: formData.vehicle_registration,
-        vehicle_make: formData.vehicle_make,
-        vehicle_model: formData.vehicle_model,
+        vehicles: vehicles,
+        vehicle_registration: primaryVehicle.registration || formData.vehicle_registration,
+        vehicle_make: primaryVehicle.make || formData.vehicle_make,
+        vehicle_model: primaryVehicle.model || formData.vehicle_model,
         vehicle_year: formData.vehicle_year,
         vin_number: formData.vin_number,
         odormeter: formData.odormeter,
@@ -447,6 +462,7 @@ export default function ExternalQuotation() {
       // Reset form
       setCurrentStep(0);
       setSelectedProducts([]);
+      setVehicles([]);
       setFormData({
         jobType: "",
         jobSubType: "",
@@ -592,6 +608,13 @@ export default function ExternalQuotation() {
         )}
       </CardContent>
     </Card>
+  );
+
+  const renderVehicleDetailsForm = () => (
+    <VehicleDetailsForm
+      vehicles={vehicles}
+      onVehiclesChange={setVehicles}
+    />
   );
 
   const renderCustomerDetailsForm = () => (
@@ -1156,8 +1179,10 @@ export default function ExternalQuotation() {
       case 1:
         return renderCustomerDetailsForm();
       case 2:
-        return renderQuoteDetailsForm();
+        return renderVehicleDetailsForm();
       case 3:
+        return renderQuoteDetailsForm();
+      case 4:
         return renderEmailForm();
       default:
         return null;
@@ -1319,4 +1344,4 @@ export default function ExternalQuotation() {
       </div>
     </div>
   );
-} 
+}

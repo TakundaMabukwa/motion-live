@@ -751,6 +751,7 @@ export default function AdminDashboard() {
           jobDate: assignmentDate,
           startTime: assignmentTime || '09:00',
           assignmentNotes: assignmentNotes || null,
+          override: true  // This flag tells the API to skip conflict detection
         }),
       });
       
@@ -762,7 +763,7 @@ export default function AdminDashboard() {
         return;
       }
       
-      toast.success(`Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully with scheduling override`);
+      toast.success(`✅ Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully with scheduling override!`);
       
       setConflictDialogOpen(false);
       setAssignTechnicianOpen(false);
@@ -3109,7 +3110,7 @@ export default function AdminDashboard() {
                 ⚠️ WARNING: This will create a double booking!
               </p>
               <p className="text-red-700 text-sm mt-1">
-                {selectedTechnician} is already assigned to other jobs within 3 hours of the selected time.
+                {selectedTechnicians.join(', ')} {selectedTechnicians.length > 1 ? 'are' : 'is'} already assigned to other jobs within 3 hours of the selected time.
               </p>
             </div>
             

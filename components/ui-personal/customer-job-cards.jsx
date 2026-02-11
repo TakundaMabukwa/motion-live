@@ -52,7 +52,7 @@ export default function CustomerJobCards({ accountNumber }) {
 
   useEffect(() => {
     fetchJobCards();
-  }, []);
+  }, [accountNumber]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

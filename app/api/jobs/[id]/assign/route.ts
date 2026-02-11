@@ -74,8 +74,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Combine date and time
-    const assignmentDateTime = `${date}T${time}:00`;
+    // Combine date and time - use local timezone to prevent UTC conversion
+    const localDateTime = new Date(`${date}T${time}:00`);
+    const assignmentDateTime = localDateTime.toISOString();
 
     // Update the job card with technician assignment
     const { data: updatedJob, error: updateError } = await supabase
@@ -85,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         technician_name: combinedNames,
         technician_phone: technician, // Store comma-separated emails in technician_phone field
         job_date: date,
-        start_time: time,
+        start_time: assignmentDateTime, // Store as ISO string to preserve timezone
         updated_at: new Date().toISOString(),
         updated_by: user.id,
         work_notes: `Technician${technicianNames.length > 1 ? 's' : ''} assigned: ${combinedNames} (${technician}) on ${date} at ${time}`

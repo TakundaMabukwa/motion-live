@@ -26,38 +26,35 @@ import {
   Mail,
   CheckCircle,
   AlertTriangle,
+  Edit,
 } from "lucide-react";
 import Layout from "@/components/Layout";
 
-export default function CreateQuote() {
+export default function CreateQuote({ quote = null, onClose = null }) {
+  const isEditMode = !!quote;
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({
-    jobType: "",
-    description: "",
-    stockType: "",
+    jobType: quote?.job_type || "",
+    description: quote?.job_description || "",
+    stockType: quote?.purchase_type === "purchase" ? "new-stock" : "",
     vehicleDetails: "",
     installationType: "",
-    // Customer Details
-    customerName: "",
-    customerEmail: "",
-    customerPhone: "",
-    customerAddress: "",
-    // Quote Details
+    customerName: quote?.customer_name || "",
+    customerEmail: quote?.customer_email || "",
+    customerPhone: quote?.customer_phone || "",
+    customerAddress: quote?.customer_address || "",
     product: "",
     quantity: 1,
-    cashPrice: 0,
+    cashPrice: quote?.quotation_subtotal || 0,
     cashDiscount: 0,
     rentalPrice: 0,
     rentalDiscount: 0,
     installationPrice: 0,
     installationDiscount: 0,
-    extraNotes: "",
-    // Email
-    emailSubject: "",
-    emailBody: "",
-    quoteFooter:
-      "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
-    // Stock Items
+    extraNotes: quote?.quote_notes || "",
+    emailSubject: quote?.quote_email_subject || "",
+    emailBody: quote?.quote_email_body || "",
+    quoteFooter: quote?.quote_email_footer || "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
     selectedStockItems: [],
     stockItems: [],
   });
@@ -784,16 +781,19 @@ export default function CreateQuote() {
         <div className="mx-auto max-w-6xl">
           {/* Header */}
           <div className="mb-8">
-            {/* <div className="flex items-center gap-4 mb-4">
-              <Button variant="ghost" className="flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4" />
-                Back to Quotes
-              </Button>
-            </div> */}
-            <h1 className="mb-2 font-bold text-3xl">Create New Quote</h1>
-            <p className="text-gray-600">
-              Follow the steps to create a professional quote
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="mb-2 font-bold text-3xl">{isEditMode ? 'Edit Quote' : 'Create New Quote'}</h1>
+                <p className="text-gray-600">
+                  {isEditMode ? 'Update quote information' : 'Follow the steps to create a professional quote'}
+                </p>
+              </div>
+              {isEditMode && onClose && (
+                <Button variant="outline" onClick={onClose}>
+                  Close
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Step Navigation */}

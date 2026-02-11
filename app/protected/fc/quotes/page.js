@@ -18,13 +18,18 @@ import {
   Building2,
   Check,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  X,
+  Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import { toast } from "sonner";
@@ -37,6 +42,8 @@ export default function QuotesDashboard() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [approvingQuote, setApprovingQuote] = useState(null);
   const [decliningQuote, setDecliningQuote] = useState(null);
+  const [selectedQuote, setSelectedQuote] = useState(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   // Fetch quotes from the API
   const fetchQuotes = useCallback(async () => {
@@ -70,7 +77,8 @@ export default function QuotesDashboard() {
       filtered = filtered.filter(quote =>
         quote.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         quote.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        quote.customer_email?.toLowerCase().includes(searchTerm.toLowerCase())
+        quote.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        quote.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -106,6 +114,29 @@ export default function QuotesDashboard() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const formatVehicleRegistration = (registration) => {
+    if (!registration) return 'No Registration';
+    
+    // Check if it's a temporary registration
+    if (registration.startsWith('TEMP-')) {
+      return (
+        <div className="flex items-center space-x-1">
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">
+            TEMP
+          </Badge>
+          <span className="text-sm ml-1">{registration.replace('TEMP-', '')}</span>
+        </div>
+      );
+    }
+    
+    // Regular vehicle registration
+    return (
+      <div className="font-mono font-medium">
+        {registration}
+      </div>
+    );
   };
 
   const formatCurrency = (amount) => {
@@ -249,6 +280,16 @@ export default function QuotesDashboard() {
     window.location.href = '/protected/fc/external-quotation';
   }, []);
 
+  const handleViewQuote = (quote) => {
+    setSelectedQuote(quote);
+    setIsViewModalOpen(true);
+  };
+
+  const closeViewModal = () => {
+    setIsViewModalOpen(false);
+    setSelectedQuote(null);
+  };
+
   // Calculate statistics
   const totalQuotes = quotes.length;
   const pendingQuotes = quotes.filter(q => q.job_status === 'pending').length;
@@ -388,17 +429,8 @@ export default function QuotesDashboard() {
         </Card>
       </div>
 
-      {/* Search and Filter */}
+      {/* Filter */}
       <div className="flex sm:flex-row flex-col gap-4">
-        <div className="flex-1">
-          <Input
-            type="text"
-            placeholder="Search client quotes by job number, customer, or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full"
-          />
-        </div>
         <div className="relative">
           <Button
             variant="outline"
@@ -456,8 +488,17 @@ export default function QuotesDashboard() {
 
       {/* Client Quotes Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Client Quotes</CardTitle>
+          <div className="w-full max-w-sm">
+            <Input
+              type="text"
+              placeholder="Search by vehicle reg, customer, or job number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -467,7 +508,7 @@ export default function QuotesDashboard() {
                   <TableHead>Job Number</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Job Type</TableHead>
-                  <TableHead>Total Amount</TableHead>
+                  <TableHead>Vehicle Registration</TableHead>
                   <TableHead>Quote Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
@@ -484,7 +525,7 @@ export default function QuotesDashboard() {
                       </div>
                     </TableCell>
                     <TableCell>{quote.job_type || 'N/A'}</TableCell>
-                    <TableCell className="font-medium">{formatCurrency(quote.quotation_total_amount)}</TableCell>
+                    <TableCell>{formatVehicleRegistration(quote.vehicle_registration)}</TableCell>
                     <TableCell>{formatDate(quote.quote_date)}</TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(quote.job_status || 'draft')}>
@@ -493,8 +534,26 @@ export default function QuotesDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewQuote(quote)}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </Button>
                         {quote.job_status !== 'approved' && (
                           <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.location.href = `/protected/fc/quotes/${quote.id}/edit`}
+                              className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                            >
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -562,6 +621,337 @@ export default function QuotesDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* View Quote Details Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={closeViewModal}>
+        <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden">
+          <DialogHeader className="border-b bg-white p-6">
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl font-semibold text-gray-900">Quote Details</span>
+                <span className="text-lg text-gray-500">#{selectedQuote?.job_number}</span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={closeViewModal}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedQuote && (
+            <div className="overflow-y-auto max-h-[calc(95vh-100px)] bg-gray-50">
+              
+              {/* Status Bar */}
+              <div className="bg-white border-b px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-6">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Status:</span>
+                      <Badge className={`ml-2 ${getStatusColor(selectedQuote.job_status || 'draft')}`}>
+                        {getStatusText(selectedQuote.job_status)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Customer:</span>
+                      <span className="ml-2 text-sm text-gray-900">{selectedQuote.customer_name || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Vehicle:</span>
+                      <span className="ml-2 text-sm text-gray-900">{selectedQuote.vehicle_registration || 'N/A'}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500">Total Amount</div>
+                    <div className="text-xl font-bold text-gray-900">{formatCurrency(selectedQuote.quotation_total_amount)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                
+                {/* Two Column Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Left Column */}
+                  <div className="space-y-6">
+                    
+                    {/* Quote Information */}
+                    <div className="bg-white rounded border">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-base font-medium text-gray-900">Quote Information</h3>
+                      </div>
+                      <div className="p-4">
+                        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Job Number</dt>
+                            <dd className="mt-1 text-sm text-gray-900 font-mono">{selectedQuote.job_number}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Job Type</dt>
+                            <dd className="mt-1 text-sm text-gray-900 capitalize">{selectedQuote.job_type || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Quote Date</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{formatDate(selectedQuote.quote_date)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Expiry Date</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{formatDate(selectedQuote.quote_expiry_date)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Priority</dt>
+                            <dd className="mt-1 text-sm text-gray-900 capitalize">{selectedQuote.priority || 'Medium'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Purchase Type</dt>
+                            <dd className="mt-1 text-sm text-gray-900 capitalize">{selectedQuote.purchase_type || 'Purchase'}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+
+                    {/* Customer Information */}
+                    <div className="bg-white rounded border">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-base font-medium text-gray-900">Customer Details</h3>
+                      </div>
+                      <div className="p-4">
+                        <dl className="grid grid-cols-1 gap-4">
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Name</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.customer_name || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Email</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.customer_email || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Phone</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.customer_phone || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Contact Person</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.contact_person || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Address</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.customer_address || 'N/A'}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+
+                    {/* Vehicle Information */}
+                    <div className="bg-white rounded border">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-base font-medium text-gray-900">Vehicle Details</h3>
+                      </div>
+                      <div className="p-4">
+                        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Registration</dt>
+                            <dd className="mt-1">{formatVehicleRegistration(selectedQuote.vehicle_registration)}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Make</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.vehicle_make || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Model</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.vehicle_model || 'N/A'}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-sm font-medium text-gray-500">Year</dt>
+                            <dd className="mt-1 text-sm text-gray-900">{selectedQuote.vehicle_year || 'N/A'}</dd>
+                          </div>
+                          {selectedQuote.vin_number && (
+                            <div className="sm:col-span-2">
+                              <dt className="text-sm font-medium text-gray-500">VIN Number</dt>
+                              <dd className="mt-1 text-xs font-mono text-gray-900">{selectedQuote.vin_number}</dd>
+                            </div>
+                          )}
+                          {selectedQuote.odormeter && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-500">Odometer</dt>
+                              <dd className="mt-1 text-sm text-gray-900">{selectedQuote.odormeter} km</dd>
+                            </div>
+                          )}
+                          {selectedQuote.decommission_date && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-500">Decommission Date</dt>
+                              <dd className="mt-1 text-sm text-red-600">{formatDate(selectedQuote.decommission_date)}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    </div>
+                    
+                  </div>
+                  
+                  {/* Right Column */}
+                  <div className="space-y-6">
+                    
+                    {/* Financial Summary */}
+                    <div className="bg-white rounded border">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-base font-medium text-gray-900">Financial Summary</h3>
+                      </div>
+                      <div className="p-4">
+                        <dl className="space-y-3">
+                          <div className="flex justify-between">
+                            <dt className="text-sm text-gray-500">Subtotal</dt>
+                            <dd className="text-sm text-gray-900">{formatCurrency(selectedQuote.quotation_subtotal)}</dd>
+                          </div>
+                          <div className="flex justify-between">
+                            <dt className="text-sm text-gray-500">VAT</dt>
+                            <dd className="text-sm text-gray-900">{formatCurrency(selectedQuote.quotation_vat_amount)}</dd>
+                          </div>
+                          <div className="border-t pt-3">
+                            <div className="flex justify-between">
+                              <dt className="text-base font-medium text-gray-900">Total Amount</dt>
+                              <dd className="text-base font-bold text-gray-900">{formatCurrency(selectedQuote.quotation_total_amount)}</dd>
+                            </div>
+                          </div>
+                        </dl>
+                      </div>
+                    </div>
+
+                    {/* Additional Information */}
+                    {(selectedQuote.job_description || selectedQuote.quote_notes || selectedQuote.special_instructions) && (
+                      <div className="bg-white rounded border">
+                        <div className="border-b px-4 py-3">
+                          <h3 className="text-base font-medium text-gray-900">Additional Information</h3>
+                        </div>
+                        <div className="p-4 space-y-4">
+                          {selectedQuote.job_description && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-500">Job Description</dt>
+                              <dd className="mt-1 text-sm text-gray-900">{selectedQuote.job_description}</dd>
+                            </div>
+                          )}
+                          {selectedQuote.quote_notes && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-500">Notes</dt>
+                              <dd className="mt-1 text-sm text-gray-900">{selectedQuote.quote_notes}</dd>
+                            </div>
+                          )}
+                          {selectedQuote.special_instructions && (
+                            <div>
+                              <dt className="text-sm font-medium text-gray-500">Special Instructions</dt>
+                              <dd className="mt-1 text-sm text-gray-900 bg-yellow-50 border border-yellow-200 rounded p-2">{selectedQuote.special_instructions}</dd>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Record Information */}
+                    <div className="bg-white rounded border">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-base font-medium text-gray-900">Record Information</h3>
+                      </div>
+                      <div className="p-4">
+                        <dl className="grid grid-cols-1 gap-3 text-sm">
+                          <div>
+                            <dt className="font-medium text-gray-500">Created</dt>
+                            <dd className="text-gray-900">{formatDate(selectedQuote.created_at)}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-medium text-gray-500">Last Updated</dt>
+                            <dd className="text-gray-900">{formatDate(selectedQuote.updated_at)}</dd>
+                          </div>
+                          {selectedQuote.account_id && (
+                            <div>
+                              <dt className="font-medium text-gray-500">Account ID</dt>
+                              <dd className="font-mono text-gray-900">{selectedQuote.account_id}</dd>
+                            </div>
+                          )}
+                          {selectedQuote.new_account_number && (
+                            <div>
+                              <dt className="font-medium text-gray-500">Account Number</dt>
+                              <dd className="font-mono text-gray-900">{selectedQuote.new_account_number}</dd>
+                            </div>
+                          )}
+                        </dl>
+                      </div>
+                    </div>
+                    
+                  </div>
+                  
+                </div>
+              
+                {/* Products/Services */}
+                {selectedQuote.quotation_products && selectedQuote.quotation_products.length > 0 && (
+                  <div className="bg-white rounded border mt-6">
+                    <div className="border-b px-4 py-3">
+                      <h3 className="text-base font-medium text-gray-900">Products & Services</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Description</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Quantity</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Unit Price</th>
+                            <th className="px-4 py-3 text-right text-sm font-medium text-gray-500">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {selectedQuote.quotation_products.map((product, index) => (
+                            <tr key={index}>
+                              <td className="px-4 py-3">
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">{product.name || product.description || 'Product'}</div>
+                                  {product.description && product.name && (
+                                    <div className="text-sm text-gray-500">{product.description}</div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm text-gray-900">{product.quantity || 1}</td>
+                              <td className="px-4 py-3 text-right text-sm text-gray-900">{formatCurrency(product.price || product.unit_price || 0)}</td>
+                              <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrency((product.quantity || 1) * (product.price || product.unit_price || 0))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Email Communication */}
+                {(selectedQuote.quote_email_subject || selectedQuote.quote_email_body) && (
+                  <div className="bg-white rounded border mt-6">
+                    <div className="border-b px-4 py-3">
+                      <h3 className="text-base font-medium text-gray-900">Email Communication</h3>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {selectedQuote.quote_email_subject && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Subject</dt>
+                          <dd className="mt-1 text-sm text-gray-900">{selectedQuote.quote_email_subject}</dd>
+                        </div>
+                      )}
+                      {selectedQuote.quote_email_body && (
+                        <div>
+                          <dt className="text-sm font-medium text-gray-500">Message</dt>
+                          <dd className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded border max-h-48 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap">{selectedQuote.quote_email_body}</pre>
+                          </dd>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

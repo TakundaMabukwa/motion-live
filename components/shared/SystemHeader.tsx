@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getUserRole } from '@/lib/auth-utils';
 import RoleSwitcher from './RoleSwitcher';
 import { LogoutButton } from '@/components/logout-button';
-import { Bell, Settings } from 'lucide-react';
+import { Bell, Settings, Lock } from 'lucide-react';
 
 interface SystemHeaderProps {
   title?: string;
@@ -15,6 +16,8 @@ interface SystemHeaderProps {
 export default function SystemHeader({ title, currentRole }: SystemHeaderProps) {
   const [userRole, setUserRole] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
+  const isValidationMode = pathname?.includes('/validate');
 
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -47,8 +50,14 @@ export default function SystemHeader({ title, currentRole }: SystemHeaderProps) 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-3">
           {title && <h1 className="text-xl font-semibold text-gray-900">{title}</h1>}
+          {isValidationMode && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-300">
+              <Lock className="w-4 h-4" />
+              <span className="text-sm font-medium">Validation Mode</span>
+            </div>
+          )}
         </div>
         
         <div className="flex items-center space-x-4">

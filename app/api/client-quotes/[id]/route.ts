@@ -1,6 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    
+    const { data, error } = await supabase
+      .from('client_quotes')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to fetch client quote',
+        details: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data
+    });
+
+  } catch (error) {
+    console.error('Error fetching client quote:', error);
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -52,7 +94,6 @@ export async function PUT(
   try {
     const supabase = await createClient();
     
-    // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,10 +101,9 @@ export async function PUT(
 
     const body = await request.json();
     const { action } = body;
+    const { id } = await params;
 
     if (action === 'approve') {
-      // Await params to get the ID
-      const { id } = await params;
       
       // First, get the client quote data
       const { data: clientQuote, error: fetchError } = await supabase
@@ -184,10 +224,6 @@ export async function PUT(
     }
 
     if (action === 'decline') {
-      // Await params to get the ID
-      const { id } = await params;
-      
-      // Update the client quote status to declined (don't delete it)
       const { error: updateError } = await supabase
         .from('client_quotes')
         .update({ 
@@ -209,17 +245,35 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         message: 'Client quote declined successfully',
-        data: {
-          quoteId: id,
-          status: 'declined'
-        }
+        data: { quoteId: id, status: 'declined' }
       });
     }
 
+    // Regular update (no action specified)
+    const { data, error } = await supabase
+      .from('client_quotes')
+      .update({
+        ...body,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Database error:', error);
+      return NextResponse.json({ 
+        error: 'Failed to update client quote',
+        details: error.message 
+      }, { status: 500 });
+    }
+
     return NextResponse.json({
-      error: 'Invalid action',
-      details: 'Only approve or decline actions are supported'
-    }, { status: 400 });
+      success: true,
+      message: 'Client quote updated successfully',
+      data
+    });
 
   } catch (error) {
     console.error('Error processing client quote:', error);

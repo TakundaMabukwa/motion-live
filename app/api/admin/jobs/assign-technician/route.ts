@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { jobId, technicianEmail, technicianName, jobDate, startTime, endTime, assignmentNotes } = body;
+    const { jobId, technicianEmail, technicianName, jobDate, startTime, endTime, assignmentNotes, override = false } = body;
 
     if (!jobId || !technicianName || !jobDate) {
       return NextResponse.json({ 
@@ -74,30 +74,74 @@ export async function PUT(request: NextRequest) {
     const startDateTime = startTime ? `${datePart}T${startTime}:00` : null;
     const endDateTime = endTime ? `${datePart}T${endTime}:00` : null;
     
-    // Check for scheduling conflicts
-    const jobDateTime = startDateTime || jobDate;
-    const bufferHours = 3; // 3-hour window
-    
-    // Calculate time window
-    const selectedDateTime = new Date(jobDateTime);
-    const bufferInMs = bufferHours * 60 * 60 * 1000;
-    const startWindow = new Date(selectedDateTime.getTime() - bufferInMs);
-    const endWindow = new Date(selectedDateTime.getTime() + bufferInMs);
-    
-    // Check for conflicts
-    const { data: conflicts, error: conflictError } = await supabase
-      .from('job_cards')
-      .select('id, job_number, job_date, start_time, customer_name')
-      .eq('technician_name', technicianName)
-      .or(`job_date.gte.${startWindow.toISOString()},job_date.lte.${endWindow.toISOString()}`)
-      .neq('status', 'cancelled')
-      .neq('status', 'completed')
-      .neq('id', jobId);  // Exclude the current job
-    
-    if (conflictError) {
-      console.error('Error checking conflicts:', conflictError);
-    } else if (conflicts && conflicts.length > 0) {
-      console.warn(`Found ${conflicts.length} scheduling conflicts for technician ${technicianName}`);
+    // Check for scheduling conflicts (only if override is not requested)  
+    if (!override) {
+      const jobDateTime = startDateTime || jobDate;
+      const bufferHours = 3; // 3-hour window
+      
+      // Calculate time window
+      try {
+        const selectedDateTime = new Date(jobDateTime);
+        
+        // Validate the date
+        if (isNaN(selectedDateTime.getTime())) {
+          return NextResponse.json({ 
+            error: 'Invalid job date/time format' 
+          }, { status: 400 });
+        }
+        
+        const bufferInMs = bufferHours * 60 * 60 * 1000;
+        const startWindow = new Date(selectedDateTime.getTime() - bufferInMs);
+        const endWindow = new Date(selectedDateTime.getTime() + bufferInMs);
+        
+        console.log(`Checking conflicts for ${technicianName} between ${startWindow.toISOString()} and ${endWindow.toISOString()}`);
+        
+        // Check for conflicts
+        const { data: conflicts, error: conflictError } = await supabase
+          .from('job_cards')
+          .select('id, job_number, job_date, start_time, customer_name')
+          .eq('technician_name', technicianName)
+          .or(`job_date.gte.${startWindow.toISOString()},job_date.lte.${endWindow.toISOString()}`)
+          .neq('status', 'cancelled')
+          .neq('status', 'completed')
+          .neq('id', jobId);  // Exclude the current job
+        
+        if (conflictError) {
+          console.error('Error checking conflicts:', conflictError);
+          return NextResponse.json({ 
+            error: 'Failed to check scheduling conflicts',
+            details: conflictError.message 
+          }, { status: 500 });
+        } 
+        
+        console.log(`Conflict check result: ${conflicts?.length || 0} conflicts found`);
+        
+        if (conflicts && conflicts.length > 0) {
+          console.warn(`Found ${conflicts.length} scheduling conflicts for technician ${technicianName}:`, conflicts);
+          
+          // Return 409 status with conflict data to trigger override dialog
+          return NextResponse.json({
+            error: 'Scheduling conflict detected',
+            needsOverride: true,
+            conflicts: conflicts.map(conflict => ({
+              id: conflict.id,
+              job_number: conflict.job_number,
+              customer_name: conflict.customer_name,
+              start_time: conflict.start_time,
+              job_date: conflict.job_date
+            })),
+            message: `⚠️ WARNING: This will create a double booking! ${technicianName} is already assigned to ${conflicts.length} other job(s) within 3 hours of the selected time.`
+          }, { status: 409 });
+        }
+      } catch (dateError) {
+        console.error('Date parsing error:', dateError);
+        return NextResponse.json({ 
+          error: 'Invalid job date/time format',
+          details: dateError.message 
+        }, { status: 400 });
+      }
+    } else {
+      console.log(`⚠️ Override flag set - skipping conflict detection for technician ${technicianName}`);
     }
     
     // Skip notes handling since column doesn't exist
@@ -162,7 +206,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Technician assigned successfully.' + partsMessage,
+      message: override 
+        ? `✅ Technician assigned successfully with scheduling conflict override. Parts transferred: ${result.partsAdded} parts added to technician stock.` 
+        : 'Technician assigned successfully.' + partsMessage,
       data: data
     });
 

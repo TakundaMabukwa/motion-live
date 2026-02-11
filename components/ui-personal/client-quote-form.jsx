@@ -173,21 +173,23 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     return physicalAddress || postalAddress || '';
   }, []);
 
-  // Fetch customer data from customers table
+  // Fetch customer data from customers_grouped table
   const fetchCustomerData = useCallback(async (accountNumber) => {
     if (!accountNumber) return;
     
     console.log('fetchCustomerData called with accountNumber:', accountNumber);
     
     try {
-      const response = await fetch(`/api/customers/match-account?accountNumber=${encodeURIComponent(accountNumber)}`);
+      // Query customers_grouped table to find the customer by account number
+      const response = await fetch(`/api/customers-grouped-by-account?accountNumber=${encodeURIComponent(accountNumber)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || 'Failed to fetch customer data';
         
         if (response.status === 404) {
           // Customer not found - show toast message
-          toast.error('No contact information found for this customer');
+          console.log('Customer not found in customers_grouped table for account:', accountNumber);
+          toast.error('Customer information not found for this account number');
         } else {
           console.error('API Error:', response.status, errorMessage);
         }
@@ -199,33 +201,23 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         // Update form data with fetched customer information
         const customer = data.customer;
         
-        // Check if customer has any contact information
-        const hasContactInfo = customer.trading_name || customer.company || customer.legal_name ||
-                              customer.branch_person_email || customer.email ||
-                              customer.cell_no || customer.switchboard ||
-                              constructAddress(customer);
-        
-        if (!hasContactInfo) {
-          toast.error('No contact information found for this customer');
-          return;
-        }
+        console.log('Customer data fetched from customers_grouped:', data.customer);
         
         setFormData(prev => ({
           ...prev,
-          customerName: customer.trading_name || customer.company || customer.legal_name || prev.customerName,
-          customerEmail: customer.branch_person_email || customer.email || prev.customerEmail,
-          customerPhone: customer.cell_no || customer.switchboard || prev.customerPhone,
-          customerAddress: constructAddress(customer) || prev.customerAddress,
+          customerName: customer.company_group || customer.legal_names || prev.customerName,
+          customerEmail: customer.email || prev.customerEmail,
+          customerPhone: customer.phone || prev.customerPhone,
+          customerAddress: customer.address || prev.customerAddress,
         }));
         
-        console.log('Customer data fetched and updated:', data.customer);
-        console.log('Constructed address:', constructAddress(customer));
+        console.log('Form data updated with customer information');
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
       toast.error('Error fetching customer data');
     }
-  }, [constructAddress]);
+  }, []);
 
   const [formData, setFormData] = useState({
     jobType: "",
@@ -524,6 +516,13 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   }, []);
 
   const getProductTotal = useCallback((product) => {
+    // Labour items: only use cash price (the labour cost field)
+    if (product.isLabour) {
+      const labourGross = calculateGrossAmount(product.cashPrice, product.cashDiscount);
+      return labourGross * product.quantity;
+    }
+    
+    // Regular products: sum all applicable pricing tiers
     let total = 0;
     
     if (product.purchaseType === 'purchase') {
@@ -699,6 +698,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           category: product.category,
           quantity: product.quantity,
           purchase_type: product.purchaseType || 'service',
+          is_labour: product.isLabour || false,
           cash_price: product.cashPrice || 0,
           cash_discount: product.cashDiscount || 0,
           cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
@@ -729,6 +729,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           category: product.category,
           quantity: product.quantity,
           purchase_type: product.purchaseType,
+          is_labour: product.isLabour || false,
           cash_price: product.cashPrice || 0,
           cash_discount: product.cashDiscount || 0,
           cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
@@ -768,15 +769,46 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         decommissionDate: formData.decommissionDate,
         
         // Vehicle information
-        vehicleRegistration: formData.vehicle_registration || '',
-        vehicleMake: formData.vehicle_make || '',
-        vehicleModel: formData.vehicle_model || '',
-        vehicleYear: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
-        vinNumber: formData.vin_number || '',
+        vehicle_registration: formData.vehicle_registration || '',
+        vehicle_make: formData.vehicle_make || '',
+        vehicle_model: formData.vehicle_model || '',
+        vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
+        vin_number: formData.vin_number || '',
         odormeter: formData.odormeter || '',
         
         // Account information (for internal quotes)
         new_account_number: accountInfo?.new_account_number || customer?.new_account_number || null,
+        
+        // De-install specific data - capture selected vehicles and their details with parts being removed
+        ...(formData.jobType === 'deinstall' && {
+          deinstall_vehicles: (deInstallData?.selectedVehicles || []).map(vehicleId => {
+            const vehicle = deInstallData.availableVehicles.find(v => v.id === vehicleId);
+            // Get all products associated with this vehicle
+            const vehicleParts = (selectedProducts || []).filter(p => p.vehicleId === vehicleId && !p.isLabour);
+            
+            return {
+              id: vehicleId,
+              registration: vehicle?.fleet_number || vehicle?.reg || '',
+              make: vehicle?.make || '',
+              model: vehicle?.model || '',
+              year: vehicle?.year || null,
+              vin: vehicle?.vin_number || '',
+              odometer: vehicle?.odometer || '',
+              color: vehicle?.color || '',
+              fuel_type: vehicle?.fuel_type || '',
+              // Parts/Equipment being de-installed from this vehicle
+              parts_being_deinstalled: vehicleParts.map(part => ({
+                id: part.id,
+                name: part.name,
+                description: part.description,
+                type: part.type,
+                category: part.category,
+                code: part.code || '',
+                quantity: part.quantity || 1
+              }))
+            };
+          })
+        }),
         
         // Quotation products with detailed pricing
         quotationProducts: quotationProducts,
@@ -1003,9 +1035,12 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             <SelectItem value="reinstall">Reinstall</SelectItem>
                             <SelectItem value="additional_install">Additional Install</SelectItem>
                           </>
-                        ) : (
-                          <SelectItem value="decommission">Decommission</SelectItem>
-                        )}
+                        ) : formData.jobType === 'deinstall' ? (
+                          <>
+                            <SelectItem value="decommission">Decommission</SelectItem>
+                            <SelectItem value="de-install">De-install</SelectItem>
+                          </>
+                        ) : null}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1044,7 +1079,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                 />
               </div>
 
-              {/* Decommission Date Field */}
+              {/* Decommission Date Field - Only for Decommission, not De-install */}
               {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
                 <div className="space-y-2">
                   <Label htmlFor="decommissionDate">Decommission Date *</Label>
@@ -1056,24 +1091,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                     min={new Date().toISOString().split('T')[0]}
                   />
                   <p className="text-sm text-amber-600">
-                    ⚠️ Note: Both Helpdesk and Ria will be automatically notified when beames are decommissioned.
-                  </p>
-                </div>
-              )}
-
-              {/* Decommission Date Field */}
-              {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
-                <div className="space-y-2">
-                  <Label htmlFor="decommissionDate">Decommission Date *</Label>
-                  <Input
-                    id="decommissionDate"
-                    type="date"
-                    value={formData.decommissionDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, decommissionDate: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                  <p className="text-sm text-amber-600">
-                    ⚠️ Note: Both Helpdesk and Ria will be automatically notified when beames are decommissioned.
+                    ⚠️ Note: Both Helpdesk and Ria will be automatically notified when equipment is decommissioned.
                   </p>
                 </div>
               )}
@@ -1094,210 +1112,95 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
       case 1:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="customerName">Customer Name *</Label>
-                  <Input
-                    id="customerName"
-                    value={formData.customerName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
-                    placeholder="Enter customer name"
-                  />
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="customerName">Customer Name *</Label>
+                    <Input
+                      id="customerName"
+                      value={formData.customerName}
+                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="customerEmail">Customer Email *</Label>
+                    <Input
+                      id="customerEmail"
+                      type="email"
+                      value={formData.customerEmail}
+                      onChange={(e) => setFormData({ ...formData, customerEmail: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="customerPhone">Customer Phone *</Label>
+                    <Input
+                      id="customerPhone"
+                      value={formData.customerPhone}
+                      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contactPerson">Contact Person</Label>
+                    <Input
+                      id="contactPerson"
+                      value={formData.contactPerson}
+                      onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                    />
+                  </div>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="contactPerson">Contact Person</Label>
-                  <Input
-                    id="contactPerson"
-                    value={formData.contactPerson}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
-                    placeholder="Enter contact person name"
-                  />
-                </div>
-              </div>
-
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="customerEmail">Email *</Label>
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    value={formData.customerEmail}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
-                    placeholder="Enter email address"
-                  />
-                </div>
-              </div>
-
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="customerPhone">Phone *</Label>
-                  <Input
-                    id="customerPhone"
-                    value={formData.customerPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                    placeholder="Enter phone number"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="customerAddress">Address</Label>
-                  <Input
+                  <Label htmlFor="customerAddress">Customer Address</Label>
+                  <Textarea
                     id="customerAddress"
                     value={formData.customerAddress}
-                    onChange={(e) => setFormData(prev => ({ ...prev, customerAddress: e.target.value }))}
-                    placeholder="Enter address"
+                    onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="extraNotes">Additional Notes</Label>
-                <Textarea
-                  id="extraNotes"
-                  value={formData.extraNotes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, extraNotes: e.target.value }))}
-                  placeholder="Any additional notes..."
-                  rows={3}
-                />
-              </div>
-
-              {/* Vehicle Information Section */}
-              <Separator className="my-6" />
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Vehicle Information (Optional)</h3>
-                <p className="mb-4 text-gray-600 text-sm">
-                  Vehicle information is optional but will be stored with the quotation for future reference.
-                </p>
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle_registration">Vehicle Registration</Label>
-                  <Input
-                    id="vehicle_registration"
-                    placeholder="Enter vehicle registration (optional)"
-                    value={formData.vehicle_registration}
-                    onChange={(e) =>
-                      setFormData({ ...formData, vehicle_registration: e.target.value })
-                    }
-                  />
-                  <p className="text-gray-500 text-xs">
-                    Vehicle registration is optional but will be stored if provided
-                  </p>
-                </div>
-                <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Vehicle Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle_registration">Vehicle Registration</Label>
+                    <Input
+                      id="vehicle_registration"
+                      value={formData.vehicle_registration}
+                      onChange={(e) => setFormData({ ...formData, vehicle_registration: e.target.value })}
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="vehicle_make">Vehicle Make</Label>
                     <Input
                       id="vehicle_make"
-                      placeholder="e.g., Toyota, Ford"
                       value={formData.vehicle_make}
-                      onChange={(e) =>
-                        setFormData({ ...formData, vehicle_make: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, vehicle_make: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vehicle_model">Vehicle Model</Label>
                     <Input
                       id="vehicle_model"
-                      placeholder="e.g., Corolla, Ranger"
                       value={formData.vehicle_model}
-                      onChange={(e) =>
-                        setFormData({ ...formData, vehicle_model: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle_year">Vehicle Year</Label>
-                    <Input
-                      id="vehicle_year"
-                      type="number"
-                      placeholder="e.g., 2020"
-                      value={formData.vehicle_year}
-                      onChange={(e) =>
-                        setFormData({ ...formData, vehicle_year: e.target.value })
-                      }
+                      onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
                     />
                   </div>
                 </div>
-                <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="vin_number">VIN Number</Label>
-                    <Input
-                      id="vin_number"
-                      placeholder="Enter VIN number"
-                      value={formData.vin_number}
-                      onChange={(e) =>
-                        setFormData({ ...formData, vin_number: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="odormeter">Odometer Reading</Label>
-                    <Input
-                      id="odormeter"
-                      placeholder="Enter odometer reading"
-                      value={formData.odormeter}
-                      onChange={(e) =>
-                        setFormData({ ...formData, odormeter: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         );
-
       case 2:
         return (
           <div className="space-y-6">
-            {/* Selected Products List - Show at top */}
-            {(selectedProducts || []).length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    Selected Products ({selectedProducts.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {(selectedProducts || []).map((product, index) => (
-                      <div key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-blue-600 rounded-full w-3 h-3"></div>
-                          <div>
-                            <div className="font-medium text-gray-900">{product.name}</div>
-                            <div className="text-gray-600 text-sm">
-                              Qty: {product.quantity} • 
-                              {product.purchaseType === 'purchase' ? (
-                                <span className="text-green-600"> R{product.cashPrice?.toFixed(2) || '0.00'}</span>
-                              ) : (
-                                <span className="text-blue-600"> R{product.rentalPrice?.toFixed(2) || '0.00'}/month</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeProduct(index)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Product Selection */}
             {formData.jobType === 'install' && (
               <Card>
@@ -1351,45 +1254,80 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                     </div>
                   </div>
 
-                                     {/* Product List */}
-                   {loadingProducts ? (
-                     <div className="flex justify-center items-center py-8">
-                       <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                       <span className="ml-2">Loading products...</span>
-                     </div>
-                   ) : productError ? (
-                     <div className="py-4 text-red-600 text-center">{productError}</div>
-                   ) : (
-                                           <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-h-64 overflow-y-auto">
-                        {(productItems || []).map((product) => (
-                         <Card key={product.id} className="hover:shadow-md transition-shadow cursor-pointer">
-                           <CardContent className="p-4">
-                             <div className="flex justify-between items-start mb-2">
-                               <div>
-                                 <h4 className="font-semibold text-sm">{product.product}</h4>
-                                 <p className="text-gray-600 text-xs">{product.description}</p>
-                                 <div className="flex gap-2 mt-2">
-                                   <span className="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">{product.type}</span>
-                                   <span className="bg-gray-100 px-2 py-1 rounded text-gray-800 text-xs">{product.category}</span>
-                                 </div>
-                               </div>
-                               <Button
-                                 size="sm"
-                                 onClick={() => addProduct(product)}
-                                 className="bg-blue-600 hover:bg-blue-700"
-                               >
-                                 <Plus className="w-3 h-3" />
-                               </Button>
-                             </div>
-                             <div className="space-y-1 text-gray-500 text-xs">
-                               <div>Cash: R {product.price?.toFixed(2) || '0.00'}</div>
-                               <div>Rental: R {product.rental?.toFixed(2) || '0.00'}/month</div>
-                               <div>Installation: R {product.installation?.toFixed(2) || '0.00'}</div>
-                               {product.subscription && <div>Subscription: R {product.subscription.toFixed(2)}/month</div>}
-                             </div>
-                           </CardContent>
-                         </Card>
-                       ))}
+                  {/* Add Labour Button */}
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const labourItem = {
+                          id: `labour-${Date.now()}`,
+                          name: 'Labour Charge',
+                          description: 'Manual labour charge',
+                          type: 'Labour',
+                          category: 'Labour',
+                          quantity: 1,
+                          purchaseType: 'service',
+                          isLabour: true,
+                          cashPrice: 0,
+                          cashDiscount: 0,
+                          rentalPrice: 0,
+                          rentalDiscount: 0,
+                          installationPrice: 0,
+                          installationDiscount: 0,
+                          deInstallationPrice: 0,
+                          deInstallationDiscount: 0,
+                          subscriptionPrice: 0,
+                          subscriptionDiscount: 0,
+                        };
+                        setSelectedProducts(prev => [...(prev || []), labourItem]);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Labour Charge
+                    </Button>
+                  </div>
+
+                  {/* Product List */}
+                  {loadingProducts ? (
+                    <div className="flex justify-center items-center py-8">
+                      <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+                      <span className="ml-2">Loading products...</span>
+                    </div>
+                  ) : productError ? (
+                    <div className="py-4 text-red-600 text-center">{productError}</div>
+                  ) : (
+                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-h-64 overflow-y-auto">
+                      {(productItems || []).map((product) => (
+                        <Card key={product.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-semibold text-sm">{product.product}</h4>
+                                <p className="text-gray-600 text-xs">{product.description}</p>
+                                <div className="flex gap-2 mt-2">
+                                  <span className="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">{product.type}</span>
+                                  <span className="bg-gray-100 px-2 py-1 rounded text-gray-800 text-xs">{product.category}</span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => addProduct(product)}
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <div className="space-y-1 text-gray-500 text-xs">
+                              <div>Cash: R {product.price?.toFixed(2) || '0.00'}</div>
+                              <div>Rental: R {product.rental?.toFixed(2) || '0.00'}/month</div>
+                              <div>Installation: R {product.installation?.toFixed(2) || '0.00'}</div>
+                              {product.subscription && <div>Subscription: R {product.subscription.toFixed(2)}/month</div>}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </CardContent>
@@ -1403,16 +1341,6 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                   <CardTitle>
                     {deInstallData.currentStep === 0 ? 'Vehicle Selection' : 'Vehicle Parts'}
                   </CardTitle>
-                  {deInstallData.currentStep === 1 && deInstallData.currentVehicleId && (
-                    <div className="text-sm text-gray-500 mt-1">
-                      {(() => {
-                        const vehicle = deInstallData.availableVehicles.find(v => v.id === deInstallData.currentVehicleId);
-                        return vehicle ? 
-                          `${vehicle.fleet_number || vehicle.reg || 'Unknown'} - ${vehicle.make || ''} ${vehicle.model || ''}` 
-                          : 'Selected Vehicle';
-                      })()}
-                    </div>
-                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <DeinstallationFlow
@@ -1450,11 +1378,44 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                       </div>
                     </div>
                   )}
+
+                  {/* Add Labour Button for De-install */}
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const labourItem = {
+                          id: `labour-${Date.now()}`,
+                          name: 'Labour Charge',
+                          description: 'Manual labour charge',
+                          type: 'Labour',
+                          category: 'Labour',
+                          quantity: 1,
+                          purchaseType: 'service',
+                          isLabour: true,
+                          cashPrice: 0,
+                          cashDiscount: 0,
+                          rentalPrice: 0,
+                          rentalDiscount: 0,
+                          installationPrice: 0,
+                          installationDiscount: 0,
+                          deInstallationPrice: 0,
+                          deInstallationDiscount: 0,
+                          subscriptionPrice: 0,
+                          subscriptionDiscount: 0,
+                        };
+                        setSelectedProducts(prev => [...(prev || []), labourItem]);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Labour Charge
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
-
-
 
             {/* Selected Products */}
             {(selectedProducts || []).length > 0 && (
@@ -1468,17 +1429,19 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                       <div key={index} className="p-4 border rounded-lg">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h4 className="font-semibold">{product.name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold">{product.name}</h4>
+                              {product.isLabour && (
+                                <span className="bg-green-100 px-2 py-1 rounded text-green-800 text-xs font-medium">
+                                  Labour
+                                </span>
+                              )}
+                            </div>
                             <p className="text-gray-600 text-sm">{product.description}</p>
                             <div className="flex gap-2 mt-1">
                               {product.code && (
                                 <span className="bg-blue-100 px-2 py-1 rounded text-blue-800 text-xs">
                                   Code: {product.code}
-                                </span>
-                              )}
-                              {product.vehiclePlate && (
-                                <span className="bg-green-100 px-2 py-1 rounded text-green-800 text-xs">
-                                  Vehicle: {product.vehiclePlate}
                                 </span>
                               )}
                             </div>
@@ -1494,50 +1457,89 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                         </div>
 
                         {/* Product Information Header */}
-                        <div className="gap-4 grid grid-cols-1 md:grid-cols-3 mb-4">
-                          <div className="space-y-2">
-                            <Label>Product</Label>
-                            <Input
-                              value={product.name}
-                              readOnly
-                              className="bg-gray-50"
-                            />
+                        {!product.isLabour ? (
+                          <div className="gap-4 grid grid-cols-1 md:grid-cols-3 mb-4">
+                            <div className="space-y-2">
+                              <Label>Product</Label>
+                              <Input
+                                value={product.name}
+                                readOnly
+                                className="bg-gray-50"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Code</Label>
+                              <Input
+                                value={product.code || 'N/A'}
+                                readOnly
+                                className="bg-gray-50"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Quantity</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={product.quantity}
+                                onChange={(e) =>
+                                  updateProduct(index, "quantity", parseInt(e.target.value) || 1)
+                                }
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label>Code</Label>
-                            <Input
-                              value={product.code || 'N/A'}
-                              readOnly
-                              className="bg-gray-50"
-                            />
+                        ) : (
+                          <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
+                            <div className="space-y-2">
+                              <Label>Labour Description</Label>
+                              <Input
+                                value={product.name}
+                                onChange={(e) =>
+                                  updateProduct(index, "name", e.target.value)
+                                }
+                                placeholder="e.g., Installation labour, Technical support"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Hours/Units</Label>
+                              <Input
+                                type="number"
+                                min="0.5"
+                                step="0.5"
+                                value={product.quantity}
+                                onChange={(e) =>
+                                  updateProduct(index, "quantity", parseFloat(e.target.value) || 1)
+                                }
+                                placeholder="Number of hours or units"
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label>Quantity</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={product.quantity}
-                              onChange={(e) =>
-                                updateProduct(index, "quantity", parseInt(e.target.value) || 1)
-                              }
-                            />
-                          </div>
-                        </div>
+                        )}
 
                         {/* Pricing Grid */}
                         <div className="space-y-4">
                           <div className="gap-4 grid grid-cols-4 pb-2 border-b font-medium text-gray-700 text-sm">
-                            <div>Base Price</div>
-                            <div>Discount</div>
-                            <div>Gross Price</div>
-                            <div>Total Price</div>
+                            {product.isLabour ? (
+                              <>
+                                <div>Labour Cost ex VAT (Once Off)</div>
+                                <div>Discount</div>
+                                <div>Gross ex VAT</div>
+                                <div>Total (Once Off)</div>
+                              </>
+                            ) : (
+                              <>
+                                <div>Base Price</div>
+                                <div>Discount</div>
+                                <div>Gross Price</div>
+                                <div>Total Price</div>
+                              </>
+                            )}
                           </div>
                           
-                          {/* Cash Row */}
-                          {product.purchaseType === 'purchase' && (
+                          {/* Cash Row / Labour Cost Row */}
+                          {(product.purchaseType === 'purchase' || product.isLabour) && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Cash ex VAT</Label>
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Labour Cost ex VAT' : 'Cash ex VAT'}</Label>
                                 <Input
                                   type="number"
                                   value={product.cashPrice}
@@ -1558,7 +1560,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Cash ex VAT</Label>
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Gross ex VAT' : 'Gross Cash ex VAT'}</Label>
                                 <Input
                                   value={calculateGrossAmount(product.cashPrice, product.cashDiscount).toFixed(2)}
                                   readOnly
@@ -1566,7 +1568,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Cash ex VAT</Label>
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Total (Once Off)' : 'Total Cash ex VAT'}</Label>
                                 <Input
                                   value={(calculateGrossAmount(product.cashPrice, product.cashDiscount) * product.quantity).toFixed(2)}
                                   readOnly
@@ -1576,137 +1578,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             </div>
                           )}
 
-                          {/* Rental Price Row */}
-                          {product.purchaseType === 'rental' && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Rental Price ex VAT</Label>
-                                <Input
-                                  type="number"
-                                  value={product.rentalPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Discount</Label>
-                                <Input
-                                  type="number"
-                                  value={product.rentalDiscount}
-                                  onChange={(e) =>
-                                    updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Rental/Month ex VAT</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.rentalPrice, product.rentalDiscount).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Rental/Month ex VAT</Label>
-                                <Input
-                                  value={(calculateGrossAmount(product.rentalPrice, product.rentalDiscount) * product.quantity).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Installation Row */}
-                          {formData.jobType === 'install' && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Once Off Installation</Label>
-                                <Input
-                                  type="number"
-                                  value={product.installationPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "installationPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Installation Discount *</Label>
-                                <Input
-                                  type="number"
-                                  value={product.installationDiscount || 0}
-                                  onChange={(e) =>
-                                    updateProduct(index, "installationDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Once Off Installation</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.installationPrice, product.installationDiscount || 0).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Once Off Installation</Label>
-                                <Input
-                                  value={(calculateGrossAmount(product.installationPrice, product.installationDiscount || 0) * product.quantity).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* De-installation Row */}
-                          {formData.jobType === 'deinstall' && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Once Off De-installation</Label>
-                                <Input
-                                  type="number"
-                                  value={product.deInstallationPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "deInstallationPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">De-installation Discount *</Label>
-                                <Input
-                                  type="number"
-                                  value={product.deInstallationDiscount || 0}
-                                  onChange={(e) =>
-                                    updateProduct(index, "deInstallationDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Once Off De-installation</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.deInstallationPrice, product.deInstallationDiscount || 0).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Once Off De-installation</Label>
-                                <Input
-                                  value={(calculateGrossAmount(product.deInstallationPrice, product.deInstallationDiscount || 0) * product.quantity).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-
                           {/* Subscription Row */}
-                          {(product.purchaseType === 'rental' || formData.jobType === 'deinstall' || formData.jobType === 'install') && (
+                          {!product.isLabour && (product.purchaseType === 'rental' || formData.jobType === 'deinstall' || formData.jobType === 'install') && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Monthly Subscription</Label>
@@ -1748,14 +1621,24 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             </div>
                           )}
                         </div>
+
+                        {/* Product Total */}
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">Product Total:</span>
+                            <span className="font-bold text-lg">
+                              R {getProductTotal(product).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     ))}
 
-                    {/* Total */}
-                    <div className="pt-4 border-t">
+                    {/* Total Quote Amount */}
+                    <div className="bg-blue-50 p-4 rounded-lg">
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold">Total Quote Amount:</span>
-                        <span className="font-bold text-blue-600 text-lg">
+                        <span className="font-semibold text-blue-800">Total Quote Amount:</span>
+                        <span className="font-bold text-2xl text-blue-800">
                           R {getTotalQuoteAmount.toFixed(2)}
                         </span>
                       </div>
@@ -1764,7 +1647,6 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                 </CardContent>
               </Card>
             )}
-
           </div>
         );
 
