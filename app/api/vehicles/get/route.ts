@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch vehicles where new_account_number matches
     const { data, error } = await supabase
-      .from('vehicles')
+      .from('vehicles_duplicate')
       .select('*')
       .eq('new_account_number', costCode)
       .order('reg', { ascending: true });

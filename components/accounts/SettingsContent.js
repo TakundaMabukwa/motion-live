@@ -200,7 +200,7 @@ export default function SettingsContent() {
                   <Input placeholder="Status" />
                   <Input placeholder="Customer" />
                   <Input placeholder="Date" />
-                  <Input placeholder="Grand Total" />
+                  <Input placeholder="Total" />
                   <Input placeholder="Outstanding" />
                 </div>
 
@@ -212,7 +212,7 @@ export default function SettingsContent() {
                         <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Status</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Customer</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Date</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Grand Total</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Total</th>
                         <th className="px-4 py-3 text-left text-sm font-medium text-blue-600">Outstanding</th>
                       </tr>
                     </thead>
