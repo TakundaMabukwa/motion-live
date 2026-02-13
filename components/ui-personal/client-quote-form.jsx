@@ -1578,6 +1578,108 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             </div>
                           )}
 
+                          {/* Rental Row */}
+                          {!product.isLabour && product.purchaseType === 'rental' && (
+                            <div className="items-center gap-4 grid grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Rental/Month ex VAT</Label>
+                                <Input
+                                  type="number"
+                                  value={product.rentalPrice}
+                                  onChange={(e) =>
+                                    updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)
+                                  }
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Rental Discount</Label>
+                                <Input
+                                  type="number"
+                                  value={product.rentalDiscount}
+                                  onChange={(e) =>
+                                    updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Gross Rental/Month ex VAT</Label>
+                                <Input
+                                  value={calculateGrossAmount(product.rentalPrice, product.rentalDiscount).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Total Rental/Month ex VAT</Label>
+                                <Input
+                                  value={(calculateGrossAmount(product.rentalPrice, product.rentalDiscount) * product.quantity).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Installation Row */}
+                          {!product.isLabour && (formData.jobType === 'install' || formData.jobType === 'deinstall') && (
+                            <div className="items-center gap-4 grid grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Once Off Installation' : 'Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice}
+                                  onChange={(e) => {
+                                    const field = formData.jobType === 'install' ? 'installationPrice' : 'deInstallationPrice';
+                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
+                                  }}
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Installation Discount' : 'De-installation Discount'}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)}
+                                  onChange={(e) => {
+                                    const field = formData.jobType === 'install' ? 'installationDiscount' : 'deInstallationDiscount';
+                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Gross Once Off Installation' : 'Gross Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  value={calculateGrossAmount(
+                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
+                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
+                                  ).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Total Once Off Installation' : 'Total Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  value={(calculateGrossAmount(
+                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
+                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
+                                  ) * product.quantity).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                            </div>
+                          )}
+
                           {/* Subscription Row */}
                           {!product.isLabour && (product.purchaseType === 'rental' || formData.jobType === 'deinstall' || formData.jobType === 'install') && (
                             <div className="items-center gap-4 grid grid-cols-4">

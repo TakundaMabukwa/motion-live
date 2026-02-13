@@ -88,25 +88,40 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
     fetchClientQuotes();
   }, [fetchClientQuotes]);
 
+  const getSearchableRegistration = (quote) => {
+    if (!quote) return '';
+
+    if (quote.vehicle_registration) {
+      return String(quote.vehicle_registration);
+    }
+
+    if (quote.job_type === 'deinstall' && Array.isArray(quote.deinstall_vehicles) && quote.deinstall_vehicles.length > 0) {
+      return String(quote.deinstall_vehicles[0]?.registration || '');
+    }
+
+    if (Array.isArray(quote.quotation_products) && quote.quotation_products.length > 0) {
+      const firstProduct = quote.quotation_products[0];
+      return String(firstProduct?.vehicle_plate || firstProduct?.registration || '');
+    }
+
+    return '';
+  };
+
   const filteredClientQuotes = clientQuotes.filter(quote => {
-    // Apply search filter
-    if (searchTerm.trim()) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        quote.job_number?.toLowerCase().includes(searchLower) ||
-        quote.customer_name?.toLowerCase().includes(searchLower) ||
-        quote.job_type?.toLowerCase().includes(searchLower) ||
-        quote.quotation_number?.toLowerCase().includes(searchLower) ||
-        quote.new_account_number?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Apply status filter
-    if (selectedFilter !== "all") {
-      return quote.status === selectedFilter;
-    }
-    
-    return true;
+    const searchLower = searchTerm.trim().toLowerCase();
+    const searchableRegistration = getSearchableRegistration(quote).toLowerCase();
+
+    const matchesSearch = !searchLower || (
+      quote.job_number?.toLowerCase().includes(searchLower) ||
+      quote.customer_name?.toLowerCase().includes(searchLower) ||
+      quote.job_type?.toLowerCase().includes(searchLower) ||
+      quote.quotation_number?.toLowerCase().includes(searchLower) ||
+      quote.new_account_number?.toLowerCase().includes(searchLower) ||
+      searchableRegistration.includes(searchLower)
+    );
+
+    const matchesStatus = selectedFilter === "all" || quote.status === selectedFilter;
+    return matchesSearch && matchesStatus;
   });
 
   const getStatusColor = (status) => {
@@ -341,7 +356,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
         <div className="flex-1">
           <Input
             type="text"
-                            placeholder={accountNumber ? `Search quotes for account ${accountNumber} by quote number, customer, or type...` : "Search quotes by quote number, customer, account, or type..."}
+            placeholder={accountNumber ? `Search quotes for account ${accountNumber} by quote number, customer, type, or vehicle reg...` : "Search quotes by quote number, customer, account, type, or vehicle reg..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"

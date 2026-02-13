@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    const parsedVehicleYear = Number.parseInt(body.vehicle_year, 10);
     
     // Debug logging
     console.log('Received client quote data:', {
@@ -59,11 +60,17 @@ export async function POST(request: NextRequest) {
       customer_address: body.customerAddress || '',
       contact_person: body.contactPerson || '',
       decommission_date: body.decommissionDate || null,
+      vehicle_registration: body.vehicle_registration || null,
+      vehicle_make: body.vehicle_make || null,
+      vehicle_model: body.vehicle_model || null,
+      vehicle_year: Number.isFinite(parsedVehicleYear) ? parsedVehicleYear : null,
+      vin_number: body.vin_number || null,
+      odormeter: body.odormeter || null,
       
       // Account information
       account_id: body.accountId || null,
       new_account_number: body.new_account_number || body.accountNumber || null, // Prioritize new_account_number field
-      
+
       // Quotation products and pricing
       quotation_products: body.quotationProducts || [],
       quotation_subtotal: body.quotationSubtotal || 0,

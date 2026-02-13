@@ -5,11 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { 
   FileText, 
-  User, 
-  MapPin, 
-  Calendar, 
   Search, 
   RefreshCw
 } from 'lucide-react';
@@ -105,6 +110,27 @@ export default function CustomerJobCards({ accountNumber }) {
     }
   };
 
+  const getVehicleRegistration = (job) => {
+    if (job?.vehicle_registration) return job.vehicle_registration;
+    if (Array.isArray(job?.quotation_products) && job.quotation_products.length > 0) {
+      const firstProduct = job.quotation_products[0];
+      return firstProduct?.vehicle_plate || firstProduct?.registration || 'No registration';
+    }
+    return 'No registration';
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const filteredJobCards = jobCards.filter(job => {
     // Handle status filter
     if (searchTerm.startsWith('status:')) {
@@ -120,7 +146,8 @@ export default function CustomerJobCards({ accountNumber }) {
         job.customer_name?.toLowerCase().includes(searchLower) ||
         job.customer_address?.toLowerCase().includes(searchLower) ||
         job.job_type?.toLowerCase().includes(searchLower) ||
-        job.quotation_number?.toLowerCase().includes(searchLower)
+        job.quotation_number?.toLowerCase().includes(searchLower) ||
+        getVehicleRegistration(job).toLowerCase().includes(searchLower)
       );
     }
     
@@ -167,8 +194,8 @@ export default function CustomerJobCards({ accountNumber }) {
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
             placeholder={accountNumber ? 
-              `Search jobs for ${accountNumber} by job number, customer, type, or address...` : 
-              "Search all jobs by job number, customer, type, or address..."
+              `Search jobs for ${accountNumber} by job number, customer, quote, reg, type, or address...` : 
+              "Search all jobs by job number, customer, quote, reg, type, or address..."
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -226,101 +253,62 @@ export default function CustomerJobCards({ accountNumber }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredJobCards.map((job) => (
-            <Card key={job.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <FileText className="w-5 h-5 text-blue-600" />
-                      <h3 className="font-semibold text-lg">{job.job_number}</h3>
-                      <Badge className={getStatusColor(job.job_status)}>
-                        {getStatusText(job.job_status)}
-                      </Badge>
-                      <Badge variant="outline">
-                        {getJobTypeText(job.job_type)}
-                      </Badge>
-                    </div>
-                    
-                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">Customer:</span>
-                          <span className="text-gray-700">{job.customer_name || 'N/A'}</span>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {accountNumber ? `Job Cards for Account ${accountNumber}` : 'All Job Cards'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Job Number</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Job Type</TableHead>
+                    <TableHead>Vehicle Reg</TableHead>
+                    <TableHead>Quote</TableHead>
+                    <TableHead>Created Date</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredJobCards.map((job) => (
+                    <TableRow key={job.id}>
+                      <TableCell className="font-medium">{job.job_number || 'N/A'}</TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{job.customer_name || 'N/A'}</div>
+                          <div className="text-gray-500 text-sm">{job.customer_email || 'N/A'}</div>
                         </div>
-                        
-                        <div className="flex items-center gap-2 text-sm">
-                          <MapPin className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">Address:</span>
-                          <span className="text-gray-700">{job.customer_address || 'No address provided'}</span>
+                      </TableCell>
+                      <TableCell className="text-gray-600 text-sm">
+                        {job.new_account_number || job.account_id || 'N/A'}
+                      </TableCell>
+                      <TableCell>{getJobTypeText(job.job_type)}</TableCell>
+                      <TableCell>
+                        <div className="font-mono text-sm">{getVehicleRegistration(job)}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[220px] truncate" title={job.quotation_number || ''}>
+                          {job.quotation_number || 'N/A'}
                         </div>
-                        
-                        {job.account_id && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium">Account:</span>
-                            <span className="text-gray-700">{job.account_id}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {job.job_date && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="w-4 h-4 text-gray-500" />
-                            <span className="font-medium">Job Date:</span>
-                            <span className="text-gray-700">{new Date(job.job_date).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                        
-                        {job.quotation_number && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <FileText className="w-4 h-4 text-gray-500" />
-                            <span className="font-medium">Quote:</span>
-                            <span className="text-gray-700">{job.quotation_number}</span>
-                          </div>
-                        )}
-                        
-                        {job.created_at && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-medium">Created:</span>
-                            <span className="text-gray-700">{new Date(job.created_at).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {job.job_description && (
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-gray-600 text-sm">{job.job_description}</p>
-                      </div>
-                    )}
-                    
-                    {(job.customer_email || job.customer_phone) && (
-                      <div className="mt-4 pt-4 border-t">
-                        <div className="flex gap-4 text-sm">
-                          {job.customer_email && (
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Email:</span>
-                              <span className="text-gray-700">{job.customer_email}</span>
-                            </div>
-                          )}
-                          {job.customer_phone && (
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">Phone:</span>
-                              <span className="text-gray-700">{job.customer_phone}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(job.created_at)}</TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(job.job_status)}>
+                          {getStatusText(job.job_status)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
