@@ -143,18 +143,26 @@ export async function POST(request: NextRequest) {
           [key: string]: string | number | boolean | undefined;
         }
         
-        const formattedProducts = (body.quotationProducts || []).map((product: QuotationProduct) => ({
-          name: product.name || '',
-          description: product.description || '',
-          quantity: product.quantity || 1,
-          unitPrice: (product.cash_price || 0) - (product.cash_discount || 0),
-          total: product.total_price || 0,
-          type: product.type || '',
-          category: product.category || '',
-          vehicleId: product.vehicle_id || product.vehicleId || '',
-          vehiclePlate: product.vehicle_plate || product.vehiclePlate || '',
-          purchaseType: product.purchase_type || product.purchaseType || 'purchase'
-        }));
+        const formattedProducts = (body.quotationProducts || []).map((product: QuotationProduct) => {
+          const purchaseType = product.purchase_type || product.purchaseType || 'purchase';
+          const isRental = purchaseType === 'rental';
+          const cashUnitPrice = (product.cash_price || 0) - (product.cash_discount || 0);
+          const rentalUnitPrice = ((product as QuotationProduct & { rental_price?: number; rental_discount?: number }).rental_price || 0)
+            - ((product as QuotationProduct & { rental_price?: number; rental_discount?: number }).rental_discount || 0);
+
+          return {
+            name: product.name || '',
+            description: product.description || '',
+            quantity: product.quantity || 1,
+            unitPrice: isRental ? rentalUnitPrice : cashUnitPrice,
+            total: product.total_price || 0,
+            type: product.type || '',
+            category: product.category || '',
+            vehicleId: product.vehicle_id || product.vehicleId || '',
+            vehiclePlate: product.vehicle_plate || product.vehiclePlate || '',
+            purchaseType
+          };
+        });
         
         // Send the quotation email
         const emailResult = await sendQuotationEmail({

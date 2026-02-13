@@ -874,7 +874,13 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                       <h3 className="text-base font-medium text-gray-900">Products & Services</h3>
                     </div>
                     <div className="overflow-x-auto">
-                      {selectedQuote.quotation_products.map((product, index) => (
+                      {selectedQuote.quotation_products.map((product, index) => {
+                        const purchaseType = product.purchase_type || product.purchaseType || selectedQuote.purchase_type || 'purchase';
+                        const isRentalProduct = purchaseType === 'rental';
+                        const showCashPricing = product.is_labour || !isRentalProduct;
+                        const showRentalPricing = !product.is_labour && isRentalProduct;
+
+                        return (
                         <div key={index} className="border-b p-6 last:border-b-0">
                           <div className="flex justify-between items-start mb-4">
                             <div>
@@ -903,7 +909,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                           {/* Pricing Details Grid */}
                           <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                             {/* Cash Pricing */}
-                            {product.cash_price !== undefined && product.cash_price > 0 && (
+                            {showCashPricing && product.cash_price !== undefined && product.cash_price > 0 && (
                               <div className="grid grid-cols-4 gap-4">
                                 <div>
                                   <div className="text-xs font-medium text-gray-600">Cash ex VAT</div>
@@ -925,7 +931,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                             )}
 
                             {/* Rental Pricing */}
-                            {product.rental_price !== undefined && product.rental_price > 0 && (
+                            {showRentalPricing && product.rental_price !== undefined && product.rental_price > 0 && (
                               <div className="grid grid-cols-4 gap-4 pt-4 border-t">
                                 <div>
                                   <div className="text-xs font-medium text-gray-600">Rental/Month ex VAT</div>
@@ -1019,7 +1025,8 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                             <span className="text-lg font-bold text-gray-900">{formatCurrency(product.total_price || 0)}</span>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

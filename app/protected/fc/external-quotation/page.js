@@ -252,8 +252,8 @@ export default function ExternalQuotation() {
       total += deInstallationGross;
     }
 
-    // Add subscription if available (for rental, install, or deinstall jobs with subscription)
-    if ((product.purchaseType === 'rental' || formData.jobType === 'install' || formData.jobType === 'deinstall') && product.subscriptionPrice) {
+    // Strict mode: subscription applies to rental products only
+    if (product.purchaseType === 'rental' && product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
       total += subscriptionGross;
     }
@@ -301,8 +301,69 @@ export default function ExternalQuotation() {
       // If vehicles are present, use the first one for single-vehicle fields
       const primaryVehicle = vehicles[0] || {};
 
-      // Calculate totals
-      const subtotal = getTotalQuoteAmount();
+      const serializeProductForQuote = (product) => {
+        const quantity = Number(product.quantity) || 1;
+        const isLabour = !!product.isLabour;
+        const purchaseType = product.purchaseType || formData.purchaseType || 'purchase';
+        const isRental = !isLabour && purchaseType === 'rental';
+        const isPurchase = !isLabour && purchaseType === 'purchase';
+
+        const cashPrice = (isLabour || isPurchase) ? (product.cashPrice || 0) : 0;
+        const cashDiscount = (isLabour || isPurchase) ? (product.cashDiscount || 0) : 0;
+        const cashGross = calculateGrossAmount(cashPrice, cashDiscount);
+
+        const rentalPrice = isRental ? (product.rentalPrice || 0) : 0;
+        const rentalDiscount = isRental ? (product.rentalDiscount || 0) : 0;
+        const rentalGross = calculateGrossAmount(rentalPrice, rentalDiscount);
+
+        const installationPrice = (formData.jobType === 'install' && !isLabour) ? (product.installationPrice || 0) : 0;
+        const installationDiscount = (formData.jobType === 'install' && !isLabour) ? (product.installationDiscount || 0) : 0;
+        const installationGross = calculateGrossAmount(installationPrice, installationDiscount);
+
+        const deInstallationPrice = (formData.jobType === 'deinstall' && !isLabour) ? (product.deInstallationPrice || 0) : 0;
+        const deInstallationDiscount = (formData.jobType === 'deinstall' && !isLabour) ? (product.deInstallationDiscount || 0) : 0;
+        const deInstallationGross = calculateGrossAmount(deInstallationPrice, deInstallationDiscount);
+
+        const subscriptionPrice = isRental ? (product.subscriptionPrice || 0) : 0;
+        const subscriptionDiscount = isRental ? (product.subscriptionDiscount || 0) : 0;
+        const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
+
+        const totalPrice = ((isLabour || isPurchase ? cashGross : 0)
+          + (isRental ? rentalGross : 0)
+          + installationGross
+          + deInstallationGross
+          + (isRental ? subscriptionGross : 0)) * quantity;
+
+        return {
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          type: product.type,
+          category: product.category,
+          quantity,
+          purchase_type: purchaseType,
+          is_labour: isLabour,
+          cash_price: cashPrice,
+          cash_discount: cashDiscount,
+          cash_gross: cashGross,
+          rental_price: rentalPrice,
+          rental_discount: rentalDiscount,
+          rental_gross: rentalGross,
+          installation_price: installationPrice,
+          installation_discount: installationDiscount,
+          installation_gross: installationGross,
+          de_installation_price: deInstallationPrice,
+          de_installation_discount: deInstallationDiscount,
+          de_installation_gross: deInstallationGross,
+          subscription_price: subscriptionPrice,
+          subscription_discount: subscriptionDiscount,
+          subscription_gross: subscriptionGross,
+          total_price: totalPrice
+        };
+      };
+
+      const quotationProducts = selectedProducts.map(serializeProductForQuote);
+      const subtotal = quotationProducts.reduce((sum, product) => sum + (product.total_price || 0), 0);
       const vatAmount = subtotal * 0.15; // 15% VAT
       const totalAmount = subtotal + vatAmount;
 
@@ -335,32 +396,8 @@ export default function ExternalQuotation() {
         vin_number: formData.vin_number,
         odormeter: formData.odormeter,
         
-        // Quotation products with detailed pricing
-        quotationProducts: selectedProducts.map(product => ({
-          id: product.id,
-          name: product.name,
-          description: product.description,
-          type: product.type,
-          category: product.category,
-          quantity: product.quantity,
-          purchase_type: product.purchaseType,
-          cash_price: product.cashPrice || 0,
-          cash_discount: product.cashDiscount || 0,
-          cash_gross: calculateGrossAmount(product.cashPrice || 0, product.cashDiscount || 0),
-          rental_price: product.rentalPrice || 0,
-          rental_discount: product.rentalDiscount || 0,
-          rental_gross: calculateGrossAmount(product.rentalPrice || 0, product.rentalDiscount || 0),
-          installation_price: product.installationPrice || 0,
-          installation_discount: product.installationDiscount || 0,
-          installation_gross: calculateGrossAmount(product.installationPrice || 0, product.installationDiscount || 0),
-          de_installation_price: product.deInstallationPrice || 0,
-          de_installation_discount: product.deInstallationDiscount || 0,
-          de_installation_gross: calculateGrossAmount(product.deInstallationPrice || 0, product.deInstallationDiscount || 0),
-          subscription_price: product.subscriptionPrice || 0,
-          subscription_discount: product.subscriptionDiscount || 0,
-          subscription_gross: calculateGrossAmount(product.subscriptionPrice || 0, product.subscriptionDiscount || 0),
-          total_price: getProductTotal(product)
-        })),
+        // Quotation products with strict pricing mode
+        quotationProducts: quotationProducts,
         
         // Totals
         quotationSubtotal: subtotal,
@@ -949,9 +986,9 @@ export default function ExternalQuotation() {
                      </div>
                    )}
 
-                   {/* Subscription Row */}
-                   {(product.purchaseType === 'rental' || formData.jobType === 'install' || formData.jobType === 'deinstall') && (
-                     <div className="grid grid-cols-4 gap-4 items-center">
+                  {/* Subscription Row */}
+                  {product.purchaseType === 'rental' && (
+                    <div className="grid grid-cols-4 gap-4 items-center">
                        <div className="space-y-1">
                          <Label className="text-xs text-gray-600">Monthly Subscription</Label>
                          <Input
