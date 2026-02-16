@@ -64,6 +64,31 @@ export default function CalendarApp() {
     const [technicianJobs, setTechnicianJobs] = useState([]);
     const [technicianJobsLoading, setTechnicianJobsLoading] = useState(false);
 
+    const formatLocalDateKey = (date = new Date()) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const extractDateKey = (value) => {
+        if (!value) return 'no-date';
+        const datePart = String(value).split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return 'no-date';
+        return formatLocalDateKey(parsed);
+    };
+
+    const extractTimeClock = (value) => {
+        if (!value) return 'TBD';
+        const match = String(value).match(/T(\d{2}:\d{2})/);
+        if (match?.[1]) return match[1];
+        const hhmm = String(value).match(/(\d{2}:\d{2})/);
+        if (hhmm?.[1]) return hhmm[1];
+        return 'TBD';
+    };
+
     // Update current time every minute
     useEffect(() => {
         const interval = setInterval(() => {
@@ -129,7 +154,7 @@ export default function CalendarApp() {
                         technician: job.technician_name,
                         technicianEmail: job.technician_phone, // This contains the email
                         technicianColor: getColorHex(job.technician_color), // Convert color name to hex
-                        time: job.start_time ? new Date(job.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
+                        time: extractTimeClock(job.start_time),
                         date: dateKey,
                         jobType: job.job_type,
                         status: job.status,
@@ -202,7 +227,7 @@ export default function CalendarApp() {
             
             // Process the jobs to match the expected format
             const processedJobs = (data.jobs || []).map(job => {
-                const dateKey = job.job_date ? new Date(job.job_date).toISOString().split('T')[0] : 'no-date';
+                const dateKey = extractDateKey(job.job_date);
                 
                 return {
                     id: job.id,
@@ -215,7 +240,7 @@ export default function CalendarApp() {
                     technician: job.technician_name,
                     technicianEmail: job.technician_phone,
                     technicianColor: getColorHex(job.technician_color),
-                    time: job.start_time ? new Date(job.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD',
+                    time: extractTimeClock(job.start_time),
                     date: dateKey,
                     jobType: job.job_type,
                     status: job.status,
@@ -256,7 +281,7 @@ export default function CalendarApp() {
             });
             
             // Get today's jobs
-            const today = now.toISOString().split('T')[0];
+            const today = formatLocalDateKey(now);
             const todaysJobs = jobs.filter(job => job.date === today);
             
             // Use technician email if available, otherwise use name
@@ -470,7 +495,7 @@ export default function CalendarApp() {
                                         const events = getEventsForDate(day);
                                         const dateKey = day ? formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day) : null;
                                         const isSelected = dateKey === selectedDate;
-                                        const isToday = dateKey === new Date().toISOString().split('T')[0];
+                                        const isToday = dateKey === formatLocalDateKey();
 
                                         return (
                                             <div
@@ -891,7 +916,7 @@ export default function CalendarApp() {
                                             const day = index + 1;
                                             const dateKey = formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day);
                                             const dayJobs = technicianJobs.filter(job => job.date === dateKey);
-                                            const isToday = dateKey === new Date().toISOString().split('T')[0];
+                                            const isToday = dateKey === formatLocalDateKey();
 
                                             return (
                                                 <div

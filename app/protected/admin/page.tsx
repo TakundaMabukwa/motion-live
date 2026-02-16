@@ -49,6 +49,8 @@ interface JobCard {
   id: string;
   job_number: string;
   job_date: string;
+  start_time?: string;
+  end_time?: string;
   due_date: string;
   status: string;
   job_type: string;
@@ -174,6 +176,38 @@ export default function AdminDashboard() {
   const aqProductCategories = [
     'HARDWARE', 'MODULES', 'INPUTS', 'CAMERA EQUIPMENT', 'AI MOVEMENT DETECTION', 'PTT RADIOS'
   ];
+
+  const formatLocalDateInput = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const extractDateInputValue = (value?: string | null) => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    if (value.includes('T')) return value.split('T')[0];
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return formatLocalDateInput(parsed);
+  };
+
+  const extractTimeInputValue = (value?: string | null) => {
+    if (!value) return '';
+    if (/^\d{2}:\d{2}$/.test(value)) return value;
+
+    const directTimeMatch = value.match(/T(\d{2}:\d{2})/);
+    if (directTimeMatch?.[1]) return directTimeMatch[1];
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+
+    const hours = String(parsed.getHours()).padStart(2, '0');
+    const minutes = String(parsed.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
 
   const fetchAqProducts = useCallback(async () => {
     setAqLoadingProducts(true);
@@ -326,7 +360,7 @@ export default function AdminDashboard() {
 
   // Set default assignment date to today
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatLocalDateInput();
     setAssignmentDateForJob(today);
   }, []);
 
@@ -524,7 +558,7 @@ export default function AdminDashboard() {
     
     // For reassignment, populate with current technicians, date, and time
     const currentTechnicians = [];
-    let currentDate = new Date().toISOString().split('T')[0];
+    let currentDate = formatLocalDateInput();
     let currentTime = '';
     
     if (job.technician_name) {
@@ -532,14 +566,8 @@ export default function AdminDashboard() {
       currentTechnicians.push(...technicianNames);
       
       // Get current date and time from the job if available
-      if (job.job_date) {
-        currentDate = new Date(job.job_date).toISOString().split('T')[0];
-      }
-      // Extract time from job_date if it includes time, or use a separate time field if available
-      if (job.job_date && job.job_date.includes('T')) {
-        const timeStr = new Date(job.job_date).toTimeString().slice(0, 5);
-        currentTime = timeStr;
-      }
+      currentDate = extractDateInputValue(job.job_date) || currentDate;
+      currentTime = extractTimeInputValue(job.start_time) || extractTimeInputValue(job.job_date);
     }
     
     setSelectedTechnicians(currentTechnicians);
@@ -912,8 +940,6 @@ export default function AdminDashboard() {
         return;
       }
 
-      const assignmentDateTime = `${assignmentDateForJob}T${assignmentTimeForJob || '09:00'}:00`;
-
       const response = await fetch(`/api/admin/jobs/assign-technician`, {
         method: 'PUT',
         headers: {
@@ -923,7 +949,7 @@ export default function AdminDashboard() {
           jobId: createdJobId,
           technicianEmail: technician.email,
           technicianName: technician.name,
-          jobDate: assignmentDateTime,
+          jobDate: assignmentDateForJob,
           startTime: assignmentTimeForJob || null,
           endTime: null,
         }),
@@ -975,6 +1001,74 @@ export default function AdminDashboard() {
       case 'critical': return 'bg-red-200 text-red-900 border-red-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
+  };
+
+  const getJobContextLabel = (jobType?: string) => {
+    switch ((jobType || '').toLowerCase()) {
+      case 'install':
+        return 'Installation';
+      case 'deinstall':
+        return 'De-installation';
+      case 'repair':
+        return 'Repair';
+      case 'maintenance':
+        return 'Maintenance';
+      case 'service':
+        return 'Service';
+      default:
+        return 'Job';
+    }
+  };
+
+  const getPartsActionLabel = (jobType?: string) => {
+    switch ((jobType || '').toLowerCase()) {
+      case 'install':
+        return 'Install';
+      case 'deinstall':
+        return 'De-install';
+      case 'repair':
+        return 'Repair';
+      case 'maintenance':
+        return 'Maintain';
+      case 'service':
+        return 'Service';
+      default:
+        return 'Use';
+    }
+  };
+
+  const shouldShowVehicleInfo = (job: JobCard) => {
+    const hasVehicleValues = !!(job.vehicle_registration || job.vehicle_make || job.vehicle_model);
+    const vehicleCentricTypes = ['install', 'deinstall', 'repair'];
+    return hasVehicleValues || vehicleCentricTypes.includes((job.job_type || '').toLowerCase());
+  };
+
+  const formatConflictDate = (value?: string | null) => {
+    if (!value) return 'Not provided';
+    const datePart = String(value).split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+      const [year, month, day] = datePart.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    return value;
+  };
+
+  const formatConflictTime = (value?: string | null) => {
+    if (!value) return 'Not provided';
+    const match = String(value).match(/T(\d{2}:\d{2}:\d{2})/);
+    if (match?.[1]) return match[1];
+    const hhmm = String(value).match(/(\d{2}:\d{2})/);
+    if (hhmm?.[1]) return `${hhmm[1]}:00`;
+    return value;
+  };
+
+  const formatStartTimeClock = (value?: string | null) => {
+    if (!value) return 'Time not set';
+    const match = String(value).match(/T(\d{2}:\d{2})/);
+    if (match?.[1]) return match[1];
+    const hhmm = String(value).match(/(\d{2}:\d{2})/);
+    if (hhmm?.[1]) return hhmm[1];
+    return value;
   };
 
   // Removed unused formatTechnicianInfo function
@@ -1168,9 +1262,10 @@ export default function AdminDashboard() {
                         <span>Job Number</span>
                       </div>
                     </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Priority</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Status</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description / At a Glance</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Schedule</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Created</th>
                     <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
                   </tr>
@@ -1178,7 +1273,7 @@ export default function AdminDashboard() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
+                      <td colSpan={7} className="p-4 text-center">
                         <div className="flex justify-center items-center py-8">
                           <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
                           <span className="ml-2">Loading job cards...</span>
@@ -1187,7 +1282,7 @@ export default function AdminDashboard() {
                     </tr>
                   ) : filteredJobCards.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-4 text-center">
+                      <td colSpan={7} className="p-4 text-center">
                         <p className="text-gray-500 py-8">No job cards found</p>
                       </td>
                     </tr>
@@ -1199,26 +1294,39 @@ export default function AdminDashboard() {
                           <td className="py-3 px-4 align-middle">
                             <div className="flex items-center gap-3">
                               <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
-                              <div className="font-medium">{job.job_number}</div>
+                              <div>
+                                <div className="font-medium">{job.job_number}</div>
+                                <div className="text-xs text-gray-500">{(job.job_type || 'job').toUpperCase()}</div>
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="truncate max-w-[250px]">
                               {job.job_description || 'No description'}
                             </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              Client: {job.customer_name || 'N/A'} | Reg: {job.vehicle_registration || 'N/A'}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <Badge className={`${getPriorityColor(job.priority)} border font-semibold`}>
-                              {job.priority.toUpperCase()}
-                            </Badge>
+                            <div className="text-sm font-medium">{job.customer_name || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">{job.contact_person || 'No contact person'}</div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <Badge className={getStatusColor(job.status)}>
-                              {job.status.replace('_', ' ').toUpperCase()}
-                            </Badge>
+                            <div className="text-sm font-medium">{job.vehicle_registration || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">{[job.vehicle_make, job.vehicle_model].filter(Boolean).join(' ') || 'No vehicle details'}</div>
+                          </td>
+                          <td className="py-3 px-4 align-middle">
+                            <div className="text-sm">{job.job_date ? new Date(job.job_date).toLocaleDateString() : 'Not scheduled'}</div>
+                            <div className="text-xs text-gray-500">
+                              {formatStartTimeClock(job.start_time)}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle text-gray-600">
                             {new Date(job.created_at).toLocaleDateString()}
+                            <div className="text-xs text-gray-500 mt-1">
+                              {job.customer_phone || job.customer_email || 'No contact'}
+                            </div>
                             {shouldBlink && job.decommission_date && (
                               <div className="text-xs text-amber-700 font-medium mt-1">
                                 Decom: {new Date(job.decommission_date).toLocaleDateString()}
@@ -2098,7 +2206,9 @@ export default function AdminDashboard() {
                 {/* Job Overview Card */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-50 border-b p-3 flex justify-between items-center">
-                    <h3 className="font-semibold text-gray-900">Job Information</h3>
+                    <h3 className="font-semibold text-gray-900">
+                      {getJobContextLabel(selectedJob.job_type)} Information
+                    </h3>
                     <div className="flex gap-2">
                       <Badge className={getPriorityColor(selectedJob.priority)}>
                         {selectedJob.priority.toUpperCase()}
@@ -2112,6 +2222,12 @@ export default function AdminDashboard() {
                     <div>
                       <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
                       <p className="text-sm text-gray-900">{selectedJob.job_description || 'No description'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Scheduling Context</p>
+                      <p className="text-sm text-gray-900">
+                        {getJobContextLabel(selectedJob.job_type)} assignment details
+                      </p>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
@@ -2174,25 +2290,27 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Vehicle Card */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-gray-50 border-b p-3">
-                    <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
+                {shouldShowVehicleInfo(selectedJob) && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 border-b p-3">
+                      <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
+                    </div>
+                    <div className="p-4 grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Registration</p>
+                        <p className="text-sm text-gray-900 font-medium">{selectedJob.vehicle_registration || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Make</p>
+                        <p className="text-sm text-gray-900">{selectedJob.vehicle_make || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-medium mb-1">Model</p>
+                        <p className="text-sm text-gray-900">{selectedJob.vehicle_model || 'N/A'}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Registration</p>
-                      <p className="text-sm text-gray-900 font-medium">{selectedJob.vehicle_registration || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Make</p>
-                      <p className="text-sm text-gray-900">{selectedJob.vehicle_make || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Model</p>
-                      <p className="text-sm text-gray-900">{selectedJob.vehicle_model || 'N/A'}</p>
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 {/* Parts Assigned Card */}
                 {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
@@ -2200,7 +2318,7 @@ export default function AdminDashboard() {
                     <div className="bg-gray-50 border-b p-3">
                       <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                         <Package className="w-4 h-4" />
-                        Parts to {selectedJob.job_type === 'install' ? 'Install' : 'Deinstall'} ({selectedJob.parts_required.length})
+                        Items to {getPartsActionLabel(selectedJob.job_type)} ({selectedJob.parts_required.length})
                       </h3>
                     </div>
                     <div className="max-h-48 overflow-y-auto">
@@ -3110,21 +3228,24 @@ export default function AdminDashboard() {
                 ⚠️ WARNING: This will create a double booking!
               </p>
               <p className="text-red-700 text-sm mt-1">
-                {selectedTechnicians.join(', ')} {selectedTechnicians.length > 1 ? 'are' : 'is'} already assigned to other jobs within 3 hours of the selected time.
+                {selectedTechnicians.join(', ')} {selectedTechnicians.length > 1 ? 'are' : 'is'} already assigned to other jobs within 1 hour of the selected time.
               </p>
             </div>
             
-            {conflictData?.conflicts && (
+            {conflictData?.conflicts?.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
-                {conflictData.conflicts.map((job: any, index: number) => (
-                  <div key={job.id || job.job_number || index} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
-                    <div className="font-semibold text-amber-800">Job #{job.job_number}</div>
-                    <div className="text-sm text-amber-700">
-                      Customer: {job.customer_name}<br/>
-                      Time: {job.start_time ? new Date(job.start_time).toLocaleString() : 'Not provided'}
-                    </div>
-                  </div>
-                ))}
+                <div className="font-semibold text-amber-800">
+                  Conflicting Job #{conflictData.conflicts[0].job_number}
+                </div>
+                <div className="mt-2 text-sm text-amber-700 space-y-1">
+                  <p>Customer: {conflictData.conflicts[0].customer_name || 'Not provided'}</p>
+                  <p>
+                    Time: {formatConflictTime(conflictData.conflicts[0].start_time)}
+                  </p>
+                  <p>
+                    Date: {formatConflictDate(conflictData.conflicts[0].job_date)}
+                  </p>
+                </div>
               </div>
             )}
             

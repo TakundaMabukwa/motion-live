@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_ONLY_RE = /^\d{2}:\d{2}$/;
+
+function normalizeDatePart(rawDate: string): string {
+  const dateStr = String(rawDate || '').trim();
+  if (DATE_ONLY_RE.test(dateStr)) return dateStr;
+  if (dateStr.includes('T')) return dateStr.split('T')[0];
+
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatLocalDateTime(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 // Helper function to add parts to technician stock
 async function addPartsToTechnicianStock(supabase: any, technicianEmail: string, partsRequired: any[]) {
   try {
@@ -14,7 +41,7 @@ async function addPartsToTechnicianStock(supabase: any, technicianEmail: string,
       .eq('technician_email', technicianEmail)
       .maybeSingle();
 
-    let currentParts = techStock?.assigned_parts || [];
+    const currentParts = techStock?.assigned_parts || [];
 
     // Simply copy the parts_required array as-is, preserving all details
     const newParts = [...currentParts, ...partsRequired];
@@ -53,7 +80,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { jobId, technicianEmail, technicianName, jobDate, startTime, endTime, assignmentNotes, override = false } = body;
+    const { jobId, technicianName, jobDate, startTime, endTime, override = false } = body;
 
     if (!jobId || !technicianName || !jobDate) {
       return NextResponse.json({ 
@@ -70,14 +97,22 @@ export async function PUT(request: NextRequest) {
     const finalTechnicianEmail = `${emailName}@soltrack.co.za`;
 
     // Build proper timestamp strings for start_time/end_time if provided
-    const datePart = String(jobDate).includes('T') ? String(jobDate).split('T')[0] : String(jobDate);
-    const startDateTime = startTime ? `${datePart}T${startTime}:00` : null;
-    const endDateTime = endTime ? `${datePart}T${endTime}:00` : null;
+    const datePart = normalizeDatePart(jobDate);
+    if (!datePart) {
+      return NextResponse.json({
+        error: 'Invalid job date format'
+      }, { status: 400 });
+    }
+
+    const hasValidStartTime = !!startTime && TIME_ONLY_RE.test(String(startTime));
+    const hasValidEndTime = !!endTime && TIME_ONLY_RE.test(String(endTime));
+    const startDateTime = hasValidStartTime ? `${datePart}T${startTime}:00` : null;
+    const endDateTime = hasValidEndTime ? `${datePart}T${endTime}:00` : null;
     
     // Check for scheduling conflicts (only if override is not requested)  
     if (!override) {
-      const jobDateTime = startDateTime || jobDate;
-      const bufferHours = 3; // 3-hour window
+      const jobDateTime = startDateTime || `${datePart}T00:00:00`;
+      const bufferHours = 1; // 1-hour window
       
       // Calculate time window
       try {
@@ -93,27 +128,32 @@ export async function PUT(request: NextRequest) {
         const bufferInMs = bufferHours * 60 * 60 * 1000;
         const startWindow = new Date(selectedDateTime.getTime() - bufferInMs);
         const endWindow = new Date(selectedDateTime.getTime() + bufferInMs);
+        const startWindowLocal = formatLocalDateTime(startWindow);
+        const endWindowLocal = formatLocalDateTime(endWindow);
         
         console.log(`Checking conflicts for ${technicianName} between ${startWindow.toISOString()} and ${endWindow.toISOString()}`);
         
-        // Check for conflicts
-        const { data: conflicts, error: conflictError } = await supabase
+        // Check conflicts by precise start_time window
+        const { data: startTimeConflicts, error: startTimeConflictError } = await supabase
           .from('job_cards')
           .select('id, job_number, job_date, start_time, customer_name')
           .eq('technician_name', technicianName)
-          .or(`job_date.gte.${startWindow.toISOString()},job_date.lte.${endWindow.toISOString()}`)
+          .gte('start_time', startWindowLocal)
+          .lte('start_time', endWindowLocal)
           .neq('status', 'cancelled')
           .neq('status', 'completed')
           .neq('id', jobId);  // Exclude the current job
-        
-        if (conflictError) {
-          console.error('Error checking conflicts:', conflictError);
+
+        if (startTimeConflictError) {
+          console.error('Error checking start_time conflicts:', startTimeConflictError);
           return NextResponse.json({ 
             error: 'Failed to check scheduling conflicts',
-            details: conflictError.message 
+            details: startTimeConflictError.message 
           }, { status: 500 });
-        } 
-        
+        }
+
+        const conflicts = startTimeConflicts || [];
+
         console.log(`Conflict check result: ${conflicts?.length || 0} conflicts found`);
         
         if (conflicts && conflicts.length > 0) {
@@ -130,7 +170,7 @@ export async function PUT(request: NextRequest) {
               start_time: conflict.start_time,
               job_date: conflict.job_date
             })),
-            message: `⚠️ WARNING: This will create a double booking! ${technicianName} is already assigned to ${conflicts.length} other job(s) within 3 hours of the selected time.`
+            message: `⚠️ WARNING: This will create a double booking! ${technicianName} is already assigned to ${conflicts.length} other job(s) within 1 hour of the selected time.`
           }, { status: 409 });
         }
       } catch (dateError) {
@@ -165,7 +205,7 @@ export async function PUT(request: NextRequest) {
       assigned_technician_id: user.id, // Store the user ID who made the assignment
       technician_name: technicianName,
       technician_phone: finalTechnicianEmail, // Store generated email in technician_phone field
-      job_date: jobDate,
+      job_date: datePart,
       start_time: startDateTime,
       end_time: endDateTime,
       status: 'assigned',
@@ -206,9 +246,9 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: override 
-        ? `✅ Technician assigned successfully with scheduling conflict override. Parts transferred: ${result.partsAdded} parts added to technician stock.` 
-        : 'Technician assigned successfully.' + partsMessage,
+      message: override
+        ? `Technician assigned successfully with scheduling conflict override.${partsMessage}`
+        : `Technician assigned successfully.${partsMessage}`,
       data: data
     });
 

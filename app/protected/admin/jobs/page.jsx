@@ -44,6 +44,25 @@ export default function JobsPage() {
   const [companyFilter, setCompanyFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
 
+  const formatConflictDate = (value) => {
+    if (!value) return 'Not provided';
+    const datePart = String(value).split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+      const [year, month, day] = datePart.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    return value;
+  };
+
+  const formatConflictTime = (value) => {
+    if (!value) return 'Not provided';
+    const match = String(value).match(/T(\d{2}:\d{2}:\d{2})/);
+    if (match?.[1]) return match[1];
+    const hhmm = String(value).match(/(\d{2}:\d{2})/);
+    if (hhmm?.[1]) return `${hhmm[1]}:00`;
+    return value;
+  };
+
   const fetchTechnicians = async () => {
     try {
       console.log('Fetching technicians...');
@@ -812,17 +831,20 @@ export default function JobsPage() {
               </p>
             </div>
             
-            {conflictData?.conflicts && (
+            {conflictData?.conflicts?.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
-                {conflictData.conflicts.map((job, index) => (
-                  <div key={index} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-amber-200">
-                    <div className="font-semibold text-amber-800">Job #{job.job_number}</div>
-                    <div className="text-sm text-amber-700">
-                      Customer: {job.customer_name}<br/>
-                      Time: {job.start_time ? new Date(job.start_time).toLocaleString() : 'Not provided'}
-                    </div>
-                  </div>
-                ))}
+                <div className="font-semibold text-amber-800">
+                  Conflicting Job #{conflictData.conflicts[0].job_number}
+                </div>
+                <div className="mt-2 text-sm text-amber-700 space-y-1">
+                  <p>Customer: {conflictData.conflicts[0].customer_name || 'Not provided'}</p>
+                  <p>
+                    Time: {formatConflictTime(conflictData.conflicts[0].start_time)}
+                  </p>
+                  <p>
+                    Date: {formatConflictDate(conflictData.conflicts[0].job_date)}
+                  </p>
+                </div>
               </div>
             )}
             

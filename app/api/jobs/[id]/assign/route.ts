@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function formatLocalDateTime(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = await createClient();
@@ -30,7 +40,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Get all technician data for the provided emails
     for (const email of technicianEmails) {
-      const { data: techData, error: techError } = await supabase
+      const { data: techData } = await supabase
         .from('technicians')
         .select('id, name')
         .eq('email', email)
@@ -51,13 +61,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check for conflicts unless override is true
     if (!override) {
+      const bufferHours = 1;
+      const selectedDateTime = new Date(`${date}T${time}:00`);
+      const bufferInMs = bufferHours * 60 * 60 * 1000;
+      const startWindow = new Date(selectedDateTime.getTime() - bufferInMs);
+      const endWindow = new Date(selectedDateTime.getTime() + bufferInMs);
+      const startWindowLocal = formatLocalDateTime(startWindow);
+      const endWindowLocal = formatLocalDateTime(endWindow);
+
       const conflicts = [];
       for (const email of technicianEmails) {
         const { data: conflictJobs } = await supabase
           .from('job_cards')
-          .select('job_number, customer_name, start_time')
+          .select('job_number, customer_name, start_time, job_date')
           .eq('technician_phone', email)
-          .eq('job_date', date)
+          .gte('start_time', startWindowLocal)
+          .lte('start_time', endWindowLocal)
+          .neq('status', 'cancelled')
+          .neq('status', 'completed')
           .neq('id', jobId);
         
         if (conflictJobs && conflictJobs.length > 0) {
@@ -69,14 +90,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({
           error: 'Scheduling conflict detected',
           needsOverride: true,
-          conflicts: conflicts
+          conflicts: conflicts,
+          message: `WARNING: This will create a double booking! Technician already has ${conflicts.length} other job(s) within 1 hour of the selected time.`
         }, { status: 409 });
       }
     }
 
-    // Combine date and time - use local timezone to prevent UTC conversion
-    const localDateTime = new Date(`${date}T${time}:00`);
-    const assignmentDateTime = localDateTime.toISOString();
+    // Keep exact user-entered local datetime (no implicit UTC conversion)
+    const assignmentDateTime = `${date}T${time}:00`;
 
     // Update the job card with technician assignment
     const { data: updatedJob, error: updateError } = await supabase
@@ -86,7 +107,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         technician_name: combinedNames,
         technician_phone: technician, // Store comma-separated emails in technician_phone field
         job_date: date,
-        start_time: assignmentDateTime, // Store as ISO string to preserve timezone
+        start_time: assignmentDateTime, // Preserve exact input time
         updated_at: new Date().toISOString(),
         updated_by: user.id,
         work_notes: `Technician${technicianNames.length > 1 ? 's' : ''} assigned: ${combinedNames} (${technician}) on ${date} at ${time}`
