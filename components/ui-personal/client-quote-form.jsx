@@ -959,7 +959,8 @@ export default function ClientQuoteForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || (isEditMode ? 'Failed to update client quote' : 'Failed to create client quote'));
+        const fallback = isEditMode ? 'Failed to update client quote' : 'Failed to create client quote';
+        throw new Error(result.details ? `${result.error || fallback}: ${result.details}` : (result.error || fallback));
       }
 
       // Send email using NotificationAPI (create mode only)

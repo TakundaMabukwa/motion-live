@@ -250,10 +250,54 @@ export async function PUT(
     }
 
     // Regular update (no action specified)
+    // Whitelist known client_quotes columns to avoid DB errors on unexpected keys.
+    const hasField = (field: string) => Object.prototype.hasOwnProperty.call(body, field);
+    const updatePayload: Record<string, unknown> = {};
+
+    const updatableFields = [
+      'job_type',
+      'job_description',
+      'purchase_type',
+      'quotation_job_type',
+      'customer_name',
+      'customer_email',
+      'customer_phone',
+      'customer_address',
+      'contact_person',
+      'decommission_date',
+      'vehicle_registration',
+      'vehicle_make',
+      'vehicle_model',
+      'vehicle_year',
+      'vin_number',
+      'odormeter',
+      'quote_notes',
+      'quote_email_subject',
+      'quote_email_body',
+      'quote_email_footer',
+      'quotation_products',
+      'quotation_subtotal',
+      'quotation_vat_amount',
+      'quotation_total_amount',
+      'status',
+      'quote_status',
+      'job_status',
+      'new_account_number',
+      'account_id',
+      'special_instructions',
+      'work_notes'
+    ];
+
+    for (const field of updatableFields) {
+      if (hasField(field)) {
+        updatePayload[field] = body[field];
+      }
+    }
+
     const { data, error } = await supabase
       .from('client_quotes')
       .update({
-        ...body,
+        ...updatePayload,
         updated_at: new Date().toISOString(),
         updated_by: user.id
       })

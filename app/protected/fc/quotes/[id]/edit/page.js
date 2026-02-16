@@ -17,6 +17,14 @@ export default function EditQuotePage() {
   const [customer, setCustomer] = useState(null);
   const [accountInfo, setAccountInfo] = useState(null);
 
+  const goBackOrQuotes = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/protected/fc/quotes");
+  };
+
   useEffect(() => {
     const loadQuote = async () => {
       try {
@@ -79,7 +87,7 @@ export default function EditQuotePage() {
     return (
       <div className="p-6">
         <div className="max-w-5xl mx-auto">
-          <Button variant="outline" onClick={() => router.push("/protected/fc/quotes")}>
+          <Button variant="outline" onClick={goBackOrQuotes}>
             <ArrowLeft className="mr-2 w-4 h-4" />
             Back to Quotes
           </Button>
@@ -92,7 +100,7 @@ export default function EditQuotePage() {
   return (
     <div className="p-4 h-screen">
       <div className="mb-3 max-w-[1400px] mx-auto">
-        <Button variant="outline" onClick={() => router.push("/protected/fc/quotes")}>
+        <Button variant="outline" onClick={goBackOrQuotes}>
           <ArrowLeft className="mr-2 w-4 h-4" />
           Back to Quotes
         </Button>
@@ -107,10 +115,9 @@ export default function EditQuotePage() {
           mode="edit"
           quoteId={quoteId}
           embedded
-          onQuoteCreated={() => router.push("/protected/fc/quotes")}
+          onQuoteCreated={goBackOrQuotes}
         />
       </div>
     </div>
   );
 }
-
