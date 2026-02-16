@@ -35,7 +35,16 @@ import { Badge } from "@/components/ui/badge";
 import { getVehiclesByAccountNumber } from "@/lib/actions/vehicles";
 import DeinstallationFlow from "./DeinstallationFlow";
 
-export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, accountInfo }) {
+export default function ClientQuoteForm({
+  customer,
+  vehicles,
+  onQuoteCreated,
+  accountInfo,
+  initialQuote = null,
+  mode = "create", // "create" | "edit"
+  quoteId = null,
+  embedded = false,
+}) {
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -286,6 +295,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
   // Update form data when customer prop changes
   useEffect(() => {
+    if (mode === "edit" && initialQuote) return;
     if (customer || accountInfo) {
       const customerEmail = accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || '';
       
@@ -302,11 +312,77 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
   // Fetch customer data when accountInfo changes
   useEffect(() => {
+    if (mode === "edit" && initialQuote) return;
     if (accountInfo?.new_account_number) {
       console.log('Fetching customer data for account:', accountInfo.new_account_number);
       fetchCustomerData(accountInfo.new_account_number);
     }
-  }, [accountInfo?.new_account_number, fetchCustomerData]);
+  }, [accountInfo?.new_account_number, fetchCustomerData, mode, initialQuote]);
+
+  // Prefill when editing an existing quote
+  useEffect(() => {
+    if (mode !== "edit" || !initialQuote) return;
+
+    const deserialize = (p) => ({
+      id: p.id || `item-${Math.random().toString(36).slice(2)}`,
+      name: p.name || p.product || p.description || "",
+      description: p.description || "",
+      type: p.type || "",
+      category: p.category || "",
+      code: p.code || "N/A",
+      quantity: Number(p.quantity) || 1,
+      purchaseType: p.purchase_type || initialQuote.purchase_type || "purchase",
+      isLabour: !!p.is_labour,
+      cashPrice: Number(p.cash_price || p.cashPrice || p.price || 0),
+      cashDiscount: Number(p.cash_discount || p.cashDiscount || 0),
+      rentalPrice: Number(p.rental_price || p.rentalPrice || 0),
+      rentalDiscount: Number(p.rental_discount || p.rentalDiscount || 0),
+      installationPrice: Number(p.installation_price || p.installationPrice || 0),
+      installationDiscount: Number(p.installation_discount || p.installationDiscount || 0),
+      deInstallationPrice: Number(p.de_installation_price || p.deInstallationPrice || 0),
+      deInstallationDiscount: Number(p.de_installation_discount || p.deInstallationDiscount || 0),
+      subscriptionPrice: Number(p.subscription_price || p.subscriptionPrice || 0),
+      subscriptionDiscount: Number(p.subscription_discount || p.subscriptionDiscount || 0),
+      vehicleId: p.vehicle_id || null,
+      vehiclePlate: p.vehicle_plate || null,
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      jobType: initialQuote.job_type || "",
+      jobSubType: initialQuote.job_sub_type || "",
+      description: initialQuote.job_description || "",
+      purchaseType: initialQuote.purchase_type || "purchase",
+      customerName: initialQuote.customer_name || prev.customerName,
+      customerEmail: initialQuote.customer_email || prev.customerEmail,
+      customerPhone: initialQuote.customer_phone || prev.customerPhone,
+      customerAddress: initialQuote.customer_address || prev.customerAddress,
+      contactPerson: initialQuote.contact_person || "",
+      decommissionDate: initialQuote.decommission_date || "",
+      vehicle_registration: initialQuote.vehicle_registration || "",
+      vehicle_make: initialQuote.vehicle_make || "",
+      vehicle_model: initialQuote.vehicle_model || "",
+      vehicle_year: initialQuote.vehicle_year ? String(initialQuote.vehicle_year) : "",
+      vin_number: initialQuote.vin_number || "",
+      odormeter: initialQuote.odormeter || "",
+      extraNotes: initialQuote.quote_notes || "",
+      emailSubject: initialQuote.quote_email_subject || prev.emailSubject,
+      emailBody: initialQuote.quote_email_body || prev.emailBody,
+      quoteFooter: initialQuote.quote_email_footer || prev.quoteFooter,
+      emailRecipients: initialQuote.customer_email ? [initialQuote.customer_email] : prev.emailRecipients,
+    }));
+
+    const existingItems = Array.isArray(initialQuote.quotation_products) ? initialQuote.quotation_products : [];
+    setSelectedProducts(existingItems.map(deserialize));
+    setHasUserSelectedJobType(!!initialQuote.job_type);
+
+    if (initialQuote.job_type === "deinstall" && Array.isArray(initialQuote.deinstall_vehicles)) {
+      setDeInstallData((prev) => ({
+        ...prev,
+        selectedVehicles: initialQuote.deinstall_vehicles.map((v) => v.id).filter(Boolean),
+      }));
+    }
+  }, [mode, initialQuote]);
 
   const fetchFilters = async () => {
     try {
@@ -431,7 +507,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     if (formData.jobType === 'deinstall' && accountInfo?.new_account_number && hasUserSelectedJobType) {
       console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
       fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
-    } else if (formData.jobType === 'install' && hasUserSelectedJobType) {
+    } else if (formData.jobType !== 'deinstall' && hasUserSelectedJobType) {
       console.log('Job type changed to install, fetching product items');
       fetchProductItems();
     } else if (formData.jobType === 'deinstall' && !accountInfo?.new_account_number && hasUserSelectedJobType) {
@@ -441,7 +517,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType === 'install') {
+    if (formData.jobType !== 'deinstall') {
       fetchProductItems();
     }
   }, [selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
@@ -538,7 +614,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
     }
 
     // Add installation/de-installation cost with discount
-    if (formData.jobType === 'install') {
+    if (formData.jobType !== 'deinstall') {
       const installationGross = calculateGrossAmount(product.installationPrice, product.installationDiscount || 0);
       total += installationGross;
     } else if (formData.jobType === 'deinstall') {
@@ -546,8 +622,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
       total += deInstallationGross;
     }
 
-    // Strict mode: subscription applies to rental products only
-    if (product.purchaseType === 'rental' && product.subscriptionPrice) {
+    // Subscription can apply to any non-labour line item (including services)
+    if (product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
       total += subscriptionGross;
     }
@@ -576,8 +652,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
           return true; // Allow proceeding, user can add products manually
         }
         
-        // For installation, check if products are selected
-        if (formData.jobType === 'install') {
+        // For all non-deinstall jobs, require selected products
+        if (formData.jobType !== 'deinstall') {
           return (selectedProducts || []).length > 0;
         }
         
@@ -692,31 +768,32 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         const isRental = !isLabour && purchaseType === 'rental';
         const isPurchase = !isLabour && purchaseType === 'purchase';
 
-        const cashPrice = (isLabour || isPurchase) ? (product.cashPrice || 0) : 0;
-        const cashDiscount = (isLabour || isPurchase) ? (product.cashDiscount || 0) : 0;
+        // Persist all pricing fields; total calculation still respects purchase type for base price
+        const cashPrice = isLabour ? (product.cashPrice || 0) : (product.cashPrice || 0);
+        const cashDiscount = isLabour ? (product.cashDiscount || 0) : (product.cashDiscount || 0);
         const cashGross = calculateGrossAmount(cashPrice, cashDiscount);
 
-        const rentalPrice = isRental ? (product.rentalPrice || 0) : 0;
-        const rentalDiscount = isRental ? (product.rentalDiscount || 0) : 0;
+        const rentalPrice = isLabour ? 0 : (product.rentalPrice || 0);
+        const rentalDiscount = isLabour ? 0 : (product.rentalDiscount || 0);
         const rentalGross = calculateGrossAmount(rentalPrice, rentalDiscount);
 
-        const installationPrice = (formData.jobType === 'install' && !isLabour) ? (product.installationPrice || 0) : 0;
-        const installationDiscount = (formData.jobType === 'install' && !isLabour) ? (product.installationDiscount || 0) : 0;
+        const installationPrice = (formData.jobType !== 'deinstall' && !isLabour) ? (product.installationPrice || 0) : 0;
+        const installationDiscount = (formData.jobType !== 'deinstall' && !isLabour) ? (product.installationDiscount || 0) : 0;
         const installationGross = calculateGrossAmount(installationPrice, installationDiscount);
 
         const deInstallationPrice = (formData.jobType === 'deinstall' && !isLabour) ? (product.deInstallationPrice || 0) : 0;
         const deInstallationDiscount = (formData.jobType === 'deinstall' && !isLabour) ? (product.deInstallationDiscount || 0) : 0;
         const deInstallationGross = calculateGrossAmount(deInstallationPrice, deInstallationDiscount);
 
-        const subscriptionPrice = isRental ? (product.subscriptionPrice || 0) : 0;
-        const subscriptionDiscount = isRental ? (product.subscriptionDiscount || 0) : 0;
+        const subscriptionPrice = isLabour ? 0 : (product.subscriptionPrice || 0);
+        const subscriptionDiscount = isLabour ? 0 : (product.subscriptionDiscount || 0);
         const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
 
         const totalPrice = ((isLabour || isPurchase ? cashGross : 0)
           + (isRental ? rentalGross : 0)
           + installationGross
           + deInstallationGross
-          + (isRental ? subscriptionGross : 0)) * quantity;
+          + subscriptionGross) * quantity;
 
         return {
           id: product.id,
@@ -834,25 +911,60 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         status: 'pending'
       };
 
-      console.log('Submitting quotation data:', quotationData);
-      
-      // Send data to client_quotes API
-      const response = await fetch(`${baseUrl}/api/client-quotes`, {
-        method: 'POST',
+      const isEditMode = mode === "edit" && !!quoteId;
+
+      const updatePayload = {
+        job_type: formData.jobType,
+        job_sub_type: formData.jobSubType || null,
+        job_description: formData.description,
+        purchase_type: formData.purchaseType || "purchase",
+        quotation_job_type: formData.jobType,
+        customer_name: formData.customerName,
+        customer_email: formData.customerEmail,
+        customer_phone: formData.customerPhone,
+        customer_address: formData.customerAddress,
+        contact_person: formData.contactPerson || null,
+        decommission_date: formData.decommissionDate || null,
+        vehicle_registration: formData.vehicle_registration || null,
+        vehicle_make: formData.vehicle_make || null,
+        vehicle_model: formData.vehicle_model || null,
+        vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
+        vin_number: formData.vin_number || null,
+        odormeter: formData.odormeter || null,
+        quote_notes: formData.extraNotes || "",
+        quote_email_subject: formData.emailSubject || "",
+        quote_email_body: formData.emailBody || "",
+        quote_email_footer: formData.quoteFooter || "",
+        quotation_products: quotationProducts,
+        quotation_subtotal: subtotal,
+        quotation_vat_amount: vatAmount,
+        quotation_total_amount: totalAmount,
+        ...(formData.jobType === "deinstall" && {
+          deinstall_vehicles: quotationData.deinstall_vehicles || [],
+          deinstall_stock_items: [],
+          stock_received: null,
+        }),
+      };
+
+      console.log('Submitting quotation data:', isEditMode ? updatePayload : quotationData);
+
+      const response = await fetch(isEditMode ? `${baseUrl}/api/client-quotes/${quoteId}` : `${baseUrl}/api/client-quotes`, {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(quotationData),
+        body: JSON.stringify(isEditMode ? updatePayload : quotationData),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create client quote');
+        throw new Error(result.error || (isEditMode ? 'Failed to update client quote' : 'Failed to create client quote'));
       }
 
-      // Send email using NotificationAPI
-      try {
+      // Send email using NotificationAPI (create mode only)
+      if (!isEditMode) {
+        try {
         const emailResponse = await fetch(`${baseUrl}/api/send-quotation-email`, {
           method: 'POST',
           headers: {
@@ -901,16 +1013,24 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
             duration: 5000,
           });
         }
-      } catch (emailError) {
-        console.error('Error sending email:', emailError);
-        toast.success('Client quote created successfully!', {
-          description: `Quote Number: ${result.data.job_number} - Email could not be sent`,
-          duration: 5000,
-        });
+        } catch (emailError) {
+          console.error('Error sending email:', emailError);
+          toast.success('Client quote created successfully!', {
+            description: `Quote Number: ${result.data.job_number} - Email could not be sent`,
+            duration: 5000,
+          });
+        }
       }
       
-      // Reset form data
-      setFormData({
+      if (isEditMode) {
+        toast.success('Client quote updated successfully!', {
+          description: `Quote Number: ${initialQuote?.job_number || ''}`.trim(),
+          duration: 5000,
+        });
+        if (onQuoteCreated) onQuoteCreated();
+      } else {
+        // Reset form data
+        setFormData({
         jobType: "",
         jobSubType: "",
         description: "",
@@ -933,25 +1053,26 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         emailBody: "",
         quoteFooter:
           "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
-      });
-      
-      // Reset other state
-      setCurrentStep(0);
-      setSelectedProducts([]);
-      setSearchTerm("");
-      setSelectedType("all");
-      setSelectedCategory("all");
-      setHasUserSelectedJobType(false);
-      
-      // Form submitted successfully - call callback after reset
-      if (onQuoteCreated) {
-        onQuoteCreated();
+        });
+        
+        // Reset other state
+        setCurrentStep(0);
+        setSelectedProducts([]);
+        setSearchTerm("");
+        setSelectedType("all");
+        setSelectedCategory("all");
+        setHasUserSelectedJobType(false);
+        
+        // Form submitted successfully - call callback after reset
+        if (onQuoteCreated) {
+          onQuoteCreated();
+        }
       }
     } catch (error) {
       console.error('Error submitting quote:', error);
       
       // Show error toast
-      toast.error('Failed to create quote', {
+      toast.error(mode === "edit" ? 'Failed to update quote' : 'Failed to create quote', {
         description: error.message || 'Please try again.',
         duration: 5000,
       });
@@ -1204,7 +1325,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
         return (
           <div className="space-y-6">
             {/* Product Selection */}
-            {formData.jobType === 'install' && (
+            {formData.jobType !== 'deinstall' && (
               <Card>
                 <CardHeader>
                   <CardTitle>Product Selection</CardTitle>
@@ -1325,7 +1446,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                               <div>Cash: R {product.price?.toFixed(2) || '0.00'}</div>
                               <div>Rental: R {product.rental?.toFixed(2) || '0.00'}/month</div>
                               <div>Installation: R {product.installation?.toFixed(2) || '0.00'}</div>
-                              {product.subscription && <div>Subscription: R {product.subscription.toFixed(2)}/month</div>}
+                              <div>Subscription: R {product.subscription?.toFixed(2) || '0.00'}/month</div>
                             </div>
                           </CardContent>
                         </Card>
@@ -1454,7 +1575,8 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                             onClick={() => removeProduct(index)}
                             className="text-red-600 hover:text-red-700"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Remove
                           </Button>
                         </div>
 
@@ -1538,8 +1660,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                           </div>
                           
                           {/* Cash Row / Labour Cost Row */}
-                          {(product.purchaseType === 'purchase' || product.isLabour) && (
-                            <div className="items-center gap-4 grid grid-cols-4">
+                          <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">{product.isLabour ? 'Labour Cost ex VAT' : 'Cash ex VAT'}</Label>
                                 <Input
@@ -1578,10 +1699,9 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                                 />
                               </div>
                             </div>
-                          )}
 
                           {/* Rental Row */}
-                          {!product.isLabour && product.purchaseType === 'rental' && (
+                          {!product.isLabour && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Rental/Month ex VAT</Label>
@@ -1624,7 +1744,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                           )}
 
                           {/* Installation Row */}
-                          {!product.isLabour && (formData.jobType === 'install' || formData.jobType === 'deinstall') && (
+                          {!product.isLabour && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">
@@ -1683,7 +1803,7 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                           )}
 
                           {/* Subscription Row */}
-                          {!product.isLabour && product.purchaseType === 'rental' && (
+                          {!product.isLabour && (
                             <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Monthly Subscription</Label>
@@ -1849,13 +1969,13 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
   };
 
   return (
-    <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-      <div className="flex flex-col bg-white shadow-xl w-[95%] h-[95%]">
+    <div className={embedded ? "flex justify-center items-center" : "z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50"}>
+      <div className={embedded ? "flex flex-col bg-white shadow-xl w-full h-full" : "flex flex-col bg-white shadow-xl w-[95%] h-[95%]"}>
         {/* Header */}
         <div className="flex flex-shrink-0 justify-between items-center p-6 border-b">
           <div>
-            <h2 className="font-bold text-2xl">Client Quotation</h2>
-            <p className="text-gray-600">Create quotation for {customer?.trading_name || customer?.company}</p>
+            <h2 className="font-bold text-2xl">{mode === "edit" ? "Edit Client Quotation" : "Client Quotation"}</h2>
+            <p className="text-gray-600">{mode === "edit" ? "Update quotation details" : `Create quotation for ${customer?.trading_name || customer?.company}`}</p>
           </div>
           <Button
             variant="outline"
@@ -1869,32 +1989,35 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
 
         {/* Step Indicator */}
         <div className="flex flex-shrink-0 justify-center items-center bg-gray-50 px-4 py-1 border-b">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 ${
-                index <= currentStep ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-500'
-              }`}>
-                {index < currentStep ? (
-                  <CheckCircle className="w-2.5 h-2.5" />
-                ) : (
-                  <step.icon className="w-2.5 h-2.5" />
+          {steps.map((step, index) => {
+            const StepIcon = typeof step.icon === "function" ? step.icon : FileText;
+            return (
+              <div key={step.id} className="flex items-center">
+                <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 ${
+                  index <= currentStep ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-500'
+                }`}>
+                  {index < currentStep ? (
+                    <CheckCircle className="w-2.5 h-2.5" />
+                  ) : (
+                    <StepIcon className="w-2.5 h-2.5" />
+                  )}
+                </div>
+                <div className="ml-1.5">
+                  <div className={`text-xs font-medium ${
+                    index <= currentStep ? 'text-blue-600' : 'text-gray-500'
+                  }`}>
+                    {step.title}
+                  </div>
+                  <div className="text-gray-400 text-xs leading-tight">{step.subtitle}</div>
+                </div>
+                {index < steps.length - 1 && (
+                  <div className={`w-6 h-0.5 mx-2 ${
+                    index < currentStep ? 'bg-blue-600' : 'bg-gray-300'
+                  }`} />
                 )}
               </div>
-              <div className="ml-1.5">
-                <div className={`text-xs font-medium ${
-                  index <= currentStep ? 'text-blue-600' : 'text-gray-500'
-                }`}>
-                  {step.title}
-                </div>
-                <div className="text-gray-400 text-xs leading-tight">{step.subtitle}</div>
-              </div>
-              {index < steps.length - 1 && (
-                <div className={`w-6 h-0.5 mx-2 ${
-                  index < currentStep ? 'bg-blue-600' : 'bg-gray-300'
-                }`} />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Content - Scrollable Area */}
@@ -1930,12 +2053,12 @@ export default function ClientQuoteForm({ customer, vehicles, onQuoteCreated, ac
                 {isSubmitting ? (
                   <>
                     <div className="mr-2 border-white border-b-2 rounded-full w-4 h-4 animate-spin"></div>
-                    Creating Quote...
+                    {mode === "edit" ? "Saving Quote..." : "Creating Quote..."}
                   </>
                 ) : (
                   <>
                     <FileText className="mr-2 w-4 h-4" />
-                    Create Quote
+                    {mode === "edit" ? "Save Quote" : "Create Quote"}
                   </>
                 )}
               </Button>

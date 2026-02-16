@@ -252,8 +252,8 @@ export default function ExternalQuotation() {
       total += deInstallationGross;
     }
 
-    // Strict mode: subscription applies to rental products only
-    if (product.purchaseType === 'rental' && product.subscriptionPrice) {
+    // Subscription can apply to any quote line
+    if (product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
       total += subscriptionGross;
     }
@@ -324,15 +324,15 @@ export default function ExternalQuotation() {
         const deInstallationDiscount = (formData.jobType === 'deinstall' && !isLabour) ? (product.deInstallationDiscount || 0) : 0;
         const deInstallationGross = calculateGrossAmount(deInstallationPrice, deInstallationDiscount);
 
-        const subscriptionPrice = isRental ? (product.subscriptionPrice || 0) : 0;
-        const subscriptionDiscount = isRental ? (product.subscriptionDiscount || 0) : 0;
+        const subscriptionPrice = product.subscriptionPrice || 0;
+        const subscriptionDiscount = product.subscriptionDiscount || 0;
         const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
 
         const totalPrice = ((isLabour || isPurchase ? cashGross : 0)
           + (isRental ? rentalGross : 0)
           + installationGross
           + deInstallationGross
-          + (isRental ? subscriptionGross : 0)) * quantity;
+          + subscriptionGross) * quantity;
 
         return {
           id: product.id,
@@ -987,7 +987,7 @@ export default function ExternalQuotation() {
                    )}
 
                   {/* Subscription Row */}
-                  {product.purchaseType === 'rental' && (
+                  {!product.isLabour && (
                     <div className="grid grid-cols-4 gap-4 items-center">
                        <div className="space-y-1">
                          <Label className="text-xs text-gray-600">Monthly Subscription</Label>
