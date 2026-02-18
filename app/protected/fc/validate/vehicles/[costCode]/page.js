@@ -182,7 +182,8 @@ export default function ValidateVehiclesPage() {
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
 
   const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'total_rental', 'total_sub', 'total_rental_sub'];
-  const billingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'];
+  const billingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom', 'software', 'additional_data'];
+  const specialBillingFields = billingFields;
   const allPossibleBillingFields = [
     'skylink_trailer_unit_rental', 'skylink_trailer_sub',
     'sky_on_batt_ign_rental', 'sky_on_batt_sub',
@@ -203,7 +204,7 @@ export default function ValidateVehiclesPage() {
     '_8ch_mdvr_rental', '_8ch_mdvr_sub',
     'a2_dash_cam_rental', 'a2_dash_cam_sub',
     'pfk_main_unit_rental', 'pfk_main_unit_sub',
-    'consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'
+    ...specialBillingFields
   ];
   const allVehicleFieldKeys = useMemo(() => {
     const keysFromVehicles = vehicles.flatMap(v => Object.keys(v || {}));
@@ -257,7 +258,6 @@ export default function ValidateVehiclesPage() {
     const rentalKeys = allKeys.filter(k => k.endsWith('_rental') && k !== 'total_rental');
     
     // All sub fields: those ending with _sub (excluding totals) + special billing fields
-    const specialBillingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'];
     const subKeys = allKeys.filter(k => 
       (k.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(k)) || 
       specialBillingFields.includes(k)
@@ -312,12 +312,11 @@ export default function ValidateVehiclesPage() {
   };
 
   const confirmField = (field) => {
-    const subFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom'];
-    if (field.endsWith('_rental') || (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) || subFields.includes(field)) {
+    if (field.endsWith('_rental') || (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) || specialBillingFields.includes(field)) {
       setEditedData(prev => {
         const allKeys = Object.keys(prev);
         const rentalKeys = allKeys.filter(k => k.endsWith('_rental'));
-        const subKeys = allKeys.filter(k => (k.endsWith('_sub') && k !== 'total_sub' && k !== 'total_rental_sub') || subFields.includes(k));
+        const subKeys = allKeys.filter(k => (k.endsWith('_sub') && k !== 'total_sub' && k !== 'total_rental_sub') || specialBillingFields.includes(k));
         
         const totalRental = rentalKeys.reduce((sum, k) => sum + (parseFloat(prev[k]) || 0), 0);
         const totalSub = subKeys.reduce((sum, k) => sum + (parseFloat(prev[k]) || 0), 0);

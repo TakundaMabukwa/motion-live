@@ -207,6 +207,8 @@ export interface Vehicle {
   maintenance: string | null;
   after_hours: string | null;
   controlroom: string | null;
+  software: string | null;
+  additional_data: string | null;
   total_rental: number | null;
   total_sub: number | null;
   total_rental_sub: number | null;

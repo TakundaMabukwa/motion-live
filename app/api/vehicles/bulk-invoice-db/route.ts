@@ -112,6 +112,8 @@ export async function POST(request: NextRequest) {
           if (lower === 'controlroom') return 'Monthly Service - Control Room';
           if (lower === 'after_hours') return 'Monthly Service - After Hours';
           if (lower === 'consultancy') return 'Monthly Service - Consultancy';
+          if (lower === 'software') return 'Monthly Service - Software';
+          if (lower === 'additional_data') return 'Monthly Service - Additional Data';
           
           // Totals
           if (lower === 'total_rental_sub') return 'Monthly Rental & Subscription';
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
 
         // Check all equipment columns
         Object.keys(v).forEach(key => {
-          if (key.includes('_rental') || key.includes('_sub') || ['roaming', 'maintenance', 'after_hours', 'controlroom', 'consultancy'].includes(key)) {
+          if (key.includes('_rental') || key.includes('_sub') || ['roaming', 'maintenance', 'after_hours', 'controlroom', 'consultancy', 'software', 'additional_data'].includes(key)) {
             const value = parseFloat(v[key]);
             if (value && value > 0 && !['total_rental', 'total_sub', 'total_rental_sub'].includes(key)) {
               lineItems.push({ column: key, amount: value, description: getDescription(key), code: key.toUpperCase().replace(/_/g, ' ') });

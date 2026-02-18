@@ -1,0 +1,5 @@
+total_items=90
+fully_populated=88
+missing_fields=2
+slash_entries=11
+duplicate_keys=0
