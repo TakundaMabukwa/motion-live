@@ -183,7 +183,7 @@ export default function ValidateVehiclesPage() {
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
 
   const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'vehicle_validated'];
-  const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'color'];
+  const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'colour'];
   const billingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom', 'software', 'additional_data'];
   const specialBillingFields = billingFields;
   const allPossibleBillingFields = [
@@ -291,6 +291,11 @@ export default function ValidateVehiclesPage() {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const affectsTotals = (field) =>
+    (field.endsWith('_rental') && field !== 'total_rental') ||
+    (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) ||
+    specialBillingFields.includes(field);
+
   const startEdit = (vehicle) => {
     setEditingVehicle(vehicle.id);
     const totals = calculateTotals(vehicle);
@@ -320,6 +325,9 @@ export default function ValidateVehiclesPage() {
         const totalRental = parseAmount(field === 'total_rental' ? value : updated.total_rental);
         const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
         return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
+      }
+      if (!affectsTotals(field)) {
+        return updated;
       }
       const totals = calculateTotals(updated);
       return {...updated, ...totals};
@@ -434,6 +442,9 @@ export default function ValidateVehiclesPage() {
         const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
         return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
       }
+      if (!affectsTotals(field)) {
+        return updated;
+      }
       const totals = calculateTotals(updated);
       return {...updated, ...totals};
     });
@@ -445,13 +456,31 @@ export default function ValidateVehiclesPage() {
       const response = await fetch('/api/vehicles/create', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...newVehicleData, new_account_number: costCode})
+        body: JSON.stringify({
+          ...newVehicleData,
+          new_account_number: costCode,
+          vehicle_validated: true
+        })
       });
       
-      if (!response.ok) throw new Error('Failed to create vehicle');
+      if (!response.ok) {
+        let errorMessage = 'Failed to create vehicle';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.details || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) errorMessage = errorText;
+        }
+        throw new Error(errorMessage);
+      }
       
       const newVehicle = await response.json();
-      setVehicles(prev => [...prev, newVehicle]);
+      const normalizedNewVehicle = {
+        ...newVehicle,
+        vehicle_validated: newVehicle?.vehicle_validated ?? true
+      };
+      setVehicles(prev => [...prev, normalizedNewVehicle]);
       toast.success('Vehicle added successfully');
       setShowAddForm(false);
       setNewVehicleData(initialTotalValues);

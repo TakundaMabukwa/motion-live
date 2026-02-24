@@ -15,7 +15,7 @@ export async function DELETE(request) {
     const supabase = await createClient();
 
     const { error } = await supabase
-      .from('vehicles')
+      .from('vehicles_duplicate')
       .delete()
       .eq('id', id);
 
