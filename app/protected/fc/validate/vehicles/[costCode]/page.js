@@ -175,13 +175,15 @@ export default function ValidateVehiclesPage() {
   const [editedData, setEditedData] = useState({});
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newVehicleData, setNewVehicleData] = useState({});
+  const initialTotalValues = { total_rental: '0.00', total_sub: '0.00', total_rental_sub: '0.00' };
+  const [newVehicleData, setNewVehicleData] = useState(initialTotalValues);
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
   const [addItemState, setAddItemState] = useState({});
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
 
-  const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'total_rental', 'total_sub', 'total_rental_sub'];
+  const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'vehicle_validated'];
+  const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'color'];
   const billingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom', 'software', 'additional_data'];
   const specialBillingFields = billingFields;
   const allPossibleBillingFields = [
@@ -267,21 +269,26 @@ export default function ValidateVehiclesPage() {
       const val = data[k];
       if (val === null || val === undefined || val === '') return sum;
       const numVal = parseFloat(val);
-      return isNaN(numVal) ? sum : sum + numVal;
+      return Number.isFinite(numVal) ? sum + numVal : sum;
     }, 0);
     
     const totalSub = subKeys.reduce((sum, k) => {
       const val = data[k];
       if (val === null || val === undefined || val === '') return sum;
       const numVal = parseFloat(val);
-      return isNaN(numVal) ? sum : sum + numVal;
+      return Number.isFinite(numVal) ? sum + numVal : sum;
     }, 0);
     
     return {
-      total_rental: totalRental,
-      total_sub: totalSub,
-      total_rental_sub: totalRental + totalSub
+      total_rental: totalRental.toFixed(2),
+      total_sub: totalSub.toFixed(2),
+      total_rental_sub: (totalRental + totalSub).toFixed(2)
     };
+  };
+
+  const parseAmount = (value) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   };
 
   const startEdit = (vehicle) => {
@@ -305,17 +312,25 @@ export default function ValidateVehiclesPage() {
 
   const handleFieldChange = (field, value) => {
     setEditedData(prev => {
+      if (field === 'total_rental_sub') {
+        return prev;
+      }
       const updated = {...prev, [field]: value === '' ? null : value};
+      if (field === 'total_rental' || field === 'total_sub') {
+        const totalRental = parseAmount(field === 'total_rental' ? value : updated.total_rental);
+        const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
+        return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
+      }
       const totals = calculateTotals(updated);
       return {...updated, ...totals};
     });
   };
 
   const confirmField = (field) => {
-    if (field.endsWith('_rental') || (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) || specialBillingFields.includes(field)) {
+    if ((field.endsWith('_rental') && field !== 'total_rental') || (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) || specialBillingFields.includes(field)) {
       setEditedData(prev => {
         const allKeys = Object.keys(prev);
-        const rentalKeys = allKeys.filter(k => k.endsWith('_rental'));
+        const rentalKeys = allKeys.filter(k => k.endsWith('_rental') && k !== 'total_rental');
         const subKeys = allKeys.filter(k => (k.endsWith('_sub') && k !== 'total_sub' && k !== 'total_rental_sub') || specialBillingFields.includes(k));
         
         const totalRental = rentalKeys.reduce((sum, k) => sum + (parseFloat(prev[k]) || 0), 0);
@@ -323,9 +338,9 @@ export default function ValidateVehiclesPage() {
         
         return {
           ...prev,
-          total_rental: totalRental > 0 ? totalRental.toFixed(2) : '0',
-          total_sub: totalSub > 0 ? totalSub.toFixed(2) : '0',
-          total_rental_sub: (totalRental + totalSub) > 0 ? (totalRental + totalSub).toFixed(2) : '0'
+          total_rental: totalRental.toFixed(2),
+          total_sub: totalSub.toFixed(2),
+          total_rental_sub: (totalRental + totalSub).toFixed(2)
         };
       });
     }
@@ -351,6 +366,13 @@ export default function ValidateVehiclesPage() {
       return acc;
     }, {});
 
+    // Mark row as validated on save only when the DB row exposes this column.
+    // This avoids failing updates if migration has not been applied yet.
+    const supportsValidationFlag = Object.prototype.hasOwnProperty.call(currentVehicle, 'vehicle_validated');
+    if (supportsValidationFlag && currentVehicle.vehicle_validated !== true) {
+      changedFields.vehicle_validated = true;
+    }
+
     if (Object.keys(changedFields).length === 0) {
       toast.info('No changes to save');
       setEditingVehicle(null);
@@ -375,9 +397,16 @@ export default function ValidateVehiclesPage() {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Update failed:', errorText);
-        throw new Error('Failed to update vehicle');
+        let errorMessage = 'Failed to update vehicle';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.details || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) errorMessage = errorText;
+        }
+        console.error('Update failed:', errorMessage);
+        throw new Error(errorMessage);
       }
       
       const result = await response.json();
@@ -396,7 +425,15 @@ export default function ValidateVehiclesPage() {
 
   const handleNewVehicleChange = (field, value) => {
     setNewVehicleData(prev => {
+      if (field === 'total_rental_sub') {
+        return prev;
+      }
       const updated = {...prev, [field]: value === '' ? null : value};
+      if (field === 'total_rental' || field === 'total_sub') {
+        const totalRental = parseAmount(field === 'total_rental' ? value : updated.total_rental);
+        const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
+        return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
+      }
       const totals = calculateTotals(updated);
       return {...updated, ...totals};
     });
@@ -417,7 +454,7 @@ export default function ValidateVehiclesPage() {
       setVehicles(prev => [...prev, newVehicle]);
       toast.success('Vehicle added successfully');
       setShowAddForm(false);
-      setNewVehicleData({});
+      setNewVehicleData(initialTotalValues);
       setAddItemState(prev => {
         const next = { ...prev };
         delete next.new;
@@ -462,19 +499,37 @@ export default function ValidateVehiclesPage() {
   const renderAllFields = (vehicle, isEditing, isNew = false) => {
     const data = isNew ? newVehicleData : (isEditing ? editedData : vehicle);
     const onChange = isNew ? handleNewVehicleChange : handleFieldChange;
+    const totalFieldOrder = ['total_rental', 'total_sub', 'total_rental_sub'];
     const contextKey = isNew ? 'new' : `vehicle-${vehicle.id}`;
     const addedFields = addItemState[contextKey]?.added || [];
     const hasValue = (value) => value !== null && value !== '' && value !== undefined;
     const allKnownKeys = Array.from(new Set([
       ...allVehicleFieldKeys,
+      ...(isNew ? defaultVehicleInfoFields : []),
       ...Object.keys(data || {}),
       ...addedFields
     ]));
     const allFieldKeys = allKnownKeys.filter(k => !excludeKeys.includes(k));
-    const visibleKeys = allFieldKeys.filter(k => hasValue(data?.[k]) || addedFields.includes(k));
-    const billingKeys = visibleKeys.filter(k => k.endsWith('_rental') || k.endsWith('_sub') || billingFields.includes(k));
-    const infoKeys = visibleKeys.filter(k => !k.endsWith('_rental') && !k.endsWith('_sub') && !billingFields.includes(k));
-    const availableFieldsToAdd = allFieldKeys.filter(f => !visibleKeys.includes(f));
+    const visibleKeys = allFieldKeys.filter(
+      k =>
+        hasValue(data?.[k]) ||
+        addedFields.includes(k) ||
+        (isNew && defaultVehicleInfoFields.includes(k)) ||
+        (isEditing && hasValue(vehicle?.[k]))
+    );
+    const totalBillingKeys = totalFieldOrder.filter(
+      k => allFieldKeys.includes(k) && ((isEditing || isNew) || hasValue(data?.[k]))
+    );
+    const visibleNonTotalKeys = visibleKeys.filter(k => !totalFieldOrder.includes(k));
+    const billingKeys = visibleNonTotalKeys.filter(k => k.endsWith('_rental') || k.endsWith('_sub') || billingFields.includes(k));
+    const infoKeys = visibleNonTotalKeys.filter(k => !k.endsWith('_rental') && !k.endsWith('_sub') && !billingFields.includes(k));
+    const orderedInfoKeys = isNew
+      ? [
+          ...defaultVehicleInfoFields.filter(k => infoKeys.includes(k)),
+          ...infoKeys.filter(k => !defaultVehicleInfoFields.includes(k))
+        ]
+      : infoKeys;
+    const availableFieldsToAdd = allFieldKeys.filter(f => !visibleKeys.includes(f) && !totalFieldOrder.includes(f));
     const billingFieldsToAdd = availableFieldsToAdd
       .filter(f => f.endsWith('_rental') || f.endsWith('_sub') || billingFields.includes(f))
       .sort((a, b) => a.localeCompare(b));
@@ -501,13 +556,13 @@ export default function ValidateVehiclesPage() {
         <div className="col-span-full mb-6">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Vehicle Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {infoKeys.map((key, idx) => {
+            {orderedInfoKeys.map((key, idx) => {
               const displayLabel = key.replace(/_/g, ' ').toUpperCase();
               return (
                 <div key={idx} className="text-sm">
                   <Label className="text-xs text-gray-500">{displayLabel}</Label>
                   {(isEditing || isNew) ? (
-                    <Input value={data[key] || ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
+                    <Input value={data[key] ?? ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
                   ) : (
                     <p className="text-sm mt-1">{data[key] || 'N/A'}</p>
                   )}
@@ -537,7 +592,7 @@ export default function ValidateVehiclesPage() {
                   <Label className="text-xs text-gray-500">{displayLabel}</Label>
                   {(isEditing || isNew) ? (
                     <div className="flex gap-1">
-                      <Input value={data[key] || ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
+                      <Input value={data[key] ?? ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
                       {!isNew && data[key] !== vehicle[key] && (
                         <button onClick={() => confirmField(key)} className="px-1 hover:bg-green-100 rounded">
                           <Check className="h-3 w-3 text-green-600" />
@@ -551,6 +606,30 @@ export default function ValidateVehiclesPage() {
               );
             })}
           </div>
+          {(isEditing || isNew) && totalBillingKeys.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                Note: Total fields below are manual overrides. You can enter your own total amounts if needed.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {totalBillingKeys.map((key, idx) => {
+                  const displayLabel = key.replace(/_/g, ' ').toUpperCase();
+                  const isReadOnlyTotal = key === 'total_rental_sub';
+                  return (
+                    <div key={`${key}-${idx}`} className="text-sm">
+                      <Label className="text-xs text-gray-500">{displayLabel}</Label>
+                      <Input
+                        value={data[key] ?? ''}
+                        onChange={(e) => onChange(key, e.target.value)}
+                        className={`h-8 text-sm ${isReadOnlyTotal ? 'bg-slate-100 text-slate-700' : ''}`}
+                        readOnly={isReadOnlyTotal}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           
           <div className="bg-slate-50 border-2 border-slate-200 rounded-lg p-4 mt-4">
             <div className="flex items-center justify-between">
@@ -652,7 +731,7 @@ export default function ValidateVehiclesPage() {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => {
                 setShowAddForm(false);
-                setNewVehicleData({});
+                setNewVehicleData(initialTotalValues);
                 setAddItemState(prev => {
                   const next = { ...prev };
                   delete next.new;
@@ -678,9 +757,9 @@ export default function ValidateVehiclesPage() {
         <div className="space-y-2">
           {vehicles.map((vehicle) => (
             <Collapsible key={vehicle.id} open={expandedVehicles[vehicle.id]} onOpenChange={() => toggleVehicle(vehicle.id)}>
-              <Card>
+              <Card className={vehicle.vehicle_validated ? "border-green-500 bg-green-50" : ""}>
                 <CollapsibleTrigger className="w-full">
-                  <CardHeader className="cursor-pointer hover:bg-gray-50">
+                  <CardHeader className={`cursor-pointer ${vehicle.vehicle_validated ? "bg-green-100 hover:bg-green-100" : "hover:bg-gray-50"}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex gap-6 text-left">
                         <div>
@@ -696,7 +775,15 @@ export default function ValidateVehiclesPage() {
                           <p className="text-sm font-medium">{vehicle.vin || 'N/A'}</p>
                         </div>
                       </div>
-                      {expandedVehicles[vehicle.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                      <div className="flex items-center gap-2">
+                        {vehicle.vehicle_validated && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                            <Check className="h-3 w-3" />
+                            Done
+                          </span>
+                        )}
+                        {expandedVehicles[vehicle.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                      </div>
                     </div>
                   </CardHeader>
                 </CollapsibleTrigger>
