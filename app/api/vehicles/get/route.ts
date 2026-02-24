@@ -1,4 +1,4 @@
-gitimport { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 import { NextRequest } from 'next/server';
