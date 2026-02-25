@@ -198,10 +198,59 @@ export default function AdminJobsPage() {
   };
 
   const filteredJobs = jobs.filter(job =>
-    job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.customer_phone?.includes(searchTerm) ||
-    job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase())
+    {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+
+      const basicSearchText = [
+        job.customer_name,
+        job.customer_phone,
+        job.job_number,
+        job.vehicle_registration,
+        job.vehicle_make,
+        job.vehicle_model,
+        job.job_description,
+        job.customer_email,
+        job.job_type,
+        job.status
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      const toSearchableText = (value: unknown): string => {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (
+            (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+            (trimmed.startsWith('[') && trimmed.endsWith(']'))
+          ) {
+            try {
+              return `${trimmed.toLowerCase()} ${toSearchableText(JSON.parse(trimmed))}`;
+            } catch {
+              return trimmed.toLowerCase();
+            }
+          }
+          return trimmed.toLowerCase();
+        }
+        if (typeof value === 'number' || typeof value === 'boolean') {
+          return String(value).toLowerCase();
+        }
+        if (Array.isArray(value)) {
+          return value.map((item) => toSearchableText(item)).join(' ');
+        }
+        if (typeof value === 'object') {
+          return Object.values(value as Record<string, unknown>)
+            .map((item) => toSearchableText(item))
+            .join(' ');
+        }
+        return '';
+      };
+
+      const quotationProductsSearchText = toSearchableText(job.quotation_products);
+      return basicSearchText.includes(query) || quotationProductsSearchText.includes(query);
+    }
   );
 
   const handleAssignTechnician = (job: AdminJob) => {

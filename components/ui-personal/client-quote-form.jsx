@@ -239,6 +239,8 @@ export default function ClientQuoteForm({
     customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
     contactPerson: accountInfo?.branch_person_name || customer?.branch_person_name || "",
     decommissionDate: "",
+    annuityEndDate: "",
+    moveToRole: "",
     // Vehicle information
     vehicle_registration: "",
     vehicle_make: "",
@@ -359,6 +361,8 @@ export default function ClientQuoteForm({
       customerAddress: initialQuote.customer_address || prev.customerAddress,
       contactPerson: initialQuote.contact_person || "",
       decommissionDate: initialQuote.decommission_date || "",
+      annuityEndDate: initialQuote.annuity_end_date || "",
+      moveToRole: initialQuote.move_to_role || "",
       vehicle_registration: initialQuote.vehicle_registration || "",
       vehicle_make: initialQuote.vehicle_make || "",
       vehicle_model: initialQuote.vehicle_model || "",
@@ -639,9 +643,12 @@ export default function ClientQuoteForm({
     switch (currentStep) {
       case 0:
         const basicRequirements = formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
-        // If it's a decommission job, also require decommission date
-        if (formData.jobType === 'deinstall' && formData.jobSubType === 'decommission') {
-          return basicRequirements && formData.decommissionDate;
+        if (formData.jobType === 'deinstall') {
+          const hasAnnuityEndDate = Boolean(formData.annuityEndDate);
+          if (formData.jobSubType === 'decommission') {
+            return basicRequirements && formData.decommissionDate && hasAnnuityEndDate && Boolean(formData.moveToRole);
+          }
+          return basicRequirements && hasAnnuityEndDate;
         }
         return basicRequirements;
       case 1:
@@ -846,6 +853,8 @@ export default function ClientQuoteForm({
         customerAddress: formData.customerAddress,
         contactPerson: formData.contactPerson,
         decommissionDate: formData.decommissionDate,
+        annuityEndDate: formData.annuityEndDate,
+        moveToRole: formData.moveToRole || null,
         
         // Vehicle information
         vehicle_registration: formData.vehicle_registration || '',
@@ -925,6 +934,8 @@ export default function ClientQuoteForm({
         customer_address: formData.customerAddress,
         contact_person: formData.contactPerson || null,
         decommission_date: formData.decommissionDate || null,
+        annuity_end_date: formData.annuityEndDate || null,
+        move_to_role: formData.moveToRole || null,
         vehicle_registration: formData.vehicle_registration || null,
         vehicle_make: formData.vehicle_make || null,
         vehicle_model: formData.vehicle_model || null,
@@ -1042,6 +1053,8 @@ export default function ClientQuoteForm({
         customerAddress: constructAddress(accountInfo) || constructAddress(customer) || "",
         contactPerson: accountInfo?.branch_person_name || customer?.branch_person_name || "",
         decommissionDate: "",
+        annuityEndDate: "",
+        moveToRole: "",
         // Vehicle information
         vehicle_registration: "",
         vehicle_make: "",
@@ -1216,6 +1229,44 @@ export default function ClientQuoteForm({
                   />
                   <p className="text-sm text-amber-600">
                     ⚠️ Note: Both Helpdesk and Ria will be automatically notified when equipment is decommissioned.
+                  </p>
+                </div>
+              )}
+
+              {formData.jobType === 'deinstall' && (
+                <div className="space-y-2">
+                  <Label htmlFor="annuityEndDate">Annuity End Date *</Label>
+                  <Input
+                    id="annuityEndDate"
+                    type="date"
+                    value={formData.annuityEndDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, annuityEndDate: e.target.value }))}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-sm text-blue-700">
+                    This is required for de-install and decommission quotes.
+                  </p>
+                </div>
+              )}
+
+              {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
+                <div className="space-y-2">
+                  <Label htmlFor="moveToRole">Send Job Card To Role *</Label>
+                  <Select
+                    value={formData.moveToRole}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, moveToRole: value }))}
+                  >
+                    <SelectTrigger id="moveToRole">
+                      <SelectValue placeholder="Select destination role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="inv">Inventory</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="accounts">Accounts</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-blue-700">
+                    The approved job card will automatically be routed to this role.
                   </p>
                 </div>
               )}

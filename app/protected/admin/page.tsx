@@ -75,8 +75,13 @@ interface JobCard {
   created_at: string;
   updated_at: string;
   parts_required?: PartRequired[]; // Updated to be an array of PartRequired objects
+  quotation_products?: unknown;
   vin_numer?: string;
   odormeter?: string;
+  role?: string;
+  move_to?: string;
+  annuity_end_date?: string;
+  job_status?: string;
 }
 
 interface Technician {
@@ -1089,6 +1094,78 @@ export default function AdminDashboard() {
     return hasParts;
   };
 
+  const isAdminRoutedJob = (job: JobCard) => {
+    const role = String(job.role || '').toLowerCase();
+    const moveTo = String(job.move_to || '').toLowerCase();
+    const status = String(job.status || '').toLowerCase();
+
+    return (
+      role === 'admin' ||
+      moveTo === 'admin' ||
+      status === 'admin_created'
+    );
+  };
+
+  const canAssignTechnician = (job: JobCard) => (
+    hasPartsRequired(job) || isAdminRoutedJob(job)
+  );
+
+  const toSearchableText = (value: unknown): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          return `${trimmed.toLowerCase()} ${toSearchableText(JSON.parse(trimmed))}`;
+        } catch {
+          return trimmed.toLowerCase();
+        }
+      }
+      return trimmed.toLowerCase();
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value).toLowerCase();
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => toSearchableText(item)).join(' ');
+    }
+    if (typeof value === 'object') {
+      return Object.values(value as Record<string, unknown>)
+        .map((item) => toSearchableText(item))
+        .join(' ');
+    }
+    return '';
+  };
+
+  const matchesJobSearch = (job: JobCard) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+
+    const basicSearchText = [
+      job.job_number,
+      job.customer_name,
+      job.customer_phone,
+      job.customer_email,
+      job.contact_person,
+      job.vehicle_registration,
+      job.vehicle_make,
+      job.vehicle_model,
+      job.job_description,
+      job.job_type,
+      job.status
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    const quotationProductsSearchText = toSearchableText(job.quotation_products);
+
+    return basicSearchText.includes(query) || quotationProductsSearchText.includes(query);
+  };
+
   // Sort jobs: newest first, then by assignment status and priority
   const sortJobs = (jobs: JobCard[]) => {
     return [...jobs].sort((a, b) => {
@@ -1117,15 +1194,20 @@ export default function AdminDashboard() {
   };
 
   const filteredJobCards = sortJobs(jobCards.filter(job => {
-    const matchesSearch = 
-      job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.job_description?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Show only jobs with no technician assigned AND with parts assigned
-    return matchesSearch && !job.technician_name && hasPartsRequired(job);
+    // Show jobs with no technician assigned that either have parts
+    // or were explicitly routed to admin (decommission flow).
+    return matchesJobSearch(job) && !job.technician_name && (
+      canAssignTechnician(job)
+    );
   }));
+
+  const filteredJobsWithParts = sortJobs(
+    jobsWithParts.filter((job) => matchesJobSearch(job))
+  );
+
+  const filteredWaitingForPartsJobs = sortJobs(
+    jobCards.filter((job) => !hasPartsRequired(job) && matchesJobSearch(job))
+  );
 
   // These were used for metrics/analytics but aren't currently referenced in the UI
   // Can uncomment if needed later
@@ -1288,9 +1370,8 @@ export default function AdminDashboard() {
                     </tr>
                   ) : (
                     filteredJobCards.map((job) => {
-                      const shouldBlink = job.job_type === 'deinstall' && job.decommission_date && !job.technician_name;
                       return (
-                        <tr key={job.id} className={`border-b hover:bg-gray-50 ${shouldBlink ? 'bg-amber-50' : ''}`}>
+                        <tr key={job.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 align-middle">
                             <div className="flex items-center gap-3">
                               <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
@@ -1327,11 +1408,6 @@ export default function AdminDashboard() {
                             <div className="text-xs text-gray-500 mt-1">
                               {job.customer_phone || job.customer_email || 'No contact'}
                             </div>
-                            {shouldBlink && job.decommission_date && (
-                              <div className="text-xs text-amber-700 font-medium mt-1">
-                                Decom: {new Date(job.decommission_date).toLocaleDateString()}
-                              </div>
-                            )}
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="flex justify-end gap-2">
@@ -1348,8 +1424,8 @@ export default function AdminDashboard() {
                                 variant="default"
                                 size="sm"
                                 className="bg-black hover:bg-gray-800 text-white"
-                                disabled={!hasPartsRequired(job)}
-                                title={!hasPartsRequired(job) ? "Parts must be assigned before technician can be assigned" : ""}
+                                disabled={!canAssignTechnician(job)}
+                                title={!canAssignTechnician(job) ? "Parts must be assigned before technician can be assigned" : ""}
                               >
                                 <UserPlus className="w-4 h-4 mr-2" />
                                 Assign
@@ -1560,7 +1636,7 @@ export default function AdminDashboard() {
                                     variant="default"
                                     size="sm"
                                     className="bg-black hover:bg-gray-800 text-white"
-                                    disabled={!hasPartsRequired(job)}
+                                    disabled={!canAssignTechnician(job)}
                                   >
                                     <UserPlus className="w-4 h-4 mr-1" />
                                     Assign
@@ -1667,7 +1743,7 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                     </tr>
-                  ) : jobsWithParts.length === 0 ? (
+                  ) : filteredJobsWithParts.length === 0 ? (
                     <tr>
                       <td colSpan={13} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
@@ -1678,22 +1754,11 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    jobsWithParts.map((job) => {
-                      // Check if job should blink (decommission jobs with decommission date but no technician)
-                      const shouldBlink = job.job_type === 'deinstall' && job.decommission_date && !job.technician_name;
-                      
+                    filteredJobsWithParts.map((job) => {
                       return (
-                        <tr 
-                          key={job.id} 
-                          className={`border-b hover:bg-gray-50 ${shouldBlink ? 'animate-pulse bg-amber-50 border-amber-200' : ''}`}
-                        >
+                        <tr key={job.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 align-middle">
-                            <div className="font-medium flex items-center gap-2">
-                              {job.job_number}
-                              {shouldBlink && (
-                                <div className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></div>
-                              )}
-                            </div>
+                            <div className="font-medium">{job.job_number}</div>
                             <div className="text-xs text-gray-500">
                               {new Date(job.created_at).toLocaleDateString()}
                             </div>
@@ -1755,9 +1820,8 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-3 px-4 align-middle">
                             {job.decommission_date ? (
-                              <div className={`text-sm font-medium ${shouldBlink ? 'text-amber-700' : 'text-red-600'}`}>
+                              <div className="text-sm font-medium">
                                 {new Date(job.decommission_date).toLocaleDateString()}
-                                {shouldBlink && <div className="text-xs text-amber-600">⚠️ Needs Assignment</div>}
                               </div>
                             ) : (
                               <div className="text-sm text-gray-400">N/A</div>
@@ -1769,7 +1833,7 @@ export default function AdminDashboard() {
                                 {job.technician_name}
                               </Badge>
                             ) : (
-                              <Badge className={shouldBlink ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-800"}>
+                              <Badge className="bg-gray-100 text-gray-800">
                                 Unassigned
                               </Badge>
                             )}
@@ -1799,11 +1863,11 @@ export default function AdminDashboard() {
                                   onClick={() => handleAssignTechnician(job)}
                                   variant="default"
                                   size="sm"
-                                  className={shouldBlink ? "bg-amber-600 hover:bg-amber-700 text-white animate-pulse" : "bg-black hover:bg-gray-800 text-white"}
-                                  disabled={!hasPartsRequired(job)}
+                                  className="bg-black hover:bg-gray-800 text-white"
+                                  disabled={!canAssignTechnician(job)}
                                 >
                                   <UserPlus className="w-4 h-4 mr-2" />
-                                  {shouldBlink ? 'Assign Now!' : 'Assign'}
+                                  Assign
                                 </Button>
                               )}
                             </div>
@@ -1898,7 +1962,7 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                     </tr>
-                  ) : jobCards.filter(job => !hasPartsRequired(job)).length === 0 ? (
+                  ) : filteredWaitingForPartsJobs.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
@@ -1909,7 +1973,7 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    sortJobs(jobCards.filter(job => !hasPartsRequired(job))).map((job) => (
+                    filteredWaitingForPartsJobs.map((job) => (
                       <tr key={job.id} className="border-b hover:bg-gray-50">
                         <td className="py-3 px-4 align-middle">
                           <div className="font-medium">{job.job_number}</div>
@@ -1998,7 +2062,7 @@ export default function AdminDashboard() {
                   urgentDecommissionJobs.map((job) => (
                     <div 
                       key={job.id} 
-                      className="p-4 border-b hover:bg-amber-50 cursor-pointer"
+                      className="p-4 border-b hover:bg-gray-50 cursor-pointer"
                       onClick={() => {
                         setNotificationsOpen(false);
                         handleAssignTechnician(job);
@@ -2011,8 +2075,8 @@ export default function AdminDashboard() {
                           <p className="text-xs text-gray-500 mt-1">{job.vehicle_registration}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-amber-700 font-semibold">Decom Date</p>
-                          <p className="text-sm text-amber-900 font-medium">
+                          <p className="text-xs text-gray-600 font-semibold">Decom Date</p>
+                          <p className="text-sm text-gray-900 font-medium">
                             {new Date(job.decommission_date).toLocaleDateString()}
                           </p>
                         </div>
@@ -2244,9 +2308,9 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                     {selectedJob.decommission_date && (
-                      <div className="bg-amber-50 border border-amber-200 rounded p-3">
-                        <p className="text-xs text-amber-700 font-semibold mb-1">⚠️ DECOMMISSION DATE</p>
-                        <p className="text-sm text-amber-900 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</p>
+                      <div className="bg-gray-50 border border-gray-200 rounded p-3">
+                        <p className="text-xs text-gray-600 font-semibold mb-1">DECOMMISSION DATE</p>
+                        <p className="text-sm text-gray-900 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</p>
                       </div>
                     )}
                   </div>
@@ -2540,12 +2604,9 @@ export default function AdminDashboard() {
                         )}
                         {selectedJob.decommission_date && (
                           <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="w-4 h-4 text-amber-400" />
-                            <span className="font-medium text-amber-700">Decommission Date:</span> 
-                            <span className="text-amber-800 font-semibold">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
-                            <div className="bg-amber-100 text-amber-800 px-2 py-1 rounded-full text-xs font-medium">
-                              ⚠️ Requires Attention
-                            </div>
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span className="font-medium text-gray-700">Decommission Date:</span>
+                            <span className="text-gray-900 font-semibold">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
                           </div>
                         )}
                       </div>
@@ -2804,7 +2865,7 @@ export default function AdminDashboard() {
                       setViewJobOpen(false);
                       setTimeout(() => handleAssignTechnician(selectedJob), 100);
                     }}
-                    disabled={!hasPartsRequired(selectedJob)}
+                    disabled={!canAssignTechnician(selectedJob)}
                     className="bg-black hover:bg-gray-800 text-white"
                   >
                     <UserPlus className="w-4 h-4 mr-2" />

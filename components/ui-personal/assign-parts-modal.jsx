@@ -28,6 +28,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const normalizeCategoryCode = (value) => String(value || '').trim().toUpperCase();
+const normalizeSearchValue = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
 export default function AssignPartsModal({ 
   isOpen, 
   onClose, 
@@ -55,12 +61,31 @@ export default function AssignPartsModal({
       const data = await response.json();
       const stockArray = Array.isArray(data.stock) ? data.stock : [];
       setAllStockItems(stockArray);
-      
-      const categoriesResponse = await fetch('/api/inventory-categories');
-      if (categoriesResponse.ok) {
-        const categoriesData = await categoriesResponse.json();
-        setStockTypes(categoriesData.categories || []);
-      }
+
+      // Build dropdown directly from unique category codes in inventory_items.
+      const stockCategoryMap = new Map();
+      stockArray.forEach((item) => {
+        const normalizedCode = normalizeCategoryCode(item?.category_code || item?.category?.code);
+        if (!normalizedCode) return;
+
+        const existing = stockCategoryMap.get(normalizedCode);
+        if (existing) {
+          existing.count += 1;
+          return;
+        }
+
+        stockCategoryMap.set(normalizedCode, {
+          code: normalizedCode,
+          description: item?.category?.description || normalizedCode,
+          count: 1
+        });
+      });
+
+      setStockTypes(
+        Array.from(stockCategoryMap.values()).sort((a, b) =>
+          String(a.description || a.code).localeCompare(String(b.description || b.code))
+        )
+      );
     } catch (error) {
       toast.error('Failed to load stock items');
     } finally {
@@ -100,6 +125,48 @@ export default function AssignPartsModal({
       }
     }
   }, [isOpen, jobCard]);
+
+  useEffect(() => {
+    if (selectedStockType === 'all') return;
+    const exists = stockTypes.some((type) => type.code === selectedStockType);
+    if (!exists) {
+      setSelectedStockType('all');
+    }
+  }, [stockTypes, selectedStockType]);
+
+  const filteredAvailableParts = allStockItems.filter((item) => {
+    const isSelected = selectedParts.some((part) => part.stock_id === item.id);
+    if (isSelected) return false;
+
+    const searchRaw = String(searchTerm || '').toLowerCase().trim();
+    const searchNormalized = normalizeSearchValue(searchRaw);
+
+    const serial = String(item.serial_number || '');
+    const categoryDescription = String(item.category?.description || '');
+    const categoryCode = String(item.category_code || item.category?.code || '');
+    const notes = String(item.notes || '');
+    const description = String(item.description || '');
+
+    const serialNormalized = normalizeSearchValue(serial);
+    const notesNormalized = normalizeSearchValue(notes);
+
+    const matchesSearch =
+      !searchRaw ||
+      serial.toLowerCase().includes(searchRaw) ||
+      categoryDescription.toLowerCase().includes(searchRaw) ||
+      categoryCode.toLowerCase().includes(searchRaw) ||
+      notes.toLowerCase().includes(searchRaw) ||
+      description.toLowerCase().includes(searchRaw) ||
+      (searchNormalized && (
+        serialNormalized.includes(searchNormalized) ||
+        notesNormalized.includes(searchNormalized)
+      ));
+
+    const itemCategoryCode = normalizeCategoryCode(item.category_code || item.category?.code);
+    const matchesType = selectedStockType === 'all' || itemCategoryCode === selectedStockType;
+
+    return matchesSearch && matchesType;
+  });
 
   const addPart = async (item) => {
     const alreadySelected = selectedParts.find(part => part.stock_id === item.id);
@@ -430,21 +497,26 @@ export default function AssignPartsModal({
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Type</label>
                 <select 
                   value={selectedStockType}
-                  onChange={(e) => setSelectedStockType(e.target.value)}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setSelectedStockType(nextValue === 'all' ? 'all' : normalizeCategoryCode(nextValue));
+                  }}
                   className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Categories</option>
                   {stockTypes.map(type => (
-                    <option key={type.code} value={type.code}>{type.code} - {type.description}</option>
+                    <option key={type.code} value={type.code}>
+                      {type.code} - {type.description} ({type.count || 0})
+                    </option>
                   ))}
                 </select>
               </div>
               {jobCard?.job_type !== 'deinstall' && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">IP Address</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">IP Address / Serial Number</label>
                   <Input
                     type="text"
-                    placeholder="Enter IP address for installation..."
+                    placeholder="Enter IP address or serial number..."
                     value={ipAddress}
                     onChange={(e) => setIpAddress(e.target.value)}
                     className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -452,10 +524,10 @@ export default function AssignPartsModal({
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Search</label>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Search (IP Address / Serial Number)</label>
                 <Input
                   type="text"
-                  placeholder="Search by serial number, description, or category..."
+                  placeholder="Search by IP address, serial number, description, or category..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="h-10 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -470,19 +542,11 @@ export default function AssignPartsModal({
                 <h3 className="font-semibold text-gray-800 mb-3">Available Parts</h3>
                 <div className="h-full overflow-y-auto">
                   <div className="bg-white rounded border">
-                    {allStockItems.filter(item => {
-                      const isSelected = selectedParts.some(p => p.stock_id === item.id);
-                      if (isSelected) return false;
-                      
-                      const matchesSearch = !searchTerm ||
-                        item.serial_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.category?.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.category_code?.toLowerCase().includes(searchTerm.toLowerCase());
-                      
-                      const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
-                      
-                      return matchesSearch && matchesType;
-                    }).slice(0, 100).map((item, index) => (
+                    {filteredAvailableParts.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-gray-500">
+                        No matching parts found for this filter/search.
+                      </div>
+                    ) : filteredAvailableParts.map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
                         className="p-3 border-b last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors flex justify-between items-center"

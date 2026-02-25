@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
-export async function POST(request) {
+export async function POST(request: Request) {
   try {
     const vehicleData = await request.json();
     if (!vehicleData?.new_account_number) {

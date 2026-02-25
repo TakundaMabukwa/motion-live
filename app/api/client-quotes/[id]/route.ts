@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function extractMissingColumnName(message?: string | null): string | null {
+  if (!message) return null;
+  const match = message.match(/Could not find the '([^']+)' column/i);
+  return match?.[1] || null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -100,7 +106,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { action } = body;
+    const { action, annuity_end_date, destination } = body;
     const { id } = await params;
 
     if (action === 'approve') {
@@ -120,14 +126,82 @@ export async function PUT(
         }, { status: 500 });
       }
 
+      const normalize = (value: unknown) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isDeinstall =
+        normalize(clientQuote.job_type).includes('deinstall') ||
+        normalize(clientQuote.quotation_job_type).includes('deinstall');
+      const isDecommission =
+        normalize(clientQuote.job_sub_type).includes('decommission') ||
+        normalize(clientQuote.job_description).includes('decommission');
+      const isDecommissionJobCard = isDeinstall && isDecommission;
+
+      const destinationFromQuote = String(clientQuote.move_to_role || '').trim().toLowerCase();
+      const destinationNormalized = String(destination || destinationFromQuote || 'none').trim().toLowerCase();
+      const validDestinations = new Set(['none', 'inv', 'admin', 'accounts']);
+
+      if (!validDestinations.has(destinationNormalized)) {
+        return NextResponse.json(
+          {
+            error: 'Invalid destination',
+            allowed_destinations: ['inv', 'admin', 'accounts', 'none']
+          },
+          { status: 400 }
+        );
+      }
+
+      const annuityEndDate = annuity_end_date || clientQuote.annuity_end_date || null;
+      if (isDeinstall && !annuityEndDate) {
+        return NextResponse.json(
+          { error: 'annuity_end_date is required for de-install quotes' },
+          { status: 400 }
+        );
+      }
+
+      if (isDecommissionJobCard) {
+        if (!annuityEndDate) {
+          return NextResponse.json(
+            { error: 'annuity_end_date is required for decommission quotes' },
+            { status: 400 }
+          );
+        }
+
+        if (!['inv', 'admin', 'accounts'].includes(destinationNormalized)) {
+          return NextResponse.json(
+            { error: 'destination role is required for decommission quotes' },
+            { status: 400 }
+          );
+        }
+      }
+
+      const decommissionDate = clientQuote.decommission_date || null;
+      const resolvedMoveToRole = isDecommissionJobCard && destinationNormalized !== 'none'
+        ? destinationNormalized
+        : null;
+      const routingDestination = isDecommissionJobCard ? destinationNormalized : 'none';
+
+      const routingFields: {
+        status: string;
+        role?: 'admin' | 'inv' | 'accounts';
+        move_to?: 'admin' | 'inv' | 'accounts';
+      } =
+        routingDestination === 'admin'
+          ? { role: 'admin', move_to: 'admin', status: 'admin_created' }
+          : routingDestination === 'inv'
+          ? { role: 'inv', move_to: 'inv', status: 'pending' }
+          : routingDestination === 'accounts'
+          ? { role: 'accounts', move_to: 'accounts', status: 'pending' }
+          : { status: 'pending' };
+
       // Create a copy of the client quote in job_cards table - don't move the original
       const jobCardData = {
         // Basic job information
         job_type: clientQuote.job_type || 'install',
         job_description: clientQuote.job_description || '',
         priority: clientQuote.priority || 'medium',
-        status: 'pending',
+        status: routingFields.status,
         job_status: 'pending',
+        ...(routingFields.role ? { role: routingFields.role } : {}),
+        ...(routingFields.move_to ? { move_to: routingFields.move_to } : {}),
         
         // Customer information
         customer_name: clientQuote.customer_name || '',
@@ -135,7 +209,8 @@ export async function PUT(
         customer_phone: clientQuote.customer_phone || '',
         customer_address: clientQuote.customer_address || '',
         contact_person: clientQuote.contact_person || '',
-        decommission_date: clientQuote.decommission_date || null,
+        decommission_date: decommissionDate,
+        annuity_end_date: annuityEndDate,
         account_id: clientQuote.account_id,
         new_account_number: clientQuote.new_account_number, // Copy the new_account_number field
         
@@ -144,6 +219,8 @@ export async function PUT(
         vehicle_make: clientQuote.vehicle_make || '',
         vehicle_model: clientQuote.vehicle_model || '',
         vehicle_year: clientQuote.vehicle_year || null,
+        vin_numer: clientQuote.vin_number || null,
+        odormeter: clientQuote.odormeter || null,
         
         // Quotation details
         quotation_number: `APPROVED-${clientQuote.job_number}`,
@@ -178,10 +255,10 @@ export async function PUT(
       // Debug: Log the data being inserted
       console.log('Creating job card copy from client quote:', JSON.stringify(jobCardData, null, 2));
       
-      // Insert copy into job_cards table
+      // Insert or update by job_number so repeated approvals don't fail with unique violations.
       const { data: jobCard, error: insertError } = await supabase
         .from('job_cards')
-        .insert(jobCardData)
+        .upsert(jobCardData, { onConflict: 'job_number' })
         .select()
         .single();
 
@@ -194,15 +271,36 @@ export async function PUT(
       }
 
       // Update the client quote status to approved (don't move it)
-      const { error: updateError } = await supabase
-        .from('client_quotes')
-        .update({ 
-          status: 'approved',
-          job_status: 'approved',
-          updated_at: new Date().toISOString(),
-          updated_by: user.id
-        })
-        .eq('id', id);
+      const approveUpdatePayload: Record<string, unknown> = {
+        status: 'approved',
+        job_status: 'approved',
+        decommission_date: decommissionDate,
+        annuity_end_date: annuityEndDate,
+        move_to_role: resolvedMoveToRole || clientQuote.move_to_role || null,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      };
+      let updateError: { code?: string | null; message?: string | null; details?: string | null } | null = null;
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const updateResult = await supabase
+          .from('client_quotes')
+          .update(approveUpdatePayload)
+          .eq('id', id);
+
+        updateError = updateResult.error as typeof updateError;
+        if (!updateError) {
+          break;
+        }
+
+        const missingColumn = extractMissingColumnName(updateError.message);
+        if (updateError.code === 'PGRST204' && missingColumn && Object.prototype.hasOwnProperty.call(approveUpdatePayload, missingColumn)) {
+          delete approveUpdatePayload[missingColumn];
+          continue;
+        }
+
+        break;
+      }
 
       if (updateError) {
         console.error('Error updating client quote status:', updateError);
@@ -256,6 +354,7 @@ export async function PUT(
 
     const updatableFields = [
       'job_type',
+      'job_sub_type',
       'job_description',
       'purchase_type',
       'quotation_job_type',
@@ -265,6 +364,8 @@ export async function PUT(
       'customer_address',
       'contact_person',
       'decommission_date',
+      'annuity_end_date',
+      'move_to_role',
       'vehicle_registration',
       'vehicle_make',
       'vehicle_model',
@@ -294,16 +395,37 @@ export async function PUT(
       }
     }
 
-    const { data, error } = await supabase
-      .from('client_quotes')
-      .update({
-        ...updatePayload,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    const regularUpdatePayload: Record<string, unknown> = {
+      ...updatePayload,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id
+    };
+    let data: Record<string, unknown> | null = null;
+    let error: { code?: string | null; message?: string | null; details?: string | null } | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const updateResult = await supabase
+        .from('client_quotes')
+        .update(regularUpdatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      data = updateResult.data as Record<string, unknown> | null;
+      error = updateResult.error as typeof error;
+
+      if (!error) {
+        break;
+      }
+
+      const missingColumn = extractMissingColumnName(error.message);
+      if (error.code === 'PGRST204' && missingColumn && Object.prototype.hasOwnProperty.call(regularUpdatePayload, missingColumn)) {
+        delete regularUpdatePayload[missingColumn];
+        continue;
+      }
+
+      break;
+    }
 
     if (error) {
       console.error('Database error:', error);

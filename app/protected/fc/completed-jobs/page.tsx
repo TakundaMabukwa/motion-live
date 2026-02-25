@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,71 +12,240 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  CheckCircle,
-  Search,
-  RefreshCw,
-  Mail,
-  Phone,
-  Car,
-  Wrench,
-  Calendar,
-  Clock,
-  Eye,
-  DollarSign,
-  Package,
-  MapPin,
-  Edit,
-  Save,
-  CheckCircle2,
   Building2,
+  Calendar,
+  Car,
+  CheckCircle,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Edit,
+  ExternalLink,
+  Eye,
   FileText,
-  ExternalLink
+  Mail,
+  Package,
+  Phone,
+  RefreshCw,
+  Search,
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+type QuotationProduct = {
+  id?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  type?: string;
+  purchase_type?: string;
+  quantity?: number | string;
+  total_price?: number | string;
+  cash_price?: number | string;
+  rental_price?: number | string;
+  subscription_price?: number | string;
+  installation_price?: number | string;
+  de_installation_price?: number | string;
+};
+
 interface CompletedJob {
   id: string;
-  job_number: string;
-  job_date: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  job_type: string;
-  job_description: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  customer_address: string;
+  job_number?: string | null;
+  job_date?: string | null;
+  due_date?: string | null;
+  completion_date?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  status?: string | null;
+  job_status?: string | null;
+  job_type?: string | null;
+  job_description?: string | null;
+  priority?: string | null;
+  role?: string | null;
+  move_to?: string | null;
+  repair?: boolean | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
+  contact_person?: string | null;
+  new_account_number?: string | null;
+  vehicle_registration?: string | null;
+  vehicle_make?: string | null;
+  vehicle_model?: string | null;
+  vehicle_year?: number | null;
+  vin_numer?: string | null;
+  odormeter?: string | null;
+  ip_address?: string | null;
+  qr_code?: string | null;
+  technician_name?: string | null;
+  technician_phone?: string | null;
+  assigned_technician_id?: string | null;
+  job_location?: string | null;
+  site_contact_person?: string | null;
+  site_contact_phone?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  estimated_duration_hours?: number | null;
+  actual_duration_hours?: number | null;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  quotation_number?: string | null;
+  quote_status?: string | null;
+  quote_type?: string | null;
+  quotation_job_type?: string | null;
+  purchase_type?: string | null;
+  quote_date?: string | null;
+  quote_expiry_date?: string | null;
+  quotation_subtotal?: number | null;
+  quotation_vat_amount?: number | null;
+  quotation_total_amount?: number | null;
+  quotation_products?: unknown;
+  parts_required?: unknown;
+  products_required?: unknown;
+  equipment_used?: unknown;
+  safety_checklist_completed?: boolean | null;
+  quality_check_passed?: boolean | null;
+  customer_signature_obtained?: boolean | null;
+  before_photos?: unknown;
+  after_photos?: unknown;
+  documents?: unknown;
+  special_instructions?: string | null;
+  access_requirements?: string | null;
+  work_notes?: string | null;
+  completion_notes?: string | null;
+  customer_feedback?: string | null;
+  customer_satisfaction_rating?: number | null;
+}
+
+type EditFormData = {
   vehicle_registration: string;
   vehicle_make: string;
   vehicle_model: string;
-  vehicle_year: number;
-  technician_name: string;
-  technician_phone: string;
-  estimated_duration_hours: number;
-  actual_duration_hours: number;
-  created_at: string;
-  updated_at: string;
-  repair: boolean;
-  role: string;
-  job_status: string;
+  vehicle_year: string;
+  vin_number: string;
+  odormeter: string;
+  ip_address: string;
   job_location: string;
-  estimated_cost: number;
-  actual_cost: number;
-  quotation_products: any;
-  quotation_subtotal: number;
-  quotation_vat_amount: number;
-     quotation_total_amount: number;
-   before_photos: string[];
-   after_photos: string[];
-   work_notes: string;
-   completion_notes: string;
-   completion_date: string;
-   end_time: string;
-   vin_numer: string;
-   odormeter: string;
-   ip_address: string;
-}
+  site_contact_person: string;
+  site_contact_phone: string;
+  quotation_subtotal: string;
+  quotation_vat_amount: string;
+  quotation_total_amount: string;
+  estimated_cost: string;
+  actual_cost: string;
+  work_notes: string;
+  completion_notes: string;
+  special_instructions: string;
+  customer_feedback: string;
+};
+
+const EMPTY_FORM_DATA: EditFormData = {
+  vehicle_registration: '',
+  vehicle_make: '',
+  vehicle_model: '',
+  vehicle_year: '',
+  vin_number: '',
+  odormeter: '',
+  ip_address: '',
+  job_location: '',
+  site_contact_person: '',
+  site_contact_phone: '',
+  quotation_subtotal: '',
+  quotation_vat_amount: '',
+  quotation_total_amount: '',
+  estimated_cost: '',
+  actual_cost: '',
+  work_notes: '',
+  completion_notes: '',
+  special_instructions: '',
+  customer_feedback: '',
+};
+
+const toNumberOrNull = (value: string): number | null => {
+  if (!value || value.trim() === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toStringSafe = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  return String(value);
+};
+
+const parseArrayValue = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const parseStringArray = (value: unknown): string[] =>
+  parseArrayValue(value).filter((item): item is string => typeof item === 'string' && item.length > 0);
+
+const parseQuotationProducts = (value: unknown): QuotationProduct[] =>
+  parseArrayValue(value).filter((item): item is QuotationProduct => typeof item === 'object' && item !== null);
+
+const countFromArrayLike = (value: unknown): number => parseArrayValue(value).length;
+
+const formatDate = (value?: string | null): string => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? toStringSafe(value) : date.toLocaleDateString();
+};
+
+const formatDateTime = (value?: string | null): string => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? toStringSafe(value) : date.toLocaleString();
+};
+
+const formatCurrency = (value?: number | null): string => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/A';
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(Number(value));
+};
+
+const formatBool = (value?: boolean | null): string => (value ? 'Yes' : 'No');
+
+const getStatusColor = (status?: string | null): string => {
+  switch ((status || '').toLowerCase()) {
+    case 'completed':
+      return 'bg-green-500';
+    case 'assigned':
+      return 'bg-blue-500';
+    case 'pending':
+      return 'bg-yellow-500';
+    case 'cancelled':
+      return 'bg-red-500';
+    case 'on_hold':
+      return 'bg-gray-500';
+    default:
+      return 'bg-gray-500';
+  }
+};
+
+const getJobTypeColor = (jobType?: string | null): string => {
+  switch ((jobType || '').toLowerCase()) {
+    case 'install':
+      return 'bg-blue-500';
+    case 'deinstall':
+      return 'bg-red-500';
+    case 'maintenance':
+      return 'bg-green-500';
+    case 'repair':
+      return 'bg-orange-500';
+    default:
+      return 'bg-gray-500';
+  }
+};
 
 export default function FCCompletedJobsPage() {
   const pathname = usePathname();
@@ -88,35 +257,17 @@ export default function FCCompletedJobsPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingJob, setEditingJob] = useState<CompletedJob | null>(null);
-  const [formData, setFormData] = useState({
-    vehicle_registration: '',
-    vehicle_make: '',
-    vehicle_model: '',
-    vehicle_year: '',
-    vin_number: '',
-    odormeter: '',
-    ip_address: '',
-    quotation_subtotal: '',
-    quotation_vat_amount: '',
-    quotation_total_amount: '',
-    work_notes: ''
-  });
+  const [formData, setFormData] = useState<EditFormData>(EMPTY_FORM_DATA);
   const [finalizing, setFinalizing] = useState(false);
 
   const fetchCompletedJobs = async () => {
     try {
       setLoading(true);
-      
-      // Fetch completed jobs where role is 'fc' and job_status is 'Completed'
       const response = await fetch('/api/fc/completed-jobs');
-      
       if (!response.ok) {
         throw new Error('Failed to fetch completed jobs');
       }
-
       const data = await response.json();
-      console.log('Fetched FC completed jobs:', data.jobs);
-      
       setJobs(data.jobs || []);
     } catch (error) {
       console.error('Error fetching completed jobs:', error);
@@ -136,12 +287,20 @@ export default function FCCompletedJobsPage() {
     await fetchCompletedJobs();
   };
 
-  const filteredJobs = jobs.filter(job =>
-    job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.customer_phone?.includes(searchTerm) ||
-    job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    job.technician_phone?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredJobs = useMemo(
+    () =>
+      jobs.filter((job) => {
+        const search = searchTerm.toLowerCase();
+        return (
+          toStringSafe(job.customer_name).toLowerCase().includes(search) ||
+          toStringSafe(job.customer_phone).toLowerCase().includes(search) ||
+          toStringSafe(job.job_number).toLowerCase().includes(search) ||
+          toStringSafe(job.vehicle_registration).toLowerCase().includes(search) ||
+          toStringSafe(job.technician_phone).toLowerCase().includes(search) ||
+          toStringSafe(job.new_account_number).toLowerCase().includes(search)
+        );
+      }),
+    [jobs, searchTerm]
   );
 
   const handleViewDetails = (job: CompletedJob) => {
@@ -151,410 +310,344 @@ export default function FCCompletedJobsPage() {
 
   const handleEditJob = (job: CompletedJob) => {
     setEditingJob(job);
-    // Pre-fill form with existing data
     setFormData({
-      vehicle_registration: job.vehicle_registration || '',
-      vehicle_make: job.vehicle_make || '',
-      vehicle_model: job.vehicle_model || '',
-      vehicle_year: job.vehicle_year?.toString() || '',
-      vin_number: job.vin_numer || '',
-      odormeter: job.odormeter || '',
-      ip_address: job.ip_address || '',
-      quotation_subtotal: job.quotation_subtotal?.toString() || '',
-      quotation_vat_amount: job.quotation_vat_amount?.toString() || '',
-      quotation_total_amount: job.quotation_total_amount?.toString() || '',
-      payment_notes: ''
+      vehicle_registration: toStringSafe(job.vehicle_registration),
+      vehicle_make: toStringSafe(job.vehicle_make),
+      vehicle_model: toStringSafe(job.vehicle_model),
+      vehicle_year: toStringSafe(job.vehicle_year),
+      vin_number: toStringSafe(job.vin_numer),
+      odormeter: toStringSafe(job.odormeter),
+      ip_address: toStringSafe(job.ip_address),
+      job_location: toStringSafe(job.job_location),
+      site_contact_person: toStringSafe(job.site_contact_person),
+      site_contact_phone: toStringSafe(job.site_contact_phone),
+      quotation_subtotal: toStringSafe(job.quotation_subtotal),
+      quotation_vat_amount: toStringSafe(job.quotation_vat_amount),
+      quotation_total_amount: toStringSafe(job.quotation_total_amount),
+      estimated_cost: toStringSafe(job.estimated_cost),
+      actual_cost: toStringSafe(job.actual_cost),
+      work_notes: toStringSafe(job.work_notes),
+      completion_notes: toStringSafe(job.completion_notes),
+      special_instructions: toStringSafe(job.special_instructions),
+      customer_feedback: toStringSafe(job.customer_feedback),
     });
     setShowEditDialog(true);
   };
 
-  const calculateVAT = (subtotal: string) => {
-    if (!subtotal || isNaN(Number(subtotal))) return '';
-    const subtotalNum = parseFloat(subtotal);
-    const vatAmount = subtotalNum * 0.15; // 15% VAT
-    return vatAmount.toFixed(2);
+  const updateFormField = (field: keyof EditFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const calculateTotal = (subtotal: string, vat: string) => {
-    if (!subtotal || isNaN(Number(subtotal))) return '';
-    const subtotalNum = parseFloat(subtotal);
-    const vatNum = parseFloat(vat) || 0;
-    return (subtotalNum + vatNum).toFixed(2);
-  };
-
-  const handleSubtotalChange = (value: string) => {
-    const vat = calculateVAT(value);
-    const total = calculateTotal(value, vat);
-    setFormData({
-      ...formData,
-      quotation_subtotal: value,
+  const handleSubtotalChange = (subtotal: string) => {
+    const subtotalNumber = Number(subtotal);
+    if (!Number.isFinite(subtotalNumber)) {
+      updateFormField('quotation_subtotal', subtotal);
+      return;
+    }
+    const vat = (subtotalNumber * 0.15).toFixed(2);
+    const total = (subtotalNumber + Number(vat)).toFixed(2);
+    setFormData((prev) => ({
+      ...prev,
+      quotation_subtotal: subtotal,
       quotation_vat_amount: vat,
-      quotation_total_amount: total
-    });
+      quotation_total_amount: total,
+    }));
+  };
+
+  const handleVatChange = (vat: string) => {
+    const subtotal = Number(formData.quotation_subtotal);
+    const vatNumber = Number(vat);
+    const total =
+      Number.isFinite(subtotal) && Number.isFinite(vatNumber)
+        ? (subtotal + vatNumber).toFixed(2)
+        : formData.quotation_total_amount;
+
+    setFormData((prev) => ({
+      ...prev,
+      quotation_vat_amount: vat,
+      quotation_total_amount: total,
+    }));
   };
 
   const handleFinalizeJob = async () => {
     if (!editingJob) return;
-
-    // Validate required fields
     if (!formData.vehicle_registration.trim()) {
       toast.error('Vehicle registration is required');
       return;
     }
-
-    if (!formData.quotation_total_amount || parseFloat(formData.quotation_total_amount) <= 0) {
+    if (!formData.quotation_total_amount || Number(formData.quotation_total_amount) <= 0) {
       toast.error('Total amount must be greater than 0');
       return;
     }
 
     try {
       setFinalizing(true);
+
       const finalizeData = {
-        vehicle_registration: formData.vehicle_registration,
-        vehicle_make: formData.vehicle_make,
-        vehicle_model: formData.vehicle_model,
-        vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
-        vin_numer: formData.vin_number,
-        odormeter: formData.odormeter,
-        ip_address: formData.ip_address,
-        quotation_subtotal: formData.quotation_subtotal ? parseFloat(formData.quotation_subtotal) : null,
-        quotation_vat_amount: formData.quotation_vat_amount ? parseFloat(formData.quotation_vat_amount) : null,
-        quotation_total_amount: formData.quotation_total_amount ? parseFloat(formData.quotation_total_amount) : null,
-        work_notes: formData.work_notes,
+        vehicle_registration: formData.vehicle_registration.trim(),
+        vehicle_make: formData.vehicle_make.trim() || null,
+        vehicle_model: formData.vehicle_model.trim() || null,
+        vehicle_year: toNumberOrNull(formData.vehicle_year),
+        vin_numer: formData.vin_number.trim() || null,
+        odormeter: formData.odormeter.trim() || null,
+        ip_address: formData.ip_address.trim() || null,
+        job_location: formData.job_location.trim() || null,
+        site_contact_person: formData.site_contact_person.trim() || null,
+        site_contact_phone: formData.site_contact_phone.trim() || null,
+        quotation_subtotal: toNumberOrNull(formData.quotation_subtotal),
+        quotation_vat_amount: toNumberOrNull(formData.quotation_vat_amount),
+        quotation_total_amount: toNumberOrNull(formData.quotation_total_amount),
+        estimated_cost: toNumberOrNull(formData.estimated_cost),
+        actual_cost: toNumberOrNull(formData.actual_cost),
+        work_notes: formData.work_notes.trim() || null,
+        completion_notes: formData.completion_notes.trim() || null,
+        special_instructions: formData.special_instructions.trim() || null,
+        customer_feedback: formData.customer_feedback.trim() || null,
         role: 'accounts',
-        updated_by: 'fc'
+        updated_by: 'fc',
       };
 
-      // Update the job card
       const response = await fetch(`/api/job-cards/${editingJob.id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(finalizeData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update job card');
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || 'Failed to update job card');
       }
 
-      // If it's an installation job, add to vehicles table
-      if (editingJob.job_type?.toLowerCase().includes('install') && formData.ip_address) {
+      if ((editingJob.job_type || '').toLowerCase().includes('install') && formData.ip_address) {
+        const vehiclePayload = {
+          reg: formData.vehicle_registration.trim(),
+          vin: formData.vin_number.trim(),
+          make: formData.vehicle_make.trim(),
+          model: formData.vehicle_model.trim(),
+          year: formData.vehicle_year.trim(),
+          colour: 'Unknown',
+          company: editingJob.customer_name || 'Unknown',
+          new_account_number: editingJob.new_account_number || editingJob.customer_name || 'Unknown',
+          skylink_trailer_unit_ip: formData.ip_address.trim(),
+          total_rental_sub: Number(formData.quotation_total_amount) || 0,
+          total_rental: Number(formData.quotation_subtotal) || 0,
+          total_sub: Number(formData.quotation_vat_amount) || 0,
+        };
+
         const vehicleResponse = await fetch('/api/vehicles', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            reg: formData.vehicle_registration,
-            vin: formData.vin_number,
-            make: formData.vehicle_make,
-            model: formData.vehicle_model,
-            year: formData.vehicle_year,
-            colour: 'Unknown',
-            company: editingJob.customer_name || 'Unknown',
-            new_account_number: editingJob.customer_name || 'Unknown',
-            skylink_trailer_unit_ip: formData.ip_address,
-            total_rental_sub: parseFloat(formData.quotation_total_amount) || 0,
-            total_rental: parseFloat(formData.quotation_subtotal) || 0,
-            total_sub: parseFloat(formData.quotation_vat_amount) || 0
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(vehiclePayload),
         });
 
         if (!vehicleResponse.ok) {
-          console.warn('Failed to add vehicle to vehicles table, but job was updated');
+          console.warn('Job was finalized, but vehicle creation failed');
         }
       }
 
-      toast.success(`Job ${editingJob.job_number} finalized successfully!`);
+      toast.success(`Job ${editingJob.job_number || editingJob.id} finalized successfully`);
       setShowEditDialog(false);
       setEditingJob(null);
-      fetchCompletedJobs(); // Refresh the list
+      setFormData(EMPTY_FORM_DATA);
+      fetchCompletedJobs();
     } catch (error) {
       console.error('Error finalizing job:', error);
-      toast.error('Failed to finalize job. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Failed to finalize job');
     } finally {
       setFinalizing(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed': return 'bg-green-500';
-      case 'assigned': return 'bg-blue-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'cancelled': return 'bg-red-500';
-      case 'on_hold': return 'bg-gray-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getJobTypeColor = (jobType: string) => {
-    switch (jobType?.toLowerCase()) {
-      case 'install': return 'bg-blue-500';
-      case 'deinstall': return 'bg-red-500';
-      case 'maintenance': return 'bg-green-500';
-      case 'repair': return 'bg-orange-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'Not set';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString();
-    } catch {
-      return dateString;
-    }
-  };
-
-  const formatTime = (timeString: string) => {
-    if (!timeString) return 'Not set';
-    try {
-      const date = new Date(timeString);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return timeString;
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (!amount) return 'N/A';
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR'
-    }).format(amount);
-  };
+  const selectedJobProducts = useMemo(
+    () => parseQuotationProducts(selectedJob?.quotation_products),
+    [selectedJob]
+  );
+  const editingJobProducts = useMemo(
+    () => parseQuotationProducts(editingJob?.quotation_products),
+    [editingJob]
+  );
 
   return (
-    <div className="mx-auto p-6 container">
-      <div className="flex justify-between items-center mb-6">
+    <div className="w-full px-6 py-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="font-bold text-gray-900 text-3xl">Completed Jobs</h1>
-          <p className="text-gray-600">View completed jobs assigned to Finance Controller</p>
+          <h1 className="text-3xl font-bold text-gray-900">Job Card Review</h1>
+          <p className="text-gray-600">Finance Controller review and finalization</p>
         </div>
         <Button onClick={refreshJobs} disabled={refreshing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {/* Main Navigation */}
-      <div className="mb-6 border-gray-200 border-b">
+      <div className="mb-6 border-b border-gray-200">
         <nav className="flex space-x-8">
           {[
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
-            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
-          ].map((navItem) => {
-            const Icon = navItem.icon;
-            const isActive = pathname === navItem.href;
-            
+            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs' },
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+
             return (
               <Link
-                key={navItem.id}
-                href={navItem.href}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                key={item.id}
+                href={item.href}
+                className={`flex items-center space-x-2 border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
                   isActive
                     ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{navItem.label}</span>
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
       </div>
 
-      {/* Search and Stats */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="flex justify-between items-center">
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
-                <Input
-                  placeholder="Search jobs by customer, phone, job number, vehicle, or technician..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-xl">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                placeholder="Search by client, account code, job number, vehicle, or technician"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
-            <div className="flex items-center gap-4 text-gray-600 text-sm">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircle className="h-4 w-4 text-green-500" />
                 <span>{filteredJobs.length} completed jobs</span>
               </div>
               <div className="flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-purple-500" />
-                <span>{filteredJobs.filter(job => job.repair).length} repair jobs</span>
+                <Wrench className="h-4 w-4 text-purple-500" />
+                <span>{filteredJobs.filter((job) => job.repair).length} repair jobs</span>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Completed Jobs Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            Completed Jobs for FC Review
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Job Card Review
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="border-gray-900 border-b-2 rounded-full w-8 h-8 animate-spin"></div>
+            <div className="flex items-center justify-center py-8">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900" />
             </div>
           ) : filteredJobs.length === 0 ? (
-            <div className="py-8 text-gray-500 text-center">
-              {searchTerm ? 'No completed jobs found matching your search' : 'No completed jobs found'}
+            <div className="py-8 text-center text-gray-500">
+              {searchTerm ? 'No jobs found for this search' : 'No completed jobs found'}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1300px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Job Details
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Vehicle
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Repair
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Technician Email
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Completion
-                    </th>
-                    <th className="px-4 py-3 font-medium text-gray-500 text-xs text-left uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Job</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Client</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Vehicle and Device</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Commercial</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Completion</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredJobs.map((job) => (
-                    <tr key={job.id} className="hover:bg-gray-50 border-gray-100 border-b">
-                      <td className="px-4 py-3 text-gray-900">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h3 className="font-semibold text-lg">{job.job_number}</h3>
-                          <Badge className={getStatusColor(job.job_status)}>
-                            {job.job_status || 'completed'}
-                          </Badge>
-                          <Badge className={getJobTypeColor(job.job_type)}>
-                            {job.job_type}
-                          </Badge>
-                        </div>
-                        <div className="text-gray-600 text-sm">
-                          <p><strong>Type:</strong> {job.job_type}</p>
-                          <p><strong>Description:</strong> {job.job_description || 'No description'}</p>
-                          {job.job_location && (
-                            <p><strong>Location:</strong> {job.job_location}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        <div className="font-medium">{job.customer_name}</div>
-                        <div className="text-gray-500 text-sm">
-                          <div className="flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {job.customer_email}
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {filteredJobs.map((job) => {
+                    const products = parseQuotationProducts(job.quotation_products);
+                    return (
+                      <tr key={job.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-semibold">{job.job_number || job.id}</h3>
+                            <Badge className={getStatusColor(job.job_status)}>{job.job_status || job.status || 'N/A'}</Badge>
+                            <Badge className={getJobTypeColor(job.job_type)}>{job.job_type || 'Unknown'}</Badge>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {job.customer_phone}
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <p className="line-clamp-2"><strong>Description:</strong> {job.job_description || 'No description'}</p>
+                            <p><strong>Priority:</strong> {job.priority || 'N/A'}</p>
+                            <p><strong>Role Flow:</strong> {job.role || 'N/A'} {job.move_to ? `-> ${job.move_to}` : ''}</p>
                           </div>
-                          {job.customer_address && (
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="space-y-1 text-sm">
+                            <p className="font-medium">{job.customer_name || 'N/A'}</p>
+                            <p className="text-gray-600"><strong>Account:</strong> {job.new_account_number || 'N/A'}</p>
+                            <p className="text-gray-600"><strong>Contact:</strong> {job.contact_person || 'N/A'}</p>
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <Mail className="h-3 w-3" />
+                              <span>{job.customer_email || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <Phone className="h-3 w-3" />
+                              <span>{job.customer_phone || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <p><strong>Reg:</strong> {job.vehicle_registration || 'N/A'}</p>
+                            <p><strong>Vehicle:</strong> {job.vehicle_make || ''} {job.vehicle_model || ''} {job.vehicle_year || ''}</p>
+                            <p><strong>VIN:</strong> {job.vin_numer || 'N/A'}</p>
+                            <p><strong>ODO:</strong> {job.odormeter || 'N/A'}</p>
+                            <p><strong>IP:</strong> {job.ip_address || 'N/A'}</p>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="space-y-1 text-sm text-gray-600">
+                            <p><strong>Quote:</strong> {job.quotation_number || 'N/A'}</p>
+                            <p><strong>Status:</strong> {job.quote_status || 'N/A'}</p>
+                            <p><strong>Type:</strong> {job.purchase_type || 'N/A'} / {job.quote_type || 'N/A'}</p>
+                            <p><strong>Items:</strong> {products.length}</p>
+                            <p><strong>Total:</strong> {formatCurrency(job.quotation_total_amount)}</p>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="space-y-1 text-sm text-gray-600">
                             <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              <span className="max-w-[150px] truncate">{job.customer_address}</span>
+                              <Calendar className="h-3 w-3" />
+                              <span><strong>Date:</strong> {formatDate(job.completion_date || job.job_date)}</span>
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        {job.vehicle_registration ? (
-                          <div>
-                            <div className="font-medium">{job.vehicle_registration}</div>
-                            <div className="text-gray-500 text-sm">
-                              {job.vehicle_make} {job.vehicle_model} {job.vehicle_year}
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              <span><strong>Duration:</strong> {job.actual_duration_hours || job.estimated_duration_hours || 'N/A'}h</span>
                             </div>
+                            <p><strong>Tech:</strong> {job.technician_name || 'N/A'}</p>
+                            <p><strong>Repair:</strong> {job.repair ? 'Yes' : 'No'}</p>
                           </div>
-                        ) : (
-                          <span className="text-gray-400">No vehicle</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        {job.repair ? (
-                          <Badge className="bg-purple-100 text-purple-800">
-                            Yes
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-gray-100 text-gray-600">
-                            No
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        {job.technician_phone ? (
-                          <div>
-                            <div className="font-medium text-blue-600">{job.technician_phone}</div>
-                            {job.technician_name && (
-                              <div className="text-gray-500 text-sm">{job.technician_name}</div>
-                            )}
+                        </td>
+
+                        <td className="px-4 py-3 align-top text-gray-900">
+                          <div className="flex min-w-[160px] flex-col gap-2">
+                            <Button onClick={() => handleViewDetails(job)} size="sm" variant="outline" className="w-full">
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </Button>
+                            <Button onClick={() => handleEditJob(job)} size="sm" className="w-full">
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit and Finalize
+                            </Button>
                           </div>
-                        ) : (
-                          <span className="text-gray-400">No technician</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        <div className="text-sm">
-                          <div className="flex items-center gap-1 mb-1">
-                            <Calendar className="w-3 h-3" />
-                            <span><strong>Date:</strong> {formatDate(job.completion_date || job.job_date)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span><strong>Duration:</strong> {job.actual_duration_hours || job.estimated_duration_hours || 'N/A'}h</span>
-                          </div>
-                        </div>
-                      </td>
-                                             <td className="px-4 py-3 text-gray-900">
-                         <div className="flex flex-col gap-2">
-                           <Button
-                             onClick={() => handleViewDetails(job)}
-                             size="sm"
-                             variant="outline"
-                             className="w-full"
-                           >
-                             <Eye className="mr-2 w-4 h-4" />
-                             View Details
-                           </Button>
-                           <Button
-                             onClick={() => handleEditJob(job)}
-                             size="sm"
-                             variant="default"
-                             className="w-full"
-                           >
-                             <Edit className="mr-2 w-4 h-4" />
-                             Edit & Finalize
-                           </Button>
-                         </div>
-                       </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -562,421 +655,462 @@ export default function FCCompletedJobsPage() {
         </CardContent>
       </Card>
 
-      {/* Job Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[92vh] max-w-[96vw] overflow-y-auto xl:max-w-6xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Job Details - {selectedJob?.job_number}
+              <Package className="h-5 w-5" />
+              Job Details - {selectedJob?.job_number || selectedJob?.id}
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedJob && (
             <div className="space-y-6">
-              {/* Basic Job Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Job Information</CardTitle>
-                </CardHeader>
-                <CardContent className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                  <div>
-                    <p><strong>Job Number:</strong> {selectedJob.job_number}</p>
-                    <p><strong>Job Type:</strong> {selectedJob.job_type}</p>
-                    <p><strong>Status:</strong> {selectedJob.job_status}</p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase text-gray-500">Quote Total</p>
+                    <p className="text-lg font-semibold">{formatCurrency(selectedJob.quotation_total_amount)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase text-gray-500">Quote Items</p>
+                    <p className="text-lg font-semibold">{selectedJobProducts.length}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase text-gray-500">Vehicle</p>
+                    <p className="text-lg font-semibold">{selectedJob.vehicle_registration || 'N/A'}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase text-gray-500">Account</p>
+                    <p className="text-lg font-semibold">{selectedJob.new_account_number || 'N/A'}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs uppercase text-gray-500">Completed</p>
+                    <p className="text-lg font-semibold">{formatDate(selectedJob.completion_date)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Job and Workflow</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                    <p><strong>Job Number:</strong> {selectedJob.job_number || 'N/A'}</p>
+                    <p><strong>Status:</strong> {selectedJob.job_status || selectedJob.status || 'N/A'}</p>
+                    <p><strong>Job Type:</strong> {selectedJob.job_type || 'N/A'}</p>
                     <p><strong>Priority:</strong> {selectedJob.priority || 'N/A'}</p>
-                  </div>
-                  <div>
+                    <p><strong>Role:</strong> {selectedJob.role || 'N/A'}</p>
+                    <p><strong>Move To:</strong> {selectedJob.move_to || 'N/A'}</p>
                     <p><strong>Job Date:</strong> {formatDate(selectedJob.job_date)}</p>
-                    <p><strong>Completion Date:</strong> {formatDate(selectedJob.completion_date)}</p>
-                    <p><strong>Duration:</strong> {selectedJob.actual_duration_hours || selectedJob.estimated_duration_hours || 'N/A'}h</p>
-                    <p><strong>Repair Job:</strong> {selectedJob.repair ? 'Yes' : 'No'}</p>
-                  </div>
-                </CardContent>
-              </Card>
+                    <p><strong>Due Date:</strong> {formatDate(selectedJob.due_date)}</p>
+                    <p><strong>Start Time:</strong> {formatDateTime(selectedJob.start_time)}</p>
+                    <p><strong>End Time:</strong> {formatDateTime(selectedJob.end_time)}</p>
+                    <p><strong>Estimated Duration:</strong> {selectedJob.estimated_duration_hours || 'N/A'}h</p>
+                    <p><strong>Actual Duration:</strong> {selectedJob.actual_duration_hours || 'N/A'}h</p>
+                  </CardContent>
+                </Card>
 
-              {/* Customer Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Customer Information</CardTitle>
-                </CardHeader>
-                <CardContent className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                  <div>
-                    <p><strong>Name:</strong> {selectedJob.customer_name}</p>
-                    <p><strong>Email:</strong> {selectedJob.customer_email}</p>
-                    <p><strong>Phone:</strong> {selectedJob.customer_phone}</p>
-                  </div>
-                  <div>
-                    <p><strong>Address:</strong> {selectedJob.customer_address || 'N/A'}</p>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Client and Site</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                    <p><strong>Client:</strong> {selectedJob.customer_name || 'N/A'}</p>
+                    <p><strong>Account Code:</strong> {selectedJob.new_account_number || 'N/A'}</p>
+                    <p><strong>Email:</strong> {selectedJob.customer_email || 'N/A'}</p>
+                    <p><strong>Phone:</strong> {selectedJob.customer_phone || 'N/A'}</p>
+                    <p><strong>Contact Person:</strong> {selectedJob.contact_person || 'N/A'}</p>
+                    <p><strong>Site Contact:</strong> {selectedJob.site_contact_person || 'N/A'}</p>
+                    <p><strong>Site Phone:</strong> {selectedJob.site_contact_phone || 'N/A'}</p>
                     <p><strong>Job Location:</strong> {selectedJob.job_location || 'N/A'}</p>
-                  </div>
-                </CardContent>
-              </Card>
+                    <p><strong>Latitude:</strong> {toStringSafe(selectedJob.latitude) || 'N/A'}</p>
+                    <p><strong>Longitude:</strong> {toStringSafe(selectedJob.longitude) || 'N/A'}</p>
+                    <p className="md:col-span-2"><strong>Address:</strong> {selectedJob.customer_address || 'N/A'}</p>
+                    <p className="md:col-span-2"><strong>Access Requirements:</strong> {selectedJob.access_requirements || 'N/A'}</p>
+                  </CardContent>
+                </Card>
 
-              {/* Vehicle Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Vehicle Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Vehicle and Device</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
                     <p><strong>Registration:</strong> {selectedJob.vehicle_registration || 'N/A'}</p>
                     <p><strong>Make:</strong> {selectedJob.vehicle_make || 'N/A'}</p>
                     <p><strong>Model:</strong> {selectedJob.vehicle_model || 'N/A'}</p>
                     <p><strong>Year:</strong> {selectedJob.vehicle_year || 'N/A'}</p>
-                  </div>
-                </CardContent>
-              </Card>
+                    <p><strong>VIN:</strong> {selectedJob.vin_numer || 'N/A'}</p>
+                    <p><strong>Odometer:</strong> {selectedJob.odormeter || 'N/A'}</p>
+                    <p><strong>IP Address:</strong> {selectedJob.ip_address || 'N/A'}</p>
+                    <p><strong>QR Code:</strong> {selectedJob.qr_code || 'N/A'}</p>
+                  </CardContent>
+                </Card>
 
-              {/* Technician Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Commercial</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                    <p><strong>Quote Number:</strong> {selectedJob.quotation_number || 'N/A'}</p>
+                    <p><strong>Quote Status:</strong> {selectedJob.quote_status || 'N/A'}</p>
+                    <p><strong>Quote Type:</strong> {selectedJob.quote_type || 'N/A'}</p>
+                    <p><strong>Purchase Type:</strong> {selectedJob.purchase_type || 'N/A'}</p>
+                    <p><strong>Quotation Job Type:</strong> {selectedJob.quotation_job_type || 'N/A'}</p>
+                    <p><strong>Repair Job:</strong> {selectedJob.repair ? 'Yes' : 'No'}</p>
+                    <p><strong>Quote Date:</strong> {formatDate(selectedJob.quote_date)}</p>
+                    <p><strong>Quote Expiry:</strong> {formatDate(selectedJob.quote_expiry_date)}</p>
+                    <p><strong>Estimated Cost:</strong> {formatCurrency(selectedJob.estimated_cost)}</p>
+                    <p><strong>Actual Cost:</strong> {formatCurrency(selectedJob.actual_cost)}</p>
+                    <p><strong>Subtotal:</strong> {formatCurrency(selectedJob.quotation_subtotal)}</p>
+                    <p><strong>VAT:</strong> {formatCurrency(selectedJob.quotation_vat_amount)}</p>
+                    <p className="md:col-span-2"><strong>Total:</strong> {formatCurrency(selectedJob.quotation_total_amount)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Technician Information</CardTitle>
+                  <CardTitle className="text-lg">Quotation Products</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <p><strong>Name:</strong> {selectedJob.technician_name || 'N/A'}</p>
-                    <p><strong>Email:</strong> {selectedJob.technician_phone || 'N/A'}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Pricing Information - Show for repair jobs */}
-              {selectedJob.repair && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <DollarSign className="w-5 h-5 text-green-600" />
-                      Pricing Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                      <div>
-                        <p><strong>Estimated Cost:</strong> {formatCurrency(selectedJob.estimated_cost)}</p>
-                        <p><strong>Actual Cost:</strong> {formatCurrency(selectedJob.actual_cost)}</p>
-                      </div>
-                      <div>
-                        <p><strong>Quotation Subtotal:</strong> {formatCurrency(selectedJob.quotation_subtotal)}</p>
-                        <p><strong>VAT Amount:</strong> {formatCurrency(selectedJob.quotation_vat_amount)}</p>
-                        <p><strong>Total Amount:</strong> {formatCurrency(selectedJob.quotation_total_amount)}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Quotation Products */}
-                    {selectedJob.quotation_products && (
-                      <div className="mt-4">
-                        <h4 className="mb-2 font-medium">Quotation Products:</h4>
-                        <div className="bg-gray-50 p-3 rounded">
-                          <pre className="overflow-auto text-sm">
-                            {JSON.stringify(selectedJob.quotation_products, null, 2)}
-                          </pre>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Job Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Job Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p><strong>Description:</strong></p>
-                    <p className="text-gray-600">{selectedJob.job_description || 'No description provided'}</p>
-                  </div>
-                  
-                  {selectedJob.special_instructions && (
-                    <div>
-                      <p><strong>Special Instructions:</strong></p>
-                      <p className="text-gray-600">{selectedJob.special_instructions}</p>
-                    </div>
-                  )}
-                  
-                  {selectedJob.work_notes && (
-                    <div>
-                      <p><strong>Work Notes:</strong></p>
-                      <p className="text-gray-600">{selectedJob.work_notes}</p>
-                    </div>
-                  )}
-                  
-                  {selectedJob.completion_notes && (
-                    <div>
-                      <p><strong>Completion Notes:</strong></p>
-                      <p className="text-gray-600">{selectedJob.completion_notes}</p>
+                  {selectedJobProducts.length === 0 ? (
+                    <p className="text-sm text-gray-500">No quotation products available</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[900px]">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Name</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Category/Type</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Qty</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Purchase</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Subscription</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Install</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {selectedJobProducts.map((product, index) => (
+                            <tr key={product.id || `${product.name || 'item'}-${index}`}>
+                              <td className="px-3 py-2 text-sm text-gray-900">
+                                <div className="font-medium">{product.name || 'Unnamed item'}</div>
+                                <div className="text-xs text-gray-500">{product.description || 'No description'}</div>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-700">
+                                {product.category || 'N/A'} / {product.type || 'N/A'}
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.quantity) || 'N/A'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{product.purchase_type || 'N/A'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.subscription_price) || 'N/A'}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.installation_price) || 'N/A'}</td>
+                              <td className="px-3 py-2 text-sm font-medium text-gray-900">{toStringSafe(product.total_price) || 'N/A'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Photos */}
-              {(selectedJob.before_photos?.length > 0 || selectedJob.after_photos?.length > 0) && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Job Photos</CardTitle>
+                    <CardTitle className="text-lg">Notes and Feedback</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                      {selectedJob.before_photos?.length > 0 && (
-                        <div>
-                          <h4 className="mb-2 font-medium">Before Photos ({selectedJob.before_photos.length})</h4>
-                          <div className="gap-2 grid grid-cols-2">
-                            {selectedJob.before_photos.map((photo, index) => (
-                              <img 
-                                key={index} 
-                                src={photo} 
-                                alt={`Before ${index + 1}`}
-                                className="rounded w-full h-24 object-cover"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {selectedJob.after_photos?.length > 0 && (
-                        <div>
-                          <h4 className="mb-2 font-medium">After Photos ({selectedJob.after_photos.length})</h4>
-                          <div className="gap-2 grid grid-cols-2">
-                            {selectedJob.after_photos.map((photo, index) => (
-                              <img 
-                                key={index} 
-                                src={photo} 
-                                alt={`After ${index + 1}`}
-                                className="rounded w-full h-24 object-cover"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  <CardContent className="space-y-3 text-sm">
+                    <div>
+                      <p className="font-medium">Description</p>
+                      <p className="text-gray-600">{selectedJob.job_description || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Special Instructions</p>
+                      <p className="text-gray-600">{selectedJob.special_instructions || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Work Notes</p>
+                      <p className="text-gray-600">{selectedJob.work_notes || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Completion Notes</p>
+                      <p className="text-gray-600">{selectedJob.completion_notes || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Customer Feedback</p>
+                      <p className="text-gray-600">{selectedJob.customer_feedback || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Customer Rating</p>
+                      <p className="text-gray-600">{selectedJob.customer_satisfaction_rating || 'N/A'}</p>
                     </div>
                   </CardContent>
                 </Card>
-              )}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Checks, Stock and Media</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <p><strong>Safety Checklist:</strong> {formatBool(selectedJob.safety_checklist_completed)}</p>
+                      <p><strong>Quality Check:</strong> {formatBool(selectedJob.quality_check_passed)}</p>
+                      <p><strong>Customer Signature:</strong> {formatBool(selectedJob.customer_signature_obtained)}</p>
+                      <p><strong>Before Photos:</strong> {parseStringArray(selectedJob.before_photos).length}</p>
+                      <p><strong>After Photos:</strong> {parseStringArray(selectedJob.after_photos).length}</p>
+                      <p><strong>Documents:</strong> {countFromArrayLike(selectedJob.documents)}</p>
+                      <p><strong>Parts Required:</strong> {countFromArrayLike(selectedJob.parts_required)}</p>
+                      <p><strong>Products Required:</strong> {countFromArrayLike(selectedJob.products_required)}</p>
+                      <p><strong>Equipment Used:</strong> {countFromArrayLike(selectedJob.equipment_used)}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
-                 </DialogContent>
-       </Dialog>
+        </DialogContent>
+      </Dialog>
 
-       {/* Edit Job Dialog */}
-       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-           <DialogHeader>
-             <DialogTitle className="flex items-center gap-2">
-               <Edit className="w-5 h-5" />
-               Edit & Finalize Job - {editingJob?.job_number}
-             </DialogTitle>
-           </DialogHeader>
-           
-           {editingJob && (
-             <div className="space-y-6">
-               <Tabs defaultValue="vehicle" className="w-full">
-                 <TabsList className="grid grid-cols-3 w-full">
-                   <TabsTrigger value="vehicle">Vehicle Details</TabsTrigger>
-                   <TabsTrigger value="payment">Payment Details</TabsTrigger>
-                   <TabsTrigger value="finalize">Finalize</TabsTrigger>
-                 </TabsList>
-                 
-                 {/* Vehicle Details Tab */}
-                 <TabsContent value="vehicle" className="space-y-4">
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="flex items-center gap-2 text-lg">
-                         <Car className="w-5 h-5" />
-                         Vehicle Information
-                       </CardTitle>
-                     </CardHeader>
-                     <CardContent className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                       <div className="space-y-2">
-                         <Label htmlFor="vehicle_registration">Vehicle Registration *</Label>
-                         <Input
-                           id="vehicle_registration"
-                           value={formData.vehicle_registration}
-                           onChange={(e) => setFormData({...formData, vehicle_registration: e.target.value})}
-                           placeholder="Enter vehicle registration"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="vehicle_make">Vehicle Make</Label>
-                         <Input
-                           id="vehicle_make"
-                           value={formData.vehicle_make}
-                           onChange={(e) => setFormData({...formData, vehicle_make: e.target.value})}
-                           placeholder="Enter vehicle make"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="vehicle_model">Vehicle Model</Label>
-                         <Input
-                           id="vehicle_model"
-                           value={formData.vehicle_model}
-                           onChange={(e) => setFormData({...formData, vehicle_model: e.target.value})}
-                           placeholder="Enter vehicle model"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="vehicle_year">Vehicle Year</Label>
-                         <Input
-                           id="vehicle_year"
-                           type="number"
-                           value={formData.vehicle_year}
-                           onChange={(e) => setFormData({...formData, vehicle_year: e.target.value})}
-                           placeholder="Enter vehicle year"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="vin_number">VIN Number</Label>
-                         <Input
-                           id="vin_number"
-                           value={formData.vin_number}
-                           onChange={(e) => setFormData({...formData, vin_number: e.target.value})}
-                           placeholder="Enter VIN number"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="odormeter">Odometer</Label>
-                         <Input
-                           id="odormeter"
-                           value={formData.odormeter}
-                           onChange={(e) => setFormData({...formData, odormeter: e.target.value})}
-                           placeholder="Enter odometer reading"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="ip_address">IP Address</Label>
-                         <Input
-                           id="ip_address"
-                           value={formData.ip_address}
-                           onChange={(e) => setFormData({...formData, ip_address: e.target.value})}
-                           placeholder="Enter IP address"
-                         />
-                       </div>
-                     </CardContent>
-                   </Card>
-                 </TabsContent>
-                 
-                 {/* Payment Details Tab */}
-                 <TabsContent value="payment" className="space-y-4">
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="flex items-center gap-2 text-lg">
-                         <DollarSign className="w-5 h-5" />
-                         Payment Information
-                       </CardTitle>
-                     </CardHeader>
-                     <CardContent className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                       <div className="space-y-2">
-                         <Label htmlFor="quotation_subtotal">Quotation Subtotal</Label>
-                         <Input
-                           id="quotation_subtotal"
-                           type="number"
-                           step="0.01"
-                           value={formData.quotation_subtotal}
-                           onChange={(e) => handleSubtotalChange(e.target.value)}
-                           placeholder="Enter subtotal amount"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="quotation_vat_amount">VAT Amount</Label>
-                         <Input
-                           id="quotation_vat_amount"
-                           type="number"
-                           step="0.01"
-                           value={formData.quotation_vat_amount}
-                           onChange={(e) => setFormData({...formData, quotation_vat_amount: e.target.value})}
-                           placeholder="Enter VAT amount"
-                         />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="quotation_total_amount">Total Amount</Label>
-                         <Input
-                           id="quotation_total_amount"
-                           type="number"
-                           step="0.01"
-                           value={formData.quotation_total_amount}
-                           onChange={(e) => setFormData({...formData, quotation_total_amount: e.target.value})}
-                           placeholder="Enter total amount"
-                         />
-                       </div>
-                                               <div className="space-y-2">
-                          <Label htmlFor="work_notes">Work Notes</Label>
-                          <Textarea
-                            id="work_notes"
-                            value={formData.work_notes}
-                            onChange={(e) => setFormData({...formData, work_notes: e.target.value})}
-                            placeholder="Enter any work notes or special instructions"
-                            rows={3}
-                          />
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-h-[92vh] max-w-[96vw] overflow-y-auto xl:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Edit and Finalize - {editingJob?.job_number || editingJob?.id}
+            </DialogTitle>
+          </DialogHeader>
+
+          {editingJob && (
+            <div className="space-y-6">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="vehicle">Vehicle and Site</TabsTrigger>
+                  <TabsTrigger value="pricing">Pricing and Notes</TabsTrigger>
+                  <TabsTrigger value="finalize">Finalize</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Job Snapshot</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                      <p><strong>Job Number:</strong> {editingJob.job_number || 'N/A'}</p>
+                      <p><strong>Client:</strong> {editingJob.customer_name || 'N/A'}</p>
+                      <p><strong>Account:</strong> {editingJob.new_account_number || 'N/A'}</p>
+                      <p><strong>Job Type:</strong> {editingJob.job_type || 'N/A'}</p>
+                      <p><strong>Quote:</strong> {editingJob.quotation_number || 'N/A'}</p>
+                      <p><strong>Quote Status:</strong> {editingJob.quote_status || 'N/A'}</p>
+                      <p><strong>Current Total:</strong> {formatCurrency(editingJob.quotation_total_amount)}</p>
+                      <p><strong>Products:</strong> {editingJobProducts.length}</p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Quotation Products</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {editingJobProducts.length === 0 ? (
+                        <p className="text-sm text-gray-500">No quotation products available</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[860px]">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Item</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Qty</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Purchase Type</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Subscription</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Install</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {editingJobProducts.map((product, index) => (
+                                <tr key={product.id || `${product.name || 'item'}-${index}`}>
+                                  <td className="px-3 py-2 text-sm text-gray-900">{product.name || 'Unnamed item'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.quantity) || 'N/A'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{product.purchase_type || 'N/A'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.subscription_price) || 'N/A'}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(product.installation_price) || 'N/A'}</td>
+                                  <td className="px-3 py-2 text-sm font-medium text-gray-900">{toStringSafe(product.total_price) || 'N/A'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
-                     </CardContent>
-                   </Card>
-                 </TabsContent>
-                 
-                 {/* Finalize Tab */}
-                 <TabsContent value="finalize" className="space-y-4">
-                   <Card>
-                     <CardHeader>
-                       <CardTitle className="flex items-center gap-2 text-lg">
-                         <CheckCircle2 className="w-5 h-5 text-green-600" />
-                         Finalize Job
-                       </CardTitle>
-                     </CardHeader>
-                     <CardContent className="space-y-4">
-                       <div className="bg-blue-50 p-4 rounded-lg">
-                         <h4 className="mb-2 font-medium text-blue-900">Summary of Changes</h4>
-                         <div className="space-y-1 text-blue-800 text-sm">
-                           <p><strong>Vehicle Registration:</strong> {formData.vehicle_registration || 'Not set'}</p>
-                           <p><strong>IP Address:</strong> {formData.vehicle_registration && formData.ip_address ? 'Will be added to vehicles table' : 'Not set'}</p>
-                           <p><strong>Total Amount:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : 'Not set'}</p>
-                           <p><strong>Job Role:</strong> Will be updated to 'accounts'</p>
-                         </div>
-                       </div>
-                       
-                       <div className="bg-yellow-50 p-4 rounded-lg">
-                         <h4 className="mb-2 font-medium text-yellow-900">Important Notes</h4>
-                         <ul className="space-y-1 text-yellow-800 text-sm list-disc list-inside">
-                           <li>This action will update the job card with all entered information</li>
-                           <li>If this is an installation job with IP address, the vehicle will be added to vehicles table</li>
-                           <li>The job role will be changed to 'accounts'</li>
-                           <li>This action cannot be undone</li>
-                         </ul>
-                       </div>
-                       
-                       <div className="flex justify-end gap-3">
-                         <Button
-                           variant="outline"
-                           onClick={() => setShowEditDialog(false)}
-                         >
-                           Cancel
-                         </Button>
-                         <Button
-                           onClick={handleFinalizeJob}
-                           disabled={finalizing}
-                           className="bg-green-600 hover:bg-green-700"
-                         >
-                           {finalizing ? (
-                             <>
-                               <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
-                               Finalizing...
-                             </>
-                           ) : (
-                             <>
-                               <CheckCircle2 className="mr-2 w-4 h-4" />
-                               Finalize Job Card
-                             </>
-                           )}
-                         </Button>
-                       </div>
-                     </CardContent>
-                   </Card>
-                 </TabsContent>
-               </Tabs>
-             </div>
-           )}
-         </DialogContent>
-       </Dialog>
-     </div>
-   );
- }
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="vehicle" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Car className="h-5 w-5" />
+                        Vehicle and Site Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_registration">Vehicle Registration *</Label>
+                        <Input id="vehicle_registration" value={formData.vehicle_registration} onChange={(e) => updateFormField('vehicle_registration', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_make">Vehicle Make</Label>
+                        <Input id="vehicle_make" value={formData.vehicle_make} onChange={(e) => updateFormField('vehicle_make', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_model">Vehicle Model</Label>
+                        <Input id="vehicle_model" value={formData.vehicle_model} onChange={(e) => updateFormField('vehicle_model', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_year">Vehicle Year</Label>
+                        <Input id="vehicle_year" type="number" value={formData.vehicle_year} onChange={(e) => updateFormField('vehicle_year', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vin_number">VIN Number</Label>
+                        <Input id="vin_number" value={formData.vin_number} onChange={(e) => updateFormField('vin_number', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="odormeter">Odometer</Label>
+                        <Input id="odormeter" value={formData.odormeter} onChange={(e) => updateFormField('odormeter', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ip_address">IP Address</Label>
+                        <Input id="ip_address" value={formData.ip_address} onChange={(e) => updateFormField('ip_address', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="job_location">Job Location</Label>
+                        <Input id="job_location" value={formData.job_location} onChange={(e) => updateFormField('job_location', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="site_contact_person">Site Contact Person</Label>
+                        <Input id="site_contact_person" value={formData.site_contact_person} onChange={(e) => updateFormField('site_contact_person', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="site_contact_phone">Site Contact Phone</Label>
+                        <Input id="site_contact_phone" value={formData.site_contact_phone} onChange={(e) => updateFormField('site_contact_phone', e.target.value)} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="pricing" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <DollarSign className="h-5 w-5" />
+                        Pricing, Quote and Notes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="quotation_subtotal">Quotation Subtotal</Label>
+                        <Input id="quotation_subtotal" type="number" step="0.01" value={formData.quotation_subtotal} onChange={(e) => handleSubtotalChange(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quotation_vat_amount">VAT Amount</Label>
+                        <Input id="quotation_vat_amount" type="number" step="0.01" value={formData.quotation_vat_amount} onChange={(e) => handleVatChange(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
+                        <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} onChange={(e) => updateFormField('quotation_total_amount', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="estimated_cost">Estimated Cost</Label>
+                        <Input id="estimated_cost" type="number" step="0.01" value={formData.estimated_cost} onChange={(e) => updateFormField('estimated_cost', e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="actual_cost">Actual Cost</Label>
+                        <Input id="actual_cost" type="number" step="0.01" value={formData.actual_cost} onChange={(e) => updateFormField('actual_cost', e.target.value)} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="work_notes">Work Notes</Label>
+                        <Textarea id="work_notes" value={formData.work_notes} onChange={(e) => updateFormField('work_notes', e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="completion_notes">Completion Notes</Label>
+                        <Textarea id="completion_notes" value={formData.completion_notes} onChange={(e) => updateFormField('completion_notes', e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="special_instructions">Special Instructions</Label>
+                        <Textarea id="special_instructions" value={formData.special_instructions} onChange={(e) => updateFormField('special_instructions', e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="customer_feedback">Customer Feedback</Label>
+                        <Textarea id="customer_feedback" value={formData.customer_feedback} onChange={(e) => updateFormField('customer_feedback', e.target.value)} rows={2} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="finalize" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                        Finalize and Move to Accounts
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="rounded-lg bg-blue-50 p-4">
+                        <h4 className="mb-2 font-medium text-blue-900">Final Review</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm text-blue-900 md:grid-cols-2">
+                          <p><strong>Job:</strong> {editingJob.job_number || editingJob.id}</p>
+                          <p><strong>Client:</strong> {editingJob.customer_name || 'N/A'}</p>
+                          <p><strong>Account Code:</strong> {editingJob.new_account_number || 'N/A'}</p>
+                          <p><strong>Vehicle:</strong> {formData.vehicle_registration || 'Not set'}</p>
+                          <p><strong>IP Address:</strong> {formData.ip_address || 'Not set'}</p>
+                          <p><strong>Total:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : 'Not set'}</p>
+                          <p><strong>Products:</strong> {editingJobProducts.length}</p>
+                          <p><strong>Target Role:</strong> accounts</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-900">
+                        <p>This will update the job card details and set role to accounts.</p>
+                        <p>If this is an install job with IP address, vehicle creation is also attempted.</p>
+                      </div>
+
+                      <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleFinalizeJob} disabled={finalizing} className="bg-green-600 hover:bg-green-700">
+                          {finalizing ? (
+                            <>
+                              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              Finalizing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              Finalize Job Card
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

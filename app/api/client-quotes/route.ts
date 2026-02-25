@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function extractMissingColumnName(message?: string | null): string | null {
+  if (!message) return null;
+  const match = message.match(/Could not find the '([^']+)' column/i);
+  return match?.[1] || null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -13,6 +19,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const parsedVehicleYear = Number.parseInt(body.vehicle_year, 10);
+    const normalizedJobSubType = String(body.jobSubType || body.job_sub_type || '').trim().toLowerCase();
+    const isDecommissionQuote = normalizedJobSubType === 'decommission';
+    const normalizedStatus = String(body.status || 'pending').trim().toLowerCase();
     
     // Debug logging
     console.log('Received client quote data:', {
@@ -41,13 +50,14 @@ export async function POST(request: NextRequest) {
       job_number: jobNumber,
       quote_date: new Date().toISOString(),
       quote_expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-      quote_type: 'internal',
-      status: 'draft',
-      quote_status: 'draft',
-      job_status: 'draft',
+      quote_type: body.quoteType || body.quote_type || 'internal',
+      status: normalizedStatus || 'pending',
+      quote_status: body.quoteStatus || body.quote_status || 'draft',
+      job_status: body.jobStatus || body.job_status || normalizedStatus || 'pending',
       
       // Job details
       job_type: body.jobType || 'install',
+      job_sub_type: body.jobSubType || body.job_sub_type || null,
       job_description: body.jobDescription || '',
       purchase_type: body.purchaseType || 'purchase',
       quotation_job_type: body.jobType || 'install',
@@ -60,6 +70,8 @@ export async function POST(request: NextRequest) {
       customer_address: body.customerAddress || '',
       contact_person: body.contactPerson || '',
       decommission_date: body.decommissionDate || null,
+      annuity_end_date: body.annuityEndDate || body.annuity_end_date || null,
+      move_to_role: isDecommissionQuote ? (body.moveToRole || body.move_to_role || null) : null,
       vehicle_registration: body.vehicle_registration || null,
       vehicle_make: body.vehicle_make || null,
       vehicle_model: body.vehicle_model || null,
@@ -106,12 +118,34 @@ export async function POST(request: NextRequest) {
       fullData: clientQuoteData
     });
     
-    // Insert into client_quotes table
-    const { data, error } = await supabase
-      .from('client_quotes')
-      .insert(clientQuoteData)
-      .select('*') // Select all fields to see what's actually stored
-      .single();
+    // Insert into client_quotes table.
+    // If DB schema cache is behind (missing newly added columns), retry without those columns.
+    const insertPayload: Record<string, unknown> = { ...clientQuoteData };
+    let data: Record<string, unknown> | null = null;
+    let error: { code?: string | null; message?: string | null; details?: string | null; hint?: string | null } | null = null;
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const result = await supabase
+        .from('client_quotes')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+
+      data = result.data as Record<string, unknown> | null;
+      error = result.error as typeof error;
+
+      if (!error) {
+        break;
+      }
+
+      const missingColumn = extractMissingColumnName(error.message);
+      if (error.code === 'PGRST204' && missingColumn && Object.prototype.hasOwnProperty.call(insertPayload, missingColumn)) {
+        delete insertPayload[missingColumn];
+        continue;
+      }
+
+      break;
+    }
 
     if (error) {
       console.error('Database error:', error);
@@ -128,11 +162,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Debug logging after successful insert
+    type CreatedQuote = {
+      id?: string;
+      job_number?: string;
+      job_type?: string;
+      account_id?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      customer_address?: string;
+      quote_date?: string;
+      quote_expiry_date?: string;
+      quotation_total_amount?: number;
+      quotation_vat_amount?: number;
+      quotation_subtotal?: number;
+      quote_notes?: string;
+      quote_email_body?: string;
+      quote_email_subject?: string;
+      quote_email_footer?: string;
+      new_account_number?: string;
+      status?: string;
+    };
+    const createdQuote = (data || {}) as CreatedQuote;
     console.log('Successfully created client quote:', {
-      id: data.id,
-      job_number: data.job_number,
-      new_account_number: data.new_account_number,
-      account_id: data.account_id
+      id: createdQuote.id,
+      job_number: createdQuote.job_number,
+      new_account_number: createdQuote.new_account_number,
+      account_id: createdQuote.account_id
     });
     
     // Send quotation email
@@ -193,24 +248,24 @@ export async function POST(request: NextRequest) {
         
         // Send the quotation email
         const emailResult = await sendQuotationEmail({
-          quoteNumber: data.job_number,
-          jobNumber: data.job_number,
-          jobType: data.job_type || body.jobType || 'install',
-          clientName: data.customer_name || body.customerName || '',
+          quoteNumber: createdQuote.job_number,
+          jobNumber: createdQuote.job_number,
+          jobType: createdQuote.job_type || body.jobType || 'install',
+          clientName: createdQuote.customer_name || body.customerName || '',
           clientEmail: emailRecipients,
-          clientPhone: data.customer_phone || body.customerPhone || '',
-          clientAddress: data.customer_address || body.customerAddress || '',
-          quoteDate: data.quote_date || new Date().toISOString(),
-          expiryDate: data.quote_expiry_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          totalAmount: data.quotation_total_amount || body.quotationTotalAmount || 0,
-          vatAmount: data.quotation_vat_amount || body.quotationVatAmount || 0,
-          subtotal: data.quotation_subtotal || body.quotationSubtotal || 0,
+          clientPhone: createdQuote.customer_phone || body.customerPhone || '',
+          clientAddress: createdQuote.customer_address || body.customerAddress || '',
+          quoteDate: createdQuote.quote_date || new Date().toISOString(),
+          expiryDate: createdQuote.quote_expiry_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          totalAmount: createdQuote.quotation_total_amount || body.quotationTotalAmount || 0,
+          vatAmount: createdQuote.quotation_vat_amount || body.quotationVatAmount || 0,
+          subtotal: createdQuote.quotation_subtotal || body.quotationSubtotal || 0,
           products: formattedProducts,
-          notes: data.quote_notes || body.quoteNotes || '',
-          emailBody: data.quote_email_body || body.quoteEmailBody || body.emailBody || '',
-          emailSubject: data.quote_email_subject || body.quoteEmailSubject || body.emailSubject || '',
-          emailFooter: data.quote_email_footer || body.quoteEmailFooter || body.quoteFooter || '',
-          accountNumber: data.new_account_number || body.new_account_number || ''
+          notes: createdQuote.quote_notes || body.quoteNotes || '',
+          emailBody: createdQuote.quote_email_body || body.quoteEmailBody || body.emailBody || '',
+          emailSubject: createdQuote.quote_email_subject || body.quoteEmailSubject || body.emailSubject || '',
+          emailFooter: createdQuote.quote_email_footer || body.quoteEmailFooter || body.quoteFooter || '',
+          accountNumber: createdQuote.new_account_number || body.new_account_number || ''
         });
         
         console.log('Email sending result:', emailResult);
@@ -226,13 +281,13 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Client quote created successfully',
       data: {
-        id: data.id,
-        job_number: data.job_number,
-        quote_date: data.quote_date,
-        customer_name: data.customer_name,
-        quotation_total_amount: data.quotation_total_amount,
-        status: data.status,
-        new_account_number: data.new_account_number // Include this in response
+        id: createdQuote.id,
+        job_number: createdQuote.job_number,
+        quote_date: createdQuote.quote_date,
+        customer_name: createdQuote.customer_name,
+        quotation_total_amount: createdQuote.quotation_total_amount,
+        status: createdQuote.status,
+        new_account_number: createdQuote.new_account_number // Include this in response
       }
     });
 

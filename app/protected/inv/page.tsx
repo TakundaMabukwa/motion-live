@@ -57,6 +57,7 @@ interface JobCard {
   quotation_number?: string;
   quotation_products?: Record<string, unknown>[];
   quotation_total_amount?: number;
+  [key: string]: unknown;
 }
 
 interface StockOrder {
@@ -83,6 +84,26 @@ interface StockUpdate {
   current_quantity: number;
   new_quantity: number;
   difference: number;
+}
+
+interface ClientStockClient {
+  id: string;
+  company: string | null;
+  cost_code: string;
+  created_at: string;
+}
+
+interface ClientStockItem {
+  id: number;
+  category_code: string;
+  serial_number: string;
+  status: string | null;
+  assigned_to_technician: string | null;
+  notes: string | null;
+  created_at: string;
+  inventory_categories?: {
+    description?: string | null;
+  } | null;
 }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,8 +136,7 @@ import {
   Filter,
   Save,
   Network,
-  Eye,
-  Bell
+  Eye
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
@@ -135,6 +155,11 @@ export default function InventoryPage() {
   const [showAssignParts, setShowAssignParts] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [selectedQRJob, setSelectedQRJob] = useState<JobCard | null>(null);
+  const [showCompletedJobDetails, setShowCompletedJobDetails] = useState(false);
+  const [selectedCompletedJob, setSelectedCompletedJob] = useState<JobCard | null>(null);
+  const [loadingCompletedJobDetails, setLoadingCompletedJobDetails] = useState(false);
+  const [movingDeinstalledItemKey, setMovingDeinstalledItemKey] = useState<string | null>(null);
+  const [movedDeinstalledItems, setMovedDeinstalledItems] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('job-cards');
   const [stockOrders, setStockOrders] = useState<StockOrder[]>([]);
   const [stockOrdersLoading, setStockOrdersLoading] = useState(false);
@@ -152,7 +177,6 @@ export default function InventoryPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadOrder, setUploadOrder] = useState(null);
   const [uploadItems, setUploadItems] = useState([]);
-  const [selectedDeinstallJob, setSelectedDeinstallJob] = useState<JobCard | null>(null);
   
   // Stock Take state
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -166,6 +190,14 @@ export default function InventoryPage() {
   const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
   const [thresholds, setThresholds] = useState<Record<number, number>>({});
   const [defaultThreshold, setDefaultThreshold] = useState(10);
+  const [clientStockClients, setClientStockClients] = useState<ClientStockClient[]>([]);
+  const [clientStockLoading, setClientStockLoading] = useState(false);
+  const [clientStockSearchTerm, setClientStockSearchTerm] = useState('');
+  const [selectedClientStock, setSelectedClientStock] = useState<ClientStockClient | null>(null);
+  const [clientStockItems, setClientStockItems] = useState<ClientStockItem[]>([]);
+  const [clientStockItemsLoading, setClientStockItemsLoading] = useState(false);
+  const [clientStockItemSearchTerm, setClientStockItemSearchTerm] = useState('');
+  const [clientStockStatusFilter, setClientStockStatusFilter] = useState('all');
   
   // IP address assignment state
   const [showIpAddressModal, setShowIpAddressModal] = useState(false);
@@ -215,12 +247,6 @@ export default function InventoryPage() {
     fetchCategories();
   }, []);
 
-  // Get urgent decommission jobs
-  const urgentDecommissionJobs = jobCards.filter(job => 
-    job.job_type === 'deinstall' && 
-    job.decommission_date && 
-    !job.technician_name
-  );
 
   useEffect(() => {
     console.log('activeTab changed to:', activeTab);
@@ -230,6 +256,9 @@ export default function InventoryPage() {
     if (activeTab === 'stock-take') {
       console.log('Calling fetchStockItems because activeTab is stock-take');
       fetchStockItems();
+    }
+    if (activeTab === 'client-stock') {
+      fetchClientStockClients();
     }
   }, [activeTab]);
 
@@ -287,6 +316,53 @@ export default function InventoryPage() {
       toast.error('Failed to fetch stock orders');
     } finally {
       setStockOrdersLoading(false);
+    }
+  };
+
+  const fetchClientStockClients = async () => {
+    try {
+      setClientStockLoading(true);
+      const response = await fetch('/api/client-stock/clients');
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Client stock clients API error:', response.status, errorText);
+        throw new Error('Failed to fetch client stock clients');
+      }
+
+      const data = await response.json();
+      setClientStockClients(data.clients || []);
+    } catch (error) {
+      console.error('Error fetching client stock clients:', error);
+      toast.error('Failed to load client stock clients');
+    } finally {
+      setClientStockLoading(false);
+    }
+  };
+
+  const handleViewClientStock = async (client: ClientStockClient) => {
+    try {
+      setSelectedClientStock(client);
+      setClientStockItems([]);
+      setClientStockItemsLoading(true);
+      setClientStockItemSearchTerm('');
+      setClientStockStatusFilter('all');
+
+      const response = await fetch(`/api/client-stock/items?cost_code=${encodeURIComponent(client.cost_code)}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Client stock items API error:', response.status, errorText);
+        throw new Error('Failed to fetch client stock items');
+      }
+
+      const data = await response.json();
+      setClientStockItems(data.items || []);
+    } catch (error) {
+      console.error('Error fetching client stock items:', error);
+      toast.error('Failed to load client stock');
+    } finally {
+      setClientStockItemsLoading(false);
     }
   };
 
@@ -369,9 +445,12 @@ export default function InventoryPage() {
     job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0
   );
 
-  const completedJobs = jobCards.filter((job: JobCard) => 
-    job.job_status === 'completed' || job.status === 'completed'
-  );
+  const completedJobs = jobCards.filter((job: JobCard) => {
+    const normalizedJobStatus = job.job_status?.toLowerCase();
+    const normalizedStatus = job.status?.toLowerCase();
+
+    return normalizedJobStatus === 'completed' || normalizedStatus === 'completed';
+  });
 
   interface OrderItem {
     description?: string;
@@ -392,6 +471,47 @@ export default function InventoryPage() {
        ))
     );
   });
+
+  const filteredClientStockClients = clientStockClients.filter((client) => {
+    if (!clientStockSearchTerm) return true;
+
+    const query = clientStockSearchTerm.toLowerCase();
+    const company = (client.company || '').toLowerCase();
+
+    return company.includes(query);
+  });
+
+  const filteredClientStockItems = clientStockItems.filter((item) => {
+    const normalizedStatus = (item.status || '').toLowerCase();
+    const statusMatch = clientStockStatusFilter === 'all' || normalizedStatus === clientStockStatusFilter;
+
+    if (!statusMatch) return false;
+    if (!clientStockItemSearchTerm) return true;
+
+    const query = clientStockItemSearchTerm.toLowerCase();
+    const category = (item.inventory_categories?.description || item.category_code || '').toLowerCase();
+    const serial = (item.serial_number || '').toLowerCase();
+    const technician = (item.assigned_to_technician || '').toLowerCase();
+    const notes = (item.notes || '').toLowerCase();
+
+    return (
+      category.includes(query) ||
+      serial.includes(query) ||
+      technician.includes(query) ||
+      notes.includes(query)
+    );
+  });
+
+  const getClientStockStatusClasses = (status: string | null) => {
+    const normalized = (status || '').toUpperCase();
+
+    if (normalized === 'IN STOCK') return 'bg-green-100 text-green-700';
+    if (normalized === 'OUT OF STOCK') return 'bg-red-100 text-red-700';
+    if (normalized === 'ASSIGNED') return 'bg-blue-100 text-blue-700';
+    if (normalized === 'RESERVED') return 'bg-amber-100 text-amber-700';
+
+    return 'bg-gray-100 text-gray-700';
+  };
 
   const handleAssignParts = (jobCard: JobCard) => {
     setSelectedJobCard(jobCard);
@@ -575,6 +695,155 @@ export default function InventoryPage() {
     }
     setSelectedQRJob(jobCard);
     setShowQRCode(true);
+  };
+
+  const parsePartsRequired = (value: unknown): Part[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value as Part[];
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? (parsed as Part[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const parseQuotationProducts = (value: unknown): Record<string, unknown>[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value as Record<string, unknown>[];
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const isDeInstallJob = (job: JobCard | null): boolean => {
+    if (!job) return false;
+    const normalizedJobType = String(job.job_type || '').toLowerCase();
+    const normalizedQuotationJobType = String(job.quotation_job_type || '').toLowerCase();
+    const normalizedSubType = String(job.job_sub_type || '').toLowerCase();
+
+    return (
+      normalizedJobType.includes('deinstall') ||
+      normalizedJobType.includes('de-install') ||
+      normalizedJobType.includes('decommission') ||
+      normalizedQuotationJobType.includes('deinstall') ||
+      normalizedQuotationJobType.includes('de-install') ||
+      normalizedSubType.includes('deinstall') ||
+      normalizedSubType.includes('de-install') ||
+      normalizedSubType.includes('decommission')
+    );
+  };
+
+  const formatFieldLabel = (field: string) => (
+    field
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+
+  const formatFieldValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return 'N/A';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const handleViewCompletedJobDetails = async (jobId: string) => {
+    setLoadingCompletedJobDetails(true);
+    setShowCompletedJobDetails(true);
+    setSelectedCompletedJob(null);
+    setMovedDeinstalledItems({});
+    setMovingDeinstalledItemKey(null);
+
+    try {
+      const response = await fetch(`/api/job-cards/${jobId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch full job details');
+      }
+
+      const fullJob = await response.json();
+      setSelectedCompletedJob(fullJob);
+    } catch (error) {
+      console.error('Error fetching completed job details:', error);
+      toast.error('Failed to load full completed job details');
+      setShowCompletedJobDetails(false);
+    } finally {
+      setLoadingCompletedJobDetails(false);
+    }
+  };
+
+  const getDeinstalledItemKey = (item: Record<string, unknown>, index: number) => {
+    const itemId = String(item.id || item.serial_number || item.code || item.name || index);
+    const jobId = String(selectedCompletedJob?.id || 'job');
+    return `${jobId}:${itemId}:${index}`;
+  };
+
+  const handleMoveDeinstalledItem = async (
+    item: Record<string, unknown>,
+    index: number,
+    destination: 'client' | 'soltrack'
+  ) => {
+    if (!selectedCompletedJob?.id) {
+      toast.error('No completed job selected');
+      return;
+    }
+
+    const itemKey = getDeinstalledItemKey(item, index);
+    const loadingLabel = destination === 'client' ? 'Adding to client stock...' : 'Adding to Soltrack stock...';
+    setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
+
+    try {
+      const response = await fetch('/api/inventory/deinstalled-stock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          job_id: selectedCompletedJob.id,
+          destination,
+          cost_code: selectedCompletedJobCostCode || undefined,
+          item,
+          item_index: index,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Failed to move de-installed item');
+      }
+
+      setMovedDeinstalledItems((prev) => ({
+        ...prev,
+        [`${itemKey}:client`]: destination === 'client' ? 'moved' : prev[`${itemKey}:client`] || '',
+        [`${itemKey}:soltrack`]: destination === 'soltrack' ? 'moved' : prev[`${itemKey}:soltrack`] || '',
+      }));
+
+      toast.success(
+        destination === 'client'
+          ? 'Item added to client stock'
+          : 'Item added to Soltrack stock'
+      );
+    } catch (error) {
+      console.error('Error moving de-installed item:', error);
+      toast.error(error instanceof Error ? error.message : loadingLabel);
+    } finally {
+      setMovingDeinstalledItemKey(null);
+    }
   };
 
   const handleGenerateJobQR = (jobCard: JobCard) => {
@@ -849,6 +1118,20 @@ export default function InventoryPage() {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString();
   };
+
+  const selectedCompletedJobStockUsed = parsePartsRequired(selectedCompletedJob?.parts_required);
+  const selectedCompletedJobDeInstalledItems = parseQuotationProducts(selectedCompletedJob?.quotation_products);
+  const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
+  const selectedCompletedJobCostCode = String(selectedCompletedJob?.new_account_number || '').trim();
+  const selectedCompletedJobFieldEntries = selectedCompletedJob
+    ? Object.entries(selectedCompletedJob)
+        .filter(([key, value]) => {
+          if (value === null || value === undefined || value === '') return false;
+          if (key === 'parts_required' || key === 'quotation_products') return false;
+          return true;
+        })
+        .sort(([a], [b]) => a.localeCompare(b))
+    : [];
 
   // Function kept for potential future use with a global refresh button
   // const handleRefresh = () => {
@@ -1324,7 +1607,6 @@ export default function InventoryPage() {
   // Boot stock state
   const [bootStock, setBootStock] = useState([]);
   const [bootStockLoading, setBootStockLoading] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Fetch boot stock from tech_stock
   const fetchBootStock = async () => {
@@ -1440,18 +1722,8 @@ export default function InventoryPage() {
               </thead>
               <tbody>
                 {filteredJobCards.map((job) => {
-                  const hasDecommissionDate = job.decommission_date && job.decommission_date.trim() !== '';
-                  const shouldBlink = hasDecommissionDate && !job.technician_name;
-                  
                   return (
-                    <tr 
-                      key={job.id} 
-                      className={`border-b border-gray-100 transition-colors hover:bg-gray-50/50 ${
-                        hasDecommissionDate 
-                          ? 'bg-yellow-50 border-yellow-200' 
-                          : ''
-                      }`}
-                    >
+                    <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
                     <td className="py-4 px-6 align-middle">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
@@ -1476,11 +1748,6 @@ export default function InventoryPage() {
                     <td className="py-4 px-6 align-middle">
                       <div className="flex flex-col gap-0.5">
                         <span className="font-medium text-gray-900">{job.customer_name}</span>
-                        {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
-                          <span className="text-xs text-red-600 font-medium">
-                            De-installing {job.quotation_products.length} item(s)
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
@@ -1508,17 +1775,6 @@ export default function InventoryPage() {
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end gap-2">
-                        {job.job_type === 'deinstall' && job.quotation_products && job.quotation_products.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setSelectedDeinstallJob(job)}
-                            className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
-                          >
-                            <Eye className="mr-1 w-3 h-3" />
-                            View De-installation
-                          </Button>
-                        )}
                         <Button
                           size="sm"
                           onClick={() => handleAssignParts(job)}
@@ -1541,9 +1797,9 @@ export default function InventoryPage() {
                             <SelectValue placeholder="Move to..." />
                           </SelectTrigger>
                           <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
-                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
-                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
+                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
+                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1654,9 +1910,9 @@ export default function InventoryPage() {
                             <SelectValue placeholder="Move to..." />
                           </SelectTrigger>
                           <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
-                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
-                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
+                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
+                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1730,7 +1986,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex justify-end items-center gap-2">
-                        {job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0 && (
+                        {parsePartsRequired(job.parts_required).length > 0 && (
                           <>
                             <Button
                               size="sm"
@@ -1742,18 +1998,32 @@ export default function InventoryPage() {
                               View QR: 1
                             </Button>
                             <Badge variant="outline" className="text-xs">
-                              {job.parts_required.length} parts used
+                              {parsePartsRequired(job.parts_required).length} stock used
                             </Badge>
                           </>
                         )}
+                        {isDeInstallJob(job) && parseQuotationProducts(job.quotation_products).length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            {parseQuotationProducts(job.quotation_products).length} de-installed
+                          </Badge>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewCompletedJobDetails(job.id)}
+                          className="text-gray-700 hover:text-gray-900"
+                        >
+                          <Eye className="mr-1 w-3 h-3" />
+                          View Details
+                        </Button>
                         <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                             <SelectValue placeholder="Move to..." />
                           </SelectTrigger>
                           <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="Admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">📋 Admin</SelectItem>
-                            <SelectItem value="Accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">💰 Accounts</SelectItem>
-                            <SelectItem value="FC" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">💼 FC</SelectItem>
+                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
+                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
+                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2375,6 +2645,173 @@ export default function InventoryPage() {
     </div>
   );
 
+  const clientStockContent = (
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-2xl">Client Stock</h3>
+          <p className="text-gray-600 text-sm">Clients loaded from cost centers</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{filteredClientStockClients.length} clients</Badge>
+          <Button onClick={fetchClientStockClients} variant="outline" size="sm" disabled={clientStockLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${clientStockLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+        <Input
+          placeholder="Search client list..."
+          value={clientStockSearchTerm}
+          onChange={(e) => setClientStockSearchTerm(e.target.value)}
+          className="pl-10 bg-white"
+        />
+      </div>
+
+      {clientStockLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+          <span className="ml-2 text-sm text-gray-600">Loading clients...</span>
+        </div>
+      ) : filteredClientStockClients.length === 0 ? (
+        <div className="py-12 border border-gray-200 rounded-lg text-center">
+          <User className="mx-auto mb-3 w-10 h-10 text-gray-400" />
+          <p className="text-gray-700">
+            {clientStockSearchTerm ? 'No clients match your search.' : 'No clients found in cost_centers.'}
+          </p>
+        </div>
+      ) : (
+        <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-blue-50">
+              <tr>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Client Name</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredClientStockClients.map((client) => (
+                <tr key={client.cost_code} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
+                    {client.company || 'N/A'}
+                  </td>
+                  <td className="px-4 py-3 border-b border-gray-100 text-center">
+                    <Button
+                      size="sm"
+                      variant={selectedClientStock?.cost_code === client.cost_code ? 'default' : 'outline'}
+                      onClick={() => handleViewClientStock(client)}
+                      className={selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                    >
+                      <Eye className="mr-2 w-4 h-4" />
+                      View Stock
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedClientStock && (
+        <div className="border border-gray-200 rounded-xl bg-white shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-4 border-b border-gray-100">
+            <div>
+              <h4 className="font-semibold text-gray-900 text-xl">Inventory Stock</h4>
+              <p className="text-gray-600 text-sm">{selectedClientStock.company || 'Selected Client'}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={filteredClientStockItems.length > 0 ? 'bg-green-100 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>
+                {filteredClientStockItems.length > 0 ? 'Stock Available' : 'No Stock'}
+              </Badge>
+              <Badge variant="outline">{filteredClientStockItems.length} items</Badge>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
+              <Select value={clientStockStatusFilter} onValueChange={setClientStockStatusFilter}>
+                <SelectTrigger className="w-full lg:w-52">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="in stock">In Stock</SelectItem>
+                  <SelectItem value="assigned">Assigned</SelectItem>
+                  <SelectItem value="reserved">Reserved</SelectItem>
+                  <SelectItem value="out of stock">Out of Stock</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="relative flex-1">
+                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+                <Input
+                  placeholder="Search stock list..."
+                  value={clientStockItemSearchTerm}
+                  onChange={(e) => setClientStockItemSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {clientStockItemsLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="border-b-2 border-blue-600 rounded-full w-6 h-6 animate-spin"></div>
+                <span className="ml-2 text-sm text-gray-600">Loading stock...</span>
+              </div>
+            ) : filteredClientStockItems.length === 0 ? (
+              <div className="py-10 text-center text-gray-600 text-sm">
+                No stock items found for this client.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-blue-50">
+                    <tr>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Reference</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Assigned To</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredClientStockItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-800 font-medium">
+                          {item.serial_number}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {item.inventory_categories?.description || item.category_code}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-center">
+                          <span className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold ${getClientStockStatusClasses(item.status)}`}>
+                            {item.status || 'UNKNOWN'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {item.assigned_to_technician || 'Unassigned'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-center">
+                          <Button variant="outline" size="sm" className="text-xs">
+                            Action
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const tabs = [
     {
       value: 'job-cards',
@@ -2405,6 +2842,12 @@ export default function InventoryPage() {
       label: 'Stock Take',
       icon: ClipboardList,
       content: stockTakeContent
+    },
+    {
+      value: 'client-stock',
+      label: 'Client Stock',
+      icon: User,
+      content: clientStockContent
     }
   ];
 
@@ -2437,66 +2880,6 @@ export default function InventoryPage() {
           subtitle="Manage job cards, assign parts, and track inventory"
           icon={Package}
         />
-        
-        {/* Notification Bell */}
-        <div className="relative">
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => setNotificationsOpen(!notificationsOpen)}
-            className="relative"
-          >
-            <Bell className="w-5 h-5" />
-            {urgentDecommissionJobs.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {urgentDecommissionJobs.length}
-              </span>
-            )}
-          </Button>
-          
-          {/* Notifications Dropdown */}
-          {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border z-50">
-              <div className="p-4 border-b">
-                <h3 className="font-semibold text-gray-900">Urgent Decommission Jobs</h3>
-                <p className="text-xs text-gray-500 mt-1">Jobs with decommission dates requiring parts assignment</p>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                {urgentDecommissionJobs.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No urgent decommission jobs</p>
-                  </div>
-                ) : (
-                  urgentDecommissionJobs.map((job) => (
-                    <div 
-                      key={job.id} 
-                      className="p-4 border-b hover:bg-amber-50 cursor-pointer"
-                      onClick={() => {
-                        setNotificationsOpen(false);
-                        handleAssignParts(job);
-                      }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{job.job_number}</p>
-                          <p className="text-sm text-gray-600 mt-1">{job.customer_name}</p>
-                          <p className="text-xs text-gray-500 mt-1">{job.vehicle_registration}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-amber-700 font-semibold">Decom Date</p>
-                          <p className="text-sm text-amber-900 font-medium">
-                            {new Date(job.decommission_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
       
       {/* Create Order and Repair Job Buttons */}
@@ -2522,6 +2905,170 @@ export default function InventoryPage() {
           allStockItems={allStockItems}
         />
       )}
+
+      {/* Completed Job Details Modal */}
+      <Dialog
+        open={showCompletedJobDetails}
+        onOpenChange={(open) => {
+          setShowCompletedJobDetails(open);
+          if (!open) {
+            setSelectedCompletedJob(null);
+            setMovedDeinstalledItems({});
+            setMovingDeinstalledItemKey(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedCompletedJob?.job_number ? `Completed Job Details - ${selectedCompletedJob.job_number}` : 'Completed Job Details'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingCompletedJobDetails ? (
+            <div className="flex items-center gap-3 py-10 text-gray-600">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span>Loading full job information...</span>
+            </div>
+          ) : !selectedCompletedJob ? (
+            <div className="py-10 text-center text-gray-500">No job details available.</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg border p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Job Summary</h3>
+                  <div className="space-y-1 text-sm text-gray-700">
+                    <div><strong>Job Number:</strong> {selectedCompletedJob.job_number || 'N/A'}</div>
+                    <div><strong>Status:</strong> {selectedCompletedJob.job_status || selectedCompletedJob.status || 'N/A'}</div>
+                    <div><strong>Job Type:</strong> {selectedCompletedJob.job_type || 'N/A'}</div>
+                    <div><strong>Completion Date:</strong> {formatDate(selectedCompletedJob.completion_date)}</div>
+                    <div><strong>Technician:</strong> {selectedCompletedJob.technician_name || 'N/A'}</div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg border p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Vehicle Summary</h3>
+                  <div className="space-y-1 text-sm text-gray-700">
+                    <div><strong>Registration:</strong> {selectedCompletedJob.vehicle_registration || 'N/A'}</div>
+                    <div><strong>Make:</strong> {selectedCompletedJob.vehicle_make || 'N/A'}</div>
+                    <div><strong>Model:</strong> {selectedCompletedJob.vehicle_model || 'N/A'}</div>
+                    <div><strong>Year:</strong> {selectedCompletedJob.vehicle_year || 'N/A'}</div>
+                    <div><strong>VIN:</strong> {selectedCompletedJob.vin_numer || 'N/A'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                <h3 className="font-semibold text-blue-900 mb-3">Stock Used</h3>
+                {selectedCompletedJobStockUsed.length === 0 ? (
+                  <p className="text-sm text-blue-800">No stock used recorded on this job.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-blue-200">
+                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Description</th>
+                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Code</th>
+                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Qty</th>
+                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Supplier</th>
+                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Total Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedCompletedJobStockUsed.map((part, index) => (
+                          <tr key={`${part.code || part.description || 'part'}-${index}`} className="border-b border-blue-100">
+                            <td className="py-2 pr-3">{part.description || 'N/A'}</td>
+                            <td className="py-2 pr-3">{part.code || 'N/A'}</td>
+                            <td className="py-2 pr-3">{part.quantity ?? 'N/A'}</td>
+                            <td className="py-2 pr-3">{part.supplier || 'N/A'}</td>
+                            <td className="py-2 pr-3">{part.total_cost !== undefined ? `R${part.total_cost}` : 'N/A'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {selectedCompletedJobIsDeInstall && (
+                <div className="bg-red-50 rounded-lg border border-red-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h3 className="font-semibold text-red-900">Items De-installed</h3>
+                    <Badge variant="outline" className="text-xs">
+                      {selectedCompletedJobCostCode ? `Client Cost Code: ${selectedCompletedJobCostCode}` : 'No Client Cost Code on Job'}
+                    </Badge>
+                  </div>
+                  {selectedCompletedJobDeInstalledItems.length === 0 ? (
+                    <p className="text-sm text-red-800">No de-installed items recorded in quotation products.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedCompletedJobDeInstalledItems.map((item, index) => (
+                        <div key={`deinstalled-${index}`} className="rounded border border-red-200 bg-white p-3">
+                          <div className="font-medium text-gray-900">
+                            {String(item.name || item.product || item.description || item.category || `Item ${index + 1}`)}
+                          </div>
+                          <div className="mt-1 text-sm text-gray-700">
+                            Qty: {String(item.quantity ?? 1)}
+                            {item.type ? ` | Type: ${String(item.type)}` : ''}
+                            {item.category ? ` | Category: ${String(item.category)}` : ''}
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:client` ||
+                                movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:client`] === 'moved'
+                              }
+                              onClick={() => handleMoveDeinstalledItem(item, index, 'client')}
+                              className="text-xs"
+                            >
+                              {movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:client`
+                                ? 'Adding...'
+                                : movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:client`] === 'moved'
+                                  ? 'Added to Client Stock'
+                                  : 'Add to Client Stock'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:soltrack` ||
+                                movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:soltrack`] === 'moved'
+                              }
+                              onClick={() => handleMoveDeinstalledItem(item, index, 'soltrack')}
+                              className="text-xs"
+                            >
+                              {movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:soltrack`
+                                ? 'Adding...'
+                                : movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:soltrack`] === 'moved'
+                                  ? 'Added to Soltrack Stock'
+                                  : 'Add to Soltrack Stock'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-lg border p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">All Job Fields</h3>
+                <div className="space-y-2">
+                  {selectedCompletedJobFieldEntries.map(([key, value]) => (
+                    <div key={key} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2 border-b border-gray-100 pb-2">
+                      <div className="text-sm font-medium text-gray-700">{formatFieldLabel(key)}</div>
+                      <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words m-0">
+                        {formatFieldValue(value)}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* QR Code Modal */}
       {selectedQRJob && showQRCode && (
@@ -3030,118 +3577,6 @@ export default function InventoryPage() {
          </DialogContent>
        </Dialog>
 
-       {/* De-installation Details Modal */}
-       <Dialog open={!!selectedDeinstallJob} onOpenChange={(open) => !open && setSelectedDeinstallJob(null)}>
-         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-           <DialogHeader>
-             <DialogTitle className="text-red-600">
-               De-installation Details - {selectedDeinstallJob?.quote_id}
-             </DialogTitle>
-           </DialogHeader>
-           {selectedDeinstallJob && (
-             <div className="space-y-6">
-               {/* Job Information */}
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                   <h3 className="text-lg font-semibold">Job Information</h3>
-                   <p><strong>Customer:</strong> {selectedDeinstallJob.cost_center}</p>
-                   <p><strong>Contact Person:</strong> {selectedDeinstallJob.contact_person || 'Not specified'}</p>
-                   <p><strong>Quote ID:</strong> {selectedDeinstallJob.quote_id}</p>
-                   <p><strong>Status:</strong> <Badge variant={selectedDeinstallJob.status === 'active' ? 'default' : 'secondary'}>{selectedDeinstallJob.status}</Badge></p>
-                 </div>
-                 <div className="space-y-2">
-                   <h3 className="text-lg font-semibold">De-installation Schedule</h3>
-                   {selectedDeinstallJob.decommission_date ? (
-                     <>
-                       <p><strong>Decommission Date:</strong> {new Date(selectedDeinstallJob.decommission_date).toLocaleDateString()}</p>
-                       <Badge variant="destructive" className="animate-pulse">
-                         Scheduled for Decommission
-                       </Badge>
-                     </>
-                   ) : (
-                     <p className="text-gray-500">No decommission date set</p>
-                   )}
-                 </div>
-               </div>
-
-               {/* Vehicle Information */}
-               {selectedDeinstallJob.vehicles && selectedDeinstallJob.vehicles.length > 0 && (
-                 <div className="space-y-3">
-                   <h3 className="text-lg font-semibold">Vehicles Affected</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                     {selectedDeinstallJob.vehicles.map((vehicle, index) => (
-                       <Card key={index} className="border-red-200">
-                         <CardContent className="p-3">
-                           <div className="flex items-center space-x-2">
-                             <Car className="h-4 w-4 text-red-600" />
-                             <div>
-                               <p className="font-medium">{vehicle.registration}</p>
-                               <p className="text-sm text-gray-600">{vehicle.make} {vehicle.model}</p>
-                               {vehicle.fleet_number && (
-                                 <p className="text-sm text-gray-500">Fleet: {vehicle.fleet_number}</p>
-                               )}
-                             </div>
-                           </div>
-                         </CardContent>
-                       </Card>
-                     ))}
-                   </div>
-                 </div>
-               )}
-
-               {/* De-installation Items */}
-               {selectedDeinstallJob.items && selectedDeinstallJob.items.length > 0 && (
-                 <div className="space-y-3">
-                   <h3 className="text-lg font-semibold">Equipment to be De-installed</h3>
-                   <div className="overflow-x-auto">
-                     <table className="w-full border-collapse border border-gray-300">
-                       <thead>
-                         <tr className="bg-red-50">
-                           <th className="border border-gray-300 px-3 py-2 text-left">Item</th>
-                           <th className="border border-gray-300 px-3 py-2 text-center">Quantity</th>
-                           <th className="border border-gray-300 px-3 py-2 text-left">Code</th>
-                           <th className="border border-gray-300 px-3 py-2 text-right">Unit Cost</th>
-                           <th className="border border-gray-300 px-3 py-2 text-right">Total</th>
-                         </tr>
-                       </thead>
-                       <tbody>
-                         {selectedDeinstallJob.items.map((item, index) => (
-                           <tr key={index}>
-                             <td className="border border-gray-300 px-3 py-2">{item.description}</td>
-                             <td className="border border-gray-300 px-3 py-2 text-center">{item.quantity}</td>
-                             <td className="border border-gray-300 px-3 py-2">{item.code}</td>
-                             <td className="border border-gray-300 px-3 py-2 text-right">R{item.cost_per_unit?.toFixed(2) || '0.00'}</td>
-                             <td className="border border-gray-300 px-3 py-2 text-right">R{item.total_cost?.toFixed(2) || '0.00'}</td>
-                           </tr>
-                         ))}
-                       </tbody>
-                     </table>
-                   </div>
-                 </div>
-               )}
-
-               {/* Action Buttons */}
-               <div className="flex justify-end space-x-3">
-                 <Button
-                   variant="outline"
-                   onClick={() => setSelectedDeinstallJob(null)}
-                 >
-                   Close
-                 </Button>
-                 <Button
-                   className="bg-red-600 hover:bg-red-700 text-white"
-                   onClick={() => {
-                     // Handle assign technician for decommission
-                     console.log('Assign technician for decommission:', selectedDeinstallJob.quote_id);
-                   }}
-                 >
-                   Assign Technician
-                 </Button>
-               </div>
-             </div>
-           )}
-         </DialogContent>
-       </Dialog>
     </div>
   );
 }

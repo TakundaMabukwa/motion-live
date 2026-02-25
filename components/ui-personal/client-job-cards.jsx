@@ -58,6 +58,10 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
   const [decliningQuote, setDecliningQuote] = useState(null);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+  const [quotePendingApproval, setQuotePendingApproval] = useState(null);
+  const [annuityEndDate, setAnnuityEndDate] = useState("");
+  const [approvalDestination, setApprovalDestination] = useState("");
 
   // Fetch client quotes from the client_quotes table, filtered by account number
   const fetchClientQuotes = useCallback(async () => {
@@ -190,23 +194,49 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
     return `R${parseFloat(amount).toFixed(2)}`;
   };
 
-  const handleApproveQuote = async (quote) => {
-    // Confirm before approving
-    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
-      return;
-    }
-    
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return '';
+    return parsedDate.toISOString().split('T')[0];
+  };
+
+  const isDecommissionQuote = (quote) => {
+    const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const jobType = normalize(quote?.job_type);
+    const jobSubType = normalize(quote?.job_sub_type);
+    const description = normalize(quote?.job_description);
+
+    return (
+      jobType.includes('deinstall') &&
+      (jobSubType.includes('decommission') ||
+      description.includes('decommission')
+      )
+    );
+  };
+
+  const resetApproveModalState = () => {
+    setIsApproveModalOpen(false);
+    setQuotePendingApproval(null);
+    setAnnuityEndDate('');
+    setApprovalDestination('');
+  };
+
+  const approveQuote = async (quote, options = {}) => {
+    const { annuityDate = '', destination = 'none' } = options;
+
     try {
       setApprovingQuote(quote.id);
-      
-      // Approve the client quote and move it to job_cards
+
       const response = await fetch(`/api/client-quotes/${quote.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'approve'
+          action: 'approve',
+          annuity_end_date: annuityDate || undefined,
+          destination
         }),
       });
 
@@ -221,15 +251,66 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
 
       // Refresh the client quotes list
       fetchClientQuotes();
+      return true;
 
     } catch (error) {
       console.error('Error approving quote:', error);
       toast.error('Failed to approve quote', {
         description: error.message
       });
+      return false;
     } finally {
       setApprovingQuote(null);
     }
+  };
+
+  const handleApproveQuote = async (quote) => {
+    if (isDecommissionQuote(quote)) {
+      setQuotePendingApproval(quote);
+      setAnnuityEndDate(toDateInputValue(quote.annuity_end_date || quote.decommission_date));
+      setApprovalDestination(quote.move_to_role || '');
+      setIsApproveModalOpen(true);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
+      return;
+    }
+
+    await approveQuote(quote, { destination: 'none' });
+  };
+
+  const handleConfirmModalApproval = async () => {
+    if (!quotePendingApproval) return;
+
+    if (!annuityEndDate) {
+      toast.error('Annuity end date is required');
+      return;
+    }
+
+    if (!approvalDestination) {
+      toast.error('Please choose where to route the job card');
+      return;
+    }
+
+    const success = await approveQuote(quotePendingApproval, {
+      annuityDate: annuityEndDate,
+      destination: approvalDestination
+    });
+
+    if (success) {
+      resetApproveModalState();
+    }
+  };
+
+  const handleApproveModalOpenChange = (open) => {
+    if (!open) {
+      if (approvingQuote) return;
+      resetApproveModalState();
+      return;
+    }
+
+    setIsApproveModalOpen(true);
   };
 
   const handleDeclineQuote = async (quote) => {
@@ -551,6 +632,83 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
         </Card>
       )}
 
+      {/* De-install / Decommission Approval Modal */}
+      <Dialog open={isApproveModalOpen} onOpenChange={handleApproveModalOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Approve Quote and Route Job Card</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+              Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span> is a decommission job.
+              Add annuity end date and choose where the new job card should go.
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
+                Annuity End Date <span className="text-red-600">*</span>
+              </label>
+              <Input
+                id="annuity-end-date"
+                type="date"
+                value={annuityEndDate}
+                onChange={(event) => setAnnuityEndDate(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="job-routing-destination" className="text-sm font-medium text-gray-700">
+                Route Job Card To <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="job-routing-destination"
+                value={approvalDestination}
+                onChange={(event) => setApprovalDestination(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                required
+              >
+                <option value="" disabled>Select a destination</option>
+                <option value="inv">Inventory</option>
+                <option value="admin">Admin</option>
+                <option value="accounts">Accounts</option>
+              </select>
+              <p className="text-xs text-gray-500">
+                Decommission job cards are routed to the selected role after approval.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={resetApproveModalState}
+                disabled={Boolean(approvingQuote)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleConfirmModalApproval}
+                disabled={Boolean(approvingQuote) || !annuityEndDate || !approvalDestination}
+              >
+                {approvingQuote ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Approve and Create Job Card
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* View Quote Details Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={closeViewModal}>
         <DialogContent className="max-w-5xl max-h-[95vh] overflow-hidden">
@@ -768,7 +926,20 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
                                 <dd className="mt-1 text-sm text-red-600">{formatDate(selectedQuote.decommission_date)}</dd>
                               </div>
                             )}
+                            {selectedQuote.annuity_end_date && (
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500">Annuity End Date</dt>
+                                <dd className="mt-1 text-sm text-blue-700">{formatDate(selectedQuote.annuity_end_date)}</dd>
+                              </div>
+                            )}
                           </dl>
+                        )}
+
+                        {selectedQuote.job_type === 'deinstall' && selectedQuote.annuity_end_date && (
+                          <div className="mt-4 rounded border border-blue-200 bg-blue-50 p-3">
+                            <dt className="text-sm font-medium text-blue-800">Annuity End Date</dt>
+                            <dd className="mt-1 text-sm font-medium text-blue-900">{formatDate(selectedQuote.annuity_end_date)}</dd>
+                          </div>
                         )}
                       </div>
                     </div>

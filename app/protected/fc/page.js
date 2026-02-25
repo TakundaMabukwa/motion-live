@@ -396,7 +396,7 @@ export default function AccountsDashboard() {
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
-            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs', type: 'link' }
+            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs', type: 'link' }
           ].filter(navItem => 
             !(navItem.hideOnGlobal && activeTab === 'global') &&
             !(navItem.hideOnClients && activeTab === 'companies')

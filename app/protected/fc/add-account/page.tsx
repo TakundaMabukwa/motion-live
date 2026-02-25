@@ -161,7 +161,7 @@ export default function AddAccountPage() {
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
-            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
+            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
           ].map((navItem) => {
             const Icon = navItem.icon;
             const isActive = pathname === navItem.href;

@@ -54,7 +54,7 @@ export default function AccountDashboard({ customer, accountNumber, onNewQuote }
       const clientQuotesData = await clientQuotesResponse.json();
 
       const jobCards = jobCardsData.job_cards || [];
-      const clientQuotes = clientQuotesData.client_quotes || [];
+      const clientQuotes = clientQuotesData.data || clientQuotesData.client_quotes || [];
       
       // Store client quotes for dashboard cards
       setClientQuotes(clientQuotes);
@@ -66,16 +66,16 @@ export default function AccountDashboard({ customer, accountNumber, onNewQuote }
       ).length;
       
       const approved = clientQuotes.filter(quote => 
-        quote.job_status === 'Approved' && quote.created_by
+        String(quote.job_status || '').toLowerCase() === 'approved' && quote.created_by
       ).length;
       
       const jobsOpen = jobCards.filter(job => 
-        job.job_status !== 'completed' && job.created_by
+        String(job.job_status || '').toLowerCase() !== 'completed' && job.created_by
       ).length;
       
       // Calculate total amounts - show both quotation and actual costs
       const totalQuotationAmount = clientQuotes
-        .filter(quote => quote.created_by && quote.job_status === 'Approved')
+        .filter(quote => quote.created_by && String(quote.job_status || '').toLowerCase() === 'approved')
         .reduce((sum, quote) => {
           const amount = parseFloat(quote.quotation_total_amount) || 0;
           return sum + amount;

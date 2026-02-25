@@ -1,6 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+type InventoryCategoryRow = {
+  code: string | null;
+  description: string | null;
+  total_count: number | null;
+} | null;
+
+type InventoryItemRow = {
+  id: number;
+  serial_number: string | null;
+  status: string | null;
+  category_code: string | null;
+  assigned_to_technician: string | null;
+  assigned_date: string | null;
+  job_card_id: string | null;
+  container: string | null;
+  direction: string | null;
+  notes: string | null;
+  inventory_categories: InventoryCategoryRow;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -15,50 +35,68 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const supplier = searchParams.get('supplier');
-    const stockType = searchParams.get('stock_type');
     const category = searchParams.get('category');
     const view = searchParams.get('view'); // 'thresholds' or 'stock-take'
 
-    // Build the query using new inventory system
-    let query = supabase
-      .from('inventory_items')
-      .select(`
-        id,
-        serial_number,
-        status,
-        category_code,
-        assigned_to_technician,
-        assigned_date,
-        job_card_id,
-        container,
-        direction,
-        notes,
-        inventory_categories!inventory_items_category_fkey (
-          code,
-          description,
-          total_count
-        )
-      `)
-      .order('id', { ascending: true });
+    // Fetch inventory in recursive batches so large datasets (>1000 rows) are fully returned.
+    const pageSize = 1000;
+    let from = 0;
+    let hasMore = true;
+    const stock: InventoryItemRow[] = [];
 
-    // Apply filters
-    if (search) {
-      query = query.or(`serial_number.ilike.%${search}%`);
-    }
+    while (hasMore) {
+      let batchQuery = supabase
+        .from('inventory_items')
+        .select(`
+          id,
+          serial_number,
+          status,
+          category_code,
+          assigned_to_technician,
+          assigned_date,
+          job_card_id,
+          container,
+          direction,
+          notes,
+          inventory_categories!inventory_items_category_fkey (
+            code,
+            description,
+            total_count
+          )
+        `)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
 
-    if (supplier) {
-      query = query.eq('supplier', supplier);
-    }
+      if (search) {
+        batchQuery = batchQuery.or(`serial_number.ilike.%${search}%`);
+      }
 
-    if (category) {
-      query = query.eq('category_code', category);
-    }
+      if (supplier) {
+        batchQuery = batchQuery.eq('supplier', supplier);
+      }
 
-    const { data: stock, error } = await query;
+      if (category) {
+        batchQuery = batchQuery.eq('category_code', category);
+      }
 
-    if (error) {
-      console.error('Error fetching inventory items:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const { data: batch, error: batchError } = await batchQuery;
+
+      if (batchError) {
+        console.error('Error fetching inventory items batch:', batchError);
+        return NextResponse.json({ error: batchError.message }, { status: 500 });
+      }
+
+      if (!batch || batch.length === 0) {
+        break;
+      }
+
+      stock.push(...batch);
+
+      if (batch.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+      }
     }
 
     let processedStock;
@@ -66,7 +104,7 @@ export async function GET(request: NextRequest) {
     if (view === 'thresholds') {
       // Group items by category for thresholds view
       const categoryGroups = {};
-      stock?.forEach(item => {
+      stock?.forEach((item) => {
         const categoryCode = item.category_code;
         if (!categoryGroups[categoryCode]) {
           categoryGroups[categoryCode] = {
@@ -90,7 +128,6 @@ export async function GET(request: NextRequest) {
       // Return individual items for stock take
       processedStock = stock?.map(item => {
         const categoryDesc = item.inventory_categories?.description || item.category_code;
-        console.log('Processing item:', item.serial_number, 'categoryDesc:', categoryDesc);
         return {
           id: item.id,
           description: categoryDesc,
@@ -108,8 +145,6 @@ export async function GET(request: NextRequest) {
           }
         };
       }) || [];
-      
-      console.log('Final processedStock sample:', processedStock[0]);
     }
 
     return NextResponse.json({ stock: processedStock });

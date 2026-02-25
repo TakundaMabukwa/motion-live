@@ -15,20 +15,31 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { job_status } = body;
+    const { job_status, annuity_end_date } = body;
 
     if (!job_status) {
       return NextResponse.json({ error: 'job_status is required' }, { status: 400 });
     }
 
     // Update the customer quote with the new job_status
+    const updatePayload: {
+      job_status: string;
+      updated_at: string;
+      updated_by: string;
+      decommission_date?: string;
+    } = {
+      job_status: job_status,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id
+    };
+
+    if (annuity_end_date) {
+      updatePayload.decommission_date = annuity_end_date;
+    }
+
     const { data, error } = await supabase
       .from('customer_quotes')
-      .update({ 
-        job_status: job_status,
-        updated_at: new Date().toISOString(),
-        updated_by: user.id
-      })
+      .update(updatePayload)
       .eq('id', params.id)
       .select()
       .single();

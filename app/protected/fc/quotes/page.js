@@ -44,6 +44,10 @@ export default function QuotesDashboard() {
   const [decliningQuote, setDecliningQuote] = useState(null);
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+  const [quotePendingApproval, setQuotePendingApproval] = useState(null);
+  const [annuityEndDate, setAnnuityEndDate] = useState("");
+  const [approvalDestination, setApprovalDestination] = useState("");
 
   // Fetch quotes from the API
   const fetchQuotes = useCallback(async () => {
@@ -144,30 +148,86 @@ export default function QuotesDashboard() {
     return `R${parseFloat(amount).toFixed(2)}`;
   };
 
-  const handleApproveQuote = async (quote) => {
-    // Confirm before approving
-    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
-      return;
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return '';
+    return parsedDate.toISOString().split('T')[0];
+  };
+
+  const isDeinstallOrDecommissionQuote = (quote) => {
+    const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const jobType = normalize(quote?.job_type);
+    const quotationJobType = normalize(quote?.quotation_job_type);
+    const description = normalize(quote?.job_description);
+
+    return (
+      jobType.includes('deinstall') ||
+      quotationJobType.includes('deinstall') ||
+      jobType.includes('decommission') ||
+      description.includes('decommission')
+    );
+  };
+
+  const getRoutingPayload = (destination) => {
+    switch (destination) {
+      case 'admin':
+        return {
+          role: 'admin',
+          move_to: 'admin',
+          status: 'admin_created'
+        };
+      case 'inv':
+        return {
+          role: 'inv',
+          move_to: 'inv'
+        };
+      case 'accounts':
+        return {
+          role: 'accounts',
+          move_to: 'accounts'
+        };
+      default:
+        return {};
     }
-    
+  };
+
+  const resetApproveModalState = () => {
+    setIsApproveModalOpen(false);
+    setQuotePendingApproval(null);
+    setAnnuityEndDate('');
+    setApprovalDestination('');
+  };
+
+  const approveQuoteAndCreateJobCard = async (quote, options = {}) => {
+    const { annuityDate = '', destination = 'none' } = options;
+
     try {
       setApprovingQuote(quote.id);
       
       // First, update the quote status to approved
+      const approvePayload = {
+        job_status: 'approved'
+      };
+
+      if (annuityDate) {
+        approvePayload.annuity_end_date = annuityDate;
+      }
+
       const updateResponse = await fetch(`/api/customer-quotes/${quote.id}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          job_status: 'approved'
-        }),
+        body: JSON.stringify(approvePayload),
       });
 
       if (!updateResponse.ok) {
         const errorData = await updateResponse.json();
         throw new Error(errorData.error || 'Failed to approve quote');
       }
+
+      const routingPayload = getRoutingPayload(destination);
 
       // Then, create a copy in job_cards table (don't move the original)
       const moveResponse = await fetch('/api/job-cards', {
@@ -185,7 +245,7 @@ export default function QuotesDashboard() {
           customerPhone: quote.customer_phone,
           customerAddress: quote.customer_address,
           contactPerson: quote.contact_person,
-          decommissionDate: quote.decommission_date,
+          decommissionDate: annuityDate || quote.decommission_date || null,
           vehicleRegistration: quote.vehicle_registration,
           vehicleMake: quote.vehicle_make,
           vehicleModel: quote.vehicle_model,
@@ -202,7 +262,7 @@ export default function QuotesDashboard() {
           quoteEmailSubject: `Approved: ${quote.job_number}`,
           quoteEmailBody: quote.quote_email_body,
           quoteEmailFooter: quote.quote_email_footer,
-          quoteEmailNotes: quote.quote_notes,
+          quoteNotes: quote.quote_notes,
           quoteType: 'external',
           specialInstructions: quote.special_instructions || quote.quote_notes,
           accessRequirements: '',
@@ -210,7 +270,8 @@ export default function QuotesDashboard() {
           siteContactPhone: '',
           // Include account information if available
           accountId: quote.account_id || null,
-          newAccountNumber: quote.new_account_number || quote.account_number || null
+          newAccountNumber: quote.new_account_number || quote.account_number || null,
+          ...routingPayload
         }),
       });
 
@@ -225,15 +286,66 @@ export default function QuotesDashboard() {
 
       // Refresh the quotes list
       fetchQuotes();
+      return true;
 
     } catch (error) {
       console.error('Error approving quote:', error);
       toast.error('Failed to approve quote', {
         description: error.message
       });
+      return false;
     } finally {
       setApprovingQuote(null);
     }
+  };
+
+  const handleApproveQuote = async (quote) => {
+    if (isDeinstallOrDecommissionQuote(quote)) {
+      setQuotePendingApproval(quote);
+      setAnnuityEndDate(toDateInputValue(quote.decommission_date));
+      setApprovalDestination('');
+      setIsApproveModalOpen(true);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
+      return;
+    }
+
+    await approveQuoteAndCreateJobCard(quote, { destination: 'none' });
+  };
+
+  const handleConfirmModalApproval = async () => {
+    if (!quotePendingApproval) return;
+
+    if (!annuityEndDate) {
+      toast.error('Annuity end date is required');
+      return;
+    }
+
+    if (!approvalDestination) {
+      toast.error('Please choose where to route the job card');
+      return;
+    }
+
+    const success = await approveQuoteAndCreateJobCard(quotePendingApproval, {
+      annuityDate: annuityEndDate,
+      destination: approvalDestination
+    });
+
+    if (success) {
+      resetApproveModalState();
+    }
+  };
+
+  const handleApproveModalOpenChange = (open) => {
+    if (!open) {
+      if (approvingQuote) return;
+      resetApproveModalState();
+      return;
+    }
+
+    setIsApproveModalOpen(true);
   };
 
   const handleDeclineQuote = async (quote) => {
@@ -336,7 +448,7 @@ export default function QuotesDashboard() {
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
-            { id: 'completed-jobs', label: 'Completed Jobs', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
+            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
           ].map((navItem) => {
             const Icon = navItem.icon;
             const isActive = pathname === navItem.href;
@@ -621,6 +733,84 @@ export default function QuotesDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* De-install / Decommission Approval Modal */}
+      <Dialog open={isApproveModalOpen} onOpenChange={handleApproveModalOpenChange}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Approve Quote and Route Job Card</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
+              Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span> is a de-install/decommission job.
+              Add annuity end date and choose where the new job card should go.
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
+                Annuity End Date <span className="text-red-600">*</span>
+              </label>
+              <Input
+                id="annuity-end-date"
+                type="date"
+                value={annuityEndDate}
+                onChange={(event) => setAnnuityEndDate(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="job-routing-destination" className="text-sm font-medium text-gray-700">
+                Route Job Card To <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="job-routing-destination"
+                value={approvalDestination}
+                onChange={(event) => setApprovalDestination(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                required
+              >
+                <option value="" disabled>Select a destination</option>
+                <option value="inv">Inventory</option>
+                <option value="admin">Admin</option>
+                <option value="accounts">Accounts</option>
+                <option value="none">None (Current ruleset)</option>
+              </select>
+              <p className="text-xs text-gray-500">
+                If you choose <span className="font-medium">none</span>, approval follows the current flow with no forced role routing.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={resetApproveModalState}
+                disabled={Boolean(approvingQuote)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleConfirmModalApproval}
+                disabled={Boolean(approvingQuote) || !annuityEndDate || !approvalDestination}
+              >
+                {approvingQuote ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Approve and Create Job Card
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* View Quote Details Modal */}
       <Dialog open={isViewModalOpen} onOpenChange={closeViewModal}>

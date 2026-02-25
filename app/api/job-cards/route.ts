@@ -90,6 +90,8 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'medium',
       status: body.status || 'draft',
       job_status: body.job_status || 'created',
+      role: body.role || null,
+      move_to: body.move_to || null,
       
       // Customer information
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
       customer_address: body.customerAddress || body.customer_address || '',
       contact_person: body.contactPerson || body.contact_person || '',
       decommission_date: body.decommissionDate || body.decommission_date || null,
+      annuity_end_date: body.annuityEndDate || body.annuity_end_date || null,
       
       // Vehicle information
       vehicle_id: body.vehicleId || body.vehicle_id || null,

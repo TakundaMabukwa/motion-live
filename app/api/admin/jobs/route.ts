@@ -61,29 +61,16 @@ export async function GET(request: NextRequest) {
          site_contact_person,
          site_contact_phone,
          repair,
-         role
+         role,
+         move_to,
+         decommission_date,
+         annuity_end_date
        `);
-
-          // Apply status filter
-     if (status === 'open') {
-       // For open jobs, only show those with parts required
-       query = query
-         .not('job_status', 'in', ['Completed', 'cancelled'])
-         .not('parts_required', 'is', null)
-         .neq('parts_required', '[]')
-         .neq('parts_required', '{}');
-     } else if (status === 'completed') {
-       // For completed jobs, show ALL completed jobs regardless of parts
-       query = query.eq('job_status', 'Completed');
-     }
 
     // Apply company filter (using customer_name as company)
     if (companyFilter) {
       query = query.ilike('customer_name', `%${companyFilter}%`);
     }
-
-    // Apply role filter (this would need to be implemented based on your role system)
-    // For now, we'll return all jobs with parts_required
 
     // Order by creation date
     query = query.order('created_at', { ascending: false });
@@ -95,8 +82,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch admin jobs' }, { status: 500 });
     }
 
+    const isCompletedJob = (job: {
+      job_status?: string | null;
+      status?: string | null;
+    }) => {
+      const normalizedJobStatus = String(job.job_status || '').toLowerCase();
+      const normalizedStatus = String(job.status || '').toLowerCase();
+      return normalizedJobStatus === 'completed' || normalizedStatus === 'completed';
+    };
+
+    const hasPartsRequired = (parts: unknown) => (
+      Array.isArray(parts) && parts.length > 0
+    );
+
+    const isAdminRoutedJob = (job: {
+      role?: string | null;
+      move_to?: string | null;
+      status?: string | null;
+    }) => {
+      const role = String(job.role || '').toLowerCase();
+      const moveTo = String(job.move_to || '').toLowerCase();
+      const status = String(job.status || '').toLowerCase();
+
+      return (
+        role === 'admin' ||
+        moveTo === 'admin' ||
+        status === 'admin_created'
+      );
+    };
+
     // Transform the data to match the expected format
-    const transformedJobs = (data || []).map(job => ({
+    let transformedJobs = (data || []).map(job => ({
       id: job.id,
       job_number: job.job_number,
       job_date: job.job_date,
@@ -137,8 +153,29 @@ export async function GET(request: NextRequest) {
       site_contact_person: job.site_contact_person,
       site_contact_phone: job.site_contact_phone,
       repair: job.repair,
-      role: job.role
+      role: job.role,
+      move_to: job.move_to,
+      decommission_date: job.decommission_date,
+      annuity_end_date: job.annuity_end_date
     }));
+
+    if (status === 'open') {
+      transformedJobs = transformedJobs.filter(job => {
+        if (isCompletedJob(job)) return false;
+        return hasPartsRequired(job.parts_required) || isAdminRoutedJob(job);
+      });
+    } else if (status === 'completed') {
+      transformedJobs = transformedJobs.filter((job) => isCompletedJob(job));
+    }
+
+    if (roleFilter && roleFilter.trim() !== '') {
+      const normalizedRoleFilter = roleFilter.trim().toLowerCase();
+      transformedJobs = transformedJobs.filter(job =>
+        String(job.role || '').toLowerCase() === normalizedRoleFilter ||
+        String(job.move_to || '').toLowerCase() === normalizedRoleFilter ||
+        (normalizedRoleFilter === 'admin' && String(job.status || '').toLowerCase() === 'admin_created')
+      );
+    }
 
     return NextResponse.json({
       jobs: transformedJobs,
