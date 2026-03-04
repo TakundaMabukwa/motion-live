@@ -14,6 +14,16 @@ export async function PUT(request) {
 
     const supabase = await createClient();
     const { id, unique_id, ...updateData } = vehicleData;
+
+    // Allow UI to submit cost_code; map it to the vehicles_duplicate field new_account_number.
+    if (Object.prototype.hasOwnProperty.call(updateData, 'cost_code')) {
+      const incomingCostCode = updateData.cost_code;
+      if (incomingCostCode !== undefined && incomingCostCode !== null && incomingCostCode !== '') {
+        updateData.new_account_number = incomingCostCode;
+      }
+      delete updateData.cost_code;
+    }
+
     const identifier = unique_id || id;
     const identifierField = unique_id ? 'unique_id' : 'id';
 

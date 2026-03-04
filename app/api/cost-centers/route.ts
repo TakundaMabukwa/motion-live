@@ -5,21 +5,47 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const accounts = searchParams.get('accounts');
+    const prefix = searchParams.get('prefix');
 
-    if (!accounts) {
+    if (!accounts && !prefix) {
       return NextResponse.json(
-        { error: 'Account numbers required' },
+        { error: 'Account numbers or prefix required' },
         { status: 400 }
       );
     }
 
     const supabase = await createClient();
+
+    // Prefix mode: fetch all cost centers for a client prefix like EDGE-
+    if (prefix) {
+      const cleanPrefix = prefix.trim().replace(/-+$/, '');
+      if (!cleanPrefix) {
+        return NextResponse.json([], { status: 200 });
+      }
+
+      const { data, error } = await supabase
+        .from('cost_centers')
+        .select('id, created_at, company, cost_code, validated')
+        .ilike('cost_code', `${cleanPrefix}-%`)
+        .order('cost_code', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching cost centers by prefix:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch cost centers', details: error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(data || []);
+    }
+
     // Parse comma-separated account numbers
     const accountArray = accounts.split(',').map(a => a.trim()).filter(a => a);
     console.log('Fetching cost centers for accounts:', accountArray);
 
     // Fetch from cost_centers table where cost_code matches any account number
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('cost_centers')
       .select('id, created_at, company, cost_code')
       .in('cost_code', accountArray)

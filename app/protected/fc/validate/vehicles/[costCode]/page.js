@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, memo, useRef } from "react";
+import { useState, useEffect, useMemo, memo, useRef, useDeferredValue } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,7 +180,16 @@ export default function ValidateVehiclesPage() {
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
   const [addItemState, setAddItemState] = useState({});
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [costCenterOptions, setCostCenterOptions] = useState([]);
+  const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState({});
+  const [movingVehicleId, setMovingVehicleId] = useState(null);
+  const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
+  const costCenterPrefix = useMemo(() => {
+    if (!costCode) return '';
+    return String(costCode).split('-')[0]?.trim() || '';
+  }, [costCode]);
 
   const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'vehicle_validated'];
   const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'colour'];
@@ -212,6 +221,32 @@ export default function ValidateVehiclesPage() {
     const keysFromVehicles = vehicles.flatMap(v => Object.keys(v || {}));
     return Array.from(new Set([...keysFromVehicles, ...allPossibleBillingFields])).filter(k => !excludeKeys.includes(k));
   }, [vehicles]);
+
+  const filteredVehicles = useMemo(() => {
+    const query = deferredVehicleSearch.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!query) return vehicles;
+
+    return vehicles.filter((vehicle) => {
+      const reg = String(vehicle?.reg || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fleet = String(vehicle?.fleet_number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return reg.includes(query) || fleet.includes(query);
+    });
+  }, [vehicles, deferredVehicleSearch]);
+
+  const matchingCostCenters = useMemo(() => {
+    const deduped = new Map();
+    for (const option of costCenterOptions) {
+      const code = option?.cost_code;
+      if (!code) continue;
+      if (!deduped.has(code)) {
+        deduped.set(code, {
+          cost_code: code,
+          company: option?.company || ''
+        });
+      }
+    }
+    return Array.from(deduped.values()).sort((a, b) => a.cost_code.localeCompare(b.cost_code));
+  }, [costCenterOptions]);
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -245,6 +280,26 @@ export default function ValidateVehiclesPage() {
 
     fetchVehicles();
   }, [costCode]);
+
+  useEffect(() => {
+    const fetchCostCenters = async () => {
+      if (!costCenterPrefix) return;
+      try {
+        const response = await fetch(`/api/cost-centers?prefix=${encodeURIComponent(costCenterPrefix)}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error || 'Failed to fetch cost centers');
+        }
+        const data = await response.json();
+        setCostCenterOptions(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Error fetching cost centers by prefix:', error);
+        toast.error(`Failed to load client cost centers: ${error.message}`);
+      }
+    };
+
+    fetchCostCenters();
+  }, [costCenterPrefix]);
 
   const toggleVehicle = (vehicleId) => {
     setExpandedVehicles(prev => ({
@@ -301,6 +356,11 @@ export default function ValidateVehiclesPage() {
     const totals = calculateTotals(vehicle);
     setEditedData({...vehicle, ...totals});
     setAddItemState(prev => ({ ...prev, [`vehicle-${vehicle.id}`]: prev[`vehicle-${vehicle.id}`] || { added: [] } }));
+    const currentCostCenter = vehicle.new_account_number || costCode || '';
+    setTargetCostCenterByVehicle((prev) => ({
+      ...prev,
+      [vehicle.id]: prev[vehicle.id] || currentCostCenter
+    }));
   };
 
   const cancelEdit = () => {
@@ -707,6 +767,53 @@ export default function ValidateVehiclesPage() {
     );
   };
 
+  const moveVehicleToCostCenter = async (vehicle) => {
+    const targetCostCenter = targetCostCenterByVehicle[vehicle.id];
+    if (!targetCostCenter) {
+      toast.error('Please select a target cost center');
+      return;
+    }
+
+    const currentCostCenter = vehicle.new_account_number || costCode;
+    if (targetCostCenter === currentCostCenter) {
+      toast.info('Vehicle is already in this cost center');
+      return;
+    }
+
+    setMovingVehicleId(vehicle.id);
+    try {
+      const selectedCostCenter = matchingCostCenters.find(
+        (item) => item.cost_code === targetCostCenter
+      );
+
+      const response = await fetch('/api/vehicles/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: vehicle.id,
+          ...(vehicle.unique_id ? { unique_id: vehicle.unique_id } : {}),
+          cost_code: targetCostCenter,
+          new_account_number: targetCostCenter,
+          company: selectedCostCenter?.company || vehicle.company || null
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData?.details || errorData?.error || 'Failed to move vehicle');
+      }
+
+      // Remove from current list since this page is scoped to one cost center
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id));
+      toast.success(`Vehicle moved to ${targetCostCenter}`);
+    } catch (error) {
+      console.error('Move vehicle error:', error);
+      toast.error(`Failed to move vehicle: ${error.message}`);
+    } finally {
+      setMovingVehicleId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -776,6 +883,27 @@ export default function ValidateVehiclesPage() {
         </Card>
       )}
 
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex-1">
+              <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">Search by Reg or Fleet Number</Label>
+              <Input
+                id="vehicleSearch"
+                value={vehicleSearch}
+                onChange={(e) => setVehicleSearch(e.target.value)}
+                placeholder="Type registration or fleet number..."
+                className="mt-1 h-9 text-sm"
+              />
+            </div>
+            <div className="text-sm text-gray-500 md:text-right">
+              Showing <span className="font-semibold text-gray-700">{filteredVehicles.length}</span> of{' '}
+              <span className="font-semibold text-gray-700">{vehicles.length}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {vehicles.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -783,8 +911,15 @@ export default function ValidateVehiclesPage() {
           </CardContent>
         </Card>
       ) : (
+        filteredVehicles.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-gray-500">No vehicles match your search</p>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="space-y-2">
-          {vehicles.map((vehicle) => (
+          {filteredVehicles.map((vehicle) => (
             <Collapsible key={vehicle.id} open={expandedVehicles[vehicle.id]} onOpenChange={() => toggleVehicle(vehicle.id)}>
               <Card className={vehicle.vehicle_validated ? "border-green-500 bg-green-50" : ""}>
                 <CollapsibleTrigger className="w-full">
@@ -818,6 +953,61 @@ export default function ValidateVehiclesPage() {
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <CardContent className="pt-0">
+                    {editingVehicle === vehicle.id && (() => {
+                      const currentCostCenter = vehicle.new_account_number || costCode || '';
+                      const dropdownCostCenters = matchingCostCenters.length > 0
+                        ? matchingCostCenters
+                        : (currentCostCenter ? [{ cost_code: currentCostCenter, company: '' }] : []);
+
+                      return (
+                        <div className="mb-4 p-3 border rounded-md bg-slate-50">
+                          <div className="flex flex-col md:flex-row md:items-end gap-3">
+                            <div className="flex-1">
+                              <Label className="text-xs text-gray-500">Current Cost Center</Label>
+                              <p className="text-sm font-medium text-gray-900">{currentCostCenter || 'N/A'}</p>
+                            </div>
+                            <div className="flex-1">
+                              <Label htmlFor={`move-cc-${vehicle.id}`} className="text-xs text-gray-500">
+                                Move To Cost Center
+                              </Label>
+                              <select
+                                id={`move-cc-${vehicle.id}`}
+                                value={targetCostCenterByVehicle[vehicle.id] || ''}
+                                onChange={(e) =>
+                                  setTargetCostCenterByVehicle((prev) => ({
+                                    ...prev,
+                                    [vehicle.id]: e.target.value
+                                  }))
+                                }
+                                className="mt-1 h-9 w-full rounded-md border border-gray-300 px-2 text-sm bg-white"
+                              >
+                                <option value="">Select cost center...</option>
+                                {dropdownCostCenters.map((item) => (
+                                  <option key={item.cost_code} value={item.cost_code}>
+                                    {item.company || item.cost_code}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="md:w-auto w-full">
+                              <Button
+                                type="button"
+                                onClick={() => moveVehicleToCostCenter(vehicle)}
+                                disabled={movingVehicleId === vehicle.id || !targetCostCenterByVehicle[vehicle.id]}
+                                className="w-full md:w-auto"
+                              >
+                                {movingVehicleId === vehicle.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <ArrowLeft className="h-4 w-4 mr-2 rotate-180" />
+                                )}
+                                Move Vehicle
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {renderAllFields(vehicle, editingVehicle === vehicle.id)}
                     </div>
@@ -827,6 +1017,7 @@ export default function ValidateVehiclesPage() {
             </Collapsible>
           ))}
         </div>
+        )
       )}
     </div>
   );
