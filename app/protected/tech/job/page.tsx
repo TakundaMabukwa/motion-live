@@ -66,6 +66,13 @@ interface UserInfo {
   isTechAdmin: boolean;
 }
 
+const sortJobsNewestFirst = <T extends { created_at?: string; job_date?: string; start_time?: string }>(items: T[]) =>
+  [...items].sort((a, b) => {
+    const aDate = new Date(a.created_at || a.job_date || a.start_time || 0).getTime();
+    const bDate = new Date(b.created_at || b.job_date || b.start_time || 0).getTime();
+    return bDate - aDate;
+  });
+
 export default function Jobs() {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -147,10 +154,11 @@ export default function Jobs() {
           }]
         }));
         
-        setUserJobs(transformedJobs);
+        const sortedJobs = sortJobsNewestFirst(transformedJobs);
+        setUserJobs(sortedJobs);
         
         // Calculate availability
-        calculateAvailability(transformedJobs);
+        calculateAvailability(sortedJobs);
         
       } catch (error) {
         console.error('Error fetching user info and jobs:', error);

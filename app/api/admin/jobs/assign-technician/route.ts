@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_ONLY_RE = /^\d{2}:\d{2}$/;
@@ -18,18 +19,27 @@ function normalizeDatePart(rawDate: string): string {
   return `${year}-${month}-${day}`;
 }
 
-function formatLocalDateTime(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
+function buildLocalDateTime(datePart: string, timePart: string): string {
+  // Keep wall-clock time exactly as selected (no GMT/UTC offset conversion)
+  return `${datePart}T${timePart}:00`;
+}
+
+function formatNaiveDateTime(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0');
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 }
 
 // Helper function to add parts to technician stock
-async function addPartsToTechnicianStock(supabase: any, technicianEmail: string, partsRequired: any[]) {
+async function addPartsToTechnicianStock(
+  supabase: SupabaseClient,
+  technicianEmail: string,
+  partsRequired: unknown[]
+) {
   try {
     console.log(`[PARTS ASSIGNMENT] Starting parts assignment for technician: ${technicianEmail}`);
     console.log(`[PARTS ASSIGNMENT] Parts to assign:`, JSON.stringify(partsRequired, null, 2));
@@ -106,12 +116,12 @@ export async function PUT(request: NextRequest) {
 
     const hasValidStartTime = !!startTime && TIME_ONLY_RE.test(String(startTime));
     const hasValidEndTime = !!endTime && TIME_ONLY_RE.test(String(endTime));
-    const startDateTime = hasValidStartTime ? `${datePart}T${startTime}:00` : null;
-    const endDateTime = hasValidEndTime ? `${datePart}T${endTime}:00` : null;
+    const startDateTime = hasValidStartTime ? buildLocalDateTime(datePart, String(startTime)) : null;
+    const endDateTime = hasValidEndTime ? buildLocalDateTime(datePart, String(endTime)) : null;
     
     // Check for scheduling conflicts (only if override is not requested)  
     if (!override) {
-      const jobDateTime = startDateTime || `${datePart}T00:00:00`;
+      const jobDateTime = startDateTime || buildLocalDateTime(datePart, '00:00');
       const bufferHours = 1; // 1-hour window
       
       // Calculate time window
@@ -128,8 +138,8 @@ export async function PUT(request: NextRequest) {
         const bufferInMs = bufferHours * 60 * 60 * 1000;
         const startWindow = new Date(selectedDateTime.getTime() - bufferInMs);
         const endWindow = new Date(selectedDateTime.getTime() + bufferInMs);
-        const startWindowLocal = formatLocalDateTime(startWindow);
-        const endWindowLocal = formatLocalDateTime(endWindow);
+        const startWindowLocal = formatNaiveDateTime(startWindow);
+        const endWindowLocal = formatNaiveDateTime(endWindow);
         
         console.log(`Checking conflicts for ${technicianName} between ${startWindow.toISOString()} and ${endWindow.toISOString()}`);
         

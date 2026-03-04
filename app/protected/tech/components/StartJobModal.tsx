@@ -35,7 +35,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [manualJobId, setManualJobId] = useState('');
+  const [manualReg, setManualReg] = useState('');
   const [jobData, setJobData] = useState<any>(job);
   const [maxPhotosReached, setMaxPhotosReached] = useState(false);
   const [maxAfterPhotosReached, setMaxAfterPhotosReached] = useState(false);
@@ -131,6 +131,86 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const formatLocalDateTime = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  };
+
+  const normalizeIdentifier = (value: string | null | undefined) =>
+    (value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const parseQuotationProducts = (quotationProducts: unknown): Array<Record<string, unknown>> => {
+    if (!quotationProducts) return [];
+    if (Array.isArray(quotationProducts)) return quotationProducts as Array<Record<string, unknown>>;
+    if (typeof quotationProducts === 'string') {
+      try {
+        const parsed = JSON.parse(quotationProducts);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getRegistrationCandidates = (currentJob: any): string[] => {
+    const quotationProducts = parseQuotationProducts(currentJob?.quotation_products);
+    const productRegs = quotationProducts.flatMap((item) => [
+      item?.vehicle_plate,
+      item?.vehicle_registration,
+      item?.reg,
+      item?.registration_number,
+      item?.plate_number,
+    ]);
+
+    const directFields = [
+      currentJob?.vehicle_registration,
+      currentJob?.vehicle_reg,
+      currentJob?.registration_number,
+      currentJob?.new_registration,
+      currentJob?.reg,
+      currentJob?.group_name,
+      currentJob?.plate_number,
+      currentJob?.temporary_registration,
+    ];
+
+    const description = String(currentJob?.job_description || '');
+    const regPatterns = [
+      /REG\s*[:-]\s*([A-Z0-9 -/]+)/i,
+      /REGISTRATION\s*[:-]\s*([A-Z0-9 -/]+)/i,
+      /PLATE\s*[:-]\s*([A-Z0-9 -/]+)/i,
+    ];
+    const extractedFromDescription = regPatterns
+      .map((pattern) => description.match(pattern)?.[1] || '')
+      .filter(Boolean);
+
+    return [...directFields, ...productRegs, ...extractedFromDescription]
+      .map((value) => normalizeIdentifier(String(value || '')))
+      .filter(Boolean);
+  };
+
+  const getCurrentTechnicianIdentity = async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const email = user?.email || '';
+    const username = email.split('@')[0] || 'Unknown';
+    const technicianName = username
+      .split(/[._-]/g)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+
+    return {
+      technicianName: technicianName || username || 'Unknown',
+      technicianEmail: email || null,
+    };
+  };
 
   // Initialize camera when modal opens
   useEffect(() => {
@@ -565,24 +645,6 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         return;
       }
       
-      // Get current user info to validate technician
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error('❌ User not authenticated');
-        return;
-      }
-      
-      // Check if current user is assigned to this job
-      const userEmail = user.email;
-      const jobTechnicianEmail = matchingJob.technician_phone; // This field stores email
-      
-      if (jobTechnicianEmail && userEmail !== jobTechnicianEmail) {
-        toast.error(`❌ Wrong technician`);
-        return;
-      }
-      
       // If we have a current job loaded, validate against it
       if (jobData && jobData.job_number) {
         if (scannedJobNumber !== jobData.job_number) {
@@ -700,7 +762,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         
         setCurrentStep('vehicle-details');
       } else {
-        toast.error(`❌ Job ${scannedJobNumber} not found in your assigned jobs.`);
+        toast.error(`❌ Job ${scannedJobNumber} not found.`);
       }
     } catch (error) {
       console.error('Error verifying QR code:', error);
@@ -723,68 +785,53 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     }
   };
 
-  const fetchJobById = async (jobId: string) => {
-    console.log('🔍 fetchJobById called with:', jobId);
+  const fetchJobByReg = async (regInput: string) => {
+    console.log('🔍 fetchJobByReg called with:', regInput);
     
-    if (!jobId.trim()) {
-      console.log('❌ Empty job ID');
-      toast.error('Please enter a job ID');
+    if (!regInput.trim()) {
+      console.log('❌ Empty registration');
+      toast.error('Please enter a vehicle registration');
       return;
     }
 
     setLoading(true);
     try {
+      const targetReg = normalizeIdentifier(regInput);
       console.log('📋 Available jobs count:', userJobs.length);
-      console.log('📋 Searching by job_number field');
-      
-      // Find matching job in userJobs by job_number
-      const matchingJob = userJobs.find(job => {
-        const matches = [
-          job.job_number === jobId,
-          job.job_number?.toLowerCase().includes(jobId.toLowerCase()),
-          job.job_number?.includes(jobId)
-        ];
-        
-        console.log(`🔍 Checking job:`, {
-          job_number: job.job_number,
-          customer: job.customer_name,
-          searchTerm: jobId,
-          exactMatch: job.job_number === jobId,
-          partialMatch: job.job_number?.toLowerCase().includes(jobId.toLowerCase())
-        });
-        
-        return matches.some(match => match);
+      console.log('📋 Searching by registration:', targetReg);
+
+      const exactMatches = userJobs.filter((currentJob) => {
+        const candidates = getRegistrationCandidates(currentJob);
+        return candidates.some((candidate) => candidate === targetReg);
       });
-      
-      if (!matchingJob) {
-        console.log('❌ No matching job found for:', jobId);
-        toast.error(`❌ Invalid job number`);
+
+      const partialMatches = userJobs.filter((currentJob) => {
+        const candidates = getRegistrationCandidates(currentJob);
+        return candidates.some((candidate) => candidate.includes(targetReg));
+      });
+
+      const candidates = exactMatches.length > 0 ? exactMatches : partialMatches;
+      if (candidates.length === 0) {
+        console.log('❌ No matching job found for registration:', targetReg);
+        toast.error('❌ No job found for this registration');
         return;
       }
-      
-      // Get current user info to validate technician
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        toast.error('❌ User not authenticated');
-        return;
-      }
-      
-      // Check if current user is assigned to this job
-      const userEmail = user.email;
-      const jobTechnicianEmail = matchingJob.technician_phone; // This field stores email
-      
-      if (jobTechnicianEmail && userEmail !== jobTechnicianEmail) {
-        toast.error(`❌ Wrong technician`);
-        return;
-      }
+
+      const matchingJob = [...candidates].sort((a, b) => {
+        const aDate = new Date(a.created_at || a.job_date || a.start_time || 0).getTime();
+        const bDate = new Date(b.created_at || b.job_date || b.start_time || 0).getTime();
+        return bDate - aDate;
+      })[0];
       
       console.log('✅ Job found:', matchingJob);
       
       // Fetch full job details
       const fullJobData = await fetchFullJobDetails(matchingJob.id);
       setJobData(fullJobData);
+      setVehicleDetails((prev) => ({
+        ...prev,
+        vehicle_registration: fullJobData?.vehicle_registration || regInput.trim(),
+      }));
       
       toast.success(`✅ Job verified! ${matchingJob.job_number}`);
       
@@ -899,6 +946,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         throw new Error('Failed to upload any photos');
       }
 
+      const { technicianName, technicianEmail } = await getCurrentTechnicianIdentity();
+
        // Update job with before photos, vehicle details, and change status to active
        const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
          method: 'PATCH',
@@ -906,11 +955,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
            'Content-Type': 'application/json',
          },
          body: JSON.stringify({
-           before_photos: photoUrls,
-           job_status: 'Active',
-           start_time: new Date().toISOString(),
-           // Vehicle details
-           vehicle_year: vehicleDetails.vehicle_year || null,
+            before_photos: photoUrls,
+            job_status: 'Active',
+            technician_name: technicianName,
+            technician_phone: technicianEmail,
+            start_time: formatLocalDateTime(new Date()),
+            // Vehicle details
+            vehicle_year: vehicleDetails.vehicle_year || null,
            vehicle_make: vehicleDetails.vehicle_make || null,
            vehicle_model: vehicleDetails.vehicle_model || null,
            vehicle_registration: vehicleDetails.vehicle_registration || null,
@@ -1150,7 +1201,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Job Verification</h3>
                   <p className="text-gray-600 text-sm">
-                    Scan the QR code or enter the job ID to verify and start the job
+                    Scan the QR code or enter the vehicle registration to verify and start the job
                   </p>
                 </div>
                 
@@ -1224,23 +1275,23 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="manualJobId" className="text-sm font-medium text-gray-700">Job Number</Label>
+                        <Label htmlFor="manualReg" className="text-sm font-medium text-gray-700">Vehicle Registration</Label>
                         <Input
-                          id="manualJobId"
-                          value={manualJobId}
-                          onChange={(e) => setManualJobId(e.target.value)}
-                          placeholder="Enter job number..."
+                          id="manualReg"
+                          value={manualReg}
+                          onChange={(e) => setManualReg(e.target.value)}
+                          placeholder="Enter vehicle registration..."
                           className="mt-1"
                         />
                       </div>
                       
                       <Button 
-                        onClick={() => fetchJobById(manualJobId)}
-                        disabled={!manualJobId.trim() || loading}
+                        onClick={() => fetchJobByReg(manualReg)}
+                        disabled={!manualReg.trim() || loading}
                         className="w-full bg-green-600 hover:bg-green-700"
                       >
                         {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                        Load Job
+                        Load by Reg
                       </Button>
                     </div>
                   </div>

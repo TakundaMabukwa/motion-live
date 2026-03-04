@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   X,
@@ -16,15 +15,13 @@ import {
   Wrench,
   UserCheck,
   CheckCircle,
-  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 
 interface CreateJobModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onJobCreated: (jobData: any) => void;
+  onJobCreated: (jobData: Record<string, unknown>) => void;
 }
 
 interface Technician {
@@ -35,6 +32,23 @@ interface Technician {
   color_code?: string;
 }
 
+interface VehicleLookupItem {
+  id: number;
+  reg: string | null;
+  fleet_number: string | null;
+  company: string | null;
+  make: string | null;
+  model: string | null;
+  year: string | number | null;
+  vin: string | null;
+}
+
+const normalizeIdentifier = (value: string | null | undefined) =>
+  (value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
 export default function CreateJobModal({ 
   isOpen, 
   onClose, 
@@ -42,9 +56,13 @@ export default function CreateJobModal({
 }: CreateJobModalProps) {
   const [currentStep, setCurrentStep] = useState<'customer-info' | 'vehicle-details' | 'job-description' | 'assign-technician' | 'complete'>('customer-info');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loadingTechnicians, setLoadingTechnicians] = useState(false);
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [allVehicles, setAllVehicles] = useState<VehicleLookupItem[]>([]);
+  const [vehicleLookupResults, setVehicleLookupResults] = useState<VehicleLookupItem[]>([]);
+  const [loadingVehicleLookup, setLoadingVehicleLookup] = useState(false);
+  const [showVehicleLookup, setShowVehicleLookup] = useState(false);
   
   // Customer information
   const [customerInfo, setCustomerInfo] = useState({
@@ -71,11 +89,17 @@ export default function CreateJobModal({
   });
 
   // Technician assignment
-  const [technicianInfo, setTechnicianInfo] = useState({
-    technician_id: '',
-    technician_name: '',
-    technician_email: '',
-  });
+  const [selectedTechnicianIds, setSelectedTechnicianIds] = useState<string[]>([]);
+  const [selectedTechnician, setSelectedTechnician] = useState('');
+  const [assignmentDate, setAssignmentDate] = useState('');
+  const [assignmentTime, setAssignmentTime] = useState('');
+
+  const formatLocalDateInput = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   // Reset form when modal opens
   useEffect(() => {
@@ -99,11 +123,14 @@ export default function CreateJobModal({
         job_description: '',
         special_instructions: '',
       });
-      setTechnicianInfo({
-        technician_id: '',
-        technician_name: '',
-        technician_email: '',
-      });
+      setSelectedTechnicianIds([]);
+      setSelectedTechnician('');
+      setAssignmentDate(formatLocalDateInput());
+      setAssignmentTime('');
+      setVehicleSearch('');
+      setAllVehicles([]);
+      setVehicleLookupResults([]);
+      setShowVehicleLookup(false);
     }
   }, [isOpen]);
 
@@ -111,8 +138,29 @@ export default function CreateJobModal({
   useEffect(() => {
     if (isOpen) {
       fetchTechnicians();
+      void fetchVehiclesForLookup();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (currentStep !== 'customer-info') return;
+    const term = vehicleSearch.trim();
+    if (!term) {
+      setVehicleLookupResults(allVehicles.slice(0, 50));
+      setShowVehicleLookup(false);
+      return;
+    }
+
+    const lower = term.toLowerCase();
+    const filtered = allVehicles.filter((vehicle) => {
+      const reg = (vehicle.reg || '').toLowerCase();
+      const fleet = (vehicle.fleet_number || '').toLowerCase();
+      const company = (vehicle.company || '').toLowerCase();
+      return reg.includes(lower) || fleet.includes(lower) || company.includes(lower);
+    });
+    setVehicleLookupResults(filtered.slice(0, 100));
+    setShowVehicleLookup(true);
+  }, [vehicleSearch, allVehicles, currentStep]);
 
   const fetchTechnicians = async () => {
     setLoadingTechnicians(true);
@@ -131,24 +179,90 @@ export default function CreateJobModal({
     }
   };
 
-  const handleCustomerInfoNext = () => {
-    if (!customerInfo.customer_name.trim()) {
+  const fetchVehiclesForLookup = async () => {
+    setLoadingVehicleLookup(true);
+    try {
+      const params = new URLSearchParams({ limit: '5000' });
+      const response = await fetch(`/api/vehicles/reg-search?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to load vehicles');
+      }
+      const data = await response.json();
+      const vehiclesRaw = Array.isArray(data?.vehicles) ? data.vehicles : [];
+      const seenVehicleKeys = new Set<string>();
+      const vehicles = vehiclesRaw.filter((vehicle: VehicleLookupItem) => {
+        const reg = normalizeIdentifier(vehicle.reg);
+        const fleet = normalizeIdentifier(vehicle.fleet_number);
+        if (!reg && !fleet) return false;
+
+        const dedupeKey = reg || fleet;
+        if (seenVehicleKeys.has(dedupeKey)) return false;
+        seenVehicleKeys.add(dedupeKey);
+        return true;
+      });
+      setAllVehicles(vehicles);
+      setVehicleLookupResults(vehicles.slice(0, 50));
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
+      toast.error('Failed to load vehicle list');
+      setAllVehicles([]);
+      setVehicleLookupResults([]);
+    } finally {
+      setLoadingVehicleLookup(false);
+    }
+  };
+
+  const applyVehicleSelection = (vehicle: VehicleLookupItem) => {
+    const selectedReg = (vehicle.reg || vehicle.fleet_number || '').trim();
+    const customerName = (vehicle.company || '').trim();
+
+    setVehicleSearch(selectedReg);
+    setShowVehicleLookup(false);
+
+    setVehicleInfo((prev) => ({
+      ...prev,
+      vehicle_registration: selectedReg,
+      vehicle_make: vehicle.make || prev.vehicle_make,
+      vehicle_model: vehicle.model || prev.vehicle_model,
+      vehicle_year: vehicle.year ? String(vehicle.year) : prev.vehicle_year,
+      vin_numer: vehicle.vin || prev.vin_numer,
+    }));
+
+    if (customerName) {
+      setCustomerInfo((prev) => ({
+        ...prev,
+        customer_name: customerName,
+      }));
+    }
+  };
+
+  const handleCustomerInfoNext = async () => {
+    const selectedReg = vehicleInfo.vehicle_registration.trim() || vehicleSearch.trim();
+    if (!selectedReg) {
+      toast.error('Vehicle reg is required');
+      return;
+    }
+
+    const normalized = selectedReg.toLowerCase();
+    const matchedVehicle = allVehicles.find((vehicle) =>
+      (vehicle.reg || '').toLowerCase() === normalized ||
+      (vehicle.fleet_number || '').toLowerCase() === normalized
+    );
+
+    if (matchedVehicle) {
+      applyVehicleSelection(matchedVehicle);
+    }
+
+    const resolvedCustomerName = customerInfo.customer_name.trim() || (matchedVehicle?.company || '').trim();
+    if (!resolvedCustomerName) {
       toast.error('Customer name is required');
       return;
     }
-    if (!customerInfo.customer_email.trim()) {
-      toast.error('Customer email is required');
-      return;
-    }
-    if (!customerInfo.customer_phone.trim()) {
-      toast.error('Customer phone is required');
-      return;
-    }
-    if (!customerInfo.customer_address.trim()) {
-      toast.error('Customer address is required');
-      return;
-    }
     setCurrentStep('vehicle-details');
+  };
+
+  const handleVehicleLookupSelect = (vehicle: VehicleLookupItem) => {
+    applyVehicleSelection(vehicle);
   };
 
   const handleVehicleInfoNext = () => {
@@ -167,28 +281,54 @@ export default function CreateJobModal({
     setCurrentStep('assign-technician');
   };
 
-  const handleTechnicianChange = (technicianId: string) => {
-    const selectedTechnician = technicians.find(tech => tech.id === technicianId);
-    if (selectedTechnician) {
-      setTechnicianInfo({
-        technician_id: selectedTechnician.id,
-        technician_name: selectedTechnician.name,
-        technician_email: selectedTechnician.email,
-      });
-    }
+  const addTechnicianSelection = (technicianId: string) => {
+    if (!technicianId) return;
+    setSelectedTechnicianIds((prev) => (prev.includes(technicianId) ? prev : [...prev, technicianId]));
+    setSelectedTechnician('');
+  };
+
+  const removeTechnicianSelection = (technicianId: string) => {
+    setSelectedTechnicianIds((prev) => prev.filter((id) => id !== technicianId));
   };
 
   const handleAssignTechnicianNext = () => {
-    if (!technicianInfo.technician_id) {
-      toast.error('Please select a technician');
+    if (selectedTechnicianIds.length === 0) {
+      toast.error('Please select at least one technician');
+      return;
+    }
+    if (!assignmentDate) {
+      toast.error('Please select an assignment date');
       return;
     }
     handleCreateJob();
   };
 
+  const assignTechnicianToJob = async (
+    jobId: string,
+    technicianName: string,
+    override = false
+  ) => {
+    return fetch('/api/admin/jobs/assign-technician', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jobId,
+        technicianName,
+        jobDate: assignmentDate,
+        startTime: assignmentTime || null,
+        endTime: null,
+        override,
+      }),
+    });
+  };
+
   const handleCreateJob = async () => {
     setIsSubmitting(true);
     try {
+      const selectedTechnicians = technicians.filter((tech) => selectedTechnicianIds.includes(tech.id));
+
       // Create the job card data
       const jobCardData = {
         // Job details
@@ -216,13 +356,10 @@ export default function CreateJobModal({
         // Job information
         special_instructions: jobInfo.special_instructions,
         
-        // Technician information
-        technician_name: technicianInfo.technician_name,
-        technician_phone: technicianInfo.technician_email, // Using email as phone for consistency
-        
         // Job details
-        job_date: new Date().toISOString(),
-        start_time: new Date().toISOString(),
+        due_date: assignmentDate || null,
+        job_date: assignmentDate || new Date().toISOString(),
+        start_time: null,
         
         // Photos (empty arrays since we removed photo steps)
         before_photos: [],
@@ -251,12 +388,40 @@ export default function CreateJobModal({
       }
 
       const result = await response.json();
-      toast.success(`Job created successfully! Job number: ${result.data.job_number}`);
-      
-      // Move to complete step
+      const createdJobId = result?.data?.id as string | undefined;
+      if (!createdJobId) {
+        throw new Error('Job created but no job ID returned');
+      }
+
+      const technicianNames = selectedTechnicians.map((tech) => tech.name).join(', ');
+      const assignResponse = await assignTechnicianToJob(createdJobId, technicianNames);
+      const assignData = await assignResponse.json().catch(() => ({}));
+
+      if (assignResponse.status === 409 && assignData?.needsOverride) {
+        const proceedOverride = window.confirm(
+          `Scheduling conflict detected for ${technicianNames}. Do you want to override and assign anyway?`
+        );
+        if (proceedOverride) {
+          const overrideResponse = await assignTechnicianToJob(createdJobId, technicianNames, true);
+          if (!overrideResponse.ok) {
+            toast.error('Job created but technician assignment failed after override attempt.');
+          } else {
+            toast.success(
+              `Job created and technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully!`
+            );
+          }
+        } else {
+          toast.warning('Job created but technician assignment was skipped due to conflict.');
+        }
+      } else if (!assignResponse.ok) {
+        toast.error('Job created but technician assignment failed.');
+      } else {
+        toast.success(
+          `Job created and technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully!`
+        );
+      }
+
       setCurrentStep('complete');
-      
-      // Notify parent component
       onJobCreated(result.data);
       
     } catch (error) {
@@ -327,6 +492,55 @@ export default function CreateJobModal({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vehicleRegLookup">Vehicle Reg Search *</Label>
+                  <div className="relative">
+                    <Input
+                      id="vehicleRegLookup"
+                      value={vehicleSearch}
+                      onChange={(e) => {
+                        setVehicleSearch(e.target.value);
+                        setShowVehicleLookup(true);
+                      }}
+                      onFocus={() => setShowVehicleLookup(true)}
+                      onBlur={() => {
+                        setTimeout(() => setShowVehicleLookup(false), 120);
+                      }}
+                      placeholder="Type reg to search..."
+                      autoComplete="off"
+                    />
+                    {showVehicleLookup && (
+                      <div className="z-50 absolute bg-white shadow-lg mt-1 border rounded-md w-full max-h-56 overflow-y-auto">
+                        {loadingVehicleLookup ? (
+                          <div className="px-3 py-2 text-gray-500 text-sm">Searching...</div>
+                        ) : vehicleLookupResults.length > 0 ? (
+                          vehicleLookupResults.map((vehicle) => {
+                            const regValue = vehicle.reg || '-';
+                            const fleetValue = vehicle.fleet_number || '-';
+                            const companyValue = vehicle.company || 'Unknown customer';
+                            return (
+                              <button
+                                key={vehicle.id}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleVehicleLookupSelect(vehicle);
+                                }}
+                                className="hover:bg-gray-50 px-3 py-2 border-gray-100 border-b w-full text-left"
+                              >
+                                <div className="font-medium text-sm">{regValue}</div>
+                                <div className="text-gray-500 text-xs">Fleet: {fleetValue}</div>
+                                <div className="text-gray-500 text-xs">Customer: {companyValue}</div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-3 py-2 text-gray-500 text-sm">No vehicles found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="customerName">Customer Name *</Label>
@@ -338,7 +552,7 @@ export default function CreateJobModal({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="customerEmail">Customer Email *</Label>
+                    <Label htmlFor="customerEmail">Customer Email</Label>
                     <Input
                       id="customerEmail"
                       type="email"
@@ -348,7 +562,7 @@ export default function CreateJobModal({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="customerPhone">Customer Phone *</Label>
+                    <Label htmlFor="customerPhone">Customer Phone</Label>
                     <Input
                       id="customerPhone"
                       value={customerInfo.customer_phone}
@@ -357,7 +571,7 @@ export default function CreateJobModal({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="customerAddress">Customer Address *</Label>
+                    <Label htmlFor="customerAddress">Customer Address</Label>
                     <Input
                       id="customerAddress"
                       value={customerInfo.customer_address}
@@ -368,9 +582,10 @@ export default function CreateJobModal({
                 </div>
                 <Button
                   onClick={handleCustomerInfoNext}
+                  disabled={loadingVehicleLookup}
                   className="bg-blue-600 hover:bg-blue-700 w-full"
                 >
-                  Next: Vehicle Details
+                  {loadingVehicleLookup ? 'Loading Vehicles...' : 'Next: Vehicle Details'}
                 </Button>
               </CardContent>
             </Card>
@@ -525,7 +740,7 @@ export default function CreateJobModal({
               <CardContent className="space-y-4">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="technicianSelect">Select Technician *</Label>
+                    <Label>Select Technician(s) *</Label>
                     {loadingTechnicians ? (
                       <div className="flex items-center space-x-2 p-3 border rounded-md">
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -536,34 +751,87 @@ export default function CreateJobModal({
                         <span className="text-gray-500 text-sm">No technicians available</span>
                       </div>
                     ) : (
-                      <Select value={technicianInfo.technician_id} onValueChange={handleTechnicianChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose a technician" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {technicians.map((technician) => (
-                            <SelectItem key={technician.id} value={technician.id}>
-                              <div className="flex items-center space-x-2">
-                                <div 
-                                  className="rounded-full w-3 h-3" 
-                                  style={{ backgroundColor: technician.color_code || '#6b7280' }}
-                                />
-                                <span>{technician.name}</span>
-                                <span className="text-gray-500 text-xs">({technician.email})</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-3">
+                        <Select value={selectedTechnician} onValueChange={addTechnicianSelection}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a technician" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {technicians
+                              .filter((tech) => !selectedTechnicianIds.includes(tech.id))
+                              .map((technician) => (
+                                <SelectItem key={technician.id} value={technician.id}>
+                                  {technician.name} ({technician.email})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+
+                        {selectedTechnicianIds.length > 0 && (
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">Selected Technicians</Label>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedTechnicianIds.map((techId) => {
+                                const tech = technicians.find((t) => t.id === techId);
+                                if (!tech) return null;
+                                return (
+                                  <div
+                                    key={techId}
+                                    className="flex items-center bg-blue-100 px-3 py-1.5 rounded text-blue-800 text-sm"
+                                  >
+                                    <span>{tech.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeTechnicianSelection(techId)}
+                                      className="ml-2 font-bold text-blue-600 hover:text-blue-800"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
+
+                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="assignmentDate">Assignment Date *</Label>
+                      <Input
+                        id="assignmentDate"
+                        type="date"
+                        value={assignmentDate}
+                        onChange={(e) => setAssignmentDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="assignmentTime">Assignment Time</Label>
+                      <Input
+                        id="assignmentTime"
+                        type="time"
+                        value={assignmentTime}
+                        onChange={(e) => setAssignmentTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   
-                  {technicianInfo.technician_id && (
+                  {selectedTechnicianIds.length > 0 && (
                     <div className="bg-blue-50 p-3 rounded-md">
                       <div className="text-sm">
-                        <div className="font-medium text-blue-900">Selected Technician:</div>
-                        <div className="text-blue-700">{technicianInfo.technician_name}</div>
-                        <div className="text-blue-600 text-xs">{technicianInfo.technician_email}</div>
+                        <div className="font-medium text-blue-900">
+                          Selected Technician{selectedTechnicianIds.length > 1 ? 's' : ''}:
+                        </div>
+                        {technicians
+                          .filter((tech) => selectedTechnicianIds.includes(tech.id))
+                          .map((tech) => (
+                            <div key={tech.id} className="text-blue-700">{tech.name}</div>
+                          ))}
+                        <div className="text-blue-600 text-xs">
+                          Scheduled: {assignmentDate || 'No date'} {assignmentTime || '09:00'}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -579,7 +847,7 @@ export default function CreateJobModal({
                   </Button>
                   <Button
                     onClick={handleAssignTechnicianNext}
-                    disabled={isSubmitting || !technicianInfo.technician_id}
+                    disabled={isSubmitting || selectedTechnicianIds.length === 0 || !assignmentDate}
                     className="flex-1 bg-green-600 hover:bg-green-700"
                   >
                     {isSubmitting ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : null}
@@ -619,7 +887,12 @@ export default function CreateJobModal({
                     <div>• Customer information captured</div>
                     <div>• Vehicle details recorded</div>
                     <div>• Job description documented</div>
-                    <div>• Technician assigned: {technicianInfo.technician_name}</div>
+                    <div>
+                      • Technician{selectedTechnicianIds.length > 1 ? 's' : ''} assigned: {technicians
+                        .filter((tech) => selectedTechnicianIds.includes(tech.id))
+                        .map((tech) => tech.name)
+                        .join(', ')}
+                    </div>
                     <div>• Job status: Pending</div>
                     <div>• Job type: Admin Created</div>
                   </div>

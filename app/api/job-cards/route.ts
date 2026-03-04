@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+function generateSolJobNumber(): string {
+  const n = Math.floor(100000 + Math.random() * 900000);
+  return `SOL-${n}`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -78,8 +83,19 @@ export async function POST(request: NextRequest) {
     // Generate unique identifiers
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substr(2, 9);
-    const jobNumber = `JOB-${timestamp}-${randomSuffix}`;
     const quotationNumber = `QUOTE-${timestamp}-${randomSuffix}`;
+
+    let jobNumber = generateSolJobNumber();
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { data: existing } = await supabase
+        .from('job_cards')
+        .select('id')
+        .eq('job_number', jobNumber)
+        .maybeSingle();
+
+      if (!existing) break;
+      jobNumber = generateSolJobNumber();
+    }
     
     // Prepare job card data - handle both quotation and repair jobs
     const jobCardData = {
@@ -103,6 +119,7 @@ export async function POST(request: NextRequest) {
       contact_person: body.contactPerson || body.contact_person || '',
       decommission_date: body.decommissionDate || body.decommission_date || null,
       annuity_end_date: body.annuityEndDate || body.annuity_end_date || null,
+      due_date: body.dueDate || body.due_date || null,
       
       // Vehicle information
       vehicle_id: body.vehicleId || body.vehicle_id || null,
@@ -147,6 +164,7 @@ export async function POST(request: NextRequest) {
       special_instructions: body.specialInstructions || body.special_instructions || '',
       
       // Technician information (for repair jobs)
+      assigned_technician_id: body.assigned_technician_id || null,
       technician_name: body.technician_name || null,
       technician_phone: body.technician_phone || null,
       
