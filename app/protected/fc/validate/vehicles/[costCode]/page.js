@@ -183,7 +183,6 @@ export default function ValidateVehiclesPage() {
   const [vehicleSearch, setVehicleSearch] = useState('');
   const [costCenterOptions, setCostCenterOptions] = useState([]);
   const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState({});
-  const [movingVehicleId, setMovingVehicleId] = useState(null);
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
   const costCenterPrefix = useMemo(() => {
@@ -247,6 +246,12 @@ export default function ValidateVehiclesPage() {
     }
     return Array.from(deduped.values()).sort((a, b) => a.cost_code.localeCompare(b.cost_code));
   }, [costCenterOptions]);
+
+  const currentCostCenterName = useMemo(() => {
+    if (!costCode) return '';
+    const matched = matchingCostCenters.find((item) => item.cost_code === costCode);
+    return matched?.company || costCode;
+  }, [matchingCostCenters, costCode]);
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -424,6 +429,15 @@ export default function ValidateVehiclesPage() {
       return;
     }
 
+    const selectedTargetCostCenter = targetCostCenterByVehicle[currentVehicle.id] || '';
+    const currentCostCenter = currentVehicle.new_account_number || costCode || '';
+    const isMovingCostCenter = Boolean(
+      selectedTargetCostCenter && selectedTargetCostCenter !== currentCostCenter
+    );
+    const selectedCostCenter = isMovingCostCenter
+      ? matchingCostCenters.find((item) => item.cost_code === selectedTargetCostCenter)
+      : null;
+
     const changedFields = Object.keys(editedData).reduce((acc, key) => {
       if (key === 'id' || key === 'unique_id') return acc;
       const before = normalizeForCompare(currentVehicle[key]);
@@ -433,6 +447,15 @@ export default function ValidateVehiclesPage() {
       }
       return acc;
     }, {});
+
+    if (isMovingCostCenter) {
+      changedFields.cost_code = selectedTargetCostCenter;
+      changedFields.new_account_number = selectedTargetCostCenter;
+      const nextCompany = selectedCostCenter?.company || currentVehicle.company || null;
+      if (normalizeForCompare(currentVehicle.company) !== normalizeForCompare(nextCompany)) {
+        changedFields.company = nextCompany;
+      }
+    }
 
     // Mark row as validated on save only when the DB row exposes this column.
     // This avoids failing updates if migration has not been applied yet.
@@ -478,8 +501,13 @@ export default function ValidateVehiclesPage() {
       }
       
       const result = await response.json();
-      setVehicles(prev => prev.map(v => v.id === editedData.id ? result : v));
-      toast.success('Vehicle updated successfully');
+      if (isMovingCostCenter) {
+        setVehicles(prev => prev.filter(v => v.id !== editedData.id));
+        toast.success(`Vehicle updated and moved to ${selectedTargetCostCenter}`);
+      } else {
+        setVehicles(prev => prev.map(v => v.id === editedData.id ? result : v));
+        toast.success('Vehicle updated successfully');
+      }
       setEditedData({});
     } catch (error) {
       console.error('Save error:', error);
@@ -767,53 +795,6 @@ export default function ValidateVehiclesPage() {
     );
   };
 
-  const moveVehicleToCostCenter = async (vehicle) => {
-    const targetCostCenter = targetCostCenterByVehicle[vehicle.id];
-    if (!targetCostCenter) {
-      toast.error('Please select a target cost center');
-      return;
-    }
-
-    const currentCostCenter = vehicle.new_account_number || costCode;
-    if (targetCostCenter === currentCostCenter) {
-      toast.info('Vehicle is already in this cost center');
-      return;
-    }
-
-    setMovingVehicleId(vehicle.id);
-    try {
-      const selectedCostCenter = matchingCostCenters.find(
-        (item) => item.cost_code === targetCostCenter
-      );
-
-      const response = await fetch('/api/vehicles/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: vehicle.id,
-          ...(vehicle.unique_id ? { unique_id: vehicle.unique_id } : {}),
-          cost_code: targetCostCenter,
-          new_account_number: targetCostCenter,
-          company: selectedCostCenter?.company || vehicle.company || null
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.details || errorData?.error || 'Failed to move vehicle');
-      }
-
-      // Remove from current list since this page is scoped to one cost center
-      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id));
-      toast.success(`Vehicle moved to ${targetCostCenter}`);
-    } catch (error) {
-      console.error('Move vehicle error:', error);
-      toast.error(`Failed to move vehicle: ${error.message}`);
-    } finally {
-      setMovingVehicleId(null);
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -835,7 +816,7 @@ export default function ValidateVehiclesPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{validationMode ? "Validation Mode" : "Validate Vehicles"} - {costCode}</h1>
+              <h1 className="text-2xl font-bold">{validationMode ? "Validation Mode" : "Validate Vehicles"} - {currentCostCenterName}</h1>
               <Button 
                 size="sm" 
                 variant={validationMode ? "default" : "outline"}
@@ -968,7 +949,7 @@ export default function ValidateVehiclesPage() {
                             </div>
                             <div className="flex-1">
                               <Label htmlFor={`move-cc-${vehicle.id}`} className="text-xs text-gray-500">
-                                Move To Cost Center
+                                Cost Center
                               </Label>
                               <select
                                 id={`move-cc-${vehicle.id}`}
@@ -988,21 +969,6 @@ export default function ValidateVehiclesPage() {
                                   </option>
                                 ))}
                               </select>
-                            </div>
-                            <div className="md:w-auto w-full">
-                              <Button
-                                type="button"
-                                onClick={() => moveVehicleToCostCenter(vehicle)}
-                                disabled={movingVehicleId === vehicle.id || !targetCostCenterByVehicle[vehicle.id]}
-                                className="w-full md:w-auto"
-                              >
-                                {movingVehicleId === vehicle.id ? (
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                ) : (
-                                  <ArrowLeft className="h-4 w-4 mr-2 rotate-180" />
-                                )}
-                                Move Vehicle
-                              </Button>
                             </div>
                           </div>
                         </div>
