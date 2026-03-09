@@ -51,6 +51,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
+    const transferEquipmentFromAssignedParts = body.transfer_equipment_from_assigned_parts === true;
 
     // Get current job card to check if it's being completed
     const { data: currentJob, error: fetchError } = await supabase
@@ -74,6 +75,106 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };
+
+    delete updateData.transfer_equipment_from_assigned_parts;
+
+    // Optional flow: move selected equipment from tech_stock.assigned_parts onto this job card.
+    if (transferEquipmentFromAssignedParts && Array.isArray(body.equipment_used)) {
+      try {
+        const selectedEquipment = body.equipment_used as any[];
+
+        if (selectedEquipment.length > 0) {
+          const technicianEmailForTransfer =
+            currentJob.technician_phone || user.email || null;
+
+          if (technicianEmailForTransfer) {
+            const { data: techStock, error: techStockError } = await supabase
+              .from('tech_stock')
+              .select('assigned_parts')
+              .eq('technician_email', technicianEmailForTransfer)
+              .maybeSingle();
+
+            if (techStockError) {
+              console.error('Error fetching tech stock for transfer:', techStockError);
+            } else {
+              const assignedParts = Array.isArray(techStock?.assigned_parts) ? [...techStock.assigned_parts] : [];
+              const updatedAssignedParts = [...assignedParts];
+              const transferredParts: any[] = [];
+
+              const selectedStockIds = new Set(
+                selectedEquipment.map((item: any) => String(item?.stock_id || item?.id || ''))
+              );
+
+              const selectedKeys = new Set(
+                selectedEquipment.map((item: any) => `${String(item?.code || '')}::${String(item?.supplier || '')}`)
+              );
+
+              for (let i = 0; i < updatedAssignedParts.length; i += 1) {
+                const part = updatedAssignedParts[i];
+                const partStockId = String(part?.stock_id || part?.id || '');
+                const partKey = `${String(part?.code || '')}::${String(part?.supplier || '')}`;
+
+                const matchedById = partStockId && selectedStockIds.has(partStockId);
+                const matchedByCodeSupplier = selectedKeys.has(partKey);
+
+                if (!matchedById && !matchedByCodeSupplier) {
+                  continue;
+                }
+
+                const currentQty = parseInt(String(part?.quantity || '1')) || 1;
+                const newQty = Math.max(0, currentQty - 1);
+
+                transferredParts.push({
+                  ...part,
+                  quantity: 1,
+                });
+
+                if (newQty === 0) {
+                  updatedAssignedParts.splice(i, 1);
+                  i -= 1;
+                } else {
+                  updatedAssignedParts[i] = {
+                    ...part,
+                    quantity: newQty,
+                    available_stock: newQty,
+                  };
+                }
+              }
+
+              if (transferredParts.length > 0) {
+                const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
+                const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
+
+                updateData.parts_required = [...existingPartsRequired, ...transferredParts];
+                updateData.equipment_used = [...existingEquipmentUsed, ...transferredParts];
+
+                const { error: updateTechStockError } = await supabase
+                  .from('tech_stock')
+                  .update({ assigned_parts: updatedAssignedParts })
+                  .eq('technician_email', technicianEmailForTransfer);
+
+                if (updateTechStockError) {
+                  console.error('Error updating tech stock during transfer:', updateTechStockError);
+                }
+              } else {
+                // If no match found in assigned_parts, still keep selected equipment on the job card.
+                const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
+                const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
+                updateData.parts_required = [...existingPartsRequired, ...selectedEquipment];
+                updateData.equipment_used = [...existingEquipmentUsed, ...selectedEquipment];
+              }
+            }
+          } else {
+            const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
+            const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
+            updateData.parts_required = [...existingPartsRequired, ...selectedEquipment];
+            updateData.equipment_used = [...existingEquipmentUsed, ...selectedEquipment];
+          }
+        }
+      } catch (transferError) {
+        console.error('Error during equipment transfer flow:', transferError);
+      }
+    }
 
     // If job is being completed, remove technician assignment
     if (isBeingCompleted) {

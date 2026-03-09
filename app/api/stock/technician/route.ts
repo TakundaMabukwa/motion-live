@@ -240,7 +240,7 @@ export async function GET() {
 
     const { data: technicianStock, error } = await supabase
       .from('tech_stock')
-      .select('assigned_parts, technician_email')
+      .select('assigned_parts, stock, technician_email')
       .eq('technician_email', user.email)
       .maybeSingle();
 
@@ -249,8 +249,10 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Get assigned parts directly as array
-    const assignedParts = technicianStock?.assigned_parts || [];
+    // Primary source: assigned_parts array.
+    const assignedParts = Array.isArray(technicianStock?.assigned_parts)
+      ? technicianStock.assigned_parts
+      : [];
     const processedStock: ProcessedStockItem[] = [];
 
     // Convert assigned parts to the expected format
@@ -267,6 +269,55 @@ export async function GET() {
         stock_type: getStockTypeFromSupplier(part.supplier || 'JOB_PARTS')
       });
     });
+
+    // Backward-compat fallback: if assigned_parts is empty, hydrate from legacy stock object.
+    if (processedStock.length === 0 && technicianStock?.stock && typeof technicianStock.stock === 'object') {
+      const legacyStock = technicianStock.stock as Record<string, any>;
+
+      Object.entries(legacyStock).forEach(([supplier, items]) => {
+        if (!items || typeof items !== 'object') return;
+
+        const maybeDirectItem = items as Record<string, any>;
+        const isDirectItemShape =
+          Object.prototype.hasOwnProperty.call(maybeDirectItem, 'count') ||
+          Object.prototype.hasOwnProperty.call(maybeDirectItem, 'description');
+
+        if (isDirectItemShape) {
+          const count = parseInt(String((maybeDirectItem as any)?.count || '0')) || 0;
+          if (count > 0) {
+            processedStock.push({
+              id: `${supplier}-${supplier}-0`,
+              quantity: String(count),
+              technician_email: user.email!,
+              code: supplier || 'N/A',
+              description: (maybeDirectItem as any)?.description || 'No description available',
+              supplier: supplier || 'JOB_PARTS',
+              cost_excl_vat_zar: 0,
+              usd: 0,
+              stock_type: getStockTypeFromSupplier(supplier || 'JOB_PARTS')
+            });
+          }
+          return;
+        }
+
+        Object.entries(items as Record<string, any>).forEach(([itemCode, itemData], index) => {
+          const count = parseInt(String(itemData?.count || '0')) || 0;
+          if (count <= 0) return;
+
+          processedStock.push({
+            id: `${supplier}-${itemCode}-${index}`,
+            quantity: String(count),
+            technician_email: user.email!,
+            code: itemCode || 'N/A',
+            description: itemData?.description || 'No description available',
+            supplier: supplier || 'JOB_PARTS',
+            cost_excl_vat_zar: 0,
+            usd: 0,
+            stock_type: getStockTypeFromSupplier(supplier || 'JOB_PARTS')
+          });
+        });
+      });
+    }
 
     console.log(`Processed ${processedStock.length} assigned parts for technician ${user.email}`);
 

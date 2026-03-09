@@ -286,15 +286,46 @@ export default function Dashboard() {
     return [];
   };
 
-  const getInstallSummary = (job: Job) => {
-    const items = parseQuotationProducts(job.quotation_products);
-    if (!items.length) return 'N/A';
-    const summary = items.slice(0, 3).map((item) => {
+  const parsePartsRequired = (partsRequired: unknown): Array<Record<string, unknown>> => {
+    if (!partsRequired) return [];
+    if (Array.isArray(partsRequired)) return partsRequired as Array<Record<string, unknown>>;
+    if (typeof partsRequired === 'string') {
+      try {
+        const parsed = JSON.parse(partsRequired);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getQuotationProductItems = (job: Job) => {
+    return parseQuotationProducts(job.quotation_products).map((item) => {
       const name = String(item.name || item.description || item.product_name || 'Item');
       const qty = Number(item.quantity || 1);
       return `${name}${qty > 1 ? ` x${qty}` : ''}`;
     });
-    return items.length > 3 ? `${summary.join(', ')} +${items.length - 3} more` : summary.join(', ');
+  };
+
+  const getPartsRequiredItems = (job: Job) => {
+    return parsePartsRequired(job.parts_required).map((item) => {
+      const name = String(item.description || item.name || item.code || 'Part');
+      const qty = Number(item.quantity || 1);
+      return `${name}${qty > 1 ? ` x${qty}` : ''}`;
+    });
+  };
+
+  const getInstallSummary = (job: Job) => {
+    const items = getQuotationProductItems(job);
+    if (!items.length) return 'No quotation products';
+    return items.length > 3 ? `${items.slice(0, 3).join(', ')} +${items.length - 3} more` : items.join(', ');
+  };
+
+  const getAssignedPartsSummary = (job: Job) => {
+    const items = getPartsRequiredItems(job);
+    if (!items.length) return 'No parts assigned';
+    return items.length > 3 ? `${items.slice(0, 3).join(', ')} +${items.length - 3} more` : items.join(', ');
   };
 
   const formatSchedule = (job: Job) => {
@@ -326,11 +357,20 @@ export default function Dashboard() {
                     <h3 className="font-semibold text-slate-900 text-base truncate">{job.job_number || 'No Job #'}</h3>
                     <p className="text-slate-600 text-sm mt-1">{job.customer_name || 'No customer'}</p>
                     <p className="text-slate-500 text-sm mt-1">Reg: {job.vehicle_registration || 'N/A'}</p>
-                    <p className="text-slate-500 text-sm mt-1 truncate">Install: {getInstallSummary(job)}</p>
                   </div>
                   <Badge variant="outline" className={`${getStatusColor(job.job_status)} text-xs ml-2 shrink-0`}>
                     {job.job_status === 'created' ? 'New' : job.job_status}
                   </Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-2 mt-3">
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Quotation Products</p>
+                    <p className="text-xs text-slate-700 mt-1 line-clamp-2">{getInstallSummary(job)}</p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Parts Required</p>
+                    <p className="text-xs text-slate-700 mt-1 line-clamp-2">{getAssignedPartsSummary(job)}</p>
+                  </div>
                 </div>
                 <div className="flex flex-col gap-2 mt-3">
                   {job.job_type === 'repair' && job.job_status === 'created' ? (
@@ -395,9 +435,9 @@ export default function Dashboard() {
               <th className="p-4 font-medium text-slate-700 text-left">Job #</th>
               <th className="p-4 font-medium text-slate-700 text-left">Reg</th>
               <th className="p-4 font-medium text-slate-700 text-left">Customer</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Type</th>
+              <th className="p-4 font-medium text-slate-700 text-left">Quotation Products</th>
+              <th className="p-4 font-medium text-slate-700 text-left">Parts Required</th>
               <th className="p-4 font-medium text-slate-700 text-left">Schedule</th>
-              <th className="p-4 font-medium text-slate-700 text-left">Installing</th>
               <th className="p-4 font-medium text-slate-700 text-left">Status</th>
               <th className="p-4 font-medium text-slate-700 text-left">Actions</th>
             </tr>
@@ -423,17 +463,17 @@ export default function Dashboard() {
                     <div className="text-slate-600 text-xs">{job.job_description || 'N/A'}</div>
                   </td>
                   <td className="p-4">
-                    <Badge variant="outline">
-                      {job.job_type || 'N/A'}
-                    </Badge>
+                    <div className="max-w-[280px] rounded-md border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs text-slate-700">
+                      {getInstallSummary(job)}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="max-w-[280px] rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-xs text-slate-700">
+                      {getAssignedPartsSummary(job)}
+                    </div>
                   </td>
                   <td className="p-4 text-slate-700 text-sm">
                     {formatSchedule(job)}
-                  </td>
-                  <td className="p-4 text-slate-700 text-sm max-w-[280px]">
-                    <div className="truncate" title={getInstallSummary(job)}>
-                      {getInstallSummary(job)}
-                    </div>
                   </td>
                   <td className="p-4">
                     <Badge variant="outline" className={getStatusColor(job.job_status)}>
@@ -554,43 +594,6 @@ export default function Dashboard() {
             })
           )}
         </div>
-
-        {/* User Info */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="w-5 h-5" />
-              <span>User Information</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-sm">Role:</span>
-                  <div className="bg-slate-200 rounded w-20 h-5 animate-pulse"></div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-sm">Email:</span>
-                  <div className="bg-slate-200 rounded w-32 h-5 animate-pulse"></div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-sm">Role:</span>
-                  <Badge variant={userRole === 'tech_admin' ? 'default' : 'secondary'}>
-                    {userRole === 'tech_admin' ? 'Tech Admin' : 'Technician'}
-                  </Badge>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium text-sm">Email:</span>
-                  <span className="text-slate-600 text-sm">{userEmail || 'N/A'}</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* All Jobs Table */}
         <Card className="border-slate-200/80 shadow-sm">

@@ -29,16 +29,20 @@ interface StartJobModalProps {
 }
 
 export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobStarted, onJobCompleted }: StartJobModalProps) {
-  const [currentStep, setCurrentStep] = useState<'qr-scan' | 'vehicle-details' | 'before-photos' | 'job-active' | 'after-photos' | 'complete'>('qr-scan');
+  const [currentStep, setCurrentStep] = useState<'qr-scan' | 'vehicle-details' | 'before-photos' | 'equipment-used' | 'job-active' | 'after-photos' | 'complete'>('qr-scan');
   const [qrCode, setQrCode] = useState('');
   const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
+  const [completionNotes, setCompletionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [manualReg, setManualReg] = useState('');
   const [jobData, setJobData] = useState<any>(job);
   const [maxPhotosReached, setMaxPhotosReached] = useState(false);
   const [maxAfterPhotosReached, setMaxAfterPhotosReached] = useState(false);
+  const [technicianStock, setTechnicianStock] = useState<any[]>([]);
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
   const [qrReader, setQrReader] = useState<BrowserQRCodeReader | null>(null);
   const [isQrScanning, setIsQrScanning] = useState(false);
   const [qrStream, setQrStream] = useState<MediaStream | null>(null);
@@ -97,6 +101,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         console.log('Job loaded, moving to vehicle-details');
         setCurrentStep('vehicle-details');
       }
+
+      const existingEquipmentUsed = parseArrayField(jobData?.equipment_used);
+      const existingIds = existingEquipmentUsed
+        .map((item: any) => String(item?.stock_id || item?.id || ''))
+        .filter(Boolean);
+      setSelectedEquipmentIds(existingIds);
+      setCompletionNotes(String(jobData?.completion_notes || ''));
     }
   }, [isOpen, jobData]);
 
@@ -113,6 +124,12 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       }
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && currentStep === 'equipment-used') {
+      fetchTechnicianStock();
+    }
+  }, [isOpen, currentStep]);
 
 
 
@@ -151,6 +168,20 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     if (typeof quotationProducts === 'string') {
       try {
         const parsed = JSON.parse(quotationProducts);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const parseArrayField = (value: unknown): any[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
       } catch {
         return [];
@@ -212,6 +243,98 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     };
   };
 
+  const fetchTechnicianStock = async () => {
+    try {
+      setStockLoading(true);
+      const response = await fetch('/api/stock/technician');
+      if (!response.ok) {
+        throw new Error('Failed to load technician stock');
+      }
+
+      const data = await response.json();
+      const stockItems = Array.isArray(data?.stock) ? data.stock : [];
+      const positiveStock = stockItems.filter((item: any) => (parseInt(String(item?.quantity || '0')) || 0) > 0);
+      setTechnicianStock(positiveStock);
+    } catch (error: any) {
+      console.error('Error loading technician stock:', error);
+      toast.error(error?.message || 'Failed to load technician stock');
+      setTechnicianStock([]);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  const toggleEquipmentItem = (itemId: string) => {
+    setSelectedEquipmentIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  const getQuotationProductSummary = (currentJob: any) => {
+    const items = parseQuotationProducts(currentJob?.quotation_products);
+    if (!items.length) return 'No quotation products';
+    return items
+      .slice(0, 4)
+      .map((item) => String(item.name || item.description || item.product_name || 'Item'))
+      .join(', ');
+  };
+
+  const getPartsRequiredSummary = (currentJob: any) => {
+    const items = parseArrayField(currentJob?.parts_required);
+    if (!items.length) return 'No parts assigned';
+    return items
+      .slice(0, 4)
+      .map((item) => String(item.description || item.name || item.code || 'Part'))
+      .join(', ');
+  };
+
+  const handleEquipmentUsedComplete = async () => {
+    try {
+      setIsSubmitting(true);
+
+      const selectedItems = technicianStock
+        .filter((item) => selectedEquipmentIds.includes(String(item.id)))
+        .map((item) => ({
+          stock_id: item.id,
+          code: item.code || '',
+          description: item.description || '',
+          supplier: item.supplier || '',
+          stock_type: item.stock_type || '',
+          quantity: 1,
+          available_stock: parseInt(String(item.quantity || '0')) || 0,
+          selected_at: new Date().toISOString(),
+          source: 'tech_stock.assigned_parts'
+        }));
+
+      const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          equipment_used: selectedItems,
+          transfer_equipment_from_assigned_parts: true,
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({}));
+        console.error('Failed to save equipment used:', errorData);
+        throw new Error(`Failed to save equipment used: ${updateResponse.status}`);
+      }
+
+      const updatedJob = await updateResponse.json();
+      setJobData(updatedJob || jobData);
+      toast.success('Equipment used saved');
+      setCurrentStep('job-active');
+    } catch (error: any) {
+      console.error('Error saving equipment used:', error);
+      toast.error(error?.message || 'Failed to save equipment used');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Initialize camera when modal opens
   useEffect(() => {
     if (isOpen && currentStep === 'before-photos') {
@@ -259,12 +382,12 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       // Stop the test stream
       permissions.getTracks().forEach(track => track.stop());
       
-      // Now start the actual camera with better constraints for PC
+      // Prefer rear camera for job capture; fallback to front only if unavailable.
       const constraints = {
         video: {
           width: { ideal: 1280, min: 640, max: 1920 },
           height: { ideal: 720, min: 480, max: 1080 },
-          facingMode: 'user', // Start with front camera (usually more accessible on PC)
+          facingMode: { exact: 'environment' },
           frameRate: { ideal: 30, min: 15, max: 60 }
         }
       };
@@ -272,18 +395,18 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Front camera started successfully');
-      } catch (frontError) {
-        console.log('Front camera failed, trying back camera:', frontError);
+        console.log('Rear camera started successfully');
+      } catch (rearError) {
+        console.log('Rear camera failed, trying front camera:', rearError);
         
-        // Try back camera
+        // Fallback: front camera
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment' }
+            video: { facingMode: { ideal: 'user' } }
           });
-          console.log('Back camera started successfully');
-        } catch (backError) {
-          console.log('Back camera failed, trying any available camera:', backError);
+          console.log('Front camera started successfully');
+        } catch (frontError) {
+          console.log('Front camera failed, trying any available camera:', frontError);
           
           // Last resort: try with minimal constraints
           try {
@@ -973,8 +1096,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
       if (updateResponse.ok) {
         toast.success(`Job started successfully with ${photoUrls.length} before photos!`);
-        // Move to job active step instead of after photos
-        setCurrentStep('job-active');
+        const updatedJob = await updateResponse.json();
+        setJobData(updatedJob || jobData);
+        setCurrentStep('equipment-used');
       } else {
         const errorData = await updateResponse.json().catch(() => ({}));
         console.error('Failed to update job:', errorData);
@@ -1046,6 +1170,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         body: JSON.stringify({
           after_photos: photoUrls,
           job_status: 'Completed',
+          completion_notes: completionNotes || null,
           completion_date: new Date().toISOString(),
           end_time: new Date().toISOString(),
         }),
@@ -1087,7 +1212,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     setQrCode('');
     setBeforePhotos([]);
     setAfterPhotos([]);
-    setManualJobId('');
+    setCompletionNotes('');
+    setTechnicianStock([]);
+    setSelectedEquipmentIds([]);
+    setManualReg('');
     setVehicleDetails({
       vehicle_year: '',
       vehicle_make: '',
@@ -1119,7 +1247,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
     >
       <div 
-        className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-2xl h-full max-h-[95vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-[98vw] md:max-w-4xl lg:max-w-5xl h-full max-h-[96vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
@@ -1161,13 +1289,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 { key: 'qr-scan', label: 'Verify', icon: QrCode },
                 { key: 'vehicle-details', label: 'Details', icon: Car },
                 { key: 'before-photos', label: 'Before', icon: Camera },
+                { key: 'equipment-used', label: 'Equipment', icon: CheckCircle },
                 { key: 'job-active', label: 'Active', icon: CheckCircle },
                 { key: 'after-photos', label: 'After', icon: Camera },
                 { key: 'complete', label: 'Done', icon: CheckCircle },
               ].map((step, index) => {
                 const Icon = step.icon;
                 const isActive = currentStep === step.key;
-                const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
+                const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'equipment-used', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
                 
                 return (
                   <div key={step.key} className="flex items-center flex-shrink-0">
@@ -1185,7 +1314,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                         'text-gray-400'
                       }`}>{step.label}</span>
                     </div>
-                    {index < 5 && (
+                    {index < 6 && (
                       <div className={`w-6 sm:w-12 h-0.5 mx-1 sm:mx-3 transition-colors ${
                         isCompleted ? 'bg-green-500' : 'bg-gray-200'
                       }`} />
@@ -1406,6 +1535,39 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     </div>
                   </div>
                 </div>
+
+                {(vehicleDetails.vehicle_registration?.trim() || jobData?.vehicle_registration) && (
+                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 truncate">
+                          {jobData?.job_number || 'Current Job'}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">
+                          {jobData?.customer_name || 'Customer'} • Reg: {vehicleDetails.vehicle_registration || jobData?.vehicle_registration}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="shrink-0 capitalize">
+                        {String(jobData?.job_status || jobData?.status || 'pending')}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
+                      <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Quotation Products</p>
+                        <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                          {getQuotationProductSummary(jobData)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Parts Required</p>
+                        <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                          {getPartsRequiredSummary(jobData)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex gap-3">
                   <Button
@@ -1517,7 +1679,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     Complete & Start Job
                   </Button>
                   <Button
-                    onClick={() => setCurrentStep('job-active')}
+                    onClick={() => setCurrentStep('equipment-used')}
                     variant="outline"
                     className="px-6"
                   >
@@ -1527,7 +1689,91 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
               </div>
             )}
 
-          {/* Step 3: Job Active */}
+          {/* Step 4: Equipment Used */}
+          {currentStep === 'equipment-used' && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Equipment Used</h3>
+                <p className="text-gray-600 text-sm">
+                  Check the technician stock items used on this job. These will be saved under equipment used.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 sm:p-5 border border-gray-200">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div className="text-sm text-gray-700">
+                    Available stock items: <span className="font-semibold">{technicianStock.length}</span>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    Selected: <span className="font-semibold text-blue-700">{selectedEquipmentIds.length}</span>
+                  </div>
+                </div>
+
+                {stockLoading ? (
+                  <div className="py-10 text-center">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-gray-500" />
+                    <p className="text-sm text-gray-600">Loading technician stock...</p>
+                  </div>
+                ) : technicianStock.length === 0 ? (
+                  <div className="py-10 text-center">
+                    <p className="text-sm text-gray-600">No technician stock available.</p>
+                  </div>
+                ) : (
+                  <div className="max-h-[42vh] overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                      {technicianStock.map((item: any) => {
+                        const itemId = String(item.id);
+                        const checked = selectedEquipmentIds.includes(itemId);
+                        return (
+                          <label
+                            key={itemId}
+                            className={`flex items-start gap-3 p-3 border-b border-gray-100 md:border-r cursor-pointer ${
+                              checked ? 'bg-blue-50' : 'bg-white'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleEquipmentItem(itemId)}
+                              className="mt-1 h-4 w-4 accent-blue-600"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{item.description || 'Unnamed item'}</p>
+                              <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                <span>Code: {item.code || 'N/A'}</span>
+                                <span>Supplier: {item.supplier || 'N/A'}</span>
+                                <span>Available: {parseInt(String(item.quantity || '0')) || 0}</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={handleEquipmentUsedComplete}
+                  disabled={isSubmitting || stockLoading}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Save & Continue
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep('job-active')}
+                  variant="outline"
+                  className="sm:w-auto"
+                >
+                  Skip
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Job Active */}
           {currentStep === 'job-active' && (
              <Card>
                <CardHeader>
@@ -1556,6 +1802,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div className="space-y-1 text-gray-600 text-sm">
                       <div>• Job verified</div>
                       <div>• {beforePhotos.length} before photos captured</div>
+                      <div>• {parseArrayField(jobData?.equipment_used).length} equipment items selected</div>
                       <div>• Job status updated to {jobData.job_status || 'Active'}</div>
                     </div>
                   </div>
@@ -1580,7 +1827,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
              </Card>
            )}
 
-            {/* Step 4: After Photos */}
+            {/* Step 6: After Photos */}
             {currentStep === 'after-photos' && (
               <div className="space-y-6">
                 <div className="text-center">
@@ -1662,7 +1909,20 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="completionNotes" className="text-sm font-medium text-gray-700">
+                    Completion Notes
+                  </Label>
+                  <textarea
+                    id="completionNotes"
+                    value={completionNotes}
+                    onChange={(e) => setCompletionNotes(e.target.value)}
+                    placeholder="Add final notes before closing the job..."
+                    className="w-full min-h-[96px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={handleAfterPhotosComplete}
                     disabled={afterPhotos.length === 0 || isSubmitting}
@@ -1674,7 +1934,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   <Button
                     onClick={() => setCurrentStep('complete')}
                     variant="outline"
-                    className="px-6"
+                    className="sm:px-6"
                   >
                     Skip
                   </Button>
@@ -1682,7 +1942,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
               </div>
             )}
 
-          {/* Step 5: Complete */}
+          {/* Step 7: Complete */}
           {currentStep === 'complete' && (
             <Card>
               <CardHeader>
@@ -1710,8 +1970,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   <div className="space-y-1 text-gray-600 text-sm">
                     <div>• Job verified</div>
                     <div>• {beforePhotos.length} before photos captured</div>
+                    <div>• {parseArrayField(jobData?.equipment_used).length} equipment items selected</div>
                     <div>• {afterPhotos.length} after photos captured</div>
                     <div>• Total photos: {beforePhotos.length + afterPhotos.length} (Maximum 60 allowed)</div>
+                    {completionNotes.trim() ? <div>• Completion notes added</div> : null}
                     <div>• Job status updated to {jobData.job_status || 'Completed'}</div>
                     <div>• Completion date recorded</div>
                   </div>
