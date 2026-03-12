@@ -113,6 +113,23 @@ interface TechnicianStockRow {
   technician_email: string | null;
   created_at: string;
 }
+
+interface GlobalVehicle {
+  id?: number;
+  created_at?: string;
+  company?: string;
+  new_account_number?: string;
+  branch?: string;
+  fleet_number?: string;
+  reg?: string;
+  make?: string;
+  model?: string;
+  vin?: string;
+  engine?: string;
+  year?: string;
+  colour?: string;
+  [key: string]: unknown;
+}
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -213,6 +230,12 @@ export default function InventoryPage() {
   const clientStockDetailsRef = useRef<HTMLDivElement | null>(null);
   const [showAssignClientStock, setShowAssignClientStock] = useState(false);
   const [selectedClientForAssign, setSelectedClientForAssign] = useState<ClientStockClient | null>(null);
+  const [globalsSearchTerm, setGlobalsSearchTerm] = useState('');
+  const [selectedGlobalsClient, setSelectedGlobalsClient] = useState<ClientStockClient | null>(null);
+  const [globalsVehicles, setGlobalsVehicles] = useState<GlobalVehicle[]>([]);
+  const [globalsVehiclesLoading, setGlobalsVehiclesLoading] = useState(false);
+  const [globalsVehiclesSearchTerm, setGlobalsVehiclesSearchTerm] = useState('');
+  const [selectedGlobalsVehicle, setSelectedGlobalsVehicle] = useState<GlobalVehicle | null>(null);
   const [techStockTechnicians, setTechStockTechnicians] = useState<TechnicianStockRow[]>([]);
   const [techStockLoading, setTechStockLoading] = useState(false);
   const [techStockSearchTerm, setTechStockSearchTerm] = useState('');
@@ -288,6 +311,9 @@ export default function InventoryPage() {
       fetchStockItems();
     }
     if (activeTab === 'client-stock') {
+      fetchClientStockClients();
+    }
+    if (activeTab === 'globals') {
       fetchClientStockClients();
     }
     if (activeTab === 'technician-stock') {
@@ -373,6 +399,30 @@ export default function InventoryPage() {
     }
   };
 
+  const fetchGlobalsVehicles = async (accountNumber: string) => {
+    try {
+      setGlobalsVehiclesLoading(true);
+      const response = await fetch(
+        `/api/vehicles-by-account?account_number=${encodeURIComponent(accountNumber)}&page=1&limit=1000`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Globals vehicles API error:', response.status, errorText);
+        throw new Error('Failed to fetch vehicles');
+      }
+
+      const data = await response.json();
+      setGlobalsVehicles(data.vehicles || []);
+    } catch (error) {
+      console.error('Error fetching vehicles for globals:', error);
+      toast.error('Failed to load vehicles');
+      setGlobalsVehicles([]);
+    } finally {
+      setGlobalsVehiclesLoading(false);
+    }
+  };
+
   const fetchTechnicianStockList = async () => {
     try {
       setTechStockLoading(true);
@@ -428,6 +478,19 @@ export default function InventoryPage() {
       return;
     }
     router.push(`/protected/inv/client-stock/${encodeURIComponent(clientCode)}`);
+  };
+
+  const handleViewGlobalsClient = (client: ClientStockClient) => {
+    const clientCode = client?.cost_code || client?.new_account_number;
+    if (!clientCode) {
+      toast.error('Client cost code is missing.');
+      return;
+    }
+    setSelectedGlobalsClient({ ...client, cost_code: clientCode });
+    setSelectedGlobalsVehicle(null);
+    setGlobalsVehicles([]);
+    setGlobalsVehiclesSearchTerm('');
+    fetchGlobalsVehicles(clientCode);
   };
 
   const fetchJobCards = async () => {
@@ -543,6 +606,29 @@ export default function InventoryPage() {
     const company = (client.company || '').toLowerCase();
 
     return company.includes(query);
+  });
+
+  const filteredGlobalsClients = clientStockClients.filter((client) => {
+    if (!globalsSearchTerm) return true;
+
+    const query = globalsSearchTerm.toLowerCase();
+    const company = (client.company || '').toLowerCase();
+    const code = (client.cost_code || client.new_account_number || '').toLowerCase();
+
+    return company.includes(query) || code.includes(query);
+  });
+
+  const filteredGlobalsVehicles = globalsVehicles.filter((vehicle) => {
+    if (!globalsVehiclesSearchTerm) return true;
+    const query = globalsVehiclesSearchTerm.toLowerCase();
+    return (
+      String(vehicle.reg || '').toLowerCase().includes(query) ||
+      String(vehicle.make || '').toLowerCase().includes(query) ||
+      String(vehicle.model || '').toLowerCase().includes(query) ||
+      String(vehicle.vin || '').toLowerCase().includes(query) ||
+      String(vehicle.fleet_number || '').toLowerCase().includes(query) ||
+      String(vehicle.branch || '').toLowerCase().includes(query)
+    );
   });
 
   const filteredClientStockItems = clientStockItems.filter((item) => {
@@ -1207,6 +1293,31 @@ export default function InventoryPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const getGlobalsVehicleDisplayValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (typeof value === 'number') return Number.isFinite(value) ? value.toString() : null;
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.length ? value.join(', ') : null;
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  const globalsVehiclePrimaryFields = [
+    'reg',
+    'make',
+    'model',
+    'vin',
+    'year',
+    'colour',
+    'fleet_number',
+    'branch',
+    'engine',
+    'company',
+    'new_account_number',
+    'created_at',
+  ];
+
   const normalizeStockItem = (
     item: Record<string, unknown>,
     source: 'equipment_used' | 'parts_required'
@@ -1261,6 +1372,8 @@ export default function InventoryPage() {
     selectedCompletedJobEquipmentUsed,
     selectedCompletedJobPartsUsed
   );
+  const selectedCompletedJobHasStockUsed =
+    selectedCompletedJobEquipmentUsed.length > 0 || selectedCompletedJobPartsUsed.length > 0;
   const selectedCompletedJobQuotationProducts = parseQuotationProducts(selectedCompletedJob?.quotation_products);
   const selectedCompletedJobDeInstalledItems = selectedCompletedJobQuotationProducts;
   const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
@@ -3030,6 +3143,218 @@ export default function InventoryPage() {
     </div>
   );
 
+  const globalsContent = (
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-2xl">Globals</h3>
+          <p className="text-gray-600 text-sm">Vehicles from public.vehicles matched by cost code</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{filteredGlobalsClients.length} clients</Badge>
+          <Button onClick={fetchClientStockClients} variant="outline" size="sm" disabled={clientStockLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${clientStockLoading ? 'animate-spin' : ''}`} />
+            Refresh Clients
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+        <Input
+          placeholder="Search client list..."
+          value={globalsSearchTerm}
+          onChange={(e) => setGlobalsSearchTerm(e.target.value)}
+          className="pl-10 bg-white"
+        />
+      </div>
+
+      {clientStockLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+          <span className="ml-2 text-sm text-gray-600">Loading clients...</span>
+        </div>
+      ) : filteredGlobalsClients.length === 0 ? (
+        <div className="py-12 border border-gray-200 rounded-lg text-center">
+          <User className="mx-auto mb-3 w-10 h-10 text-gray-400" />
+          <p className="text-gray-700">
+            {globalsSearchTerm ? 'No clients match your search.' : 'No clients found in cost_centers.'}
+          </p>
+        </div>
+      ) : (
+        <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-blue-50">
+              <tr>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Client Name</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Cost Code</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredGlobalsClients.map((client) => {
+                const clientCode = client.cost_code || client.new_account_number || 'N/A';
+                const isSelected = selectedGlobalsClient?.cost_code === clientCode;
+                return (
+                  <tr
+                    key={`${client.cost_code}-${client.id}`}
+                    className={`hover:bg-gray-50 ${isSelected ? 'bg-indigo-50' : ''}`}
+                  >
+                    <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
+                      {client.company || 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                      {clientCode}
+                    </td>
+                    <td className="px-4 py-3 border-b border-gray-100 text-center">
+                      <Button
+                        size="sm"
+                        variant={isSelected ? 'default' : 'outline'}
+                        onClick={() => handleViewGlobalsClient(client)}
+                        className={isSelected ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                      >
+                        <Car className="mr-2 w-4 h-4" />
+                        View Vehicles
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selectedGlobalsClient && (
+        <div className="border border-gray-200 rounded-xl bg-white shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-4 border-b border-gray-100">
+            <div>
+              <h4 className="font-semibold text-gray-900 text-xl">Vehicles</h4>
+              <p className="text-gray-600 text-sm">
+                {selectedGlobalsClient.company || 'Selected Client'} • {selectedGlobalsClient.cost_code}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{filteredGlobalsVehicles.length} vehicles</Badge>
+              <Button
+                onClick={() => fetchGlobalsVehicles(selectedGlobalsClient.cost_code)}
+                variant="outline"
+                size="sm"
+                disabled={globalsVehiclesLoading}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${globalsVehiclesLoading ? 'animate-spin' : ''}`} />
+                Refresh Vehicles
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            <div className="relative">
+              <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+              <Input
+                placeholder="Search vehicles..."
+                value={globalsVehiclesSearchTerm}
+                onChange={(e) => setGlobalsVehiclesSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {globalsVehiclesLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="border-b-2 border-blue-600 rounded-full w-6 h-6 animate-spin"></div>
+                <span className="ml-2 text-sm text-gray-600">Loading vehicles...</span>
+              </div>
+            ) : filteredGlobalsVehicles.length === 0 ? (
+              <div className="py-10 text-center text-gray-600 text-sm">
+                No vehicles found for this cost code.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-blue-50">
+                    <tr>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Reg</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Make</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Model</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">VIN</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Year</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Branch</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGlobalsVehicles.map((vehicle) => (
+                      <tr
+                        key={String(vehicle.id || `${vehicle.reg}-${vehicle.vin}`)}
+                        className={`hover:bg-gray-50 cursor-pointer ${selectedGlobalsVehicle?.id === vehicle.id ? 'bg-indigo-50' : ''}`}
+                        onClick={() => setSelectedGlobalsVehicle(vehicle)}
+                      >
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-800 font-medium">
+                          {vehicle.reg || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {vehicle.make || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {vehicle.model || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {vehicle.vin || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {vehicle.year || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
+                          {vehicle.branch || 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {selectedGlobalsVehicle && (
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-gray-900">Vehicle Details</h5>
+                  <Badge variant="outline">{selectedGlobalsVehicle.reg || selectedGlobalsVehicle.vin || 'Selected Vehicle'}</Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-700">
+                  {globalsVehiclePrimaryFields.map((field) => {
+                    const value = getGlobalsVehicleDisplayValue(selectedGlobalsVehicle[field]);
+                    if (value === null) return null;
+                    return (
+                      <div key={field}>
+                        <span className="font-medium text-gray-900">
+                          {field.replace(/_/g, ' ')}:
+                        </span>{' '}
+                        {value}
+                      </div>
+                    );
+                  })}
+                  {Object.entries(selectedGlobalsVehicle)
+                    .filter(([key]) => !globalsVehiclePrimaryFields.includes(key))
+                    .map(([key, value]) => {
+                      const display = getGlobalsVehicleDisplayValue(value);
+                      if (display === null) return null;
+                      return (
+                        <div key={key}>
+                          <span className="font-medium text-gray-900">
+                            {key.replace(/_/g, ' ')}:
+                          </span>{' '}
+                          {display}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const technicianStockContent = (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -3149,6 +3474,12 @@ export default function InventoryPage() {
       label: 'Client Stock',
       icon: User,
       content: clientStockContent
+    },
+    {
+      value: 'globals',
+      label: 'Globals',
+      icon: Car,
+      content: globalsContent
     },
     {
       value: 'technician-stock',
@@ -3313,75 +3644,202 @@ export default function InventoryPage() {
                       </Badge>
                     </div>
                 </div>
-                {selectedCompletedJobStockUsed.length === 0 ? (
+                {!selectedCompletedJobHasStockUsed ? (
                   <p className="text-sm text-blue-800">No stock used recorded on this job.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {selectedCompletedJobStockUsed.map((part, index) => (
-                      <div
-                        key={`${part.code || part.description || 'part'}-${index}`}
-                        className="rounded-lg border border-blue-100 bg-white p-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">{part.description || 'N/A'}</p>
-                            <p className="text-xs text-gray-500">{part.code || 'No code'}</p>
-                          </div>
-                          <Badge className="bg-blue-100 text-blue-800 text-xs">
-                            Qty {part.quantity ?? 1}
+                  <div className="space-y-4">
+                    {selectedCompletedJobEquipmentUsed.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-semibold text-blue-900">Equipment Used</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {selectedCompletedJobEquipmentUsed.length} item{selectedCompletedJobEquipmentUsed.length === 1 ? '' : 's'}
                           </Badge>
                         </div>
-                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
-                          <div>
-                            <span className="font-medium text-gray-700">Supplier:</span> {part.supplier || 'N/A'}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Type:</span> {part.stockType || 'N/A'}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Source:</span> {part.source === 'equipment_used' ? 'Equipment Used' : 'Parts Required'}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">Cost:</span>{' '}
-                            {part.totalCost ? `R ${Number(part.totalCost).toFixed(2)}` : 'N/A'}
-                          </div>
-                        </div>
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client` ||
-                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
-                            }
-                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'client')}
-                            className="text-xs"
-                          >
-                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`
-                              ? 'Adding...'
-                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
-                                ? 'Added to Client Stock'
-                                : 'Add to Client Stock'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack` ||
-                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
-                            }
-                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'soltrack')}
-                            className="text-xs"
-                          >
-                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`
-                              ? 'Adding...'
-                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
-                                ? 'Added to Soltrack Stock'
-                                : 'Add to Soltrack Stock'}
-                          </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {selectedCompletedJobEquipmentUsed.map((item, index) => {
+                            const normalized = normalizeStockItem(item, 'equipment_used');
+                            const itemKey = getMoveItemKey('stock-used', item, index);
+                            return (
+                              <div
+                                key={`${normalized.code || normalized.description || 'equipment'}-${index}`}
+                                className="rounded-lg border border-blue-100 bg-white p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">{normalized.description || 'N/A'}</p>
+                                    <p className="text-xs text-gray-500">{normalized.code || 'No code'}</p>
+                                  </div>
+                                  <Badge className="bg-blue-100 text-blue-800 text-xs">
+                                    Qty {normalized.quantity ?? 1}
+                                  </Badge>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                  <div>
+                                    <span className="font-medium text-gray-700">Supplier:</span> {normalized.supplier || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Type:</span> {normalized.stockType || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Source:</span> Equipment Used
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Cost:</span>{' '}
+                                    {normalized.totalCost !== undefined && normalized.totalCost !== null
+                                      ? `R ${Number(normalized.totalCost).toFixed(2)}`
+                                      : 'N/A'}
+                                  </div>
+                                </div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${itemKey}:client` ||
+                                      movedDeinstalledItems[`${itemKey}:client`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('stock-used', item, index, 'client')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${itemKey}:client`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${itemKey}:client`] === 'moved'
+                                        ? 'Added to Client Stock'
+                                        : 'Add to Client Stock'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${itemKey}:soltrack` ||
+                                      movedDeinstalledItems[`${itemKey}:soltrack`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('stock-used', item, index, 'soltrack')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${itemKey}:soltrack`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${itemKey}:soltrack`] === 'moved'
+                                        ? 'Added to Soltrack Stock'
+                                        : 'Add to Soltrack Stock'}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {selectedCompletedJobPartsUsed.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-sm font-semibold text-indigo-900">Parts Required</h4>
+                          <Badge variant="outline" className="text-xs">
+                            {selectedCompletedJobPartsUsed.length} part{selectedCompletedJobPartsUsed.length === 1 ? '' : 's'}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {selectedCompletedJobPartsUsed.map((part, index) => {
+                            const normalized = normalizeStockItem(part as Record<string, unknown>, 'parts_required');
+                            const moveIndex = index + selectedCompletedJobEquipmentUsed.length;
+                            const itemKey = getMoveItemKey('stock-used', part as Record<string, unknown>, moveIndex);
+                            return (
+                              <div
+                                key={`${normalized.code || normalized.description || 'part'}-${index}`}
+                                className="rounded-lg border border-indigo-100 bg-white p-3"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-gray-900">{part.description || normalized.description || 'N/A'}</p>
+                                    <p className="text-xs text-gray-500">{part.code || normalized.code || 'No code'}</p>
+                                  </div>
+                                  <Badge className="bg-indigo-100 text-indigo-800 text-xs">
+                                    Qty {part.quantity ?? normalized.quantity ?? 1}
+                                  </Badge>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600">
+                                  <div>
+                                    <span className="font-medium text-gray-700">Supplier:</span> {part.supplier || normalized.supplier || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Type:</span> {normalized.stockType || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Source:</span> Parts Required
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Cost/Unit:</span>{' '}
+                                    {part.cost_per_unit !== undefined && part.cost_per_unit !== null
+                                      ? `R ${Number(part.cost_per_unit).toFixed(2)}`
+                                      : 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Total Cost:</span>{' '}
+                                    {part.total_cost !== undefined && part.total_cost !== null
+                                      ? `R ${Number(part.total_cost).toFixed(2)}`
+                                      : normalized.totalCost !== undefined && normalized.totalCost !== null
+                                        ? `R ${Number(normalized.totalCost).toFixed(2)}`
+                                        : 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Available Stock:</span>{' '}
+                                    {part.available_stock ?? 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Stock ID:</span>{' '}
+                                    {part.stock_id || normalized.stockId || 'N/A'}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Date Added:</span>{' '}
+                                    {formatDate(part.date_added)}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Boot Stock:</span>{' '}
+                                    {part.boot_stock ?? 'N/A'}
+                                  </div>
+                                </div>
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${itemKey}:client` ||
+                                      movedDeinstalledItems[`${itemKey}:client`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('stock-used', part as Record<string, unknown>, moveIndex, 'client')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${itemKey}:client`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${itemKey}:client`] === 'moved'
+                                        ? 'Added to Client Stock'
+                                        : 'Add to Client Stock'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${itemKey}:soltrack` ||
+                                      movedDeinstalledItems[`${itemKey}:soltrack`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('stock-used', part as Record<string, unknown>, moveIndex, 'soltrack')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${itemKey}:soltrack`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${itemKey}:soltrack`] === 'moved'
+                                        ? 'Added to Soltrack Stock'
+                                        : 'Add to Soltrack Stock'}
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
