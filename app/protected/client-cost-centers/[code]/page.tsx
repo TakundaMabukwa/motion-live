@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,14 @@ export default function ClientCostCentersPage() {
   const params = useParams();
   const router = useRouter();
   const { code } = params;
+  const decodedCode = useMemo(() => {
+    if (!code) return '';
+    try {
+      return decodeURIComponent(String(code));
+    } catch (error) {
+      return String(code);
+    }
+  }, [code]);
   
   const [loading, setLoading] = useState(true);
   const [clientData, setClientData] = useState(null);
@@ -39,12 +47,218 @@ export default function ClientCostCentersPage() {
   const [showInvoiceReport, setShowInvoiceReport] = useState(false);
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
+  const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
+
+  const mapPaymentsToVehicles = (payments, fallbackCompany) => {
+    return (payments || []).map((payment) => ({
+      doc_no: payment.id,
+      stock_code: payment.cost_code,
+      stock_description: `${payment.company || fallbackCompany || 'N/A'} - ${payment.cost_code}`,
+      account_number: payment.cost_code,
+      company: payment.company || fallbackCompany,
+      total_ex_vat: Number(payment.due_amount || 0),
+      total_vat: 0,
+      total_incl_vat: Number(payment.due_amount || 0),
+      one_month: Number(payment.due_amount || 0),
+      '2nd_month': 0,
+      '3rd_month': 0,
+      amount_due: Number(payment.balance_due || 0),
+      monthly_amount: Number(payment.due_amount || 0),
+      payment_status: payment.payment_status,
+      billing_month: payment.billing_month,
+      reference: payment.reference,
+      overdue_30_days: Number(payment.overdue_30_days || 0),
+      overdue_60_days: Number(payment.overdue_60_days || 0),
+      overdue_90_days: Number(payment.overdue_90_days || 0)
+    }));
+  };
+
+  const buildSummaryFromPayments = (payments) => {
+    const summary = {
+      totalDueAmount: 0,
+      totalPaidAmount: 0,
+      totalBalanceDue: 0,
+      totalOverdue30: 0,
+      totalOverdue60: 0,
+      totalOverdue90: 0,
+      paymentCount: payments?.length || 0
+    };
+
+    (payments || []).forEach((payment) => {
+      summary.totalDueAmount += Number(payment.due_amount || 0);
+      summary.totalPaidAmount += Number(payment.paid_amount || 0);
+      summary.totalBalanceDue += Number(payment.balance_due || 0);
+      summary.totalOverdue30 += Number(payment.overdue_30_days || 0);
+      summary.totalOverdue60 += Number(payment.overdue_60_days || 0);
+      summary.totalOverdue90 += Number(payment.overdue_90_days || 0);
+    });
+
+    return summary;
+  };
+
+  const loadFromPaymentsData = ({ clientInfo, payments, summary, searchDetails, searchMethod }) => {
+    const vehicles = mapPaymentsToVehicles(payments, clientInfo.companyGroup || code);
+    setClientLegalName(clientInfo.companyGroup || code);
+
+    setClientData({
+      code: code,
+      customers: [{
+        company: clientInfo.companyGroup,
+        legal_name: clientInfo.legalNames?.[0] || clientInfo.companyGroup,
+        vehicles
+      }],
+      vehicles,
+      totalMonthlyAmount: summary?.totalDueAmount || 0,
+      totalAmountDue: summary?.totalBalanceDue || 0,
+      totalOverdue: (summary?.totalOverdue30 || 0) + (summary?.totalOverdue60 || 0) + (summary?.totalOverdue90 || 0),
+      vehicleCount: vehicles.length,
+      paymentsTotalAmount: summary?.totalPaidAmount || 0,
+      paymentsAmountDue: summary?.totalBalanceDue || 0,
+      summary,
+      searchMethod,
+      searchDetails
+    });
+
+    setFilteredCostCenters(vehicles);
+  };
+
+  const fetchPaymentsByAccountsList = async () => {
+    const rawCodes = (decodedCode || code || '').toString();
+    const accountNumbers = rawCodes
+      .split(',')
+      .map((item) => item.trim().toUpperCase())
+      .filter((item) => item.length > 0);
+
+    if (accountNumbers.length === 0) {
+      return false;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/payments/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}`);
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      const payments = Array.isArray(data?.payments) ? data.payments : [];
+      const summary = data?.summary || null;
+
+      loadFromPaymentsData({
+        clientInfo: {
+          companyGroup: accountNumbers[0]?.split('-')[0] || accountNumbers[0],
+          legalNames: [],
+          accountNumbers: accountNumbers.join(', '),
+          searchMethod: 'payments_table_focus'
+        },
+        payments,
+        summary,
+        searchDetails: {
+          searchedAccountNumbers: accountNumbers,
+          paymentsTableRecords: payments.length,
+          totalDueAmount: summary?.totalDueAmount || 0,
+          totalBalanceDue: summary?.totalBalanceDue || 0
+        },
+        searchMethod: 'payments_table_focus'
+      });
+
+      setLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error fetching payments by accounts list:', error);
+      setLoading(false);
+      return false;
+    }
+  };
+
+  const fetchCostCentersWithPayments = async () => {
+    setLoading(true);
+    const rawCode = String(decodedCode || '');
+    const firstAccount = rawCode.split(',')[0]?.trim() || rawCode;
+    const prefix = firstAccount.split('-')[0] || firstAccount;
+    if (!prefix) return false;
+
+    try {
+      const response = await fetch(`/api/cost-centers/with-payments?prefix=${encodeURIComponent(prefix)}`);
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      const centers = Array.isArray(data?.costCenters) ? data.costCenters : [];
+      if (centers.length === 0) {
+        return false;
+      }
+
+      const payments = centers.map((center) => ({
+        id: center.payment?.id || null,
+        company: center.company || center.payment?.company || prefix,
+        cost_code: center.cost_code,
+        reference: center.payment?.reference || '',
+        due_amount: center.payment?.due_amount || 0,
+        paid_amount: center.payment?.paid_amount || 0,
+        balance_due: center.payment?.balance_due || 0,
+        invoice_date: center.payment?.invoice_date || null,
+        due_date: center.payment?.due_date || null,
+        payment_status: center.payment?.payment_status || 'pending',
+        overdue_30_days: center.payment?.overdue_30_days || 0,
+        overdue_60_days: center.payment?.overdue_60_days || 0,
+        overdue_90_days: center.payment?.overdue_90_days || 0,
+        last_updated: center.payment?.last_updated || null,
+        billing_month: center.payment?.billing_month || null
+      }));
+
+      const summary = buildSummaryFromPayments(payments);
+
+      loadFromPaymentsData({
+        clientInfo: {
+          companyGroup: centers[0]?.company || prefix,
+          legalNames: [],
+          accountNumbers: centers.map((center) => center.cost_code).join(', '),
+          searchMethod: 'cost_centers_with_payments'
+        },
+        payments,
+        summary,
+        searchDetails: {
+          searchedAccountNumbers: centers.map((center) => center.cost_code),
+          paymentsTableRecords: payments.length,
+          totalDueAmount: summary.totalDueAmount,
+          totalBalanceDue: summary.totalBalanceDue
+        },
+        searchMethod: 'cost_centers_with_payments'
+      });
+
+      setLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error fetching cost centers with payments:', error);
+      setLoading(false);
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (code) {
       console.log('Client cost centers page loaded with code:', code);
-      console.log('Decoded code:', decodeURIComponent(code));
+      console.log('Decoded code:', decodedCode);
+      if (!clientLegalName) {
+        setClientLegalName(decodedCode || String(code));
+      }
+
+      // Fast path for comma-separated account numbers
+      if ((decodedCode || '').includes(',')) {
+        fetchPaymentsByAccountsList().then((loaded) => {
+          if (loaded) return;
+        });
+        return;
+      }
       
+      // Prefer cost_centers table joined to payments_ table when available
+      fetchCostCentersWithPayments().then((loaded) => {
+        if (loaded) {
+          return;
+        }
+
       // Check if we have sessionStorage data from Accounts role (payments_ table focus)
       const sessionData = sessionStorage.getItem('clientPaymentData');
       console.log('SessionStorage data:', sessionData);
@@ -77,8 +291,9 @@ export default function ClientCostCentersPage() {
       // Fallback to enhanced API fetch with payments_ table focus
       console.log('Falling back to enhanced API fetch with payments_ table focus for code:', code);
       fetchClientDataWithPaymentsFocus();
+      });
     }
-  }, [code]);
+  }, [code, decodedCode]);
 
   useEffect(() => {
     if (clientData?.vehicles) {
@@ -126,6 +341,192 @@ export default function ClientCostCentersPage() {
     }
     
     setPayAllAmount(value);
+  };
+
+  const loadLogoDataUrl = async () => {
+    const response = await fetch('/soltrack_logo.png');
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const getOverdueValue = (costCenter, key) => {
+    return (
+      Number(costCenter?.[key]) ||
+      Number(costCenter?.[key.replace(/_/g, '')]) ||
+      0
+    );
+  };
+
+  const handleDownloadStatement = async () => {
+    if (!costCentersWithPayments.length) {
+      toast({
+        variant: "destructive",
+        title: "No data",
+        description: "No cost centers available for statement."
+      });
+      return;
+    }
+
+    setIsGeneratingStatement(true);
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const rightX = pageWidth - 14;
+      const logoDataUrl = await loadLogoDataUrl();
+
+      // Header
+      doc.addImage(logoDataUrl, 'PNG', 14, 12, 42, 22);
+      doc.setFontSize(10);
+      doc.text('Soltrack (PTY) LTD', rightX, 16, { align: 'right' });
+      doc.text('Reg No: 2018/095975/07', rightX, 22, { align: 'right' });
+      doc.text('VAT No.: 4580161802', rightX, 28, { align: 'right' });
+      doc.setLineWidth(0.2);
+      doc.line(14, 40, rightX, 40);
+
+      // Title
+      doc.setFontSize(12);
+      doc.text('Debtor Statement', pageWidth / 2, 48, { align: 'center' });
+
+      // Client block
+      const clientLabel = clientLegalName || decodedCode || code;
+      doc.setFontSize(9);
+      doc.text(clientLabel || 'Client', 14, 60);
+      doc.text('Debtor Statement :', pageWidth / 2 + 10, 60);
+      doc.text('Date:', pageWidth / 2 + 10, 66);
+      doc.text(new Date().toLocaleDateString('en-GB'), rightX, 66, { align: 'right' });
+
+      // Account info header table
+      const tableTop = 80;
+      doc.rect(14, tableTop, rightX - 14, 12);
+      doc.line(14 + 40, tableTop, 14 + 40, tableTop + 12);
+      doc.line(14 + 90, tableTop, 14 + 90, tableTop + 12);
+      doc.line(14 + 120, tableTop, 14 + 120, tableTop + 12);
+      doc.setFontSize(8);
+      doc.text('Account', 16, tableTop + 8);
+      doc.text('Your Reference', 14 + 42, tableTop + 8);
+      doc.text('VAT %', 14 + 92, tableTop + 8);
+      doc.text('Customer Vat Number', 14 + 122, tableTop + 8);
+
+      const firstAccount = (decodedCode || code || '').split(',')[0]?.trim() || '';
+      doc.text(firstAccount || '-', 16, tableTop + 18);
+      doc.text('-', 14 + 42, tableTop + 18);
+      doc.text('15%', 14 + 92, tableTop + 18);
+      doc.text('-', 14 + 122, tableTop + 18);
+
+      // Statement table
+      let y = 104;
+      doc.setFontSize(8);
+      doc.rect(14, y, rightX - 14, 8);
+      doc.text('Date', 16, y + 5);
+      doc.text('Client', 40, y + 5);
+      doc.text('Invoice No.', 92, y + 5);
+      doc.text('Total Invoiced', 122, y + 5);
+      doc.text('Paid', 150, y + 5);
+      doc.text('Credited', 165, y + 5);
+      doc.text('Outstanding', 182, y + 5);
+
+      y += 10;
+      const statementRows = costCentersWithPayments
+        .filter(cc => (cc.balanceDue || 0) > 0)
+        .map(cc => ({
+          date: cc.invoiceDate || cc.dueDate || cc.billingMonth || '',
+          client: cc.accountName || clientLabel,
+          invoiceNo: cc.reference || cc.accountNumber,
+          totalInvoiced: cc.dueAmount || 0,
+          paid: cc.paidAmount || 0,
+          credited: 0,
+          outstanding: cc.balanceDue || 0
+        }));
+
+      if (statementRows.length === 0) {
+        doc.text('No outstanding balances.', 16, y);
+        y += 10;
+      } else {
+        statementRows.forEach(row => {
+          if (y > 250) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.text(row.date ? new Date(row.date).toLocaleDateString('en-GB') : '-', 16, y);
+          doc.text(String(row.client || '').slice(0, 20), 40, y);
+          doc.text(String(row.invoiceNo || '').slice(0, 12), 92, y);
+          doc.text(formatCurrency(row.totalInvoiced), 140, y, { align: 'right' });
+          doc.text(formatCurrency(row.paid), 158, y, { align: 'right' });
+          doc.text(formatCurrency(row.credited), 174, y, { align: 'right' });
+          doc.text(formatCurrency(row.outstanding), rightX, y, { align: 'right' });
+          y += 6;
+        });
+      }
+
+      const totalDue = statementRows.reduce((sum, row) => sum + row.outstanding, 0);
+      doc.text(`Total: ${formatCurrency(totalDue)}`, rightX, y + 4, { align: 'right' });
+
+      // Aging summary
+      const overdue30 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_30_days'), 0);
+      const overdue60 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_60_days'), 0);
+      const overdue90 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_90_days'), 0);
+      const overdue120 = 0;
+      const currentDue = Math.max(0, totalDue - overdue30 - overdue60 - overdue90 - overdue120);
+
+      const agingTop = y + 14;
+      doc.rect(14, agingTop, rightX - 14, 12);
+      const colWidth = (rightX - 14) / 5;
+      doc.line(14 + colWidth, agingTop, 14 + colWidth, agingTop + 12);
+      doc.line(14 + colWidth * 2, agingTop, 14 + colWidth * 2, agingTop + 12);
+      doc.line(14 + colWidth * 3, agingTop, 14 + colWidth * 3, agingTop + 12);
+      doc.line(14 + colWidth * 4, agingTop, 14 + colWidth * 4, agingTop + 12);
+      doc.setFontSize(8);
+      doc.text('120 Days', 14 + colWidth * 0.5, agingTop + 5, { align: 'center' });
+      doc.text('90 Days', 14 + colWidth * 1.5, agingTop + 5, { align: 'center' });
+      doc.text('60 Days', 14 + colWidth * 2.5, agingTop + 5, { align: 'center' });
+      doc.text('30 Days', 14 + colWidth * 3.5, agingTop + 5, { align: 'center' });
+      doc.text('Current', 14 + colWidth * 4.5, agingTop + 5, { align: 'center' });
+
+      doc.text(formatCurrency(overdue120), 14 + colWidth * 0.5, agingTop + 10, { align: 'center' });
+      doc.text(formatCurrency(overdue90), 14 + colWidth * 1.5, agingTop + 10, { align: 'center' });
+      doc.text(formatCurrency(overdue60), 14 + colWidth * 2.5, agingTop + 10, { align: 'center' });
+      doc.text(formatCurrency(overdue30), 14 + colWidth * 3.5, agingTop + 10, { align: 'center' });
+      doc.text(formatCurrency(currentDue), 14 + colWidth * 4.5, agingTop + 10, { align: 'center' });
+
+      // Footer
+      const footerTop = 250;
+      doc.line(14, footerTop, rightX, footerTop);
+      doc.setFontSize(7);
+      doc.text('Head Office :', 14, footerTop + 8);
+      doc.text('8 Viscount Road', 14, footerTop + 12);
+      doc.text('Viscount office park, Block C unit 4 & 5', 14, footerTop + 16);
+      doc.text('Bedfordview, 2008', 14, footerTop + 20);
+
+      doc.text('Postal Address :', 74, footerTop + 8);
+      doc.text('P.O Box 95603', 74, footerTop + 12);
+      doc.text('Grant Park 2051', 74, footerTop + 16);
+
+      doc.text('Contact Details :', 118, footerTop + 8);
+      doc.text('Phone: 011 824 0066', 118, footerTop + 12);
+      doc.text('Email: sales@soltrack.co.za', 118, footerTop + 16);
+      doc.text('Website: www.soltrack.co.za', 118, footerTop + 20);
+
+      doc.text('Soltrack (PTY) LTD', 170, footerTop + 8);
+      doc.text('Nedbank Northrand', 170, footerTop + 12);
+      doc.text('Code - 146905', 170, footerTop + 16);
+      doc.text('A/C No. - 1469109069', 170, footerTop + 20);
+
+      doc.save(`Statement-${clientLegalName || decodedCode || 'Client'}.pdf`);
+    } catch (error) {
+      console.error('Error generating statement:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to generate statement."
+      });
+    } finally {
+      setIsGeneratingStatement(false);
+    }
   };
 
   // Get the numeric amount from entered string
@@ -1629,10 +2030,14 @@ export default function ClientCostCentersPage() {
       console.log('Processing filtered cost centers...');
       const costCenters = groupByCostCenter(filteredCostCenters);
       console.log('Grouped cost centers:', costCenters.length);
-      fetchPaymentsForCostCenters(costCenters).then(result => {
-        console.log('Final cost centers with payments:', result.length);
-        setCostCentersWithPayments(result);
-      });
+      if (clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api' || clientData?.searchMethod === 'cost_centers_with_payments') {
+        setCostCentersWithPayments(costCenters);
+      } else {
+        fetchPaymentsForCostCenters(costCenters).then(result => {
+          console.log('Final cost centers with payments:', result.length);
+          setCostCentersWithPayments(result);
+        });
+      }
     } else {
       console.log('No filtered cost centers to process');
       setCostCentersWithPayments([]);
@@ -2153,8 +2558,13 @@ export default function ClientCostCentersPage() {
                         Payments Table Focus
                       </Badge>
                     )}
+                    {clientData?.searchMethod === 'cost_centers_with_payments' && (
+                      <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">
+                        Cost Centers + Payments
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-gray-500 text-sm">{clientLegalName || code}</p>
+                  <p className="text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
                   {clientData?.searchDetails && (
                     <p className="mt-1 text-gray-400 text-xs">
                       Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
@@ -2162,6 +2572,16 @@ export default function ClientCostCentersPage() {
                     </p>
                   )}
                 </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleDownloadStatement}
+                  size="sm"
+                  variant="outline"
+                  disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+                >
+                  {isGeneratingStatement ? 'Preparing...' : 'Download Statement'}
+                </Button>
               </div>
             </div>
           </div>
@@ -2174,7 +2594,7 @@ export default function ClientCostCentersPage() {
                 <AlertTriangle className="mx-auto mb-4 w-12 h-12 text-gray-400" />
                 <h3 className="mb-2 font-medium text-gray-900 text-lg">No Cost Centers Found</h3>
                 <p className="text-gray-500">
-                  No cost centers found for client: <strong className="text-blue-600">{clientLegalName || code}</strong>
+                  No cost centers found for client: <strong className="text-blue-600">{clientLegalName || decodedCode || code}</strong>
                 </p>
               </div>
             </CardContent>
@@ -2203,8 +2623,13 @@ export default function ClientCostCentersPage() {
                       Payments Table Focus
                     </Badge>
                   )}
+                  {clientData?.searchMethod === 'cost_centers_with_payments' && (
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">
+                      Cost Centers + Payments
+                    </Badge>
+                  )}
                 </div>
-                <p className="text-gray-500 text-sm">{clientLegalName}</p>
+                <p className="text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
                 {clientData?.searchDetails && (
                   <p className="mt-1 text-gray-400 text-xs">
                     Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
@@ -2212,6 +2637,16 @@ export default function ClientCostCentersPage() {
                   </p>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleDownloadStatement}
+                size="sm"
+                variant="outline"
+                disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+              >
+                {isGeneratingStatement ? 'Preparing...' : 'Download Statement'}
+              </Button>
             </div>
           </div>
         </div>
@@ -2528,7 +2963,7 @@ export default function ClientCostCentersPage() {
                           </Button>
                           <Button
                             size="sm"
-                            className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
+                            className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
                             onClick={() => handleShowDueReport(costCenter)}
                             disabled={generatingReport[costCenter.accountNumber]}
                           >
@@ -2539,8 +2974,8 @@ export default function ClientCostCentersPage() {
                               </>
                             ) : (
                               <>
-                                <AlertTriangle className="mr-1 w-3 h-3" />
-                                Due
+                                <FileText className="mr-1 w-3 h-3" />
+                                Statement
                               </>
                             )}
                           </Button>
@@ -2898,13 +3333,13 @@ export default function ClientCostCentersPage() {
         </div>
       )}
 
-      {/* Due Report Component */}
+      {/* Statement Component */}
       {showDueReport && selectedCostCenterForReport && (
         <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
           <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
             {/* Modal Header */}
             <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
-              <h3 className="font-semibold text-gray-900 text-xl">Due Report - {selectedCostCenterForReport.accountNumber}</h3>
+              <h3 className="font-semibold text-gray-900 text-xl">Statement - {selectedCostCenterForReport.accountNumber}</h3>
               <Button
                 variant="ghost"
                 size="sm"

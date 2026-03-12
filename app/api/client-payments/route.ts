@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     let groupError;
 
     if (allNewAccountNumbers) {
-      // Direct search using all_new_account_numbers
-      console.log('🔍 Searching customers_grouped by all_new_account_numbers:', allNewAccountNumbers);
+      // Direct search using all_new_account_numbers (exact match)
+      console.log('🔍 Searching customers_grouped by all_new_account_numbers (exact):', allNewAccountNumbers);
       const result = await supabase
         .from('customers_grouped')
         .select('company_group, legal_names, all_new_account_numbers')
@@ -36,6 +36,30 @@ export async function GET(request: NextRequest) {
       
       customerGroup = result.data;
       groupError = result.error;
+
+      // Fallback: try partial match on any account number
+      if (!customerGroup) {
+        const accountNumbers = allNewAccountNumbers
+          .split(',')
+          .map((num: string) => num.trim().toUpperCase())
+          .filter((num: string) => num.length > 0);
+
+        if (accountNumbers.length > 0) {
+          const orFilters = accountNumbers
+            .map((acc) => `all_new_account_numbers.ilike.%${acc}%`)
+            .join(',');
+
+          console.log('🔍 Fallback search customers_grouped by any account number:', accountNumbers);
+          const fallbackResult = await supabase
+            .from('customers_grouped')
+            .select('company_group, legal_names, all_new_account_numbers')
+            .or(orFilters)
+            .single();
+
+          customerGroup = fallbackResult.data;
+          groupError = fallbackResult.error;
+        }
+      }
     } else {
       // Fallback to code-based search
       console.log('🔍 Searching customers_grouped by code:', code);
@@ -51,17 +75,14 @@ export async function GET(request: NextRequest) {
 
     if (groupError || !customerGroup) {
       console.log(`No customer group found for code: ${code}`);
-      return NextResponse.json({
-        customers: [],
-        pagination: { page: 1, limit: 50, total: 0, hasMore: false }
-      });
+      // Continue without customers_grouped; we can still serve payments_ by cost_code
     }
 
     console.log('Customer group found:', customerGroup);
 
     // Parse the account numbers from all_new_account_numbers
     // Handle comma-separated values like "AVIS-0001, AVIS-0002, AVIS-0003"
-    const accountNumbersSource = allNewAccountNumbers || customerGroup.all_new_account_numbers;
+    const accountNumbersSource = allNewAccountNumbers || customerGroup?.all_new_account_numbers;
     const accountNumbers = accountNumbersSource
       ? accountNumbersSource
           .split(',')
@@ -169,9 +190,9 @@ export async function GET(request: NextRequest) {
     const vehicles = payments?.map(payment => ({
       doc_no: payment.id,
       stock_code: payment.cost_code,
-      stock_description: `${payment.company || 'N/A'} - ${payment.cost_code}`,
+      stock_description: `${payment.company || customerGroup?.company_group || 'N/A'} - ${payment.cost_code}`,
       account_number: payment.cost_code,
-      company: payment.company || customerGroup.company_group,
+      company: payment.company || customerGroup?.company_group || null,
       total_ex_vat: Number(payment.due_amount || 0),
       total_vat: 0,
       total_incl_vat: Number(payment.due_amount || 0),
@@ -191,8 +212,8 @@ export async function GET(request: NextRequest) {
     // Create customer summary
     const customer = {
       code: code,
-      company: customerGroup.company_group,
-      legal_name: includeLegalNames ? customerGroup.legal_names : null,
+      company: customerGroup?.company_group || null,
+      legal_name: includeLegalNames ? customerGroup?.legal_names || null : null,
       totalMonthlyAmount: summary.totalDueAmount,
       totalAmountDue: summary.totalBalanceDue,
       totalOverdue: summary.totalOverdue30 + summary.totalOverdue60 + summary.totalOverdue90,

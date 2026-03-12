@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Users, 
   Search, 
@@ -66,6 +67,7 @@ export default function AccountsContent({ activeSection }) {
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [billingActionLoading, setBillingActionLoading] = useState({});
   
   // Overdue section state
   const [refreshKey, setRefreshKey] = useState(0);
@@ -76,6 +78,8 @@ export default function AccountsContent({ activeSection }) {
 
 
   const router = useRouter();
+  const VAT_RATE = 0.15;
+  const BILLING_STATUS_KEYS = ['invoice'];
 
   // Check if payment is due (after 21st of month)
   const isPaymentDue = () => {
@@ -268,6 +272,26 @@ export default function AccountsContent({ activeSection }) {
       };
       
       setGeneratedInvoice(invoiceData);
+      // Apply quotation products to vehicles billing columns
+      if (selectedJobForInvoice?.new_account_number) {
+        const products = parseQuotationProducts(selectedJobForInvoice.quotation_products);
+        if (products.length > 0) {
+          await fetch('/api/vehicles/apply-quote-billing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cost_code: selectedJobForInvoice.new_account_number,
+              quotation_products: products,
+              vehicle_registration: selectedJobForInvoice.vehicle_registration,
+              vehicle_make: selectedJobForInvoice.vehicle_make,
+              vehicle_model: selectedJobForInvoice.vehicle_model,
+              vehicle_year: selectedJobForInvoice.vehicle_year,
+              customer_name: selectedJobForInvoice.customer_name
+            })
+          });
+        }
+      }
+      await updateBillingStatus(selectedJobForInvoice, 'invoice');
       toast.success('Invoice generated successfully!');
     } catch (error) {
       console.error('Error generating invoice:', error);
@@ -285,6 +309,25 @@ export default function AccountsContent({ activeSection }) {
     
     setIsSendingEmail(true);
     try {
+      const totals = getInvoiceTotals(selectedJobForInvoice);
+      const items = totals.products.length > 0 ? totals.products.map((product) => {
+        const qty = Math.max(1, toNumber(product?.quantity) || 1);
+        const unitPrice = getProductUnitPrice(product);
+        return {
+          description: product?.description || product?.name || 'Item',
+          quantity: qty,
+          unitPrice,
+          total: unitPrice * qty,
+          vehicleRegistration: selectedJobForInvoice.vehicle_registration || 'N/A'
+        };
+      }) : [{
+        description: `${selectedJobForInvoice.job_type || 'Service'} - ${selectedJobForInvoice.job_description || 'Job completion'}`,
+        quantity: 1,
+        unitPrice: totals.subtotal,
+        total: totals.subtotal,
+        vehicleRegistration: selectedJobForInvoice.vehicle_registration || 'N/A'
+      }];
+
       // Prepare invoice data for email
       const invoiceEmailData = {
         invoiceNumber: generatedInvoice.invoiceNumber,
@@ -294,16 +337,10 @@ export default function AccountsContent({ activeSection }) {
         clientAddress: invoiceFormData.clientAddress,
         invoiceDate: generatedInvoice.generatedAt,
         dueDate: invoiceFormData.dueDate,
-        totalAmount: parseFloat(selectedJobForInvoice.quotation_total_amount || selectedJobForInvoice.actual_cost || 0),
-        vatAmount: parseFloat(selectedJobForInvoice.quotation_vat_amount || 0),
-        subtotal: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
-        items: [{
-          description: `${selectedJobForInvoice.job_type || 'Service'} - ${selectedJobForInvoice.job_description || 'Job completion'}`,
-          quantity: 1,
-          unitPrice: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
-          total: parseFloat(selectedJobForInvoice.quotation_subtotal || selectedJobForInvoice.actual_cost || 0),
-          vehicleRegistration: selectedJobForInvoice.vehicle_registration || 'N/A'
-        }],
+        totalAmount: totals.total,
+        vatAmount: totals.vat,
+        subtotal: totals.subtotal,
+        items,
         paymentTerms: invoiceFormData.paymentTerms,
         notes: invoiceFormData.notes
       };
@@ -319,10 +356,10 @@ export default function AccountsContent({ activeSection }) {
 
       const result = await response.json();
 
-      if (result.success) {
-        toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
-        setShowInvoiceModal(false);
-        setGeneratedInvoice(null);
+        if (result.success) {
+          toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
+          setShowInvoiceModal(false);
+          setGeneratedInvoice(null);
         setSelectedJobForInvoice(null);
         setInvoiceFormData({
           clientName: '',
@@ -449,6 +486,277 @@ export default function AccountsContent({ activeSection }) {
     
     // Use consistent formatting to avoid hydration errors
     return `R ${numAmount.toFixed(2)}`;
+  };
+
+  const formatDate = (value) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const toNumber = (value) => {
+    const num = typeof value === 'string' ? parseFloat(value) : Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const parseQuotationProducts = (products) => {
+    if (!products) return [];
+    if (Array.isArray(products)) return products;
+    if (typeof products === 'string') {
+      try {
+        const parsed = JSON.parse(products);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getProductUnitPrice = (product) => {
+    const qty = Math.max(1, toNumber(product?.quantity) || 1);
+    const directUnitPrice = [
+      product?.unit_price,
+      product?.subscription_price,
+      product?.cash_price,
+      product?.rental_price,
+      product?.installation_price,
+      product?.de_installation_price,
+      product?.price
+    ].map(toNumber).find((price) => price > 0);
+
+    if (directUnitPrice) return directUnitPrice;
+
+    const totalPrice = toNumber(product?.total_price) ||
+      toNumber(product?.subscription_gross) ||
+      toNumber(product?.cash_gross) ||
+      toNumber(product?.rental_gross) ||
+      toNumber(product?.installation_gross) ||
+      toNumber(product?.de_installation_gross);
+
+    if (totalPrice > 0) {
+      return totalPrice / qty;
+    }
+
+    return 0;
+  };
+
+  const getJobTotal = (job) => {
+    return (
+      toNumber(job?.quotation_total_amount) ||
+      toNumber(job?.actual_cost) ||
+      toNumber(job?.estimated_cost) ||
+      0
+    );
+  };
+
+  const getBillingStatusValue = (job, key) => {
+    const raw = job?.billing_statuses?.[key];
+    if (raw === true) return true;
+    if (raw && typeof raw === 'object' && raw.done === true) return true;
+    return false;
+  };
+
+  const updateBillingStatus = async (job, key = 'invoice') => {
+    if (!job?.id || !BILLING_STATUS_KEYS.includes(key)) return;
+    const loadingKey = `${job.id}:${key}`;
+    setBillingActionLoading(prev => ({ ...prev, [loadingKey]: true }));
+
+    try {
+      const currentStatuses = job?.billing_statuses && typeof job.billing_statuses === 'object'
+        ? job.billing_statuses
+        : {};
+
+      const nextStatuses = {
+        ...currentStatuses,
+        [key]: {
+          done: true,
+          at: new Date().toISOString()
+        }
+      };
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billing_statuses: nextStatuses })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update billing status');
+      }
+
+      const updated = await response.json();
+      setCompletedJobs(prev =>
+        prev.map(item => (item.id === job.id ? { ...item, billing_statuses: updated.billing_statuses } : item))
+      );
+      toast.success(`${key.charAt(0).toUpperCase() + key.slice(1)} marked as done`);
+    } catch (error) {
+      console.error('Error updating billing status:', error);
+      toast.error(`Failed to update ${key} status`);
+    } finally {
+      setBillingActionLoading(prev => ({ ...prev, [loadingKey]: false }));
+    }
+  };
+
+  const openInvoicePdf = (mode = 'view') => {
+    const preview = document.getElementById('invoice-preview');
+    if (!preview) {
+      toast.error('Invoice preview not available');
+      return;
+    }
+
+    const invoiceHtml = preview.outerHTML;
+    const printWindow = window.open('', '_blank', 'width=900,height=1000');
+    if (!printWindow) {
+      toast.error('Popup blocked. Please allow popups to view the invoice.');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              font-family: "Segoe UI", Arial, sans-serif;
+              margin: 24px;
+              color: #111827;
+              background: #ffffff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            img { max-width: 120px; height: auto; }
+            .border { border: 1px solid #e5e7eb; }
+            .border-b { border-bottom: 1px solid #e5e7eb; }
+            .border-t { border-top: 1px solid #e5e7eb; }
+            .rounded-lg { border-radius: 12px; }
+            .p-4 { padding: 16px; }
+            .pt-2 { padding-top: 8px; }
+            .pt-4 { padding-top: 16px; }
+            .mt-4 { margin-top: 16px; }
+            .w-full { width: 100%; }
+            .flex { display: flex; }
+            .flex-col { flex-direction: column; }
+            .items-start { align-items: flex-start; }
+            .items-center { align-items: center; }
+            .justify-between { justify-content: space-between; }
+            .gap-4 { gap: 16px; }
+            .grid { display: grid; gap: 16px; }
+            .grid-cols-1 { grid-template-columns: 1fr; }
+            .space-y-2 > * + * { margin-top: 8px; }
+            .space-y-4 > * + * { margin-top: 16px; }
+            .text-right { text-align: right; }
+            .text-sm { font-size: 13px; }
+            .text-xs { font-size: 12px; }
+            .font-semibold { font-weight: 600; }
+            .font-medium { font-weight: 500; }
+            .text-gray-500 { color: #6b7280; }
+            .text-gray-600 { color: #4b5563; }
+            .text-gray-700 { color: #374151; }
+            .text-gray-900 { color: #111827; }
+            .bg-white { background: #ffffff; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+            th { font-weight: 600; color: #6b7280; }
+            @media (min-width: 768px) {
+              .md\\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+              .md\\:flex-row { flex-direction: row; }
+              .md\\:items-start { align-items: flex-start; }
+              .md\\:justify-between { justify-content: space-between; }
+            }
+            @media print {
+              body { margin: 12mm; }
+            }
+          </style>
+        </head>
+        <body>${invoiceHtml}</body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    if (mode === 'download') {
+      printWindow.focus();
+      printWindow.print();
+    }
+  };
+
+  const getInvoiceVehicles = (job) => {
+    const jobType = (job?.job_type || job?.quotation_job_type || '').toLowerCase();
+    const products = parseQuotationProducts(job?.quotation_products);
+
+    if (jobType.includes('deinstall') || jobType.includes('de-install') || jobType.includes('decomm')) {
+      const plates = products
+        .map((product) => product?.vehicle_plate)
+        .filter((plate) => typeof plate === 'string' && plate.trim().length > 0);
+      return Array.from(new Set(plates));
+    }
+
+    const reg = job?.vehicle_registration?.trim();
+    if (!reg) return [];
+    const make = (job?.vehicle_make || '').trim();
+    const model = (job?.vehicle_model || '').trim();
+    const descriptor = [reg, make, model].filter(Boolean).join(' ');
+    return [descriptor];
+  };
+
+  const getInvoiceVehiclePayloads = (job) => {
+    const jobType = (job?.job_type || job?.quotation_job_type || '').toLowerCase();
+    const products = parseQuotationProducts(job?.quotation_products);
+
+    if (jobType.includes('deinstall') || jobType.includes('de-install') || jobType.includes('decomm')) {
+      const plates = products
+        .map((product) => product?.vehicle_plate)
+        .filter((plate) => typeof plate === 'string' && plate.trim().length > 0);
+      return Array.from(new Set(plates)).map((plate) => ({
+        reg: plate.trim(),
+        company: job?.customer_name || null
+      }));
+    }
+
+    const reg = job?.vehicle_registration?.trim();
+    if (!reg) return [];
+    return [{
+      reg,
+      make: job?.vehicle_make || null,
+      model: job?.vehicle_model || null,
+      year: job?.vehicle_year || null,
+      company: job?.customer_name || null
+    }];
+  };
+
+  const getInvoiceTotals = (job) => {
+    const products = parseQuotationProducts(job?.quotation_products);
+    const computedSubtotal = products.reduce((sum, product) => {
+      const qty = Math.max(1, toNumber(product?.quantity) || 1);
+      const unitPrice = getProductUnitPrice(product);
+      return sum + (unitPrice * qty);
+    }, 0);
+
+    const subtotal = toNumber(job?.quotation_subtotal) || computedSubtotal;
+    const vat = toNumber(job?.quotation_vat_amount) || subtotal * VAT_RATE;
+    const total = toNumber(job?.quotation_total_amount) || subtotal + vat;
+
+    return { products, subtotal, vat, total };
+  };
+
+  const formatBilledItems = (job) => {
+    const products = parseQuotationProducts(job?.quotation_products);
+    if (!products.length) return 'No billed items';
+    const labels = products.map((product) => {
+      const qty = Math.max(1, toNumber(product?.quantity) || 1);
+      const name = product?.name || product?.item_code || 'Item';
+      return `${name} x${qty}`;
+    });
+    if (labels.length <= 2) return labels.join(', ');
+    return `${labels.slice(0, 2).join(', ')} +${labels.length - 2} more`;
   };
 
   const getOverdueStatus = (totalOverdue) => {
@@ -773,76 +1081,64 @@ export default function AccountsContent({ activeSection }) {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {completedJobs.map((job) => (
-              <Card key={job.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-semibold text-gray-900">
-                      {job.job_number}
-                    </CardTitle>
-                    <Badge variant="default" className="bg-green-100 text-green-800">
-                      Completed
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {job.customer_name || 'Unknown Customer'}
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Vehicle:</span>
-                      <p className="font-medium">{job.vehicle_registration || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Technician:</span>
-                      <p className="font-medium">{job.technician_name || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Start Date:</span>
-                      <p className="font-medium">
-                        {job.start_date ? new Date(job.start_date).toLocaleDateString() : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">End Date:</span>
-                      <p className="font-medium">
-                        {job.end_date ? new Date(job.end_date).toLocaleDateString() : 'N/A'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {job.description && (
-                    <div>
-                      <span className="text-gray-500 text-sm">Description:</span>
-                      <p className="text-sm mt-1">{job.description}</p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      onClick={() => handleViewJobDetails(job)}
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      View Details
-                    </Button>
-                    <Button
-                      onClick={() => handleInvoiceClient(job)}
-                      size="sm"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Receipt className="w-4 h-4 mr-2" />
-                      Invoice Client
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card className="border border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-gray-900">Completed Jobs Table</CardTitle>
+              <p className="text-sm text-gray-600">Quick scan view for billing and finance follow-up.</p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="h-10 px-3 text-xs">Job Number</TableHead>
+                    <TableHead className="h-10 px-3 text-xs">Customer</TableHead>
+                    <TableHead className="h-10 px-3 text-xs">Vehicle</TableHead>
+                    <TableHead className="h-10 px-3 text-xs">Billed Items</TableHead>
+                    <TableHead className="h-10 px-3 text-xs text-right">Total</TableHead>
+                    <TableHead className="h-10 px-3 text-xs text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {completedJobs.map((job) => (
+                    <TableRow key={job.id} className="h-12">
+                      <TableCell className="py-2 px-3 font-semibold text-gray-900">
+                        <div className="text-sm">{job.job_number}</div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-gray-700">
+                        <div className="text-sm font-medium">{job.customer_name || 'Unknown Customer'}</div>
+                        <div className="text-xs text-gray-500">{job.customer_email || 'No email'}</div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3">
+                        <div className="text-sm font-medium">{job.vehicle_registration || 'N/A'}</div>
+                        <div className="text-xs text-gray-500">
+                          {job.vehicle_make || 'Unknown'} {job.vehicle_model || ''}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-gray-700">
+                        <div className="text-sm">{formatBilledItems(job)}</div>
+                        <div className="text-xs text-gray-500">{formatDate(job.completion_date || job.end_time || job.updated_at)}</div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-right font-semibold text-gray-900">
+                        {formatCurrency(getJobTotal(job))}
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-right">
+                        <div className="flex justify-end gap-2 flex-wrap">
+                          <Button
+                            onClick={() => handleInvoiceClient(job)}
+                            size="sm"
+                            className={`bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs ${getBillingStatusValue(job, 'invoice') ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            disabled={getBillingStatusValue(job, 'invoice')}
+                          >
+                            {getBillingStatusValue(job, 'invoice') ? 'Invoiced' : 'Invoice'}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         )}
 
         {/* Job Details Modal */}
@@ -903,28 +1199,20 @@ export default function AccountsContent({ activeSection }) {
                     <div>
                       <span className="text-gray-500 text-sm font-medium">Start Date:</span>
                       <p className="font-medium text-gray-900">
-                        {selectedJobDetails.start_date ? new Date(selectedJobDetails.start_date).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        }) : 'N/A'}
+                        {formatDate(selectedJobDetails.start_time || selectedJobDetails.job_date)}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-500 text-sm font-medium">End Date:</span>
                       <p className="font-medium text-gray-900">
-                        {selectedJobDetails.end_date ? new Date(selectedJobDetails.end_date).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        }) : 'N/A'}
+                        {formatDate(selectedJobDetails.end_time || selectedJobDetails.completion_date)}
                       </p>
                     </div>
                     <div>
                       <span className="text-gray-500 text-sm font-medium">Duration:</span>
                       <p className="font-medium text-gray-900">
-                        {selectedJobDetails.start_date && selectedJobDetails.end_date ? 
-                          `${Math.ceil((new Date(selectedJobDetails.end_date) - new Date(selectedJobDetails.start_date)) / (1000 * 60 * 60 * 24))} days` : 
+                        {selectedJobDetails.start_time && selectedJobDetails.end_time ? 
+                          `${Math.max(1, Math.ceil((new Date(selectedJobDetails.end_time) - new Date(selectedJobDetails.start_time)) / (1000 * 60 * 60 * 24)))} days` : 
                           'N/A'
                         }
                       </p>
@@ -936,47 +1224,108 @@ export default function AccountsContent({ activeSection }) {
                 <div className="bg-green-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-green-600" />
-                    Financial Information
+                    Financial Snapshot
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">Labor Cost:</span>
-                      <p className="font-semibold text-gray-900 text-lg">
-                        {selectedJobDetails.labor_cost ? `R ${parseFloat(selectedJobDetails.labor_cost).toFixed(2)}` : 'R 0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">Parts Cost:</span>
-                      <p className="font-semibold text-gray-900 text-lg">
-                        {selectedJobDetails.parts_cost ? `R ${parseFloat(selectedJobDetails.parts_cost).toFixed(2)}` : 'R 0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">Total Cost:</span>
-                      <p className="font-semibold text-green-600 text-lg">
-                        {selectedJobDetails.total_cost ? `R ${parseFloat(selectedJobDetails.total_cost).toFixed(2)}` : 'R 0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">VAT Amount:</span>
-                      <p className="font-medium text-gray-900">
-                        {selectedJobDetails.vat_amount ? `R ${parseFloat(selectedJobDetails.vat_amount).toFixed(2)}` : 'R 0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">Invoice Amount:</span>
-                      <p className="font-semibold text-blue-600 text-lg">
-                        {selectedJobDetails.invoice_amount ? `R ${parseFloat(selectedJobDetails.invoice_amount).toFixed(2)}` : 'R 0.00'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 text-sm font-medium">Payment Status:</span>
-                      <Badge variant={selectedJobDetails.payment_status === 'Paid' ? 'default' : 'secondary'} 
-                             className={selectedJobDetails.payment_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                        {selectedJobDetails.payment_status || 'Pending'}
-                      </Badge>
-                    </div>
-                  </div>
+                  {(() => {
+                    const totals = getInvoiceTotals(selectedJobDetails);
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Quote Number:</span>
+                          <p className="font-semibold text-gray-900">{selectedJobDetails.quotation_number || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Quote Status:</span>
+                          <p className="font-semibold text-gray-900 capitalize">{selectedJobDetails.quote_status || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Purchase Type:</span>
+                          <p className="font-semibold text-gray-900 capitalize">{selectedJobDetails.purchase_type || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Quote Date:</span>
+                          <p className="font-medium text-gray-900">{formatDate(selectedJobDetails.quote_date)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Quote Expiry:</span>
+                          <p className="font-medium text-gray-900">{formatDate(selectedJobDetails.quote_expiry_date)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Account Number:</span>
+                          <p className="font-medium text-gray-900">{selectedJobDetails.new_account_number || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Subtotal (Excl. VAT):</span>
+                          <p className="font-semibold text-gray-900 text-lg">{formatCurrency(totals.subtotal)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">VAT (15%):</span>
+                          <p className="font-medium text-gray-900">{formatCurrency(totals.vat)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Total (Incl. VAT):</span>
+                          <p className="font-semibold text-green-700 text-lg">{formatCurrency(totals.total)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Estimated Cost:</span>
+                          <p className="font-medium text-gray-900">{formatCurrency(selectedJobDetails.estimated_cost)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Actual Cost:</span>
+                          <p className="font-medium text-gray-900">{formatCurrency(selectedJobDetails.actual_cost)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 text-sm font-medium">Annuity End Date:</span>
+                          <p className="font-medium text-gray-900">{formatDate(selectedJobDetails.annuity_end_date)}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Billing Items */}
+                <div className="bg-white border p-4 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Billing Items</h3>
+                  {(() => {
+                    const totals = getInvoiceTotals(selectedJobDetails);
+                    return (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Qty</TableHead>
+                            <TableHead className="text-right">Unit Price</TableHead>
+                            <TableHead className="text-right">Total Excl.</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {totals.products.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-sm text-gray-500">
+                                No quotation products found for this job.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            totals.products.map((product, index) => {
+                              const qty = Math.max(1, toNumber(product?.quantity) || 1);
+                              const unitPrice = getProductUnitPrice(product);
+                              const lineSubtotal = unitPrice * qty;
+                              return (
+                                <TableRow key={`${product?.id || product?.name || 'item'}-${index}`}>
+                                  <TableCell className="font-medium">{product?.name || product?.item_code || 'Item'}</TableCell>
+                                  <TableCell className="text-gray-600">{product?.description || product?.category || '—'}</TableCell>
+                                  <TableCell className="text-right">{qty}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(unitPrice)}</TableCell>
+                                  <TableCell className="text-right font-semibold">{formatCurrency(lineSubtotal)}</TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    );
+                  })()}
                 </div>
 
                 {/* Job Description & Notes */}
@@ -1090,7 +1439,6 @@ export default function AccountsContent({ activeSection }) {
           <DialogContent className="sm:max-w-4xl max-h-[90vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-blue-600" />
                 Generate Invoice - {selectedJobForInvoice?.job_number}
               </DialogTitle>
             </DialogHeader>
@@ -1112,7 +1460,7 @@ export default function AccountsContent({ activeSection }) {
                     <div>
                       <span className="text-gray-600">Total Cost:</span>
                       <p className="font-medium text-green-600">
-                        {selectedJobForInvoice.total_cost ? `R ${parseFloat(selectedJobForInvoice.total_cost).toFixed(2)}` : 'R 0.00'}
+                        {formatCurrency(getJobTotal(selectedJobForInvoice))}
                       </p>
                     </div>
                   </div>
@@ -1217,6 +1565,118 @@ export default function AccountsContent({ activeSection }) {
                   </div>
                 </div>
 
+                {/* Invoice Preview */}
+                {(() => {
+                  const totals = getInvoiceTotals(selectedJobForInvoice);
+                  const invoiceVehicles = getInvoiceVehicles(selectedJobForInvoice);
+                  const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.join(', ') : 'N/A';
+                  const invoiceNumber = selectedJobForInvoice.quotation_number || generatedInvoice?.invoiceNumber || 'INV-PENDING';
+                  const invoiceDate = generatedInvoice?.generatedAt || new Date().toISOString();
+                  return (
+                    <div id="invoice-preview" className="bg-white border rounded-lg">
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b p-4">
+                        <div className="flex items-start gap-4">
+                          <img src="/soltrack_logo.png" alt="Soltrack" className="w-24 h-auto" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">Soltrack (PTY) LTD</p>
+                            <p className="text-xs text-gray-500">Reg No: 2018/095975/07</p>
+                            <p className="text-xs text-gray-500">VAT No: 4580161802</p>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          <p className="font-semibold text-gray-900">Tax Invoice</p>
+                          <p>Invoice: <span className="font-medium">{invoiceNumber}</span></p>
+                          <p>Date: <span className="font-medium">{formatDate(invoiceDate)}</span></p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border-b">
+                        <div>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">Bill To</p>
+                          <p className="font-semibold text-gray-900">{selectedJobForInvoice.customer_name || 'N/A'}</p>
+                          <p className="text-sm text-gray-600">{selectedJobForInvoice.customer_address || 'No address provided'}</p>
+                          <p className="text-sm text-gray-600">{selectedJobForInvoice.customer_email || 'No email provided'}</p>
+                          <p className="text-sm text-gray-600">{selectedJobForInvoice.customer_phone || 'No phone provided'}</p>
+                        </div>
+                        <div className="text-sm text-gray-700">
+                          <p><span className="text-gray-500">Account:</span> {selectedJobForInvoice.new_account_number || 'N/A'}</p>
+                          <p><span className="text-gray-500">Vehicle(s):</span> {vehicleSummary}</p>
+                          <p><span className="text-gray-500">Job Type:</span> {selectedJobForInvoice.job_type || 'N/A'}</p>
+                          <p><span className="text-gray-500">Technician:</span> {selectedJobForInvoice.technician_name || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="p-4">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Item</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Vehicle</TableHead>
+                              <TableHead className="text-right">Qty</TableHead>
+                              <TableHead className="text-right">Unit Price</TableHead>
+                              <TableHead className="text-right">VAT %</TableHead>
+                              <TableHead className="text-right">VAT</TableHead>
+                              <TableHead className="text-right">Total Incl.</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {totals.products.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={8} className="text-center text-sm text-gray-500">
+                                  No quotation products found for this job.
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              totals.products.map((product, index) => {
+                                const qty = Math.max(1, toNumber(product?.quantity) || 1);
+                                const unitPrice = getProductUnitPrice(product);
+                                const lineSubtotal = unitPrice * qty;
+                                const lineVat = lineSubtotal * VAT_RATE;
+                                const lineTotal = lineSubtotal + lineVat;
+                                const vehicleLabel = product?.vehicle_plate || vehicleSummary;
+                                return (
+                                  <TableRow key={`${product?.id || product?.name || 'item'}-${index}`}>
+                                    <TableCell className="font-medium">{product?.name || product?.item_code || 'Item'}</TableCell>
+                                    <TableCell className="text-gray-600">{product?.description || product?.category || '—'}</TableCell>
+                                    <TableCell className="text-gray-600">{vehicleLabel || 'N/A'}</TableCell>
+                                    <TableCell className="text-right">{qty}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(unitPrice)}</TableCell>
+                                    <TableCell className="text-right">15%</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(lineVat)}</TableCell>
+                                    <TableCell className="text-right font-semibold">{formatCurrency(lineTotal)}</TableCell>
+                                  </TableRow>
+                                );
+                              })
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      <div className="border-t p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="text-sm text-gray-600">
+                          <p className="font-semibold text-gray-900">Notes</p>
+                          <p>{selectedJobForInvoice.special_instructions || 'No special instructions.'}</p>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">Total Excl. VAT</span>
+                            <span className="font-medium text-gray-900">{formatCurrency(totals.subtotal)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600">VAT (15%)</span>
+                            <span className="font-medium text-gray-900">{formatCurrency(totals.vat)}</span>
+                          </div>
+                          <div className="flex items-center justify-between border-t pt-2">
+                            <span className="font-semibold text-gray-900">Total Incl. VAT</span>
+                            <span className="font-semibold text-gray-900">{formatCurrency(totals.total)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Generated Invoice Preview */}
                 {generatedInvoice && (
                   <div className="bg-green-50 p-4 rounded-lg">
@@ -1250,7 +1710,7 @@ export default function AccountsContent({ activeSection }) {
                         <div className="bg-gray-50 p-3 rounded">
                           <p className="text-sm">
                             <strong>Job:</strong> {generatedInvoice.jobNumber} | 
-                            <strong> Amount:</strong> R {parseFloat(selectedJobForInvoice.total_cost || 0).toFixed(2)} | 
+                            <strong> Amount:</strong> {formatCurrency(getJobTotal(selectedJobForInvoice))} | 
                             <strong> Due:</strong> {generatedInvoice.clientInfo.dueDate}
                           </p>
                         </div>
@@ -1261,14 +1721,6 @@ export default function AccountsContent({ activeSection }) {
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={resetInvoiceForm}
-                    className="flex-1"
-                  >
-                    Reset Form
-                  </Button>
-                  
                   {!generatedInvoice ? (
                     <Button
                       onClick={generateInvoice}
@@ -1282,29 +1734,43 @@ export default function AccountsContent({ activeSection }) {
                         </>
                       ) : (
                         <>
-                          <FileText className="w-4 h-4 mr-2" />
                           Generate Invoice PDF
                         </>
                       )}
                     </Button>
                   ) : (
-                    <Button
-                      onClick={sendInvoiceEmail}
-                      disabled={!invoiceFormData.clientEmail || isSendingEmail}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      {isSendingEmail ? (
-                        <>
-                          <div className="w-4 h-4 border-b-2 border-white rounded-full animate-spin mr-2"></div>
-                          Sending Email...
-                        </>
-                      ) : (
-                        <>
-                          <Receipt className="w-4 h-4 mr-2" />
-                          Send Invoice via Email
-                        </>
-                      )}
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => openInvoicePdf('view')}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        View Invoice PDF
+                      </Button>
+                      <Button
+                        onClick={() => openInvoicePdf('download')}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Download PDF
+                      </Button>
+                      <Button
+                        onClick={sendInvoiceEmail}
+                        disabled={!invoiceFormData.clientEmail || isSendingEmail}
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                      >
+                        {isSendingEmail ? (
+                          <>
+                            <div className="w-4 h-4 border-b-2 border-white rounded-full animate-spin mr-2"></div>
+                            Sending Email...
+                          </>
+                        ) : (
+                          <>
+                            Send Invoice via Email
+                          </>
+                        )}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>

@@ -46,9 +46,9 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
     }
 
     return invoiceData.invoiceItems.reduce((totals, item) => {
-      const exVat = parseFloat(item.unit_price_without_vat) || 0;
-      const vat = parseFloat(item.vat_amount) || 0;
-      const inclVat = parseFloat(item.total_including_vat || item.total_rental_sub) || 0;
+      const exVat = parseFloat(item.unit_price_without_vat || item.amountExcludingVat || item.total_excl_vat) || 0;
+      const vat = parseFloat(item.vat_amount || item.vatAmount) || (exVat * 0.15);
+      const inclVat = parseFloat(item.total_including_vat || item.total_incl_vat || item.totalRentalSub) || (exVat + vat);
       const paid = parseFloat(item.paidAmount) || 0;
 
       return {
@@ -369,18 +369,18 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
                 </tr>
               </thead>
               <tbody>
-                ${invoiceData?.invoiceItems?.map((item, index) => {
-                  const exVat = item.unit_price_without_vat || 0; // Unit price without VAT
-                  const vat = item.vat_amount || 0; // VAT amount
-                  const inclVat = item.total_including_vat || item.total_rental_sub || 0; // Total including VAT
+                ${invoiceData?.invoiceItems?.map((item) => {
+                  const exVat = item.unit_price_without_vat || item.amountExcludingVat || 0; // Unit price without VAT
+                  const vat = item.vat_amount || item.vatAmount || 0; // VAT amount
+                  const inclVat = item.total_including_vat || item.totalRentalSub || 0; // Total including VAT
                   
                   return `
                     <tr>
-                      <td>${item.reg || '-'}</td>
-                      <td>MONTHLY SERVICE SUBSCRIPTION</td>
-                      <td>MONTHLY SUBSCRIPTION</td>
-                      <td>MONTHLY SERVICE SUBSCRIPTION</td>
-                      <td>${item.company ? `THERE IS NO FD RENTAL ON THIS UNIT, AS CLIENT PAID US "CASH" - REG UPDATE FROM ${item.company} - ISUZU FTR` : '-'}</td>
+                      <td>${item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
+                      <td>${item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
+                      <td>${item.item_code || '-'}</td>
+                      <td>${item.description || '-'}</td>
+                      <td>-</td>
                       <td>1</td>
                       <td>${formatCurrency(exVat)}</td>
                       <td>${formatCurrency(vat)}</td>
@@ -672,13 +672,16 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
               </thead>
               <tbody>
                 {invoiceData?.invoiceItems?.map((item, index) => {
-                  const exVat = item.amountExcludingVat || item.dueAmount; // Amount excluding VAT
-                  const vat = item.vatAmount || 0; // VAT amount (separated from total_rental_sub)
-                  const inclVat = item.totalRentalSub || item.balanceDue; // Total including VAT (total_rental_sub)
-                  const vatPercentage = inclVat > 0 ? ((vat / inclVat) * 100).toFixed(2) : '15.00';
+      const exVat = Number(item.unit_price_without_vat || item.amountExcludingVat || item.total_excl_vat || 0);
+      const vat = Number(item.vat_amount || item.vatAmount || (exVat * 0.15));
+      const inclVat = Number(item.total_including_vat || item.total_incl_vat || item.totalRentalSub || (exVat + vat));
+      const vatPercentage = '15.00';
                   
                   return (
-                    <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <tr
+                      key={`${item.item_code || 'item'}-${item.regFleetDisplay || item.reg || item.fleetNumber || 'row'}-${index}`}
+                      className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                    >
                       <td className="p-3 border border-gray-300 text-sm">{item.reg || item.fleetNumber || '-'}</td>
                       <td className="p-3 border border-gray-300 text-sm">{invoiceData.accountNumber || '-'}</td>
                       <td className="p-3 border border-gray-300 text-sm">{item.fleetNumber || item.reg || '-'}</td>

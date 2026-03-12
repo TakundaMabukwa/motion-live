@@ -28,18 +28,8 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
       date: new Date().toLocaleDateString(),
       type: "Debtor Statement"
     },
-    // Transaction details from payments_ table
-    transactions: [
-      {
-        date: paymentData?.invoice_date ? new Date(paymentData.invoice_date).toLocaleDateString() : new Date().toLocaleDateString(),
-        client: clientLegalName || "Client Name",
-        invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
-        totalInvoiced: paymentData?.due_amount || 0,
-        paid: paymentData?.paid_amount || 0,
-        credited: 0,
-        outstanding: paymentData?.balance_due || 0
-      }
-    ],
+    // Transaction details (3-month view using payments_ overdue buckets)
+    transactions: [],
     // Aging analysis using payments_ table data
     aging: [
       {
@@ -76,15 +66,77 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
     }
   };
 
+  const shiftMonthLabel = (baseDate, offset) => {
+    const date = new Date(baseDate);
+    date.setMonth(date.getMonth() + offset);
+    return date.toLocaleDateString('en-GB');
+  };
+
+  const baseDate = paymentData?.billing_month || paymentData?.invoice_date || new Date().toISOString();
+  const currentDue = paymentData?.due_amount || 0;
+  const currentPaid = paymentData?.paid_amount || 0;
+  const currentBalance = paymentData?.balance_due || 0;
+
+  // Build 3-month view rows: current + 1/2/3 months overdue buckets
+  const overdue30 = paymentData?.overdue_30_days || 0;
+  const overdue60 = paymentData?.overdue_60_days || 0;
+  const overdue90 = paymentData?.overdue_90_days || 0;
+
+  dueReportData.transactions.push({
+    date: shiftMonthLabel(baseDate, 0),
+    client: clientLegalName || "Client Name",
+    invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+    totalInvoiced: currentDue,
+    paid: currentPaid,
+    credited: 0,
+    outstanding: currentBalance
+  });
+
+  if (overdue30 > 0) {
+    dueReportData.transactions.push({
+      date: shiftMonthLabel(baseDate, -1),
+      client: clientLegalName || "Client Name",
+      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      totalInvoiced: overdue30,
+      paid: 0,
+      credited: 0,
+      outstanding: overdue30
+    });
+  }
+
+  if (overdue60 > 0) {
+    dueReportData.transactions.push({
+      date: shiftMonthLabel(baseDate, -2),
+      client: clientLegalName || "Client Name",
+      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      totalInvoiced: overdue60,
+      paid: 0,
+      credited: 0,
+      outstanding: overdue60
+    });
+  }
+
+  if (overdue90 > 0) {
+    dueReportData.transactions.push({
+      date: shiftMonthLabel(baseDate, -3),
+      client: clientLegalName || "Client Name",
+      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      totalInvoiced: overdue90,
+      paid: 0,
+      credited: 0,
+      outstanding: overdue90
+    });
+  }
+
   // Function to calculate overdue distribution across months
   const calculateOverdueDistribution = () => {
     const balanceDue = paymentData?.balance_due || 0;
     if (balanceDue > 0) {
       // Use actual overdue amounts from payments_ table
-      dueReportData.aging[0].amount = paymentData?.overdue_90_days || 0; // 120+ days
-      dueReportData.aging[1].amount = paymentData?.overdue_60_days || 0; // 90+ days
-      dueReportData.aging[2].amount = paymentData?.overdue_30_days || 0; // 60+ days
-      dueReportData.aging[3].amount = 0; // 30 days - current
+      dueReportData.aging[0].amount = 0; // 120+ days
+      dueReportData.aging[1].amount = paymentData?.overdue_90_days || 0; // 90+ days
+      dueReportData.aging[2].amount = paymentData?.overdue_60_days || 0; // 60+ days
+      dueReportData.aging[3].amount = paymentData?.overdue_30_days || 0; // 30+ days
       dueReportData.aging[4].amount = balanceDue; // Current outstanding
     }
   };
