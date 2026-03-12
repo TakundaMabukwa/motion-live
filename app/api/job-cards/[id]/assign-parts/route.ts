@@ -55,8 +55,10 @@ export async function PUT(request: NextRequest, { params }) {
     const resolvedParams = await params;
     const jobId = resolvedParams.id;
     const body = await request.json();
-    const { inventory_items, ipAddress, technician_id, technician_name, technician_email } = body;
+    const { inventory_items, ipAddress, technician_id, technician_name, technician_email, source, source_owner } = body;
     const parts = inventory_items || [];
+    const stockSource = (source || 'soltrack').toString().toLowerCase();
+    const stockOwner = (source_owner || '').toString();
 
     // Always generate email from technician name and store in technician_phone field
     let finalTechnicianEmail = technician_email;
@@ -89,16 +91,65 @@ export async function PUT(request: NextRequest, { params }) {
     // First, add items to job (update job_cards with parts_required)
     // This is done later in the code when updating the job card
     
-    // Then, delete items from inventory_items
-    for (const item of parts) {
-      const itemId = item.stock_id || item.inventory_item_id;
-      if (!itemId) continue;
-      
-      // Delete the item from inventory
+    // Remove items from the selected stock source
+    if (stockSource === 'soltrack') {
+      for (const item of parts) {
+        const itemId = item.stock_id || item.inventory_item_id || item.id;
+        if (!itemId) continue;
+        await supabase.from('inventory_items').delete().eq('id', itemId);
+      }
+    } else if (stockSource === 'client') {
+      if (!stockOwner) {
+        return NextResponse.json({ error: 'Client cost code is required' }, { status: 400 });
+      }
+      for (const item of parts) {
+        const itemId = item.stock_id || item.inventory_item_id || item.id;
+        if (!itemId) continue;
+        await supabase.from('client_inventory_items').delete().eq('id', itemId);
+      }
+    } else if (stockSource === 'technician') {
+      const techEmail = stockOwner || jobCard.technician_phone || technician_email || '';
+      if (!techEmail) {
+        return NextResponse.json({ error: 'Technician email is required' }, { status: 400 });
+      }
+
+      const { data: techStock } = await supabase
+        .from('tech_stock')
+        .select('assigned_parts')
+        .eq('technician_email', techEmail)
+        .maybeSingle();
+
+      const assignedParts = Array.isArray(techStock?.assigned_parts) ? [...techStock.assigned_parts] : [];
+      const selectedParts = parts.map((part: any) => ({
+        stockId: String(part?.stock_id || part?.id || ''),
+        code: String(part?.code || ''),
+        serial: String(part?.serial_number || part?.ip_address || ''),
+        desc: String(part?.description || '')
+      }));
+
+      const updatedAssignedParts = assignedParts.filter((part: any) => {
+        const partStockId = String(part?.stock_id || part?.id || '');
+        const partCode = String(part?.code || '');
+        const partSerial = String(part?.serial_number || part?.ip_address || '');
+        const partDesc = String(part?.description || '');
+
+        return !selectedParts.some((sel) => {
+          if (sel.stockId && partStockId && sel.stockId === partStockId) return true;
+          if (sel.serial && partSerial && sel.serial === partSerial) return true;
+          if (sel.code && partCode && sel.code === partCode) {
+            if (!sel.desc || !partDesc) return true;
+            if (sel.desc === partDesc) return true;
+          }
+          return false;
+        });
+      });
+
       await supabase
-        .from('inventory_items')
-        .delete()
-        .eq('id', itemId);
+        .from('tech_stock')
+        .upsert(
+          { technician_email: techEmail, assigned_parts: updatedAssignedParts },
+          { onConflict: 'technician_email' }
+        );
     }
 
 
@@ -143,7 +194,7 @@ export async function PUT(request: NextRequest, { params }) {
 
     // If technician is already assigned, copy parts to tech_stock
     let techStockMessage = '';
-    if (jobCard.technician_phone || finalTechnicianEmail) {
+    if (stockSource === 'soltrack' && (jobCard.technician_phone || finalTechnicianEmail)) {
       const techEmail = finalTechnicianEmail || jobCard.technician_phone;
       const result = await addPartsToTechnicianStock(supabase, techEmail, parts);
       

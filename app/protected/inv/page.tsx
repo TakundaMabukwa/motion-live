@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -90,6 +91,7 @@ interface ClientStockClient {
   id: string;
   company: string | null;
   cost_code: string;
+  new_account_number?: string | null;
   created_at: string;
 }
 
@@ -104,6 +106,12 @@ interface ClientStockItem {
   inventory_categories?: {
     description?: string | null;
   } | null;
+}
+
+interface TechnicianStockRow {
+  id: number;
+  technician_email: string | null;
+  created_at: string;
 }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -144,6 +152,8 @@ import AssignPartsModal from '@/components/ui-personal/assign-parts-modal';
 import StockOrderModal from '@/components/accounts/StockOrderModal';
 import AssignIPAddressModal from '@/components/inv/components/AssignIPAddressModal';
 import CreateRepairJobModal from '@/components/inv/CreateRepairJobModal';
+import AssignTechStockModal from '@/components/inv/components/AssignTechStockModal';
+import AssignClientStockModal from '@/components/inv/components/AssignClientStockModal';
 import { toast } from 'sonner';
 
 export default function InventoryPage() {
@@ -153,6 +163,8 @@ export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
   const [showAssignParts, setShowAssignParts] = useState(false);
+  const [assignPartsSource, setAssignPartsSource] = useState('soltrack');
+  const [assignPartsOwner, setAssignPartsOwner] = useState('');
   const [showQRCode, setShowQRCode] = useState(false);
   const [selectedQRJob, setSelectedQRJob] = useState<JobCard | null>(null);
   const [showCompletedJobDetails, setShowCompletedJobDetails] = useState(false);
@@ -198,6 +210,18 @@ export default function InventoryPage() {
   const [clientStockItemsLoading, setClientStockItemsLoading] = useState(false);
   const [clientStockItemSearchTerm, setClientStockItemSearchTerm] = useState('');
   const [clientStockStatusFilter, setClientStockStatusFilter] = useState('all');
+  const clientStockDetailsRef = useRef<HTMLDivElement | null>(null);
+  const [showAssignClientStock, setShowAssignClientStock] = useState(false);
+  const [selectedClientForAssign, setSelectedClientForAssign] = useState<ClientStockClient | null>(null);
+  const [techStockTechnicians, setTechStockTechnicians] = useState<TechnicianStockRow[]>([]);
+  const [techStockLoading, setTechStockLoading] = useState(false);
+  const [techStockSearchTerm, setTechStockSearchTerm] = useState('');
+  const [showAssignTechStock, setShowAssignTechStock] = useState(false);
+  const [selectedTechForAssign, setSelectedTechForAssign] = useState<TechnicianStockRow | null>(null);
+  const [jobStockSource, setJobStockSource] = useState('soltrack');
+  const [jobStockClientCode, setJobStockClientCode] = useState('');
+  const [jobStockTechnicianEmail, setJobStockTechnicianEmail] = useState('');
+  const router = useRouter();
   
   // IP address assignment state
   const [showIpAddressModal, setShowIpAddressModal] = useState(false);
@@ -238,6 +262,11 @@ export default function InventoryPage() {
   }, [stockTakeMode]);
 
   useEffect(() => {
+    if (!selectedClientStock) return;
+    clientStockDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedClientStock]);
+
+  useEffect(() => {
     fetchJobCards();
     fetchAllStockItems();
     // Force fetch stock items on mount
@@ -245,6 +274,7 @@ export default function InventoryPage() {
     fetchStockItems();
     // Also fetch categories on mount
     fetchCategories();
+    fetchTechnicianStockList();
   }, []);
 
 
@@ -259,6 +289,9 @@ export default function InventoryPage() {
     }
     if (activeTab === 'client-stock') {
       fetchClientStockClients();
+    }
+    if (activeTab === 'technician-stock') {
+      fetchTechnicianStockList();
     }
   }, [activeTab]);
 
@@ -340,30 +373,61 @@ export default function InventoryPage() {
     }
   };
 
-  const handleViewClientStock = async (client: ClientStockClient) => {
+  const fetchTechnicianStockList = async () => {
     try {
-      setSelectedClientStock(client);
-      setClientStockItems([]);
-      setClientStockItemsLoading(true);
-      setClientStockItemSearchTerm('');
-      setClientStockStatusFilter('all');
-
-      const response = await fetch(`/api/client-stock/items?cost_code=${encodeURIComponent(client.cost_code)}`);
+      setTechStockLoading(true);
+      const response = await fetch('/api/tech-stock/technicians');
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Client stock items API error:', response.status, errorText);
-        throw new Error('Failed to fetch client stock items');
+        console.error('Tech stock technicians API error:', response.status, errorText);
+        throw new Error('Failed to fetch technician stock list');
       }
 
       const data = await response.json();
-      setClientStockItems(data.items || []);
+      setTechStockTechnicians(data.technicians || []);
     } catch (error) {
-      console.error('Error fetching client stock items:', error);
-      toast.error('Failed to load client stock');
+      console.error('Error fetching technician stock list:', error);
+      toast.error('Failed to load technician stock');
     } finally {
-      setClientStockItemsLoading(false);
+      setTechStockLoading(false);
     }
+  };
+
+  const handleViewTechnicianStock = (tech: TechnicianStockRow) => {
+    if (!tech?.technician_email) {
+      toast.error('Technician email is missing.');
+      return;
+    }
+    router.push(`/protected/inv/technician-stock/${encodeURIComponent(tech.technician_email)}`);
+  };
+
+  const handleAssignClientStock = (client: ClientStockClient) => {
+    const clientCode = client?.cost_code || client?.new_account_number;
+    if (!clientCode) {
+      toast.error('Client cost code is missing.');
+      return;
+    }
+    setSelectedClientForAssign({ ...client, cost_code: clientCode });
+    setShowAssignClientStock(true);
+  };
+
+  const handleAssignTechnicianStock = (tech: TechnicianStockRow) => {
+    if (!tech?.technician_email) {
+      toast.error('Technician email is missing.');
+      return;
+    }
+    setSelectedTechForAssign(tech);
+    setShowAssignTechStock(true);
+  };
+
+  const handleViewClientStock = (client: ClientStockClient) => {
+    const clientCode = client?.cost_code || client?.new_account_number;
+    if (!clientCode) {
+      toast.error('Client cost code is missing.');
+      return;
+    }
+    router.push(`/protected/inv/client-stock/${encodeURIComponent(clientCode)}`);
   };
 
   const fetchJobCards = async () => {
@@ -502,6 +566,14 @@ export default function InventoryPage() {
     );
   });
 
+  const filteredTechStockTechnicians = techStockTechnicians.filter((tech) => {
+    if (!techStockSearchTerm) return true;
+    const query = techStockSearchTerm.toLowerCase();
+    const email = (tech.technician_email || '').toLowerCase();
+    return email.includes(query);
+  });
+
+
   const getClientStockStatusClasses = (status: string | null) => {
     const normalized = (status || '').toUpperCase();
 
@@ -518,10 +590,29 @@ export default function InventoryPage() {
     setShowAssignParts(true);
   };
 
+  const handleAssignPartsFromSource = (jobCard: JobCard) => {
+    if (jobStockSource === 'client' && !jobStockClientCode) {
+      toast.error('Select a client cost code first.');
+      return;
+    }
+    if (jobStockSource === 'technician' && !jobStockTechnicianEmail) {
+      toast.error('Select a technician first.');
+      return;
+    }
+    setAssignPartsSource(jobStockSource);
+    setAssignPartsOwner(
+      jobStockSource === 'client' ? jobStockClientCode : jobStockTechnicianEmail
+    );
+    setSelectedJobCard(jobCard);
+    setShowAssignParts(true);
+  };
+
   const handlePartsAssigned = () => {
     fetchJobCards();
     setShowAssignParts(false);
     setSelectedJobCard(null);
+    setAssignPartsSource('soltrack');
+    setAssignPartsOwner('');
   };
 
   const handleBookStock = async (job: JobCard) => {
@@ -711,6 +802,20 @@ export default function InventoryPage() {
     return [];
   };
 
+  const parseEquipmentUsed = (value: unknown): Record<string, unknown>[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value as Record<string, unknown>[];
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   const parseQuotationProducts = (value: unknown): Record<string, unknown>[] => {
     if (!value) return [];
     if (Array.isArray(value)) return value as Record<string, unknown>[];
@@ -743,24 +848,6 @@ export default function InventoryPage() {
     );
   };
 
-  const formatFieldLabel = (field: string) => (
-    field
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase())
-  );
-
-  const formatFieldValue = (value: unknown): string => {
-    if (value === null || value === undefined || value === '') return 'N/A';
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      return String(value);
-    }
-
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return String(value);
-    }
-  };
 
   const handleViewCompletedJobDetails = async (jobId: string) => {
     setLoadingCompletedJobDetails(true);
@@ -786,13 +873,18 @@ export default function InventoryPage() {
     }
   };
 
-  const getDeinstalledItemKey = (item: Record<string, unknown>, index: number) => {
+  const getMoveItemKey = (
+    context: 'deinstalled' | 'stock-used' | 'quotation',
+    item: Record<string, unknown>,
+    index: number
+  ) => {
     const itemId = String(item.id || item.serial_number || item.code || item.name || index);
     const jobId = String(selectedCompletedJob?.id || 'job');
-    return `${jobId}:${itemId}:${index}`;
+    return `${jobId}:${context}:${itemId}:${index}`;
   };
 
-  const handleMoveDeinstalledItem = async (
+  const handleMoveJobItem = async (
+    context: 'deinstalled' | 'stock-used' | 'quotation',
     item: Record<string, unknown>,
     index: number,
     destination: 'client' | 'soltrack'
@@ -802,7 +894,7 @@ export default function InventoryPage() {
       return;
     }
 
-    const itemKey = getDeinstalledItemKey(item, index);
+    const itemKey = getMoveItemKey(context, item, index);
     const loadingLabel = destination === 'client' ? 'Adding to client stock...' : 'Adding to Soltrack stock...';
     setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
 
@@ -824,7 +916,7 @@ export default function InventoryPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result?.error || 'Failed to move de-installed item');
+        throw new Error(result?.error || 'Failed to move item to stock');
       }
 
       setMovedDeinstalledItems((prev) => ({
@@ -833,13 +925,9 @@ export default function InventoryPage() {
         [`${itemKey}:soltrack`]: destination === 'soltrack' ? 'moved' : prev[`${itemKey}:soltrack`] || '',
       }));
 
-      toast.success(
-        destination === 'client'
-          ? 'Item added to client stock'
-          : 'Item added to Soltrack stock'
-      );
+      toast.success(destination === 'client' ? 'Item added to client stock' : 'Item added to Soltrack stock');
     } catch (error) {
-      console.error('Error moving de-installed item:', error);
+      console.error('Error moving item to stock:', error);
       toast.error(error instanceof Error ? error.message : loadingLabel);
     } finally {
       setMovingDeinstalledItemKey(null);
@@ -1119,19 +1207,64 @@ export default function InventoryPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
-  const selectedCompletedJobStockUsed = parsePartsRequired(selectedCompletedJob?.parts_required);
-  const selectedCompletedJobDeInstalledItems = parseQuotationProducts(selectedCompletedJob?.quotation_products);
+  const normalizeStockItem = (
+    item: Record<string, unknown>,
+    source: 'equipment_used' | 'parts_required'
+  ) => {
+    const description = String(item.description || item.name || item.item || 'Item');
+    const code = String(item.code || item.item_code || item.serial || item.serial_number || '');
+    const quantity = Number(item.quantity ?? 1) || 1;
+    const supplier = String(item.supplier || item.source || '');
+    const stockType = String(item.stock_type || item.type || '');
+    const totalCost =
+      Number(item.total_cost ?? item.total_price ?? item.cash_price ?? item.price ?? item.cost ?? 0) || 0;
+
+    return {
+      description,
+      code,
+      quantity,
+      supplier,
+      stockType,
+      totalCost,
+      source,
+      stockId: item.stock_id || item.id || null,
+      raw: item,
+    };
+  };
+
+  const mergeStockUsed = (
+    equipmentUsed: Record<string, unknown>[],
+    partsUsed: Part[]
+  ) => {
+    const merged = new Map<string, ReturnType<typeof normalizeStockItem>>();
+
+    equipmentUsed.forEach((item) => {
+      const normalized = normalizeStockItem(item, 'equipment_used');
+      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ''}`;
+      merged.set(key, normalized);
+    });
+
+    partsUsed.forEach((part) => {
+      const normalized = normalizeStockItem(part as Record<string, unknown>, 'parts_required');
+      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ''}`;
+      if (!merged.has(key)) {
+        merged.set(key, normalized);
+      }
+    });
+
+    return Array.from(merged.values());
+  };
+
+  const selectedCompletedJobEquipmentUsed = parseEquipmentUsed(selectedCompletedJob?.equipment_used);
+  const selectedCompletedJobPartsUsed = parsePartsRequired(selectedCompletedJob?.parts_required);
+  const selectedCompletedJobStockUsed = mergeStockUsed(
+    selectedCompletedJobEquipmentUsed,
+    selectedCompletedJobPartsUsed
+  );
+  const selectedCompletedJobQuotationProducts = parseQuotationProducts(selectedCompletedJob?.quotation_products);
+  const selectedCompletedJobDeInstalledItems = selectedCompletedJobQuotationProducts;
   const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
   const selectedCompletedJobCostCode = String(selectedCompletedJob?.new_account_number || '').trim();
-  const selectedCompletedJobFieldEntries = selectedCompletedJob
-    ? Object.entries(selectedCompletedJob)
-        .filter(([key, value]) => {
-          if (value === null || value === undefined || value === '') return false;
-          if (key === 'parts_required' || key === 'quotation_products') return false;
-          return true;
-        })
-        .sort(([a], [b]) => a.localeCompare(b))
-    : [];
 
   // Function kept for potential future use with a global refresh button
   // const handleRefresh = () => {
@@ -1690,12 +1823,84 @@ export default function InventoryPage() {
             className="pl-10"
           />
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={jobStockSource === 'soltrack' ? 'default' : 'outline'}
+            className={jobStockSource === 'soltrack' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+            onClick={() => setJobStockSource('soltrack')}
+          >
+            Soltrack Stock
+          </Button>
+          <Button
+            size="sm"
+            variant={jobStockSource === 'client' ? 'default' : 'outline'}
+            className={jobStockSource === 'client' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+            onClick={() => {
+              setJobStockSource('client');
+              if (clientStockClients.length === 0) fetchClientStockClients();
+            }}
+          >
+            Client Stock
+          </Button>
+          <Button
+            size="sm"
+            variant={jobStockSource === 'technician' ? 'default' : 'outline'}
+            className={jobStockSource === 'technician' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+            onClick={() => {
+              setJobStockSource('technician');
+              if (techStockTechnicians.length === 0) fetchTechnicianStockList();
+            }}
+          >
+            Technician Stock
+          </Button>
+        </div>
         <Button onClick={fetchJobCards} variant="outline" size="sm">
           <RefreshCw className="mr-2 w-4 h-4" />
           Refresh
         </Button>
 
       </div>
+
+      {jobStockSource === 'client' && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="font-medium">Select client stock to use for assignments:</div>
+            <select
+              value={jobStockClientCode}
+              onChange={(e) => setJobStockClientCode(e.target.value)}
+              className="w-full md:w-72 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Choose client cost code</option>
+              {clientStockClients.map((client) => (
+                <option key={client.cost_code} value={client.cost_code}>
+                  {client.company || 'Client'} ({client.cost_code})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {jobStockSource === 'technician' && (
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-sm text-indigo-900">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="font-medium">Select technician stock to use for assignments:</div>
+            <select
+              value={jobStockTechnicianEmail}
+              onChange={(e) => setJobStockTechnicianEmail(e.target.value)}
+              className="w-full md:w-72 rounded-md border border-indigo-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Choose technician</option>
+              {techStockTechnicians.map((tech) => (
+                <option key={tech.technician_email || tech.id} value={tech.technician_email || ''}>
+                  {tech.technician_email}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       {/* Job Cards */}
       {filteredJobCards.length === 0 ? (
@@ -1777,7 +1982,7 @@ export default function InventoryPage() {
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
-                          onClick={() => handleAssignParts(job)}
+                          onClick={() => handleAssignPartsFromSource(job)}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Plus className="mr-1 w-3 h-3" />
@@ -1790,7 +1995,7 @@ export default function InventoryPage() {
                           title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
                         >
                           <Package className="mr-1 w-3 h-3" />
-                          Book Stock
+                          Boot Stock
                         </Button>
                         <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
@@ -2694,20 +2899,33 @@ export default function InventoryPage() {
             </thead>
             <tbody>
               {filteredClientStockClients.map((client) => (
-                <tr key={client.cost_code} className="hover:bg-gray-50">
+                <tr
+                  key={client.cost_code}
+                  className={`hover:bg-gray-50 ${selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-50' : ''}`}
+                >
                   <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
                     {client.company || 'N/A'}
                   </td>
                   <td className="px-4 py-3 border-b border-gray-100 text-center">
-                    <Button
-                      size="sm"
-                      variant={selectedClientStock?.cost_code === client.cost_code ? 'default' : 'outline'}
-                      onClick={() => handleViewClientStock(client)}
-                      className={selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
-                    >
-                      <Eye className="mr-2 w-4 h-4" />
-                      View Stock
-                    </Button>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={selectedClientStock?.cost_code === client.cost_code ? 'default' : 'outline'}
+                        onClick={() => handleViewClientStock(client)}
+                        className={selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                      >
+                        <Eye className="mr-2 w-4 h-4" />
+                        View Stock
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAssignClientStock(client)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Package className="mr-2 w-4 h-4" />
+                        Assign Stock
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -2717,7 +2935,7 @@ export default function InventoryPage() {
       )}
 
       {selectedClientStock && (
-        <div className="border border-gray-200 rounded-xl bg-white shadow-sm">
+        <div ref={clientStockDetailsRef} className="border border-gray-200 rounded-xl bg-white shadow-sm">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-4 border-b border-gray-100">
             <div>
               <h4 className="font-semibold text-gray-900 text-xl">Inventory Stock</h4>
@@ -2812,6 +3030,89 @@ export default function InventoryPage() {
     </div>
   );
 
+  const technicianStockContent = (
+    <div className="space-y-6">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-gray-900 text-2xl">Technician Stock</h3>
+          <p className="text-gray-600 text-sm">Assigned parts by technician</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">{filteredTechStockTechnicians.length} technicians</Badge>
+          <Button onClick={fetchTechnicianStockList} variant="outline" size="sm" disabled={techStockLoading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${techStockLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+        <Input
+          placeholder="Search technician list..."
+          value={techStockSearchTerm}
+          onChange={(e) => setTechStockSearchTerm(e.target.value)}
+          className="pl-10 bg-white"
+        />
+      </div>
+
+      {techStockLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+          <span className="ml-2 text-sm text-gray-600">Loading technicians...</span>
+        </div>
+      ) : filteredTechStockTechnicians.length === 0 ? (
+        <div className="py-12 border border-gray-200 rounded-lg text-center">
+          <User className="mx-auto mb-3 w-10 h-10 text-gray-400" />
+          <p className="text-gray-700">
+            {techStockSearchTerm ? 'No technicians match your search.' : 'No technicians found in tech_stock.'}
+          </p>
+        </div>
+      ) : (
+        <div className="border border-gray-200 rounded-xl bg-white shadow-sm overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-blue-50">
+              <tr>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Technician</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTechStockTechnicians.map((tech) => (
+                <tr key={tech.technician_email || tech.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
+                    {tech.technician_email || 'N/A'}
+                  </td>
+                  <td className="px-4 py-3 border-b border-gray-100 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewTechnicianStock(tech)}
+                      >
+                        <Eye className="mr-2 w-4 h-4" />
+                        View Stock
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAssignTechnicianStock(tech)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Package className="mr-2 w-4 h-4" />
+                        Assign Stock
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+    </div>
+  );
+
   const tabs = [
     {
       value: 'job-cards',
@@ -2848,6 +3149,12 @@ export default function InventoryPage() {
       label: 'Client Stock',
       icon: User,
       content: clientStockContent
+    },
+    {
+      value: 'technician-stock',
+      label: 'Technician Stock',
+      icon: User,
+      content: technicianStockContent
     }
   ];
 
@@ -2903,6 +3210,40 @@ export default function InventoryPage() {
           onPartsAssigned={handlePartsAssigned}
           allIpAddresses={allIpAddresses}
           allStockItems={allStockItems}
+          stockSource={assignPartsSource}
+          stockOwner={assignPartsOwner}
+          clientOptions={clientStockClients}
+          technicianOptions={techStockTechnicians}
+        />
+      )}
+
+      {/* Assign Stock to Technician Modal */}
+      {showAssignTechStock && (
+        <AssignTechStockModal
+          isOpen={showAssignTechStock}
+          onClose={() => {
+            setShowAssignTechStock(false);
+            setSelectedTechForAssign(null);
+          }}
+          technician={selectedTechForAssign}
+          onAssigned={() => {
+            fetchTechnicianStockList();
+          }}
+        />
+      )}
+
+      {/* Assign Stock to Client Modal */}
+      {showAssignClientStock && (
+        <AssignClientStockModal
+          isOpen={showAssignClientStock}
+          onClose={() => {
+            setShowAssignClientStock(false);
+            setSelectedClientForAssign(null);
+          }}
+          client={selectedClientForAssign}
+          onAssigned={() => {
+            fetchClientStockClients();
+          }}
         />
       )}
 
@@ -2958,33 +3299,89 @@ export default function InventoryPage() {
               </div>
 
               <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-                <h3 className="font-semibold text-blue-900 mb-3">Stock Used</h3>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <h3 className="font-semibold text-blue-900">Stock Used</h3>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline">
+                        {selectedCompletedJobStockUsed.length} item{selectedCompletedJobStockUsed.length === 1 ? '' : 's'}
+                      </Badge>
+                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                        Equipment Used: {selectedCompletedJobEquipmentUsed.length}
+                      </Badge>
+                      <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+                        Parts Required: {selectedCompletedJobPartsUsed.length}
+                      </Badge>
+                    </div>
+                </div>
                 {selectedCompletedJobStockUsed.length === 0 ? (
                   <p className="text-sm text-blue-800">No stock used recorded on this job.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-blue-200">
-                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Description</th>
-                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Code</th>
-                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Qty</th>
-                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Supplier</th>
-                          <th className="text-left py-2 pr-3 font-semibold text-blue-900">Total Cost</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedCompletedJobStockUsed.map((part, index) => (
-                          <tr key={`${part.code || part.description || 'part'}-${index}`} className="border-b border-blue-100">
-                            <td className="py-2 pr-3">{part.description || 'N/A'}</td>
-                            <td className="py-2 pr-3">{part.code || 'N/A'}</td>
-                            <td className="py-2 pr-3">{part.quantity ?? 'N/A'}</td>
-                            <td className="py-2 pr-3">{part.supplier || 'N/A'}</td>
-                            <td className="py-2 pr-3">{part.total_cost !== undefined ? `R${part.total_cost}` : 'N/A'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedCompletedJobStockUsed.map((part, index) => (
+                      <div
+                        key={`${part.code || part.description || 'part'}-${index}`}
+                        className="rounded-lg border border-blue-100 bg-white p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{part.description || 'N/A'}</p>
+                            <p className="text-xs text-gray-500">{part.code || 'No code'}</p>
+                          </div>
+                          <Badge className="bg-blue-100 text-blue-800 text-xs">
+                            Qty {part.quantity ?? 1}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                          <div>
+                            <span className="font-medium text-gray-700">Supplier:</span> {part.supplier || 'N/A'}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Type:</span> {part.stockType || 'N/A'}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Source:</span> {part.source === 'equipment_used' ? 'Equipment Used' : 'Parts Required'}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Cost:</span>{' '}
+                            {part.totalCost ? `R ${Number(part.totalCost).toFixed(2)}` : 'N/A'}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client` ||
+                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
+                            }
+                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'client')}
+                            className="text-xs"
+                          >
+                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`
+                              ? 'Adding...'
+                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
+                                ? 'Added to Client Stock'
+                                : 'Add to Client Stock'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack` ||
+                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
+                            }
+                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'soltrack')}
+                            className="text-xs"
+                          >
+                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`
+                              ? 'Adding...'
+                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
+                                ? 'Added to Soltrack Stock'
+                                : 'Add to Soltrack Stock'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -3016,15 +3413,15 @@ export default function InventoryPage() {
                               size="sm"
                               variant="outline"
                               disabled={
-                                movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:client` ||
-                                movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:client`] === 'moved'
+                                movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:client` ||
+                                movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:client`] === 'moved'
                               }
-                              onClick={() => handleMoveDeinstalledItem(item, index, 'client')}
+                              onClick={() => handleMoveJobItem('deinstalled', item, index, 'client')}
                               className="text-xs"
                             >
-                              {movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:client`
+                              {movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:client`
                                 ? 'Adding...'
-                                : movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:client`] === 'moved'
+                                : movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:client`] === 'moved'
                                   ? 'Added to Client Stock'
                                   : 'Add to Client Stock'}
                             </Button>
@@ -3032,15 +3429,15 @@ export default function InventoryPage() {
                               size="sm"
                               variant="outline"
                               disabled={
-                                movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:soltrack` ||
-                                movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:soltrack`] === 'moved'
+                                movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:soltrack` ||
+                                movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:soltrack`] === 'moved'
                               }
-                              onClick={() => handleMoveDeinstalledItem(item, index, 'soltrack')}
+                              onClick={() => handleMoveJobItem('deinstalled', item, index, 'soltrack')}
                               className="text-xs"
                             >
-                              {movingDeinstalledItemKey === `${getDeinstalledItemKey(item, index)}:soltrack`
+                              {movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:soltrack`
                                 ? 'Adding...'
-                                : movedDeinstalledItems[`${getDeinstalledItemKey(item, index)}:soltrack`] === 'moved'
+                                : movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:soltrack`] === 'moved'
                                   ? 'Added to Soltrack Stock'
                                   : 'Add to Soltrack Stock'}
                             </Button>
@@ -3053,17 +3450,122 @@ export default function InventoryPage() {
               )}
 
               <div className="rounded-lg border p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">All Job Fields</h3>
-                <div className="space-y-2">
-                  {selectedCompletedJobFieldEntries.map(([key, value]) => (
-                    <div key={key} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2 border-b border-gray-100 pb-2">
-                      <div className="text-sm font-medium text-gray-700">{formatFieldLabel(key)}</div>
-                      <pre className="text-xs text-gray-800 whitespace-pre-wrap break-words m-0">
-                        {formatFieldValue(value)}
-                      </pre>
-                    </div>
-                  ))}
+                <h3 className="font-semibold text-gray-900 mb-3">Customer & Contact</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                  <div><span className="font-medium text-gray-900">Customer:</span> {selectedCompletedJob.customer_name || 'N/A'}</div>
+                  <div><span className="font-medium text-gray-900">Contact Person:</span> {selectedCompletedJob.contact_person || selectedCompletedJob.site_contact_person || 'N/A'}</div>
+                  <div><span className="font-medium text-gray-900">Email:</span> {selectedCompletedJob.customer_email || 'N/A'}</div>
+                  <div><span className="font-medium text-gray-900">Phone:</span> {selectedCompletedJob.customer_phone || selectedCompletedJob.site_contact_phone || 'N/A'}</div>
+                  <div className="md:col-span-2"><span className="font-medium text-gray-900">Address:</span> {selectedCompletedJob.customer_address || 'N/A'}</div>
                 </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Job Notes</h3>
+                <div className="space-y-3 text-sm text-gray-700">
+                  <div>
+                    <span className="font-medium text-gray-900">Job Description:</span>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.job_description || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Work Notes:</span>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.work_notes || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Completion Notes:</span>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.completion_notes || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Special Instructions:</span>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.special_instructions || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Access Requirements:</span>
+                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.access_requirements || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Quotation Products</h3>
+                {selectedCompletedJobQuotationProducts.length === 0 ? (
+                  <p className="text-sm text-gray-600">No quotation products found for this job.</p>
+                ) : (
+                  <div>
+                    <table className="w-full text-sm table-fixed">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">Item</th>
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-2/5">Description</th>
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">Vehicle</th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Qty</th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Amount</th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Move</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedCompletedJobQuotationProducts.map((item, index) => {
+                          const qty = Number(item.quantity ?? 1) || 1;
+                          const amount =
+                            Number(
+                              item.total_price ??
+                                item.cash_price ??
+                                item.subscription_price ??
+                                item.rental_price ??
+                                item.installation_price ??
+                                item.de_installation_price ??
+                                0
+                            ) || 0;
+                          return (
+                            <tr key={`quote-${index}`} className="border-b border-gray-100">
+                              <td className="py-2 pr-2 font-medium text-gray-900 break-words">{String(item.name || item.item_code || 'Item')}</td>
+                              <td className="py-2 pr-2 text-gray-600 break-words">{String(item.description || item.category || '—')}</td>
+                              <td className="py-2 pr-2 text-gray-600 break-words">{String(item.vehicle_plate || selectedCompletedJob.vehicle_registration || 'N/A')}</td>
+                              <td className="py-2 pr-2 text-right">{qty}</td>
+                              <td className="py-2 pr-2 text-right">{amount ? `R ${amount.toFixed(2)}` : 'R 0.00'}</td>
+                              <td className="py-2 pr-2 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:client` ||
+                                      movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:client`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('quotation', item, index, 'client')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:client`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:client`] === 'moved'
+                                        ? 'Added'
+                                        : 'Client'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:soltrack` ||
+                                      movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:soltrack`] === 'moved'
+                                    }
+                                    onClick={() => handleMoveJobItem('quotation', item, index, 'soltrack')}
+                                    className="text-xs"
+                                  >
+                                    {movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:soltrack`
+                                      ? 'Adding...'
+                                      : movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:soltrack`] === 'moved'
+                                        ? 'Added'
+                                        : 'Soltrack'}
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -42,12 +42,12 @@ export default function DashboardTabs({
       onValueChange={onTabChange}
       className="w-full"
     >
-      <TabsList className={`grid ${getGridCols(tabs.length)} bg-white border w-full`}>
+      <TabsList className={`grid ${getGridCols(tabs.length)} bg-white border w-full overflow-x-auto`}>
         {tabs.map((item) => (
           <TabsTrigger 
             key={item.value}
             value={item.value} 
-            className="flex items-center space-x-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600"
+            className="flex items-center space-x-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 whitespace-nowrap"
           >
             {item.icon && <item.icon className="w-4 h-4" />}
             <span className={tabs.length > 4 ? 'text-xs' : ''}>{item.label}</span>

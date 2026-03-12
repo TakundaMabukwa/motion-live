@@ -28,7 +28,7 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
     invoice: {
       number: `INV-${costCenter?.accountNumber || 'N/A'}`,
       date: new Date().toLocaleDateString(),
-      type: "Vehicle Invoice Statement"
+      type: "Tax Invoice"
     }
   };
 
@@ -682,11 +682,11 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
                       key={`${item.item_code || 'item'}-${item.regFleetDisplay || item.reg || item.fleetNumber || 'row'}-${index}`}
                       className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
                     >
-                      <td className="p-3 border border-gray-300 text-sm">{item.reg || item.fleetNumber || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{invoiceData.accountNumber || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{item.fleetNumber || item.reg || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">{item.item_code || '-'}</td>
                       <td className="p-3 border border-gray-300 text-sm">{item.description || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{item.reference || '-'}</td>
+                      <td className="p-3 border border-gray-300 text-sm">-</td>
                       <td className="p-3 border border-gray-300 text-sm text-center">1</td>
                       <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(exVat)}</td>
                       <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(vat)}</td>

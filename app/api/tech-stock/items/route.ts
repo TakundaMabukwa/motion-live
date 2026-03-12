@@ -15,37 +15,30 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const costCode = searchParams.get('cost_code')?.trim();
+    const technicianEmail = searchParams.get('technician_email')?.trim();
 
-    if (!costCode) {
-      return NextResponse.json({ error: 'cost_code is required' }, { status: 400 });
+    if (!technicianEmail) {
+      return NextResponse.json({ error: 'technician_email is required' }, { status: 400 });
     }
 
     const { data, error } = await supabase
-      .from('client_inventory_items')
-      .select(`
-        id,
-        created_at,
-        company,
-        category_code,
-        serial_number,
-        status,
-        assigned_to_technician,
-        notes,
-        inventory_categories!client_inventory_items_category_fkey (
-          description
-        )
-      `)
-      .ilike('cost_code', costCode)
-      .order('created_at', { ascending: false });
+      .from('tech_stock')
+      .select('technician_email, assigned_parts')
+      .ilike('technician_email', technicianEmail)
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ items: data || [] });
+    const assignedParts = Array.isArray(data?.assigned_parts) ? data?.assigned_parts : [];
+
+    return NextResponse.json({
+      technician_email: data?.technician_email || technicianEmail,
+      items: assignedParts || [],
+    });
   } catch (error) {
-    console.error('Error in client stock items GET:', error);
+    console.error('Error in tech stock items GET:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

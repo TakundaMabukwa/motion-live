@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,11 @@ export default function AssignPartsModal({
   isOpen, 
   onClose, 
   jobCard, 
-  onPartsAssigned
+  onPartsAssigned,
+  stockSource = 'soltrack',
+  stockOwner = '',
+  clientOptions = [],
+  technicianOptions = []
 }) {
   const [selectedParts, setSelectedParts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,32 +55,83 @@ export default function AssignPartsModal({
   const [allStockItems, setAllStockItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [ipAddress, setIpAddress] = useState('');
+  const [modalStockSource, setModalStockSource] = useState(stockSource);
+  const [modalStockOwner, setModalStockOwner] = useState(stockOwner);
+  const [visibleCount, setVisibleCount] = useState(120);
+  const [localClientOptions, setLocalClientOptions] = useState(clientOptions);
 
   const fetchInventoryItems = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/stock');
-      
-      if (!response.ok) throw new Error('Failed to fetch stock');
-      const data = await response.json();
-      const stockArray = Array.isArray(data.stock) ? data.stock : [];
+      let stockArray = [];
+
+      if (modalStockSource === 'client') {
+        if (!modalStockOwner) {
+          setAllStockItems([]);
+          setStockTypes([]);
+          return;
+        }
+        const response = await fetch(`/api/client-stock/items?cost_code=${encodeURIComponent(modalStockOwner)}`);
+        if (!response.ok) throw new Error('Failed to fetch client stock');
+        const data = await response.json();
+        stockArray = Array.isArray(data.items)
+          ? data.items.map((item) => ({
+              id: item.id,
+              description: item.inventory_categories?.description || item.category_code,
+              code: item.category_code,
+              supplier: 'Client Stock',
+              stock_type: item.inventory_categories?.description || item.category_code,
+              quantity: '1',
+              serial_number: item.serial_number,
+              status: item.status,
+              category_code: item.category_code,
+              category_description: item.inventory_categories?.description || item.category_code
+            }))
+          : [];
+      } else if (modalStockSource === 'technician') {
+        if (!modalStockOwner) {
+          setAllStockItems([]);
+          setStockTypes([]);
+          return;
+        }
+        const response = await fetch(`/api/tech-stock/items?technician_email=${encodeURIComponent(modalStockOwner)}`);
+        if (!response.ok) throw new Error('Failed to fetch technician stock');
+        const data = await response.json();
+        stockArray = Array.isArray(data.items)
+          ? data.items.map((item, index) => ({
+              id: item.stock_id || item.id || `${index}`,
+              description: item.description || item.code || 'Item',
+              code: item.code || '',
+              supplier: item.supplier || 'Technician Stock',
+              stock_type: item.stock_type || item.code || '',
+              quantity: item.quantity || 1,
+              serial_number: item.serial_number || item.ip_address || '',
+              status: 'IN STOCK',
+              category_code: item.code || '',
+              category_description: item.description || item.code || ''
+            }))
+          : [];
+      } else {
+        const response = await fetch('/api/stock');
+        if (!response.ok) throw new Error('Failed to fetch stock');
+        const data = await response.json();
+        stockArray = Array.isArray(data.stock) ? data.stock : [];
+      }
+
       setAllStockItems(stockArray);
 
-      // Build dropdown directly from unique category codes in inventory_items.
       const stockCategoryMap = new Map();
       stockArray.forEach((item) => {
-        const normalizedCode = normalizeCategoryCode(item?.category_code || item?.category?.code);
+        const normalizedCode = normalizeCategoryCode(item?.category_code || item?.category?.code || item?.code);
         if (!normalizedCode) return;
-
         const existing = stockCategoryMap.get(normalizedCode);
         if (existing) {
           existing.count += 1;
           return;
         }
-
         stockCategoryMap.set(normalizedCode, {
           code: normalizedCode,
-          description: item?.category?.description || normalizedCode,
+          description: item?.category?.description || item?.category_description || item?.description || normalizedCode,
           count: 1
         });
       });
@@ -94,37 +149,68 @@ export default function AssignPartsModal({
   };
 
   useEffect(() => {
-    if (isOpen) {
-      setSelectedParts([]);
-      setSearchTerm('');
-      setShowQRCode(false);
-      setQrCodeUrl('');
-      setSelectedStockType('all');
-      setIpAddress('');
-      fetchInventoryItems();
+    if (!isOpen) return;
+    setSelectedParts([]);
+    setSearchTerm('');
+    setShowQRCode(false);
+    setQrCodeUrl('');
+    setSelectedStockType('all');
+    setIpAddress('');
+    setModalStockSource(stockSource);
+    setModalStockOwner(stockOwner);
+    setLocalClientOptions(clientOptions);
+    setVisibleCount(120);
+
+    // Pre-populate with existing parts and IP address
+    if (jobCard?.parts_required && Array.isArray(jobCard.parts_required)) {
+      const existingParts = jobCard.parts_required.map(part => ({
+        stock_id: part.stock_id || part.id,
+        description: String(part.description || ''),
+        serial_number: String(part.serial_number || ''),
+        code: String(part.code || ''),
+        supplier: String(part.supplier || ''),
+        quantity: part.quantity || 1,
+        cost_per_unit: parseFloat(part.cost_per_unit || '0'),
+        total_cost: parseFloat(part.total_cost || '0'),
+        ip_address: part.ip_address || ''
+      }));
+      setSelectedParts(existingParts);
       
-      // Pre-populate with existing parts and IP address
-      if (jobCard?.parts_required && Array.isArray(jobCard.parts_required)) {
-        const existingParts = jobCard.parts_required.map(part => ({
-          stock_id: part.stock_id || part.id,
-          description: String(part.description || ''),
-          serial_number: String(part.serial_number || ''),
-          code: String(part.code || ''),
-          supplier: String(part.supplier || ''),
-          quantity: part.quantity || 1,
-          cost_per_unit: parseFloat(part.cost_per_unit || '0'),
-          total_cost: parseFloat(part.total_cost || '0'),
-          ip_address: part.ip_address || ''
-        }));
-        setSelectedParts(existingParts);
-        
-        // Set IP address from first part if available
-        if (existingParts.length > 0 && existingParts[0].ip_address) {
-          setIpAddress(existingParts[0].ip_address);
-        }
+      if (existingParts.length > 0 && existingParts[0].ip_address) {
+        setIpAddress(existingParts[0].ip_address);
       }
     }
-  }, [isOpen, jobCard]);
+  }, [isOpen, jobCard, stockSource, stockOwner]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchInventoryItems();
+  }, [isOpen, modalStockSource, modalStockOwner]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setVisibleCount(120);
+  }, [isOpen, modalStockSource, modalStockOwner, selectedStockType, searchTerm]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (modalStockSource !== 'client') return;
+    if (clientOptions.length > 0) {
+      setLocalClientOptions(clientOptions);
+      return;
+    }
+    const loadClients = async () => {
+      try {
+        const response = await fetch('/api/client-stock/clients');
+        if (!response.ok) return;
+        const data = await response.json();
+        setLocalClientOptions(data.clients || []);
+      } catch {
+        // ignore
+      }
+    };
+    loadClients();
+  }, [isOpen, modalStockSource, clientOptions]);
 
   useEffect(() => {
     if (selectedStockType === 'all') return;
@@ -134,39 +220,56 @@ export default function AssignPartsModal({
     }
   }, [stockTypes, selectedStockType]);
 
-  const filteredAvailableParts = allStockItems.filter((item) => {
-    const isSelected = selectedParts.some((part) => part.stock_id === item.id);
-    if (isSelected) return false;
+  const filteredAvailableParts = useMemo(() => {
+    return allStockItems.filter((item) => {
+      const isSelected = selectedParts.some((part) => part.stock_id === item.id);
+      if (isSelected) return false;
+      if ((modalStockSource === 'client' || modalStockSource === 'technician') && !modalStockOwner) {
+        return false;
+      }
 
-    const searchRaw = String(searchTerm || '').toLowerCase().trim();
-    const searchNormalized = normalizeSearchValue(searchRaw);
+      const searchRaw = String(searchTerm || '').toLowerCase().trim();
+      const searchNormalized = normalizeSearchValue(searchRaw);
 
-    const serial = String(item.serial_number || '');
-    const categoryDescription = String(item.category?.description || '');
-    const categoryCode = String(item.category_code || item.category?.code || '');
-    const notes = String(item.notes || '');
-    const description = String(item.description || '');
+      const serial = String(item.serial_number || '');
+      const categoryDescription = String(item.category?.description || '');
+      const categoryCode = String(item.category_code || item.category?.code || '');
+      const notes = String(item.notes || '');
+      const description = String(item.description || '');
 
-    const serialNormalized = normalizeSearchValue(serial);
-    const notesNormalized = normalizeSearchValue(notes);
+      const serialNormalized = normalizeSearchValue(serial);
+      const notesNormalized = normalizeSearchValue(notes);
 
-    const matchesSearch =
-      !searchRaw ||
-      serial.toLowerCase().includes(searchRaw) ||
-      categoryDescription.toLowerCase().includes(searchRaw) ||
-      categoryCode.toLowerCase().includes(searchRaw) ||
-      notes.toLowerCase().includes(searchRaw) ||
-      description.toLowerCase().includes(searchRaw) ||
-      (searchNormalized && (
-        serialNormalized.includes(searchNormalized) ||
-        notesNormalized.includes(searchNormalized)
-      ));
+      const matchesSearch =
+        !searchRaw ||
+        serial.toLowerCase().includes(searchRaw) ||
+        categoryDescription.toLowerCase().includes(searchRaw) ||
+        categoryCode.toLowerCase().includes(searchRaw) ||
+        notes.toLowerCase().includes(searchRaw) ||
+        description.toLowerCase().includes(searchRaw) ||
+        (searchNormalized && (
+          serialNormalized.includes(searchNormalized) ||
+          notesNormalized.includes(searchNormalized)
+        ));
 
-    const itemCategoryCode = normalizeCategoryCode(item.category_code || item.category?.code);
-    const matchesType = selectedStockType === 'all' || itemCategoryCode === selectedStockType;
+      const itemCategoryCode = normalizeCategoryCode(item.category_code || item.category?.code);
+      const matchesType = selectedStockType === 'all' || itemCategoryCode === selectedStockType;
 
-    return matchesSearch && matchesType;
-  });
+      return matchesSearch && matchesType;
+    });
+  }, [
+    allStockItems,
+    selectedParts,
+    modalStockSource,
+    modalStockOwner,
+    searchTerm,
+    selectedStockType
+  ]);
+
+  const visibleAvailableParts = useMemo(
+    () => filteredAvailableParts.slice(0, visibleCount),
+    [filteredAvailableParts, visibleCount]
+  );
 
   const addPart = async (item) => {
     const alreadySelected = selectedParts.find(part => part.stock_id === item.id);
@@ -211,24 +314,23 @@ export default function AssignPartsModal({
   const removePart = async (stockId) => {
     const part = selectedParts.find(p => p.stock_id === stockId);
     if (!part) return;
-    
-    try {
-      const response = await fetch(`/api/job-cards/${jobCard.id}/unassign-part`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock_id: stockId, part })
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to unassign');
+
+    // Just return it to the available list in the UI.
+    setSelectedParts(prev => prev.filter(p => p.stock_id !== stockId));
+    setAllStockItems(prev => [
+      ...prev,
+      {
+        id: part.stock_id,
+        description: part.description || '',
+        code: part.code || '',
+        supplier: part.supplier || '',
+        quantity: part.quantity || 1,
+        serial_number: part.serial_number || '',
+        category_code: part.code || '',
+        category_description: part.description || part.code || '',
+        status: 'IN STOCK'
       }
-      
-      setSelectedParts(prev => prev.filter(p => p.stock_id !== stockId));
-      toast.success('Part removed from job');
-    } catch (error) {
-      toast.error(error.message || 'Failed to remove part');
-    }
+    ]);
   };
 
   const updatePartQuantity = (stockId, newQuantity) => {
@@ -245,6 +347,10 @@ export default function AssignPartsModal({
   };
 
   const handleSubmit = async () => {
+    if ((modalStockSource === 'client' || modalStockSource === 'technician') && !modalStockOwner) {
+      toast.error('Select a client or technician first.');
+      return;
+    }
     if (selectedParts.length === 0) {
       toast.error('Please select at least one part');
       return;
@@ -260,7 +366,9 @@ export default function AssignPartsModal({
         },
         body: JSON.stringify({
           inventory_items: selectedParts,
-          ipAddress: ipAddress
+          ipAddress: ipAddress,
+          source: modalStockSource,
+          source_owner: modalStockOwner
         }),
       });
       
@@ -493,6 +601,70 @@ export default function AssignPartsModal({
           <div className="h-[75vh] flex flex-col">
             {/* Controls */}
             <div className="mb-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Stock Source</label>
+                  <select
+                    value={modalStockSource}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setModalStockSource(next);
+                      setModalStockOwner('');
+                      setSelectedStockType('all');
+                      setSelectedParts([]);
+                    }}
+                    className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="soltrack">Soltrack Stock</option>
+                    <option value="client">Client Stock</option>
+                    <option value="technician">Technician Stock</option>
+                  </select>
+                </div>
+                {modalStockSource === 'client' && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Client</label>
+                    <select
+                      value={modalStockOwner}
+                      onChange={(e) => {
+                        setModalStockOwner(e.target.value);
+                        setSelectedStockType('all');
+                        setSelectedParts([]);
+                        fetchInventoryItems();
+                      }}
+                      className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select client</option>
+                      {localClientOptions.map((client) => (
+                        <option key={client.cost_code} value={client.cost_code}>
+                          {client.company || 'Client'} ({client.cost_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {modalStockSource === 'technician' && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Technician</label>
+                    <select
+                      value={modalStockOwner}
+                      onChange={(e) => {
+                        setModalStockOwner(e.target.value);
+                        setSelectedStockType('all');
+                        setSelectedParts([]);
+                        fetchInventoryItems();
+                      }}
+                      className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select technician</option>
+                      {technicianOptions.map((tech) => (
+                        <option key={tech.technician_email || tech.id} value={tech.technician_email || ''}>
+                          {tech.technician_email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Filter by Type</label>
                 <select 
@@ -546,14 +718,16 @@ export default function AssignPartsModal({
                       <div className="p-6 text-center text-sm text-gray-500">
                         No matching parts found for this filter/search.
                       </div>
-                    ) : filteredAvailableParts.map((item, index) => (
+                    ) : visibleAvailableParts.map((item, index) => (
                       <div
                         key={`${item.id}-${index}`}
                         className="p-3 border-b last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors flex justify-between items-center"
                         onClick={() => addPart(item)}
                       >
                         <div>
-                          <div className="font-medium text-sm text-gray-900">{item.category?.description || 'No description'}</div>
+                        <div className="font-medium text-sm text-gray-900">
+                          {item.category?.description || item.category_description || item.description || 'No description'}
+                        </div>
                           <div className="flex items-center gap-2 mt-1">
                             {item.serial_number ? (
                               <Badge className="bg-green-100 text-green-800 text-xs">
@@ -564,7 +738,7 @@ export default function AssignPartsModal({
                                 Auto-assign S/N
                               </Badge>
                             )}
-                            <span className="text-xs text-gray-500">{item.category_code || 'N/A'}</span>
+                            <span className="text-xs text-gray-500">{item.category_code || item.code || 'N/A'}</span>
                           </div>
                         </div>
                         <Badge variant="secondary" className={`text-xs px-2 py-1 ${
@@ -572,6 +746,17 @@ export default function AssignPartsModal({
                         }`}>{item.status || 'IN STOCK'}</Badge>
                       </div>
                     ))}
+                    {filteredAvailableParts.length > visibleAvailableParts.length && (
+                      <div className="p-3 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setVisibleCount((prev) => prev + 120)}
+                        >
+                          Load more ({filteredAvailableParts.length - visibleAvailableParts.length} remaining)
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
