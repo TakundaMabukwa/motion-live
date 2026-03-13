@@ -165,6 +165,8 @@ export default function InventoryPage() {
   const [showCompletedJobDetails, setShowCompletedJobDetails] = useState(false);
   const [selectedCompletedJob, setSelectedCompletedJob] = useState<JobCard | null>(null);
   const [loadingCompletedJobDetails, setLoadingCompletedJobDetails] = useState(false);
+  const [showJobDetails, setShowJobDetails] = useState(false);
+  const [selectedInventoryJob, setSelectedInventoryJob] = useState<JobCard | null>(null);
   const [movingDeinstalledItemKey, setMovingDeinstalledItemKey] = useState<string | null>(null);
   const [movedDeinstalledItems, setMovedDeinstalledItems] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('job-cards');
@@ -567,6 +569,11 @@ export default function InventoryPage() {
   const handleAssignParts = (jobCard: JobCard) => {
     setSelectedJobCard(jobCard);
     setShowAssignParts(true);
+  };
+
+  const handleOpenJobDetails = (jobCard: JobCard) => {
+    setSelectedInventoryJob(jobCard);
+    setShowJobDetails(true);
   };
 
   const handlePartsAssigned = () => {
@@ -1165,6 +1172,21 @@ export default function InventoryPage() {
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const getJobPriorityColor = (priority: string | undefined) => {
+    switch (priority?.toLowerCase()) {
+      case 'urgent':
+        return 'bg-red-500 text-white';
+      case 'high':
+        return 'bg-orange-500 text-white';
+      case 'medium':
+        return 'bg-yellow-500 text-white';
+      case 'low':
+        return 'bg-green-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
   };
 
   const normalizeStockItem = (
@@ -1816,8 +1838,12 @@ export default function InventoryPage() {
               <tbody>
                 {filteredJobCards.map((job) => {
                   return (
-                    <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
-                    <td className="py-4 px-6 align-middle">
+                    <tr
+                      key={job.id}
+                      className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50/50"
+                      onClick={() => handleOpenJobDetails(job)}
+                    >
+                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-gray-900">{job.job_number}</span>
@@ -1866,11 +1892,14 @@ export default function InventoryPage() {
                         {job.job_status || job.status || 'NOT STARTED'}
                       </Badge>
                     </td>
-                    <td className="py-4 px-6 align-middle">
+                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
-                          onClick={() => handleAssignParts(job)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAssignParts(job);
+                          }}
                           className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                           <Plus className="mr-1 w-3 h-3" />
@@ -1878,7 +1907,10 @@ export default function InventoryPage() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => handleBookStock(job)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleBookStock(job);
+                          }}
                           className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
                           title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
                         >
@@ -1937,7 +1969,11 @@ export default function InventoryPage() {
               </thead>
               <tbody>
                 {jobCardsWithParts.map((job) => (
-                  <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-green-50/50">
+                  <tr
+                    key={job.id}
+                    className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-green-50/50"
+                    onClick={() => handleOpenJobDetails(job)}
+                  >
                     <td className="py-4 px-6 align-middle">
                       <div className="flex flex-col gap-1">
                         <span className="font-semibold text-gray-900">{job.job_number}</span>
@@ -1977,12 +2013,15 @@ export default function InventoryPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-4 px-6 align-middle">
+                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleShowQRCode(job)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleShowQRCode(job);
+                          }}
                           className="text-blue-600 hover:text-blue-700"
                         >
                           <QrCode className="mr-1 w-3 h-3" />
@@ -1992,7 +2031,10 @@ export default function InventoryPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleAssignParts(job)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleAssignParts(job);
+                          }}
                           className="text-green-600 hover:text-green-700"
                         >
                           <RefreshCw className="mr-1 w-3 h-3" />
@@ -3070,8 +3112,7 @@ export default function InventoryPage() {
       {/* Create Order and Repair Job Buttons */}
       <div className="flex justify-end gap-3">
         <CreateRepairJobModal 
-          onJobCreated={fetchJobCards} 
-          onAssignParts={handleAssignParts}
+          onJobCreated={fetchJobCards}
         />
         <StockOrderModal onOrderSubmitted={fetchStockOrders} />
       </div>
@@ -3090,6 +3131,231 @@ export default function InventoryPage() {
           allStockItems={allStockItems}
         />
       )}
+
+      <Dialog
+        open={showJobDetails}
+        onOpenChange={(open) => {
+          setShowJobDetails(open);
+          if (!open) {
+            setSelectedInventoryJob(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center text-xl font-bold">
+              <FileText className="mr-2 h-5 w-5" />
+              Job Details
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedInventoryJob && (
+            <div className="space-y-8">
+              <div className="rounded-lg border border-gray-100 bg-gray-50 p-5">
+                <div className="flex flex-col justify-between gap-4 md:flex-row">
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Job Number</span>
+                    <h2 className="text-2xl font-bold text-gray-900">{selectedInventoryJob.job_number}</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Created: {selectedInventoryJob.created_at ? new Date(selectedInventoryJob.created_at).toLocaleDateString() : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-start gap-2">
+                    <Badge className={getStatusColor(selectedInventoryJob.job_status || selectedInventoryJob.status)}>
+                      {(selectedInventoryJob.job_status || selectedInventoryJob.status || 'pending').replace('_', ' ').toUpperCase()}
+                    </Badge>
+                    <Badge className={getJobPriorityColor(selectedInventoryJob.priority)}>
+                      {(selectedInventoryJob.priority || 'medium').toUpperCase()}
+                    </Badge>
+                    {selectedInventoryJob.parts_required && selectedInventoryJob.parts_required.length > 0 && (
+                      <Badge className="bg-purple-100 text-purple-800">PARTS ASSIGNED</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="space-y-6 lg:col-span-1">
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                      <h3 className="flex items-center text-md font-semibold text-gray-800">
+                        <User className="mr-2 h-4 w-4 text-gray-500" />
+                        Customer Information
+                      </h3>
+                    </div>
+                    <div className="space-y-3 p-5">
+                      <h4 className="font-semibold text-gray-900">{selectedInventoryJob.customer_name || 'N/A'}</h4>
+                      {selectedInventoryJob.contact_person && (
+                        <div className="text-sm text-gray-600">
+                          <span className="font-medium">Contact:</span> {selectedInventoryJob.contact_person}
+                        </div>
+                      )}
+                      {selectedInventoryJob.customer_email && <div className="text-sm text-gray-600">{selectedInventoryJob.customer_email}</div>}
+                      {selectedInventoryJob.customer_phone && <div className="text-sm text-gray-600">{selectedInventoryJob.customer_phone}</div>}
+                      {selectedInventoryJob.customer_address && (
+                        <div className="whitespace-pre-wrap text-sm text-gray-600">{selectedInventoryJob.customer_address}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                      <h3 className="flex items-center text-md font-semibold text-gray-800">
+                        <Car className="mr-2 h-4 w-4 text-gray-500" />
+                        Vehicle Information
+                      </h3>
+                    </div>
+                    <div className="space-y-3 p-5">
+                      <h4 className="font-semibold text-gray-900">{selectedInventoryJob.vehicle_registration || 'No Registration'}</h4>
+                      {(selectedInventoryJob.vehicle_make || selectedInventoryJob.vehicle_model) && (
+                        <div className="text-sm text-gray-600">
+                          {[selectedInventoryJob.vehicle_make, selectedInventoryJob.vehicle_model].filter(Boolean).join(' ')}
+                        </div>
+                      )}
+                      {selectedInventoryJob.vehicle_year && <div className="text-sm text-gray-600">Year: {selectedInventoryJob.vehicle_year}</div>}
+                      {selectedInventoryJob.vin_numer && <div className="text-sm text-gray-600">VIN: {selectedInventoryJob.vin_numer}</div>}
+                      {selectedInventoryJob.odormeter && <div className="text-sm text-gray-600">Odometer: {selectedInventoryJob.odormeter}</div>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6 lg:col-span-2">
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                      <h3 className="flex items-center text-md font-semibold text-gray-800">
+                        <ClipboardList className="mr-2 h-4 w-4 text-gray-500" />
+                        Job Details
+                      </h3>
+                    </div>
+                    <div className="p-5">
+                      <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-3">
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">Job Type</p>
+                          <p className="font-medium">{selectedInventoryJob.job_type?.toUpperCase() || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">Job Date</p>
+                          <p className="font-medium">{formatDate(selectedInventoryJob.job_date)}</p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">Due Date</p>
+                          <p className="font-medium">{formatDate(selectedInventoryJob.due_date)}</p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">Technician</p>
+                          <p className="font-medium">{selectedInventoryJob.technician_name || 'Not assigned'}</p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">Quotation</p>
+                          <p className="font-medium">{selectedInventoryJob.quotation_number || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-gray-500">IP Address</p>
+                          <p className="font-medium">{selectedInventoryJob.ip_address || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      {selectedInventoryJob.job_description && (
+                        <div className="mt-6 border-t border-gray-100 pt-6">
+                          <p className="mb-2 text-xs font-medium text-gray-500">Description</p>
+                          <p className="whitespace-pre-wrap text-sm text-gray-700">{selectedInventoryJob.job_description}</p>
+                        </div>
+                      )}
+
+                      {selectedInventoryJob.special_instructions && (
+                        <div className="mt-6 border-t border-gray-100 pt-6">
+                          <p className="mb-2 text-xs font-medium text-gray-500">Special Instructions</p>
+                          <p className="whitespace-pre-wrap text-sm text-gray-700">{selectedInventoryJob.special_instructions}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {selectedInventoryJob.parts_required && selectedInventoryJob.parts_required.length > 0 && (
+                    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                      <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                        <h3 className="flex items-center text-md font-semibold text-gray-800">
+                          <Package className="mr-2 h-4 w-4 text-gray-500" />
+                          Parts Assigned
+                        </h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b border-gray-200 bg-gray-50">
+                            <tr>
+                              <th className="px-5 py-3 text-left font-medium text-gray-500">Description</th>
+                              <th className="px-5 py-3 text-left font-medium text-gray-500">Quantity</th>
+                              <th className="px-5 py-3 text-left font-medium text-gray-500">Code</th>
+                              <th className="px-5 py-3 text-left font-medium text-gray-500">Supplier</th>
+                              <th className="px-5 py-3 text-right font-medium text-gray-500">Cost</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedInventoryJob.parts_required.map((part, index) => (
+                              <tr key={`${part.code || part.description || 'part'}-${index}`} className="border-b border-gray-100">
+                                <td className="px-5 py-3">{part.description}</td>
+                                <td className="px-5 py-3">{part.quantity}</td>
+                                <td className="px-5 py-3">{part.code}</td>
+                                <td className="px-5 py-3">{part.supplier}</td>
+                                <td className="px-5 py-3 text-right">R{part.total_cost}</td>
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-50">
+                              <td colSpan={4} className="px-5 py-3 text-right font-medium">Total:</td>
+                              <td className="px-5 py-3 text-right font-bold">
+                                R{selectedInventoryJob.parts_required.reduce((sum, part) => sum + (Number(part.total_cost) || 0), 0).toFixed(2)}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-6">
+                <Button variant="outline" onClick={() => setShowJobDetails(false)}>
+                  Close
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!selectedInventoryJob) return;
+                    setShowJobDetails(false);
+                    handleShowQRCode(selectedInventoryJob);
+                  }}
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  View QR
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!selectedInventoryJob) return;
+                    setShowJobDetails(false);
+                    handleAssignParts(selectedInventoryJob);
+                  }}
+                  className="bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Assign Parts
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!selectedInventoryJob) return;
+                    setShowJobDetails(false);
+                    handleBookStock(selectedInventoryJob);
+                  }}
+                  className={hasBootStock(selectedInventoryJob) ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-amber-600 text-white hover:bg-amber-700'}
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Boot Stock
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Assign Stock to Technician Modal */}
       {showAssignTechStock && (

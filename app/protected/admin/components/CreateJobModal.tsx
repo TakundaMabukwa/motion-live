@@ -182,7 +182,7 @@ export default function CreateJobModal({
   const fetchVehiclesForLookup = async () => {
     setLoadingVehicleLookup(true);
     try {
-      const params = new URLSearchParams({ limit: '5000' });
+      const params = new URLSearchParams({ all: 'true', limit: '20000', chunk: '1000' });
       const response = await fetch(`/api/vehicles/reg-search?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to load vehicles');
