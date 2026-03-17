@@ -1102,9 +1102,14 @@ export default function AdminDashboard() {
     return (
       role === 'admin' ||
       moveTo === 'admin' ||
-      status === 'admin_created'
+      status === 'admin_created' ||
+      status === 'moved_to_admin'
     );
   };
+
+  const isMovedToAdminJob = (job: JobCard) => (
+    String(job.status || '').toLowerCase() === 'moved_to_admin'
+  );
 
   const canAssignTechnician = (job: JobCard) => (
     hasPartsRequired(job) || isAdminRoutedJob(job)
@@ -1194,10 +1199,11 @@ export default function AdminDashboard() {
   };
 
   const filteredJobCards = sortJobs(jobCards.filter(job => {
-    // Show jobs with no technician assigned that either have parts
-    // or were explicitly routed to admin (decommission flow).
-    return matchesJobSearch(job) && !job.technician_name && (
-      canAssignTechnician(job)
+    // Show jobs with no technician assigned that are ready for assignment,
+    // but always include jobs explicitly moved to admin.
+    return matchesJobSearch(job) && (
+      isMovedToAdminJob(job) ||
+      (!job.technician_name && canAssignTechnician(job))
     );
   }));
 
@@ -1272,7 +1278,7 @@ export default function AdminDashboard() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="font-semibold text-gray-900 text-xl">Jobs Ready for Technician Assignment</h2>
-              <p className="mt-1 text-gray-600 text-sm">Showing jobs with parts assigned and no technician assigned</p>
+              <p className="mt-1 text-gray-600 text-sm">Showing jobs with parts assigned, plus jobs moved to admin even if a technician is already assigned</p>
             </div>
             <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
               <RefreshCw className="w-4 h-4" />
