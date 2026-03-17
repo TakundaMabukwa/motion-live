@@ -47,7 +47,7 @@ export async function GET(request) {
     // Fetch from cost_centers table where cost_code matches any account number
     const { data, error } = await supabase
       .from('cost_centers')
-      .select('id, created_at, company, cost_code')
+      .select('id, created_at, company, cost_code, validated')
       .in('cost_code', accountArray)
       .order('cost_code', { ascending: true });
 
@@ -59,15 +59,29 @@ export async function GET(request) {
         .select('cost_code')
         .in('all_new_account_numbers', accountArray);
       if (customerData && customerData.length > 0) {
-        const costCodes = customerData
-          .map(c => c.cost_code)
-          .filter(code => code)
-          .map(code => ({
-            cost_code: code,
-            company: '',
-            id: null,
-            created_at: null
-          }));
+        // Get unique cost codes
+        const uniqueCostCodes = [...new Set(customerData.map(c => c.cost_code).filter(code => code))];
+        
+        // Try to fetch validated status from cost_centers table
+        const { data: ccData } = await supabase
+          .from('cost_centers')
+          .select('cost_code, validated')
+          .in('cost_code', uniqueCostCodes);
+        
+        const validatedMap = {};
+        if (ccData) {
+          ccData.forEach(cc => {
+            validatedMap[cc.cost_code] = cc.validated || false;
+          });
+        }
+        
+        const costCodes = uniqueCostCodes.map(code => ({
+          cost_code: code,
+          company: '',
+          id: null,
+          created_at: null,
+          validated: validatedMap[code] || false
+        }));
         console.log('Cost codes from customers_grouped:', costCodes);
         return NextResponse.json(costCodes);
       }

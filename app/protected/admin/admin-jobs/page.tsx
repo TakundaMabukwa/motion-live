@@ -486,7 +486,7 @@ export default function AdminJobsPage() {
         <TabsList className="grid grid-cols-2 w-full">
           <TabsTrigger value="jobs-with-parts" className="flex items-center gap-2">
             <Package className="w-4 h-4" />
-            Jobs with Parts
+            Assigned
           </TabsTrigger>
           <TabsTrigger value="completed-jobs" className="flex items-center gap-2">
             <CheckCircle className="w-4 h-4" />

@@ -1209,6 +1209,10 @@ export default function AdminDashboard() {
     jobCards.filter((job) => !hasPartsRequired(job) && matchesJobSearch(job))
   );
 
+  const filteredAssignedTechnicianJobs = sortJobs(
+    jobCards.filter((job) => job.technician_name && matchesJobSearch(job))
+  );
+
   // These were used for metrics/analytics but aren't currently referenced in the UI
   // Can uncomment if needed later
   /*
@@ -1264,14 +1268,14 @@ export default function AdminDashboard() {
   const tabItems = [
     {
       value: 'all-jobs',
-      label: 'Ready for Technician',
+      label: 'Awaiting Technician',
       icon: BarChart3,
       content: (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="font-semibold text-gray-900 text-xl">Jobs Ready for Technician Assignment</h2>
+              <h2 className="font-semibold text-gray-900 text-xl">Jobs Ready for Technician</h2>
               <p className="mt-1 text-gray-600 text-sm">Showing jobs with parts assigned and no technician assigned</p>
             </div>
             <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
@@ -1442,232 +1446,47 @@ export default function AdminDashboard() {
           </div>
         </div>
       )
-
     },
     {
-      value: 'overview',
-      label: 'Overview',
-      icon: BarChart3,
+      value: 'schedule',
+      label: 'Schedule',
+      icon: Calendar,
       content: (
-        <div className="space-y-6">
-          <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            {overviewMetrics.map((metric) => (
-              <StatsCard
-                key={metric.title}
-                title={metric.title}
-                value={metric.value}
-                subtitle={metric.subtitle}
-                icon={metric.icon}
-                color={metric.color}
-              />
-            ))}
-          </div>
-
-          {/* Technicians with Their Jobs */}
-          <div className="mt-8">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="font-semibold text-gray-900 text-xl">Technicians & Their Jobs</h2>
-                <p className="mt-1 text-gray-600 text-sm">View all technicians and their assigned jobs</p>
-              </div>
-              <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {technicians.map((technician) => {
-                const techJobs = jobCards.filter(job => 
-                  job.technician_name && job.technician_name.includes(technician.name)
-                );
-                
-                return (
-                  <Card key={technician.id} className="overflow-hidden">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 border-b">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-blue-500 p-3 rounded-full">
-                            <Users className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <CardTitle className="text-lg">{technician.name}</CardTitle>
-                            <p className="text-blue-700 text-sm">{technician.email}</p>
-                          </div>
-                        </div>
-                        <Badge className="bg-blue-600 text-white">
-                          {techJobs.length} Job{techJobs.length !== 1 ? 's' : ''}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      {techJobs.length === 0 ? (
-                        <div className="p-6 text-center text-gray-500">
-                          No jobs assigned
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b">
-                              <tr>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Job #</th>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Customer</th>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Type</th>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Status</th>
-                                <th className="py-2 px-4 text-left font-medium text-gray-500">Date</th>
-                                <th className="py-2 px-4 text-right font-medium text-gray-500">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {techJobs.map((job) => (
-                                <tr key={job.id} className="border-b hover:bg-gray-50">
-                                  <td className="py-2 px-4">
-                                    <div className="font-medium">{job.job_number}</div>
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <div className="text-sm">{job.customer_name || 'N/A'}</div>
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
-                                    {job.vehicle_make && job.vehicle_model && (
-                                      <div className="text-xs text-gray-500">
-                                        {job.vehicle_make} {job.vehicle_model}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <div className="text-sm">{job.job_type?.toUpperCase() || 'N/A'}</div>
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <Badge className={getStatusColor(job.status)}>
-                                      {job.status.replace('_', ' ').toUpperCase()}
-                                    </Badge>
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <div className="text-sm">
-                                      {job.job_date ? new Date(job.job_date).toLocaleDateString() : 'Not scheduled'}
-                                    </div>
-                                  </td>
-                                  <td className="py-2 px-4">
-                                    <div className="flex justify-end">
-                                      <Button 
-                                        onClick={() => handleViewJob(job)} 
-                                        variant="outline" 
-                                        size="sm"
-                                      >
-                                        View
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-
-              {/* Unassigned Jobs */}
-              {jobCards.filter(job => !job.technician_name).length > 0 && (
-                <Card className="overflow-hidden border-orange-200">
-                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100 border-b border-orange-200">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-orange-500 p-3 rounded-full">
-                          <Clock className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">Unassigned Jobs</CardTitle>
-                          <p className="text-orange-700 text-sm">Jobs waiting for technician assignment</p>
-                        </div>
-                      </div>
-                      <Badge className="bg-orange-600 text-white">
-                        {jobCards.filter(job => !job.technician_name).length} Job{jobCards.filter(job => !job.technician_name).length !== 1 ? 's' : ''}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b">
-                          <tr>
-                            <th className="py-2 px-4 text-left font-medium text-gray-500">Job #</th>
-                            <th className="py-2 px-4 text-left font-medium text-gray-500">Customer</th>
-                            <th className="py-2 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                            <th className="py-2 px-4 text-left font-medium text-gray-500">Type</th>
-                            <th className="py-2 px-4 text-left font-medium text-gray-500">Status</th>
-                            <th className="py-2 px-4 text-right font-medium text-gray-500">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {jobCards.filter(job => !job.technician_name).map((job) => (
-                            <tr key={job.id} className="border-b hover:bg-gray-50">
-                              <td className="py-2 px-4">
-                                <div className="font-medium">{job.job_number}</div>
-                              </td>
-                              <td className="py-2 px-4">
-                                <div className="text-sm">{job.customer_name || 'N/A'}</div>
-                              </td>
-                              <td className="py-2 px-4">
-                                <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
-                              </td>
-                              <td className="py-2 px-4">
-                                <div className="text-sm">{job.job_type?.toUpperCase() || 'N/A'}</div>
-                              </td>
-                              <td className="py-2 px-4">
-                                <Badge className={getStatusColor(job.status)}>
-                                  {job.status.replace('_', ' ').toUpperCase()}
-                                </Badge>
-                              </td>
-                              <td className="py-2 px-4">
-                                <div className="flex justify-end gap-2">
-                                  <Button 
-                                    onClick={() => handleViewJob(job)} 
-                                    variant="outline" 
-                                    size="sm"
-                                  >
-                                    View
-                                  </Button>
-                                  <Button
-                                    onClick={() => handleAssignTechnician(job)}
-                                    variant="default"
-                                    size="sm"
-                                    className="bg-black hover:bg-gray-800 text-white"
-                                    disabled={!canAssignTechnician(job)}
-                                  >
-                                    <UserPlus className="w-4 h-4 mr-1" />
-                                    Assign
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+        <div className="flex items-center justify-center h-screen">
+          <iframe 
+            src="/protected/admin/schedule" 
+            className="w-full h-full"
+            style={{ border: 'none' }}
+          />
         </div>
       )
     },
     {
-      value: 'jobs-with-parts',
-      label: 'Jobs with Parts',
-      icon: Package,
+      value: 'all-job-cards',
+      label: 'All Job Cards',
+      icon: FileText,
+      content: (
+        <div className="flex items-center justify-center h-screen">
+          <iframe 
+            src="/protected/admin/all-job-cards" 
+            className="w-full h-full"
+            style={{ border: 'none' }}
+          />
+        </div>
+      )
+    },
+    {
+      value: 'assigned-technician',
+      label: 'Assigned',
+      icon: Users,
       content: (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="font-semibold text-gray-900 text-xl">Jobs with Parts Assigned</h2>
-              <p className="mt-1 text-gray-600 text-sm">Showing all jobs that have parts assigned, regardless of status</p>
+              <h2 className="font-semibold text-gray-900 text-xl">Jobs with Technician Assigned</h2>
+              <p className="mt-1 text-gray-600 text-sm">Showing all jobs that have been assigned to technicians</p>
             </div>
-            <Button onClick={() => fetchJobsWithParts()} variant="outline" size="icon">
+            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
@@ -1678,7 +1497,7 @@ export default function AdminDashboard() {
               <div className="relative">
                 <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
                 <Input
-                  placeholder="Search jobs with parts..."
+                  placeholder="Search assigned jobs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -1718,49 +1537,56 @@ export default function AdminDashboard() {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-gray-50 border-b">
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                        <span>Job Number</span>
+                      </div>
+                    </th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Priority</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Contact Person</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">Contact</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Due Date</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Location</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Est. Duration</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Decommission Date</th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">Technician</th>
                     <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {loadingJobsWithParts ? (
+                  {loading ? (
                     <tr>
-                      <td colSpan={13} className="p-4 text-center">
+                      <td colSpan={12} className="p-4 text-center">
                         <div className="flex justify-center items-center py-8">
                           <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                          <span className="ml-2">Loading jobs with parts...</span>
+                          <span className="ml-2">Loading assigned jobs...</span>
                         </div>
                       </td>
                     </tr>
-                  ) : filteredJobsWithParts.length === 0 ? (
+                  ) : filteredAssignedTechnicianJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={13} className="p-4 text-center">
+                      <td colSpan={12} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
-                          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Parts</h3>
-                          <p className="text-gray-500">There are no jobs that require parts. Parts will appear here when assigned to jobs.</p>
+                          <Users className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Assigned Technicians</h3>
+                          <p className="text-gray-500">There are no jobs assigned to technicians yet.</p>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    filteredJobsWithParts.map((job) => {
+                    filteredAssignedTechnicianJobs.map((job) => {
                       return (
                         <tr key={job.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 align-middle">
-                            <div className="font-medium">{job.job_number}</div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(job.created_at).toLocaleDateString()}
+                            <div className="flex items-center gap-3">
+                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                              <div>
+                                <div className="font-medium">{job.job_number}</div>
+                                <div className="text-xs text-gray-500">{(job.job_type || 'job').toUpperCase()}</div>
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
@@ -1784,10 +1610,10 @@ export default function AdminDashboard() {
                           <td className="py-3 px-4 align-middle">
                             <div className="text-sm font-medium">{job.customer_name || 'N/A'}</div>
                             <div className="text-xs text-gray-500">{job.customer_email || ''}</div>
-                            <div className="text-xs text-gray-500">{job.customer_phone || ''}</div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="text-sm">{job.contact_person || 'Not specified'}</div>
+                            <div className="text-xs text-gray-500">{job.customer_phone || ''}</div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <Badge 
@@ -1802,41 +1628,26 @@ export default function AdminDashboard() {
                             </Badge>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
+                            <div className="text-sm font-medium">{job.vehicle_registration || 'N/A'}</div>
                             {job.vehicle_make && job.vehicle_model && (
                               <div className="text-xs text-gray-500">
                                 {job.vehicle_make} {job.vehicle_model}
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.due_date ? new Date(job.due_date).toLocaleDateString() : 'Not specified'}</div>
+                          <td className="py-3 px-4 align-middle text-sm">
+                            {job.due_date ? new Date(job.due_date).toLocaleDateString() : 'Not specified'}
+                          </td>
+                          <td className="py-3 px-4 align-middle text-sm">
+                            {job.job_location || 'Not specified'}
+                          </td>
+                          <td className="py-3 px-4 align-middle text-sm">
+                            {job.estimated_duration_hours ? `${job.estimated_duration_hours}h` : 'Not specified'}
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.job_location || 'Not specified'}</div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.estimated_duration_hours ? `${job.estimated_duration_hours}h` : 'Not specified'}</div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            {job.decommission_date ? (
-                              <div className="text-sm font-medium">
-                                {new Date(job.decommission_date).toLocaleDateString()}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-gray-400">N/A</div>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            {job.technician_name ? (
-                              <Badge className="bg-green-100 text-green-800">
-                                {job.technician_name}
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-gray-100 text-gray-800">
-                                Unassigned
-                              </Badge>
-                            )}
+                            <Badge className="bg-green-100 text-green-800">
+                              {job.technician_name}
+                            </Badge>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="flex justify-end gap-2">
@@ -1848,169 +1659,20 @@ export default function AdminDashboard() {
                               >
                                 View
                               </Button>
-                              {job.technician_name ? (
-                                <Button
-                                  onClick={() => handleAssignTechnician(job)}
-                                  variant="outline"
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                  Re-assign
-                                </Button>
-                              ) : (
-                                <Button
-                                  onClick={() => handleAssignTechnician(job)}
-                                  variant="default"
-                                  size="sm"
-                                  className="bg-black hover:bg-gray-800 text-white"
-                                  disabled={!canAssignTechnician(job)}
-                                >
-                                  <UserPlus className="w-4 h-4 mr-2" />
-                                  Assign
-                                </Button>
-                              )}
+                              <Button
+                                onClick={() => handleAssignTechnician(job)}
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-1"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                Re-assign
+                              </Button>
                             </div>
                           </td>
                         </tr>
                       );
                     })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      value: 'waiting-for-parts',
-      label: 'Waiting for Parts',
-      icon: Package,
-      content: (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="font-semibold text-gray-900 text-xl">Jobs Waiting for Parts</h2>
-              <p className="mt-1 text-gray-600 text-sm">Showing jobs that need parts assigned before technician assignment</p>
-            </div>
-            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
-          
-          {/* Filters */}
-          <div className="flex sm:flex-row flex-col gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
-                <Input
-                  placeholder="Search jobs waiting for parts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="on_hold">On Hold</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by job type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="install">Install</SelectItem>
-                <SelectItem value="deinstall">Deinstall</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="repair">Repair</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Job Cards Table */}
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="relative w-full overflow-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Number</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5} className="p-4 text-center">
-                        <div className="flex justify-center items-center py-8">
-                          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                          <span className="ml-2">Loading jobs...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : filteredWaitingForPartsJobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="p-4 text-center">
-                        <div className="py-8 flex flex-col items-center">
-                          <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs Waiting for Parts</h3>
-                          <p className="text-gray-500">All jobs have parts assigned. Great job!</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredWaitingForPartsJobs.map((job) => (
-                      <tr key={job.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4 align-middle">
-                          <div className="font-medium">{job.job_number}</div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(job.created_at).toLocaleDateString()}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="truncate max-w-[200px]">
-                            {job.job_description || 'No description'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="text-sm">{job.customer_name || 'N/A'}</div>
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="text-sm">{job.vehicle_registration || 'N/A'}</div>
-                          {job.vehicle_make && job.vehicle_model && (
-                            <div className="text-xs text-gray-500">
-                              {job.vehicle_make} {job.vehicle_model}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 align-middle">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              onClick={() => handleViewJob(job)} 
-                              variant="outline" 
-                              size="sm"
-                              className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                            >
-                              View
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
                   )}
                 </tbody>
               </table>
@@ -2223,25 +1885,6 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Navigation Links */}
-      <div className="flex items-center gap-4">
-        <a
-          href="/protected/admin/schedule"
-          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
-        >
-          <Calendar className="w-4 h-4" />
-          Schedule
-        </a>
-        <a
-          href="/protected/admin/all-job-cards"
-          className="flex items-center gap-2 hover:bg-gray-50 px-4 py-2 rounded-md font-medium text-gray-700 hover:text-gray-900 text-sm transition-all duration-200"
-        >
-          <FileText className="w-4 h-4" />
-          All Job Cards
-        </a>
-
       </div>
 
       {/* Tab Content */}

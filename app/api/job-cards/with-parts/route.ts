@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('job_cards')
       .select('*')
-      .not('parts_required', 'is', null)
+      .not('technician_name', 'is', null)
       .order('created_at', { ascending: false });
 
     // Apply pagination
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const { count } = await supabase
       .from('job_cards')
       .select('*', { count: 'exact', head: true })
-      .not('parts_required', 'is', null);
+      .not('technician_name', 'is', null);
 
     return NextResponse.json({
       job_cards: data || [],
