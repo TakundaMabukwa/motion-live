@@ -19,22 +19,58 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const rawSearch = (searchParams.get('search') || '').trim();
     const limit = Math.min(parseInt(searchParams.get('limit') || '2000', 10), 10000);
+    const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
+    const fetchAll = searchParams.get('all') === 'true';
+    const chunkSize = Math.min(Math.max(parseInt(searchParams.get('chunk') || '1000', 10), 1), 1000);
 
-    let query = supabase
-      .from('vehicles')
-      .select('id, reg, fleet_number, company, make, model, year, vin')
-      .order('reg', { ascending: true })
-      .limit(limit);
+    const selectColumns = 'id, reg, fleet_number, company, make, model, year, vin, new_account_number';
 
-    if (rawSearch) {
-      const escapedSearch = rawSearch.replace(/[%_]/g, '');
-      query = query.or(`reg.ilike.%${escapedSearch}%,fleet_number.ilike.%${escapedSearch}%`);
-    }
+    const buildQuery = (start: number, end: number) => {
+      let query = supabase
+        .from('vehicles')
+        .select(selectColumns)
+        .order('reg', { ascending: true })
+        .range(start, end);
 
-    const { data, error } = await query;
+      if (rawSearch) {
+        const escapedSearch = rawSearch.replace(/[%_]/g, '');
+        query = query.or(`reg.ilike.%${escapedSearch}%,fleet_number.ilike.%${escapedSearch}%`);
+      }
 
-    if (error) {
-      return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+      return query;
+    };
+
+    let data: Array<Record<string, unknown>> = [];
+
+    if (fetchAll) {
+      let start = offset;
+      const maxRows = limit;
+
+      while (data.length < maxRows) {
+        const remaining = maxRows - data.length;
+        const currentChunkSize = Math.min(chunkSize, remaining);
+        const end = start + currentChunkSize - 1;
+
+        const { data: chunk, error } = await buildQuery(start, end);
+        if (error) {
+          return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+        }
+
+        const rows = chunk || [];
+        data.push(...rows);
+
+        if (rows.length < currentChunkSize) {
+          break;
+        }
+
+        start += currentChunkSize;
+      }
+    } else {
+      const { data: chunk, error } = await buildQuery(offset, offset + limit - 1);
+      if (error) {
+        return NextResponse.json({ error: 'Failed to fetch vehicles' }, { status: 500 });
+      }
+      data = chunk || [];
     }
 
     const seenVehicleKeys = new Set<string>();

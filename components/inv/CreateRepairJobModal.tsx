@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Wrench, User, Car, FileText, Search, Eye } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckCircle, Car, FileText, Loader2, User, UserCheck, Wrench, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface CreateRepairJobModalProps {
   onJobCreated: () => void;
-  onAssignParts: (jobCard: any) => void;
 }
 
 interface CostCenter {
@@ -21,59 +20,89 @@ interface CostCenter {
   company: string;
 }
 
-interface Vehicle {
-  reg: string;
-  make: string;
-  model: string;
-  year: number;
+interface VehicleLookupItem {
+  id?: number | string;
+  reg: string | null;
+  fleet_number?: string | null;
+  company?: string | null;
+  make?: string | null;
+  model?: string | null;
+  year?: string | number | null;
+  vin?: string | null;
+  new_account_number?: string | null;
   [key: string]: any;
 }
 
-export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: CreateRepairJobModalProps) {
+interface Technician {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const normalizeIdentifier = (value: string | null | undefined) =>
+  (value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+
+export default function CreateRepairJobModal({ onJobCreated }: CreateRepairJobModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState<'customer-info' | 'vehicle-details' | 'job-description' | 'assign-technician' | 'complete'>('customer-info');
+
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loadingCostCenters, setLoadingCostCenters] = useState(false);
   const [costCenterSearch, setCostCenterSearch] = useState('');
   const [showCostCenterDropdown, setShowCostCenterDropdown] = useState(false);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [vehiclesByCostCenter, setVehiclesByCostCenter] = useState<Record<string, Vehicle[]>>({});
-  const [loadingVehicles, setLoadingVehicles] = useState(false);
-  const [selectedVehicleDetails, setSelectedVehicleDetails] = useState(null);
-  const [showVehicleModal, setShowVehicleModal] = useState(false);
-  const [vehicleItems, setVehicleItems] = useState([]);
-  const [selectedItemsForRepair, setSelectedItemsForRepair] = useState([]);
-  
+
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [vehicleLookupResults, setVehicleLookupResults] = useState<VehicleLookupItem[]>([]);
+  const [loadingVehicleLookup, setLoadingVehicleLookup] = useState(false);
+  const [showVehicleLookup, setShowVehicleLookup] = useState(false);
+  const [vehicleSearchCache, setVehicleSearchCache] = useState<Record<string, VehicleLookupItem[]>>({});
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [loadingTechnicians, setLoadingTechnicians] = useState(false);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
+  const [assignmentDate, setAssignmentDate] = useState('');
+  const [assignmentTime, setAssignmentTime] = useState('');
+  const skipVehicleSearchRef = useRef(false);
+
   const [formData, setFormData] = useState({
-    // Job details
     job_type: 'repair',
     cost_center: '',
     job_description: '',
-    
-    // Customer information
     customer_name: '',
     customer_email: '',
     customer_phone: '',
     customer_address: '',
-    
-    // Vehicle information
     vehicle_registration: '',
     vehicle_make: '',
     vehicle_model: '',
-    vehicle_year: ''
+    vehicle_year: '',
+    vin_numer: '',
   });
 
-  const steps = [
-    { id: 0, title: 'Job Details', icon: FileText },
-    { id: 1, title: 'Customer Info', icon: User },
-    { id: 2, title: 'Vehicle Details', icon: Car }
-  ];
+  const formatLocalDateInput = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
-    if (isOpen) {
-      fetchCostCenters();
-    }
+    if (!isOpen) return;
+
+    setCurrentStep('customer-info');
+    setVehicleSearch('');
+    setSelectedTechnicianId('');
+    setAssignmentDate(formatLocalDateInput());
+    setAssignmentTime('');
+    setVehicleSearchCache({});
+    setVehicleLookupResults([]);
+    setShowVehicleLookup(false);
+    skipVehicleSearchRef.current = false;
+    void fetchCostCenters();
+    void fetchTechnicians();
   }, [isOpen]);
 
   useEffect(() => {
@@ -82,248 +111,315 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       if (!target.closest('.cost-center-dropdown')) {
         setShowCostCenterDropdown(false);
       }
+      if (!target.closest('.vehicle-lookup-dropdown')) {
+        setShowVehicleLookup(false);
+      }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (currentStep !== 'customer-info') return;
+
+    const term = vehicleSearch.trim();
+    if (!term || term.length < 2) {
+      setVehicleLookupResults([]);
+      setShowVehicleLookup(false);
+      return;
+    }
+
+    if (skipVehicleSearchRef.current) {
+      skipVehicleSearchRef.current = false;
+      return;
+    }
+
+    const cacheKey = term.toLowerCase();
+    if (vehicleSearchCache[cacheKey]) {
+      setVehicleLookupResults(vehicleSearchCache[cacheKey]);
+      setShowVehicleLookup(true);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setLoadingVehicleLookup(true);
+      try {
+        const params = new URLSearchParams({ search: term, limit: '50' });
+        const response = await fetch(`/api/vehicles/reg-search?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Failed to load vehicles');
+        }
+
+        const data = await response.json();
+        const vehiclesRaw = Array.isArray(data?.vehicles) ? data.vehicles : [];
+        const seenVehicleKeys = new Set<string>();
+        const vehicles = vehiclesRaw.filter((vehicle: VehicleLookupItem) => {
+          const reg = normalizeIdentifier(vehicle.reg);
+          const fleet = normalizeIdentifier(vehicle.fleet_number);
+          if (!reg && !fleet) return false;
+
+          const dedupeKey = reg || fleet;
+          if (seenVehicleKeys.has(dedupeKey)) return false;
+          seenVehicleKeys.add(dedupeKey);
+          return true;
+        });
+
+        setVehicleSearchCache((prev) => ({ ...prev, [cacheKey]: vehicles }));
+        setVehicleLookupResults(vehicles);
+        setShowVehicleLookup(true);
+      } catch (error) {
+        console.error('Error loading vehicles:', error);
+        setVehicleLookupResults([]);
+        setShowVehicleLookup(false);
+      } finally {
+        setLoadingVehicleLookup(false);
+      }
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [currentStep, vehicleSearch, vehicleSearchCache]);
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const fetchCostCenters = async () => {
     setLoadingCostCenters(true);
     try {
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
-      
-      // Get all cost centers
-      const { data: costCentersData, error: costCentersError } = await supabase
+
+      const { data, error } = await supabase
         .from('cost_centers')
         .select('id, cost_code, company')
         .order('cost_code');
-        
-      if (!costCentersError && costCentersData) {
-        setCostCenters(costCentersData);
-        
-        // Get all cost codes
-        const costCodes = costCentersData.map(center => center.cost_code);
-        
-        // Fetch all vehicles with equipment fields
-        const { data: vehiclesData, error: vehiclesError } = await supabase
-          .from('vehicles')
-          .select('*')
-          .in('new_account_number', costCodes)
-          .order('reg');
-          
-        if (!vehiclesError && vehiclesData) {
-          // Group vehicles by cost center
-          const vehiclesByCostCenter = {};
-          vehiclesData.forEach(vehicle => {
-            const costCenter = vehicle.new_account_number;
-            if (!vehiclesByCostCenter[costCenter]) {
-              vehiclesByCostCenter[costCenter] = [];
-            }
-            vehiclesByCostCenter[costCenter].push(vehicle);
-          });
-          
-          // Store vehicles grouped by cost center
-          setVehiclesByCostCenter(vehiclesByCostCenter);
-        }
+
+      if (error) {
+        throw error;
       }
+
+      setCostCenters(data || []);
     } catch (error) {
       console.error('Error fetching cost centers:', error);
+      toast.error('Failed to load cost centers');
+      setCostCenters([]);
     } finally {
       setLoadingCostCenters(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const fetchTechnicians = async () => {
+    setLoadingTechnicians(true);
+    try {
+      const response = await fetch('/api/technicians');
+      if (!response.ok) {
+        throw new Error('Failed to fetch technicians');
+      }
+
+      const data = await response.json();
+      setTechnicians(data.technicians || []);
+    } catch (error) {
+      console.error('Error fetching technicians:', error);
+      toast.error('Failed to load technicians');
+      setTechnicians([]);
+    } finally {
+      setLoadingTechnicians(false);
+    }
+  };
+
+  const fetchFullVehicleDetails = async (registration: string) => {
+    const response = await fetch(`/api/vehicles/details?registration=${encodeURIComponent(registration)}`);
+    if (!response.ok) {
+      throw new Error('Failed to load full vehicle details');
+    }
+
+    const data = await response.json();
+    return data?.vehicle as VehicleLookupItem | undefined;
   };
 
   const handleCostCenterSelect = async (costCenter: CostCenter) => {
-    console.log('NEW VERSION - Cost center selected:', costCenter.cost_code);
     handleInputChange('cost_center', costCenter.cost_code);
     setCostCenterSearch(`${costCenter.cost_code} - ${costCenter.company}`);
     setShowCostCenterDropdown(false);
-    
-    // Reset vehicle selection when cost center changes
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
-      customer_name: costCenter.company || costCenter.cost_code,
-      vehicle_registration: '',
-      vehicle_make: '',
-      vehicle_model: '',
-      vehicle_year: ''
+      cost_center: costCenter.cost_code,
+      customer_name: costCenter.company || prev.customer_name,
     }));
-    
-    // Clear vehicle items
-    setVehicleItems([]);
-    
-    // Set vehicles for this cost center from pre-loaded data
-    setVehicles(vehiclesByCostCenter[costCenter.cost_code] || []);
-    console.log('Available vehicles for', costCenter.cost_code, ':', vehiclesByCostCenter[costCenter.cost_code] || []);
-    
-    // Try to fetch additional customer information
+
     try {
       const response = await fetch(`/api/customers/by-account?account_number=${costCenter.cost_code}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.customer) {
-          const customer = data.customer;
-          setFormData(prev => ({
-            ...prev,
-            customer_email: customer.email || '',
-            customer_phone: customer.cell_no || customer.switchboard || '',
-            customer_address: customer.physical_address_1 || ''
-          }));
-        }
+      if (!response.ok) return;
+
+      const data = await response.json();
+      if (data.success && data.customer) {
+        const customer = data.customer;
+        setFormData((prev) => ({
+          ...prev,
+          customer_name: customer.company_name || costCenter.company || prev.customer_name,
+          customer_email: customer.email || prev.customer_email,
+          customer_phone: customer.cell_no || customer.switchboard || prev.customer_phone,
+          customer_address: customer.physical_address_1 || prev.customer_address,
+        }));
       }
     } catch (error) {
       console.error('Error fetching customer info:', error);
     }
   };
 
-  const handleSelectVehicle = async (vehicle: Vehicle) => {
-    setFormData(prev => ({
+  const applyVehicleSelection = async (vehicle: VehicleLookupItem) => {
+    const selectedReg = (vehicle.fleet_number || vehicle.reg || '').trim();
+    const customerName = (vehicle.company || '').trim();
+
+    setVehicleSearch(selectedReg);
+    setShowVehicleLookup(false);
+    setVehicleLookupResults([]);
+    skipVehicleSearchRef.current = true;
+
+    let resolvedVehicle = vehicle;
+
+    if (selectedReg) {
+      try {
+        const fullVehicle = await fetchFullVehicleDetails(selectedReg);
+        if (fullVehicle) {
+          resolvedVehicle = { ...vehicle, ...fullVehicle };
+        }
+      } catch (error) {
+        console.error('Error fetching full vehicle details:', error);
+      }
+    }
+
+    setFormData((prev) => ({
       ...prev,
-      vehicle_registration: vehicle.fleet_number || vehicle.reg,
-      vehicle_make: vehicle.make,
-      vehicle_model: vehicle.model,
-      vehicle_year: vehicle.year?.toString() || ''
+      cost_center: resolvedVehicle.new_account_number || prev.cost_center,
+      vehicle_registration: (resolvedVehicle.fleet_number || resolvedVehicle.reg || '').trim() || prev.vehicle_registration,
+      vehicle_make: resolvedVehicle.make || prev.vehicle_make,
+      vehicle_model: resolvedVehicle.model || prev.vehicle_model,
+      vehicle_year: resolvedVehicle.year ? String(resolvedVehicle.year) : prev.vehicle_year,
+      vin_numer: resolvedVehicle.vin || prev.vin_numer,
+      customer_name: (resolvedVehicle.company || customerName || prev.customer_name).trim(),
     }));
-    
-    // Extract items directly from vehicle data if available
-    const items = extractVehicleItems(vehicle);
-    setVehicleItems(items);
-    
-    toast.success(`Selected vehicle: ${vehicle.fleet_number || vehicle.reg}`);
-  };
 
-  const extractVehicleItems = (vehicle: any) => {
-    const items = [];
-    const equipmentFields = [
-      'skylink_trailer_unit_serial_number', 'skylink_trailer_unit_ip',
-      'sky_on_batt_ign_unit_serial_number', 'sky_on_batt_ign_unit_ip',
-      'skylink_voice_kit_serial_number', 'skylink_voice_kit_ip',
-      'sky_scout_12v_serial_number', 'sky_scout_12v_ip',
-      'sky_scout_24v_serial_number', 'sky_scout_24v_ip',
-      'skylink_pro_serial_number', 'skylink_pro_ip',
-      'skylink_sim_card_no', 'skylink_data_number',
-      'sky_safety', 'sky_idata', 'sky_ican',
-      'industrial_panic', 'flat_panic', 'buzzer',
-      'tag', 'tag_reader', 'keypad', 'keypad_waterproof',
-      'early_warning', 'cia', 'fm_unit',
-      'sim_card_number', 'data_number', 'gps', 'gsm',
-      'tag_', 'tag_reader_', 'main_fm_harness',
-      'beame_1', 'beame_2', 'beame_3', 'beame_4', 'beame_5',
-      'fuel_probe_1', 'fuel_probe_2', '_7m_harness_for_probe',
-      'tpiece', 'idata', '_1m_extension_cable', '_3m_extension_cable',
-      '_4ch_mdvr', '_5ch_mdvr', '_8ch_mdvr',
-      'a2_dash_cam', 'a3_dash_cam_ai',
-      'corpconnect_sim_no', 'corpconnect_data_no', 'sim_id',
-      '_5m_cable_for_camera_4pin', '_5m_cable_6pin', '_10m_cable_for_camera_4pin',
-      'a2_mec_5', 'vw400_dome_1', 'vw400_dome_2',
-      'vw300_dakkie_dome_1', 'vw300_dakkie_dome_2',
-      'vw502_dual_lens_camera', 'vw303_driver_facing_camera',
-      'vw502f_road_facing_camera', 'vw306_dvr_road_facing_for_4ch_8ch',
-      'vw306m_a2_dash_cam', 'dms01_driver_facing', 'adas_02_road_facing',
-      'vw100ip_driver_facing_ip', 'sd_card_1tb', 'sd_card_2tb',
-      'sd_card_480gb', 'sd_card_256gb', 'sd_card_512gb', 'sd_card_250gb',
-      'mic', 'speaker', 'pfk_main_unit',
-      'pfk_corpconnect_sim_number', 'pfk_corpconnect_data_number',
-      'breathaloc', 'pfk_road_facing', 'pfk_driver_facing',
-      'pfk_dome_1', 'pfk_dome_2', 'pfk_5m', 'pfk_10m', 'pfk_15m', 'pfk_20m',
-      'roller_door_switches'
-    ];
-    
-    equipmentFields.forEach(field => {
-      const value = vehicle[field];
-      if (value && value !== '' && value !== null) {
-        items.push({
-          field,
-          name: field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          value: String(value),
-          selected: false
-        });
-      }
-    });
-    
-    return items;
-  };
-
-  const toggleItemSelection = (index: number) => {
-    setVehicleItems(prev => prev.map((item, i) => 
-      i === index ? { ...item, selected: !item.selected } : item
-    ));
-  };
-
-  const handleViewVehicle = async (vehicle: Vehicle) => {
-    try {
-      const response = await fetch(`/api/vehicles/details?registration=${vehicle.reg}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedVehicleDetails(data.vehicle);
-        setShowVehicleModal(true);
+    if (resolvedVehicle.new_account_number) {
+      const matchingCostCenter = costCenters.find((center) => center.cost_code === resolvedVehicle.new_account_number);
+      if (matchingCostCenter) {
+        setCostCenterSearch(`${matchingCostCenter.cost_code} - ${matchingCostCenter.company}`);
       } else {
-        toast.error('Failed to load vehicle details');
+        setCostCenterSearch(resolvedVehicle.new_account_number);
       }
-    } catch (error) {
-      console.error('Error fetching vehicle details:', error);
-      toast.error('Failed to load vehicle details');
     }
+
   };
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.job_type && formData.job_description;
-      case 1:
-        return formData.customer_name && formData.customer_email && formData.customer_phone;
-      case 2:
-        return true; // Vehicle details are optional
-      default:
-        return false;
+  const handleCustomerInfoNext = () => {
+    const selectedReg = formData.vehicle_registration.trim() || vehicleSearch.trim();
+    if (!selectedReg) {
+      toast.error('Vehicle reg is required');
+      return;
     }
+
+    const normalized = selectedReg.toLowerCase();
+    const matchedVehicle = vehicleLookupResults.find((vehicle) =>
+      (vehicle.reg || '').toLowerCase() === normalized ||
+      (vehicle.fleet_number || '').toLowerCase() === normalized
+    );
+
+    if (matchedVehicle) {
+      void applyVehicleSelection(matchedVehicle);
+    }
+
+    const resolvedCustomerName = formData.customer_name.trim() || (matchedVehicle?.company || '').trim();
+    if (!resolvedCustomerName) {
+      toast.error('Customer name is required');
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      customer_name: resolvedCustomerName,
+      vehicle_registration: selectedReg,
+    }));
+    setCurrentStep('vehicle-details');
+  };
+
+  const handleVehicleInfoNext = () => {
+    if (!formData.vehicle_registration.trim()) {
+      toast.error('Vehicle registration is required');
+      return;
+    }
+    setCurrentStep('job-description');
+  };
+
+  const handleJobDescriptionNext = () => {
+    if (!formData.job_description.trim()) {
+      toast.error('Job description is required');
+      return;
+    }
+
+    setCurrentStep('assign-technician');
+  };
+
+  const assignTechnicianToJob = async (jobId: string, technicianName: string, override = false) => {
+    return fetch('/api/admin/jobs/assign-technician', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jobId,
+        technicianName,
+        jobDate: assignmentDate,
+        startTime: assignmentTime || null,
+        endTime: null,
+        override,
+      }),
+    });
   };
 
   const handleSubmit = async () => {
-    if (!canProceed()) {
-      toast.error('Please fill in required fields');
+    if (!formData.job_description.trim()) {
+      toast.error('Job description is required');
+      return;
+    }
+
+    if (!selectedTechnicianId) {
+      toast.error('Please select a technician');
+      return;
+    }
+
+    if (!assignmentDate) {
+      toast.error('Please select an assignment date');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const selectedTechnician = technicians.find((technician) => technician.id === selectedTechnicianId);
+      if (!selectedTechnician) {
+        throw new Error('Selected technician not found');
+      }
+
       const jobCardData = {
-        job_type: formData.job_type,
+        job_type: 'repair',
         job_description: formData.job_description,
         priority: 'medium',
         status: 'pending',
         job_status: 'Pending',
-
         cost_center: formData.cost_center,
-        
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
         customer_phone: formData.customer_phone,
         customer_address: formData.customer_address,
-        
         vehicle_registration: formData.vehicle_registration,
         vehicle_make: formData.vehicle_make,
         vehicle_model: formData.vehicle_model,
-        vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
-        
+        vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year, 10) : null,
+        vin_numer: formData.vin_numer,
         job_number: `REPAIR-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-        job_date: new Date().toISOString(),
-        
-        // Store selected items for repair in quotation_products
-        quotation_products: vehicleItems.filter(item => item.selected).map(item => ({
-          name: item.name,
-          description: `Repair: ${item.name}`,
-          type: 'repair',
-          field: item.field,
-          current_value: item.value,
-          quantity: 1
-        })),
+        job_date: assignmentDate || new Date().toISOString(),
+        due_date: assignmentDate || null,
       };
 
       const response = await fetch('/api/job-cards', {
@@ -337,33 +433,41 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
       }
 
       const result = await response.json();
-      toast.success(`Repair job created: ${result.data.job_number}`);
-      
-      setIsOpen(false);
-      setCurrentStep(0);
-      setFormData({
-        job_type: 'repair',
-        cost_center: '',
-        job_description: '',
-        customer_name: '',
-        customer_email: '',
-        customer_phone: '',
-        customer_address: '',
-        vehicle_registration: '',
-        vehicle_make: '',
-        vehicle_model: '',
-        vehicle_year: ''
-      });
-      setVehicleItems([]);
-      setSelectedItemsForRepair([]);
-      
+      const createdJobId = result?.data?.id as string | undefined;
+      if (!createdJobId) {
+        throw new Error('Job created but no job ID returned');
+      }
+
+      const assignResponse = await assignTechnicianToJob(createdJobId, selectedTechnician.name);
+      const assignData = await assignResponse.json().catch(() => ({}));
+
+      if (assignResponse.status === 409 && assignData?.needsOverride) {
+        const proceedOverride = window.confirm(
+          `Scheduling conflict detected for ${selectedTechnician.name}. Do you want to override and assign anyway?`
+        );
+
+        if (proceedOverride) {
+          const overrideResponse = await assignTechnicianToJob(createdJobId, selectedTechnician.name, true);
+          if (!overrideResponse.ok) {
+            toast.error('Repair job created but technician assignment failed after override attempt.');
+          } else {
+            toast.success(`Repair job created and assigned to ${selectedTechnician.name}`);
+          }
+        } else {
+          toast.warning('Repair job created but technician assignment was skipped due to conflict.');
+        }
+      } else if (!assignResponse.ok) {
+        toast.error('Repair job created but technician assignment failed.');
+      } else {
+        toast.success(`Repair job created and assigned to ${selectedTechnician.name}`);
+      }
+
+      setCurrentStep('complete');
       onJobCreated();
-      
-      // Automatically open assign parts modal
+
       setTimeout(() => {
-        onAssignParts(result.data);
+        setIsOpen(false);
       }, 500);
-      
     } catch (error) {
       console.error('Error creating repair job:', error);
       toast.error('Failed to create repair job');
@@ -372,403 +476,408 @@ export default function CreateRepairJobModal({ onJobCreated, onAssignParts }: Cr
     }
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5" />
-              <h3 className="font-medium">Job Details</h3>
-            </div>
-            <div>
-              <Label>Job Type *</Label>
-              <Input
-                value="Repair"
-                disabled
-                className="bg-gray-50"
-              />
-            </div>
-            <div className="relative cost-center-dropdown">
-              <Label>Cost Center</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  value={costCenterSearch}
-                  onChange={(e) => {
-                    setCostCenterSearch(e.target.value);
-                    setShowCostCenterDropdown(true);
-                  }}
-                  onFocus={() => setShowCostCenterDropdown(true)}
-                  placeholder="Search cost centers..."
-                  className="pl-10"
-                />
-              </div>
-              {showCostCenterDropdown && (
-                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {loadingCostCenters ? (
-                    <div className="p-2 text-sm text-gray-500">Loading...</div>
-                  ) : (
-                    costCenters
-                      .filter(center => 
-                        center.cost_code.toLowerCase().includes(costCenterSearch.toLowerCase()) ||
-                        center.company.toLowerCase().includes(costCenterSearch.toLowerCase())
-                      )
-                      .map((center) => (
-                        <div
-                          key={center.id}
-                          className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
-                          onClick={() => handleCostCenterSelect(center)}
-                        >
-                          {center.cost_code} - {center.company}
-                        </div>
-                      ))
-                  )}
-                  {!loadingCostCenters && costCenters.filter(center => 
-                    center.cost_code.toLowerCase().includes(costCenterSearch.toLowerCase()) ||
-                    center.company.toLowerCase().includes(costCenterSearch.toLowerCase())
-                  ).length === 0 && (
-                    <div className="p-2 text-sm text-gray-500">No cost centers found</div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div>
-              <Label>Job Description *</Label>
-              <Textarea
-                value={formData.job_description}
-                onChange={(e) => handleInputChange('job_description', e.target.value)}
-                placeholder="Describe the repair work needed..."
-                rows={3}
-              />
-            </div>
-          </div>
-        );
-      case 1:
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <User className="w-5 h-5" />
-              <h3 className="font-medium">Customer Information</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Customer Name *</Label>
-                <Input
-                  value={formData.customer_name}
-                  onChange={(e) => handleInputChange('customer_name', e.target.value)}
-                  placeholder="Enter customer name"
-                />
-              </div>
-              <div>
-                <Label>Customer Email *</Label>
-                <Input
-                  type="email"
-                  value={formData.customer_email}
-                  onChange={(e) => handleInputChange('customer_email', e.target.value)}
-                  placeholder="Enter customer email"
-                />
-              </div>
-              <div>
-                <Label>Customer Phone *</Label>
-                <Input
-                  value={formData.customer_phone}
-                  onChange={(e) => handleInputChange('customer_phone', e.target.value)}
-                  placeholder="Enter customer phone"
-                />
-              </div>
-              <div>
-                <Label>Customer Address</Label>
-                <Input
-                  value={formData.customer_address}
-                  onChange={(e) => handleInputChange('customer_address', e.target.value)}
-                  placeholder="Enter customer address"
-                />
-              </div>
-            </div>
-          </div>
-        );
-      case 2:
-        return (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Car className="w-5 h-5" />
-              <h3 className="font-medium">Vehicle Information</h3>
-            </div>
-            <div className="space-y-4">
-              {!formData.vehicle_registration ? (
-                !formData.cost_center ? (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
-                    <p className="text-sm text-yellow-800">Please select a cost center in Step 1 to view available vehicles.</p>
-                  </div>
-                ) : vehicles.length > 0 ? (
-                  <div>
-                    <Label>Available Vehicles</Label>
-                    <div className="max-h-60 overflow-y-auto border rounded-md">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Fleet/Reg</th>
-                            <th className="px-3 py-2 text-left">Make/Model</th>
-                            <th className="px-3 py-2 text-left">Year</th>
-                            <th className="px-3 py-2 text-center">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {vehicles.map((vehicle) => (
-                            <tr key={vehicle.reg} className="border-t hover:bg-gray-50">
-                              <td className="px-3 py-2">{vehicle.fleet_number || vehicle.reg}</td>
-                              <td className="px-3 py-2">{vehicle.make} {vehicle.model}</td>
-                              <td className="px-3 py-2">{vehicle.year}</td>
-                              <td className="px-3 py-2 text-center">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleSelectVehicle(vehicle)}
-                                  className="text-xs bg-blue-600 hover:bg-blue-700"
-                                >
-                                  Select
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-                    <p className="text-sm text-gray-600">No vehicles found for cost center: {formData.cost_center}</p>
-                  </div>
-                )
-              ) : null}
-              
-              {formData.vehicle_registration && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-green-50 border border-green-200 rounded">
-                    <p className="text-sm text-green-800">
-                      Selected Vehicle: <strong>{formData.vehicle_registration}</strong> - {formData.vehicle_make} {formData.vehicle_model} ({formData.vehicle_year})
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          vehicle_registration: '',
-                          vehicle_make: '',
-                          vehicle_model: '',
-                          vehicle_year: ''
-                        }));
-                        setVehicleItems([]);
-                      }}
-                      className="text-xs"
-                    >
-                      Change Vehicle
-                    </Button>
-                  </div>
-                  
-                  {vehicleItems.length > 0 ? (
-                    <div>
-                      <Label>Items on Vehicle - Select items to repair</Label>
-                      <div className="max-h-80 overflow-y-auto border rounded-md">
-                        <div className="p-3 bg-blue-50 border-b">
-                          <p className="text-sm font-medium text-blue-800">
-                            {vehicleItems.filter(item => item.selected).length} of {vehicleItems.length} items selected for repair
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-1 gap-2 p-2">
-                          {vehicleItems.map((item, index) => (
-                            <div key={index} className={`flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                              item.selected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
-                            }`} onClick={() => toggleItemSelection(index)}>
-                              <input
-                                type="checkbox"
-                                checked={item.selected}
-                                onChange={() => toggleItemSelection(index)}
-                                className="mr-3"
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium text-sm text-gray-900">{item.name}</div>
-                                <div className="text-xs text-gray-600 mt-1">Current Value: <span className="font-mono">{item.value}</span></div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-                      <p className="text-sm text-gray-600">No equipment found on this vehicle</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
+  const handleClose = () => {
+    setIsOpen(false);
+    setCurrentStep('customer-info');
+    setFormData({
+      job_type: 'repair',
+      cost_center: '',
+      job_description: '',
+      customer_name: '',
+      customer_email: '',
+      customer_phone: '',
+      customer_address: '',
+      vehicle_registration: '',
+      vehicle_make: '',
+      vehicle_model: '',
+      vehicle_year: '',
+      vin_numer: '',
+    });
+    setCostCenterSearch('');
+    setVehicleSearch('');
+    setSelectedTechnicianId('');
+    setAssignmentDate(formatLocalDateInput());
+    setAssignmentTime('');
+    setShowCostCenterDropdown(false);
+    setShowVehicleLookup(false);
   };
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button className="bg-green-600 hover:bg-green-700">
-            <Wrench className="mr-2 w-4 h-4" />
-            Create Repair Job
-          </Button>
-        </DialogTrigger>
-      
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create Repair Job</DialogTitle>
-        </DialogHeader>
+      <Button className="bg-green-600 hover:bg-green-700" onClick={() => setIsOpen(true)}>
+        <Wrench className="mr-2 w-4 h-4" />
+        Create Repair Job
+      </Button>
 
-        <div className="space-y-6">
-          {/* Progress Steps */}
-          <div className="flex items-center justify-between mb-6">
-            {steps.map((step, index) => {
-              const Icon = step.icon;
-              const isActive = currentStep === index;
-              const isCompleted = currentStep > index;
-              
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b p-4">
+              <h2 className="text-xl font-semibold">Create Repair Job</h2>
+              <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6 p-6">
+              <div className="mb-6 flex justify-center space-x-4">
+              {[
+                { key: 'customer-info', label: 'Customer Info', icon: User },
+                { key: 'vehicle-details', label: 'Vehicle Details', icon: Car },
+                { key: 'job-description', label: 'Job Description', icon: FileText },
+                { key: 'assign-technician', label: 'Assign Technician', icon: UserCheck },
+                { key: 'complete', label: 'Complete', icon: CheckCircle },
+              ].map((step, index) => {
+                const Icon = step.icon;
+              const steps = ['customer-info', 'vehicle-details', 'job-description', 'assign-technician', 'complete'];
+              const isActive = currentStep === step.key;
+              const isCompleted = steps.indexOf(currentStep) > index;
+
               return (
-                <div key={step.id} className="flex items-center">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isActive ? 'bg-blue-600 text-white' :
-                    isCompleted ? 'bg-green-500 text-white' :
-                    'bg-gray-200 text-gray-600'
-                  }`}>
-                    <Icon className="w-4 h-4" />
+                <div key={step.key} className="flex items-center">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                      isActive
+                        ? 'bg-blue-600 text-white'
+                        : isCompleted
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {isCompleted ? <CheckCircle className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                   </div>
-                  <span className={`ml-2 text-sm ${
-                    isActive ? 'text-blue-600 font-medium' :
-                    isCompleted ? 'text-green-600' :
-                    'text-gray-500'
-                  }`}>
-                    {step.title}
-                  </span>
-                  {index < steps.length - 1 && (
-                    <div className={`w-12 h-1 mx-4 ${
-                      isCompleted ? 'bg-green-500' : 'bg-gray-200'
-                    }`} />
+                  {index < 4 && (
+                    <div className={`mx-2 h-1 w-12 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Step Content */}
-          {renderStepContent()}
+              {currentStep === 'customer-info' && (
+                <Card className="mx-auto max-w-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <User className="h-5 w-5" />
+                      <span>Customer Information</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Vehicle Reg Search *</Label>
+                      <div className="relative vehicle-lookup-dropdown">
+                        <Input
+                          value={vehicleSearch}
+                          onChange={(event) => {
+                            setVehicleSearch(event.target.value);
+                            handleInputChange('vehicle_registration', event.target.value);
+                            setShowVehicleLookup(true);
+                          }}
+                          onFocus={() => setShowVehicleLookup(true)}
+                          placeholder={loadingVehicleLookup ? 'Loading vehicles...' : 'Type reg to search...'}
+                          autoComplete="off"
+                        />
+                        {showVehicleLookup && (
+                          <div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-white shadow-lg">
+                            {loadingVehicleLookup ? (
+                              <div className="px-3 py-2 text-sm text-gray-500">Searching...</div>
+                            ) : vehicleLookupResults.length > 0 ? (
+                              vehicleLookupResults.map((vehicle, index) => {
+                                const regValue = vehicle.reg || '-';
+                                const fleetValue = vehicle.fleet_number || '-';
+                                const companyValue = vehicle.company || 'Unknown customer';
+                                return (
+                                  <button
+                                    key={`${vehicle.id || regValue || fleetValue || index}`}
+                                    type="button"
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      void applyVehicleSelection(vehicle);
+                                    }}
+                                    className="w-full border-b border-gray-100 px-3 py-2 text-left hover:bg-gray-50"
+                                  >
+                                    <div className="text-sm font-medium">{regValue}</div>
+                                    <div className="text-xs text-gray-500">Fleet: {fleetValue}</div>
+                                    <div className="text-xs text-gray-500">Customer: {companyValue}</div>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-gray-500">No vehicles found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-between">
-            <Button 
-              variant="outline" 
-              onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-              disabled={currentStep === 0}
-            >
-              Previous
-            </Button>
-            
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setIsOpen(false)}>
-                Cancel
-              </Button>
-              {currentStep === steps.length - 1 ? (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={!canProceed() || isSubmitting || vehicleItems.filter(item => item.selected).length === 0}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {isSubmitting ? 'Creating...' : `Create Repair Job (${vehicleItems.filter(item => item.selected).length} items)`}
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  disabled={!canProceed()}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Next
-                </Button>
+                    <div className="space-y-2">
+                      <Label>Cost Center</Label>
+                      <div className="relative cost-center-dropdown">
+                        <Input
+                          value={costCenterSearch}
+                          onChange={(event) => {
+                            setCostCenterSearch(event.target.value);
+                            setShowCostCenterDropdown(true);
+                          }}
+                          onFocus={() => setShowCostCenterDropdown(true)}
+                          placeholder="Search cost centers..."
+                        />
+                        {showCostCenterDropdown && (
+                          <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-white shadow-lg">
+                            {loadingCostCenters ? (
+                              <div className="p-3 text-sm text-gray-500">Loading...</div>
+                            ) : (
+                              costCenters
+                                .filter((center) =>
+                                  center.cost_code.toLowerCase().includes(costCenterSearch.toLowerCase()) ||
+                                  center.company.toLowerCase().includes(costCenterSearch.toLowerCase())
+                                )
+                                .map((center) => (
+                                  <button
+                                    key={center.id}
+                                    type="button"
+                                    className="w-full p-3 text-left text-sm hover:bg-gray-50"
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      handleCostCenterSelect(center);
+                                    }}
+                                  >
+                                    {center.cost_code} - {center.company}
+                                  </button>
+                                ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Customer Name *</Label>
+                        <Input
+                          value={formData.customer_name}
+                          onChange={(event) => handleInputChange('customer_name', event.target.value)}
+                          placeholder="Enter customer name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Customer Email</Label>
+                        <Input
+                          value={formData.customer_email}
+                          onChange={(event) => handleInputChange('customer_email', event.target.value)}
+                          placeholder="Enter customer email"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Customer Phone</Label>
+                        <Input
+                          value={formData.customer_phone}
+                          onChange={(event) => handleInputChange('customer_phone', event.target.value)}
+                          placeholder="Enter customer phone"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Customer Address</Label>
+                        <Input
+                          value={formData.customer_address}
+                          onChange={(event) => handleInputChange('customer_address', event.target.value)}
+                          placeholder="Enter customer address"
+                        />
+                      </div>
+                    </div>
+
+                    <Button onClick={handleCustomerInfoNext} disabled={loadingVehicleLookup} className="w-full bg-blue-600 hover:bg-blue-700">
+                      {loadingVehicleLookup ? 'Loading Vehicles...' : 'Next: Vehicle Details'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentStep === 'vehicle-details' && (
+                <Card className="mx-auto max-w-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Car className="h-5 w-5" />
+                      <span>Vehicle Details</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Vehicle Registration *</Label>
+                        <Input value={formData.vehicle_registration} placeholder="Enter vehicle registration" readOnly />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>VIN Number</Label>
+                        <Input value={formData.vin_numer} placeholder="Enter VIN number" readOnly />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vehicle Make</Label>
+                        <Input value={formData.vehicle_make} placeholder="e.g., Toyota" readOnly />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vehicle Model</Label>
+                        <Input value={formData.vehicle_model} placeholder="e.g., Hilux" readOnly />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Vehicle Year</Label>
+                        <Input value={formData.vehicle_year} placeholder="e.g., 2024" readOnly />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button onClick={() => setCurrentStep('customer-info')} variant="outline" className="flex-1">
+                        Back
+                      </Button>
+                      <Button onClick={handleVehicleInfoNext} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                        Next: Job Description
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentStep === 'job-description' && (
+                <Card className="mx-auto max-w-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5" />
+                      <span>Job Description</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Job Type</Label>
+                      <Input value="Repair" readOnly />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Job Description *</Label>
+                      <Textarea
+                        value={formData.job_description}
+                        onChange={(event) => handleInputChange('job_description', event.target.value)}
+                        placeholder="Describe what needs to be done..."
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button onClick={() => setCurrentStep('vehicle-details')} variant="outline" className="flex-1">
+                        Back
+                      </Button>
+                      <Button onClick={handleJobDescriptionNext} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                        Next: Assign Technician
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentStep === 'assign-technician' && (
+                <Card className="mx-auto max-w-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <UserCheck className="h-5 w-5" />
+                      <span>Assign Technician</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Select Technician *</Label>
+                      {loadingTechnicians ? (
+                        <div className="flex items-center rounded-md border p-3 text-sm text-gray-500">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Loading technicians...
+                        </div>
+                      ) : (
+                        <Select value={selectedTechnicianId} onValueChange={setSelectedTechnicianId}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a technician" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {technicians.map((technician) => (
+                              <SelectItem key={technician.id} value={technician.id}>
+                                {technician.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Assignment Date *</Label>
+                        <Input type="date" value={assignmentDate} onChange={(event) => setAssignmentDate(event.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Assignment Time</Label>
+                        <Input type="time" value={assignmentTime} onChange={(event) => setAssignmentTime(event.target.value)} />
+                      </div>
+                    </div>
+
+                    {selectedTechnicianId && (
+                      <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-900">
+                        Assigned to: <strong>{technicians.find((technician) => technician.id === selectedTechnicianId)?.name || 'Unknown technician'}</strong>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <Button onClick={() => setCurrentStep('job-description')} variant="outline" className="flex-1">
+                        Back
+                      </Button>
+                      <Button onClick={handleSubmit} disabled={isSubmitting || !selectedTechnicianId || !assignmentDate} className="flex-1 bg-green-600 hover:bg-green-700">
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          'Create Repair Job'
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentStep === 'complete' && (
+                <Card className="mx-auto max-w-2xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2 text-green-600">
+                      <CheckCircle className="h-5 w-5" />
+                      <span>Repair Job Created Successfully!</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-center">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                      <CheckCircle className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="mb-2 text-lg font-medium text-gray-900">Repair job has been created</h3>
+                      <p className="text-gray-600">
+                        The repair job has been created successfully and assigned to the selected technician.
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-4">
+                      <h4 className="mb-2 font-medium">Summary</h4>
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <div>Customer information captured</div>
+                        <div>Vehicle details recorded</div>
+                        <div>Repair description documented</div>
+                        <div>Job status: Pending</div>
+                        <div>Job type: Repair</div>
+                      </div>
+                    </div>
+                    <Button onClick={handleClose} className="w-full">
+                      Close
+                    </Button>
+                  </CardContent>
+                </Card>
               )}
             </div>
           </div>
         </div>
-      </DialogContent>
-      </Dialog>
-
-      {/* Vehicle Details Modal */}
-      <Dialog open={showVehicleModal} onOpenChange={setShowVehicleModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Vehicle Details - {selectedVehicleDetails?.reg || selectedVehicleDetails?.registration}</DialogTitle>
-          </DialogHeader>
-          {selectedVehicleDetails && (
-            <div className="space-y-6">
-              {/* Basic Vehicle Info */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Registration:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.reg || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Make:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.make || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Model:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.model || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Year:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.year || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">VIN:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.vin || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Engine:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.engine || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Colour:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.colour || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700 text-sm">Fleet Number:</span>
-                  <p className="text-gray-900">{selectedVehicleDetails.fleet_number || 'N/A'}</p>
-                </div>
-              </div>
-
-              {/* Equipment Details */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Installed Equipment</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {Object.entries(selectedVehicleDetails)
-                    .filter(([key, value]) => 
-                      value && 
-                      value !== '' && 
-                      !['id', 'created_at', 'company', 'new_account_number', 'branch', 'unique_id', 'reg', 'make', 'model', 'vin', 'engine', 'year', 'colour', 'fleet_number', 'account_number'].includes(key)
-                    )
-                    .map(([key, value]) => (
-                      <div key={key} className="bg-white p-3 border rounded">
-                        <span className="font-medium text-gray-700 text-sm capitalize">
-                          {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
-                        </span>
-                        <p className="text-gray-900 text-sm">{String(value)}</p>
-                      </div>
-                    ))
-                  }
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      )}
     </>
   );
 }

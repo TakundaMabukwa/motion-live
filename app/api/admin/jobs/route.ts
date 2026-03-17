@@ -104,12 +104,13 @@ export async function GET(request: NextRequest) {
       const moveTo = String(job.move_to || '').toLowerCase();
       const status = String(job.status || '').toLowerCase();
 
-      return (
-        role === 'admin' ||
-        moveTo === 'admin' ||
-        status === 'admin_created'
-      );
-    };
+    return (
+      role === 'admin' ||
+      moveTo === 'admin' ||
+      status === 'admin_created' ||
+      status === 'moved_to_admin'
+    );
+  };
 
     // Transform the data to match the expected format
     let transformedJobs = (data || []).map(job => ({
@@ -173,7 +174,10 @@ export async function GET(request: NextRequest) {
       transformedJobs = transformedJobs.filter(job =>
         String(job.role || '').toLowerCase() === normalizedRoleFilter ||
         String(job.move_to || '').toLowerCase() === normalizedRoleFilter ||
-        (normalizedRoleFilter === 'admin' && String(job.status || '').toLowerCase() === 'admin_created')
+        (
+          normalizedRoleFilter === 'admin' &&
+          ['admin_created', 'moved_to_admin'].includes(String(job.status || '').toLowerCase())
+        )
       );
     }
 
