@@ -1,48 +1,72 @@
 "use client";
 
-import { useState, useEffect, useMemo, memo, useRef, useDeferredValue } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  memo,
+  useRef,
+  useDeferredValue,
+} from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Save, ChevronDown, ChevronUp, Edit, Plus, Trash2, Check } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Loader2,
+  ArrowLeft,
+  Save,
+  ChevronDown,
+  ChevronUp,
+  Edit,
+  Plus,
+  Trash2,
+  Check,
+} from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const AddItemSearch = memo(function AddItemSearch({
   vehicleFieldsToAdd,
   billingFieldsToAdd,
-  onAddField
+  onAddField,
 }) {
-  const [fieldSearch, setFieldSearch] = useState('');
-  const [selectedField, setSelectedField] = useState('');
-  const [fieldValue, setFieldValue] = useState('');
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [selectedField, setSelectedField] = useState("");
+  const [fieldValue, setFieldValue] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
   const valueInputRef = useRef(null);
-  const normalizedSearch = fieldSearch.toLowerCase().trim().replace(/\s+/g, ' ');
-  const queryTokens = normalizedSearch ? normalizedSearch.split(' ') : [];
+  const normalizedSearch = fieldSearch
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+  const queryTokens = normalizedSearch ? normalizedSearch.split(" ") : [];
   const matchesSearch = (field) => {
     if (queryTokens.length === 0) return true;
-    const fieldText = field.toLowerCase().replace(/_/g, ' ');
-    return queryTokens.every(token => fieldText.includes(token));
+    const fieldText = field.toLowerCase().replace(/_/g, " ");
+    return queryTokens.every((token) => fieldText.includes(token));
   };
   const filteredVehicleFields = useMemo(
     () => vehicleFieldsToAdd.filter(matchesSearch),
-    [vehicleFieldsToAdd, normalizedSearch]
+    [vehicleFieldsToAdd, normalizedSearch],
   );
   const filteredBillingFields = useMemo(
     () => billingFieldsToAdd.filter(matchesSearch),
-    [billingFieldsToAdd, normalizedSearch]
+    [billingFieldsToAdd, normalizedSearch],
   );
-  const firstMatch = filteredVehicleFields[0] || filteredBillingFields[0] || '';
+  const firstMatch = filteredVehicleFields[0] || filteredBillingFields[0] || "";
 
   const handleSelectField = (field) => {
     setSelectedField(field);
-    setFieldSearch(field.replace(/_/g, ' '));
+    setFieldSearch(field.replace(/_/g, " "));
     setIsDropdownOpen(false);
     requestAnimationFrame(() => valueInputRef.current?.focus());
   };
@@ -50,19 +74,19 @@ const AddItemSearch = memo(function AddItemSearch({
   const handleAdd = () => {
     if (!selectedField) return;
     onAddField(selectedField, fieldValue);
-    setSelectedField('');
-    setFieldValue('');
-    setFieldSearch('');
+    setSelectedField("");
+    setFieldValue("");
+    setFieldSearch("");
     setIsDropdownOpen(false);
     requestAnimationFrame(() => searchInputRef.current?.focus());
   };
 
   const handleSearchKeyDown = (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setIsDropdownOpen(false);
       return;
     }
-    if (e.key !== 'Enter') return;
+    if (e.key !== "Enter") return;
     e.preventDefault();
     setIsDropdownOpen(true);
     if (!selectedField && firstMatch) {
@@ -75,7 +99,7 @@ const AddItemSearch = memo(function AddItemSearch({
   };
 
   const handleValueKeyDown = (e) => {
-    if (e.key !== 'Enter') return;
+    if (e.key !== "Enter") return;
     e.preventDefault();
     handleAdd();
   };
@@ -87,8 +111,8 @@ const AddItemSearch = memo(function AddItemSearch({
         setIsDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   return (
@@ -99,7 +123,7 @@ const AddItemSearch = memo(function AddItemSearch({
           value={fieldSearch}
           onChange={(e) => {
             setFieldSearch(e.target.value);
-            setSelectedField('');
+            setSelectedField("");
             setIsDropdownOpen(true);
           }}
           onFocus={() => setIsDropdownOpen(true)}
@@ -109,41 +133,48 @@ const AddItemSearch = memo(function AddItemSearch({
         />
         {isDropdownOpen && (
           <div className="absolute z-20 mt-1 w-full border rounded-md bg-white p-2 shadow-md">
-          <div className="max-h-48 overflow-y-auto space-y-2">
-            {filteredVehicleFields.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 px-1 mb-1">Vehicle Fields</p>
-                {filteredVehicleFields.map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => handleSelectField(f)}
-                    className={`w-full text-left text-xs px-2 py-1 rounded ${selectedField === f ? 'bg-slate-200' : 'hover:bg-slate-100'}`}
-                  >
-                    {f.replace(/_/g, ' ').toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-            {filteredBillingFields.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 px-1 mb-1">Billing Fields</p>
-                {filteredBillingFields.map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => handleSelectField(f)}
-                    className={`w-full text-left text-xs px-2 py-1 rounded ${selectedField === f ? 'bg-slate-200' : 'hover:bg-slate-100'}`}
-                  >
-                    {f.replace(/_/g, ' ').toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-            {filteredVehicleFields.length === 0 && filteredBillingFields.length === 0 && (
-              <p className="text-xs text-gray-500 px-1 py-2">No matching fields</p>
-            )}
-          </div>
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {filteredVehicleFields.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-500 px-1 mb-1">
+                    Vehicle Fields
+                  </p>
+                  {filteredVehicleFields.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => handleSelectField(f)}
+                      className={`w-full text-left text-xs px-2 py-1 rounded ${selectedField === f ? "bg-slate-200" : "hover:bg-slate-100"}`}
+                    >
+                      {f.replace(/_/g, " ").toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filteredBillingFields.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-gray-500 px-1 mb-1">
+                    Billing Fields
+                  </p>
+                  {filteredBillingFields.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => handleSelectField(f)}
+                      className={`w-full text-left text-xs px-2 py-1 rounded ${selectedField === f ? "bg-slate-200" : "hover:bg-slate-100"}`}
+                    >
+                      {f.replace(/_/g, " ").toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {filteredVehicleFields.length === 0 &&
+                filteredBillingFields.length === 0 && (
+                  <p className="text-xs text-gray-500 px-1 py-2">
+                    No matching fields
+                  </p>
+                )}
+            </div>
           </div>
         )}
       </div>
@@ -167,7 +198,7 @@ const AddItemSearch = memo(function AddItemSearch({
 export default function ValidateVehiclesPage() {
   const router = useRouter();
   const params = useParams();
-  
+
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedVehicles, setExpandedVehicles] = useState({});
@@ -175,58 +206,111 @@ export default function ValidateVehiclesPage() {
   const [editedData, setEditedData] = useState({});
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const initialTotalValues = { total_rental: '0.00', total_sub: '0.00', total_rental_sub: '0.00' };
+  const initialTotalValues = {
+    total_rental: "0.00",
+    total_sub: "0.00",
+    total_rental_sub: "0.00",
+  };
   const [newVehicleData, setNewVehicleData] = useState(initialTotalValues);
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
   const [addItemState, setAddItemState] = useState({});
-  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [vehicleSearch, setVehicleSearch] = useState("");
   const [costCenterOptions, setCostCenterOptions] = useState([]);
-  const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState({});
-  const [costCenterSearch, setCostCenterSearch] = useState('');
+  const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState(
+    {},
+  );
+  const [costCenterSearch, setCostCenterSearch] = useState("");
   const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
 
-  const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'vehicle_validated'];
-  const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'colour'];
-  const billingFields = ['consultancy', 'roaming', 'maintenance', 'after_hours', 'controlroom', 'software', 'additional_data'];
+  const excludeKeys = [
+    "id",
+    "created_at",
+    "unique_id",
+    "new_account_number",
+    "vehicle_validated",
+  ];
+  const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour"];
+  const billingFields = [
+    "consultancy",
+    "roaming",
+    "maintenance",
+    "after_hours",
+    "controlroom",
+    "eps_software_development",
+    "maysene_software_development",
+    "waterford_software_development",
+    "klaver_software_development",
+    "advatrans_software_development",
+    "driver_app",
+    "additional_data",
+  ];
   const specialBillingFields = billingFields;
   const allPossibleBillingFields = [
-    'skylink_trailer_unit_rental', 'skylink_trailer_sub',
-    'sky_on_batt_ign_rental', 'sky_on_batt_sub',
-    'skylink_voice_kit_rental', 'skylink_voice_kit_sub',
-    'sky_scout_12v_rental', 'sky_scout_12v_sub',
-    'sky_scout_24v_rental', 'sky_scout_24v_sub',
-    'skylink_pro_rental', 'skylink_pro_sub',
-    'fm_unit_rental', 'fm_unit_sub',
-    'beame_1_rental', 'beame_1_sub',
-    'beame_2_rental', 'beame_2_sub',
-    'beame_3_rental', 'beame_3_sub',
-    'beame_4_rental', 'beame_4_sub',
-    'beame_5_rental', 'beame_5_sub',
-    'single_probe_rental', 'single_probe_sub',
-    'dual_probe_rental', 'dual_probe_sub',
-    '_4ch_mdvr_rental', '_4ch_mdvr_sub',
-    '_5ch_mdvr_rental', '_5ch_mdvr_sub',
-    '_8ch_mdvr_rental', '_8ch_mdvr_sub',
-    'a2_dash_cam_rental', 'a2_dash_cam_sub',
-    'pfk_main_unit_rental', 'pfk_main_unit_sub',
-    ...specialBillingFields
+    "skylink_trailer_unit_rental",
+    "skylink_trailer_sub",
+    "sky_on_batt_ign_rental",
+    "sky_on_batt_sub",
+    "skylink_voice_kit_rental",
+    "skylink_voice_kit_sub",
+    "sky_scout_12v_rental",
+    "sky_scout_12v_sub",
+    "sky_scout_24v_rental",
+    "sky_scout_24v_sub",
+    "skylink_pro_rental",
+    "skylink_pro_sub",
+    "fm_unit_rental",
+    "fm_unit_sub",
+    "beame_1_rental",
+    "beame_1_sub",
+    "beame_2_rental",
+    "beame_2_sub",
+    "beame_3_rental",
+    "beame_3_sub",
+    "beame_4_rental",
+    "beame_4_sub",
+    "beame_5_rental",
+    "beame_5_sub",
+    "single_probe_rental",
+    "single_probe_sub",
+    "dual_probe_rental",
+    "dual_probe_sub",
+    "_4ch_mdvr_rental",
+    "_4ch_mdvr_sub",
+    "_5ch_mdvr_rental",
+    "_5ch_mdvr_sub",
+    "_8ch_mdvr_rental",
+    "_8ch_mdvr_sub",
+    "a2_dash_cam_rental",
+    "a2_dash_cam_sub",
+    "pfk_main_unit_rental",
+    "pfk_main_unit_sub",
+    ...specialBillingFields,
   ];
   const allVehicleFieldKeys = useMemo(() => {
-    const keysFromVehicles = vehicles.flatMap(v => Object.keys(v || {}));
-    return Array.from(new Set([...keysFromVehicles, ...allPossibleBillingFields])).filter(k => !excludeKeys.includes(k));
+    const keysFromVehicles = vehicles.flatMap((v) => Object.keys(v || {}));
+    return Array.from(
+      new Set([...keysFromVehicles, ...allPossibleBillingFields]),
+    ).filter((k) => !excludeKeys.includes(k));
   }, [vehicles]);
 
   const filteredVehicles = useMemo(() => {
-    const query = deferredVehicleSearch.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const query = deferredVehicleSearch
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
     if (!query) return vehicles;
 
     return vehicles.filter((vehicle) => {
-      const reg = String(vehicle?.reg || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const fleet = String(vehicle?.fleet_number || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const reg = String(vehicle?.reg || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+      const fleet = String(vehicle?.fleet_number || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
       return reg.includes(query) || fleet.includes(query);
     });
   }, [vehicles, deferredVehicleSearch]);
@@ -239,16 +323,20 @@ export default function ValidateVehiclesPage() {
       if (!deduped.has(code)) {
         deduped.set(code, {
           cost_code: code,
-          company: option?.company || ''
+          company: option?.company || "",
         });
       }
     }
-    return Array.from(deduped.values()).sort((a, b) => a.cost_code.localeCompare(b.cost_code));
+    return Array.from(deduped.values()).sort((a, b) =>
+      a.cost_code.localeCompare(b.cost_code),
+    );
   }, [costCenterOptions]);
 
   const formatCostCenterOption = (item) => {
-    if (!item) return '';
-    return item.company ? `${item.cost_code} - ${item.company}` : item.cost_code;
+    if (!item) return "";
+    return item.company
+      ? `${item.cost_code} - ${item.company}`
+      : item.cost_code;
   };
 
   const filteredCostCenters = useMemo(() => {
@@ -257,8 +345,8 @@ export default function ValidateVehiclesPage() {
 
     const scored = matchingCostCenters
       .map((item) => {
-        const code = String(item.cost_code || '').toLowerCase();
-        const company = String(item.company || '').toLowerCase();
+        const code = String(item.cost_code || "").toLowerCase();
+        const company = String(item.company || "").toLowerCase();
         const label = `${code} ${company}`.trim();
 
         let score = 0;
@@ -280,8 +368,10 @@ export default function ValidateVehiclesPage() {
   }, [matchingCostCenters, deferredCostCenterSearch]);
 
   const currentCostCenterName = useMemo(() => {
-    if (!costCode) return '';
-    const matched = matchingCostCenters.find((item) => item.cost_code === costCode);
+    if (!costCode) return "";
+    const matched = matchingCostCenters.find(
+      (item) => item.cost_code === costCode,
+    );
     return matched?.company || costCode;
   }, [matchingCostCenters, costCode]);
 
@@ -289,27 +379,29 @@ export default function ValidateVehiclesPage() {
     const fetchVehicles = async () => {
       try {
         if (!costCode) {
-          console.error('No cost code provided');
-          toast.error('No cost center provided');
+          console.error("No cost code provided");
+          toast.error("No cost center provided");
           return;
         }
 
-        console.log('Fetching vehicles for cost code:', costCode);
-        const response = await fetch(`/api/vehicles/get?cost_code=${encodeURIComponent(costCode)}`);
-        console.log('Vehicles response status:', response.status);
-        
+        console.log("Fetching vehicles for cost code:", costCode);
+        const response = await fetch(
+          `/api/vehicles/get?cost_code=${encodeURIComponent(costCode)}`,
+        );
+        console.log("Vehicles response status:", response.status);
+
         if (!response.ok) {
           const errorData = await response.json();
-          console.error('Vehicles error:', errorData);
-          throw new Error(errorData.error || 'Failed to fetch vehicles');
+          console.error("Vehicles error:", errorData);
+          throw new Error(errorData.error || "Failed to fetch vehicles");
         }
-        
+
         const data = await response.json();
-        console.log('Vehicles data:', data);
+        console.log("Vehicles data:", data);
         setVehicles(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Error fetching vehicles:', error);
-        toast.error('Failed to load vehicles: ' + error.message);
+        console.error("Error fetching vehicles:", error);
+        toast.error("Failed to load vehicles: " + error.message);
       } finally {
         setLoading(false);
       }
@@ -321,15 +413,15 @@ export default function ValidateVehiclesPage() {
   useEffect(() => {
     const fetchCostCenters = async () => {
       try {
-        const response = await fetch('/api/cost-centers?all=1');
+        const response = await fetch("/api/cost-centers?all=1");
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData?.error || 'Failed to fetch cost centers');
+          throw new Error(errorData?.error || "Failed to fetch cost centers");
         }
         const data = await response.json();
         setCostCenterOptions(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Error fetching cost centers:', error);
+        console.error("Error fetching cost centers:", error);
         toast.error(`Failed to load cost centers: ${error.message}`);
       }
     };
@@ -338,42 +430,46 @@ export default function ValidateVehiclesPage() {
   }, []);
 
   const toggleVehicle = (vehicleId) => {
-    setExpandedVehicles(prev => ({
+    setExpandedVehicles((prev) => ({
       ...prev,
-      [vehicleId]: !prev[vehicleId]
+      [vehicleId]: !prev[vehicleId],
     }));
   };
 
   const calculateTotals = (data) => {
     const allKeys = Object.keys(data);
-    
+
     // All rental fields ending with _rental (excluding total_rental)
-    const rentalKeys = allKeys.filter(k => k.endsWith('_rental') && k !== 'total_rental');
-    
-    // All sub fields: those ending with _sub (excluding totals) + special billing fields
-    const subKeys = allKeys.filter(k => 
-      (k.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(k)) || 
-      specialBillingFields.includes(k)
+    const rentalKeys = allKeys.filter(
+      (k) => k.endsWith("_rental") && k !== "total_rental",
     );
-    
+
+    // All sub fields: those ending with _sub (excluding totals) + special billing fields
+    const subKeys = allKeys.filter(
+      (k) =>
+        (k.endsWith("_sub") &&
+          !["total_sub", "total_rental_sub"].includes(k)) ||
+        specialBillingFields.includes(k),
+    );
+
     const totalRental = rentalKeys.reduce((sum, k) => {
       const val = data[k];
-      if (val === null || val === undefined || val === '') return sum;
+      if (val === null || val === undefined || val === "") return sum;
       const numVal = parseFloat(val);
       return Number.isFinite(numVal) ? sum + numVal : sum;
     }, 0);
-    
+
     const totalSub = subKeys.reduce((sum, k) => {
       const val = data[k];
-      if (val === null || val === undefined || val === '') return sum;
+      if (val === null || val === undefined || val === "") return sum;
       const numVal = parseFloat(val);
       return Number.isFinite(numVal) ? sum + numVal : sum;
     }, 0);
-    
+
     return {
       total_rental: totalRental.toFixed(2),
       total_sub: totalSub.toFixed(2),
-      total_rental_sub: (totalRental + totalSub).toFixed(2)
+      total_rental_sub: (totalRental + totalSub).toFixed(2),
     };
   };
 
@@ -384,7 +480,7 @@ export default function ValidateVehiclesPage() {
 
   const formatCurrency = (value) => `R ${parseAmount(value).toFixed(2)}`;
 
-  const formatFieldLabel = (field) => field.replace(/_/g, ' ').toUpperCase();
+  const formatFieldLabel = (field) => field.replace(/_/g, " ").toUpperCase();
 
   const getBillingEntries = (data) => {
     if (!data) return [];
@@ -392,16 +488,17 @@ export default function ValidateVehiclesPage() {
     return Object.entries(data)
       .filter(([key, value]) => {
         if (
-          key === 'total_rental' ||
-          key === 'total_sub' ||
-          key === 'total_rental_sub'
+          key === "total_rental" ||
+          key === "total_sub" ||
+          key === "total_rental_sub"
         ) {
           return false;
         }
 
         const isBillingField =
-          (key.endsWith('_rental') && key !== 'total_rental') ||
-          (key.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(key)) ||
+          (key.endsWith("_rental") && key !== "total_rental") ||
+          (key.endsWith("_sub") &&
+            !["total_sub", "total_rental_sub"].includes(key)) ||
           specialBillingFields.includes(key);
 
         if (!isBillingField) return false;
@@ -412,7 +509,7 @@ export default function ValidateVehiclesPage() {
       .map(([key, value]) => ({
         key,
         label: formatFieldLabel(key),
-        value: parseAmount(value)
+        value: parseAmount(value),
       }));
   };
 
@@ -423,33 +520,41 @@ export default function ValidateVehiclesPage() {
     return {
       entries,
       total,
-      hasManualTotalOnly: entries.length === 0 && total > 0
+      hasManualTotalOnly: entries.length === 0 && total > 0,
     };
   };
 
   const affectsTotals = (field) =>
-    (field.endsWith('_rental') && field !== 'total_rental') ||
-    (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) ||
+    (field.endsWith("_rental") && field !== "total_rental") ||
+    (field.endsWith("_sub") &&
+      !["total_sub", "total_rental_sub"].includes(field)) ||
     specialBillingFields.includes(field);
 
   const startEdit = (vehicle) => {
     setEditingVehicle(vehicle.id);
     const totals = calculateTotals(vehicle);
-    setEditedData({...vehicle, ...totals});
-    setAddItemState(prev => ({ ...prev, [`vehicle-${vehicle.id}`]: prev[`vehicle-${vehicle.id}`] || { added: [] } }));
-    const currentCostCenter = vehicle.new_account_number || costCode || '';
-    const currentOption = matchingCostCenters.find((item) => item.cost_code === currentCostCenter);
+    setEditedData({ ...vehicle, ...totals });
+    setAddItemState((prev) => ({
+      ...prev,
+      [`vehicle-${vehicle.id}`]: prev[`vehicle-${vehicle.id}`] || { added: [] },
+    }));
+    const currentCostCenter = vehicle.new_account_number || costCode || "";
+    const currentOption = matchingCostCenters.find(
+      (item) => item.cost_code === currentCostCenter,
+    );
     setTargetCostCenterByVehicle((prev) => ({
       ...prev,
-      [vehicle.id]: prev[vehicle.id] || currentCostCenter
+      [vehicle.id]: prev[vehicle.id] || currentCostCenter,
     }));
-    setCostCenterSearch(formatCostCenterOption(currentOption) || currentCostCenter);
+    setCostCenterSearch(
+      formatCostCenterOption(currentOption) || currentCostCenter,
+    );
     setCostCenterDropdownOpen(false);
   };
 
   const cancelEdit = () => {
     if (editingVehicle !== null) {
-      setAddItemState(prev => {
+      setAddItemState((prev) => {
         const next = { ...prev };
         delete next[`vehicle-${editingVehicle}`];
         return next;
@@ -457,70 +562,102 @@ export default function ValidateVehiclesPage() {
     }
     setEditingVehicle(null);
     setEditedData({});
-    setCostCenterSearch('');
+    setCostCenterSearch("");
     setCostCenterDropdownOpen(false);
   };
 
   const handleFieldChange = (field, value) => {
-    setEditedData(prev => {
-      if (field === 'total_rental_sub') {
+    setEditedData((prev) => {
+      if (field === "total_rental_sub") {
         return prev;
       }
-      const updated = {...prev, [field]: value === '' ? null : value};
-      if (field === 'total_rental' || field === 'total_sub') {
-        const totalRental = parseAmount(field === 'total_rental' ? value : updated.total_rental);
-        const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
-        return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
+      const updated = { ...prev, [field]: value === "" ? null : value };
+      if (field === "total_rental" || field === "total_sub") {
+        const totalRental = parseAmount(
+          field === "total_rental" ? value : updated.total_rental,
+        );
+        const totalSub = parseAmount(
+          field === "total_sub" ? value : updated.total_sub,
+        );
+        return {
+          ...updated,
+          total_rental_sub: (totalRental + totalSub).toFixed(2),
+        };
       }
       if (!affectsTotals(field)) {
         return updated;
       }
       const totals = calculateTotals(updated);
-      return {...updated, ...totals};
+      return { ...updated, ...totals };
     });
   };
 
   const confirmField = (field) => {
-    if ((field.endsWith('_rental') && field !== 'total_rental') || (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) || specialBillingFields.includes(field)) {
-      setEditedData(prev => {
+    if (
+      (field.endsWith("_rental") && field !== "total_rental") ||
+      (field.endsWith("_sub") &&
+        !["total_sub", "total_rental_sub"].includes(field)) ||
+      specialBillingFields.includes(field)
+    ) {
+      setEditedData((prev) => {
         const allKeys = Object.keys(prev);
-        const rentalKeys = allKeys.filter(k => k.endsWith('_rental') && k !== 'total_rental');
-        const subKeys = allKeys.filter(k => (k.endsWith('_sub') && k !== 'total_sub' && k !== 'total_rental_sub') || specialBillingFields.includes(k));
-        
-        const totalRental = rentalKeys.reduce((sum, k) => sum + (parseFloat(prev[k]) || 0), 0);
-        const totalSub = subKeys.reduce((sum, k) => sum + (parseFloat(prev[k]) || 0), 0);
-        
+        const rentalKeys = allKeys.filter(
+          (k) => k.endsWith("_rental") && k !== "total_rental",
+        );
+        const subKeys = allKeys.filter(
+          (k) =>
+            (k.endsWith("_sub") &&
+              k !== "total_sub" &&
+              k !== "total_rental_sub") ||
+            specialBillingFields.includes(k),
+        );
+
+        const totalRental = rentalKeys.reduce(
+          (sum, k) => sum + (parseFloat(prev[k]) || 0),
+          0,
+        );
+        const totalSub = subKeys.reduce(
+          (sum, k) => sum + (parseFloat(prev[k]) || 0),
+          0,
+        );
+
         return {
           ...prev,
           total_rental: totalRental.toFixed(2),
           total_sub: totalSub.toFixed(2),
-          total_rental_sub: (totalRental + totalSub).toFixed(2)
+          total_rental_sub: (totalRental + totalSub).toFixed(2),
         };
       });
     }
-    toast.success('Field confirmed');
+    toast.success("Field confirmed");
   };
 
-  const normalizeForCompare = (value) => (value === '' || value === undefined ? null : value);
+  const normalizeForCompare = (value) =>
+    value === "" || value === undefined ? null : value;
 
   const saveVehicle = async () => {
-    const currentVehicle = vehicles.find(v => v.id === editedData.id);
+    const currentVehicle = vehicles.find((v) => v.id === editedData.id);
     if (!currentVehicle) {
-      toast.error('Vehicle not found');
+      toast.error("Vehicle not found");
       return;
     }
 
-    const selectedTargetCostCenter = targetCostCenterByVehicle[currentVehicle.id] || '';
-    const currentCostCenter = currentVehicle.new_account_number || costCode || '';
+    const selectedTargetCostCenter =
+      targetCostCenterByVehicle[currentVehicle.id] || "";
+    const currentCostCenter =
+      currentVehicle.new_account_number || costCode || "";
     const isMovingCostCenter = Boolean(
-      selectedTargetCostCenter && selectedTargetCostCenter !== currentCostCenter
+      selectedTargetCostCenter &&
+      selectedTargetCostCenter !== currentCostCenter,
     );
     const selectedCostCenter = isMovingCostCenter
-      ? matchingCostCenters.find((item) => item.cost_code === selectedTargetCostCenter)
+      ? matchingCostCenters.find(
+          (item) => item.cost_code === selectedTargetCostCenter,
+        )
       : null;
 
     const changedFields = Object.keys(editedData).reduce((acc, key) => {
-      if (key === 'id' || key === 'unique_id') return acc;
+      if (key === "id" || key === "unique_id") return acc;
       const before = normalizeForCompare(currentVehicle[key]);
       const after = normalizeForCompare(editedData[key]);
       if (before !== after) {
@@ -532,44 +669,53 @@ export default function ValidateVehiclesPage() {
     if (isMovingCostCenter) {
       changedFields.cost_code = selectedTargetCostCenter;
       changedFields.new_account_number = selectedTargetCostCenter;
-      const nextCompany = selectedCostCenter?.company || currentVehicle.company || null;
-      if (normalizeForCompare(currentVehicle.company) !== normalizeForCompare(nextCompany)) {
+      const nextCompany =
+        selectedCostCenter?.company || currentVehicle.company || null;
+      if (
+        normalizeForCompare(currentVehicle.company) !==
+        normalizeForCompare(nextCompany)
+      ) {
         changedFields.company = nextCompany;
       }
     }
 
     // Mark row as validated on save only when the DB row exposes this column.
     // This avoids failing updates if migration has not been applied yet.
-    const supportsValidationFlag = Object.prototype.hasOwnProperty.call(currentVehicle, 'vehicle_validated');
+    const supportsValidationFlag = Object.prototype.hasOwnProperty.call(
+      currentVehicle,
+      "vehicle_validated",
+    );
     if (supportsValidationFlag && currentVehicle.vehicle_validated !== true) {
       changedFields.vehicle_validated = true;
     }
 
     if (Object.keys(changedFields).length === 0) {
-      toast.info('No changes to save');
+      toast.info("No changes to save");
       setEditingVehicle(null);
       return;
     }
 
     const previousVehicles = vehicles;
     const optimisticVehicle = { ...currentVehicle, ...changedFields };
-    setVehicles(prev => prev.map(v => v.id === editedData.id ? optimisticVehicle : v));
+    setVehicles((prev) =>
+      prev.map((v) => (v.id === editedData.id ? optimisticVehicle : v)),
+    );
     setEditingVehicle(null);
     setSaving(true);
     try {
       const payload = {
         id: editedData.id,
         ...(editedData.unique_id ? { unique_id: editedData.unique_id } : {}),
-        ...changedFields
+        ...changedFields,
       };
-      const response = await fetch('/api/vehicles/update', {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload)
+      const response = await fetch("/api/vehicles/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      
+
       if (!response.ok) {
-        let errorMessage = 'Failed to update vehicle';
+        let errorMessage = "Failed to update vehicle";
         try {
           const errorData = await response.json();
           errorMessage = errorData?.details || errorData?.error || errorMessage;
@@ -577,63 +723,74 @@ export default function ValidateVehiclesPage() {
           const errorText = await response.text();
           if (errorText) errorMessage = errorText;
         }
-        console.error('Update failed:', errorMessage);
+        console.error("Update failed:", errorMessage);
         throw new Error(errorMessage);
       }
-      
+
       const result = await response.json();
       if (isMovingCostCenter) {
-        setVehicles(prev => prev.filter(v => v.id !== editedData.id));
-        toast.success(`Vehicle updated and moved to ${selectedTargetCostCenter}`);
+        setVehicles((prev) => prev.filter((v) => v.id !== editedData.id));
+        toast.success(
+          `Vehicle updated and moved to ${selectedTargetCostCenter}`,
+        );
       } else {
-        setVehicles(prev => prev.map(v => v.id === editedData.id ? result : v));
-        toast.success('Vehicle updated successfully');
+        setVehicles((prev) =>
+          prev.map((v) => (v.id === editedData.id ? result : v)),
+        );
+        toast.success("Vehicle updated successfully");
       }
       setEditedData({});
     } catch (error) {
-      console.error('Save error:', error);
+      console.error("Save error:", error);
       setVehicles(previousVehicles);
       setEditingVehicle(editedData.id);
-      toast.error('Failed to update vehicle: ' + error.message);
+      toast.error("Failed to update vehicle: " + error.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleNewVehicleChange = (field, value) => {
-    setNewVehicleData(prev => {
-      if (field === 'total_rental_sub') {
+    setNewVehicleData((prev) => {
+      if (field === "total_rental_sub") {
         return prev;
       }
-      const updated = {...prev, [field]: value === '' ? null : value};
-      if (field === 'total_rental' || field === 'total_sub') {
-        const totalRental = parseAmount(field === 'total_rental' ? value : updated.total_rental);
-        const totalSub = parseAmount(field === 'total_sub' ? value : updated.total_sub);
-        return { ...updated, total_rental_sub: (totalRental + totalSub).toFixed(2) };
+      const updated = { ...prev, [field]: value === "" ? null : value };
+      if (field === "total_rental" || field === "total_sub") {
+        const totalRental = parseAmount(
+          field === "total_rental" ? value : updated.total_rental,
+        );
+        const totalSub = parseAmount(
+          field === "total_sub" ? value : updated.total_sub,
+        );
+        return {
+          ...updated,
+          total_rental_sub: (totalRental + totalSub).toFixed(2),
+        };
       }
       if (!affectsTotals(field)) {
         return updated;
       }
       const totals = calculateTotals(updated);
-      return {...updated, ...totals};
+      return { ...updated, ...totals };
     });
   };
 
   const addVehicle = async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/vehicles/create', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+      const response = await fetch("/api/vehicles/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newVehicleData,
           new_account_number: costCode,
-          vehicle_validated: true
-        })
+          vehicle_validated: true,
+        }),
       });
-      
+
       if (!response.ok) {
-        let errorMessage = 'Failed to create vehicle';
+        let errorMessage = "Failed to create vehicle";
         try {
           const errorData = await response.json();
           errorMessage = errorData?.details || errorData?.error || errorMessage;
@@ -643,44 +800,44 @@ export default function ValidateVehiclesPage() {
         }
         throw new Error(errorMessage);
       }
-      
+
       const newVehicle = await response.json();
       const normalizedNewVehicle = {
         ...newVehicle,
-        vehicle_validated: newVehicle?.vehicle_validated ?? true
+        vehicle_validated: newVehicle?.vehicle_validated ?? true,
       };
-      setVehicles(prev => [...prev, normalizedNewVehicle]);
-      toast.success('Vehicle added successfully');
+      setVehicles((prev) => [...prev, normalizedNewVehicle]);
+      toast.success("Vehicle added successfully");
       setShowAddForm(false);
       setNewVehicleData(initialTotalValues);
-      setAddItemState(prev => {
+      setAddItemState((prev) => {
         const next = { ...prev };
         delete next.new;
         return next;
       });
     } catch (error) {
-      toast.error('Failed to add vehicle: ' + error.message);
+      toast.error("Failed to add vehicle: " + error.message);
     } finally {
       setSaving(false);
     }
   };
 
   const deleteVehicle = async (vehicleId) => {
-    if (!confirm('Are you sure you want to delete this vehicle?')) return;
-    
+    if (!confirm("Are you sure you want to delete this vehicle?")) return;
+
     try {
-      const response = await fetch('/api/vehicles/delete', {
-        method: 'DELETE',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({id: vehicleId})
+      const response = await fetch("/api/vehicles/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: vehicleId }),
       });
-      
-      if (!response.ok) throw new Error('Failed to delete vehicle');
-      
-      setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-      toast.success('Vehicle deleted successfully');
+
+      if (!response.ok) throw new Error("Failed to delete vehicle");
+
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+      toast.success("Vehicle deleted successfully");
     } catch (error) {
-      toast.error('Failed to delete vehicle: ' + error.message);
+      toast.error("Failed to delete vehicle: " + error.message);
     }
   };
 
@@ -695,86 +852,126 @@ export default function ValidateVehiclesPage() {
   };
 
   const renderAllFields = (vehicle, isEditing, isNew = false) => {
-    const data = isNew ? newVehicleData : (isEditing ? editedData : vehicle);
+    const data = isNew ? newVehicleData : isEditing ? editedData : vehicle;
     const onChange = isNew ? handleNewVehicleChange : handleFieldChange;
-    const totalFieldOrder = ['total_rental', 'total_sub', 'total_rental_sub'];
-    const contextKey = isNew ? 'new' : `vehicle-${vehicle.id}`;
+    const totalFieldOrder = ["total_rental", "total_sub", "total_rental_sub"];
+    const contextKey = isNew ? "new" : `vehicle-${vehicle.id}`;
     const addedFields = addItemState[contextKey]?.added || [];
-    const hasValue = (value) => value !== null && value !== '' && value !== undefined;
-    const allKnownKeys = Array.from(new Set([
-      ...allVehicleFieldKeys,
-      ...(isNew ? defaultVehicleInfoFields : []),
-      ...Object.keys(data || {}),
-      ...addedFields
-    ]));
-    const allFieldKeys = allKnownKeys.filter(k => !excludeKeys.includes(k));
+    const hasValue = (value) =>
+      value !== null && value !== "" && value !== undefined;
+    const allKnownKeys = Array.from(
+      new Set([
+        ...allVehicleFieldKeys,
+        ...(isNew ? defaultVehicleInfoFields : []),
+        ...Object.keys(data || {}),
+        ...addedFields,
+      ]),
+    );
+    const allFieldKeys = allKnownKeys.filter((k) => !excludeKeys.includes(k));
     const visibleKeys = allFieldKeys.filter(
-      k =>
+      (k) =>
         hasValue(data?.[k]) ||
         addedFields.includes(k) ||
         (isNew && defaultVehicleInfoFields.includes(k)) ||
-        (isEditing && hasValue(vehicle?.[k]))
+        (isEditing && hasValue(vehicle?.[k])),
     );
     const totalBillingKeys = totalFieldOrder.filter(
-      k => allFieldKeys.includes(k) && ((isEditing || isNew) || hasValue(data?.[k]))
+      (k) =>
+        allFieldKeys.includes(k) && (isEditing || isNew || hasValue(data?.[k])),
     );
-    const visibleNonTotalKeys = visibleKeys.filter(k => !totalFieldOrder.includes(k));
-    const billingKeys = visibleNonTotalKeys.filter(k => k.endsWith('_rental') || k.endsWith('_sub') || billingFields.includes(k));
-    const infoKeys = visibleNonTotalKeys.filter(k => !k.endsWith('_rental') && !k.endsWith('_sub') && !billingFields.includes(k));
+    const visibleNonTotalKeys = visibleKeys.filter(
+      (k) => !totalFieldOrder.includes(k),
+    );
+    const billingKeys = visibleNonTotalKeys.filter(
+      (k) =>
+        k.endsWith("_rental") ||
+        k.endsWith("_sub") ||
+        billingFields.includes(k),
+    );
+    const infoKeys = visibleNonTotalKeys.filter(
+      (k) =>
+        !k.endsWith("_rental") &&
+        !k.endsWith("_sub") &&
+        !billingFields.includes(k),
+    );
     const orderedInfoKeys = isNew
       ? [
-          ...defaultVehicleInfoFields.filter(k => infoKeys.includes(k)),
-          ...infoKeys.filter(k => !defaultVehicleInfoFields.includes(k))
+          ...defaultVehicleInfoFields.filter((k) => infoKeys.includes(k)),
+          ...infoKeys.filter((k) => !defaultVehicleInfoFields.includes(k)),
         ]
       : infoKeys;
-    const availableFieldsToAdd = allFieldKeys.filter(f => !visibleKeys.includes(f) && !totalFieldOrder.includes(f));
+    const availableFieldsToAdd = allFieldKeys.filter(
+      (f) => !visibleKeys.includes(f) && !totalFieldOrder.includes(f),
+    );
     const billingFieldsToAdd = availableFieldsToAdd
-      .filter(f => f.endsWith('_rental') || f.endsWith('_sub') || billingFields.includes(f))
+      .filter(
+        (f) =>
+          f.endsWith("_rental") ||
+          f.endsWith("_sub") ||
+          billingFields.includes(f),
+      )
       .sort((a, b) => a.localeCompare(b));
     const vehicleFieldsToAdd = availableFieldsToAdd
-      .filter(f => !f.endsWith('_rental') && !f.endsWith('_sub') && !billingFields.includes(f))
+      .filter(
+        (f) =>
+          !f.endsWith("_rental") &&
+          !f.endsWith("_sub") &&
+          !billingFields.includes(f),
+      )
       .sort((a, b) => a.localeCompare(b));
     const billingSummary = getBillingSummary(data);
 
-    const handleAddField = (fieldToAdd, initialValue = '') => {
+    const handleAddField = (fieldToAdd, initialValue = "") => {
       if (!fieldToAdd) return;
-      setAddItemState(prev => {
+      setAddItemState((prev) => {
         const current = prev[contextKey] || { added: [] };
         return {
           ...prev,
           [contextKey]: {
-            added: current.added.includes(fieldToAdd) ? current.added : [...current.added, fieldToAdd]
-          }
+            added: current.added.includes(fieldToAdd)
+              ? current.added
+              : [...current.added, fieldToAdd],
+          },
         };
       });
       onChange(fieldToAdd, initialValue);
     };
-    
+
     return (
       <>
         <div className="col-span-full mb-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Vehicle Information</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">
+            Vehicle Information
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {orderedInfoKeys.map((key, idx) => {
-              const displayLabel = key.replace(/_/g, ' ').toUpperCase();
+              const displayLabel = key.replace(/_/g, " ").toUpperCase();
               return (
                 <div key={idx} className="text-sm">
-                  <Label className="text-xs text-gray-500">{displayLabel}</Label>
-                  {(isEditing || isNew) ? (
-                    <Input value={data[key] ?? ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
+                  <Label className="text-xs text-gray-500">
+                    {displayLabel}
+                  </Label>
+                  {isEditing || isNew ? (
+                    <Input
+                      value={data[key] ?? ""}
+                      onChange={(e) => onChange(key, e.target.value)}
+                      className="h-8 text-sm"
+                    />
                   ) : (
-                    <p className="text-sm mt-1">{data[key] || 'N/A'}</p>
+                    <p className="text-sm mt-1">{data[key] || "N/A"}</p>
                   )}
                 </div>
               );
             })}
           </div>
         </div>
-        
+
         <div className="col-span-full">
           {(isEditing || isNew) && (
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Add Item</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">
+                Add Item
+              </h3>
               <AddItemSearch
                 vehicleFieldsToAdd={vehicleFieldsToAdd}
                 billingFieldsToAdd={billingFieldsToAdd}
@@ -782,10 +979,13 @@ export default function ValidateVehiclesPage() {
               />
             </div>
           )}
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Billing Details</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">
+            Billing Details
+          </h3>
           {!isNew && billingSummary.hasManualTotalOnly && (
             <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              This vehicle currently has a manual total saved, but no itemized billing lines yet.
+              This vehicle currently has a manual total saved, but no itemized
+              billing lines yet.
             </div>
           )}
           {!isEditing && !isNew && billingSummary.entries.length > 0 && (
@@ -805,18 +1005,27 @@ export default function ValidateVehiclesPage() {
               const displayLabel = formatFieldLabel(key);
               return (
                 <div key={idx} className="text-sm">
-                  <Label className="text-xs text-gray-500">{displayLabel}</Label>
-                  {(isEditing || isNew) ? (
+                  <Label className="text-xs text-gray-500">
+                    {displayLabel}
+                  </Label>
+                  {isEditing || isNew ? (
                     <div className="flex gap-1">
-                      <Input value={data[key] ?? ''} onChange={(e) => onChange(key, e.target.value)} className="h-8 text-sm" />
+                      <Input
+                        value={data[key] ?? ""}
+                        onChange={(e) => onChange(key, e.target.value)}
+                        className="h-8 text-sm"
+                      />
                       {!isNew && data[key] !== vehicle[key] && (
-                        <button onClick={() => confirmField(key)} className="px-1 hover:bg-green-100 rounded">
+                        <button
+                          onClick={() => confirmField(key)}
+                          className="px-1 hover:bg-green-100 rounded"
+                        >
                           <Check className="h-3 w-3 text-green-600" />
                         </button>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm mt-1">{data[key] || 'N/A'}</p>
+                    <p className="text-sm mt-1">{data[key] || "N/A"}</p>
                   )}
                 </div>
               );
@@ -825,19 +1034,22 @@ export default function ValidateVehiclesPage() {
           {(isEditing || isNew) && totalBillingKeys.length > 0 && (
             <div className="mb-4 space-y-2">
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                Note: Total fields below are manual overrides. You can enter your own total amounts if needed.
+                Note: Total fields below are manual overrides. You can enter
+                your own total amounts if needed.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {totalBillingKeys.map((key, idx) => {
                   const displayLabel = formatFieldLabel(key);
-                  const isReadOnlyTotal = key === 'total_rental_sub';
+                  const isReadOnlyTotal = key === "total_rental_sub";
                   return (
                     <div key={`${key}-${idx}`} className="text-sm">
-                      <Label className="text-xs text-gray-500">{displayLabel}</Label>
+                      <Label className="text-xs text-gray-500">
+                        {displayLabel}
+                      </Label>
                       <Input
-                        value={data[key] ?? ''}
+                        value={data[key] ?? ""}
                         onChange={(e) => onChange(key, e.target.value)}
-                        className={`h-8 text-sm ${isReadOnlyTotal ? 'bg-slate-100 text-slate-700' : ''}`}
+                        className={`h-8 text-sm ${isReadOnlyTotal ? "bg-slate-100 text-slate-700" : ""}`}
                         readOnly={isReadOnlyTotal}
                       />
                     </div>
@@ -846,50 +1058,72 @@ export default function ValidateVehiclesPage() {
               </div>
             </div>
           )}
-          
+
           <div className="bg-slate-50 border-2 border-slate-200 rounded-lg p-4 mt-4">
             <div className="flex items-center justify-between">
               <div className="grid grid-cols-3 gap-4 flex-1">
                 <div>
-                  <Label className="text-xs font-medium text-slate-600">TOTAL RENTAL</Label>
-                  <p className="text-lg font-bold mt-1">{formatCurrency(data.total_rental)}</p>
+                  <Label className="text-xs font-medium text-slate-600">
+                    TOTAL RENTAL
+                  </Label>
+                  <p className="text-lg font-bold mt-1">
+                    {formatCurrency(data.total_rental)}
+                  </p>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-slate-600">TOTAL SUB</Label>
-                  <p className="text-lg font-bold mt-1">{formatCurrency(data.total_sub)}</p>
+                  <Label className="text-xs font-medium text-slate-600">
+                    TOTAL SUB
+                  </Label>
+                  <p className="text-lg font-bold mt-1">
+                    {formatCurrency(data.total_sub)}
+                  </p>
                 </div>
                 <div className="bg-slate-800 text-white rounded-lg p-3 -m-1">
-                  <Label className="text-xs font-medium text-slate-300">TOTAL</Label>
-                  <p className="text-xl font-bold mt-1">{formatCurrency(data.total_rental_sub)}</p>
+                  <Label className="text-xs font-medium text-slate-300">
+                    TOTAL
+                  </Label>
+                  <p className="text-xl font-bold mt-1">
+                    {formatCurrency(data.total_rental_sub)}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
           {!isNew && !validationMode && (
             <div className="flex justify-end gap-2 mt-4">
-                {editingVehicle === vehicle.id ? (
-                  <>
-                    <Button size="sm" variant="outline" onClick={cancelEdit}>Cancel</Button>
-                    <Button size="sm" onClick={saveVehicle} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                      Save
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="sm" variant="destructive" onClick={() => deleteVehicle(vehicle.id)}>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </Button>
-                    <Button size="sm" onClick={() => startEdit(vehicle)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+              {editingVehicle === vehicle.id ? (
+                <>
+                  <Button size="sm" variant="outline" onClick={cancelEdit}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={saveVehicle} disabled={saving}>
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deleteVehicle(vehicle.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                  <Button size="sm" onClick={() => startEdit(vehicle)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </>
     );
   };
@@ -915,9 +1149,12 @@ export default function ValidateVehiclesPage() {
           </Button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{validationMode ? "Validation Mode" : "Validate Vehicles"} - {currentCostCenterName}</h1>
-              <Button 
-                size="sm" 
+              <h1 className="text-2xl font-bold">
+                {validationMode ? "Validation Mode" : "Validate Vehicles"} -{" "}
+                {currentCostCenterName}
+              </h1>
+              <Button
+                size="sm"
                 variant={validationMode ? "default" : "outline"}
                 onClick={() => setValidationMode(!validationMode)}
               >
@@ -945,17 +1182,26 @@ export default function ValidateVehiclesPage() {
               {renderAllFields({}, false, true)}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => {
-                setShowAddForm(false);
-                setNewVehicleData(initialTotalValues);
-                setAddItemState(prev => {
-                  const next = { ...prev };
-                  delete next.new;
-                  return next;
-                });
-              }}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewVehicleData(initialTotalValues);
+                  setAddItemState((prev) => {
+                    const next = { ...prev };
+                    delete next.new;
+                    return next;
+                  });
+                }}
+              >
+                Cancel
+              </Button>
               <Button onClick={addVehicle} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
                 Add Vehicle
               </Button>
             </div>
@@ -967,7 +1213,9 @@ export default function ValidateVehiclesPage() {
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
             <div className="flex-1">
-              <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">Search by Reg or Fleet Number</Label>
+              <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">
+                Search by Reg or Fleet Number
+              </Label>
               <Input
                 id="vehicleSearch"
                 value={vehicleSearch}
@@ -977,8 +1225,14 @@ export default function ValidateVehiclesPage() {
               />
             </div>
             <div className="text-sm text-gray-500 md:text-right">
-              Showing <span className="font-semibold text-gray-700">{filteredVehicles.length}</span> of{' '}
-              <span className="font-semibold text-gray-700">{vehicles.length}</span>
+              Showing{" "}
+              <span className="font-semibold text-gray-700">
+                {filteredVehicles.length}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-gray-700">
+                {vehicles.length}
+              </span>
             </div>
           </div>
         </CardContent>
@@ -987,150 +1241,216 @@ export default function ValidateVehiclesPage() {
       {vehicles.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-gray-500">No vehicles found for this cost center</p>
+            <p className="text-gray-500">
+              No vehicles found for this cost center
+            </p>
+          </CardContent>
+        </Card>
+      ) : filteredVehicles.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-500">No vehicles match your search</p>
           </CardContent>
         </Card>
       ) : (
-        filteredVehicles.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-gray-500">No vehicles match your search</p>
-            </CardContent>
-          </Card>
-        ) : (
         <div className="space-y-2">
           {filteredVehicles.map((vehicle) => (
-            <Collapsible key={vehicle.id} open={expandedVehicles[vehicle.id]} onOpenChange={() => toggleVehicle(vehicle.id)}>
+            <Collapsible
+              key={vehicle.id}
+              open={expandedVehicles[vehicle.id]}
+              onOpenChange={() => toggleVehicle(vehicle.id)}
+            >
               {(() => {
                 const billingSummary = getBillingSummary(vehicle);
 
                 return (
-              <Card className={vehicle.vehicle_validated ? "border-green-500 bg-green-50" : ""}>
-                <CollapsibleTrigger className="w-full">
-                  <CardHeader className={`cursor-pointer ${vehicle.vehicle_validated ? "bg-green-100 hover:bg-green-100" : "hover:bg-gray-50"}`}>
-                    <div className="flex items-start gap-4 overflow-hidden">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-4">
-                          <div className="w-[14%] min-w-[120px] text-left">
-                            <Label className="text-xs text-gray-500">Registration</Label>
-                            <p className="text-sm font-medium truncate">{vehicle.reg || 'N/A'}</p>
-                          </div>
-                          <div className="w-[14%] min-w-[120px] text-left">
-                            <Label className="text-xs text-gray-500">Fleet Number</Label>
-                            <p className="text-sm font-medium truncate">{vehicle.fleet_number || 'N/A'}</p>
-                          </div>
-                          <div className="w-[18%] min-w-[140px] text-left">
-                            <Label className="text-xs text-gray-500">VIN</Label>
-                            <p className="text-sm font-medium truncate">{vehicle.vin || 'N/A'}</p>
-                          </div>
-                          <div className="min-w-0 flex-1 text-left">
-                            <Label className="text-xs text-gray-500">Items Being Billed</Label>
-                            {billingSummary.entries.length > 0 ? (
-                              <div className="mt-1 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
-                                {billingSummary.entries.map((item) => (
-                                  <span
-                                    key={item.key}
-                                    className="inline-flex w-full min-w-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                                  >
-                                    <span className="truncate">{item.label}: {formatCurrency(item.value)}</span>
-                                  </span>
-                                ))}
+                  <Card
+                    className={
+                      vehicle.vehicle_validated
+                        ? "border-green-500 bg-green-50"
+                        : ""
+                    }
+                  >
+                    <CollapsibleTrigger className="w-full">
+                      <CardHeader
+                        className={`cursor-pointer ${vehicle.vehicle_validated ? "bg-green-100 hover:bg-green-100" : "hover:bg-gray-50"}`}
+                      >
+                        <div className="flex items-start gap-4 overflow-hidden">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start gap-4">
+                              <div className="w-[14%] min-w-[120px] text-left">
+                                <Label className="text-xs text-gray-500">
+                                  Registration
+                                </Label>
+                                <p className="text-sm font-medium truncate">
+                                  {vehicle.reg || "N/A"}
+                                </p>
                               </div>
+                              <div className="w-[14%] min-w-[120px] text-left">
+                                <Label className="text-xs text-gray-500">
+                                  Fleet Number
+                                </Label>
+                                <p className="text-sm font-medium truncate">
+                                  {vehicle.fleet_number || "N/A"}
+                                </p>
+                              </div>
+                              <div className="w-[18%] min-w-[140px] text-left">
+                                <Label className="text-xs text-gray-500">
+                                  VIN
+                                </Label>
+                                <p className="text-sm font-medium truncate">
+                                  {vehicle.vin || "N/A"}
+                                </p>
+                              </div>
+                              <div className="min-w-0 flex-1 text-left">
+                                <Label className="text-xs text-gray-500">
+                                  Items Being Billed
+                                </Label>
+                                {billingSummary.entries.length > 0 ? (
+                                  <div className="mt-1 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
+                                    {billingSummary.entries.map((item) => (
+                                      <span
+                                        key={item.key}
+                                        className="inline-flex w-full min-w-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                                      >
+                                        <span className="truncate">
+                                          {item.label}:{" "}
+                                          {formatCurrency(item.value)}
+                                        </span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="mt-1 text-sm text-gray-600 truncate">
+                                    {billingSummary.hasManualTotalOnly
+                                      ? "Manual total only"
+                                      : "No billed items"}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="w-[12%] min-w-[120px] text-left">
+                                <Label className="text-xs text-gray-500">
+                                  Total Value
+                                </Label>
+                                <p className="text-lg font-bold mt-1 truncate">
+                                  {formatCurrency(vehicle.total_rental_sub)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {vehicle.vehicle_validated && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                                <Check className="h-3 w-3" />
+                                Done
+                              </span>
+                            )}
+                            {expandedVehicles[vehicle.id] ? (
+                              <ChevronUp className="h-5 w-5" />
                             ) : (
-                              <p className="mt-1 text-sm text-gray-600 truncate">
-                                {billingSummary.hasManualTotalOnly ? 'Manual total only' : 'No billed items'}
-                              </p>
+                              <ChevronDown className="h-5 w-5" />
                             )}
                           </div>
-                          <div className="w-[12%] min-w-[120px] text-left">
-                            <Label className="text-xs text-gray-500">Total Value</Label>
-                            <p className="text-lg font-bold mt-1 truncate">{formatCurrency(vehicle.total_rental_sub)}</p>
-                          </div>
                         </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {vehicle.vehicle_validated && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                            <Check className="h-3 w-3" />
-                            Done
-                          </span>
-                        )}
-                        {expandedVehicles[vehicle.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                      </div>
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0">
-                    {editingVehicle === vehicle.id && (() => {
-                      const currentCostCenter = vehicle.new_account_number || costCode || '';
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="pt-0">
+                        {editingVehicle === vehicle.id &&
+                          (() => {
+                            const currentCostCenter =
+                              vehicle.new_account_number || costCode || "";
 
-                      return (
-                        <div className="mb-4 p-3 border rounded-md bg-slate-50">
-                          <div className="flex flex-col md:flex-row md:items-end gap-3">
-                            <div className="flex-1">
-                              <Label className="text-xs text-gray-500">Current Cost Center</Label>
-                              <p className="text-sm font-medium text-gray-900">{currentCostCenter || 'N/A'}</p>
-                            </div>
-                            <div className="flex-1">
-                              <Label htmlFor={`move-cc-${vehicle.id}`} className="text-xs text-gray-500">
-                                Cost Center
-                              </Label>
-                              <Input
-                                id={`move-cc-${vehicle.id}`}
-                                value={costCenterSearch}
-                                onChange={(e) => {
-                                  setCostCenterSearch(e.target.value);
-                                  setCostCenterDropdownOpen(true);
-                                }}
-                                onFocus={() => setCostCenterDropdownOpen(true)}
-                                placeholder="Search any cost center..."
-                                className="mt-1 h-9 text-sm bg-white"
-                              />
-                              {costCenterDropdownOpen && (
-                                <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
-                                  {filteredCostCenters.length > 0 ? (
-                                    filteredCostCenters.map((item) => (
-                                      <button
-                                        key={item.cost_code}
-                                        type="button"
-                                        onClick={() => {
-                                          setTargetCostCenterByVehicle((prev) => ({
-                                            ...prev,
-                                            [vehicle.id]: item.cost_code
-                                          }));
-                                          setCostCenterSearch(formatCostCenterOption(item));
-                                          setCostCenterDropdownOpen(false);
-                                        }}
-                                        className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${
-                                          targetCostCenterByVehicle[vehicle.id] === item.cost_code ? 'bg-slate-100' : ''
-                                        }`}
-                                      >
-                                        {formatCostCenterOption(item)}
-                                      </button>
-                                    ))
-                                  ) : (
-                                    <p className="px-3 py-2 text-sm text-gray-500">No matching cost centers</p>
-                                  )}
+                            return (
+                              <div className="mb-4 p-3 border rounded-md bg-slate-50">
+                                <div className="flex flex-col md:flex-row md:items-end gap-3">
+                                  <div className="flex-1">
+                                    <Label className="text-xs text-gray-500">
+                                      Current Cost Center
+                                    </Label>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {currentCostCenter || "N/A"}
+                                    </p>
+                                  </div>
+                                  <div className="flex-1">
+                                    <Label
+                                      htmlFor={`move-cc-${vehicle.id}`}
+                                      className="text-xs text-gray-500"
+                                    >
+                                      Cost Center
+                                    </Label>
+                                    <Input
+                                      id={`move-cc-${vehicle.id}`}
+                                      value={costCenterSearch}
+                                      onChange={(e) => {
+                                        setCostCenterSearch(e.target.value);
+                                        setCostCenterDropdownOpen(true);
+                                      }}
+                                      onFocus={() =>
+                                        setCostCenterDropdownOpen(true)
+                                      }
+                                      placeholder="Search any cost center..."
+                                      className="mt-1 h-9 text-sm bg-white"
+                                    />
+                                    {costCenterDropdownOpen && (
+                                      <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
+                                        {filteredCostCenters.length > 0 ? (
+                                          filteredCostCenters.map((item) => (
+                                            <button
+                                              key={item.cost_code}
+                                              type="button"
+                                              onClick={() => {
+                                                setTargetCostCenterByVehicle(
+                                                  (prev) => ({
+                                                    ...prev,
+                                                    [vehicle.id]:
+                                                      item.cost_code,
+                                                  }),
+                                                );
+                                                setCostCenterSearch(
+                                                  formatCostCenterOption(item),
+                                                );
+                                                setCostCenterDropdownOpen(
+                                                  false,
+                                                );
+                                              }}
+                                              className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${
+                                                targetCostCenterByVehicle[
+                                                  vehicle.id
+                                                ] === item.cost_code
+                                                  ? "bg-slate-100"
+                                                  : ""
+                                              }`}
+                                            >
+                                              {formatCostCenterOption(item)}
+                                            </button>
+                                          ))
+                                        ) : (
+                                          <p className="px-3 py-2 text-sm text-gray-500">
+                                            No matching cost centers
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </div>
+                              </div>
+                            );
+                          })()}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {renderAllFields(
+                            vehicle,
+                            editingVehicle === vehicle.id,
+                          )}
                         </div>
-                      );
-                    })()}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {renderAllFields(vehicle, editingVehicle === vehicle.id)}
-                    </div>
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
                 );
               })()}
             </Collapsible>
           ))}
         </div>
-        )
       )}
     </div>
   );
