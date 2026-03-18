@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
@@ -71,13 +71,25 @@ interface StockOrder {
 }
 
 interface StockItem {
-  id: number;
+  id: number | string;
+  created_at?: string;
   description?: string;
   code?: string;
   supplier?: string;
   stock_type?: string;
   quantity?: string;
-  ip_addresses?: string[] | Record<string, string>;
+  date_adjusted?: string;
+  status?: string;
+  serial_number?: string;
+  category_code?: string;
+  category_description?: string;
+  assigned_to_technician?: string;
+  assigned_date?: string;
+  job_card_id?: string;
+  container?: string;
+  direction?: string;
+  company?: string;
+  notes?: string;
 }
 
 interface StockUpdate {
@@ -143,7 +155,10 @@ import {
   Filter,
   Save,
   Network,
-  Eye
+  Eye,
+  ChevronDown,
+  ChevronRight,
+  Layers
 } from 'lucide-react';
 import DashboardHeader from '@/components/shared/DashboardHeader';
 import DashboardTabs from '@/components/shared/DashboardTabs';
@@ -197,8 +212,9 @@ export default function InventoryPage() {
   const [selectedStockType, setSelectedStockType] = useState('all');
   const [stockTypes, setStockTypes] = useState<(string | {code: string, description: string})[]>([]);
   const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
-  const [thresholds, setThresholds] = useState<Record<number, number>>({});
+  const [thresholds, setThresholds] = useState<Record<string, number>>({});
   const [defaultThreshold, setDefaultThreshold] = useState(10);
+  const [expandedStockCategories, setExpandedStockCategories] = useState<Record<string, boolean>>({});
   const [clientStockClients, setClientStockClients] = useState<ClientStockClient[]>([]);
   const [clientStockLoading, setClientStockLoading] = useState(false);
   const [clientStockSearchTerm, setClientStockSearchTerm] = useState('');
@@ -1553,11 +1569,6 @@ export default function InventoryPage() {
         params.append('category', selectedStockType);
       }
       
-      // Add view parameter based on active tab
-      if (stockTakeActiveTab === 'thresholds') {
-        params.append('view', 'thresholds');
-      }
-      
       console.log('Fetching stock with params:', params.toString());
       const response = await fetch(`/api/stock?${params}`);
       if (!response.ok) {
@@ -1758,16 +1769,17 @@ export default function InventoryPage() {
   const handleThresholdChange = (itemId, newThreshold) => {
     setThresholds(prev => ({
       ...prev,
-      [itemId]: parseInt(newThreshold) || defaultThreshold
+      [String(itemId)]: parseInt(newThreshold) || defaultThreshold
     }));
   };
 
   const getItemThreshold = (itemId) => {
-    return thresholds[itemId] || defaultThreshold;
+    return thresholds[String(itemId)] || defaultThreshold;
   };
 
   const isLowStock = (item) => {
-    const threshold = getItemThreshold(item.id);
+    const thresholdKey = item.category_code || item.id;
+    const threshold = getItemThreshold(thresholdKey);
     return parseInt(item.quantity || 0) <= threshold;
   };
 
@@ -1776,8 +1788,14 @@ export default function InventoryPage() {
   };
 
   const filteredStockItems = stockItems.filter(item => {
+    if (item.status === 'CATEGORY') return false;
+
+    const query = stockTakeSearchTerm.toLowerCase();
     const matchesSearch = !stockTakeSearchTerm ||
-      item.serial_number?.toLowerCase().includes(stockTakeSearchTerm.toLowerCase());
+      item.serial_number?.toLowerCase().includes(query) ||
+      item.category_code?.toLowerCase().includes(query) ||
+      item.category_description?.toLowerCase().includes(query) ||
+      item.description?.toLowerCase().includes(query);
     
     const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
     
@@ -1790,6 +1808,56 @@ export default function InventoryPage() {
     if (!aIsLow && bIsLow) return 1;
     return 0;
   });
+
+  const groupedStockItems = useMemo(() => {
+    const groups = filteredStockItems.reduce((acc, item) => {
+      const groupKey = item.category_code || 'uncategorized';
+
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
+          key: groupKey,
+          categoryCode: item.category_code || 'N/A',
+          categoryDescription: item.category_description || item.description || 'Uncategorized',
+          items: [],
+          totalQuantity: 0,
+          lowCount: 0,
+        };
+      }
+
+      const quantity = parseInt(item.quantity || '0');
+
+      acc[groupKey].items.push(item);
+      acc[groupKey].totalQuantity += quantity;
+      if (isLowStock(item)) acc[groupKey].lowCount += 1;
+
+      return acc;
+    }, {} as Record<string, {
+      key: string;
+      categoryCode: string;
+      categoryDescription: string;
+      items: StockItem[];
+      totalQuantity: number;
+      lowCount: number;
+    }>);
+
+    return Object.values(groups).sort((a, b) => {
+      const aThreshold = getItemThreshold(a.key);
+      const bThreshold = getItemThreshold(b.key);
+      const aIsLow = a.totalQuantity <= aThreshold;
+      const bIsLow = b.totalQuantity <= bThreshold;
+
+      if (aIsLow && !bIsLow) return -1;
+      if (!aIsLow && bIsLow) return 1;
+      return a.categoryCode.localeCompare(b.categoryCode);
+    });
+  }, [filteredStockItems, thresholds, defaultThreshold]);
+
+  const toggleStockCategory = (categoryKey: string) => {
+    setExpandedStockCategories(prev => ({
+      ...prev,
+      [categoryKey]: !prev[categoryKey]
+    }));
+  };
 
   // Tab content components
   const jobCardsContent = (
@@ -2511,9 +2579,7 @@ export default function InventoryPage() {
       )}
 
       {/* Stock Items Table */}
-      {console.log('Rendering stock table, filteredStockItems.length:', filteredStockItems.length)}
-      {filteredStockItems.length > 0 && console.log('First filtered item:', filteredStockItems[0])}
-      {filteredStockItems.length === 0 ? (
+      {groupedStockItems.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">No stock items found</h3>
@@ -2522,159 +2588,117 @@ export default function InventoryPage() {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="border border-gray-200 w-full border-collapse">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
-                  Serial Number
-                </th>
-                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                  Category
-                </th>
-                <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                  Current Qty
-                </th>
-                {stockTakeActiveTab === 'thresholds' && (
-                  <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                    Threshold
-                  </th>
-                )}
-                {!stockTakeMode && stockTakeActiveTab === 'stock-take' && (
-                  <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                    Actions
-                  </th>
-                )}
-                {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
-                  <>
-                    <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                      New Qty
-                    </th>
-                    <td className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                      Difference
-                    </td>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white">
-              {filteredStockItems.map((item, index) => {
-                if (index === 0) {
-                  console.log('First item in render:', item);
-                  console.log('Category code:', item.category_code);
-                  console.log('Category description:', item.category_description);
-                }
-                const update = updatedItems[item.id];
-                const currentQuantity = update?.new_quantity ?? parseInt(item.quantity || '0');
-                const difference = update?.difference ?? 0;
-                const isLow = isLowStock(item);
-                const isSelected = selectedStockItem?.id === item.id;
-                const hasIPAddresses = item.ip_addresses && 
-                  (Array.isArray(item.ip_addresses) ? item.ip_addresses.length > 0 : Object.keys(item.ip_addresses).length > 0);
+        <div className="space-y-4">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Category</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Description</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Total Count</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Serials</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Threshold</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Action</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {groupedStockItems.map((group) => {
+                  const isExpanded = expandedStockCategories[group.key] ?? false;
+                  const threshold = getItemThreshold(group.key);
+                  const groupIsLow = group.totalQuantity <= threshold;
 
-                return (
-                  <tr 
-                    key={item.id} 
-                    className={`hover:bg-gray-50 cursor-pointer ${getLowStockStyle(item)} ${isSelected ? 'bg-blue-50' : ''}`}
-                    onClick={() => setSelectedStockItem(item)}
-                  >
-                    <td className="px-4 py-3 border border-gray-200 text-sm">
-                      <div className="font-medium text-gray-900">{item.serial_number || 'N/A'}</div>
-                      {item.description && item.description !== 'No description' && (
-                        <div className="text-xs text-gray-600 mt-1">{item.description}</div>
-                      )}
-                      <div className="flex gap-1 flex-wrap mt-1">
-                        {isLow && (
-                          <Badge className="bg-red-100 text-red-800 text-xs">
-                            Low Stock
-                          </Badge>
-                        )}
-                        {hasIPAddresses && (
-                          <Badge className="bg-indigo-100 text-indigo-800 text-xs">
-                            IP Assigned
-                          </Badge>
-                        )}
-                        {isSelected && (
-                          <Badge className="bg-blue-100 text-blue-800 text-xs">
-                            Selected
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                      <Badge className="bg-blue-100 text-blue-800 text-xs">
-                        {item.category_code && item.category_description ? 
-                          `${item.category_code} - ${item.category_description}` : 
-                          item.category_code || 'N/A'
-                        }
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                      <span className={`font-medium ${isLow ? 'text-red-600' : ''}`}>
-                        {parseInt(item.quantity || '0')}
-                      </span>
-                    </td>
-                    {stockTakeActiveTab === 'thresholds' && (
-                      <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={getItemThreshold(item.id)}
-                          onChange={(e) => handleThresholdChange(item.id, e.target.value)}
-                          className="w-20 text-center"
-                        />
-                      </td>
-                    )}
-                    {!stockTakeMode && stockTakeActiveTab === 'stock-take' && (
-                      <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                        <div className="flex flex-col gap-1 items-center">
+                  return (
+                    <>
+                      <tr
+                        key={`group-${group.key}`}
+                        className={`${groupIsLow ? 'bg-red-50' : 'bg-white'} border-t hover:bg-slate-50`}
+                      >
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleStockCategory(group.key)}
+                              className="rounded p-1 hover:bg-white"
+                            >
+                              {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
+                            </button>
+                            <span className="font-semibold text-slate-900">{group.categoryCode}</span>
+                            {groupIsLow && <Badge className="bg-red-100 text-red-800 text-xs">Low Stock</Badge>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-gray-700">{group.categoryDescription}</td>
+                        <td className="px-4 py-3 text-center text-sm">
+                          <span className={`font-medium ${groupIsLow ? 'text-red-600' : 'text-slate-900'}`}>{group.totalQuantity}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-slate-900">{group.items.length}</td>
+                        <td className="px-4 py-3 text-center text-sm">
+                          {stockTakeActiveTab === 'thresholds' ? (
+                            <Input
+                              type="number"
+                              min="1"
+                              value={threshold}
+                              onChange={(e) => handleThresholdChange(group.key, e.target.value)}
+                              className="mx-auto w-24 text-center"
+                            />
+                          ) : (
+                            <span className="font-medium text-slate-900">{threshold}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm">
                           <Button
-                            size="sm"
+                            type="button"
                             variant="outline"
-                            className="text-indigo-600 hover:text-indigo-700"
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent row selection
-                              setSelectedStockItem(item);
-                              setShowIpAddressModal(true);
-                            }}
+                            size="sm"
+                            onClick={() => toggleStockCategory(group.key)}
                           >
-                            <Network className="mr-1 w-4 h-4" />
-                            {hasIPAddresses ? 'Manage IP' : 'Assign IP'}
+                            {isExpanded ? 'Hide Items' : 'View Items'}
                           </Button>
-                          {hasIPAddresses && (
-                            <span className="text-xs text-indigo-600">
-                              IP{Array.isArray(item.ip_addresses) && item.ip_addresses.length > 1 ? 's' : ''} assigned
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                    {stockTakeMode && stockTakeActiveTab === 'stock-take' && (
-                      <>
-                        <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                          <Input
-                            type="number"
-                            min="0"
-                            value={currentQuantity}
-                            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                            className="w-20 text-center"
-                            onClick={(e) => e.stopPropagation()} // Prevent row selection when clicking input
-                          />
                         </td>
-                        <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                          {update && (
-                            <span className={`font-medium ${getQuantityDifferenceColor(difference)}`}>
-                              {difference > 0 ? '+' : ''}{difference}
-                            </span>
-                          )}
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`subtable-${group.key}`} className="bg-slate-50">
+                          <td colSpan={7} className="p-0">
+                            <table className="w-full border-collapse">
+                              <thead className="bg-slate-100">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-600">Serial Number</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white">
+                                {group.items.map((item) => {
+                                  const isLow = isLowStock(item);
+                                  const isSelected = selectedStockItem?.id === item.id;
+
+                                  return (
+                                    <tr
+                                      key={item.id}
+                                      className={`cursor-pointer border-t hover:bg-gray-50 ${getLowStockStyle(item)} ${isSelected ? 'bg-blue-50' : ''}`}
+                                      onClick={() => setSelectedStockItem(item)}
+                                    >
+                                      <td className="px-6 py-3 text-sm">
+                                        <div className="font-medium text-gray-900">{item.serial_number || 'N/A'}</div>
+                                        {item.description && item.description !== 'No description' && (
+                                          <div className="mt-1 text-xs text-gray-600">{item.description}</div>
+                                        )}
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {isLow && <Badge className="bg-red-100 text-red-800 text-xs">Low Stock</Badge>}
+                                          {isSelected && <Badge className="bg-blue-100 text-blue-800 text-xs">Selected</Badge>}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

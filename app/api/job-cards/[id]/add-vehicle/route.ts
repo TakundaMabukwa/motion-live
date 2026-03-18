@@ -63,8 +63,8 @@ export async function POST(
       fleet_number: null,
       engine: null,
       skylink_trailer_unit_ip: jobCard.ip_address || null,
-      total_rental_sub: jobCard.quotation_subtotal || 0,
-      total_rental: jobCard.quotation_total_amount || 0,
+      total_rental_sub: jobCard.quotation_total_amount || 0,
+      total_rental: jobCard.quotation_subtotal || 0,
       total_sub: jobCard.quotation_vat_amount || 0
     };
 

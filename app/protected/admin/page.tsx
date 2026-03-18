@@ -33,6 +33,8 @@ import {
 import StatsCard from '@/components/shared/StatsCard';
 import { toast } from 'sonner';
 import CreateJobModal from './components/CreateJobModal';
+import { AwaitingTestingContent } from './completed-jobs/page';
+import { AdminScheduleContent } from './schedule/page';
 
 interface PartRequired {
   description: string;
@@ -1454,34 +1456,6 @@ export default function AdminDashboard() {
       )
     },
     {
-      value: 'schedule',
-      label: 'Schedule',
-      icon: Calendar,
-      content: (
-        <div className="flex items-center justify-center h-screen">
-          <iframe 
-            src="/protected/admin/schedule" 
-            className="w-full h-full"
-            style={{ border: 'none' }}
-          />
-        </div>
-      )
-    },
-    {
-      value: 'all-job-cards',
-      label: 'All Job Cards',
-      icon: FileText,
-      content: (
-        <div className="flex items-center justify-center h-screen">
-          <iframe 
-            src="/protected/admin/all-job-cards" 
-            className="w-full h-full"
-            style={{ border: 'none' }}
-          />
-        </div>
-      )
-    },
-    {
       value: 'assigned-technician',
       label: 'Assigned',
       icon: Users,
@@ -1686,6 +1660,22 @@ export default function AdminDashboard() {
           </div>
         </div>
       )
+    },
+    {
+      value: 'schedule',
+      label: 'Schedule',
+      icon: Calendar,
+      content: (
+        <AdminScheduleContent embedded />
+      )
+    },
+    {
+      value: 'completed-jobs',
+      label: 'Awaiting Testing',
+      icon: CheckCircle,
+      content: (
+        <AwaitingTestingContent embedded />
+      )
     }
   ];
 
@@ -1836,13 +1826,13 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
         
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/all-job-cards'}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/completed-jobs'}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <FileText className="w-8 h-8 text-blue-600" />
+              <CheckCircle className="w-8 h-8 text-green-600" />
               <div>
-                <h3 className="font-semibold text-gray-900">All Job Cards</h3>
-                <p className="text-gray-600 text-sm">View comprehensive job card information with vehicle details</p>
+                <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
+                <p className="text-gray-600 text-sm">View completed jobs ready for Finance Controller</p>
               </div>
             </div>
           </CardContent>
@@ -1860,13 +1850,13 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/completed-jobs'}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('assigned-technician')}>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <Users className="w-8 h-8 text-blue-600" />
               <div>
-                <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
-                <p className="text-gray-600 text-sm">View all completed job cards and history</p>
+                <h3 className="font-semibold text-gray-900">Assigned Jobs</h3>
+                <p className="text-gray-600 text-sm">View jobs that already have technicians assigned</p>
               </div>
             </div>
           </CardContent>

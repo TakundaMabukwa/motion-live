@@ -183,12 +183,11 @@ export default function ValidateVehiclesPage() {
   const [vehicleSearch, setVehicleSearch] = useState('');
   const [costCenterOptions, setCostCenterOptions] = useState([]);
   const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState({});
+  const [costCenterSearch, setCostCenterSearch] = useState('');
+  const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
+  const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
-  const costCenterPrefix = useMemo(() => {
-    if (!costCode) return '';
-    return String(costCode).split('-')[0]?.trim() || '';
-  }, [costCode]);
 
   const excludeKeys = ['id', 'created_at', 'unique_id', 'new_account_number', 'vehicle_validated'];
   const defaultVehicleInfoFields = ['reg', 'fleet_number', 'vin', 'colour'];
@@ -247,6 +246,39 @@ export default function ValidateVehiclesPage() {
     return Array.from(deduped.values()).sort((a, b) => a.cost_code.localeCompare(b.cost_code));
   }, [costCenterOptions]);
 
+  const formatCostCenterOption = (item) => {
+    if (!item) return '';
+    return item.company ? `${item.cost_code} - ${item.company}` : item.cost_code;
+  };
+
+  const filteredCostCenters = useMemo(() => {
+    const query = deferredCostCenterSearch.trim().toLowerCase();
+    if (!query) return matchingCostCenters.slice(0, 60);
+
+    const scored = matchingCostCenters
+      .map((item) => {
+        const code = String(item.cost_code || '').toLowerCase();
+        const company = String(item.company || '').toLowerCase();
+        const label = `${code} ${company}`.trim();
+
+        let score = 0;
+        if (code.startsWith(query)) score += 4;
+        if (company.startsWith(query)) score += 3;
+        if (code.includes(query)) score += 2;
+        if (company.includes(query)) score += 1;
+        if (!label.includes(query)) score = 0;
+
+        return { item, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.item.cost_code.localeCompare(b.item.cost_code);
+      });
+
+    return scored.slice(0, 60).map((entry) => entry.item);
+  }, [matchingCostCenters, deferredCostCenterSearch]);
+
   const currentCostCenterName = useMemo(() => {
     if (!costCode) return '';
     const matched = matchingCostCenters.find((item) => item.cost_code === costCode);
@@ -288,9 +320,8 @@ export default function ValidateVehiclesPage() {
 
   useEffect(() => {
     const fetchCostCenters = async () => {
-      if (!costCenterPrefix) return;
       try {
-        const response = await fetch(`/api/cost-centers?prefix=${encodeURIComponent(costCenterPrefix)}`);
+        const response = await fetch('/api/cost-centers?all=1');
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData?.error || 'Failed to fetch cost centers');
@@ -298,13 +329,13 @@ export default function ValidateVehiclesPage() {
         const data = await response.json();
         setCostCenterOptions(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Error fetching cost centers by prefix:', error);
-        toast.error(`Failed to load client cost centers: ${error.message}`);
+        console.error('Error fetching cost centers:', error);
+        toast.error(`Failed to load cost centers: ${error.message}`);
       }
     };
 
     fetchCostCenters();
-  }, [costCenterPrefix]);
+  }, []);
 
   const toggleVehicle = (vehicleId) => {
     setExpandedVehicles(prev => ({
@@ -351,6 +382,51 @@ export default function ValidateVehiclesPage() {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const formatCurrency = (value) => `R ${parseAmount(value).toFixed(2)}`;
+
+  const formatFieldLabel = (field) => field.replace(/_/g, ' ').toUpperCase();
+
+  const getBillingEntries = (data) => {
+    if (!data) return [];
+
+    return Object.entries(data)
+      .filter(([key, value]) => {
+        if (
+          key === 'total_rental' ||
+          key === 'total_sub' ||
+          key === 'total_rental_sub'
+        ) {
+          return false;
+        }
+
+        const isBillingField =
+          (key.endsWith('_rental') && key !== 'total_rental') ||
+          (key.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(key)) ||
+          specialBillingFields.includes(key);
+
+        if (!isBillingField) return false;
+
+        return parseAmount(value) > 0;
+      })
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({
+        key,
+        label: formatFieldLabel(key),
+        value: parseAmount(value)
+      }));
+  };
+
+  const getBillingSummary = (data) => {
+    const entries = getBillingEntries(data);
+    const total = parseAmount(data?.total_rental_sub);
+
+    return {
+      entries,
+      total,
+      hasManualTotalOnly: entries.length === 0 && total > 0
+    };
+  };
+
   const affectsTotals = (field) =>
     (field.endsWith('_rental') && field !== 'total_rental') ||
     (field.endsWith('_sub') && !['total_sub', 'total_rental_sub'].includes(field)) ||
@@ -362,10 +438,13 @@ export default function ValidateVehiclesPage() {
     setEditedData({...vehicle, ...totals});
     setAddItemState(prev => ({ ...prev, [`vehicle-${vehicle.id}`]: prev[`vehicle-${vehicle.id}`] || { added: [] } }));
     const currentCostCenter = vehicle.new_account_number || costCode || '';
+    const currentOption = matchingCostCenters.find((item) => item.cost_code === currentCostCenter);
     setTargetCostCenterByVehicle((prev) => ({
       ...prev,
       [vehicle.id]: prev[vehicle.id] || currentCostCenter
     }));
+    setCostCenterSearch(formatCostCenterOption(currentOption) || currentCostCenter);
+    setCostCenterDropdownOpen(false);
   };
 
   const cancelEdit = () => {
@@ -378,6 +457,8 @@ export default function ValidateVehiclesPage() {
     }
     setEditingVehicle(null);
     setEditedData({});
+    setCostCenterSearch('');
+    setCostCenterDropdownOpen(false);
   };
 
   const handleFieldChange = (field, value) => {
@@ -653,6 +734,7 @@ export default function ValidateVehiclesPage() {
     const vehicleFieldsToAdd = availableFieldsToAdd
       .filter(f => !f.endsWith('_rental') && !f.endsWith('_sub') && !billingFields.includes(f))
       .sort((a, b) => a.localeCompare(b));
+    const billingSummary = getBillingSummary(data);
 
     const handleAddField = (fieldToAdd, initialValue = '') => {
       if (!fieldToAdd) return;
@@ -701,9 +783,26 @@ export default function ValidateVehiclesPage() {
             </div>
           )}
           <h3 className="text-sm font-semibold text-gray-700 mb-3 pb-2 border-b">Billing Details</h3>
+          {!isNew && billingSummary.hasManualTotalOnly && (
+            <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              This vehicle currently has a manual total saved, but no itemized billing lines yet.
+            </div>
+          )}
+          {!isEditing && !isNew && billingSummary.entries.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {billingSummary.entries.map((item) => (
+                <span
+                  key={item.key}
+                  className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                >
+                  {item.label}: {formatCurrency(item.value)}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-4">
             {billingKeys.map((key, idx) => {
-              const displayLabel = key.replace(/_/g, ' ').toUpperCase();
+              const displayLabel = formatFieldLabel(key);
               return (
                 <div key={idx} className="text-sm">
                   <Label className="text-xs text-gray-500">{displayLabel}</Label>
@@ -730,7 +829,7 @@ export default function ValidateVehiclesPage() {
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {totalBillingKeys.map((key, idx) => {
-                  const displayLabel = key.replace(/_/g, ' ').toUpperCase();
+                  const displayLabel = formatFieldLabel(key);
                   const isReadOnlyTotal = key === 'total_rental_sub';
                   return (
                     <div key={`${key}-${idx}`} className="text-sm">
@@ -753,15 +852,15 @@ export default function ValidateVehiclesPage() {
               <div className="grid grid-cols-3 gap-4 flex-1">
                 <div>
                   <Label className="text-xs font-medium text-slate-600">TOTAL RENTAL</Label>
-                  <p className="text-lg font-bold mt-1">R {parseFloat(data.total_rental || 0).toFixed(2)}</p>
+                  <p className="text-lg font-bold mt-1">{formatCurrency(data.total_rental)}</p>
                 </div>
                 <div>
                   <Label className="text-xs font-medium text-slate-600">TOTAL SUB</Label>
-                  <p className="text-lg font-bold mt-1">R {parseFloat(data.total_sub || 0).toFixed(2)}</p>
+                  <p className="text-lg font-bold mt-1">{formatCurrency(data.total_sub)}</p>
                 </div>
                 <div className="bg-slate-800 text-white rounded-lg p-3 -m-1">
                   <Label className="text-xs font-medium text-slate-300">TOTAL</Label>
-                  <p className="text-xl font-bold mt-1">R {parseFloat(data.total_rental_sub || 0).toFixed(2)}</p>
+                  <p className="text-xl font-bold mt-1">{formatCurrency(data.total_rental_sub)}</p>
                 </div>
               </div>
             </div>
@@ -902,25 +1001,54 @@ export default function ValidateVehiclesPage() {
         <div className="space-y-2">
           {filteredVehicles.map((vehicle) => (
             <Collapsible key={vehicle.id} open={expandedVehicles[vehicle.id]} onOpenChange={() => toggleVehicle(vehicle.id)}>
+              {(() => {
+                const billingSummary = getBillingSummary(vehicle);
+
+                return (
               <Card className={vehicle.vehicle_validated ? "border-green-500 bg-green-50" : ""}>
                 <CollapsibleTrigger className="w-full">
                   <CardHeader className={`cursor-pointer ${vehicle.vehicle_validated ? "bg-green-100 hover:bg-green-100" : "hover:bg-gray-50"}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex gap-6 text-left">
-                        <div>
-                          <Label className="text-xs text-gray-500">Registration</Label>
-                          <p className="text-sm font-medium">{vehicle.reg || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-500">Fleet Number</Label>
-                          <p className="text-sm font-medium">{vehicle.fleet_number || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-xs text-gray-500">VIN</Label>
-                          <p className="text-sm font-medium">{vehicle.vin || 'N/A'}</p>
+                    <div className="flex items-start gap-4 overflow-hidden">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-4">
+                          <div className="w-[14%] min-w-[120px] text-left">
+                            <Label className="text-xs text-gray-500">Registration</Label>
+                            <p className="text-sm font-medium truncate">{vehicle.reg || 'N/A'}</p>
+                          </div>
+                          <div className="w-[14%] min-w-[120px] text-left">
+                            <Label className="text-xs text-gray-500">Fleet Number</Label>
+                            <p className="text-sm font-medium truncate">{vehicle.fleet_number || 'N/A'}</p>
+                          </div>
+                          <div className="w-[18%] min-w-[140px] text-left">
+                            <Label className="text-xs text-gray-500">VIN</Label>
+                            <p className="text-sm font-medium truncate">{vehicle.vin || 'N/A'}</p>
+                          </div>
+                          <div className="min-w-0 flex-1 text-left">
+                            <Label className="text-xs text-gray-500">Items Being Billed</Label>
+                            {billingSummary.entries.length > 0 ? (
+                              <div className="mt-1 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
+                                {billingSummary.entries.map((item) => (
+                                  <span
+                                    key={item.key}
+                                    className="inline-flex w-full min-w-0 items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                                  >
+                                    <span className="truncate">{item.label}: {formatCurrency(item.value)}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-sm text-gray-600 truncate">
+                                {billingSummary.hasManualTotalOnly ? 'Manual total only' : 'No billed items'}
+                              </p>
+                            )}
+                          </div>
+                          <div className="w-[12%] min-w-[120px] text-left">
+                            <Label className="text-xs text-gray-500">Total Value</Label>
+                            <p className="text-lg font-bold mt-1 truncate">{formatCurrency(vehicle.total_rental_sub)}</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         {vehicle.vehicle_validated && (
                           <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
                             <Check className="h-3 w-3" />
@@ -936,9 +1064,6 @@ export default function ValidateVehiclesPage() {
                   <CardContent className="pt-0">
                     {editingVehicle === vehicle.id && (() => {
                       const currentCostCenter = vehicle.new_account_number || costCode || '';
-                      const dropdownCostCenters = matchingCostCenters.length > 0
-                        ? matchingCostCenters
-                        : (currentCostCenter ? [{ cost_code: currentCostCenter, company: '' }] : []);
 
                       return (
                         <div className="mb-4 p-3 border rounded-md bg-slate-50">
@@ -951,24 +1076,44 @@ export default function ValidateVehiclesPage() {
                               <Label htmlFor={`move-cc-${vehicle.id}`} className="text-xs text-gray-500">
                                 Cost Center
                               </Label>
-                              <select
+                              <Input
                                 id={`move-cc-${vehicle.id}`}
-                                value={targetCostCenterByVehicle[vehicle.id] || ''}
-                                onChange={(e) =>
-                                  setTargetCostCenterByVehicle((prev) => ({
-                                    ...prev,
-                                    [vehicle.id]: e.target.value
-                                  }))
-                                }
-                                className="mt-1 h-9 w-full rounded-md border border-gray-300 px-2 text-sm bg-white"
-                              >
-                                <option value="">Select cost center...</option>
-                                {dropdownCostCenters.map((item) => (
-                                  <option key={item.cost_code} value={item.cost_code}>
-                                    {item.company || item.cost_code}
-                                  </option>
-                                ))}
-                              </select>
+                                value={costCenterSearch}
+                                onChange={(e) => {
+                                  setCostCenterSearch(e.target.value);
+                                  setCostCenterDropdownOpen(true);
+                                }}
+                                onFocus={() => setCostCenterDropdownOpen(true)}
+                                placeholder="Search any cost center..."
+                                className="mt-1 h-9 text-sm bg-white"
+                              />
+                              {costCenterDropdownOpen && (
+                                <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
+                                  {filteredCostCenters.length > 0 ? (
+                                    filteredCostCenters.map((item) => (
+                                      <button
+                                        key={item.cost_code}
+                                        type="button"
+                                        onClick={() => {
+                                          setTargetCostCenterByVehicle((prev) => ({
+                                            ...prev,
+                                            [vehicle.id]: item.cost_code
+                                          }));
+                                          setCostCenterSearch(formatCostCenterOption(item));
+                                          setCostCenterDropdownOpen(false);
+                                        }}
+                                        className={`block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 ${
+                                          targetCostCenterByVehicle[vehicle.id] === item.cost_code ? 'bg-slate-100' : ''
+                                        }`}
+                                      >
+                                        {formatCostCenterOption(item)}
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <p className="px-3 py-2 text-sm text-gray-500">No matching cost centers</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -980,6 +1125,8 @@ export default function ValidateVehiclesPage() {
                   </CardContent>
                 </CollapsibleContent>
               </Card>
+                );
+              })()}
             </Collapsible>
           ))}
         </div>

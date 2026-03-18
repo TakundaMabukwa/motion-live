@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10), 0);
     const fetchAll = searchParams.get('all') === 'true';
     const chunkSize = Math.min(Math.max(parseInt(searchParams.get('chunk') || '1000', 10), 1), 1000);
+    const hardCap = 50000;
 
     const selectColumns = 'id, reg, fleet_number, company, make, model, year, vin, new_account_number';
 
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     if (fetchAll) {
       let start = offset;
-      const maxRows = limit;
+      const maxRows = Math.max(limit, hardCap);
 
       while (data.length < maxRows) {
         const remaining = maxRows - data.length;

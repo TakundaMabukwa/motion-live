@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useDeferredValue } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,6 +63,7 @@ export default function CreateJobModal({
   const [vehicleLookupResults, setVehicleLookupResults] = useState<VehicleLookupItem[]>([]);
   const [loadingVehicleLookup, setLoadingVehicleLookup] = useState(false);
   const [showVehicleLookup, setShowVehicleLookup] = useState(false);
+  const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   
   // Customer information
   const [customerInfo, setCustomerInfo] = useState({
@@ -144,23 +145,52 @@ export default function CreateJobModal({
 
   useEffect(() => {
     if (currentStep !== 'customer-info') return;
-    const term = vehicleSearch.trim();
+    const term = deferredVehicleSearch.trim();
     if (!term) {
       setVehicleLookupResults(allVehicles.slice(0, 50));
       setShowVehicleLookup(false);
       return;
     }
 
+    const normalized = normalizeIdentifier(term);
     const lower = term.toLowerCase();
-    const filtered = allVehicles.filter((vehicle) => {
-      const reg = (vehicle.reg || '').toLowerCase();
-      const fleet = (vehicle.fleet_number || '').toLowerCase();
-      const company = (vehicle.company || '').toLowerCase();
-      return reg.includes(lower) || fleet.includes(lower) || company.includes(lower);
-    });
-    setVehicleLookupResults(filtered.slice(0, 100));
+    const filtered = allVehicles
+      .map((vehicle) => {
+        const reg = vehicle.reg || '';
+        const fleet = vehicle.fleet_number || '';
+        const company = vehicle.company || '';
+        const make = vehicle.make || '';
+        const model = vehicle.model || '';
+        const vin = vehicle.vin || '';
+        const year = vehicle.year ? String(vehicle.year) : '';
+
+        const regNorm = normalizeIdentifier(reg);
+        const fleetNorm = normalizeIdentifier(fleet);
+        const vinNorm = normalizeIdentifier(vin);
+
+        let score = 0;
+        if (regNorm.startsWith(normalized)) score += 10;
+        if (fleetNorm.startsWith(normalized)) score += 9;
+        if (vinNorm.startsWith(normalized)) score += 8;
+        if (regNorm.includes(normalized)) score += 7;
+        if (fleetNorm.includes(normalized)) score += 6;
+        if (vinNorm.includes(normalized)) score += 5;
+        if (company.toLowerCase().includes(lower)) score += 4;
+        if (make.toLowerCase().includes(lower)) score += 3;
+        if (model.toLowerCase().includes(lower)) score += 3;
+        if (year.toLowerCase().includes(lower)) score += 2;
+
+        return { vehicle, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.vehicle.reg || a.vehicle.fleet_number || '').localeCompare(b.vehicle.reg || b.vehicle.fleet_number || '');
+      });
+
+    setVehicleLookupResults(filtered.slice(0, 120).map((entry) => entry.vehicle));
     setShowVehicleLookup(true);
-  }, [vehicleSearch, allVehicles, currentStep]);
+  }, [deferredVehicleSearch, allVehicles, currentStep]);
 
   const fetchTechnicians = async () => {
     setLoadingTechnicians(true);
@@ -182,7 +212,7 @@ export default function CreateJobModal({
   const fetchVehiclesForLookup = async () => {
     setLoadingVehicleLookup(true);
     try {
-      const params = new URLSearchParams({ all: 'true', limit: '20000', chunk: '1000' });
+      const params = new URLSearchParams({ all: 'true', chunk: '1000' });
       const response = await fetch(`/api/vehicles/reg-search?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to load vehicles');
@@ -506,7 +536,7 @@ export default function CreateJobModal({
                       onBlur={() => {
                         setTimeout(() => setShowVehicleLookup(false), 120);
                       }}
-                      placeholder="Type reg to search..."
+                      placeholder="Search reg, fleet, VIN, company, make, or model..."
                       autoComplete="off"
                     />
                     {showVehicleLookup && (

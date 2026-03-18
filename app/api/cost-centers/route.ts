@@ -6,15 +6,33 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const accounts = searchParams.get('accounts');
     const prefix = searchParams.get('prefix');
+    const all = searchParams.get('all');
 
-    if (!accounts && !prefix) {
+    if (!accounts && !prefix && all !== '1') {
       return NextResponse.json(
-        { error: 'Account numbers or prefix required' },
+        { error: 'Account numbers, prefix, or all=1 required' },
         { status: 400 }
       );
     }
 
     const supabase = await createClient();
+
+    if (all === '1') {
+      const { data, error } = await supabase
+        .from('cost_centers')
+        .select('id, created_at, company, cost_code, validated')
+        .order('cost_code', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching all cost centers:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch cost centers', details: error.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json(data || []);
+    }
 
     // Prefix mode: fetch all cost centers for a client prefix like EDGE-
     if (prefix) {

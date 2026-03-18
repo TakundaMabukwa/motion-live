@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Clock, MapPin, User, Calendar, Package, Phone, Mail, CheckCircle, XCircle, RefreshCw, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,7 +48,7 @@ const getColorHex = (colorName) => {
     return colorMap[colorName?.toLowerCase()] || '#6B7280'; // Default to gray if color not found
 };
 
-export default function CalendarApp() {
+export function AdminScheduleContent({ embedded = false }: { embedded?: boolean }) {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState('');
     const [jobs, setJobs] = useState({});
@@ -411,21 +412,20 @@ export default function CalendarApp() {
     const days = getDaysInMonth(currentDate);
 
     return (
-        <div className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6 min-h-screen">
+        <div className={`bg-gradient-to-br from-blue-50 via-white to-indigo-50 ${embedded ? 'min-h-full p-4 md:p-6' : 'min-h-screen p-6'}`}>
             <div className="mx-auto max-w-7xl">
-                {/* Admin sub navigation */}
-                <div className="mb-4">
-                    <AdminSubnav />
-                </div>
-                {/* Header with Title and Legend */}
-                <div className="mb-6">
+                {!embedded && (
+                    <div className="mb-4">
+                        <AdminSubnav />
+                    </div>
+                )}
+                <div className={embedded ? 'mb-4' : 'mb-6'}>
                     <div className="flex lg:flex-row flex-col lg:justify-between lg:items-center gap-4">
                         <div>
-                            <h1 className="font-bold text-gray-900 text-3xl">Admin Schedule</h1>
-                            <p className="mt-1 text-gray-600">Manage and view all scheduled jobs</p>
+                            {!embedded && <h1 className="font-bold text-gray-900 text-3xl">Admin Schedule</h1>}
+                            {!embedded && <p className="mt-1 text-gray-600">Manage and view all scheduled jobs</p>}
                         </div>
                         
-                        {/* Technician Color Legend */}
                         {Object.keys(technicianColors).length > 0 && (
                             <Card className="lg:w-auto">
                                 <CardContent className="p-4">
@@ -1058,4 +1058,11 @@ export default function CalendarApp() {
             </Dialog>
         </div>
     );
+}
+
+export default function CalendarApp() {
+    const searchParams = useSearchParams();
+    const embedded = searchParams.get('embedded') === '1';
+
+    return <AdminScheduleContent embedded={embedded} />;
 }

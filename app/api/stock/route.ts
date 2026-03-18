@@ -9,14 +9,17 @@ type InventoryCategoryRow = {
 
 type InventoryItemRow = {
   id: number;
+  created_at: string | null;
   serial_number: string | null;
+  date_adjusted: string | null;
+  container: string | null;
+  direction: string | null;
   status: string | null;
   category_code: string | null;
   assigned_to_technician: string | null;
   assigned_date: string | null;
   job_card_id: string | null;
-  container: string | null;
-  direction: string | null;
+  company: string | null;
   notes: string | null;
   inventory_categories: InventoryCategoryRow;
 };
@@ -36,8 +39,6 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const supplier = searchParams.get('supplier');
     const category = searchParams.get('category');
-    const view = searchParams.get('view'); // 'thresholds' or 'stock-take'
-
     // Fetch inventory in recursive batches so large datasets (>1000 rows) are fully returned.
     const pageSize = 1000;
     let from = 0;
@@ -49,7 +50,9 @@ export async function GET(request: NextRequest) {
         .from('inventory_items')
         .select(`
           id,
+          created_at,
           serial_number,
+          date_adjusted,
           status,
           category_code,
           assigned_to_technician,
@@ -57,6 +60,7 @@ export async function GET(request: NextRequest) {
           job_card_id,
           container,
           direction,
+          company,
           notes,
           inventory_categories!inventory_items_category_fkey (
             code,
@@ -99,53 +103,35 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let processedStock;
-    
-    if (view === 'thresholds') {
-      // Group items by category for thresholds view
-      const categoryGroups = {};
-      stock?.forEach((item) => {
-        const categoryCode = item.category_code;
-        if (!categoryGroups[categoryCode]) {
-          categoryGroups[categoryCode] = {
-            id: categoryCode,
-            description: item.inventory_categories?.description || categoryCode,
-            code: item.inventory_categories?.code || categoryCode,
-            supplier: 'N/A',
-            stock_type: item.inventory_categories?.description || 'N/A',
-            quantity: 0,
-            serial_number: categoryCode,
-            status: 'CATEGORY',
-            category_code: categoryCode
-          };
-        }
-        if (item.status === 'IN STOCK') {
-          categoryGroups[categoryCode].quantity += 1;
-        }
-      });
-      processedStock = Object.values(categoryGroups) || [];
-    } else {
-      // Return individual items for stock take
-      processedStock = stock?.map(item => {
-        const categoryDesc = item.inventory_categories?.description || item.category_code;
-        return {
-          id: item.id,
+    const processedStock = stock?.map(item => {
+      const categoryDesc = item.inventory_categories?.description || item.category_code;
+      const quantity = item.status === 'IN STOCK' ? '1' : '0';
+      return {
+        id: item.id,
+        created_at: item.created_at,
+        description: categoryDesc,
+        code: item.category_code,
+        supplier: 'N/A',
+        stock_type: categoryDesc,
+        quantity,
+        serial_number: item.serial_number,
+        date_adjusted: item.date_adjusted,
+        status: item.status,
+        category_code: item.category_code,
+        category_description: categoryDesc,
+        assigned_to_technician: item.assigned_to_technician,
+        assigned_date: item.assigned_date,
+        job_card_id: item.job_card_id,
+        container: item.container,
+        direction: item.direction,
+        company: item.company,
+        notes: item.notes,
+        category: {
           description: categoryDesc,
-          code: item.category_code,
-          supplier: 'N/A',
-          stock_type: categoryDesc,
-          quantity: '1',
-          serial_number: item.serial_number,
-          status: item.status,
-          category_code: item.category_code,
-          category_description: categoryDesc,
-          category: {
-            description: categoryDesc,
-            code: item.category_code
-          }
-        };
-      }) || [];
-    }
+          code: item.category_code
+        }
+      };
+    }) || [];
 
     return NextResponse.json({ stock: processedStock });
   } catch (error) {
