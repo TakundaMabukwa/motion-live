@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Part {
   description: string;
@@ -124,19 +124,24 @@ interface TechnicianStockRow {
   technician_email: string | null;
   created_at: string;
 }
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { 
-  Package, 
+} from "@/components/ui/select";
+import {
+  Package,
   Search,
   RefreshCw,
   Plus,
@@ -158,97 +163,129 @@ import {
   Eye,
   ChevronDown,
   ChevronRight,
-  Layers
-} from 'lucide-react';
-import DashboardHeader from '@/components/shared/DashboardHeader';
-import DashboardTabs from '@/components/shared/DashboardTabs';
-import AssignPartsModal from '@/components/ui-personal/assign-parts-modal';
-import StockOrderModal from '@/components/accounts/StockOrderModal';
-import AssignIPAddressModal from '@/components/inv/components/AssignIPAddressModal';
-import CreateRepairJobModal from '@/components/inv/CreateRepairJobModal';
-import AssignTechStockModal from '@/components/inv/components/AssignTechStockModal';
-import { toast } from 'sonner';
+  Layers,
+} from "lucide-react";
+import DashboardHeader from "@/components/shared/DashboardHeader";
+import DashboardTabs from "@/components/shared/DashboardTabs";
+import AssignPartsModal from "@/components/ui-personal/assign-parts-modal";
+import StockOrderModal from "@/components/accounts/StockOrderModal";
+import AssignIPAddressModal from "@/components/inv/components/AssignIPAddressModal";
+import CreateRepairJobModal from "@/components/inv/CreateRepairJobModal";
+import AssignTechStockModal from "@/components/inv/components/AssignTechStockModal";
+import { toast } from "sonner";
 
 export default function InventoryPage() {
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
   const [showAssignParts, setShowAssignParts] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [selectedQRJob, setSelectedQRJob] = useState<JobCard | null>(null);
   const [showCompletedJobDetails, setShowCompletedJobDetails] = useState(false);
-  const [selectedCompletedJob, setSelectedCompletedJob] = useState<JobCard | null>(null);
-  const [loadingCompletedJobDetails, setLoadingCompletedJobDetails] = useState(false);
+  const [selectedCompletedJob, setSelectedCompletedJob] =
+    useState<JobCard | null>(null);
+  const [loadingCompletedJobDetails, setLoadingCompletedJobDetails] =
+    useState(false);
   const [showJobDetails, setShowJobDetails] = useState(false);
-  const [selectedInventoryJob, setSelectedInventoryJob] = useState<JobCard | null>(null);
-  const [movingDeinstalledItemKey, setMovingDeinstalledItemKey] = useState<string | null>(null);
-  const [movedDeinstalledItems, setMovedDeinstalledItems] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState('job-cards');
+  const [selectedInventoryJob, setSelectedInventoryJob] =
+    useState<JobCard | null>(null);
+  const [movingDeinstalledItemKey, setMovingDeinstalledItemKey] = useState<
+    string | null
+  >(null);
+  const [movedDeinstalledItems, setMovedDeinstalledItems] = useState<
+    Record<string, string>
+  >({});
+  const [activeTab, setActiveTab] = useState("job-cards");
   const [stockOrders, setStockOrders] = useState<StockOrder[]>([]);
   const [stockOrdersLoading, setStockOrdersLoading] = useState(false);
-  const [stockOrdersSearchTerm, setStockOrdersSearchTerm] = useState('');
+  const [stockOrdersSearchTerm, setStockOrdersSearchTerm] = useState("");
   const [selectedStockOrder, setSelectedStockOrder] = useState(null);
   const [showPdfViewer, setShowPdfViewer] = useState(false);
   const [showOrderItemsModal, setShowOrderItemsModal] = useState(false);
   const [allIpAddresses, setAllIpAddresses] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [newItemData, setNewItemData] = useState({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
+  const [newItemData, setNewItemData] = useState({
+    category_code: "",
+    serial_number: "",
+    quantity: 1,
+    new_category_code: "",
+    new_category_description: "",
+  });
   const [showNewCategoryFields, setShowNewCategoryFields] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [generatedQR, setGeneratedQR] = useState('');
+  const [generatedQR, setGeneratedQR] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadOrder, setUploadOrder] = useState(null);
   const [uploadItems, setUploadItems] = useState([]);
-  
+
   // Stock Take state
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [stockTakeMode, setStockTakeMode] = useState(false);
-  const [updatedItems, setUpdatedItems] = useState<Record<number, StockUpdate>>({});
+  const [updatedItems, setUpdatedItems] = useState<Record<number, StockUpdate>>(
+    {},
+  );
   const [hasChanges, setHasChanges] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [stockTakeSearchTerm, setStockTakeSearchTerm] = useState('');
-  const [selectedStockType, setSelectedStockType] = useState('all');
-  const [stockTypes, setStockTypes] = useState<(string | {code: string, description: string})[]>([]);
-  const [stockTakeActiveTab, setStockTakeActiveTab] = useState('stock-take');
+  const [stockTakeSearchTerm, setStockTakeSearchTerm] = useState("");
+  const [selectedStockType, setSelectedStockType] = useState("all");
+  const [stockTypes, setStockTypes] = useState<
+    (string | { code: string; description: string })[]
+  >([]);
+  const [stockTakeActiveTab, setStockTakeActiveTab] = useState("stock-take");
   const [thresholds, setThresholds] = useState<Record<string, number>>({});
   const [defaultThreshold, setDefaultThreshold] = useState(10);
-  const [expandedStockCategories, setExpandedStockCategories] = useState<Record<string, boolean>>({});
-  const [clientStockClients, setClientStockClients] = useState<ClientStockClient[]>([]);
+  const [expandedStockCategories, setExpandedStockCategories] = useState<
+    Record<string, boolean>
+  >({});
+  const [clientStockClients, setClientStockClients] = useState<
+    ClientStockClient[]
+  >([]);
   const [clientStockLoading, setClientStockLoading] = useState(false);
-  const [clientStockSearchTerm, setClientStockSearchTerm] = useState('');
-  const [selectedClientStock, setSelectedClientStock] = useState<ClientStockClient | null>(null);
-  const [clientStockItems, setClientStockItems] = useState<ClientStockItem[]>([]);
+  const [clientStockSearchTerm, setClientStockSearchTerm] = useState("");
+  const [selectedClientStock, setSelectedClientStock] =
+    useState<ClientStockClient | null>(null);
+  const [clientStockItems, setClientStockItems] = useState<ClientStockItem[]>(
+    [],
+  );
   const [clientStockItemsLoading, setClientStockItemsLoading] = useState(false);
-  const [clientStockItemSearchTerm, setClientStockItemSearchTerm] = useState('');
-  const [clientStockStatusFilter, setClientStockStatusFilter] = useState('all');
+  const [clientStockItemSearchTerm, setClientStockItemSearchTerm] =
+    useState("");
+  const [clientStockStatusFilter, setClientStockStatusFilter] = useState("all");
   const clientStockDetailsRef = useRef<HTMLDivElement | null>(null);
-  const [techStockTechnicians, setTechStockTechnicians] = useState<TechnicianStockRow[]>([]);
+  const [techStockTechnicians, setTechStockTechnicians] = useState<
+    TechnicianStockRow[]
+  >([]);
   const [techStockLoading, setTechStockLoading] = useState(false);
-  const [techStockSearchTerm, setTechStockSearchTerm] = useState('');
+  const [techStockSearchTerm, setTechStockSearchTerm] = useState("");
   const [showAssignTechStock, setShowAssignTechStock] = useState(false);
-  const [selectedTechForAssign, setSelectedTechForAssign] = useState<TechnicianStockRow | null>(null);
+  const [selectedTechForAssign, setSelectedTechForAssign] =
+    useState<TechnicianStockRow | null>(null);
   const router = useRouter();
-  
+
   // IP address assignment state
   const [showIpAddressModal, setShowIpAddressModal] = useState(false);
-  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
-  
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(
+    null,
+  );
+
   const handleMoveJob = async (jobId: string, destination: string) => {
     const loadingToast = toast.loading(`Moving job to ${destination}...`);
     try {
       const response = await fetch(`/api/job-cards/${jobId}/move`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ destination }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to move job to ${destination}`);
+        throw new Error(
+          errorData.error || `Failed to move job to ${destination}`,
+        );
       }
 
       toast.dismiss(loadingToast);
@@ -256,7 +293,8 @@ export default function InventoryPage() {
       fetchJobCards(); // Refresh the job cards list
     } catch (error) {
       toast.dismiss(loadingToast);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
       console.error(`Error moving job to ${destination}:`, error);
     }
@@ -271,90 +309,92 @@ export default function InventoryPage() {
 
   useEffect(() => {
     if (!selectedClientStock) return;
-    clientStockDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    clientStockDetailsRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, [selectedClientStock]);
 
   useEffect(() => {
     fetchJobCards();
     fetchAllStockItems();
     // Force fetch stock items on mount
-    console.log('Component mounted, forcing fetchStockItems');
+    console.log("Component mounted, forcing fetchStockItems");
     fetchStockItems();
     // Also fetch categories on mount
     fetchCategories();
     fetchTechnicianStockList();
   }, []);
 
-
   useEffect(() => {
-    console.log('activeTab changed to:', activeTab);
-    if (activeTab === 'stock-orders') {
+    console.log("activeTab changed to:", activeTab);
+    if (activeTab === "stock-orders") {
       fetchStockOrders();
     }
-    if (activeTab === 'stock-take') {
-      console.log('Calling fetchStockItems because activeTab is stock-take');
+    if (activeTab === "stock-take") {
+      console.log("Calling fetchStockItems because activeTab is stock-take");
       fetchStockItems();
     }
-    if (activeTab === 'client-stock') {
+    if (activeTab === "client-stock") {
       fetchClientStockClients();
     }
-    if (activeTab === 'technician-stock') {
+    if (activeTab === "technician-stock") {
       fetchTechnicianStockList();
     }
   }, [activeTab]);
 
   // Debug: Log current activeTab
-  console.log('Current activeTab:', activeTab);
+  console.log("Current activeTab:", activeTab);
 
   useEffect(() => {
-    if (activeTab === 'stock-take') {
+    if (activeTab === "stock-take") {
       fetchStockItems();
     }
   }, [stockTakeActiveTab]);
 
   // Debug: Log stockItems changes
   useEffect(() => {
-    console.log('stockItems state changed:', stockItems.length, 'items');
+    console.log("stockItems state changed:", stockItems.length, "items");
     if (stockItems.length > 0) {
-      console.log('First stockItem:', stockItems[0]);
-      console.log('Sample category info:', {
+      console.log("First stockItem:", stockItems[0]);
+      console.log("Sample category info:", {
         category_code: stockItems[0].category_code,
-        category_description: stockItems[0].category_description
+        category_description: stockItems[0].category_description,
       });
     }
   }, [stockItems]);
 
   // Debug: Log stockTypes changes
   useEffect(() => {
-    console.log('stockTypes state changed:', stockTypes.length, 'categories');
+    console.log("stockTypes state changed:", stockTypes.length, "categories");
     if (stockTypes.length > 0) {
-      console.log('First stockType:', stockTypes[0]);
-      console.log('All stockTypes:', stockTypes);
+      console.log("First stockType:", stockTypes[0]);
+      console.log("All stockTypes:", stockTypes);
     }
   }, [stockTypes]);
 
   const fetchStockOrders = async () => {
     try {
       setStockOrdersLoading(true);
-      const { createClient } = await import('@/lib/supabase/client');
+      const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
 
       const { data, error } = await supabase
-        .from('stock_orders')
-        .select('*')
-        .eq('approved', true)
-        .order('created_at', { ascending: false });
+        .from("stock_orders")
+        .select("*")
+        .eq("approved", true)
+        .order("created_at", { ascending: false });
 
       if (error) {
-        console.error('Error fetching stock orders:', error);
-        toast.error('Failed to fetch stock orders');
+        console.error("Error fetching stock orders:", error);
+        toast.error("Failed to fetch stock orders");
         return;
       }
 
       setStockOrders(data || []);
     } catch (error) {
-      console.error('Error fetching stock orders:', error);
-      toast.error('Failed to fetch stock orders');
+      console.error("Error fetching stock orders:", error);
+      toast.error("Failed to fetch stock orders");
     } finally {
       setStockOrdersLoading(false);
     }
@@ -363,19 +403,23 @@ export default function InventoryPage() {
   const fetchClientStockClients = async () => {
     try {
       setClientStockLoading(true);
-      const response = await fetch('/api/client-stock/clients');
+      const response = await fetch("/api/client-stock/clients");
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Client stock clients API error:', response.status, errorText);
-        throw new Error('Failed to fetch client stock clients');
+        console.error(
+          "Client stock clients API error:",
+          response.status,
+          errorText,
+        );
+        throw new Error("Failed to fetch client stock clients");
       }
 
       const data = await response.json();
       setClientStockClients(data.clients || []);
     } catch (error) {
-      console.error('Error fetching client stock clients:', error);
-      toast.error('Failed to load client stock clients');
+      console.error("Error fetching client stock clients:", error);
+      toast.error("Failed to load client stock clients");
     } finally {
       setClientStockLoading(false);
     }
@@ -384,19 +428,23 @@ export default function InventoryPage() {
   const fetchTechnicianStockList = async () => {
     try {
       setTechStockLoading(true);
-      const response = await fetch('/api/tech-stock/technicians');
+      const response = await fetch("/api/tech-stock/technicians");
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Tech stock technicians API error:', response.status, errorText);
-        throw new Error('Failed to fetch technician stock list');
+        console.error(
+          "Tech stock technicians API error:",
+          response.status,
+          errorText,
+        );
+        throw new Error("Failed to fetch technician stock list");
       }
 
       const data = await response.json();
       setTechStockTechnicians(data.technicians || []);
     } catch (error) {
-      console.error('Error fetching technician stock list:', error);
-      toast.error('Failed to load technician stock');
+      console.error("Error fetching technician stock list:", error);
+      toast.error("Failed to load technician stock");
     } finally {
       setTechStockLoading(false);
     }
@@ -404,15 +452,17 @@ export default function InventoryPage() {
 
   const handleViewTechnicianStock = (tech: TechnicianStockRow) => {
     if (!tech?.technician_email) {
-      toast.error('Technician email is missing.');
+      toast.error("Technician email is missing.");
       return;
     }
-    router.push(`/protected/inv/technician-stock/${encodeURIComponent(tech.technician_email)}`);
+    router.push(
+      `/protected/inv/technician-stock/${encodeURIComponent(tech.technician_email)}`,
+    );
   };
 
   const handleAssignTechnicianStock = (tech: TechnicianStockRow) => {
     if (!tech?.technician_email) {
-      toast.error('Technician email is missing.');
+      toast.error("Technician email is missing.");
       return;
     }
     setSelectedTechForAssign(tech);
@@ -421,36 +471,41 @@ export default function InventoryPage() {
 
   const handleViewClientStock = (client: ClientStockClient) => {
     if (!client?.cost_code) {
-      toast.error('Client cost code is missing.');
+      toast.error("Client cost code is missing.");
       return;
     }
-    router.push(`/protected/inv/client-stock/${encodeURIComponent(client.cost_code)}`);
+    router.push(
+      `/protected/inv/client-stock/${encodeURIComponent(client.cost_code)}`,
+    );
   };
 
   const fetchJobCards = async () => {
     try {
       setLoading(true);
-      console.log('Fetching job cards...');
-      const response = await fetch('/api/job-cards');
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-      
+      console.log("Fetching job cards...");
+      const response = await fetch("/api/job-cards?limit=5000");
+      console.log("Response status:", response.status);
+      console.log(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries()),
+      );
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response not ok:', errorText);
-        throw new Error('Failed to fetch job cards');
+        console.error("Response not ok:", errorText);
+        throw new Error("Failed to fetch job cards");
       }
-      
+
       const data = await response.json();
-      console.log('Job cards data:', data);
-      console.log('Job cards array:', data.job_cards);
-      console.log('Job cards count:', data.job_cards?.length || 0);
-      
+      console.log("Job cards data:", data);
+      console.log("Job cards array:", data.job_cards);
+      console.log("Job cards count:", data.job_cards?.length || 0);
+
       setJobCards(data.job_cards || []);
-      console.log('Set job cards:', data.job_cards?.length || 0, 'records');
+      console.log("Set job cards:", data.job_cards?.length || 0, "records");
     } catch (error) {
-      console.error('Error fetching job cards:', error);
-      toast.error('Failed to load job cards');
+      console.error("Error fetching job cards:", error);
+      toast.error("Failed to load job cards");
     } finally {
       setLoading(false);
     }
@@ -458,59 +513,76 @@ export default function InventoryPage() {
 
   const extractIpAddressesFromStock = (stockItems) => {
     const ipSet = new Set();
-    stockItems.forEach(item => {
+    stockItems.forEach((item) => {
       if (item.ip_addresses && Array.isArray(item.ip_addresses)) {
-        item.ip_addresses.forEach(ip => ipSet.add(ip));
+        item.ip_addresses.forEach((ip) => ipSet.add(ip));
       }
     });
-    return Array.from(ipSet).map(ip => ({ ip_address: ip }));
+    return Array.from(ipSet).map((ip) => ({ ip_address: ip }));
   };
 
   const fetchAllStockItems = async () => {
     try {
-      const response = await fetch('/api/stock');
+      const response = await fetch("/api/stock");
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Stock API error:', response.status, errorText);
-        throw new Error(`Failed to fetch stock items: ${response.status} - ${errorText}`);
+        console.error("Stock API error:", response.status, errorText);
+        throw new Error(
+          `Failed to fetch stock items: ${response.status} - ${errorText}`,
+        );
       }
       const data = await response.json();
       const stockItems = data.stock || [];
       setAllStockItems(stockItems);
       setAllIpAddresses(extractIpAddressesFromStock(stockItems));
-      
+
       // Also set stockItems for Stock Take tab if it's empty
       if (stockItems.length > 0) {
-        console.log('Setting stockItems from fetchAllStockItems');
+        console.log("Setting stockItems from fetchAllStockItems");
         setStockItems(stockItems);
       }
     } catch (error) {
-      console.error('Error fetching stock items:', error);
+      console.error("Error fetching stock items:", error);
     }
   };
 
   const filteredJobCards = jobCards.filter((job: JobCard) => {
-    const matchesSearch = 
+    const matchesSearch =
       job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.vehicle_registration
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       job.job_description?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     // Only show jobs without assigned parts in the main job cards tab
-    const hasNoParts = !job.parts_required || !Array.isArray(job.parts_required) || job.parts_required.length === 0;
-    
+    const hasNoParts =
+      !job.parts_required ||
+      !Array.isArray(job.parts_required) ||
+      job.parts_required.length === 0;
+
     return matchesSearch && hasNoParts;
   });
 
-  const jobCardsWithParts = jobCards.filter((job: JobCard) => 
-    job.parts_required && Array.isArray(job.parts_required) && job.parts_required.length > 0
+  const jobCardsWithParts = jobCards.filter(
+    (job: JobCard) =>
+      job.parts_required &&
+      Array.isArray(job.parts_required) &&
+      job.parts_required.length > 0,
   );
 
   const completedJobs = jobCards.filter((job: JobCard) => {
     const normalizedJobStatus = job.job_status?.toLowerCase();
     const normalizedStatus = job.status?.toLowerCase();
+    const normalizedRole = String(job.role || "").toLowerCase();
+    const normalizedMoveTo = String(job.move_to || "").toLowerCase();
 
-    return normalizedJobStatus === 'completed' || normalizedStatus === 'completed';
+    const isCompleted =
+      normalizedJobStatus === "completed" || normalizedStatus === "completed";
+    const isInventoryRouted =
+      normalizedRole === "inv" || normalizedMoveTo === "inv";
+
+    return isCompleted && isInventoryRouted;
   });
 
   interface OrderItem {
@@ -520,16 +592,17 @@ export default function InventoryPage() {
 
   const filteredStockOrders = stockOrders.filter((order: StockOrder) => {
     if (!stockOrdersSearchTerm) return true;
-    
+
     const searchLower = stockOrdersSearchTerm.toLowerCase();
     return (
       order.order_number?.toLowerCase().includes(searchLower) ||
       order.supplier?.toLowerCase().includes(searchLower) ||
       order.status?.toLowerCase().includes(searchLower) ||
-      (order.order_items && Array.isArray(order.order_items) && 
-       order.order_items.some((item: OrderItem) => 
-         item.description?.toLowerCase().includes(searchLower)
-       ))
+      (order.order_items &&
+        Array.isArray(order.order_items) &&
+        order.order_items.some((item: OrderItem) =>
+          item.description?.toLowerCase().includes(searchLower),
+        ))
     );
   });
 
@@ -537,23 +610,29 @@ export default function InventoryPage() {
     if (!clientStockSearchTerm) return true;
 
     const query = clientStockSearchTerm.toLowerCase();
-    const company = (client.company || '').toLowerCase();
+    const company = (client.company || "").toLowerCase();
 
     return company.includes(query);
   });
 
   const filteredClientStockItems = clientStockItems.filter((item) => {
-    const normalizedStatus = (item.status || '').toLowerCase();
-    const statusMatch = clientStockStatusFilter === 'all' || normalizedStatus === clientStockStatusFilter;
+    const normalizedStatus = (item.status || "").toLowerCase();
+    const statusMatch =
+      clientStockStatusFilter === "all" ||
+      normalizedStatus === clientStockStatusFilter;
 
     if (!statusMatch) return false;
     if (!clientStockItemSearchTerm) return true;
 
     const query = clientStockItemSearchTerm.toLowerCase();
-    const category = (item.inventory_categories?.description || item.category_code || '').toLowerCase();
-    const serial = (item.serial_number || '').toLowerCase();
-    const technician = (item.assigned_to_technician || '').toLowerCase();
-    const notes = (item.notes || '').toLowerCase();
+    const category = (
+      item.inventory_categories?.description ||
+      item.category_code ||
+      ""
+    ).toLowerCase();
+    const serial = (item.serial_number || "").toLowerCase();
+    const technician = (item.assigned_to_technician || "").toLowerCase();
+    const notes = (item.notes || "").toLowerCase();
 
     return (
       category.includes(query) ||
@@ -566,20 +645,19 @@ export default function InventoryPage() {
   const filteredTechStockTechnicians = techStockTechnicians.filter((tech) => {
     if (!techStockSearchTerm) return true;
     const query = techStockSearchTerm.toLowerCase();
-    const email = (tech.technician_email || '').toLowerCase();
+    const email = (tech.technician_email || "").toLowerCase();
     return email.includes(query);
   });
 
-
   const getClientStockStatusClasses = (status: string | null) => {
-    const normalized = (status || '').toUpperCase();
+    const normalized = (status || "").toUpperCase();
 
-    if (normalized === 'IN STOCK') return 'bg-green-100 text-green-700';
-    if (normalized === 'OUT OF STOCK') return 'bg-red-100 text-red-700';
-    if (normalized === 'ASSIGNED') return 'bg-blue-100 text-blue-700';
-    if (normalized === 'RESERVED') return 'bg-amber-100 text-amber-700';
+    if (normalized === "IN STOCK") return "bg-green-100 text-green-700";
+    if (normalized === "OUT OF STOCK") return "bg-red-100 text-red-700";
+    if (normalized === "ASSIGNED") return "bg-blue-100 text-blue-700";
+    if (normalized === "RESERVED") return "bg-amber-100 text-amber-700";
 
-    return 'bg-gray-100 text-gray-700';
+    return "bg-gray-100 text-gray-700";
   };
 
   const handleAssignParts = (jobCard: JobCard) => {
@@ -600,18 +678,20 @@ export default function InventoryPage() {
 
   const handleBookStock = async (job: JobCard) => {
     // Show loading toast
-    const loadingToast = toast.loading(`Booking stock for job ${job.job_number}...`);
-    
+    const loadingToast = toast.loading(
+      `Booking stock for job ${job.job_number}...`,
+    );
+
     try {
       // Update the job status to move it to admin
-      const { createClient } = await import('@/lib/supabase/client');
+      const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      
-      console.log('Booking stock for job:', job.id, job.job_number);
-      
+
+      console.log("Booking stock for job:", job.id, job.job_number);
+
       // Get existing parts or initialize an empty array
       let existingParts = [];
-      
+
       // Safely handle the existing parts
       if (job.parts_required) {
         try {
@@ -619,17 +699,21 @@ export default function InventoryPage() {
           if (Array.isArray(job.parts_required)) {
             existingParts = JSON.parse(JSON.stringify(job.parts_required));
           } else {
-            console.log('parts_required is not an array:', typeof job.parts_required, job.parts_required);
+            console.log(
+              "parts_required is not an array:",
+              typeof job.parts_required,
+              job.parts_required,
+            );
             existingParts = [];
           }
         } catch (e) {
-          console.error('Error parsing parts_required:', e);
+          console.error("Error parsing parts_required:", e);
           existingParts = [];
         }
       }
-      
-      console.log('Initial parts array:', existingParts);
-      
+
+      console.log("Initial parts array:", existingParts);
+
       // Create a boot stock part entry to indicate this is boot stock
       // Use a simple object structure that's safe for JSONB serialization
       const bootStockPart: Part = {
@@ -642,111 +726,115 @@ export default function InventoryPage() {
         stock_id: `boot-stock-${Date.now()}`, // Use simple timestamp without Date object
         available_stock: 1,
         date_added: new Date().toISOString(),
-        boot_stock: "yes" // Mark this part as boot stock - this is the key field
+        boot_stock: "yes", // Mark this part as boot stock - this is the key field
       };
-      
+
       // Add boot stock part to the array
       existingParts.push(bootStockPart);
-      
-      console.log('Updated parts array with boot stock:', existingParts);
-      
+
+      console.log("Updated parts array with boot stock:", existingParts);
+
       // Create update data with the parts_required array (no parts_booked field)
       const updateData = {
-        status: 'admin_created', 
+        status: "admin_created",
         updated_at: new Date().toISOString(),
-        parts_required: existingParts // Store boot stock in parts_required as per DB schema
+        parts_required: existingParts, // Store boot stock in parts_required as per DB schema
       };
-      
-      console.log('Update data:', JSON.stringify(updateData));
-      
+
+      console.log("Update data:", JSON.stringify(updateData));
+
       try {
         console.log(`Updating job_cards with id=${job.id}`);
-        
+
         // Make sure parts_required is properly structured before sending to Supabase
         const cleanPartsData = updateData.parts_required.map((part: Part) => {
           // Create a clean object with only the properties we need
           // Make sure all values are proper JSON-serializable types
           return {
-            description: String(part.description || ''),
+            description: String(part.description || ""),
             quantity: Number(part.quantity || 0),
-            code: String(part.code || ''),
-            supplier: String(part.supplier || ''),
+            code: String(part.code || ""),
+            supplier: String(part.supplier || ""),
             cost_per_unit: Number(part.cost_per_unit || 0),
             total_cost: Number(part.total_cost || 0),
-            stock_id: String(part.stock_id || ''),
+            stock_id: String(part.stock_id || ""),
             available_stock: Number(part.available_stock || 0),
-            date_added: String(part.date_added || ''),
-            boot_stock: String(part.boot_stock || '') // Ensure boot_stock is included
+            date_added: String(part.date_added || ""),
+            boot_stock: String(part.boot_stock || ""), // Ensure boot_stock is included
           };
         });
-        
+
         // Use the cleaned data for the update
         const cleanUpdateData = {
           ...updateData,
-          parts_required: cleanPartsData
+          parts_required: cleanPartsData,
         };
-        
-        console.log('Clean update data:', JSON.stringify(cleanUpdateData));
-        
+
+        console.log("Clean update data:", JSON.stringify(cleanUpdateData));
+
         // Use a try-catch specifically for the Supabase call
         try {
           // Log the exact API call we're making
-          console.log(`API call: UPDATE job_cards SET data WHERE id = ${job.id}`);
-          console.log('Data being sent:', JSON.stringify(cleanUpdateData));
-          
+          console.log(
+            `API call: UPDATE job_cards SET data WHERE id = ${job.id}`,
+          );
+          console.log("Data being sent:", JSON.stringify(cleanUpdateData));
+
           const { data, error: updateError } = await supabase
-            .from('job_cards')
+            .from("job_cards")
             .update(cleanUpdateData)
-            .eq('id', job.id)
+            .eq("id", job.id)
             .select();
-            
+
           if (updateError) {
-            console.error('Update error message:', updateError.message);
-            console.error('Update error details:', updateError.details);
-            console.error('Update error hint:', updateError.hint);
-            console.error('Update error code:', updateError.code);
-            
+            console.error("Update error message:", updateError.message);
+            console.error("Update error details:", updateError.details);
+            console.error("Update error hint:", updateError.hint);
+            console.error("Update error code:", updateError.code);
+
             // Log more details about the error
-            console.error('Full error object:', JSON.stringify(updateError));
+            console.error("Full error object:", JSON.stringify(updateError));
             throw new Error(`Database update failed: ${updateError.message}`);
           }
-          
-          console.log('Update succeeded with data:', data);
+
+          console.log("Update succeeded with data:", data);
         } catch (supabaseError) {
-          console.error('Supabase operation failed:', supabaseError);
+          console.error("Supabase operation failed:", supabaseError);
           throw supabaseError;
         }
-        
-        console.log('Update completed successfully');
-        
+
+        console.log("Update completed successfully");
+
         // Success
         toast.dismiss(loadingToast);
-        toast.success(`Boot stock part added to job ${job.job_number} and moved to admin`);
-        
+        toast.success(
+          `Boot stock part added to job ${job.job_number} and moved to admin`,
+        );
+
         // Refresh job cards to show updated status
         fetchJobCards();
       } catch (updateError) {
-        console.error('Caught error during update:', updateError);
-        
+        console.error("Caught error during update:", updateError);
+
         // Get a meaningful error message if possible
-        let errorMessage = 'Failed to update job status';
+        let errorMessage = "Failed to update job status";
         if (updateError instanceof Error) {
           errorMessage = updateError.message;
         }
-        
+
         toast.dismiss(loadingToast);
         toast.error(errorMessage);
         return;
       }
     } catch (error) {
-      console.error('Error in booking stock:', error);
-      
+      console.error("Error in booking stock:", error);
+
       // Get a meaningful error message if possible
-      let errorMessage = 'Failed to book stock for this job';
+      let errorMessage = "Failed to book stock for this job";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
+
       toast.dismiss(loadingToast);
       toast.error(errorMessage);
     }
@@ -762,7 +850,7 @@ export default function InventoryPage() {
         job_type: jobCard.job_type,
         parts_required: jobCard.parts_required || [],
         technician: jobCard.technician_name,
-        created_at: jobCard.created_at
+        created_at: jobCard.created_at,
       };
       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
       jobCard.qr_code = qrCodeUrl;
@@ -774,7 +862,7 @@ export default function InventoryPage() {
   const parsePartsRequired = (value: unknown): Part[] => {
     if (!value) return [];
     if (Array.isArray(value)) return value as Part[];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? (parsed as Part[]) : [];
@@ -788,10 +876,12 @@ export default function InventoryPage() {
   const parseEquipmentUsed = (value: unknown): Record<string, unknown>[] => {
     if (!value) return [];
     if (Array.isArray(value)) return value as Record<string, unknown>[];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+        return Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>[])
+          : [];
       } catch {
         return [];
       }
@@ -799,13 +889,17 @@ export default function InventoryPage() {
     return [];
   };
 
-  const parseQuotationProducts = (value: unknown): Record<string, unknown>[] => {
+  const parseQuotationProducts = (
+    value: unknown,
+  ): Record<string, unknown>[] => {
     if (!value) return [];
     if (Array.isArray(value)) return value as Record<string, unknown>[];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
-        return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+        return Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>[])
+          : [];
       } catch {
         return [];
       }
@@ -815,22 +909,23 @@ export default function InventoryPage() {
 
   const isDeInstallJob = (job: JobCard | null): boolean => {
     if (!job) return false;
-    const normalizedJobType = String(job.job_type || '').toLowerCase();
-    const normalizedQuotationJobType = String(job.quotation_job_type || '').toLowerCase();
-    const normalizedSubType = String(job.job_sub_type || '').toLowerCase();
+    const normalizedJobType = String(job.job_type || "").toLowerCase();
+    const normalizedQuotationJobType = String(
+      job.quotation_job_type || "",
+    ).toLowerCase();
+    const normalizedSubType = String(job.job_sub_type || "").toLowerCase();
 
     return (
-      normalizedJobType.includes('deinstall') ||
-      normalizedJobType.includes('de-install') ||
-      normalizedJobType.includes('decommission') ||
-      normalizedQuotationJobType.includes('deinstall') ||
-      normalizedQuotationJobType.includes('de-install') ||
-      normalizedSubType.includes('deinstall') ||
-      normalizedSubType.includes('de-install') ||
-      normalizedSubType.includes('decommission')
+      normalizedJobType.includes("deinstall") ||
+      normalizedJobType.includes("de-install") ||
+      normalizedJobType.includes("decommission") ||
+      normalizedQuotationJobType.includes("deinstall") ||
+      normalizedQuotationJobType.includes("de-install") ||
+      normalizedSubType.includes("deinstall") ||
+      normalizedSubType.includes("de-install") ||
+      normalizedSubType.includes("decommission")
     );
   };
-
 
   const handleViewCompletedJobDetails = async (jobId: string) => {
     setLoadingCompletedJobDetails(true);
@@ -842,14 +937,14 @@ export default function InventoryPage() {
     try {
       const response = await fetch(`/api/job-cards/${jobId}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch full job details');
+        throw new Error("Failed to fetch full job details");
       }
 
       const fullJob = await response.json();
       setSelectedCompletedJob(fullJob);
     } catch (error) {
-      console.error('Error fetching completed job details:', error);
-      toast.error('Failed to load full completed job details');
+      console.error("Error fetching completed job details:", error);
+      toast.error("Failed to load full completed job details");
       setShowCompletedJobDetails(false);
     } finally {
       setLoadingCompletedJobDetails(false);
@@ -857,35 +952,40 @@ export default function InventoryPage() {
   };
 
   const getMoveItemKey = (
-    context: 'deinstalled' | 'stock-used' | 'quotation',
+    context: "deinstalled" | "stock-used" | "quotation",
     item: Record<string, unknown>,
-    index: number
+    index: number,
   ) => {
-    const itemId = String(item.id || item.serial_number || item.code || item.name || index);
-    const jobId = String(selectedCompletedJob?.id || 'job');
+    const itemId = String(
+      item.id || item.serial_number || item.code || item.name || index,
+    );
+    const jobId = String(selectedCompletedJob?.id || "job");
     return `${jobId}:${context}:${itemId}:${index}`;
   };
 
   const handleMoveJobItem = async (
-    context: 'deinstalled' | 'stock-used' | 'quotation',
+    context: "deinstalled" | "stock-used" | "quotation",
     item: Record<string, unknown>,
     index: number,
-    destination: 'client' | 'soltrack'
+    destination: "client" | "soltrack",
   ) => {
     if (!selectedCompletedJob?.id) {
-      toast.error('No completed job selected');
+      toast.error("No completed job selected");
       return;
     }
 
     const itemKey = getMoveItemKey(context, item, index);
-    const loadingLabel = destination === 'client' ? 'Adding to client stock...' : 'Adding to Soltrack stock...';
+    const loadingLabel =
+      destination === "client"
+        ? "Adding to client stock..."
+        : "Adding to Soltrack stock...";
     setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
 
     try {
-      const response = await fetch('/api/inventory/deinstalled-stock', {
-        method: 'POST',
+      const response = await fetch("/api/inventory/deinstalled-stock", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           job_id: selectedCompletedJob.id,
@@ -899,18 +999,26 @@ export default function InventoryPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result?.error || 'Failed to move item to stock');
+        throw new Error(result?.error || "Failed to move item to stock");
       }
 
       setMovedDeinstalledItems((prev) => ({
         ...prev,
-        [`${itemKey}:client`]: destination === 'client' ? 'moved' : prev[`${itemKey}:client`] || '',
-        [`${itemKey}:soltrack`]: destination === 'soltrack' ? 'moved' : prev[`${itemKey}:soltrack`] || '',
+        [`${itemKey}:client`]:
+          destination === "client" ? "moved" : prev[`${itemKey}:client`] || "",
+        [`${itemKey}:soltrack`]:
+          destination === "soltrack"
+            ? "moved"
+            : prev[`${itemKey}:soltrack`] || "",
       }));
 
-      toast.success(destination === 'client' ? 'Item added to client stock' : 'Item added to Soltrack stock');
+      toast.success(
+        destination === "client"
+          ? "Item added to client stock"
+          : "Item added to Soltrack stock",
+      );
     } catch (error) {
-      console.error('Error moving item to stock:', error);
+      console.error("Error moving item to stock:", error);
       toast.error(error instanceof Error ? error.message : loadingLabel);
     } finally {
       setMovingDeinstalledItemKey(null);
@@ -926,19 +1034,19 @@ export default function InventoryPage() {
       job_type: jobCard.job_type,
       parts_required: jobCard.parts_required || [],
       technician: jobCard.technician_name,
-      created_at: jobCard.created_at
+      created_at: jobCard.created_at,
     };
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
-    
+
     // Update the job with the new QR code
-    setSelectedQRJob({...jobCard, qr_code: qrCodeUrl});
+    setSelectedQRJob({ ...jobCard, qr_code: qrCodeUrl });
   };
 
   const handleDownloadQR = (jobCard: JobCard) => {
     if (!jobCard.qr_code) return;
-    
-    const link = document.createElement('a');
+
+    const link = document.createElement("a");
     link.href = jobCard.qr_code;
     link.download = `qr-code-${jobCard.job_number}.png`;
     document.body.appendChild(link);
@@ -948,8 +1056,8 @@ export default function InventoryPage() {
 
   const handlePrintQR = (jobCard: JobCard) => {
     if (!jobCard.qr_code) return;
-    
-    const printWindow = window.open('', '_blank');
+
+    const printWindow = window.open("", "_blank");
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -988,18 +1096,18 @@ export default function InventoryPage() {
               <div class="section-grid">
                 <div>
                   <p><strong>Job Number:</strong> ${jobCard.job_number}</p>
-                  <p><strong>Quotation Number:</strong> ${jobCard.quotation_number || 'N/A'}</p>
-                  <p><strong>Job Type:</strong> ${jobCard.job_type || 'Not specified'}</p>
-                  <p><strong>Status:</strong> ${jobCard.status || 'N/A'}</p>
-                  <p><strong>Priority:</strong> ${jobCard.priority || 'N/A'}</p>
-                  <p><strong>IP Address:</strong> ${jobCard.ip_address || 'N/A'}</p>
+                  <p><strong>Quotation Number:</strong> ${jobCard.quotation_number || "N/A"}</p>
+                  <p><strong>Job Type:</strong> ${jobCard.job_type || "Not specified"}</p>
+                  <p><strong>Status:</strong> ${jobCard.status || "N/A"}</p>
+                  <p><strong>Priority:</strong> ${jobCard.priority || "N/A"}</p>
+                  <p><strong>IP Address:</strong> ${jobCard.ip_address || "N/A"}</p>
                 </div>
                 <div>
-                  <p><strong>Created:</strong> ${jobCard.created_at ? new Date(jobCard.created_at).toLocaleDateString() : 'N/A'}</p>
-                  <p><strong>Updated:</strong> ${jobCard.updated_at ? new Date(jobCard.updated_at).toLocaleDateString() : 'N/A'}</p>
-                  <p><strong>Job Location:</strong> ${jobCard.job_location || 'N/A'}</p>
-                  <p><strong>Estimated Duration:</strong> ${jobCard.estimated_duration_hours || 'N/A'} hours</p>
-                  <p><strong>Estimated Cost:</strong> ${jobCard.estimated_cost ? `R${jobCard.estimated_cost}` : 'N/A'}</p>
+                  <p><strong>Created:</strong> ${jobCard.created_at ? new Date(jobCard.created_at).toLocaleDateString() : "N/A"}</p>
+                  <p><strong>Updated:</strong> ${jobCard.updated_at ? new Date(jobCard.updated_at).toLocaleDateString() : "N/A"}</p>
+                  <p><strong>Job Location:</strong> ${jobCard.job_location || "N/A"}</p>
+                  <p><strong>Estimated Duration:</strong> ${jobCard.estimated_duration_hours || "N/A"} hours</p>
+                  <p><strong>Estimated Cost:</strong> ${jobCard.estimated_cost ? `R${jobCard.estimated_cost}` : "N/A"}</p>
                 </div>
               </div>
             </div>
@@ -1015,14 +1123,14 @@ export default function InventoryPage() {
               <h3>Customer Information</h3>
               <div class="section-grid">
                 <div>
-                  <p><strong>Customer Name:</strong> ${jobCard.customer_name || 'N/A'}</p>
-                  <p><strong>Email:</strong> ${jobCard.customer_email || 'N/A'}</p>
-                  <p><strong>Phone:</strong> ${jobCard.customer_phone || 'N/A'}</p>
+                  <p><strong>Customer Name:</strong> ${jobCard.customer_name || "N/A"}</p>
+                  <p><strong>Email:</strong> ${jobCard.customer_email || "N/A"}</p>
+                  <p><strong>Phone:</strong> ${jobCard.customer_phone || "N/A"}</p>
                 </div>
                 <div>
-                  <p><strong>Address:</strong> ${jobCard.customer_address || 'N/A'}</p>
-                  <p><strong>Site Contact:</strong> ${jobCard.site_contact_person || 'N/A'}</p>
-                  <p><strong>Contact Phone:</strong> ${jobCard.site_contact_phone || 'N/A'}</p>
+                  <p><strong>Address:</strong> ${jobCard.customer_address || "N/A"}</p>
+                  <p><strong>Site Contact:</strong> ${jobCard.site_contact_person || "N/A"}</p>
+                  <p><strong>Contact Phone:</strong> ${jobCard.site_contact_phone || "N/A"}</p>
                 </div>
               </div>
             </div>
@@ -1031,13 +1139,13 @@ export default function InventoryPage() {
               <h3>Vehicle Information</h3>
               <div class="section-grid">
                 <div>
-                  <p><strong>Registration:</strong> ${jobCard.vehicle_registration || 'Not provided'}</p>
-                  <p><strong>Make & Model:</strong> ${jobCard.vehicle_make && jobCard.vehicle_model ? `${jobCard.vehicle_make} ${jobCard.vehicle_model}` : (jobCard.vehicle_make || jobCard.vehicle_model || 'Not provided')}</p>
-                  <p><strong>Year:</strong> ${jobCard.vehicle_year || 'Not provided'}</p>
+                  <p><strong>Registration:</strong> ${jobCard.vehicle_registration || "Not provided"}</p>
+                  <p><strong>Make & Model:</strong> ${jobCard.vehicle_make && jobCard.vehicle_model ? `${jobCard.vehicle_make} ${jobCard.vehicle_model}` : jobCard.vehicle_make || jobCard.vehicle_model || "Not provided"}</p>
+                  <p><strong>Year:</strong> ${jobCard.vehicle_year || "Not provided"}</p>
                 </div>
                 <div>
-                  <p><strong>VIN Number:</strong> ${jobCard.vin_numer || 'Not provided'}</p>
-                  <p><strong>Odometer:</strong> ${jobCard.odormeter || 'Not provided'}</p>
+                  <p><strong>VIN Number:</strong> ${jobCard.vin_numer || "Not provided"}</p>
+                  <p><strong>Odometer:</strong> ${jobCard.odormeter || "Not provided"}</p>
                 </div>
               </div>
             </div>
@@ -1046,12 +1154,12 @@ export default function InventoryPage() {
               <h3>Quotation Details</h3>
               <div class="section-grid">
                 <div>
-                  <p><strong>Quote Status:</strong> ${jobCard.quote_status || 'N/A'}</p>
-                  <p><strong>Quote Date:</strong> ${jobCard.quote_date ? new Date(jobCard.quote_date).toLocaleDateString() : 'N/A'}</p>
-                  <p><strong>Quote Expiry:</strong> ${jobCard.quote_expiry_date ? new Date(jobCard.quote_expiry_date).toLocaleDateString() : 'N/A'}</p>
+                  <p><strong>Quote Status:</strong> ${jobCard.quote_status || "N/A"}</p>
+                  <p><strong>Quote Date:</strong> ${jobCard.quote_date ? new Date(jobCard.quote_date).toLocaleDateString() : "N/A"}</p>
+                  <p><strong>Quote Expiry:</strong> ${jobCard.quote_expiry_date ? new Date(jobCard.quote_expiry_date).toLocaleDateString() : "N/A"}</p>
                 </div>
                 <div>
-                  <p><strong>Total Amount:</strong> ${jobCard.quotation_total_amount ? `R${jobCard.quotation_total_amount}` : 'N/A'}</p>
+                  <p><strong>Total Amount:</strong> ${jobCard.quotation_total_amount ? `R${jobCard.quotation_total_amount}` : "N/A"}</p>
                   <p><strong>Products:</strong> ${jobCard.quotation_products?.length || 0} items</p>
                 </div>
               </div>
@@ -1059,40 +1167,58 @@ export default function InventoryPage() {
 
             <div class="section">
               <h3>Job Description</h3>
-              <p>${jobCard.job_description || 'No description provided'}</p>
+              <p>${jobCard.job_description || "No description provided"}</p>
             </div>
 
-            ${jobCard.special_instructions ? `
+            ${
+              jobCard.special_instructions
+                ? `
             <div class="section">
               <h3>Special Instructions</h3>
               <p>${jobCard.special_instructions}</p>
             </div>
-            ` : ''}
+            `
+                : ""
+            }
 
-            ${jobCard.access_requirements ? `
+            ${
+              jobCard.access_requirements
+                ? `
             <div class="section">
               <h3>Access Requirements</h3>
               <p>${jobCard.access_requirements}</p>
             </div>
-            ` : ''}
+            `
+                : ""
+            }
 
             <div class="section">
               <h3>Assigned Parts</h3>
               <div class="part-list">
-                ${jobCard.parts_required?.map(part => `
+                ${
+                  jobCard.parts_required
+                    ?.map(
+                      (part) => `
                   <div class="part-item">
                     <strong>${part.description}</strong> (${part.code})<br>
-                    Quantity: ${part.quantity} | Supplier: ${part.supplier || 'N/A'}<br>
-                    Cost: R${part.cost_per_unit?.toFixed(2) || '0.00'} each | Total: R${part.total_cost || '0.00'}
+                    Quantity: ${part.quantity} | Supplier: ${part.supplier || "N/A"}<br>
+                    Cost: R${part.cost_per_unit?.toFixed(2) || "0.00"} each | Total: R${part.total_cost || "0.00"}
                   </div>
-                `).join('') || 'No parts assigned'}
+                `,
+                    )
+                    .join("") || "No parts assigned"
+                }
               </div>
-              ${jobCard.parts_required && jobCard.parts_required.length > 0 ? `
+              ${
+                jobCard.parts_required && jobCard.parts_required.length > 0
+                  ? `
               <div class="total-section">
                 <p><strong>Total Parts:</strong> ${jobCard.parts_required.length}</p>
                 <p><strong>Total Cost:</strong> R${jobCard.parts_required.reduce((sum, part) => sum + (parseFloat(part.total_cost) || 0), 0).toFixed(2)}</p>
               </div>
-              ` : ''}
+              `
+                  : ""
+              }
             </div>
           </div>
         </body>
@@ -1103,7 +1229,9 @@ export default function InventoryPage() {
   };
 
   // Handle viewing stock order details or PDF
-  const handleViewStockOrder = (order: StockOrder & {invoice_link?: string, total_amount_ex_vat?: number}) => {
+  const handleViewStockOrder = (
+    order: StockOrder & { invoice_link?: string; total_amount_ex_vat?: number },
+  ) => {
     setSelectedStockOrder(order);
     if (order.invoice_link) {
       setShowPdfViewer(true);
@@ -1111,7 +1239,7 @@ export default function InventoryPage() {
       // If no PDF, show order details in a toast
       toast({
         title: "Order Details",
-        description: `Order: ${order.order_number}\nSupplier: ${order.supplier || 'Custom'}\nAmount: R ${parseFloat(String(order.total_amount_ex_vat || 0)).toFixed(2)}\nStatus: ${order.status || 'pending'}`,
+        description: `Order: ${order.order_number}\nSupplier: ${order.supplier || "Custom"}\nAmount: R ${parseFloat(String(order.total_amount_ex_vat || 0)).toFixed(2)}\nStatus: ${order.status || "pending"}`,
       });
     }
   };
@@ -1123,9 +1251,11 @@ export default function InventoryPage() {
   };
 
   // Handle downloading stock order invoice
-  const handleDownloadStockOrderInvoice = (order: StockOrder & {invoice_link?: string}) => {
+  const handleDownloadStockOrderInvoice = (
+    order: StockOrder & { invoice_link?: string },
+  ) => {
     if (order.invoice_link) {
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = order.invoice_link;
       link.download = `invoice-${order.order_number}.pdf`;
       document.body.appendChild(link);
@@ -1136,30 +1266,30 @@ export default function InventoryPage() {
 
   const getStatusColor = (status: string | undefined) => {
     switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "in_progress":
+        return "bg-blue-100 text-blue-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const getJobTypeColor = (jobType: string | undefined) => {
     switch (jobType?.toLowerCase()) {
-      case 'installation':
-        return 'bg-blue-100 text-blue-800';
-      case 'de-installation':
-        return 'bg-red-100 text-red-800';
-      case 'maintenance':
-        return 'bg-purple-100 text-purple-800';
+      case "installation":
+        return "bg-blue-100 text-blue-800";
+      case "de-installation":
+        return "bg-red-100 text-red-800";
+      case "maintenance":
+        return "bg-purple-100 text-purple-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
-  
+
   // We've made all Book Stock buttons always clickable
   // This function checks if a job has boot stock assigned
   const hasBootStock = (job: JobCard): boolean => {
@@ -1167,55 +1297,66 @@ export default function InventoryPage() {
       if (!job || !job.parts_required) {
         return false;
       }
-      
+
       // Check if parts_required is an array
       if (!Array.isArray(job.parts_required)) {
-        console.warn('parts_required is not an array:', job.parts_required);
+        console.warn("parts_required is not an array:", job.parts_required);
         return false;
       }
-      
+
       // Check if any part has boot_stock="yes"
-      return job.parts_required.some(part => {
+      return job.parts_required.some((part) => {
         // Safely check if part is an object and has boot_stock property
-        return part && typeof part === 'object' && part.boot_stock === "yes";
+        return part && typeof part === "object" && part.boot_stock === "yes";
       });
     } catch (error) {
-      console.error('Error in hasBootStock:', error);
+      console.error("Error in hasBootStock:", error);
       return false;
     }
   };
 
   const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'Not set';
+    if (!dateString) return "Not set";
     return new Date(dateString).toLocaleDateString();
   };
 
   const getJobPriorityColor = (priority: string | undefined) => {
     switch (priority?.toLowerCase()) {
-      case 'urgent':
-        return 'bg-red-500 text-white';
-      case 'high':
-        return 'bg-orange-500 text-white';
-      case 'medium':
-        return 'bg-yellow-500 text-white';
-      case 'low':
-        return 'bg-green-500 text-white';
+      case "urgent":
+        return "bg-red-500 text-white";
+      case "high":
+        return "bg-orange-500 text-white";
+      case "medium":
+        return "bg-yellow-500 text-white";
+      case "low":
+        return "bg-green-500 text-white";
       default:
-        return 'bg-gray-500 text-white';
+        return "bg-gray-500 text-white";
     }
   };
 
   const normalizeStockItem = (
     item: Record<string, unknown>,
-    source: 'equipment_used' | 'parts_required'
+    source: "equipment_used" | "parts_required",
   ) => {
-    const description = String(item.description || item.name || item.item || 'Item');
-    const code = String(item.code || item.item_code || item.serial || item.serial_number || '');
+    const description = String(
+      item.description || item.name || item.item || "Item",
+    );
+    const code = String(
+      item.code || item.item_code || item.serial || item.serial_number || "",
+    );
     const quantity = Number(item.quantity ?? 1) || 1;
-    const supplier = String(item.supplier || item.source || '');
-    const stockType = String(item.stock_type || item.type || '');
+    const supplier = String(item.supplier || item.source || "");
+    const stockType = String(item.stock_type || item.type || "");
     const totalCost =
-      Number(item.total_cost ?? item.total_price ?? item.cash_price ?? item.price ?? item.cost ?? 0) || 0;
+      Number(
+        item.total_cost ??
+          item.total_price ??
+          item.cash_price ??
+          item.price ??
+          item.cost ??
+          0,
+      ) || 0;
 
     return {
       description,
@@ -1232,19 +1373,22 @@ export default function InventoryPage() {
 
   const mergeStockUsed = (
     equipmentUsed: Record<string, unknown>[],
-    partsUsed: Part[]
+    partsUsed: Part[],
   ) => {
     const merged = new Map<string, ReturnType<typeof normalizeStockItem>>();
 
     equipmentUsed.forEach((item) => {
-      const normalized = normalizeStockItem(item, 'equipment_used');
-      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ''}`;
+      const normalized = normalizeStockItem(item, "equipment_used");
+      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ""}`;
       merged.set(key, normalized);
     });
 
     partsUsed.forEach((part) => {
-      const normalized = normalizeStockItem(part as Record<string, unknown>, 'parts_required');
-      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ''}`;
+      const normalized = normalizeStockItem(
+        part as Record<string, unknown>,
+        "parts_required",
+      );
+      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ""}`;
       if (!merged.has(key)) {
         merged.set(key, normalized);
       }
@@ -1253,16 +1397,25 @@ export default function InventoryPage() {
     return Array.from(merged.values());
   };
 
-  const selectedCompletedJobEquipmentUsed = parseEquipmentUsed(selectedCompletedJob?.equipment_used);
-  const selectedCompletedJobPartsUsed = parsePartsRequired(selectedCompletedJob?.parts_required);
+  const selectedCompletedJobEquipmentUsed = parseEquipmentUsed(
+    selectedCompletedJob?.equipment_used,
+  );
+  const selectedCompletedJobPartsUsed = parsePartsRequired(
+    selectedCompletedJob?.parts_required,
+  );
   const selectedCompletedJobStockUsed = mergeStockUsed(
     selectedCompletedJobEquipmentUsed,
-    selectedCompletedJobPartsUsed
+    selectedCompletedJobPartsUsed,
   );
-  const selectedCompletedJobQuotationProducts = parseQuotationProducts(selectedCompletedJob?.quotation_products);
-  const selectedCompletedJobDeInstalledItems = selectedCompletedJobQuotationProducts;
+  const selectedCompletedJobQuotationProducts = parseQuotationProducts(
+    selectedCompletedJob?.quotation_products,
+  );
+  const selectedCompletedJobDeInstalledItems =
+    selectedCompletedJobQuotationProducts;
   const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
-  const selectedCompletedJobCostCode = String(selectedCompletedJob?.new_account_number || '').trim();
+  const selectedCompletedJobCostCode = String(
+    selectedCompletedJob?.new_account_number || "",
+  ).trim();
 
   // Function kept for potential future use with a global refresh button
   // const handleRefresh = () => {
@@ -1271,30 +1424,30 @@ export default function InventoryPage() {
 
   const createTestJobCard = async () => {
     try {
-      const response = await fetch('/api/job-cards/test', {
-        method: 'POST',
+      const response = await fetch("/api/job-cards/test", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to create test job card');
+        throw new Error("Failed to create test job card");
       }
-      
+
       const data = await response.json();
-      console.log('Test job card created:', data);
-      toast.success('Test job card created successfully');
+      console.log("Test job card created:", data);
+      toast.success("Test job card created successfully");
       fetchJobCards(); // Refresh the list
     } catch (error) {
-      console.error('Error creating test job card:', error);
-      toast.error('Failed to create test job card');
+      console.error("Error creating test job card:", error);
+      toast.error("Failed to create test job card");
     }
   };
 
   const handleUploadToStock = (order) => {
     if (!order.order_items || !Array.isArray(order.order_items)) {
-      toast.error('No items found in this order');
+      toast.error("No items found in this order");
       return;
     }
 
@@ -1305,9 +1458,13 @@ export default function InventoryPage() {
       for (let i = 0; i < quantity; i++) {
         items.push({
           id: `${itemIndex}-${i}`,
-          description: item.description || 'Custom Item',
-          serialNumber: '',
-          categoryCode: item.description?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10) || 'ORDERED'
+          description: item.description || "Custom Item",
+          serialNumber: "",
+          categoryCode:
+            item.description
+              ?.replace(/[^a-zA-Z0-9]/g, "")
+              .toUpperCase()
+              .substring(0, 10) || "ORDERED",
         });
       }
     });
@@ -1319,154 +1476,170 @@ export default function InventoryPage() {
 
   const handleUploadSingle = async (item) => {
     if (!item.serialNumber.trim()) {
-      toast.error('Please enter a serial number');
+      toast.error("Please enter a serial number");
       return;
     }
 
     try {
-      const response = await fetch('/api/stock-orders/upload-to-stock', {
-        method: 'POST',
+      const response = await fetch("/api/stock-orders/upload-to-stock", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           orderId: uploadOrder.id,
-          items: [item]
+          items: [item],
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload item');
+        throw new Error(errorData.error || "Failed to upload item");
       }
 
       toast.success(`Successfully uploaded ${item.description}`);
       // Remove uploaded item from list
-      setUploadItems(prev => prev.filter(i => i.id !== item.id));
+      setUploadItems((prev) => prev.filter((i) => i.id !== item.id));
     } catch (error) {
-      console.error('Error uploading item:', error);
-      toast.error(error.message || 'Failed to upload item');
+      console.error("Error uploading item:", error);
+      toast.error(error.message || "Failed to upload item");
     }
   };
 
   const handleConfirmUpload = async () => {
-    const itemsToUpload = uploadItems.filter(item => item.serialNumber.trim());
+    const itemsToUpload = uploadItems.filter((item) =>
+      item.serialNumber.trim(),
+    );
     if (itemsToUpload.length === 0) {
-      toast.error('Please enter serial numbers for at least one item');
+      toast.error("Please enter serial numbers for at least one item");
       return;
     }
 
     try {
-      const response = await fetch('/api/stock-orders/upload-to-stock', {
-        method: 'POST',
+      const response = await fetch("/api/stock-orders/upload-to-stock", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           orderId: uploadOrder.id,
-          items: itemsToUpload
+          items: itemsToUpload,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload to stock');
+        throw new Error(errorData.error || "Failed to upload to stock");
       }
 
       const result = await response.json();
-      toast.success(`Successfully uploaded ${result.itemsCreated} items to stock`);
+      toast.success(
+        `Successfully uploaded ${result.itemsCreated} items to stock`,
+      );
       setShowUploadModal(false);
       fetchStockOrders();
     } catch (error) {
-      console.error('Error uploading to stock:', error);
-      toast.error(error.message || 'Failed to upload to stock');
+      console.error("Error uploading to stock:", error);
+      toast.error(error.message || "Failed to upload to stock");
     }
   };
 
   const updateSerialNumber = (itemId, serialNumber) => {
-    setUploadItems(prev => prev.map(item => 
-      item.id === itemId ? { ...item, serialNumber } : item
-    ));
+    setUploadItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, serialNumber } : item,
+      ),
+    );
   };
 
   const handleAddNewItem = async () => {
     // Validate required fields
     if (showNewCategoryFields) {
-      if (!newItemData.new_category_code || !newItemData.new_category_description || !newItemData.serial_number) {
-        toast.error('Please fill in all required fields');
+      if (
+        !newItemData.new_category_code ||
+        !newItemData.new_category_description ||
+        !newItemData.serial_number
+      ) {
+        toast.error("Please fill in all required fields");
         return;
       }
     } else {
       if (!newItemData.category_code || !newItemData.serial_number) {
-        toast.error('Please fill in all required fields');
+        toast.error("Please fill in all required fields");
         return;
       }
     }
 
     try {
       let categoryCode = newItemData.category_code;
-      
+
       // Create new category if needed
       if (showNewCategoryFields) {
-        const categoryResponse = await fetch('/api/inventory-categories', {
-          method: 'POST',
+        const categoryResponse = await fetch("/api/inventory-categories", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             code: newItemData.new_category_code,
-            description: newItemData.new_category_description
+            description: newItemData.new_category_description,
           }),
         });
 
         if (!categoryResponse.ok) {
           const errorData = await categoryResponse.json();
-          throw new Error(errorData.error || 'Failed to create category');
+          throw new Error(errorData.error || "Failed to create category");
         }
-        
+
         categoryCode = newItemData.new_category_code;
-        toast.success('New category created successfully');
+        toast.success("New category created successfully");
       }
 
       // Create the inventory item
-      const itemResponse = await fetch('/api/stock', {
-        method: 'POST',
+      const itemResponse = await fetch("/api/stock", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           category_code: categoryCode,
           serial_number: newItemData.serial_number,
-          quantity: newItemData.quantity
+          quantity: newItemData.quantity,
         }),
       });
 
       if (!itemResponse.ok) {
         const errorData = await itemResponse.json();
-        throw new Error(errorData.error || 'Failed to create item');
+        throw new Error(errorData.error || "Failed to create item");
       }
 
-      toast.success('New item added successfully');
+      toast.success("New item added successfully");
       setShowAddItemModal(false);
-      setNewItemData({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
+      setNewItemData({
+        category_code: "",
+        serial_number: "",
+        quantity: 1,
+        new_category_code: "",
+        new_category_description: "",
+      });
       setShowNewCategoryFields(false);
       fetchStockItems();
       fetchCategories(); // Refresh categories list
     } catch (error) {
-      console.error('Error adding new item:', error);
-      toast.error(error.message || 'Failed to add new item');
+      console.error("Error adding new item:", error);
+      toast.error(error.message || "Failed to add new item");
     }
   };
 
   const fetchCategoriesForModal = async () => {
     try {
-      const response = await fetch('/api/inventory-categories');
+      const response = await fetch("/api/inventory-categories");
       if (response.ok) {
         const data = await response.json();
         setStockTypes(data.categories || []);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error("Error fetching categories:", error);
     }
   };
 
@@ -1479,7 +1652,7 @@ export default function InventoryPage() {
   const generateQRCode = () => {
     const selectedJob = jobCardsWithParts[0] || filteredJobCards[0];
     if (!selectedJob) {
-      toast.error('No job available to generate QR code');
+      toast.error("No job available to generate QR code");
       return;
     }
 
@@ -1491,7 +1664,7 @@ export default function InventoryPage() {
       job_type: selectedJob.job_type,
       parts_required: selectedJob.parts_required || [],
       technician: selectedJob.technician_name,
-      created_at: selectedJob.created_at
+      created_at: selectedJob.created_at,
     };
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
@@ -1501,114 +1674,129 @@ export default function InventoryPage() {
 
   const createTestStockItems = async () => {
     try {
-      const response = await fetch('/api/stock/test', {
-        method: 'POST',
+      const response = await fetch("/api/stock/test", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to create test stock items');
+        throw new Error("Failed to create test stock items");
       }
-      
+
       const data = await response.json();
-      console.log('Test stock items created:', data);
-      toast.success('Test stock items created successfully');
+      console.log("Test stock items created:", data);
+      toast.success("Test stock items created successfully");
     } catch (error) {
-      console.error('Error creating test stock items:', error);
-      toast.error('Failed to create test stock items');
+      console.error("Error creating test stock items:", error);
+      toast.error("Failed to create test stock items");
     }
   };
 
   const createTestCategories = async () => {
     try {
-      const response = await fetch('/api/inventory-categories/test', {
-        method: 'POST',
+      const response = await fetch("/api/inventory-categories/test", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to create test categories');
+        throw new Error("Failed to create test categories");
       }
-      
+
       const data = await response.json();
-      console.log('Test categories created:', data);
-      toast.success('Test categories created successfully');
+      console.log("Test categories created:", data);
+      toast.success("Test categories created successfully");
       // Refresh categories after creation
       fetchCategories();
     } catch (error) {
-      console.error('Error creating test categories:', error);
-      toast.error('Failed to create test categories');
+      console.error("Error creating test categories:", error);
+      toast.error("Failed to create test categories");
     }
   };
 
   const testCategoriesAPI = async () => {
     try {
-      console.log('Testing categories API...');
-      const response = await fetch('/api/inventory-categories');
-      console.log('Categories API response status:', response.status);
+      console.log("Testing categories API...");
+      const response = await fetch("/api/inventory-categories");
+      console.log("Categories API response status:", response.status);
       const data = await response.json();
-      console.log('Categories API response data:', data);
+      console.log("Categories API response data:", data);
       toast.success(`Found ${data.categories?.length || 0} categories`);
     } catch (error) {
-      console.error('Error testing categories API:', error);
-      toast.error('Failed to test categories API');
+      console.error("Error testing categories API:", error);
+      toast.error("Failed to test categories API");
     }
   };
 
   // Stock Take Functions
   const fetchStockItems = async () => {
-    console.log('fetchStockItems called, activeTab:', activeTab, 'stockTakeActiveTab:', stockTakeActiveTab);
+    console.log(
+      "fetchStockItems called, activeTab:",
+      activeTab,
+      "stockTakeActiveTab:",
+      stockTakeActiveTab,
+    );
     try {
       // Build query parameters
       const params = new URLSearchParams();
-      if (selectedStockType !== 'all') {
-        params.append('category', selectedStockType);
+      if (selectedStockType !== "all") {
+        params.append("category", selectedStockType);
       }
-      
-      console.log('Fetching stock with params:', params.toString());
+
+      console.log("Fetching stock with params:", params.toString());
       const response = await fetch(`/api/stock?${params}`);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Stock API error:', response.status, errorText);
-        throw new Error(`Failed to fetch stock items: ${response.status} - ${errorText}`);
+        console.error("Stock API error:", response.status, errorText);
+        throw new Error(
+          `Failed to fetch stock items: ${response.status} - ${errorText}`,
+        );
       }
       const data = await response.json();
-      console.log('Stock items received:', data.stock?.slice(0, 2)); // Log first 2 items
-      console.log('Setting stockItems state with:', data.stock?.length, 'items');
+      console.log("Stock items received:", data.stock?.slice(0, 2)); // Log first 2 items
+      console.log(
+        "Setting stockItems state with:",
+        data.stock?.length,
+        "items",
+      );
       setStockItems(data.stock || []);
-      console.log('StockItems state updated');
-      
+      console.log("StockItems state updated");
+
       // Always fetch categories for filter dropdown
       await fetchCategories();
     } catch (error) {
-      console.error('Error fetching stock items:', error);
-      toast.error('Failed to load stock items');
+      console.error("Error fetching stock items:", error);
+      toast.error("Failed to load stock items");
     }
   };
 
   // Separate function to fetch categories
   const fetchCategories = async () => {
     try {
-      console.log('Fetching categories...');
-      const categoriesResponse = await fetch('/api/inventory-categories');
-      console.log('Categories response status:', categoriesResponse.status);
+      console.log("Fetching categories...");
+      const categoriesResponse = await fetch("/api/inventory-categories");
+      console.log("Categories response status:", categoriesResponse.status);
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
-        console.log('Categories API response:', categoriesData);
-        console.log('Categories array:', categoriesData.categories);
-        console.log('Setting stockTypes with:', categoriesData.categories?.length || 0, 'categories');
+        console.log("Categories API response:", categoriesData);
+        console.log("Categories array:", categoriesData.categories);
+        console.log(
+          "Setting stockTypes with:",
+          categoriesData.categories?.length || 0,
+          "categories",
+        );
         setStockTypes(categoriesData.categories || []);
       } else {
-        console.error('Categories API error:', categoriesResponse.status);
+        console.error("Categories API error:", categoriesResponse.status);
         const errorText = await categoriesResponse.text();
-        console.error('Categories API error text:', errorText);
+        console.error("Categories API error text:", errorText);
       }
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error("Error fetching categories:", error);
     }
   };
 
@@ -1616,70 +1804,74 @@ export default function InventoryPage() {
     setStockTakeMode(true);
     setUpdatedItems({});
     setHasChanges(false);
-    toast.success('Stock take mode activated. You can now update quantities.');
+    toast.success("Stock take mode activated. You can now update quantities.");
   };
 
   const handleCancelStockTake = () => {
     setStockTakeMode(false);
     setUpdatedItems({});
     setHasChanges(false);
-    toast.info('Stock take cancelled. No changes were saved.');
+    toast.info("Stock take cancelled. No changes were saved.");
   };
 
   const handleQuantityChange = (itemId, newQuantity) => {
-    const currentQuantity = parseInt(stockItems.find(item => item.id === itemId)?.quantity || '0');
+    const currentQuantity = parseInt(
+      stockItems.find((item) => item.id === itemId)?.quantity || "0",
+    );
     const parsedQuantity = parseInt(newQuantity) || 0;
-    
-    setUpdatedItems(prev => ({
+
+    setUpdatedItems((prev) => ({
       ...prev,
       [itemId]: {
         id: itemId,
         current_quantity: currentQuantity,
         new_quantity: parsedQuantity,
-        difference: parsedQuantity - currentQuantity
-      }
+        difference: parsedQuantity - currentQuantity,
+      },
     }));
-    
+
     setHasChanges(true);
   };
 
   const handlePublishStockTake = async () => {
     if (!hasChanges) {
-      toast.error('No changes to publish');
+      toast.error("No changes to publish");
       return;
     }
 
     try {
       setPublishing(true);
-      const response = await fetch('/api/stock/stock-take', {
-        method: 'POST',
+      const response = await fetch("/api/stock/stock-take", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           stock_updates: Object.values(updatedItems),
           stock_take_date: new Date().toISOString(),
-          notes: `Stock take completed on ${new Date().toLocaleDateString()}`
+          notes: `Stock take completed on ${new Date().toLocaleDateString()}`,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to publish stock take');
+        throw new Error("Failed to publish stock take");
       }
 
       const result = await response.json();
-      toast.success(`Stock take published successfully! ${result.updated_count} items updated.`);
-      
+      toast.success(
+        `Stock take published successfully! ${result.updated_count} items updated.`,
+      );
+
       // Reset state
       setStockTakeMode(false);
       setUpdatedItems({});
       setHasChanges(false);
-      
+
       // Refresh stock items
       fetchStockItems();
     } catch (error) {
-      console.error('Error publishing stock take:', error);
-      toast.error('Failed to publish stock take');
+      console.error("Error publishing stock take:", error);
+      toast.error("Failed to publish stock take");
     } finally {
       setPublishing(false);
     }
@@ -1690,7 +1882,7 @@ export default function InventoryPage() {
   // const getQuantityDifference = (itemId) => {
   //   const update = updatedItems[itemId];
   //   if (!update) return null;
-  //   
+  //
   //   if (update.difference > 0) {
   //     return { type: 'increase', value: update.difference };
   //   } else if (update.difference < 0) {
@@ -1700,34 +1892,36 @@ export default function InventoryPage() {
   // };
 
   const getQuantityDifferenceColor = (difference) => {
-    if (difference > 0) return 'text-green-600';
-    if (difference < 0) return 'text-red-600';
-    return 'text-gray-600';
+    if (difference > 0) return "text-green-600";
+    if (difference < 0) return "text-red-600";
+    return "text-gray-600";
   };
-  
+
   // Handle IP address assignment completion
   const handleIPAddressesAssigned = (itemId: number, ipAddresses: string[]) => {
     // Update the stock item in the local state
-    setStockItems(prev => prev.map(item => {
-      if (item.id === itemId) {
-        return {
-          ...item,
-          ip_addresses: ipAddresses
-        };
-      }
-      return item;
-    }));
+    setStockItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            ip_addresses: ipAddresses,
+          };
+        }
+        return item;
+      }),
+    );
   };
 
   const getStockTypeColor = (stockType) => {
     const colors = {
-      'Tracking Equipment': 'bg-blue-100 text-blue-800',
-      'Accessories': 'bg-green-100 text-green-800',
-      'Hardware': 'bg-orange-100 text-orange-800',
-      'Electronics': 'bg-purple-100 text-purple-800',
-      'Software': 'bg-indigo-100 text-indigo-800'
+      "Tracking Equipment": "bg-blue-100 text-blue-800",
+      Accessories: "bg-green-100 text-green-800",
+      Hardware: "bg-orange-100 text-orange-800",
+      Electronics: "bg-purple-100 text-purple-800",
+      Software: "bg-indigo-100 text-indigo-800",
     };
-    return colors[stockType] || 'bg-gray-100 text-gray-800';
+    return colors[stockType] || "bg-gray-100 text-gray-800";
   };
 
   // Boot stock state
@@ -1738,28 +1932,32 @@ export default function InventoryPage() {
   const fetchBootStock = async () => {
     try {
       setBootStockLoading(true);
-      const { createClient } = await import('@/lib/supabase/client');
+      const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      
-      const { data: { user } } = await supabase.auth.getUser();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: techStock, error } = await supabase
-        .from('tech_stock')
-        .select('assigned_parts')
-        .eq('technician_email', user.email)
+        .from("tech_stock")
+        .select("assigned_parts")
+        .eq("technician_email", user.email)
         .single();
 
       if (error) {
-        console.error('Error fetching tech stock:', error);
+        console.error("Error fetching tech stock:", error);
         return;
       }
 
       const assignedParts = techStock?.assigned_parts || [];
-      const bootStockItems = assignedParts.filter(item => item.boot_stock === 'yes');
+      const bootStockItems = assignedParts.filter(
+        (item) => item.boot_stock === "yes",
+      );
       setBootStock(bootStockItems);
     } catch (error) {
-      console.error('Error fetching boot stock:', error);
+      console.error("Error fetching boot stock:", error);
     } finally {
       setBootStockLoading(false);
     }
@@ -1767,9 +1965,9 @@ export default function InventoryPage() {
 
   // Threshold management functions
   const handleThresholdChange = (itemId, newThreshold) => {
-    setThresholds(prev => ({
+    setThresholds((prev) => ({
       ...prev,
-      [String(itemId)]: parseInt(newThreshold) || defaultThreshold
+      [String(itemId)]: parseInt(newThreshold) || defaultThreshold,
     }));
   };
 
@@ -1784,61 +1982,72 @@ export default function InventoryPage() {
   };
 
   const getLowStockStyle = (item) => {
-    return isLowStock(item) ? 'bg-red-50 border-red-200' : '';
+    return isLowStock(item) ? "bg-red-50 border-red-200" : "";
   };
 
-  const filteredStockItems = stockItems.filter(item => {
-    if (item.status === 'CATEGORY') return false;
+  const filteredStockItems = stockItems
+    .filter((item) => {
+      if (item.status === "CATEGORY") return false;
 
-    const query = stockTakeSearchTerm.toLowerCase();
-    const matchesSearch = !stockTakeSearchTerm ||
-      item.serial_number?.toLowerCase().includes(query) ||
-      item.category_code?.toLowerCase().includes(query) ||
-      item.category_description?.toLowerCase().includes(query) ||
-      item.description?.toLowerCase().includes(query);
-    
-    const matchesType = selectedStockType === 'all' || item.category_code === selectedStockType;
-    
-    return matchesSearch && matchesType;
-  }).sort((a, b) => {
-    // Sort low stock items to the top
-    const aIsLow = isLowStock(a);
-    const bIsLow = isLowStock(b);
-    if (aIsLow && !bIsLow) return -1;
-    if (!aIsLow && bIsLow) return 1;
-    return 0;
-  });
+      const query = stockTakeSearchTerm.toLowerCase();
+      const matchesSearch =
+        !stockTakeSearchTerm ||
+        item.serial_number?.toLowerCase().includes(query) ||
+        item.category_code?.toLowerCase().includes(query) ||
+        item.category_description?.toLowerCase().includes(query) ||
+        item.description?.toLowerCase().includes(query);
+
+      const matchesType =
+        selectedStockType === "all" || item.category_code === selectedStockType;
+
+      return matchesSearch && matchesType;
+    })
+    .sort((a, b) => {
+      // Sort low stock items to the top
+      const aIsLow = isLowStock(a);
+      const bIsLow = isLowStock(b);
+      if (aIsLow && !bIsLow) return -1;
+      if (!aIsLow && bIsLow) return 1;
+      return 0;
+    });
 
   const groupedStockItems = useMemo(() => {
-    const groups = filteredStockItems.reduce((acc, item) => {
-      const groupKey = item.category_code || 'uncategorized';
+    const groups = filteredStockItems.reduce(
+      (acc, item) => {
+        const groupKey = item.category_code || "uncategorized";
 
-      if (!acc[groupKey]) {
-        acc[groupKey] = {
-          key: groupKey,
-          categoryCode: item.category_code || 'N/A',
-          categoryDescription: item.category_description || item.description || 'Uncategorized',
-          items: [],
-          totalQuantity: 0,
-          lowCount: 0,
-        };
-      }
+        if (!acc[groupKey]) {
+          acc[groupKey] = {
+            key: groupKey,
+            categoryCode: item.category_code || "N/A",
+            categoryDescription:
+              item.category_description || item.description || "Uncategorized",
+            items: [],
+            totalQuantity: 0,
+            lowCount: 0,
+          };
+        }
 
-      const quantity = parseInt(item.quantity || '0');
+        const quantity = parseInt(item.quantity || "0");
 
-      acc[groupKey].items.push(item);
-      acc[groupKey].totalQuantity += quantity;
-      if (isLowStock(item)) acc[groupKey].lowCount += 1;
+        acc[groupKey].items.push(item);
+        acc[groupKey].totalQuantity += quantity;
+        if (isLowStock(item)) acc[groupKey].lowCount += 1;
 
-      return acc;
-    }, {} as Record<string, {
-      key: string;
-      categoryCode: string;
-      categoryDescription: string;
-      items: StockItem[];
-      totalQuantity: number;
-      lowCount: number;
-    }>);
+        return acc;
+      },
+      {} as Record<
+        string,
+        {
+          key: string;
+          categoryCode: string;
+          categoryDescription: string;
+          items: StockItem[];
+          totalQuantity: number;
+          lowCount: number;
+        }
+      >,
+    );
 
     return Object.values(groups).sort((a, b) => {
       const aThreshold = getItemThreshold(a.key);
@@ -1853,9 +2062,9 @@ export default function InventoryPage() {
   }, [filteredStockItems, thresholds, defaultThreshold]);
 
   const toggleStockCategory = (categoryKey: string) => {
-    setExpandedStockCategories(prev => ({
+    setExpandedStockCategories((prev) => ({
       ...prev,
-      [categoryKey]: !prev[categoryKey]
+      [categoryKey]: !prev[categoryKey],
     }));
   };
 
@@ -1877,16 +2086,19 @@ export default function InventoryPage() {
           <RefreshCw className="mr-2 w-4 h-4" />
           Refresh
         </Button>
-
       </div>
 
       {/* Job Cards */}
       {filteredJobCards.length === 0 ? (
         <div className="py-12 text-center">
           <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No job cards found</h3>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+            No job cards found
+          </h3>
           <p className="text-gray-500">
-            {searchTerm ? 'No job cards match your search criteria.' : 'No job cards available.'}
+            {searchTerm
+              ? "No job cards match your search criteria."
+              : "No job cards available."}
           </p>
         </div>
       ) : (
@@ -1895,12 +2107,24 @@ export default function InventoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200">
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Type</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job Number
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Vehicle
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job Type
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1911,93 +2135,148 @@ export default function InventoryPage() {
                       className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50/50"
                       onClick={() => handleOpenJobDetails(job)}
                     >
-                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-gray-900">{job.job_number}</span>
-                        </div>
-                        {job.quotation_number && (
-                          <span className="text-xs text-gray-500 font-medium">Quote: {job.quotation_number}</span>
-                        )}
-                        {job.ip_address && (
-                          <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
-                        )}
-                        {job.contact_person && (
-                          <span className="text-xs text-blue-600 font-medium">Contact: {job.contact_person}</span>
-                        )}
-                        {job.decommission_date && (
-                          <span className="text-xs text-amber-600 font-medium">
-                            Decommission: {new Date(job.decommission_date).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium text-gray-900">{job.customer_name}</span>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      <div className="flex items-center gap-2">
-                        <Car className="w-4 h-4 text-gray-400" />
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
-                          {job.vehicle_make && job.vehicle_model && (
-                            <span className="text-xs text-gray-500">{job.vehicle_make} {job.vehicle_model}</span>
+                      <td
+                        className="py-4 px-6 align-middle"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">
+                              {job.job_number}
+                            </span>
+                          </div>
+                          {job.quotation_number && (
+                            <span className="text-xs text-gray-500 font-medium">
+                              Quote: {job.quotation_number}
+                            </span>
+                          )}
+                          {job.ip_address && (
+                            <span className="text-xs text-gray-500">
+                              IP: {job.ip_address}
+                            </span>
+                          )}
+                          {job.contact_person && (
+                            <span className="text-xs text-blue-600 font-medium">
+                              Contact: {job.contact_person}
+                            </span>
+                          )}
+                          {job.decommission_date && (
+                            <span className="text-xs text-amber-600 font-medium">
+                              Decommission:{" "}
+                              {new Date(
+                                job.decommission_date,
+                              ).toLocaleDateString()}
+                            </span>
                           )}
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      {job.job_type && (
-                        <Badge variant="outline" className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}>
-                          {job.job_type}
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-gray-900">
+                            {job.customer_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex items-center gap-2">
+                          <Car className="w-4 h-4 text-gray-400" />
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-gray-700">
+                              {job.vehicle_registration || "No vehicle"}
+                            </span>
+                            {job.vehicle_make && job.vehicle_model && (
+                              <span className="text-xs text-gray-500">
+                                {job.vehicle_make} {job.vehicle_model}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        {job.job_type && (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}
+                          >
+                            {job.job_type}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <Badge
+                          className={`${getStatusColor(job.job_status || job.status)} font-medium`}
+                        >
+                          {job.job_status || job.status || "NOT STARTED"}
                         </Badge>
-                      )}
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      <Badge className={`${getStatusColor(job.job_status || job.status)} font-medium`}>
-                        {job.job_status || job.status || 'NOT STARTED'}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleAssignParts(job);
-                          }}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <Plus className="mr-1 w-3 h-3" />
-                          Assign Parts
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleBookStock(job);
-                          }}
-                          className={hasBootStock(job) ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
-                          title={hasBootStock(job) ? "Boot stock already assigned" : "Book boot stock and move to admin"}
-                        >
-                          <Package className="mr-1 w-3 h-3" />
-                          Boot Stock
-                        </Button>
-                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
-                          <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
-                            <SelectValue placeholder="Move to..." />
-                          </SelectTrigger>
-                          <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
-                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
-                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td
+                        className="py-4 px-6 align-middle"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleAssignParts(job);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Plus className="mr-1 w-3 h-3" />
+                            Assign Parts
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleBookStock(job);
+                            }}
+                            className={
+                              hasBootStock(job)
+                                ? "bg-green-600 hover:bg-green-700 text-white"
+                                : "bg-amber-600 hover:bg-amber-700 text-white"
+                            }
+                            title={
+                              hasBootStock(job)
+                                ? "Boot stock already assigned"
+                                : "Book boot stock and move to admin"
+                            }
+                          >
+                            <Package className="mr-1 w-3 h-3" />
+                            Boot Stock
+                          </Button>
+                          <Select
+                            onValueChange={(value) =>
+                              handleMoveJob(job.id, value)
+                            }
+                          >
+                            <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
+                              <SelectValue placeholder="Move to..." />
+                            </SelectTrigger>
+                            <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
+                              <SelectItem
+                                value="admin"
+                                className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
+                              >
+                                Admin
+                              </SelectItem>
+                              <SelectItem
+                                value="accounts"
+                                className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
+                              >
+                                Accounts
+                              </SelectItem>
+                              <SelectItem
+                                value="fc"
+                                className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3"
+                              >
+                                FC
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -2018,8 +2297,12 @@ export default function InventoryPage() {
       {jobCardsWithParts.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No jobs with assigned parts</h3>
-          <p className="text-gray-500">Jobs will appear here once parts are assigned.</p>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+            No jobs with assigned parts
+          </h3>
+          <p className="text-gray-500">
+            Jobs will appear here once parts are assigned.
+          </p>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -2027,12 +2310,24 @@ export default function InventoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200">
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Type</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Parts</th>
-                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job Number
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Vehicle
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job Type
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Parts
+                  </th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -2044,24 +2339,35 @@ export default function InventoryPage() {
                   >
                     <td className="py-4 px-6 align-middle">
                       <div className="flex flex-col gap-1">
-                        <span className="font-semibold text-gray-900">{job.job_number}</span>
+                        <span className="font-semibold text-gray-900">
+                          {job.job_number}
+                        </span>
                         {job.ip_address && (
-                          <span className="text-xs text-gray-500">IP: {job.ip_address}</span>
+                          <span className="text-xs text-gray-500">
+                            IP: {job.ip_address}
+                          </span>
                         )}
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
-                      <span className="font-medium text-gray-900">{job.customer_name}</span>
+                      <span className="font-medium text-gray-900">
+                        {job.customer_name}
+                      </span>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex items-center gap-2">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
+                        <span className="font-medium text-gray-700">
+                          {job.vehicle_registration || "No vehicle"}
+                        </span>
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       {job.job_type && (
-                        <Badge variant="outline" className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs font-medium ${getJobTypeColor(job.job_type)}`}
+                        >
                           {job.job_type}
                         </Badge>
                       )}
@@ -2069,9 +2375,16 @@ export default function InventoryPage() {
                     <td className="py-4 px-6 align-middle">
                       <div className="space-y-1">
                         {job.parts_required?.slice(0, 2).map((part, index) => (
-                          <div key={index} className="flex justify-between text-gray-600 text-xs">
-                            <span className="font-medium">• {part.description}</span>
-                            <span className="text-green-600 ml-2 font-medium">Qty: {part.quantity}</span>
+                          <div
+                            key={index}
+                            className="flex justify-between text-gray-600 text-xs"
+                          >
+                            <span className="font-medium">
+                              • {part.description}
+                            </span>
+                            <span className="text-green-600 ml-2 font-medium">
+                              Qty: {part.quantity}
+                            </span>
                           </div>
                         ))}
                         {job.parts_required?.length > 2 && (
@@ -2081,7 +2394,10 @@ export default function InventoryPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-4 px-6 align-middle" onClick={(event) => event.stopPropagation()}>
+                    <td
+                      className="py-4 px-6 align-middle"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"
@@ -2108,14 +2424,33 @@ export default function InventoryPage() {
                           <RefreshCw className="mr-1 w-3 h-3" />
                           Re-Open Job
                         </Button>
-                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
+                        <Select
+                          onValueChange={(value) =>
+                            handleMoveJob(job.id, value)
+                          }
+                        >
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                             <SelectValue placeholder="Move to..." />
                           </SelectTrigger>
                           <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
-                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
-                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
+                            <SelectItem
+                              value="admin"
+                              className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
+                            >
+                              Admin
+                            </SelectItem>
+                            <SelectItem
+                              value="accounts"
+                              className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
+                            >
+                              Accounts
+                            </SelectItem>
+                            <SelectItem
+                              value="fc"
+                              className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3"
+                            >
+                              FC
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2140,7 +2475,9 @@ export default function InventoryPage() {
       {completedJobs.length === 0 ? (
         <div className="py-12 text-center">
           <CheckCircle className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No completed jobs</h3>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+            No completed jobs
+          </h3>
           <p className="text-gray-500">Completed jobs will appear here.</p>
         </div>
       ) : (
@@ -2149,33 +2486,56 @@ export default function InventoryPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-200">
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Number</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Vehicle</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Completion Date</th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Notes</th>
-                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job Number
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Vehicle
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Completion Date
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Notes
+                  </th>
+                  <th className="py-4 px-6 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {completedJobs.map((job) => (
-                  <tr key={job.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/50">
+                  <tr
+                    key={job.id}
+                    className="border-b border-gray-100 transition-colors hover:bg-gray-50/50"
+                  >
                     <td className="py-4 px-6 align-middle">
-                      <div className="font-semibold text-gray-900">{job.job_number}</div>
+                      <div className="font-semibold text-gray-900">
+                        {job.job_number}
+                      </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
-                      <span className="font-medium text-gray-900">{job.customer_name}</span>
+                      <span className="font-medium text-gray-900">
+                        {job.customer_name}
+                      </span>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex items-center gap-2">
                         <Car className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium text-gray-700">{job.vehicle_registration || 'No vehicle'}</span>
+                        <span className="font-medium text-gray-700">
+                          {job.vehicle_registration || "No vehicle"}
+                        </span>
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-700">{formatDate(job.completion_date)}</span>
+                        <span className="text-gray-700">
+                          {formatDate(job.completion_date)}
+                        </span>
                       </div>
                     </td>
                     <td className="py-4 px-6 align-middle">
@@ -2201,15 +2561,22 @@ export default function InventoryPage() {
                               View QR: 1
                             </Button>
                             <Badge variant="outline" className="text-xs">
-                              {parsePartsRequired(job.parts_required).length} stock used
+                              {parsePartsRequired(job.parts_required).length}{" "}
+                              stock used
                             </Badge>
                           </>
                         )}
-                        {isDeInstallJob(job) && parseQuotationProducts(job.quotation_products).length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {parseQuotationProducts(job.quotation_products).length} de-installed
-                          </Badge>
-                        )}
+                        {isDeInstallJob(job) &&
+                          parseQuotationProducts(job.quotation_products)
+                            .length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {
+                                parseQuotationProducts(job.quotation_products)
+                                  .length
+                              }{" "}
+                              de-installed
+                            </Badge>
+                          )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -2219,14 +2586,33 @@ export default function InventoryPage() {
                           <Eye className="mr-1 w-3 h-3" />
                           View Details
                         </Button>
-                        <Select onValueChange={(value) => handleMoveJob(job.id, value)}>
+                        <Select
+                          onValueChange={(value) =>
+                            handleMoveJob(job.id, value)
+                          }
+                        >
                           <SelectTrigger className="w-[140px] h-9 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors">
                             <SelectValue placeholder="Move to..." />
                           </SelectTrigger>
                           <SelectContent className="z-[9999] bg-white border border-gray-200 shadow-lg rounded-md">
-                            <SelectItem value="admin" className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3">Admin</SelectItem>
-                            <SelectItem value="accounts" className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3">Accounts</SelectItem>
-                            <SelectItem value="fc" className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3">FC</SelectItem>
+                            <SelectItem
+                              value="admin"
+                              className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
+                            >
+                              Admin
+                            </SelectItem>
+                            <SelectItem
+                              value="accounts"
+                              className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
+                            >
+                              Accounts
+                            </SelectItem>
+                            <SelectItem
+                              value="fc"
+                              className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3"
+                            >
+                              FC
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2276,10 +2662,14 @@ export default function InventoryPage() {
         <div className="py-12 text-center">
           <Receipt className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">
-            {stockOrdersSearchTerm ? 'No orders match your search criteria.' : 'No orders found'}
+            {stockOrdersSearchTerm
+              ? "No orders match your search criteria."
+              : "No orders found"}
           </h3>
           <p className="text-gray-500">
-            {stockOrdersSearchTerm ? 'Try adjusting your search terms.' : 'Orders will appear here once submitted.'}
+            {stockOrdersSearchTerm
+              ? "Try adjusting your search terms."
+              : "Orders will appear here once submitted."}
           </p>
         </div>
       ) : (
@@ -2314,30 +2704,42 @@ export default function InventoryPage() {
               {filteredStockOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 border border-gray-200 text-sm">
-                    <div className="font-medium text-gray-900">{order.order_number}</div>
+                    <div className="font-medium text-gray-900">
+                      {order.order_number}
+                    </div>
                     {order.notes && (
-                      <div className="mt-1 text-gray-500 text-xs">{order.notes}</div>
+                      <div className="mt-1 text-gray-500 text-xs">
+                        {order.notes}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm">
-                    {order.supplier || 'Custom'}
+                    {order.supplier || "Custom"}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                    <Badge className={`text-xs ${
-                      order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {order.status || 'pending'}
+                    <Badge
+                      className={`text-xs ${
+                        order.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : order.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {order.status || "pending"}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm text-center">
                     {formatDate(order.order_date)}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                    <div className="font-medium">{parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}</div>
+                    <div className="font-medium">
+                      {parseFloat(order.total_amount_ex_vat || 0).toFixed(2)}
+                    </div>
                     {order.total_amount_usd && (
-                      <div className="text-gray-500 text-xs">{parseFloat(order.total_amount_usd).toFixed(2)}</div>
+                      <div className="text-gray-500 text-xs">
+                        {parseFloat(order.total_amount_usd).toFixed(2)}
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-sm text-center">
@@ -2361,7 +2763,9 @@ export default function InventoryPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleDownloadStockOrderInvoice(order)}
+                            onClick={() =>
+                              handleDownloadStockOrderInvoice(order)
+                            }
                             className="text-green-600 hover:text-green-700 text-xs"
                           >
                             <Download className="mr-1 w-3 h-3" />
@@ -2380,7 +2784,7 @@ export default function InventoryPage() {
                         <Package className="mr-1 w-3 h-3" />
                         View Items
                       </Button>
-                      {order.status === 'paid' && (
+                      {order.status === "paid" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -2414,16 +2818,20 @@ export default function InventoryPage() {
         item={selectedStockItem || { id: 0 }} // Provide a fallback item to prevent errors
         onAssigned={handleIPAddressesAssigned}
       />
-      
+
       {/* Stock Take Header */}
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-semibold text-gray-900 text-lg">Stock Take</h3>
-          <p className="text-gray-600 text-sm">Perform physical stock counts and update inventory</p>
+          <p className="text-gray-600 text-sm">
+            Perform physical stock counts and update inventory
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            onClick={stockTakeMode ? handleCancelStockTake : handleStartStockTake}
+          <Button
+            onClick={
+              stockTakeMode ? handleCancelStockTake : handleStartStockTake
+            }
             variant={stockTakeMode ? "outline" : "default"}
             className={stockTakeMode ? "text-red-600 hover:text-red-700" : ""}
           >
@@ -2439,7 +2847,7 @@ export default function InventoryPage() {
               </>
             )}
           </Button>
-          <Button 
+          <Button
             onClick={() => setShowAddItemModal(true)}
             className="bg-green-600 hover:bg-green-700"
           >
@@ -2454,26 +2862,26 @@ export default function InventoryPage() {
         <nav className="flex space-x-8 -mb-px">
           <button
             onClick={() => {
-              console.log('Stock Take sub-tab clicked');
-              setStockTakeActiveTab('stock-take');
+              console.log("Stock Take sub-tab clicked");
+              setStockTakeActiveTab("stock-take");
             }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              stockTakeActiveTab === 'stock-take'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              stockTakeActiveTab === "stock-take"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             Stock Take
           </button>
           <button
             onClick={() => {
-              console.log('Thresholds sub-tab clicked');
-              setStockTakeActiveTab('thresholds');
+              console.log("Thresholds sub-tab clicked");
+              setStockTakeActiveTab("thresholds");
             }}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              stockTakeActiveTab === 'thresholds'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              stockTakeActiveTab === "thresholds"
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
             Thresholds
@@ -2482,7 +2890,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Conditional Content Based on Active Tab */}
-      {stockTakeActiveTab === 'stock-take' ? (
+      {stockTakeActiveTab === "stock-take" ? (
         <>
           {/* Stock Take Controls */}
           {stockTakeMode && (
@@ -2491,7 +2899,9 @@ export default function InventoryPage() {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium text-blue-800">Stock Take Mode Active</span>
+                    <span className="font-medium text-blue-800">
+                      Stock Take Mode Active
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -2500,7 +2910,7 @@ export default function InventoryPage() {
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <Save className="mr-2 w-4 h-4" />
-                      {publishing ? 'Publishing...' : 'Publish Changes'}
+                      {publishing ? "Publishing..." : "Publish Changes"}
                     </Button>
                   </div>
                 </div>
@@ -2532,8 +2942,8 @@ export default function InventoryPage() {
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm"
               >
                 <option value="all">All Categories</option>
-                {stockTypes.map(type => {
-                  console.log('Rendering category option:', type);
+                {stockTypes.map((type) => {
+                  console.log("Rendering category option:", type);
                   return (
                     <option key={type.code} value={type.code}>
                       {type.code} - {type.description}
@@ -2554,23 +2964,30 @@ export default function InventoryPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="font-medium text-gray-700 text-sm">Default Threshold:</label>
+                <label className="font-medium text-gray-700 text-sm">
+                  Default Threshold:
+                </label>
                 <Input
                   type="number"
                   min="1"
                   value={defaultThreshold}
-                  onChange={(e) => setDefaultThreshold(parseInt(e.target.value) || 10)}
+                  onChange={(e) =>
+                    setDefaultThreshold(parseInt(e.target.value) || 10)
+                  }
                   className="w-20"
                 />
               </div>
-              <p className="text-gray-600 text-sm">Items at or below this threshold will be highlighted in red</p>
+              <p className="text-gray-600 text-sm">
+                Items at or below this threshold will be highlighted in red
+              </p>
             </div>
-            
+
             <div className="bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-yellow-600" />
                 <span className="font-medium text-yellow-800 text-sm">
-                  Set individual thresholds below or use the default threshold of {defaultThreshold}
+                  Set individual thresholds below or use the default threshold
+                  of {defaultThreshold}
                 </span>
               </div>
             </div>
@@ -2582,9 +2999,13 @@ export default function InventoryPage() {
       {groupedStockItems.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No stock items found</h3>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+            No stock items found
+          </h3>
           <p className="text-gray-500">
-            {stockTakeSearchTerm || selectedStockType !== 'all' ? 'No stock items match your search criteria.' : 'No stock items available.'}
+            {stockTakeSearchTerm || selectedStockType !== "all"
+              ? "No stock items match your search criteria."
+              : "No stock items available."}
           </p>
         </div>
       ) : (
@@ -2593,17 +3014,30 @@ export default function InventoryPage() {
             <table className="w-full border-collapse">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Category</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Description</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Total Count</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Serials</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Threshold</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Action</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                    Category
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Description
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Total Count
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Serials
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Threshold
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white">
                 {groupedStockItems.map((group) => {
-                  const isExpanded = expandedStockCategories[group.key] ?? false;
+                  const isExpanded =
+                    expandedStockCategories[group.key] ?? false;
                   const threshold = getItemThreshold(group.key);
                   const groupIsLow = group.totalQuantity <= threshold;
 
@@ -2611,7 +3045,7 @@ export default function InventoryPage() {
                     <>
                       <tr
                         key={`group-${group.key}`}
-                        className={`${groupIsLow ? 'bg-red-50' : 'bg-white'} border-t hover:bg-slate-50`}
+                        className={`${groupIsLow ? "bg-red-50" : "bg-white"} border-t hover:bg-slate-50`}
                       >
                         <td className="px-4 py-3 text-sm">
                           <div className="flex items-center gap-2">
@@ -2620,28 +3054,50 @@ export default function InventoryPage() {
                               onClick={() => toggleStockCategory(group.key)}
                               className="rounded p-1 hover:bg-white"
                             >
-                              {isExpanded ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-slate-500" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-500" />
+                              )}
                             </button>
-                            <span className="font-semibold text-slate-900">{group.categoryCode}</span>
-                            {groupIsLow && <Badge className="bg-red-100 text-red-800 text-xs">Low Stock</Badge>}
+                            <span className="font-semibold text-slate-900">
+                              {group.categoryCode}
+                            </span>
+                            {groupIsLow && (
+                              <Badge className="bg-red-100 text-red-800 text-xs">
+                                Low Stock
+                              </Badge>
+                            )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-center text-sm text-gray-700">{group.categoryDescription}</td>
-                        <td className="px-4 py-3 text-center text-sm">
-                          <span className={`font-medium ${groupIsLow ? 'text-red-600' : 'text-slate-900'}`}>{group.totalQuantity}</span>
+                        <td className="px-4 py-3 text-center text-sm text-gray-700">
+                          {group.categoryDescription}
                         </td>
-                        <td className="px-4 py-3 text-center text-sm text-slate-900">{group.items.length}</td>
                         <td className="px-4 py-3 text-center text-sm">
-                          {stockTakeActiveTab === 'thresholds' ? (
+                          <span
+                            className={`font-medium ${groupIsLow ? "text-red-600" : "text-slate-900"}`}
+                          >
+                            {group.totalQuantity}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm text-slate-900">
+                          {group.items.length}
+                        </td>
+                        <td className="px-4 py-3 text-center text-sm">
+                          {stockTakeActiveTab === "thresholds" ? (
                             <Input
                               type="number"
                               min="1"
                               value={threshold}
-                              onChange={(e) => handleThresholdChange(group.key, e.target.value)}
+                              onChange={(e) =>
+                                handleThresholdChange(group.key, e.target.value)
+                              }
                               className="mx-auto w-24 text-center"
                             />
                           ) : (
-                            <span className="font-medium text-slate-900">{threshold}</span>
+                            <span className="font-medium text-slate-900">
+                              {threshold}
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center text-sm">
@@ -2651,38 +3107,58 @@ export default function InventoryPage() {
                             size="sm"
                             onClick={() => toggleStockCategory(group.key)}
                           >
-                            {isExpanded ? 'Hide Items' : 'View Items'}
+                            {isExpanded ? "Hide Items" : "View Items"}
                           </Button>
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr key={`subtable-${group.key}`} className="bg-slate-50">
+                        <tr
+                          key={`subtable-${group.key}`}
+                          className="bg-slate-50"
+                        >
                           <td colSpan={7} className="p-0">
                             <table className="w-full border-collapse">
                               <thead className="bg-slate-100">
                                 <tr>
-                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-600">Serial Number</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-600">
+                                    Serial Number
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody className="bg-white">
                                 {group.items.map((item) => {
                                   const isLow = isLowStock(item);
-                                  const isSelected = selectedStockItem?.id === item.id;
+                                  const isSelected =
+                                    selectedStockItem?.id === item.id;
 
                                   return (
                                     <tr
                                       key={item.id}
-                                      className={`cursor-pointer border-t hover:bg-gray-50 ${getLowStockStyle(item)} ${isSelected ? 'bg-blue-50' : ''}`}
+                                      className={`cursor-pointer border-t hover:bg-gray-50 ${getLowStockStyle(item)} ${isSelected ? "bg-blue-50" : ""}`}
                                       onClick={() => setSelectedStockItem(item)}
                                     >
                                       <td className="px-6 py-3 text-sm">
-                                        <div className="font-medium text-gray-900">{item.serial_number || 'N/A'}</div>
-                                        {item.description && item.description !== 'No description' && (
-                                          <div className="mt-1 text-xs text-gray-600">{item.description}</div>
-                                        )}
+                                        <div className="font-medium text-gray-900">
+                                          {item.serial_number || "N/A"}
+                                        </div>
+                                        {item.description &&
+                                          item.description !==
+                                            "No description" && (
+                                            <div className="mt-1 text-xs text-gray-600">
+                                              {item.description}
+                                            </div>
+                                          )}
                                         <div className="mt-1 flex flex-wrap gap-1">
-                                          {isLow && <Badge className="bg-red-100 text-red-800 text-xs">Low Stock</Badge>}
-                                          {isSelected && <Badge className="bg-blue-100 text-blue-800 text-xs">Selected</Badge>}
+                                          {isLow && (
+                                            <Badge className="bg-red-100 text-red-800 text-xs">
+                                              Low Stock
+                                            </Badge>
+                                          )}
+                                          {isSelected && (
+                                            <Badge className="bg-blue-100 text-blue-800 text-xs">
+                                              Selected
+                                            </Badge>
+                                          )}
                                         </div>
                                       </td>
                                     </tr>
@@ -2708,14 +3184,20 @@ export default function InventoryPage() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="font-medium text-green-800">Stock Take Summary</h3>
+                <h3 className="font-medium text-green-800">
+                  Stock Take Summary
+                </h3>
                 <p className="text-green-700 text-sm">
                   {Object.keys(updatedItems).length} items modified
                 </p>
               </div>
               <div className="text-right">
                 <div className="text-green-700 text-sm">
-                  Total Changes: {Object.values(updatedItems).reduce((sum, item) => sum + Math.abs(item.difference), 0)}
+                  Total Changes:{" "}
+                  {Object.values(updatedItems).reduce(
+                    (sum, item) => sum + Math.abs(item.difference),
+                    0,
+                  )}
                 </div>
               </div>
             </div>
@@ -2747,8 +3229,13 @@ export default function InventoryPage() {
       ) : bootStock.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No boot stock assigned</h3>
-          <p className="text-gray-500">Boot stock items will appear here when assigned to your technician account.</p>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+            No boot stock assigned
+          </h3>
+          <p className="text-gray-500">
+            Boot stock items will appear here when assigned to your technician
+            account.
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -2776,7 +3263,9 @@ export default function InventoryPage() {
               {bootStock.map((item, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-4 py-3 border border-gray-200 text-sm">
-                    <div className="font-medium text-gray-900">{item.description}</div>
+                    <div className="font-medium text-gray-900">
+                      {item.description}
+                    </div>
                     <Badge className="bg-green-100 text-green-800 text-xs mt-1">
                       Boot Stock
                     </Badge>
@@ -2793,7 +3282,9 @@ export default function InventoryPage() {
                     {item.supplier}
                   </td>
                   <td className="px-4 py-3 border border-gray-200 text-gray-600 text-sm text-center">
-                    {item.date_added ? new Date(item.date_added).toLocaleDateString() : 'N/A'}
+                    {item.date_added
+                      ? new Date(item.date_added).toLocaleDateString()
+                      : "N/A"}
                   </td>
                 </tr>
               ))}
@@ -2809,12 +3300,23 @@ export default function InventoryPage() {
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
           <h3 className="font-semibold text-gray-900 text-2xl">Client Stock</h3>
-          <p className="text-gray-600 text-sm">Clients loaded from cost centers</p>
+          <p className="text-gray-600 text-sm">
+            Clients loaded from cost centers
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{filteredClientStockClients.length} clients</Badge>
-          <Button onClick={fetchClientStockClients} variant="outline" size="sm" disabled={clientStockLoading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${clientStockLoading ? 'animate-spin' : ''}`} />
+          <Badge variant="outline">
+            {filteredClientStockClients.length} clients
+          </Badge>
+          <Button
+            onClick={fetchClientStockClients}
+            variant="outline"
+            size="sm"
+            disabled={clientStockLoading}
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${clientStockLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
@@ -2839,7 +3341,9 @@ export default function InventoryPage() {
         <div className="py-12 border border-gray-200 rounded-lg text-center">
           <User className="mx-auto mb-3 w-10 h-10 text-gray-400" />
           <p className="text-gray-700">
-            {clientStockSearchTerm ? 'No clients match your search.' : 'No clients found in cost_centers.'}
+            {clientStockSearchTerm
+              ? "No clients match your search."
+              : "No clients found in cost_centers."}
           </p>
         </div>
       ) : (
@@ -2847,25 +3351,37 @@ export default function InventoryPage() {
           <table className="w-full border-collapse">
             <thead className="bg-blue-50">
               <tr>
-                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Client Name</th>
-                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">Action</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">
+                  Client Name
+                </th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredClientStockClients.map((client) => (
                 <tr
                   key={client.cost_code}
-                  className={`hover:bg-gray-50 ${selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-50' : ''}`}
+                  className={`hover:bg-gray-50 ${selectedClientStock?.cost_code === client.cost_code ? "bg-indigo-50" : ""}`}
                 >
                   <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
-                    {client.company || 'N/A'}
+                    {client.company || "N/A"}
                   </td>
                   <td className="px-4 py-3 border-b border-gray-100 text-center">
                     <Button
                       size="sm"
-                      variant={selectedClientStock?.cost_code === client.cost_code ? 'default' : 'outline'}
+                      variant={
+                        selectedClientStock?.cost_code === client.cost_code
+                          ? "default"
+                          : "outline"
+                      }
                       onClick={() => handleViewClientStock(client)}
-                      className={selectedClientStock?.cost_code === client.cost_code ? 'bg-indigo-600 hover:bg-indigo-700' : ''}
+                      className={
+                        selectedClientStock?.cost_code === client.cost_code
+                          ? "bg-indigo-600 hover:bg-indigo-700"
+                          : ""
+                      }
                     >
                       <Eye className="mr-2 w-4 h-4" />
                       View Stock
@@ -2879,23 +3395,43 @@ export default function InventoryPage() {
       )}
 
       {selectedClientStock && (
-        <div ref={clientStockDetailsRef} className="border border-gray-200 rounded-xl bg-white shadow-sm">
+        <div
+          ref={clientStockDetailsRef}
+          className="border border-gray-200 rounded-xl bg-white shadow-sm"
+        >
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 p-4 border-b border-gray-100">
             <div>
-              <h4 className="font-semibold text-gray-900 text-xl">Inventory Stock</h4>
-              <p className="text-gray-600 text-sm">{selectedClientStock.company || 'Selected Client'}</p>
+              <h4 className="font-semibold text-gray-900 text-xl">
+                Inventory Stock
+              </h4>
+              <p className="text-gray-600 text-sm">
+                {selectedClientStock.company || "Selected Client"}
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className={filteredClientStockItems.length > 0 ? 'bg-green-100 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-100'}>
-                {filteredClientStockItems.length > 0 ? 'Stock Available' : 'No Stock'}
+              <Badge
+                className={
+                  filteredClientStockItems.length > 0
+                    ? "bg-green-100 text-green-700 hover:bg-green-100"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-100"
+                }
+              >
+                {filteredClientStockItems.length > 0
+                  ? "Stock Available"
+                  : "No Stock"}
               </Badge>
-              <Badge variant="outline">{filteredClientStockItems.length} items</Badge>
+              <Badge variant="outline">
+                {filteredClientStockItems.length} items
+              </Badge>
             </div>
           </div>
 
           <div className="p-4">
             <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
-              <Select value={clientStockStatusFilter} onValueChange={setClientStockStatusFilter}>
+              <Select
+                value={clientStockStatusFilter}
+                onValueChange={setClientStockStatusFilter}
+              >
                 <SelectTrigger className="w-full lg:w-52">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
@@ -2922,7 +3458,9 @@ export default function InventoryPage() {
             {clientStockItemsLoading ? (
               <div className="flex justify-center items-center py-8">
                 <div className="border-b-2 border-blue-600 rounded-full w-6 h-6 animate-spin"></div>
-                <span className="ml-2 text-sm text-gray-600">Loading stock...</span>
+                <span className="ml-2 text-sm text-gray-600">
+                  Loading stock...
+                </span>
               </div>
             ) : filteredClientStockItems.length === 0 ? (
               <div className="py-10 text-center text-gray-600 text-sm">
@@ -2933,11 +3471,21 @@ export default function InventoryPage() {
                 <table className="w-full border-collapse">
                   <thead className="bg-blue-50">
                     <tr>
-                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Reference</th>
-                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Assigned To</th>
-                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">Action</th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Reference
+                      </th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Assigned To
+                      </th>
+                      <th className="px-4 py-3 border-b border-blue-100 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Action
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2947,18 +3495,25 @@ export default function InventoryPage() {
                           {item.serial_number}
                         </td>
                         <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
-                          {item.inventory_categories?.description || item.category_code}
+                          {item.inventory_categories?.description ||
+                            item.category_code}
                         </td>
                         <td className="px-4 py-3 border-b border-gray-100 text-center">
-                          <span className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold ${getClientStockStatusClasses(item.status)}`}>
-                            {item.status || 'UNKNOWN'}
+                          <span
+                            className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold ${getClientStockStatusClasses(item.status)}`}
+                          >
+                            {item.status || "UNKNOWN"}
                           </span>
                         </td>
                         <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-700">
-                          {item.assigned_to_technician || 'Unassigned'}
+                          {item.assigned_to_technician || "Unassigned"}
                         </td>
                         <td className="px-4 py-3 border-b border-gray-100 text-center">
-                          <Button variant="outline" size="sm" className="text-xs">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                          >
                             Action
                           </Button>
                         </td>
@@ -2978,13 +3533,24 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-gray-900 text-2xl">Technician Stock</h3>
+          <h3 className="font-semibold text-gray-900 text-2xl">
+            Technician Stock
+          </h3>
           <p className="text-gray-600 text-sm">Assigned parts by technician</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline">{filteredTechStockTechnicians.length} technicians</Badge>
-          <Button onClick={fetchTechnicianStockList} variant="outline" size="sm" disabled={techStockLoading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${techStockLoading ? 'animate-spin' : ''}`} />
+          <Badge variant="outline">
+            {filteredTechStockTechnicians.length} technicians
+          </Badge>
+          <Button
+            onClick={fetchTechnicianStockList}
+            variant="outline"
+            size="sm"
+            disabled={techStockLoading}
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${techStockLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
@@ -3003,13 +3569,17 @@ export default function InventoryPage() {
       {techStockLoading ? (
         <div className="flex justify-center items-center py-12">
           <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-          <span className="ml-2 text-sm text-gray-600">Loading technicians...</span>
+          <span className="ml-2 text-sm text-gray-600">
+            Loading technicians...
+          </span>
         </div>
       ) : filteredTechStockTechnicians.length === 0 ? (
         <div className="py-12 border border-gray-200 rounded-lg text-center">
           <User className="mx-auto mb-3 w-10 h-10 text-gray-400" />
           <p className="text-gray-700">
-            {techStockSearchTerm ? 'No technicians match your search.' : 'No technicians found in tech_stock.'}
+            {techStockSearchTerm
+              ? "No technicians match your search."
+              : "No technicians found in tech_stock."}
           </p>
         </div>
       ) : (
@@ -3017,15 +3587,22 @@ export default function InventoryPage() {
           <table className="w-full border-collapse">
             <thead className="bg-blue-50">
               <tr>
-                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">Technician</th>
-                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">Actions</th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-left">
+                  Technician
+                </th>
+                <th className="px-4 py-3 border-b border-blue-100 font-semibold text-gray-700 text-sm text-center">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredTechStockTechnicians.map((tech) => (
-                <tr key={tech.technician_email || tech.id} className="hover:bg-gray-50">
+                <tr
+                  key={tech.technician_email || tech.id}
+                  className="hover:bg-gray-50"
+                >
                   <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
-                    {tech.technician_email || 'N/A'}
+                    {tech.technician_email || "N/A"}
                   </td>
                   <td className="px-4 py-3 border-b border-gray-100 text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -3053,53 +3630,52 @@ export default function InventoryPage() {
           </table>
         </div>
       )}
-
     </div>
   );
 
   const tabs = [
     {
-      value: 'job-cards',
-      label: 'Job Cards',
+      value: "job-cards",
+      label: "Job Cards",
       icon: FileText,
-      content: jobCardsContent
+      content: jobCardsContent,
     },
     {
-      value: 'assigned-parts',
-      label: 'Assigned Parts',
+      value: "assigned-parts",
+      label: "Assigned Parts",
       icon: Package,
-      content: assignedPartsContent
+      content: assignedPartsContent,
     },
     {
-      value: 'completed-jobs',
-      label: 'Completed Jobs',
+      value: "completed-jobs",
+      label: "Completed Jobs",
       icon: CheckCircle,
-      content: completedJobsContent
+      content: completedJobsContent,
     },
     {
-      value: 'stock-orders',
-      label: 'Items on Order',
+      value: "stock-orders",
+      label: "Items on Order",
       icon: Package,
-      content: stockOrdersContent
+      content: stockOrdersContent,
     },
     {
-      value: 'stock-take',
-      label: 'Stock Take',
+      value: "stock-take",
+      label: "Stock Take",
       icon: ClipboardList,
-      content: stockTakeContent
+      content: stockTakeContent,
     },
     {
-      value: 'client-stock',
-      label: 'Client Stock',
+      value: "client-stock",
+      label: "Client Stock",
       icon: User,
-      content: clientStockContent
+      content: clientStockContent,
     },
     {
-      value: 'technician-stock',
-      label: 'Technician Stock',
+      value: "technician-stock",
+      label: "Technician Stock",
       icon: User,
-      content: technicianStockContent
-    }
+      content: technicianStockContent,
+    },
   ];
 
   if (loading) {
@@ -3110,7 +3686,7 @@ export default function InventoryPage() {
           subtitle="Manage job cards, assign parts, and track inventory"
           icon={Package}
         />
-        
+
         {/* Create Order Button */}
         <div className="flex justify-end">
           <StockOrderModal onOrderSubmitted={fetchStockOrders} />
@@ -3132,12 +3708,10 @@ export default function InventoryPage() {
           icon={Package}
         />
       </div>
-      
+
       {/* Create Order and Repair Job Buttons */}
       <div className="flex justify-end gap-3">
-        <CreateRepairJobModal 
-          onJobCreated={fetchJobCards}
-        />
+        <CreateRepairJobModal onJobCreated={fetchJobCards} />
         <StockOrderModal onOrderSubmitted={fetchStockOrders} />
       </div>
 
@@ -3178,22 +3752,51 @@ export default function InventoryPage() {
               <div className="rounded-lg border border-gray-100 bg-gray-50 p-5">
                 <div className="flex flex-col justify-between gap-4 md:flex-row">
                   <div>
-                    <span className="text-sm font-medium text-gray-500">Job Number</span>
-                    <h2 className="text-2xl font-bold text-gray-900">{selectedInventoryJob.job_number}</h2>
+                    <span className="text-sm font-medium text-gray-500">
+                      Job Number
+                    </span>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedInventoryJob.job_number}
+                    </h2>
                     <p className="mt-1 text-sm text-gray-500">
-                      Created: {selectedInventoryJob.created_at ? new Date(selectedInventoryJob.created_at).toLocaleDateString() : 'N/A'}
+                      Created:{" "}
+                      {selectedInventoryJob.created_at
+                        ? new Date(
+                            selectedInventoryJob.created_at,
+                          ).toLocaleDateString()
+                        : "N/A"}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-start gap-2">
-                    <Badge className={getStatusColor(selectedInventoryJob.job_status || selectedInventoryJob.status)}>
-                      {(selectedInventoryJob.job_status || selectedInventoryJob.status || 'pending').replace('_', ' ').toUpperCase()}
+                    <Badge
+                      className={getStatusColor(
+                        selectedInventoryJob.job_status ||
+                          selectedInventoryJob.status,
+                      )}
+                    >
+                      {(
+                        selectedInventoryJob.job_status ||
+                        selectedInventoryJob.status ||
+                        "pending"
+                      )
+                        .replace("_", " ")
+                        .toUpperCase()}
                     </Badge>
-                    <Badge className={getJobPriorityColor(selectedInventoryJob.priority)}>
-                      {(selectedInventoryJob.priority || 'medium').toUpperCase()}
+                    <Badge
+                      className={getJobPriorityColor(
+                        selectedInventoryJob.priority,
+                      )}
+                    >
+                      {(
+                        selectedInventoryJob.priority || "medium"
+                      ).toUpperCase()}
                     </Badge>
-                    {selectedInventoryJob.parts_required && selectedInventoryJob.parts_required.length > 0 && (
-                      <Badge className="bg-purple-100 text-purple-800">PARTS ASSIGNED</Badge>
-                    )}
+                    {selectedInventoryJob.parts_required &&
+                      selectedInventoryJob.parts_required.length > 0 && (
+                        <Badge className="bg-purple-100 text-purple-800">
+                          PARTS ASSIGNED
+                        </Badge>
+                      )}
                   </div>
                 </div>
               </div>
@@ -3208,16 +3811,29 @@ export default function InventoryPage() {
                       </h3>
                     </div>
                     <div className="space-y-3 p-5">
-                      <h4 className="font-semibold text-gray-900">{selectedInventoryJob.customer_name || 'N/A'}</h4>
+                      <h4 className="font-semibold text-gray-900">
+                        {selectedInventoryJob.customer_name || "N/A"}
+                      </h4>
                       {selectedInventoryJob.contact_person && (
                         <div className="text-sm text-gray-600">
-                          <span className="font-medium">Contact:</span> {selectedInventoryJob.contact_person}
+                          <span className="font-medium">Contact:</span>{" "}
+                          {selectedInventoryJob.contact_person}
                         </div>
                       )}
-                      {selectedInventoryJob.customer_email && <div className="text-sm text-gray-600">{selectedInventoryJob.customer_email}</div>}
-                      {selectedInventoryJob.customer_phone && <div className="text-sm text-gray-600">{selectedInventoryJob.customer_phone}</div>}
+                      {selectedInventoryJob.customer_email && (
+                        <div className="text-sm text-gray-600">
+                          {selectedInventoryJob.customer_email}
+                        </div>
+                      )}
+                      {selectedInventoryJob.customer_phone && (
+                        <div className="text-sm text-gray-600">
+                          {selectedInventoryJob.customer_phone}
+                        </div>
+                      )}
                       {selectedInventoryJob.customer_address && (
-                        <div className="whitespace-pre-wrap text-sm text-gray-600">{selectedInventoryJob.customer_address}</div>
+                        <div className="whitespace-pre-wrap text-sm text-gray-600">
+                          {selectedInventoryJob.customer_address}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -3230,15 +3846,36 @@ export default function InventoryPage() {
                       </h3>
                     </div>
                     <div className="space-y-3 p-5">
-                      <h4 className="font-semibold text-gray-900">{selectedInventoryJob.vehicle_registration || 'No Registration'}</h4>
-                      {(selectedInventoryJob.vehicle_make || selectedInventoryJob.vehicle_model) && (
+                      <h4 className="font-semibold text-gray-900">
+                        {selectedInventoryJob.vehicle_registration ||
+                          "No Registration"}
+                      </h4>
+                      {(selectedInventoryJob.vehicle_make ||
+                        selectedInventoryJob.vehicle_model) && (
                         <div className="text-sm text-gray-600">
-                          {[selectedInventoryJob.vehicle_make, selectedInventoryJob.vehicle_model].filter(Boolean).join(' ')}
+                          {[
+                            selectedInventoryJob.vehicle_make,
+                            selectedInventoryJob.vehicle_model,
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                         </div>
                       )}
-                      {selectedInventoryJob.vehicle_year && <div className="text-sm text-gray-600">Year: {selectedInventoryJob.vehicle_year}</div>}
-                      {selectedInventoryJob.vin_numer && <div className="text-sm text-gray-600">VIN: {selectedInventoryJob.vin_numer}</div>}
-                      {selectedInventoryJob.odormeter && <div className="text-sm text-gray-600">Odometer: {selectedInventoryJob.odormeter}</div>}
+                      {selectedInventoryJob.vehicle_year && (
+                        <div className="text-sm text-gray-600">
+                          Year: {selectedInventoryJob.vehicle_year}
+                        </div>
+                      )}
+                      {selectedInventoryJob.vin_numer && (
+                        <div className="text-sm text-gray-600">
+                          VIN: {selectedInventoryJob.vin_numer}
+                        </div>
+                      )}
+                      {selectedInventoryJob.odormeter && (
+                        <div className="text-sm text-gray-600">
+                          Odometer: {selectedInventoryJob.odormeter}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3254,92 +3891,165 @@ export default function InventoryPage() {
                     <div className="p-5">
                       <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-3">
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">Job Type</p>
-                          <p className="font-medium">{selectedInventoryJob.job_type?.toUpperCase() || 'N/A'}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            Job Type
+                          </p>
+                          <p className="font-medium">
+                            {selectedInventoryJob.job_type?.toUpperCase() ||
+                              "N/A"}
+                          </p>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">Job Date</p>
-                          <p className="font-medium">{formatDate(selectedInventoryJob.job_date)}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            Job Date
+                          </p>
+                          <p className="font-medium">
+                            {formatDate(selectedInventoryJob.job_date)}
+                          </p>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">Due Date</p>
-                          <p className="font-medium">{formatDate(selectedInventoryJob.due_date)}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            Due Date
+                          </p>
+                          <p className="font-medium">
+                            {formatDate(selectedInventoryJob.due_date)}
+                          </p>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">Technician</p>
-                          <p className="font-medium">{selectedInventoryJob.technician_name || 'Not assigned'}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            Technician
+                          </p>
+                          <p className="font-medium">
+                            {selectedInventoryJob.technician_name ||
+                              "Not assigned"}
+                          </p>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">Quotation</p>
-                          <p className="font-medium">{selectedInventoryJob.quotation_number || 'N/A'}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            Quotation
+                          </p>
+                          <p className="font-medium">
+                            {selectedInventoryJob.quotation_number || "N/A"}
+                          </p>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-medium text-gray-500">IP Address</p>
-                          <p className="font-medium">{selectedInventoryJob.ip_address || 'N/A'}</p>
+                          <p className="mb-1 text-xs font-medium text-gray-500">
+                            IP Address
+                          </p>
+                          <p className="font-medium">
+                            {selectedInventoryJob.ip_address || "N/A"}
+                          </p>
                         </div>
                       </div>
 
                       {selectedInventoryJob.job_description && (
                         <div className="mt-6 border-t border-gray-100 pt-6">
-                          <p className="mb-2 text-xs font-medium text-gray-500">Description</p>
-                          <p className="whitespace-pre-wrap text-sm text-gray-700">{selectedInventoryJob.job_description}</p>
+                          <p className="mb-2 text-xs font-medium text-gray-500">
+                            Description
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm text-gray-700">
+                            {selectedInventoryJob.job_description}
+                          </p>
                         </div>
                       )}
 
                       {selectedInventoryJob.special_instructions && (
                         <div className="mt-6 border-t border-gray-100 pt-6">
-                          <p className="mb-2 text-xs font-medium text-gray-500">Special Instructions</p>
-                          <p className="whitespace-pre-wrap text-sm text-gray-700">{selectedInventoryJob.special_instructions}</p>
+                          <p className="mb-2 text-xs font-medium text-gray-500">
+                            Special Instructions
+                          </p>
+                          <p className="whitespace-pre-wrap text-sm text-gray-700">
+                            {selectedInventoryJob.special_instructions}
+                          </p>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {selectedInventoryJob.parts_required && selectedInventoryJob.parts_required.length > 0 && (
-                    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                      <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
-                        <h3 className="flex items-center text-md font-semibold text-gray-800">
-                          <Package className="mr-2 h-4 w-4 text-gray-500" />
-                          Parts Assigned
-                        </h3>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="border-b border-gray-200 bg-gray-50">
-                            <tr>
-                              <th className="px-5 py-3 text-left font-medium text-gray-500">Description</th>
-                              <th className="px-5 py-3 text-left font-medium text-gray-500">Quantity</th>
-                              <th className="px-5 py-3 text-left font-medium text-gray-500">Code</th>
-                              <th className="px-5 py-3 text-left font-medium text-gray-500">Supplier</th>
-                              <th className="px-5 py-3 text-right font-medium text-gray-500">Cost</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selectedInventoryJob.parts_required.map((part, index) => (
-                              <tr key={`${part.code || part.description || 'part'}-${index}`} className="border-b border-gray-100">
-                                <td className="px-5 py-3">{part.description}</td>
-                                <td className="px-5 py-3">{part.quantity}</td>
-                                <td className="px-5 py-3">{part.code}</td>
-                                <td className="px-5 py-3">{part.supplier}</td>
-                                <td className="px-5 py-3 text-right">R{part.total_cost}</td>
+                  {selectedInventoryJob.parts_required &&
+                    selectedInventoryJob.parts_required.length > 0 && (
+                      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                        <div className="border-b border-gray-200 bg-gray-50 px-5 py-4">
+                          <h3 className="flex items-center text-md font-semibold text-gray-800">
+                            <Package className="mr-2 h-4 w-4 text-gray-500" />
+                            Parts Assigned
+                          </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="border-b border-gray-200 bg-gray-50">
+                              <tr>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                  Description
+                                </th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                  Quantity
+                                </th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                  Code
+                                </th>
+                                <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                  Supplier
+                                </th>
+                                <th className="px-5 py-3 text-right font-medium text-gray-500">
+                                  Cost
+                                </th>
                               </tr>
-                            ))}
-                            <tr className="bg-gray-50">
-                              <td colSpan={4} className="px-5 py-3 text-right font-medium">Total:</td>
-                              <td className="px-5 py-3 text-right font-bold">
-                                R{selectedInventoryJob.parts_required.reduce((sum, part) => sum + (Number(part.total_cost) || 0), 0).toFixed(2)}
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {selectedInventoryJob.parts_required.map(
+                                (part, index) => (
+                                  <tr
+                                    key={`${part.code || part.description || "part"}-${index}`}
+                                    className="border-b border-gray-100"
+                                  >
+                                    <td className="px-5 py-3">
+                                      {part.description}
+                                    </td>
+                                    <td className="px-5 py-3">
+                                      {part.quantity}
+                                    </td>
+                                    <td className="px-5 py-3">{part.code}</td>
+                                    <td className="px-5 py-3">
+                                      {part.supplier}
+                                    </td>
+                                    <td className="px-5 py-3 text-right">
+                                      R{part.total_cost}
+                                    </td>
+                                  </tr>
+                                ),
+                              )}
+                              <tr className="bg-gray-50">
+                                <td
+                                  colSpan={4}
+                                  className="px-5 py-3 text-right font-medium"
+                                >
+                                  Total:
+                                </td>
+                                <td className="px-5 py-3 text-right font-bold">
+                                  R
+                                  {selectedInventoryJob.parts_required
+                                    .reduce(
+                                      (sum, part) =>
+                                        sum + (Number(part.total_cost) || 0),
+                                      0,
+                                    )
+                                    .toFixed(2)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 border-t border-gray-100 pt-6">
-                <Button variant="outline" onClick={() => setShowJobDetails(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowJobDetails(false)}
+                >
                   Close
                 </Button>
                 <Button
@@ -3370,7 +4080,11 @@ export default function InventoryPage() {
                     setShowJobDetails(false);
                     handleBookStock(selectedInventoryJob);
                   }}
-                  className={hasBootStock(selectedInventoryJob) ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-amber-600 text-white hover:bg-amber-700'}
+                  className={
+                    hasBootStock(selectedInventoryJob)
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-amber-600 text-white hover:bg-amber-700"
+                  }
                 >
                   <Package className="mr-2 h-4 w-4" />
                   Boot Stock
@@ -3411,7 +4125,9 @@ export default function InventoryPage() {
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedCompletedJob?.job_number ? `Completed Job Details - ${selectedCompletedJob.job_number}` : 'Completed Job Details'}
+              {selectedCompletedJob?.job_number
+                ? `Completed Job Details - ${selectedCompletedJob.job_number}`
+                : "Completed Job Details"}
             </DialogTitle>
           </DialogHeader>
 
@@ -3421,60 +4137,105 @@ export default function InventoryPage() {
               <span>Loading full job information...</span>
             </div>
           ) : !selectedCompletedJob ? (
-            <div className="py-10 text-center text-gray-500">No job details available.</div>
+            <div className="py-10 text-center text-gray-500">
+              No job details available.
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg border p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Job Summary</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    Job Summary
+                  </h3>
                   <div className="space-y-1 text-sm text-gray-700">
-                    <div><strong>Job Number:</strong> {selectedCompletedJob.job_number || 'N/A'}</div>
-                    <div><strong>Status:</strong> {selectedCompletedJob.job_status || selectedCompletedJob.status || 'N/A'}</div>
-                    <div><strong>Job Type:</strong> {selectedCompletedJob.job_type || 'N/A'}</div>
-                    <div><strong>Completion Date:</strong> {formatDate(selectedCompletedJob.completion_date)}</div>
-                    <div><strong>Technician:</strong> {selectedCompletedJob.technician_name || 'N/A'}</div>
+                    <div>
+                      <strong>Job Number:</strong>{" "}
+                      {selectedCompletedJob.job_number || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Status:</strong>{" "}
+                      {selectedCompletedJob.job_status ||
+                        selectedCompletedJob.status ||
+                        "N/A"}
+                    </div>
+                    <div>
+                      <strong>Job Type:</strong>{" "}
+                      {selectedCompletedJob.job_type || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Completion Date:</strong>{" "}
+                      {formatDate(selectedCompletedJob.completion_date)}
+                    </div>
+                    <div>
+                      <strong>Technician:</strong>{" "}
+                      {selectedCompletedJob.technician_name || "N/A"}
+                    </div>
                   </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg border p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Vehicle Summary</h3>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    Vehicle Summary
+                  </h3>
                   <div className="space-y-1 text-sm text-gray-700">
-                    <div><strong>Registration:</strong> {selectedCompletedJob.vehicle_registration || 'N/A'}</div>
-                    <div><strong>Make:</strong> {selectedCompletedJob.vehicle_make || 'N/A'}</div>
-                    <div><strong>Model:</strong> {selectedCompletedJob.vehicle_model || 'N/A'}</div>
-                    <div><strong>Year:</strong> {selectedCompletedJob.vehicle_year || 'N/A'}</div>
-                    <div><strong>VIN:</strong> {selectedCompletedJob.vin_numer || 'N/A'}</div>
+                    <div>
+                      <strong>Registration:</strong>{" "}
+                      {selectedCompletedJob.vehicle_registration || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Make:</strong>{" "}
+                      {selectedCompletedJob.vehicle_make || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Model:</strong>{" "}
+                      {selectedCompletedJob.vehicle_model || "N/A"}
+                    </div>
+                    <div>
+                      <strong>Year:</strong>{" "}
+                      {selectedCompletedJob.vehicle_year || "N/A"}
+                    </div>
+                    <div>
+                      <strong>VIN:</strong>{" "}
+                      {selectedCompletedJob.vin_numer || "N/A"}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <h3 className="font-semibold text-blue-900">Stock Used</h3>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <Badge variant="outline">
-                        {selectedCompletedJobStockUsed.length} item{selectedCompletedJobStockUsed.length === 1 ? '' : 's'}
-                      </Badge>
-                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                        Equipment Used: {selectedCompletedJobEquipmentUsed.length}
-                      </Badge>
-                      <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
-                        Parts Required: {selectedCompletedJobPartsUsed.length}
-                      </Badge>
-                    </div>
+                  <h3 className="font-semibold text-blue-900">Stock Used</h3>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">
+                      {selectedCompletedJobStockUsed.length} item
+                      {selectedCompletedJobStockUsed.length === 1 ? "" : "s"}
+                    </Badge>
+                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                      Equipment Used: {selectedCompletedJobEquipmentUsed.length}
+                    </Badge>
+                    <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+                      Parts Required: {selectedCompletedJobPartsUsed.length}
+                    </Badge>
+                  </div>
                 </div>
                 {selectedCompletedJobStockUsed.length === 0 ? (
-                  <p className="text-sm text-blue-800">No stock used recorded on this job.</p>
+                  <p className="text-sm text-blue-800">
+                    No stock used recorded on this job.
+                  </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {selectedCompletedJobStockUsed.map((part, index) => (
                       <div
-                        key={`${part.code || part.description || 'part'}-${index}`}
+                        key={`${part.code || part.description || "part"}-${index}`}
                         className="rounded-lg border border-blue-100 bg-white p-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-gray-900">{part.description || 'N/A'}</p>
-                            <p className="text-xs text-gray-500">{part.code || 'No code'}</p>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {part.description || "N/A"}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {part.code || "No code"}
+                            </p>
                           </div>
                           <Badge className="bg-blue-100 text-blue-800 text-xs">
                             Qty {part.quantity ?? 1}
@@ -3482,17 +4243,32 @@ export default function InventoryPage() {
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
                           <div>
-                            <span className="font-medium text-gray-700">Supplier:</span> {part.supplier || 'N/A'}
+                            <span className="font-medium text-gray-700">
+                              Supplier:
+                            </span>{" "}
+                            {part.supplier || "N/A"}
                           </div>
                           <div>
-                            <span className="font-medium text-gray-700">Type:</span> {part.stockType || 'N/A'}
+                            <span className="font-medium text-gray-700">
+                              Type:
+                            </span>{" "}
+                            {part.stockType || "N/A"}
                           </div>
                           <div>
-                            <span className="font-medium text-gray-700">Source:</span> {part.source === 'equipment_used' ? 'Equipment Used' : 'Parts Required'}
+                            <span className="font-medium text-gray-700">
+                              Source:
+                            </span>{" "}
+                            {part.source === "equipment_used"
+                              ? "Equipment Used"
+                              : "Parts Required"}
                           </div>
                           <div>
-                            <span className="font-medium text-gray-700">Cost:</span>{' '}
-                            {part.totalCost ? `R ${Number(part.totalCost).toFixed(2)}` : 'N/A'}
+                            <span className="font-medium text-gray-700">
+                              Cost:
+                            </span>{" "}
+                            {part.totalCost
+                              ? `R ${Number(part.totalCost).toFixed(2)}`
+                              : "N/A"}
                           </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -3500,33 +4276,59 @@ export default function InventoryPage() {
                             size="sm"
                             variant="outline"
                             disabled={
-                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client` ||
-                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
+                              movingDeinstalledItemKey ===
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:client` ||
+                              movedDeinstalledItems[
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:client`
+                              ] === "moved"
                             }
-                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'client')}
+                            onClick={() =>
+                              handleMoveJobItem(
+                                "stock-used",
+                                part.raw as Record<string, unknown>,
+                                index,
+                                "client",
+                              )
+                            }
                             className="text-xs"
                           >
-                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`
-                              ? 'Adding...'
-                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:client`] === 'moved'
-                                ? 'Added to Client Stock'
-                                : 'Add to Client Stock'}
+                            {movingDeinstalledItemKey ===
+                            `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:client`
+                              ? "Adding..."
+                              : movedDeinstalledItems[
+                                    `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:client`
+                                  ] === "moved"
+                                ? "Added to Client Stock"
+                                : "Add to Client Stock"}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             disabled={
-                              movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack` ||
-                              movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
+                              movingDeinstalledItemKey ===
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:soltrack` ||
+                              movedDeinstalledItems[
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:soltrack`
+                              ] === "moved"
                             }
-                            onClick={() => handleMoveJobItem('stock-used', part.raw as Record<string, unknown>, index, 'soltrack')}
+                            onClick={() =>
+                              handleMoveJobItem(
+                                "stock-used",
+                                part.raw as Record<string, unknown>,
+                                index,
+                                "soltrack",
+                              )
+                            }
                             className="text-xs"
                           >
-                            {movingDeinstalledItemKey === `${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`
-                              ? 'Adding...'
-                              : movedDeinstalledItems[`${getMoveItemKey('stock-used', part.raw as Record<string, unknown>, index)}:soltrack`] === 'moved'
-                                ? 'Added to Soltrack Stock'
-                                : 'Add to Soltrack Stock'}
+                            {movingDeinstalledItemKey ===
+                            `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:soltrack`
+                              ? "Adding..."
+                              : movedDeinstalledItems[
+                                    `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:soltrack`
+                                  ] === "moved"
+                                ? "Added to Soltrack Stock"
+                                : "Add to Soltrack Stock"}
                           </Button>
                         </div>
                       </div>
@@ -3538,74 +4340,142 @@ export default function InventoryPage() {
               {selectedCompletedJobIsDeInstall && (
                 <div className="bg-red-50 rounded-lg border border-red-200 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                    <h3 className="font-semibold text-red-900">Items De-installed</h3>
+                    <h3 className="font-semibold text-red-900">
+                      Items De-installed
+                    </h3>
                     <Badge variant="outline" className="text-xs">
-                      {selectedCompletedJobCostCode ? `Client Cost Code: ${selectedCompletedJobCostCode}` : 'No Client Cost Code on Job'}
+                      {selectedCompletedJobCostCode
+                        ? `Client Cost Code: ${selectedCompletedJobCostCode}`
+                        : "No Client Cost Code on Job"}
                     </Badge>
                   </div>
                   {selectedCompletedJobDeInstalledItems.length === 0 ? (
-                    <p className="text-sm text-red-800">No de-installed items recorded in quotation products.</p>
+                    <p className="text-sm text-red-800">
+                      No de-installed items recorded in quotation products.
+                    </p>
                   ) : (
                     <div className="space-y-2">
-                      {selectedCompletedJobDeInstalledItems.map((item, index) => (
-                        <div key={`deinstalled-${index}`} className="rounded border border-red-200 bg-white p-3">
-                          <div className="font-medium text-gray-900">
-                            {String(item.name || item.product || item.description || item.category || `Item ${index + 1}`)}
+                      {selectedCompletedJobDeInstalledItems.map(
+                        (item, index) => (
+                          <div
+                            key={`deinstalled-${index}`}
+                            className="rounded border border-red-200 bg-white p-3"
+                          >
+                            <div className="font-medium text-gray-900">
+                              {String(
+                                item.name ||
+                                  item.product ||
+                                  item.description ||
+                                  item.category ||
+                                  `Item ${index + 1}`,
+                              )}
+                            </div>
+                            <div className="mt-1 text-sm text-gray-700">
+                              Qty: {String(item.quantity ?? 1)}
+                              {item.type ? ` | Type: ${String(item.type)}` : ""}
+                              {item.category
+                                ? ` | Category: ${String(item.category)}`
+                                : ""}
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  movingDeinstalledItemKey ===
+                                    `${getMoveItemKey("deinstalled", item, index)}:client` ||
+                                  movedDeinstalledItems[
+                                    `${getMoveItemKey("deinstalled", item, index)}:client`
+                                  ] === "moved"
+                                }
+                                onClick={() =>
+                                  handleMoveJobItem(
+                                    "deinstalled",
+                                    item,
+                                    index,
+                                    "client",
+                                  )
+                                }
+                                className="text-xs"
+                              >
+                                {movingDeinstalledItemKey ===
+                                `${getMoveItemKey("deinstalled", item, index)}:client`
+                                  ? "Adding..."
+                                  : movedDeinstalledItems[
+                                        `${getMoveItemKey("deinstalled", item, index)}:client`
+                                      ] === "moved"
+                                    ? "Added to Client Stock"
+                                    : "Add to Client Stock"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  movingDeinstalledItemKey ===
+                                    `${getMoveItemKey("deinstalled", item, index)}:soltrack` ||
+                                  movedDeinstalledItems[
+                                    `${getMoveItemKey("deinstalled", item, index)}:soltrack`
+                                  ] === "moved"
+                                }
+                                onClick={() =>
+                                  handleMoveJobItem(
+                                    "deinstalled",
+                                    item,
+                                    index,
+                                    "soltrack",
+                                  )
+                                }
+                                className="text-xs"
+                              >
+                                {movingDeinstalledItemKey ===
+                                `${getMoveItemKey("deinstalled", item, index)}:soltrack`
+                                  ? "Adding..."
+                                  : movedDeinstalledItems[
+                                        `${getMoveItemKey("deinstalled", item, index)}:soltrack`
+                                      ] === "moved"
+                                    ? "Added to Soltrack Stock"
+                                    : "Add to Soltrack Stock"}
+                              </Button>
+                            </div>
                           </div>
-                          <div className="mt-1 text-sm text-gray-700">
-                            Qty: {String(item.quantity ?? 1)}
-                            {item.type ? ` | Type: ${String(item.type)}` : ''}
-                            {item.category ? ` | Category: ${String(item.category)}` : ''}
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:client` ||
-                                movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:client`] === 'moved'
-                              }
-                              onClick={() => handleMoveJobItem('deinstalled', item, index, 'client')}
-                              className="text-xs"
-                            >
-                              {movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:client`
-                                ? 'Adding...'
-                                : movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:client`] === 'moved'
-                                  ? 'Added to Client Stock'
-                                  : 'Add to Client Stock'}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:soltrack` ||
-                                movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:soltrack`] === 'moved'
-                              }
-                              onClick={() => handleMoveJobItem('deinstalled', item, index, 'soltrack')}
-                              className="text-xs"
-                            >
-                              {movingDeinstalledItemKey === `${getMoveItemKey('deinstalled', item, index)}:soltrack`
-                                ? 'Adding...'
-                                : movedDeinstalledItems[`${getMoveItemKey('deinstalled', item, index)}:soltrack`] === 'moved'
-                                  ? 'Added to Soltrack Stock'
-                                  : 'Add to Soltrack Stock'}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        ),
+                      )}
                     </div>
                   )}
                 </div>
               )}
 
               <div className="rounded-lg border p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Customer & Contact</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  Customer & Contact
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
-                  <div><span className="font-medium text-gray-900">Customer:</span> {selectedCompletedJob.customer_name || 'N/A'}</div>
-                  <div><span className="font-medium text-gray-900">Contact Person:</span> {selectedCompletedJob.contact_person || selectedCompletedJob.site_contact_person || 'N/A'}</div>
-                  <div><span className="font-medium text-gray-900">Email:</span> {selectedCompletedJob.customer_email || 'N/A'}</div>
-                  <div><span className="font-medium text-gray-900">Phone:</span> {selectedCompletedJob.customer_phone || selectedCompletedJob.site_contact_phone || 'N/A'}</div>
-                  <div className="md:col-span-2"><span className="font-medium text-gray-900">Address:</span> {selectedCompletedJob.customer_address || 'N/A'}</div>
+                  <div>
+                    <span className="font-medium text-gray-900">Customer:</span>{" "}
+                    {selectedCompletedJob.customer_name || "N/A"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      Contact Person:
+                    </span>{" "}
+                    {selectedCompletedJob.contact_person ||
+                      selectedCompletedJob.site_contact_person ||
+                      "N/A"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Email:</span>{" "}
+                    {selectedCompletedJob.customer_email || "N/A"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900">Phone:</span>{" "}
+                    {selectedCompletedJob.customer_phone ||
+                      selectedCompletedJob.site_contact_phone ||
+                      "N/A"}
+                  </div>
+                  <div className="md:col-span-2">
+                    <span className="font-medium text-gray-900">Address:</span>{" "}
+                    {selectedCompletedJob.customer_address || "N/A"}
+                  </div>
                 </div>
               </div>
 
@@ -3613,104 +4483,187 @@ export default function InventoryPage() {
                 <h3 className="font-semibold text-gray-900 mb-3">Job Notes</h3>
                 <div className="space-y-3 text-sm text-gray-700">
                   <div>
-                    <span className="font-medium text-gray-900">Job Description:</span>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.job_description || 'N/A'}</p>
+                    <span className="font-medium text-gray-900">
+                      Job Description:
+                    </span>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selectedCompletedJob.job_description || "N/A"}
+                    </p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-900">Work Notes:</span>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.work_notes || 'N/A'}</p>
+                    <span className="font-medium text-gray-900">
+                      Work Notes:
+                    </span>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selectedCompletedJob.work_notes || "N/A"}
+                    </p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-900">Completion Notes:</span>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.completion_notes || 'N/A'}</p>
+                    <span className="font-medium text-gray-900">
+                      Completion Notes:
+                    </span>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selectedCompletedJob.completion_notes || "N/A"}
+                    </p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-900">Special Instructions:</span>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.special_instructions || 'N/A'}</p>
+                    <span className="font-medium text-gray-900">
+                      Special Instructions:
+                    </span>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selectedCompletedJob.special_instructions || "N/A"}
+                    </p>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-900">Access Requirements:</span>
-                    <p className="mt-1 whitespace-pre-wrap">{selectedCompletedJob.access_requirements || 'N/A'}</p>
+                    <span className="font-medium text-gray-900">
+                      Access Requirements:
+                    </span>
+                    <p className="mt-1 whitespace-pre-wrap">
+                      {selectedCompletedJob.access_requirements || "N/A"}
+                    </p>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-lg border p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Quotation Products</h3>
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  Quotation Products
+                </h3>
                 {selectedCompletedJobQuotationProducts.length === 0 ? (
-                  <p className="text-sm text-gray-600">No quotation products found for this job.</p>
+                  <p className="text-sm text-gray-600">
+                    No quotation products found for this job.
+                  </p>
                 ) : (
                   <div>
                     <table className="w-full text-sm table-fixed">
                       <thead>
                         <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">Item</th>
-                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-2/5">Description</th>
-                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">Vehicle</th>
-                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Qty</th>
-                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Amount</th>
-                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">Move</th>
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">
+                            Item
+                          </th>
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-2/5">
+                            Description
+                          </th>
+                          <th className="text-left py-2 pr-2 font-semibold text-gray-700 w-1/5">
+                            Vehicle
+                          </th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">
+                            Qty
+                          </th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">
+                            Amount
+                          </th>
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">
+                            Move
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedCompletedJobQuotationProducts.map((item, index) => {
-                          const qty = Number(item.quantity ?? 1) || 1;
-                          const amount =
-                            Number(
-                              item.total_price ??
-                                item.cash_price ??
-                                item.subscription_price ??
-                                item.rental_price ??
-                                item.installation_price ??
-                                item.de_installation_price ??
-                                0
-                            ) || 0;
-                          return (
-                            <tr key={`quote-${index}`} className="border-b border-gray-100">
-                              <td className="py-2 pr-2 font-medium text-gray-900 break-words">{String(item.name || item.item_code || 'Item')}</td>
-                              <td className="py-2 pr-2 text-gray-600 break-words">{String(item.description || item.category || '—')}</td>
-                              <td className="py-2 pr-2 text-gray-600 break-words">{String(item.vehicle_plate || selectedCompletedJob.vehicle_registration || 'N/A')}</td>
-                              <td className="py-2 pr-2 text-right">{qty}</td>
-                              <td className="py-2 pr-2 text-right">{amount ? `R ${amount.toFixed(2)}` : 'R 0.00'}</td>
-                              <td className="py-2 pr-2 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={
-                                      movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:client` ||
-                                      movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:client`] === 'moved'
-                                    }
-                                    onClick={() => handleMoveJobItem('quotation', item, index, 'client')}
-                                    className="text-xs"
-                                  >
-                                    {movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:client`
-                                      ? 'Adding...'
-                                      : movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:client`] === 'moved'
-                                        ? 'Added'
-                                        : 'Client'}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={
-                                      movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:soltrack` ||
-                                      movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:soltrack`] === 'moved'
-                                    }
-                                    onClick={() => handleMoveJobItem('quotation', item, index, 'soltrack')}
-                                    className="text-xs"
-                                  >
-                                    {movingDeinstalledItemKey === `${getMoveItemKey('quotation', item, index)}:soltrack`
-                                      ? 'Adding...'
-                                      : movedDeinstalledItems[`${getMoveItemKey('quotation', item, index)}:soltrack`] === 'moved'
-                                        ? 'Added'
-                                        : 'Soltrack'}
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {selectedCompletedJobQuotationProducts.map(
+                          (item, index) => {
+                            const qty = Number(item.quantity ?? 1) || 1;
+                            const amount =
+                              Number(
+                                item.total_price ??
+                                  item.cash_price ??
+                                  item.subscription_price ??
+                                  item.rental_price ??
+                                  item.installation_price ??
+                                  item.de_installation_price ??
+                                  0,
+                              ) || 0;
+                            return (
+                              <tr
+                                key={`quote-${index}`}
+                                className="border-b border-gray-100"
+                              >
+                                <td className="py-2 pr-2 font-medium text-gray-900 break-words">
+                                  {String(
+                                    item.name || item.item_code || "Item",
+                                  )}
+                                </td>
+                                <td className="py-2 pr-2 text-gray-600 break-words">
+                                  {String(
+                                    item.description || item.category || "—",
+                                  )}
+                                </td>
+                                <td className="py-2 pr-2 text-gray-600 break-words">
+                                  {String(
+                                    item.vehicle_plate ||
+                                      selectedCompletedJob.vehicle_registration ||
+                                      "N/A",
+                                  )}
+                                </td>
+                                <td className="py-2 pr-2 text-right">{qty}</td>
+                                <td className="py-2 pr-2 text-right">
+                                  {amount ? `R ${amount.toFixed(2)}` : "R 0.00"}
+                                </td>
+                                <td className="py-2 pr-2 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("quotation", item, index)}:client` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("quotation", item, index)}:client`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "quotation",
+                                          item,
+                                          index,
+                                          "client",
+                                        )
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("quotation", item, index)}:client`
+                                        ? "Adding..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("quotation", item, index)}:client`
+                                            ] === "moved"
+                                          ? "Added"
+                                          : "Client"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("quotation", item, index)}:soltrack` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("quotation", item, index)}:soltrack`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "quotation",
+                                          item,
+                                          index,
+                                          "soltrack",
+                                        )
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("quotation", item, index)}:soltrack`
+                                        ? "Adding..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("quotation", item, index)}:soltrack`
+                                            ] === "moved"
+                                          ? "Added"
+                                          : "Soltrack"}
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          },
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -3726,7 +4679,9 @@ export default function InventoryPage() {
         <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-xl">Job QR Code - {selectedQRJob.job_number}</h2>
+              <h2 className="font-semibold text-xl">
+                Job QR Code - {selectedQRJob.job_number}
+              </h2>
               <Button
                 variant="outline"
                 size="sm"
@@ -3744,10 +4699,10 @@ export default function InventoryPage() {
                   {/* QR Code */}
                   <div className="mb-6 text-center">
                     <img
-                      src={selectedQRJob.qr_code} 
-                      alt="Job QR Code" 
+                      src={selectedQRJob.qr_code}
+                      alt="Job QR Code"
                       className="mx-auto border rounded-lg"
-                      style={{ width: '200px', height: '200px' }}
+                      style={{ width: "200px", height: "200px" }}
                     />
                     <p className="mt-2 text-gray-500 text-xs">
                       Scan this QR code to access complete job information
@@ -3758,49 +4713,123 @@ export default function InventoryPage() {
                   <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                     {/* Basic Job Info */}
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="mb-3 font-medium text-gray-900">Job Details</h3>
+                      <h3 className="mb-3 font-medium text-gray-900">
+                        Job Details
+                      </h3>
                       <div className="space-y-2 text-sm">
-                        <div><strong>Job Number:</strong> {selectedQRJob.job_number}</div>
-                        <div><strong>Quotation:</strong> {selectedQRJob.quotation_number || 'N/A'}</div>
-                        <div><strong>Type:</strong> {selectedQRJob.job_type || 'N/A'}</div>
-                        <div><strong>Status:</strong> {selectedQRJob.status || 'N/A'}</div>
-                        <div><strong>Priority:</strong> {selectedQRJob.priority || 'N/A'}</div>
-                        <div><strong>IP Address:</strong> {selectedQRJob.ip_address || 'N/A'}</div>
+                        <div>
+                          <strong>Job Number:</strong>{" "}
+                          {selectedQRJob.job_number}
+                        </div>
+                        <div>
+                          <strong>Quotation:</strong>{" "}
+                          {selectedQRJob.quotation_number || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Type:</strong>{" "}
+                          {selectedQRJob.job_type || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Status:</strong>{" "}
+                          {selectedQRJob.status || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Priority:</strong>{" "}
+                          {selectedQRJob.priority || "N/A"}
+                        </div>
+                        <div>
+                          <strong>IP Address:</strong>{" "}
+                          {selectedQRJob.ip_address || "N/A"}
+                        </div>
                       </div>
                     </div>
 
                     {/* Customer Info */}
                     <div className="bg-blue-50 p-4 rounded-lg">
-                      <h3 className="mb-3 font-medium text-gray-900">Customer Information</h3>
+                      <h3 className="mb-3 font-medium text-gray-900">
+                        Customer Information
+                      </h3>
                       <div className="space-y-2 text-sm">
-                        <div><strong>Name:</strong> {selectedQRJob.customer_name || 'N/A'}</div>
-                        <div><strong>Email:</strong> {selectedQRJob.customer_email || 'N/A'}</div>
-                        <div><strong>Phone:</strong> {selectedQRJob.customer_phone || 'N/A'}</div>
-                        <div><strong>Address:</strong> {selectedQRJob.customer_address || 'N/A'}</div>
+                        <div>
+                          <strong>Name:</strong>{" "}
+                          {selectedQRJob.customer_name || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Email:</strong>{" "}
+                          {selectedQRJob.customer_email || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Phone:</strong>{" "}
+                          {selectedQRJob.customer_phone || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Address:</strong>{" "}
+                          {selectedQRJob.customer_address || "N/A"}
+                        </div>
                       </div>
                     </div>
 
                     {/* Vehicle Info */}
                     <div className="bg-green-50 p-4 rounded-lg">
-                      <h3 className="mb-3 font-medium text-gray-900">Vehicle Information</h3>
+                      <h3 className="mb-3 font-medium text-gray-900">
+                        Vehicle Information
+                      </h3>
                       <div className="space-y-2 text-sm">
-                        <div><strong>Registration:</strong> {selectedQRJob.vehicle_registration || 'Not provided'}</div>
-                        <div><strong>Make:</strong> {selectedQRJob.vehicle_make || 'Not provided'}</div>
-                        <div><strong>Model:</strong> {selectedQRJob.vehicle_model || 'Not provided'}</div>
-                        <div><strong>Year:</strong> {selectedQRJob.vehicle_year || 'Not provided'}</div>
-                        <div><strong>VIN:</strong> {selectedQRJob.vin_numer || 'Not provided'}</div>
-                        <div><strong>Odometer:</strong> {selectedQRJob.odormeter || 'Not provided'}</div>
+                        <div>
+                          <strong>Registration:</strong>{" "}
+                          {selectedQRJob.vehicle_registration || "Not provided"}
+                        </div>
+                        <div>
+                          <strong>Make:</strong>{" "}
+                          {selectedQRJob.vehicle_make || "Not provided"}
+                        </div>
+                        <div>
+                          <strong>Model:</strong>{" "}
+                          {selectedQRJob.vehicle_model || "Not provided"}
+                        </div>
+                        <div>
+                          <strong>Year:</strong>{" "}
+                          {selectedQRJob.vehicle_year || "Not provided"}
+                        </div>
+                        <div>
+                          <strong>VIN:</strong>{" "}
+                          {selectedQRJob.vin_numer || "Not provided"}
+                        </div>
+                        <div>
+                          <strong>Odometer:</strong>{" "}
+                          {selectedQRJob.odormeter || "Not provided"}
+                        </div>
                       </div>
                     </div>
 
                     {/* Quotation Info */}
                     <div className="bg-purple-50 p-4 rounded-lg">
-                      <h3 className="mb-3 font-medium text-gray-900">Quotation Details</h3>
+                      <h3 className="mb-3 font-medium text-gray-900">
+                        Quotation Details
+                      </h3>
                       <div className="space-y-2 text-sm">
-                        <div><strong>Total Amount:</strong> {selectedQRJob.quotation_total_amount ? `R${selectedQRJob.quotation_total_amount}` : 'N/A'}</div>
-                        <div><strong>Products:</strong> {selectedQRJob.quotation_products?.length || 0} items</div>
-                        <div><strong>Quote Status:</strong> {selectedQRJob.quote_status || 'N/A'}</div>
-                        <div><strong>Created:</strong> {selectedQRJob.created_at ? new Date(selectedQRJob.created_at).toLocaleDateString() : 'N/A'}</div>
+                        <div>
+                          <strong>Total Amount:</strong>{" "}
+                          {selectedQRJob.quotation_total_amount
+                            ? `R${selectedQRJob.quotation_total_amount}`
+                            : "N/A"}
+                        </div>
+                        <div>
+                          <strong>Products:</strong>{" "}
+                          {selectedQRJob.quotation_products?.length || 0} items
+                        </div>
+                        <div>
+                          <strong>Quote Status:</strong>{" "}
+                          {selectedQRJob.quote_status || "N/A"}
+                        </div>
+                        <div>
+                          <strong>Created:</strong>{" "}
+                          {selectedQRJob.created_at
+                            ? new Date(
+                                selectedQRJob.created_at,
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3808,56 +4837,75 @@ export default function InventoryPage() {
                   {/* Job Description */}
                   {selectedQRJob.job_description && (
                     <div className="bg-white p-4 border rounded-lg">
-                      <h3 className="mb-2 font-medium text-gray-900">Job Description</h3>
-                      <p className="text-gray-600 text-sm">{selectedQRJob.job_description}</p>
+                      <h3 className="mb-2 font-medium text-gray-900">
+                        Job Description
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        {selectedQRJob.job_description}
+                      </p>
                     </div>
                   )}
 
                   {/* Special Instructions */}
                   {selectedQRJob.special_instructions && (
                     <div className="bg-yellow-50 p-4 border border-yellow-200 rounded-lg">
-                      <h3 className="mb-2 font-medium text-gray-900">Special Instructions</h3>
-                      <p className="text-gray-600 text-sm">{selectedQRJob.special_instructions}</p>
+                      <h3 className="mb-2 font-medium text-gray-900">
+                        Special Instructions
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        {selectedQRJob.special_instructions}
+                      </p>
                     </div>
                   )}
 
                   {/* Assigned Parts */}
-                  {selectedQRJob.parts_required && Array.isArray(selectedQRJob.parts_required) && selectedQRJob.parts_required.length > 0 && (
-                    <div className="bg-white p-4 border rounded-lg">
-                      <h3 className="mb-3 font-medium text-gray-900">Assigned Parts</h3>
-                      <div className="space-y-2">
-                        {selectedQRJob.parts_required.map((part, index) => (
-                          <div key={index} className="flex justify-between items-center bg-gray-50 p-2 rounded">
-                            <div>
-                              <span className="font-medium">{part.description}</span>
-                              <span className="ml-2 text-gray-500 text-sm">({part.code})</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                Qty: {part.quantity}
-                              </Badge>
-                              {part.total_cost && (
+                  {selectedQRJob.parts_required &&
+                    Array.isArray(selectedQRJob.parts_required) &&
+                    selectedQRJob.parts_required.length > 0 && (
+                      <div className="bg-white p-4 border rounded-lg">
+                        <h3 className="mb-3 font-medium text-gray-900">
+                          Assigned Parts
+                        </h3>
+                        <div className="space-y-2">
+                          {selectedQRJob.parts_required.map((part, index) => (
+                            <div
+                              key={index}
+                              className="flex justify-between items-center bg-gray-50 p-2 rounded"
+                            >
+                              <div>
+                                <span className="font-medium">
+                                  {part.description}
+                                </span>
+                                <span className="ml-2 text-gray-500 text-sm">
+                                  ({part.code})
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="text-xs">
-                                  R{part.total_cost}
+                                  Qty: {part.quantity}
                                 </Badge>
-                              )}
+                                {part.total_cost && (
+                                  <Badge variant="outline" className="text-xs">
+                                    R{part.total_cost}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {/* Action Buttons */}
                   <div className="flex justify-center gap-2 pt-4">
-                    <Button 
+                    <Button
                       onClick={() => handlePrintQR(selectedQRJob)}
                       className="bg-blue-600 hover:bg-blue-700"
                     >
                       <Printer className="mr-2 w-4 h-4" />
                       Print Complete Job Details
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => handleDownloadQR(selectedQRJob)}
                       className="bg-green-600 hover:bg-green-700"
                     >
@@ -3869,8 +4917,12 @@ export default function InventoryPage() {
               ) : (
                 <div className="py-8 text-center">
                   <QrCode className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                  <p className="text-gray-500">No QR code available for this job.</p>
-                  <p className="mt-2 text-gray-400 text-sm">QR codes are generated when parts are assigned.</p>
+                  <p className="text-gray-500">
+                    No QR code available for this job.
+                  </p>
+                  <p className="mt-2 text-gray-400 text-sm">
+                    QR codes are generated when parts are assigned.
+                  </p>
                 </div>
               )}
             </div>
@@ -3883,351 +4935,467 @@ export default function InventoryPage() {
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={(newTab) => {
-          console.log('Tab change requested:', newTab);
+          console.log("Tab change requested:", newTab);
           setActiveTab(newTab);
         }}
       />
 
-             {/* PDF Viewer Modal for Stock Orders */}
-       <Dialog open={showPdfViewer} onOpenChange={setShowPdfViewer}>
-         <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden">
-           <DialogHeader>
-             <DialogTitle className="flex justify-between items-center">
-               <span>Invoice PDF: {selectedStockOrder?.order_number}</span>
-               <div className="flex items-center space-x-2">
-                 <Button
-                   variant="outline"
-                   size="sm"
-                   onClick={() => selectedStockOrder && handleDownloadStockOrderInvoice(selectedStockOrder)}
-                 >
-                   <Download className="mr-2 w-4 h-4" />
-                   Download
-                 </Button>
-                 <Button
-                   variant="outline"
-                   size="sm"
-                   onClick={() => setShowPdfViewer(false)}
-                 >
-                   Close
-                 </Button>
-               </div>
-             </DialogTitle>
-           </DialogHeader>
-           <div className="flex-1 min-h-0">
-             {selectedStockOrder?.invoice_link ? (
-               <iframe
-                 src={selectedStockOrder.invoice_link}
-                 className="border-0 rounded-lg w-full h-[80vh]"
-                 title={`Invoice for Order ${selectedStockOrder.order_number}`}
-                 onError={() => {
-                   toast({
-                     title: "Error",
-                     description: "Failed to load PDF. Please try downloading instead.",
-                     variant: "destructive"
-                   });
-                 }}
-               />
-             ) : (
-               <div className="flex justify-center items-center h-64">
-                 <div className="text-center">
-                   <AlertCircle className="mx-auto w-12 h-12 text-gray-400" />
-                   <h3 className="mt-2 font-medium text-gray-900 text-sm">No PDF Available</h3>
-                   <p className="mt-1 text-gray-500 text-sm">
-                     This order doesn&apos;t have an invoice PDF attached.
-                   </p>
-                 </div>
-               </div>
-             )}
-           </div>
-         </DialogContent>
-       </Dialog>
+      {/* PDF Viewer Modal for Stock Orders */}
+      <Dialog open={showPdfViewer} onOpenChange={setShowPdfViewer}>
+        <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex justify-between items-center">
+              <span>Invoice PDF: {selectedStockOrder?.order_number}</span>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    selectedStockOrder &&
+                    handleDownloadStockOrderInvoice(selectedStockOrder)
+                  }
+                >
+                  <Download className="mr-2 w-4 h-4" />
+                  Download
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPdfViewer(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {selectedStockOrder?.invoice_link ? (
+              <iframe
+                src={selectedStockOrder.invoice_link}
+                className="border-0 rounded-lg w-full h-[80vh]"
+                title={`Invoice for Order ${selectedStockOrder.order_number}`}
+                onError={() => {
+                  toast({
+                    title: "Error",
+                    description:
+                      "Failed to load PDF. Please try downloading instead.",
+                    variant: "destructive",
+                  });
+                }}
+              />
+            ) : (
+              <div className="flex justify-center items-center h-64">
+                <div className="text-center">
+                  <AlertCircle className="mx-auto w-12 h-12 text-gray-400" />
+                  <h3 className="mt-2 font-medium text-gray-900 text-sm">
+                    No PDF Available
+                  </h3>
+                  <p className="mt-1 text-gray-500 text-sm">
+                    This order doesn&apos;t have an invoice PDF attached.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-       {/* Order Items Modal */}
-       <Dialog open={showOrderItemsModal} onOpenChange={setShowOrderItemsModal}>
-         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-           <DialogHeader>
-             <DialogTitle className="flex justify-between items-center">
-               <span>Order Items: {selectedStockOrder?.order_number}</span>
-               <Button
-                 variant="outline"
-                 size="sm"
-                 onClick={() => setShowOrderItemsModal(false)}
-               >
-                 Close
-               </Button>
-             </DialogTitle>
-           </DialogHeader>
-           <div className="flex-1 min-h-0 overflow-y-auto">
-             {selectedStockOrder && (
-               <div className="space-y-6">
-                 {/* Order Summary */}
-                 <div className="bg-gray-50 p-4 rounded-lg">
-                   <div className="gap-4 grid grid-cols-2 md:grid-cols-4 text-sm">
-                     <div>
-                       <span className="font-medium text-gray-700">Supplier:</span>
-                       <p className="text-gray-900">{selectedStockOrder.supplier || 'Custom'}</p>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-700">Status:</span>
-                       <p className="text-gray-900">{selectedStockOrder.status || 'pending'}</p>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-700">Order Date:</span>
-                       <p className="text-gray-900">{formatDate(selectedStockOrder.order_date)}</p>
-                     </div>
-                     <div>
-                       <span className="font-medium text-gray-700">Total Amount:</span>
-                       <p className="text-gray-900">R {parseFloat(selectedStockOrder.total_amount_ex_vat || 0).toFixed(2)}</p>
-                     </div>
-                   </div>
-                   {selectedStockOrder.notes && (
-                     <div className="mt-3 pt-3 border-gray-200 border-t">
-                       <span className="font-medium text-gray-700">Notes:</span>
-                       <p className="text-gray-900 text-sm">{selectedStockOrder.notes}</p>
-                     </div>
-                   )}
-                 </div>
-
-                                   {/* Order Items Table */}
-                  {selectedStockOrder.order_items && Array.isArray(selectedStockOrder.order_items) && selectedStockOrder.order_items.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="border border-gray-200 w-full border-collapse">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
-                              Item Description
-                            </th>
-                            <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
-                              Quantity
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white">
-                          {selectedStockOrder.order_items.map((item, index) => (
-                            <tr key={index} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 border border-gray-200 text-sm">
-                                <div className="font-medium text-gray-900">{item.description || 'Custom Item'}</div>
-                                {item.supplier && (
-                                  <div className="mt-1 text-gray-500 text-xs">Supplier: {item.supplier}</div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 border border-gray-200 text-sm text-center">
-                                <Badge variant="outline" className="text-xs">
-                                  {item.quantity || 0}
-                                </Badge>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+      {/* Order Items Modal */}
+      <Dialog open={showOrderItemsModal} onOpenChange={setShowOrderItemsModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex justify-between items-center">
+              <span>Order Items: {selectedStockOrder?.order_number}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOrderItemsModal(false)}
+              >
+                Close
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {selectedStockOrder && (
+              <div className="space-y-6">
+                {/* Order Summary */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="gap-4 grid grid-cols-2 md:grid-cols-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">
+                        Supplier:
+                      </span>
+                      <p className="text-gray-900">
+                        {selectedStockOrder.supplier || "Custom"}
+                      </p>
                     </div>
-                 ) : (
-                   <div className="py-8 text-center">
-                     <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                     <h3 className="mb-2 font-medium text-gray-900 text-lg">No Order Items</h3>
-                     <p className="text-gray-500">This order doesn&apos;t have any items listed.</p>
-                   </div>
-                 )}
-               </div>
-             )}
-           </div>
-         </DialogContent>
-       </Dialog>
+                    <div>
+                      <span className="font-medium text-gray-700">Status:</span>
+                      <p className="text-gray-900">
+                        {selectedStockOrder.status || "pending"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">
+                        Order Date:
+                      </span>
+                      <p className="text-gray-900">
+                        {formatDate(selectedStockOrder.order_date)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">
+                        Total Amount:
+                      </span>
+                      <p className="text-gray-900">
+                        R{" "}
+                        {parseFloat(
+                          selectedStockOrder.total_amount_ex_vat || 0,
+                        ).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  {selectedStockOrder.notes && (
+                    <div className="mt-3 pt-3 border-gray-200 border-t">
+                      <span className="font-medium text-gray-700">Notes:</span>
+                      <p className="text-gray-900 text-sm">
+                        {selectedStockOrder.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
-       {/* Upload to Stock Modal */}
-       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
-         <DialogContent className="max-w-2xl max-h-[90vh]">
-           <DialogHeader>
-             <DialogTitle>Upload Order Items to Stock</DialogTitle>
-           </DialogHeader>
-           <div className="space-y-4">
-             <div className="flex justify-between items-center">
-               <p className="text-sm text-gray-600">Enter serial numbers for {uploadItems.length} items:</p>
-               <div className="flex gap-3">
-                 <Button variant="outline" onClick={() => setShowUploadModal(false)}>
-                   Cancel
-                 </Button>
-                 <Button onClick={handleConfirmUpload} className="bg-green-600 hover:bg-green-700">
-                   Upload All ({uploadItems.filter(item => item.serialNumber.trim()).length})
-                 </Button>
-               </div>
-             </div>
-             <div className="text-sm text-gray-600 mb-2">
-               {uploadItems.filter(item => item.serialNumber.trim()).length} of {uploadItems.length} items ready
-             </div>
-             <div className="bg-white rounded border max-h-96 overflow-y-auto">
-               <table className="w-full">
-                 <thead className="bg-gray-50 sticky top-0">
-                   <tr>
-                     <th className="text-left p-3 text-sm font-medium text-gray-700">#</th>
-                     <th className="text-left p-3 text-sm font-medium text-gray-700">Description</th>
-                     <th className="text-left p-3 text-sm font-medium text-gray-700">Category</th>
-                     <th className="text-left p-3 text-sm font-medium text-gray-700">Serial Number</th>
-                     <th className="text-center p-3 text-sm font-medium text-gray-700">Action</th>
-                   </tr>
-                 </thead>
-                 <tbody>
-                   {uploadItems.map((item, index) => (
-                     <tr key={item.id} className="border-t hover:bg-gray-50">
-                       <td className="p-3 text-sm text-gray-600">{index + 1}</td>
-                       <td className="p-3">
-                         <div className="font-medium text-sm text-gray-900">{item.description}</div>
-                       </td>
-                       <td className="p-3">
-                         <Badge variant="outline" className="text-xs">{item.categoryCode}</Badge>
-                       </td>
-                       <td className="p-3">
-                         <Input
-                           value={item.serialNumber}
-                           onChange={(e) => updateSerialNumber(item.id, e.target.value)}
-                           placeholder="Enter serial number"
-                           className="w-full"
-                         />
-                       </td>
-                       <td className="p-3 text-center">
-                         <Button
-                           size="sm"
-                           onClick={() => handleUploadSingle(item)}
-                           disabled={!item.serialNumber.trim()}
-                           className="bg-blue-600 hover:bg-blue-700 text-xs"
-                         >
-                           Upload
-                         </Button>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
-             </div>
-           </div>
-         </DialogContent>
-       </Dialog>
+                {/* Order Items Table */}
+                {selectedStockOrder.order_items &&
+                Array.isArray(selectedStockOrder.order_items) &&
+                selectedStockOrder.order_items.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="border border-gray-200 w-full border-collapse">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-left">
+                            Item Description
+                          </th>
+                          <th className="px-4 py-3 border border-gray-200 font-medium text-gray-700 text-sm text-center">
+                            Quantity
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {selectedStockOrder.order_items.map((item, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 border border-gray-200 text-sm">
+                              <div className="font-medium text-gray-900">
+                                {item.description || "Custom Item"}
+                              </div>
+                              {item.supplier && (
+                                <div className="mt-1 text-gray-500 text-xs">
+                                  Supplier: {item.supplier}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 border border-gray-200 text-sm text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {item.quantity || 0}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                    <h3 className="mb-2 font-medium text-gray-900 text-lg">
+                      No Order Items
+                    </h3>
+                    <p className="text-gray-500">
+                      This order doesn&apos;t have any items listed.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
-       {/* QR Code Modal */}
-       <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
-         <DialogContent className="sm:max-w-md">
-           <DialogHeader>
-             <DialogTitle>Generated QR Code</DialogTitle>
-           </DialogHeader>
-           <div className="flex flex-col items-center space-y-4">
-             {generatedQR && (
-               <div className="p-4 bg-white border rounded-lg">
-                 <img src={generatedQR} alt="QR Code" className="w-64 h-64" />
-               </div>
-             )}
-             <p className="text-sm text-gray-600 text-center">
-               Scan this QR code to access inventory information
-             </p>
-           </div>
-           <div className="flex justify-end mt-6">
-             <Button onClick={() => setShowQRModal(false)}>
-               Close
-             </Button>
-           </div>
-         </DialogContent>
-       </Dialog>
+      {/* Upload to Stock Modal */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Upload Order Items to Stock</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600">
+                Enter serial numbers for {uploadItems.length} items:
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUploadModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmUpload}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Upload All (
+                  {
+                    uploadItems.filter((item) => item.serialNumber.trim())
+                      .length
+                  }
+                  )
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm text-gray-600 mb-2">
+              {uploadItems.filter((item) => item.serialNumber.trim()).length} of{" "}
+              {uploadItems.length} items ready
+            </div>
+            <div className="bg-white rounded border max-h-96 overflow-y-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="text-left p-3 text-sm font-medium text-gray-700">
+                      #
+                    </th>
+                    <th className="text-left p-3 text-sm font-medium text-gray-700">
+                      Description
+                    </th>
+                    <th className="text-left p-3 text-sm font-medium text-gray-700">
+                      Category
+                    </th>
+                    <th className="text-left p-3 text-sm font-medium text-gray-700">
+                      Serial Number
+                    </th>
+                    <th className="text-center p-3 text-sm font-medium text-gray-700">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uploadItems.map((item, index) => (
+                    <tr key={item.id} className="border-t hover:bg-gray-50">
+                      <td className="p-3 text-sm text-gray-600">{index + 1}</td>
+                      <td className="p-3">
+                        <div className="font-medium text-sm text-gray-900">
+                          {item.description}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant="outline" className="text-xs">
+                          {item.categoryCode}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Input
+                          value={item.serialNumber}
+                          onChange={(e) =>
+                            updateSerialNumber(item.id, e.target.value)
+                          }
+                          placeholder="Enter serial number"
+                          className="w-full"
+                        />
+                      </td>
+                      <td className="p-3 text-center">
+                        <Button
+                          size="sm"
+                          onClick={() => handleUploadSingle(item)}
+                          disabled={!item.serialNumber.trim()}
+                          className="bg-blue-600 hover:bg-blue-700 text-xs"
+                        >
+                          Upload
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-       {/* Add New Item Modal */}
-       <Dialog open={showAddItemModal} onOpenChange={setShowAddItemModal}>
-         <DialogContent className="w-[99vw] max-h-[90vh]">
-           <DialogHeader>
-             <DialogTitle>Add New Inventory Item</DialogTitle>
-           </DialogHeader>
-           <div className="space-y-4">
-             {!showNewCategoryFields ? (
-               <div>
-                 <label className="text-sm font-medium text-gray-700">Category</label>
-                 <div className="flex gap-2 mt-1">
-                   <select
-                     value={newItemData.category_code}
-                     onChange={(e) => setNewItemData({...newItemData, category_code: e.target.value})}
-                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
-                   >
-                     <option value="">Select category...</option>
-                     {stockTypes.map(type => (
-                       <option key={typeof type === 'string' ? type : type.code} value={typeof type === 'string' ? type : type.code}>
-                         {typeof type === 'string' ? type : `${type.code} - ${type.description}`}
-                       </option>
-                     ))}
-                   </select>
-                   <Button
-                     type="button"
-                     variant="outline"
-                     size="sm"
-                     onClick={() => setShowNewCategoryFields(true)}
-                   >
-                     <Plus className="w-4 h-4" />
-                   </Button>
-                 </div>
-               </div>
-             ) : (
-               <>
-                 <div className="flex justify-between items-center">
-                   <label className="text-sm font-medium text-gray-700">Create New Category</label>
-                   <Button
-                     type="button"
-                     variant="ghost"
-                     size="sm"
-                     onClick={() => setShowNewCategoryFields(false)}
-                   >
-                     Back to existing
-                   </Button>
-                 </div>
-                 <div>
-                   <label className="text-sm font-medium text-gray-700">Category Code</label>
-                   <Input
-                     value={newItemData.new_category_code}
-                     onChange={(e) => setNewItemData({...newItemData, new_category_code: e.target.value.toUpperCase()})}
-                     placeholder="e.g. GPS, CABLE, SENSOR"
-                     className="mt-1"
-                   />
-                 </div>
-                 <div>
-                   <label className="text-sm font-medium text-gray-700">Category Description</label>
-                   <Input
-                     value={newItemData.new_category_description}
-                     onChange={(e) => setNewItemData({...newItemData, new_category_description: e.target.value})}
-                     placeholder="e.g. GPS Tracking Devices"
-                     className="mt-1"
-                   />
-                 </div>
-               </>
-             )}
-             <div>
-               <label className="text-sm font-medium text-gray-700">Serial Number</label>
-               <Input
-                 value={newItemData.serial_number}
-                 onChange={(e) => setNewItemData({...newItemData, serial_number: e.target.value})}
-                 placeholder="Enter serial number"
-                 className="mt-1"
-               />
-             </div>
-             <div>
-               <label className="text-sm font-medium text-gray-700">Quantity</label>
-               <Input
-                 type="number"
-                 min="1"
-                 value={newItemData.quantity}
-                 onChange={(e) => setNewItemData({...newItemData, quantity: parseInt(e.target.value) || 1})}
-                 className="mt-1"
-               />
-             </div>
-           </div>
-           <div className="flex justify-end gap-3 mt-6">
-             <Button variant="outline" onClick={() => {
-               setShowAddItemModal(false);
-               setShowNewCategoryFields(false);
-               setNewItemData({ category_code: '', serial_number: '', quantity: 1, new_category_code: '', new_category_description: '' });
-             }}>
-               Cancel
-             </Button>
-             <Button onClick={handleAddNewItem} className="bg-green-600 hover:bg-green-700">
-               Add Item
-             </Button>
-           </div>
-         </DialogContent>
-       </Dialog>
+      {/* QR Code Modal */}
+      <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generated QR Code</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4">
+            {generatedQR && (
+              <div className="p-4 bg-white border rounded-lg">
+                <img src={generatedQR} alt="QR Code" className="w-64 h-64" />
+              </div>
+            )}
+            <p className="text-sm text-gray-600 text-center">
+              Scan this QR code to access inventory information
+            </p>
+          </div>
+          <div className="flex justify-end mt-6">
+            <Button onClick={() => setShowQRModal(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
+      {/* Add New Item Modal */}
+      <Dialog open={showAddItemModal} onOpenChange={setShowAddItemModal}>
+        <DialogContent className="w-[99vw] max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Add New Inventory Item</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!showNewCategoryFields ? (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  Category
+                </label>
+                <div className="flex gap-2 mt-1">
+                  <select
+                    value={newItemData.category_code}
+                    onChange={(e) =>
+                      setNewItemData({
+                        ...newItemData,
+                        category_code: e.target.value,
+                      })
+                    }
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  >
+                    <option value="">Select category...</option>
+                    {stockTypes.map((type) => (
+                      <option
+                        key={typeof type === "string" ? type : type.code}
+                        value={typeof type === "string" ? type : type.code}
+                      >
+                        {typeof type === "string"
+                          ? type
+                          : `${type.code} - ${type.description}`}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowNewCategoryFields(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-gray-700">
+                    Create New Category
+                  </label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowNewCategoryFields(false)}
+                  >
+                    Back to existing
+                  </Button>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Category Code
+                  </label>
+                  <Input
+                    value={newItemData.new_category_code}
+                    onChange={(e) =>
+                      setNewItemData({
+                        ...newItemData,
+                        new_category_code: e.target.value.toUpperCase(),
+                      })
+                    }
+                    placeholder="e.g. GPS, CABLE, SENSOR"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Category Description
+                  </label>
+                  <Input
+                    value={newItemData.new_category_description}
+                    onChange={(e) =>
+                      setNewItemData({
+                        ...newItemData,
+                        new_category_description: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. GPS Tracking Devices"
+                    className="mt-1"
+                  />
+                </div>
+              </>
+            )}
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Serial Number
+              </label>
+              <Input
+                value={newItemData.serial_number}
+                onChange={(e) =>
+                  setNewItemData({
+                    ...newItemData,
+                    serial_number: e.target.value,
+                  })
+                }
+                placeholder="Enter serial number"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">
+                Quantity
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={newItemData.quantity}
+                onChange={(e) =>
+                  setNewItemData({
+                    ...newItemData,
+                    quantity: parseInt(e.target.value) || 1,
+                  })
+                }
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddItemModal(false);
+                setShowNewCategoryFields(false);
+                setNewItemData({
+                  category_code: "",
+                  serial_number: "",
+                  quantity: 1,
+                  new_category_code: "",
+                  new_category_description: "",
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddNewItem}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Add Item
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

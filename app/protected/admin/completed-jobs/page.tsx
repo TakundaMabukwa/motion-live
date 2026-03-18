@@ -183,7 +183,13 @@ export function AwaitingTestingContent({
       if (!response.ok) throw new Error("Failed to fetch completed jobs");
       const data = await response.json();
       const completedJobs = (data.jobs || []).filter(
-        (job: CompletedJob) => job.role !== "fc",
+        (job: CompletedJob) =>
+          !["fc", "inv", "accounts"].includes(
+            String(job.role || "").toLowerCase(),
+          ) &&
+          !["fc", "inv", "accounts"].includes(
+            String(job.move_to || "").toLowerCase(),
+          ),
       );
       setJobs(completedJobs);
     } catch (error) {
@@ -242,7 +248,7 @@ export function AwaitingTestingContent({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role: "accounts",
+          role: "inv",
           move_to: "inv",
           updated_by: "admin",
         }),

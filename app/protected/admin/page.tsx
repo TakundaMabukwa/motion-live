@@ -1,16 +1,27 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
-import { 
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import {
   BarChart3,
   Users,
   Clock,
@@ -28,13 +39,13 @@ import {
   Car,
   FileText,
   Plus,
-  Bell
-} from 'lucide-react';
-import StatsCard from '@/components/shared/StatsCard';
-import { toast } from 'sonner';
-import CreateJobModal from './components/CreateJobModal';
-import { AwaitingTestingContent } from './completed-jobs/page';
-import { AdminScheduleContent } from './schedule/page';
+  Bell,
+} from "lucide-react";
+import StatsCard from "@/components/shared/StatsCard";
+import { toast } from "sonner";
+import CreateJobModal from "./components/CreateJobModal";
+import { AwaitingTestingContent } from "./completed-jobs/page";
+import { AdminScheduleContent } from "./schedule/page";
 
 interface PartRequired {
   description: string;
@@ -94,14 +105,15 @@ interface Technician {
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('all-jobs');
+  const [activeTab, setActiveTab] = useState("all-jobs");
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [jobTypeFilter, setJobTypeFilter] = useState('all');
-  const [partsFilter, setPartsFilter] = useState('all');
+  const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [jobTypeFilter, setJobTypeFilter] = useState("all");
+  const [partsFilter, setPartsFilter] = useState("all");
   const [selectedJob, setSelectedJob] = useState<JobCard | null>(null);
   const [assignTechnicianOpen, setAssignTechnicianOpen] = useState(false);
   const [viewJobOpen, setViewJobOpen] = useState(false);
@@ -114,22 +126,21 @@ export default function AdminDashboard() {
     vin: string;
     odometer: string;
   }>({
-    registration: '',
-    make: '',
-    model: '',
-    year: '',
-    vin: '',
-    odometer: ''
+    registration: "",
+    make: "",
+    model: "",
+    year: "",
+    vin: "",
+    odometer: "",
   });
-  const [selectedTechnician, setSelectedTechnician] = useState('');
+  const [selectedTechnician, setSelectedTechnician] = useState("");
   const [selectedTechnicians, setSelectedTechnicians] = useState([]);
-  const [assignmentDate, setAssignmentDate] = useState('');
-  const [assignmentTime, setAssignmentTime] = useState('');
-  const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [assignmentDate, setAssignmentDate] = useState("");
+  const [assignmentTime, setAssignmentTime] = useState("");
+  const [assignmentNotes, setAssignmentNotes] = useState("");
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [conflictData, setConflictData] = useState<any>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-
 
   const [jobsWithParts, setJobsWithParts] = useState<JobCard[]>([]);
   const [loadingJobsWithParts, setLoadingJobsWithParts] = useState(false);
@@ -138,31 +149,33 @@ export default function AdminDashboard() {
   const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
   const [createJobStep, setCreateJobStep] = useState(1);
   const [newJobData, setNewJobData] = useState({
-    jobType: 'install',
-    jobDescription: '',
-    priority: 'medium',
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    customerAddress: '',
-    vehicleRegistration: '',
-    vehicleMake: '',
-    vehicleModel: '',
+    jobType: "install",
+    jobDescription: "",
+    priority: "medium",
+    customerName: "",
+    customerEmail: "",
+    customerPhone: "",
+    customerAddress: "",
+    vehicleRegistration: "",
+    vehicleMake: "",
+    vehicleModel: "",
     vehicleYear: 2023,
     partsRequired: [] as PartRequired[],
   });
   const [createdJobId, setCreatedJobId] = useState<string | null>(null);
-  const [selectedTechnicianForJob, setSelectedTechnicianForJob] = useState('');
-  const [assignmentDateForJob, setAssignmentDateForJob] = useState('');
-  const [assignmentTimeForJob, setAssignmentTimeForJob] = useState('');
+  const [selectedTechnicianForJob, setSelectedTechnicianForJob] = useState("");
+  const [assignmentDateForJob, setAssignmentDateForJob] = useState("");
+  const [assignmentTimeForJob, setAssignmentTimeForJob] = useState("");
 
   // FC External-quotation style product selection for installation
   const [aqProducts, setAqProducts] = useState<Record<string, unknown>[]>([]);
-  const [aqSelectedProducts, setAqSelectedProducts] = useState<Record<string, unknown>[]>([]);
+  const [aqSelectedProducts, setAqSelectedProducts] = useState<
+    Record<string, unknown>[]
+  >([]);
   const [aqLoadingProducts, setAqLoadingProducts] = useState(false);
-  const [aqSearchTerm, setAqSearchTerm] = useState('');
-  const [aqSelectedType, setAqSelectedType] = useState('all');
-  const [aqSelectedCategory, setAqSelectedCategory] = useState('all');
+  const [aqSearchTerm, setAqSearchTerm] = useState("");
+  const [aqSelectedType, setAqSelectedType] = useState("all");
+  const [aqSelectedCategory, setAqSelectedCategory] = useState("all");
 
   // For deinstall: vehicles from vehicles_ip
   interface VehicleIp {
@@ -175,44 +188,58 @@ export default function AdminDashboard() {
 
   const [vehiclesIp, setVehiclesIp] = useState<VehicleIp[]>([]);
   const [loadingVehiclesIp, setLoadingVehiclesIp] = useState(false);
-  const [selectedVehicleIp, setSelectedVehicleIp] = useState<VehicleIp | null>(null);
+  const [selectedVehicleIp, setSelectedVehicleIp] = useState<VehicleIp | null>(
+    null,
+  );
 
   const aqProductTypes = [
-    'FMS', 'BACKUP', 'MODULE', 'INPUT', 'PFK CAMERA', 'DASHCAM', 'PTT', 'DVR CAMERA'
+    "FMS",
+    "BACKUP",
+    "MODULE",
+    "INPUT",
+    "PFK CAMERA",
+    "DASHCAM",
+    "PTT",
+    "DVR CAMERA",
   ];
   const aqProductCategories = [
-    'HARDWARE', 'MODULES', 'INPUTS', 'CAMERA EQUIPMENT', 'AI MOVEMENT DETECTION', 'PTT RADIOS'
+    "HARDWARE",
+    "MODULES",
+    "INPUTS",
+    "CAMERA EQUIPMENT",
+    "AI MOVEMENT DETECTION",
+    "PTT RADIOS",
   ];
 
   const formatLocalDateInput = (date: Date = new Date()) => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   const extractDateInputValue = (value?: string | null) => {
-    if (!value) return '';
+    if (!value) return "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-    if (value.includes('T')) return value.split('T')[0];
+    if (value.includes("T")) return value.split("T")[0];
 
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '';
+    if (Number.isNaN(parsed.getTime())) return "";
     return formatLocalDateInput(parsed);
   };
 
   const extractTimeInputValue = (value?: string | null) => {
-    if (!value) return '';
+    if (!value) return "";
     if (/^\d{2}:\d{2}$/.test(value)) return value;
 
     const directTimeMatch = value.match(/T(\d{2}:\d{2})/);
     if (directTimeMatch?.[1]) return directTimeMatch[1];
 
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '';
+    if (Number.isNaN(parsed.getTime())) return "";
 
-    const hours = String(parsed.getHours()).padStart(2, '0');
-    const minutes = String(parsed.getMinutes()).padStart(2, '0');
+    const hours = String(parsed.getHours()).padStart(2, "0");
+    const minutes = String(parsed.getMinutes()).padStart(2, "0");
     return `${hours}:${minutes}`;
   };
 
@@ -220,9 +247,11 @@ export default function AdminDashboard() {
     setAqLoadingProducts(true);
     try {
       const params = new URLSearchParams();
-      if (aqSelectedType && aqSelectedType !== 'all') params.append('type', aqSelectedType);
-      if (aqSelectedCategory && aqSelectedCategory !== 'all') params.append('category', aqSelectedCategory);
-      if (aqSearchTerm) params.append('search', aqSearchTerm);
+      if (aqSelectedType && aqSelectedType !== "all")
+        params.append("type", aqSelectedType);
+      if (aqSelectedCategory && aqSelectedCategory !== "all")
+        params.append("category", aqSelectedCategory);
+      if (aqSearchTerm) params.append("search", aqSearchTerm);
       const res = await fetch(`/api/product-items?${params.toString()}`);
       if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`);
       const data = await res.json();
@@ -230,31 +259,33 @@ export default function AdminDashboard() {
       else if (Array.isArray(data)) setAqProducts(data);
       else setAqProducts([]);
     } catch (e) {
-      console.error('Failed to fetch products', e);
+      console.error("Failed to fetch products", e);
       setAqProducts([]);
     } finally {
       setAqLoadingProducts(false);
     }
   }, [aqSelectedType, aqSelectedCategory, aqSearchTerm]);
 
-  useEffect(() => { if (createJobOpen) fetchAqProducts(); }, [createJobOpen, fetchAqProducts]);
+  useEffect(() => {
+    if (createJobOpen) fetchAqProducts();
+  }, [createJobOpen, fetchAqProducts]);
 
   const fetchVehiclesIp = useCallback(async () => {
     setLoadingVehiclesIp(true);
     try {
-      const res = await fetch('/api/vehicles-ip');
-      if (!res.ok) throw new Error('Failed to fetch vehicles');
+      const res = await fetch("/api/vehicles-ip");
+      if (!res.ok) throw new Error("Failed to fetch vehicles");
       const data = await res.json();
       setVehiclesIp(data.vehicles || []);
     } catch (e) {
-      console.error('Failed to fetch vehicles', e);
+      console.error("Failed to fetch vehicles", e);
       setVehiclesIp([]);
     } finally {
       setLoadingVehiclesIp(false);
     }
   }, []);
 
-  useEffect(() => { 
+  useEffect(() => {
     if (createJobOpen) {
       // Load popup first, then load data after a short delay for smooth rendering
       const timer = setTimeout(() => {
@@ -275,60 +306,82 @@ export default function AdminDashboard() {
       cashDiscount: (product.discount as number) || 0,
       rentalPrice: (product.rental as number) || 0,
       rentalDiscount: 0,
-      installationPrice: newJobData.jobType === 'install' ? ((product.installation as number) || 0) : 0,
+      installationPrice:
+        newJobData.jobType === "install"
+          ? (product.installation as number) || 0
+          : 0,
       installationDiscount: 0,
-      deInstallationPrice: newJobData.jobType === 'deinstall' ? ((product.installation as number) || 0) : 0,
+      deInstallationPrice:
+        newJobData.jobType === "deinstall"
+          ? (product.installation as number) || 0
+          : 0,
       deInstallationDiscount: 0,
       subscriptionPrice: (product.subscription as number) || 0,
       subscriptionDiscount: 0,
       quantity: 1,
-      purchaseType: 'purchase',
+      purchaseType: "purchase",
     };
-    setAqSelectedProducts(prev => [...prev, newProduct]);
+    setAqSelectedProducts((prev) => [...prev, newProduct]);
   };
 
   const aqRemoveProduct = (index: number) => {
-    setAqSelectedProducts(prev => prev.filter((_, i) => i !== index));
+    setAqSelectedProducts((prev) => prev.filter((_, i) => i !== index));
   };
 
   const aqUpdateProduct = (index: number, field: string, value: unknown) => {
-    setAqSelectedProducts(prev => {
+    setAqSelectedProducts((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
   };
 
-  const aqCalcGross = (price: number, discount: number) => Math.max(0, (price || 0) - (discount || 0));
+  const aqCalcGross = (price: number, discount: number) =>
+    Math.max(0, (price || 0) - (discount || 0));
 
   const aqGetProductTotal = (p: Record<string, unknown>) => {
     let total = 0;
     // cash only for admin job create for now
     total += aqCalcGross(p.cashPrice as number, p.cashDiscount as number);
-    if (newJobData.jobType === 'install') total += aqCalcGross(p.installationPrice as number, (p.installationDiscount as number) || 0);
-    if (newJobData.jobType === 'deinstall') total += aqCalcGross(p.deInstallationPrice as number, (p.deInstallationDiscount as number) || 0);
-    if (p.purchaseType === 'rental' && p.subscriptionPrice) total += aqCalcGross(p.subscriptionPrice as number, (p.subscriptionDiscount as number) || 0);
+    if (newJobData.jobType === "install")
+      total += aqCalcGross(
+        p.installationPrice as number,
+        (p.installationDiscount as number) || 0,
+      );
+    if (newJobData.jobType === "deinstall")
+      total += aqCalcGross(
+        p.deInstallationPrice as number,
+        (p.deInstallationDiscount as number) || 0,
+      );
+    if (p.purchaseType === "rental" && p.subscriptionPrice)
+      total += aqCalcGross(
+        p.subscriptionPrice as number,
+        (p.subscriptionDiscount as number) || 0,
+      );
     return total * ((p.quantity as number) || 1);
   };
 
-  const aqSubtotal = aqSelectedProducts.reduce((sum, p) => sum + aqGetProductTotal(p), 0);
+  const aqSubtotal = aqSelectedProducts.reduce(
+    (sum, p) => sum + aqGetProductTotal(p),
+    0,
+  );
   const aqVat = aqSubtotal * 0.15;
   const aqTotal = aqSubtotal + aqVat;
 
   const handleVehicleIpSelect = (vehicle: VehicleIp) => {
     setSelectedVehicleIp(vehicle);
-    setNewJobData(prev => ({
+    setNewJobData((prev) => ({
       ...prev,
-      vehicleRegistration: vehicle.new_registration || '',
-      vehicleMake: vehicle.company || '',
-      vehicleModel: vehicle.group_name || '',
+      vehicleRegistration: vehicle.new_registration || "",
+      vehicleMake: vehicle.company || "",
+      vehicleModel: vehicle.group_name || "",
       // Note: vehicles_ip doesn't have year, so we'll leave it as default
     }));
   };
 
   const handleJobTypeChange = (jobType: string) => {
-    setNewJobData(prev => ({ ...prev, jobType }));
-    if (jobType === 'deinstall') {
+    setNewJobData((prev) => ({ ...prev, jobType }));
+    if (jobType === "deinstall") {
       // Load vehicles with a small delay for smooth UI updates
       const timer = setTimeout(() => {
         fetchVehiclesIp();
@@ -337,33 +390,36 @@ export default function AdminDashboard() {
     }
     // Clear vehicle data when switching job types
     setSelectedVehicleIp(null);
-    setNewJobData(prev => ({
+    setNewJobData((prev) => ({
       ...prev,
-      vehicleRegistration: '',
-      vehicleMake: '',
-      vehicleModel: '',
+      vehicleRegistration: "",
+      vehicleMake: "",
+      vehicleModel: "",
       vehicleYear: 2023,
     }));
   };
 
   // Fetch job cards with caching
-  const fetchJobCards = useCallback(async (forceRefresh = false) => {
-    if (!forceRefresh && jobsLoaded) return;
-    
+  const fetchJobCards = useCallback(
+    async (forceRefresh = false) => {
+      if (!forceRefresh && jobsLoaded) return;
+
       setLoading(true);
-    try {
-      const response = await fetch('/api/job-cards');
-      if (!response.ok) throw new Error('Failed to fetch job cards');
-      
-      const data = await response.json();
-      setJobCards(data.job_cards || []);
-      setJobsLoaded(true);
-    } catch (error) {
-      console.error('Error fetching job cards:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [jobsLoaded]);
+      try {
+        const response = await fetch("/api/job-cards");
+        if (!response.ok) throw new Error("Failed to fetch job cards");
+
+        const data = await response.json();
+        setJobCards(data.job_cards || []);
+        setJobsLoaded(true);
+      } catch (error) {
+        console.error("Error fetching job cards:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [jobsLoaded],
+  );
 
   // Set default assignment date to today
   useEffect(() => {
@@ -371,30 +427,33 @@ export default function AdminDashboard() {
     setAssignmentDateForJob(today);
   }, []);
 
-
-
   // Fetch jobs with parts
   const fetchJobsWithParts = useCallback(async () => {
     try {
       setLoadingJobsWithParts(true);
-      const response = await fetch('/api/job-cards');
+      const response = await fetch("/api/job-cards");
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs with parts');
+        throw new Error("Failed to fetch jobs with parts");
       }
       const data = await response.json();
-      console.log('Jobs API response:', data);
-      
+      console.log("Jobs API response:", data);
+
       // Filter jobs with parts on the frontend
-      const jobsWithActualParts = (data.job_cards || []).filter(job => {
+      const jobsWithActualParts = (data.job_cards || []).filter((job) => {
         const hasParts = hasPartsRequired(job);
-        console.log(`Job ${job.job_number} parts_required:`, job.parts_required, 'hasParts:', hasParts);
+        console.log(
+          `Job ${job.job_number} parts_required:`,
+          job.parts_required,
+          "hasParts:",
+          hasParts,
+        );
         return hasParts;
       });
-      
+
       setJobsWithParts(jobsWithActualParts);
     } catch (error) {
-      console.error('Error fetching jobs with parts:', error);
-      toast.error('Failed to load jobs with parts');
+      console.error("Error fetching jobs with parts:", error);
+      toast.error("Failed to load jobs with parts");
     } finally {
       setLoadingJobsWithParts(false);
     }
@@ -405,144 +464,150 @@ export default function AdminDashboard() {
     try {
       const testJobs = [
         {
-          jobType: 'install',
-          jobDescription: 'Install new tracking system',
-          priority: 'high',
-          customerName: 'Macsteel Durban',
-          customerEmail: 'durban@macsteel.com',
-          customerPhone: '+27 31 123 4567',
-          customerAddress: '123 Durban Street, Durban',
-          vehicleRegistration: 'CA 123 GP',
-          vehicleMake: 'Toyota',
-          vehicleModel: 'Hilux',
+          jobType: "install",
+          jobDescription: "Install new tracking system",
+          priority: "high",
+          customerName: "Macsteel Durban",
+          customerEmail: "durban@macsteel.com",
+          customerPhone: "+27 31 123 4567",
+          customerAddress: "123 Durban Street, Durban",
+          vehicleRegistration: "CA 123 GP",
+          vehicleMake: "Toyota",
+          vehicleModel: "Hilux",
           vehicleYear: 2022,
 
-
-          partsRequired: [{
-            description: 'GPS Module',
-            quantity: 1,
-            code: 'GPS-001',
-            supplier: 'TechParts Inc.',
-            cost_per_unit: 1200,
-            total_cost: 1200,
-            stock_id: 'STOCK-001',
-            available_stock: 10
-          }, {
-            description: 'Antenna',
-            quantity: 2,
-            code: 'ANT-001',
-            supplier: 'Local Suppliers',
-            cost_per_unit: 50,
-            total_cost: 100,
-            stock_id: 'STOCK-002',
-            available_stock: 50
-          }]
+          partsRequired: [
+            {
+              description: "GPS Module",
+              quantity: 1,
+              code: "GPS-001",
+              supplier: "TechParts Inc.",
+              cost_per_unit: 1200,
+              total_cost: 1200,
+              stock_id: "STOCK-001",
+              available_stock: 10,
+            },
+            {
+              description: "Antenna",
+              quantity: 2,
+              code: "ANT-001",
+              supplier: "Local Suppliers",
+              cost_per_unit: 50,
+              total_cost: 100,
+              stock_id: "STOCK-002",
+              available_stock: 50,
+            },
+          ],
         },
         {
-          jobType: 'maintenance',
-          jobDescription: 'Regular maintenance check',
-          priority: 'medium',
-          customerName: 'Macsteel Cape Town',
-          customerEmail: 'capetown@macsteel.com',
-          customerPhone: '+27 21 123 4567',
-          customerAddress: '456 Cape Town Road, Cape Town',
-          vehicleRegistration: 'CA 456 GP',
-          vehicleMake: 'Ford',
-          vehicleModel: 'Ranger',
+          jobType: "maintenance",
+          jobDescription: "Regular maintenance check",
+          priority: "medium",
+          customerName: "Macsteel Cape Town",
+          customerEmail: "capetown@macsteel.com",
+          customerPhone: "+27 21 123 4567",
+          customerAddress: "456 Cape Town Road, Cape Town",
+          vehicleRegistration: "CA 456 GP",
+          vehicleMake: "Ford",
+          vehicleModel: "Ranger",
           vehicleYear: 2021,
 
-
-          partsRequired: [{
-            description: 'Replacement Sensor',
-            quantity: 1,
-            code: 'SENS-001',
-            supplier: 'Global Parts',
-            cost_per_unit: 800,
-            total_cost: 800,
-            stock_id: 'STOCK-003',
-            available_stock: 20
-          }]
+          partsRequired: [
+            {
+              description: "Replacement Sensor",
+              quantity: 1,
+              code: "SENS-001",
+              supplier: "Global Parts",
+              cost_per_unit: 800,
+              total_cost: 800,
+              stock_id: "STOCK-003",
+              available_stock: 20,
+            },
+          ],
         },
         {
-          jobType: 'repair',
-          jobDescription: 'Fix tracking system malfunction',
-          priority: 'urgent',
-          customerName: 'Macsteel Johannesburg',
-          customerEmail: 'joburg@macsteel.com',
-          customerPhone: '+27 11 123 4567',
-          customerAddress: '789 Johannesburg Avenue, Johannesburg',
-          vehicleRegistration: 'CA 789 GP',
-          vehicleMake: 'Isuzu',
-          vehicleModel: 'KB',
+          jobType: "repair",
+          jobDescription: "Fix tracking system malfunction",
+          priority: "urgent",
+          customerName: "Macsteel Johannesburg",
+          customerEmail: "joburg@macsteel.com",
+          customerPhone: "+27 11 123 4567",
+          customerAddress: "789 Johannesburg Avenue, Johannesburg",
+          vehicleRegistration: "CA 789 GP",
+          vehicleMake: "Isuzu",
+          vehicleModel: "KB",
           vehicleYear: 2023,
 
-
-          partsRequired: [{
-            description: 'New Control Unit',
-            quantity: 1,
-            code: 'CTRL-001',
-            supplier: 'TechParts Inc.',
-            cost_per_unit: 2000,
-            total_cost: 2000,
-            stock_id: 'STOCK-004',
-            available_stock: 10
-          }, {
-            description: 'Wiring Harness',
-            quantity: 1,
-            code: 'WIRE-001',
-            supplier: 'Local Suppliers',
-            cost_per_unit: 500,
-            total_cost: 500,
-            stock_id: 'STOCK-005',
-            available_stock: 50
-          }, {
-            description: 'Display Screen',
-            quantity: 1,
-            code: 'DISP-001',
-            supplier: 'Global Parts',
-            cost_per_unit: 1000,
-            total_cost: 1000,
-            stock_id: 'STOCK-006',
-            available_stock: 20
-          }]
-        }
+          partsRequired: [
+            {
+              description: "New Control Unit",
+              quantity: 1,
+              code: "CTRL-001",
+              supplier: "TechParts Inc.",
+              cost_per_unit: 2000,
+              total_cost: 2000,
+              stock_id: "STOCK-004",
+              available_stock: 10,
+            },
+            {
+              description: "Wiring Harness",
+              quantity: 1,
+              code: "WIRE-001",
+              supplier: "Local Suppliers",
+              cost_per_unit: 500,
+              total_cost: 500,
+              stock_id: "STOCK-005",
+              available_stock: 50,
+            },
+            {
+              description: "Display Screen",
+              quantity: 1,
+              code: "DISP-001",
+              supplier: "Global Parts",
+              cost_per_unit: 1000,
+              total_cost: 1000,
+              stock_id: "STOCK-006",
+              available_stock: 20,
+            },
+          ],
+        },
       ];
 
       for (const jobData of testJobs) {
-        const response = await fetch('/api/job-cards', {
-          method: 'POST',
+        const response = await fetch("/api/job-cards", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(jobData),
         });
 
         if (response.ok) {
-          console.log('Created test job card');
+          console.log("Created test job card");
         } else {
-          console.error('Failed to create test job card');
+          console.error("Failed to create test job card");
         }
       }
 
       // Refresh the job cards list
       await fetchJobCards();
     } catch (error) {
-      console.error('Error creating test job cards:', error);
+      console.error("Error creating test job cards:", error);
     }
   };
 
   // Fetch technicians
   const fetchTechnicians = useCallback(async () => {
     try {
-      const response = await fetch('/api/technicians');
+      const response = await fetch("/api/technicians");
       if (!response.ok) {
-        throw new Error('Failed to fetch technicians');
+        throw new Error("Failed to fetch technicians");
       }
       const data = await response.json();
       setTechnicians(data.technicians || []);
     } catch (error) {
-      console.error('Error fetching technicians:', error);
-      toast.error('Failed to load technicians');
+      console.error("Error fetching technicians:", error);
+      toast.error("Failed to load technicians");
     }
   }, []);
 
@@ -553,78 +618,155 @@ export default function AdminDashboard() {
   }, [fetchJobCards, fetchTechnicians, fetchJobsWithParts]);
 
   // Get urgent decommission jobs (with decommission date and no technician)
-  const urgentDecommissionJobs = jobCards.filter(job => 
-    job.job_type === 'deinstall' && 
-    job.decommission_date && 
-    !job.technician_name
+  const urgentDecommissionJobs = jobCards.filter(
+    (job) =>
+      job.job_type === "deinstall" &&
+      job.decommission_date &&
+      !job.technician_name,
+  );
+
+  const handleMoveJob = async (jobId: string, destination: string) => {
+    setMovingJobId(jobId);
+    const loadingToast = toast.loading(`Moving job to ${destination}...`);
+
+    try {
+      const response = await fetch(`/api/job-cards/${jobId}/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ destination }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || `Failed to move job to ${destination}`,
+        );
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job successfully moved to ${destination}`);
+
+      if (destination !== "admin") {
+        setJobCards((current) => current.filter((job) => job.id !== jobId));
+        setJobsWithParts((current) =>
+          current.filter((job) => job.id !== jobId),
+        );
+        if (selectedJob?.id === jobId) {
+          setViewJobOpen(false);
+          setSelectedJob(null);
+        }
+      } else if (selectedJob?.id === jobId) {
+        setSelectedJob((current) =>
+          current
+            ? { ...current, role: "admin", move_to: destination }
+            : current,
+        );
+      }
+
+      await fetchJobCards(true);
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(errorMessage);
+      console.error(`Error moving job to ${destination}:`, error);
+    } finally {
+      setMovingJobId(null);
+    }
+  };
+
+  const renderMoveJobSelect = (job: JobCard, className = "w-[150px]") => (
+    <Select
+      key={`${job.id}-${job.move_to || "none"}`}
+      disabled={movingJobId === job.id}
+      onValueChange={(value) => handleMoveJob(job.id, value)}
+    >
+      <SelectTrigger className={className}>
+        <SelectValue
+          placeholder={movingJobId === job.id ? "Moving..." : "Move to"}
+        />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="inv">Inventory</SelectItem>
+        <SelectItem value="accounts">Accounts</SelectItem>
+        <SelectItem value="fc">FC</SelectItem>
+      </SelectContent>
+    </Select>
   );
 
   const handleAssignTechnician = (job: JobCard) => {
     setSelectedJob(job);
-    setSelectedTechnician('');
-    
+    setSelectedTechnician("");
+
     // For reassignment, populate with current technicians, date, and time
     const currentTechnicians = [];
     let currentDate = formatLocalDateInput();
-    let currentTime = '';
-    
+    let currentTime = "";
+
     if (job.technician_name) {
-      const technicianNames = job.technician_name.split(', ');
+      const technicianNames = job.technician_name.split(", ");
       currentTechnicians.push(...technicianNames);
-      
+
       // Get current date and time from the job if available
       currentDate = extractDateInputValue(job.job_date) || currentDate;
-      currentTime = extractTimeInputValue(job.start_time) || extractTimeInputValue(job.job_date);
+      currentTime =
+        extractTimeInputValue(job.start_time) ||
+        extractTimeInputValue(job.job_date);
     }
-    
+
     setSelectedTechnicians(currentTechnicians);
     setAssignmentDate(currentDate);
     setAssignmentTime(currentTime);
-    setAssignmentNotes('');
+    setAssignmentNotes("");
     setAssignTechnicianOpen(true);
   };
-  
+
   const handleViewJob = (job: JobCard) => {
     setSelectedJob(job);
     setIsEditingVehicle(false);
-    
+
     // Handle potentially undefined or null values safely
-    const yearValue = job.vehicle_year !== undefined && job.vehicle_year !== null 
-      ? job.vehicle_year.toString() 
-      : '';
-    
+    const yearValue =
+      job.vehicle_year !== undefined && job.vehicle_year !== null
+        ? job.vehicle_year.toString()
+        : "";
+
     // Initialize the editable vehicle fields with current values or empty strings
     setEditableVehicle({
-      registration: job.vehicle_registration || '',
-      make: job.vehicle_make || '',
-      model: job.vehicle_model || '',
+      registration: job.vehicle_registration || "",
+      make: job.vehicle_make || "",
+      model: job.vehicle_model || "",
       year: yearValue,
-      vin: job.vin_numer || '',
-      odometer: job.odormeter || ''
+      vin: job.vin_numer || "",
+      odometer: job.odormeter || "",
     });
     setViewJobOpen(true);
   };
 
   const handleSaveVehicleInfo = async () => {
     if (!selectedJob) return;
-    
+
     try {
       // Prepare loading state
-      toast.loading('Updating vehicle information...');
-      
+      toast.loading("Updating vehicle information...");
+
       const response = await fetch(`/api/job-cards/${selectedJob.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           // Make sure field names exactly match the schema
           vehicle_registration: editableVehicle.registration,
           vehicle_make: editableVehicle.make,
           vehicle_model: editableVehicle.model,
-          vehicle_year: editableVehicle.year ? parseInt(editableVehicle.year) : null,
+          vehicle_year: editableVehicle.year
+            ? parseInt(editableVehicle.year)
+            : null,
           vin_numer: editableVehicle.vin,
-          odormeter: editableVehicle.odometer
+          odormeter: editableVehicle.odometer,
         }),
       });
 
@@ -633,22 +775,32 @@ export default function AdminDashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update vehicle information');
+        throw new Error(
+          errorData.error || "Failed to update vehicle information",
+        );
       }
-      
+
       try {
         // Get the updated job data if available
         const updatedData = await response.json();
-        
+
         if (updatedData && updatedData.data) {
           // Update from server data if available
           if (selectedJob) {
-            selectedJob.vehicle_registration = updatedData.data.vehicle_registration || editableVehicle.registration;
-            selectedJob.vehicle_make = updatedData.data.vehicle_make || editableVehicle.make;
-            selectedJob.vehicle_model = updatedData.data.vehicle_model || editableVehicle.model;
-            selectedJob.vehicle_year = updatedData.data.vehicle_year || (editableVehicle.year ? parseInt(editableVehicle.year) : 0);
-            selectedJob.vin_numer = updatedData.data.vin_numer || editableVehicle.vin;
-            selectedJob.odormeter = updatedData.data.odormeter || editableVehicle.odometer;
+            selectedJob.vehicle_registration =
+              updatedData.data.vehicle_registration ||
+              editableVehicle.registration;
+            selectedJob.vehicle_make =
+              updatedData.data.vehicle_make || editableVehicle.make;
+            selectedJob.vehicle_model =
+              updatedData.data.vehicle_model || editableVehicle.model;
+            selectedJob.vehicle_year =
+              updatedData.data.vehicle_year ||
+              (editableVehicle.year ? parseInt(editableVehicle.year) : 0);
+            selectedJob.vin_numer =
+              updatedData.data.vin_numer || editableVehicle.vin;
+            selectedJob.odormeter =
+              updatedData.data.odormeter || editableVehicle.odometer;
           }
         } else {
           // Fallback to local data if server doesn't return the updated job
@@ -656,19 +808,23 @@ export default function AdminDashboard() {
             selectedJob.vehicle_registration = editableVehicle.registration;
             selectedJob.vehicle_make = editableVehicle.make;
             selectedJob.vehicle_model = editableVehicle.model;
-            selectedJob.vehicle_year = editableVehicle.year ? parseInt(editableVehicle.year) : 0;
+            selectedJob.vehicle_year = editableVehicle.year
+              ? parseInt(editableVehicle.year)
+              : 0;
             selectedJob.vin_numer = editableVehicle.vin;
             selectedJob.odormeter = editableVehicle.odometer;
           }
         }
       } catch (parseError) {
-        console.error('Error parsing response:', parseError);
+        console.error("Error parsing response:", parseError);
         // Continue with local data if parsing fails
         if (selectedJob) {
           selectedJob.vehicle_registration = editableVehicle.registration;
           selectedJob.vehicle_make = editableVehicle.make;
           selectedJob.vehicle_model = editableVehicle.model;
-          selectedJob.vehicle_year = editableVehicle.year ? parseInt(editableVehicle.year) : 0;
+          selectedJob.vehicle_year = editableVehicle.year
+            ? parseInt(editableVehicle.year)
+            : 0;
           selectedJob.vin_numer = editableVehicle.vin;
           selectedJob.odormeter = editableVehicle.odometer;
         }
@@ -676,48 +832,48 @@ export default function AdminDashboard() {
 
       // Turn off editing mode
       setIsEditingVehicle(false);
-      toast.success('Vehicle information updated successfully');
-      
+      toast.success("Vehicle information updated successfully");
+
       // Refresh job cards in the background
       fetchJobCards(true);
     } catch (error) {
-      console.error('Error updating vehicle information:', error);
+      console.error("Error updating vehicle information:", error);
       toast.error(`Failed to update vehicle information: ${error.message}`);
       // Re-enable editing mode in case of error
       setIsEditingVehicle(true);
     }
   };
 
-
-
   const confirmAssignTechnician = async () => {
     if (!selectedJob || selectedTechnicians.length === 0) {
-      toast.error('Please select at least one technician');
+      toast.error("Please select at least one technician");
       return;
     }
 
     try {
       // Show loading toast
-      toast.loading('Assigning technician(s)...');
+      toast.loading("Assigning technician(s)...");
 
       // Create comma-separated technician names and emails
-      const technicianNames = selectedTechnicians.join(', ');
-      const technicianEmails = selectedTechnicians.map(name => {
-        const tech = technicians.find(t => t.name === name);
-        return tech ? tech.email : name;
-      }).join(', ');
+      const technicianNames = selectedTechnicians.join(", ");
+      const technicianEmails = selectedTechnicians
+        .map((name) => {
+          const tech = technicians.find((t) => t.name === name);
+          return tech ? tech.email : name;
+        })
+        .join(", ");
 
       // Use direct assignment API instead of RPC
       const response = await fetch(`/api/admin/jobs/assign-technician`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           jobId: selectedJob.id,
           technicianName: technicianNames,
           jobDate: assignmentDate,
-          startTime: assignmentTime || '09:00',
+          startTime: assignmentTime || "09:00",
           assignmentNotes: assignmentNotes || null,
         }),
       });
@@ -733,32 +889,37 @@ export default function AdminDashboard() {
         setConflictDialogOpen(true);
         return;
       } else if (!response.ok) {
-        toast.error(data.error || 'Failed to assign technician(s)');
+        toast.error(data.error || "Failed to assign technician(s)");
         return;
       } else {
-        toast.success(data.message || `Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully`);
+        toast.success(
+          data.message ||
+            `Technician${selectedTechnicians.length > 1 ? "s" : ""} assigned successfully`,
+        );
       }
 
       // Close dialog and reset values
       setAssignTechnicianOpen(false);
-      setAssignmentTime('');
-      setAssignmentNotes('');
+      setAssignmentTime("");
+      setAssignmentNotes("");
       setSelectedTechnicians([]);
-      
+
       // Update selected job with new technician info
       if (selectedJob) {
         selectedJob.technician_name = technicianNames;
-        selectedJob.assigned_technician_id = selectedTechnicians.map(name => {
-          const tech = technicians.find(t => t.name === name);
-          return tech ? tech.id : name;
-        }).join(', ');
+        selectedJob.assigned_technician_id = selectedTechnicians
+          .map((name) => {
+            const tech = technicians.find((t) => t.name === name);
+            return tech ? tech.id : name;
+          })
+          .join(", ");
       }
-      
+
       // Refresh data
       fetchJobCards(true);
     } catch (error) {
-      console.error('Error assigning technician:', error);
-      toast.error('Failed to assign technician(s)');
+      console.error("Error assigning technician:", error);
+      toast.error("Failed to assign technician(s)");
     }
   };
 
@@ -766,71 +927,77 @@ export default function AdminDashboard() {
     if (!selectedJob || selectedTechnicians.length === 0) return;
 
     try {
-      toast.loading('Assigning technician with override...');
-      
+      toast.loading("Assigning technician with override...");
+
       // Create comma-separated technician names and emails
-      const technicianNames = selectedTechnicians.join(', ');
-      const technicianEmails = selectedTechnicians.map(name => {
-        const tech = technicians.find(t => t.name === name);
-        return tech ? tech.email : name;
-      }).join(', ');
-      
+      const technicianNames = selectedTechnicians.join(", ");
+      const technicianEmails = selectedTechnicians
+        .map((name) => {
+          const tech = technicians.find((t) => t.name === name);
+          return tech ? tech.email : name;
+        })
+        .join(", ");
+
       const response = await fetch(`/api/admin/jobs/assign-technician`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           jobId: selectedJob.id,
           technicianName: technicianNames,
           jobDate: assignmentDate,
-          startTime: assignmentTime || '09:00',
+          startTime: assignmentTime || "09:00",
           assignmentNotes: assignmentNotes || null,
-          override: true  // This flag tells the API to skip conflict detection
+          override: true, // This flag tells the API to skip conflict detection
         }),
       });
-      
+
       toast.dismiss();
       const data = await response.json();
-      
+
       if (!response.ok) {
-        toast.error(data.error || 'Failed to assign technician');
+        toast.error(data.error || "Failed to assign technician");
         return;
       }
-      
-      toast.success(`✅ Technician${selectedTechnicians.length > 1 ? 's' : ''} assigned successfully with scheduling override!`);
-      
+
+      toast.success(
+        `✅ Technician${selectedTechnicians.length > 1 ? "s" : ""} assigned successfully with scheduling override!`,
+      );
+
       setConflictDialogOpen(false);
       setAssignTechnicianOpen(false);
-      setAssignmentTime('');
-      setAssignmentNotes('');
+      setAssignmentTime("");
+      setAssignmentNotes("");
       setSelectedTechnicians([]);
-      
+
       if (selectedJob) {
         selectedJob.technician_name = technicianNames;
-        selectedJob.assigned_technician_id = selectedTechnicians.map(name => {
-          const tech = technicians.find(t => t.name === name);
-          return tech ? tech.id : name;
-        }).join(', ');
+        selectedJob.assigned_technician_id = selectedTechnicians
+          .map((name) => {
+            const tech = technicians.find((t) => t.name === name);
+            return tech ? tech.id : name;
+          })
+          .join(", ");
       }
-      
+
       fetchJobCards(true);
     } catch (error) {
-      console.error('Error overriding assignment:', error);
-      toast.error('Failed to assign technician');
+      console.error("Error overriding assignment:", error);
+      toast.error("Failed to assign technician");
     }
   };
 
   const handleCreateJob = async () => {
     // Validate required fields
     if (!newJobData.customerName.trim()) {
-      toast.error('Customer name is required');
+      toast.error("Customer name is required");
       return;
     }
 
     // For deinstall jobs, ensure a vehicle is selected
-    if (newJobData.jobType === 'deinstall' && !selectedVehicleIp) {
-      toast.error('Please select a vehicle for deinstall job');
+    if (newJobData.jobType === "deinstall" && !selectedVehicleIp) {
+      toast.error("Please select a vehicle for deinstall job");
       return;
     }
 
@@ -847,14 +1014,17 @@ export default function AdminDashboard() {
         vehicleMake: newJobData.vehicleMake,
         vehicleModel: newJobData.vehicleModel,
         vehicleYear: newJobData.vehicleYear,
-        status: 'pending',
-        job_status: 'created',
+        status: "pending",
+        job_status: "created",
         // For deinstall: include vehicle_ip reference
-        vehicle_ip_id: newJobData.jobType === 'deinstall' && selectedVehicleIp ? selectedVehicleIp.id : null,
+        vehicle_ip_id:
+          newJobData.jobType === "deinstall" && selectedVehicleIp
+            ? selectedVehicleIp.id
+            : null,
         // quotation-style fields
-        purchaseType: 'purchase',
+        purchaseType: "purchase",
         quotationJobType: newJobData.jobType,
-        quotationProducts: aqSelectedProducts.map(p => ({
+        quotationProducts: aqSelectedProducts.map((p) => ({
           id: p.id,
           name: p.name,
           description: p.description,
@@ -868,67 +1038,78 @@ export default function AdminDashboard() {
           rental_gross: aqCalcGross(p.rentalPrice, p.rentalDiscount),
           installation_price: p.installationPrice,
           installation_discount: p.installationDiscount,
-          installation_gross: aqCalcGross(p.installationPrice, p.installationDiscount),
+          installation_gross: aqCalcGross(
+            p.installationPrice,
+            p.installationDiscount,
+          ),
           de_installation_price: p.deInstallationPrice,
           de_installation_discount: p.deInstallationDiscount,
-          de_installation_gross: aqCalcGross(p.deInstallationPrice, p.deInstallationDiscount),
+          de_installation_gross: aqCalcGross(
+            p.deInstallationPrice,
+            p.deInstallationDiscount,
+          ),
           subscription_price: p.subscriptionPrice,
           subscription_discount: p.subscriptionDiscount,
-          subscription_gross: aqCalcGross(p.subscriptionPrice, p.subscriptionDiscount),
+          subscription_gross: aqCalcGross(
+            p.subscriptionPrice,
+            p.subscriptionDiscount,
+          ),
           quantity: p.quantity,
-          line_total: aqGetProductTotal(p)
+          line_total: aqGetProductTotal(p),
         })),
         quotationSubtotal: aqSubtotal,
         quotationVatAmount: aqVat,
         quotationTotalAmount: aqTotal,
-        quoteType: 'external'
+        quoteType: "external",
       };
 
-      const response = await fetch('/api/job-cards', {
-        method: 'POST',
+      const response = await fetch("/api/job-cards", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(jobData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create job');
+        throw new Error(errorData.error || "Failed to create job");
       }
 
       const result = await response.json();
-      toast.success(`Job created successfully! Job number: ${result.data.job_number}`);
+      toast.success(
+        `Job created successfully! Job number: ${result.data.job_number}`,
+      );
 
       // Store the created job ID and move to technician assignment step
       setCreatedJobId(result.data.id);
       setCreateJobStep(2);
     } catch (error) {
-      console.error('Error creating job:', error);
+      console.error("Error creating job:", error);
       toast.error(`Failed to create job: ${error.message}`);
     }
   };
 
   const resetCreateJobForm = () => {
     setNewJobData({
-      jobType: 'install',
-      jobDescription: '',
-      priority: 'medium',
-      customerName: '',
-      customerEmail: '',
-      customerPhone: '',
-      customerAddress: '',
-      vehicleRegistration: '',
-      vehicleMake: '',
-      vehicleModel: '',
+      jobType: "install",
+      jobDescription: "",
+      priority: "medium",
+      customerName: "",
+      customerEmail: "",
+      customerPhone: "",
+      customerAddress: "",
+      vehicleRegistration: "",
+      vehicleMake: "",
+      vehicleModel: "",
       vehicleYear: 2023,
       partsRequired: [],
     });
     setCreateJobStep(1);
     setCreatedJobId(null);
-    setSelectedTechnicianForJob('');
-    setAssignmentDateForJob('');
-    setAssignmentTimeForJob('');
+    setSelectedTechnicianForJob("");
+    setAssignmentDateForJob("");
+    setAssignmentTimeForJob("");
     setAqSelectedProducts([]);
     setSelectedVehicleIp(null);
     setVehiclesIp([]);
@@ -936,21 +1117,23 @@ export default function AdminDashboard() {
 
   const handleAssignTechnicianToNewJob = async () => {
     if (!createdJobId || !selectedTechnicianForJob || !assignmentDateForJob) {
-      toast.error('Please fill in all required fields');
+      toast.error("Please fill in all required fields");
       return;
     }
 
     try {
-      const technician = technicians.find(t => t.name === selectedTechnicianForJob);
+      const technician = technicians.find(
+        (t) => t.name === selectedTechnicianForJob,
+      );
       if (!technician) {
-        toast.error('Selected technician not found');
+        toast.error("Selected technician not found");
         return;
       }
 
       const response = await fetch(`/api/admin/jobs/assign-technician`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           jobId: createdJobId,
@@ -965,103 +1148,124 @@ export default function AdminDashboard() {
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error || 'Failed to assign technician');
+        toast.error(data.error || "Failed to assign technician");
         return;
       }
 
-      toast.success(`Technician ${technician.name} assigned successfully to the new job!`);
+      toast.success(
+        `Technician ${technician.name} assigned successfully to the new job!`,
+      );
 
       // Reset everything and close dialog
       resetCreateJobForm();
       setCreateJobStep(1);
       setCreatedJobId(null);
-      setSelectedTechnicianForJob('');
-      setAssignmentDateForJob('');
-      setAssignmentTimeForJob('');
+      setSelectedTechnicianForJob("");
+      setAssignmentDateForJob("");
+      setAssignmentTimeForJob("");
       setCreateJobOpen(false);
 
       // Refresh job cards
       await fetchJobCards(true);
     } catch (error) {
-      console.error('Error assigning technician:', error);
-      toast.error('Failed to assign technician');
+      console.error("Error assigning technician:", error);
+      toast.error("Failed to assign technician");
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      case 'on_hold': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "in_progress":
+        return "bg-blue-100 text-blue-800";
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      case "on_hold":
+        return "bg-orange-100 text-orange-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
-      case 'high': return 'bg-red-100 text-red-800 border-red-200';
-      case 'urgent': return 'bg-orange-100 text-orange-800 border-orange-200';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'low': return 'bg-green-100 text-green-800 border-green-200';
-      case 'critical': return 'bg-red-200 text-red-900 border-red-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case "high":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "urgent":
+        return "bg-orange-100 text-orange-800 border-orange-200";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "low":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "critical":
+        return "bg-red-200 text-red-900 border-red-300";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
     }
   };
 
   const getJobContextLabel = (jobType?: string) => {
-    switch ((jobType || '').toLowerCase()) {
-      case 'install':
-        return 'Installation';
-      case 'deinstall':
-        return 'De-installation';
-      case 'repair':
-        return 'Repair';
-      case 'maintenance':
-        return 'Maintenance';
-      case 'service':
-        return 'Service';
+    switch ((jobType || "").toLowerCase()) {
+      case "install":
+        return "Installation";
+      case "deinstall":
+        return "De-installation";
+      case "repair":
+        return "Repair";
+      case "maintenance":
+        return "Maintenance";
+      case "service":
+        return "Service";
       default:
-        return 'Job';
+        return "Job";
     }
   };
 
   const getPartsActionLabel = (jobType?: string) => {
-    switch ((jobType || '').toLowerCase()) {
-      case 'install':
-        return 'Install';
-      case 'deinstall':
-        return 'De-install';
-      case 'repair':
-        return 'Repair';
-      case 'maintenance':
-        return 'Maintain';
-      case 'service':
-        return 'Service';
+    switch ((jobType || "").toLowerCase()) {
+      case "install":
+        return "Install";
+      case "deinstall":
+        return "De-install";
+      case "repair":
+        return "Repair";
+      case "maintenance":
+        return "Maintain";
+      case "service":
+        return "Service";
       default:
-        return 'Use';
+        return "Use";
     }
   };
 
   const shouldShowVehicleInfo = (job: JobCard) => {
-    const hasVehicleValues = !!(job.vehicle_registration || job.vehicle_make || job.vehicle_model);
-    const vehicleCentricTypes = ['install', 'deinstall', 'repair'];
-    return hasVehicleValues || vehicleCentricTypes.includes((job.job_type || '').toLowerCase());
+    const hasVehicleValues = !!(
+      job.vehicle_registration ||
+      job.vehicle_make ||
+      job.vehicle_model
+    );
+    const vehicleCentricTypes = ["install", "deinstall", "repair"];
+    return (
+      hasVehicleValues ||
+      vehicleCentricTypes.includes((job.job_type || "").toLowerCase())
+    );
   };
 
   const formatConflictDate = (value?: string | null) => {
-    if (!value) return 'Not provided';
-    const datePart = String(value).split('T')[0];
+    if (!value) return "Not provided";
+    const datePart = String(value).split("T")[0];
     if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-      const [year, month, day] = datePart.split('-');
+      const [year, month, day] = datePart.split("-");
       return `${day}/${month}/${year}`;
     }
     return value;
   };
 
   const formatConflictTime = (value?: string | null) => {
-    if (!value) return 'Not provided';
+    if (!value) return "Not provided";
     const match = String(value).match(/T(\d{2}:\d{2}:\d{2})/);
     if (match?.[1]) return match[1];
     const hhmm = String(value).match(/(\d{2}:\d{2})/);
@@ -1070,7 +1274,7 @@ export default function AdminDashboard() {
   };
 
   const formatStartTimeClock = (value?: string | null) => {
-    if (!value) return 'Time not set';
+    if (!value) return "Time not set";
     const match = String(value).match(/T(\d{2}:\d{2})/);
     if (match?.[1]) return match[1];
     const hhmm = String(value).match(/(\d{2}:\d{2})/);
@@ -1082,48 +1286,60 @@ export default function AdminDashboard() {
 
   // Helper function to check if parts are required
   const hasPartsRequired = (job: JobCard) => {
-    const hasParts = job.parts_required && 
-                   Array.isArray(job.parts_required) && 
-                   job.parts_required.length > 0;
-    
+    const hasParts =
+      job.parts_required &&
+      Array.isArray(job.parts_required) &&
+      job.parts_required.length > 0;
+
     console.log(`Job ${job.job_number} parts check:`, {
       parts_required: job.parts_required,
       type: typeof job.parts_required,
       isArray: Array.isArray(job.parts_required),
-      hasParts
+      hasParts,
     });
-    
+
     return hasParts;
   };
 
   const isAdminRoutedJob = (job: JobCard) => {
-    const role = String(job.role || '').toLowerCase();
-    const moveTo = String(job.move_to || '').toLowerCase();
-    const status = String(job.status || '').toLowerCase();
+    const role = String(job.role || "").toLowerCase();
+    const moveTo = String(job.move_to || "").toLowerCase();
+    const status = String(job.status || "").toLowerCase();
 
     return (
-      role === 'admin' ||
-      moveTo === 'admin' ||
-      status === 'admin_created' ||
-      status === 'moved_to_admin'
+      role === "admin" ||
+      moveTo === "admin" ||
+      status === "admin_created" ||
+      status === "moved_to_admin"
     );
   };
 
-  const isMovedToAdminJob = (job: JobCard) => (
-    String(job.status || '').toLowerCase() === 'moved_to_admin'
-  );
+  const isMovedToAdminJob = (job: JobCard) =>
+    String(job.status || "").toLowerCase() === "moved_to_admin";
 
-  const canAssignTechnician = (job: JobCard) => (
-    hasPartsRequired(job) || isAdminRoutedJob(job)
-  );
+  const isMovedAwayFromAdmin = (job: JobCard) => {
+    const role = String(job.role || "").toLowerCase();
+    const moveTo = String(job.move_to || "").toLowerCase();
+    const status = String(job.status || "").toLowerCase();
+
+    return (
+      ["inv", "accounts", "fc"].includes(role) ||
+      ["inv", "accounts", "fc"].includes(moveTo) ||
+      ["moved_to_inv", "moved_to_accounts"].includes(status) ||
+      (status === "completed" && role === "fc")
+    );
+  };
+
+  const canAssignTechnician = (job: JobCard) =>
+    hasPartsRequired(job) || isAdminRoutedJob(job);
 
   const toSearchableText = (value: unknown): string => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string') {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") {
       const trimmed = value.trim();
       if (
-        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+        (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith("[") && trimmed.endsWith("]"))
       ) {
         try {
           return `${trimmed.toLowerCase()} ${toSearchableText(JSON.parse(trimmed))}`;
@@ -1133,18 +1349,18 @@ export default function AdminDashboard() {
       }
       return trimmed.toLowerCase();
     }
-    if (typeof value === 'number' || typeof value === 'boolean') {
+    if (typeof value === "number" || typeof value === "boolean") {
       return String(value).toLowerCase();
     }
     if (Array.isArray(value)) {
-      return value.map((item) => toSearchableText(item)).join(' ');
+      return value.map((item) => toSearchableText(item)).join(" ");
     }
-    if (typeof value === 'object') {
+    if (typeof value === "object") {
       return Object.values(value as Record<string, unknown>)
         .map((item) => toSearchableText(item))
-        .join(' ');
+        .join(" ");
     }
-    return '';
+    return "";
   };
 
   const matchesJobSearch = (job: JobCard) => {
@@ -1162,15 +1378,20 @@ export default function AdminDashboard() {
       job.vehicle_model,
       job.job_description,
       job.job_type,
-      job.status
+      job.status,
     ]
       .filter(Boolean)
-      .join(' ')
+      .join(" ")
       .toLowerCase();
 
-    const quotationProductsSearchText = toSearchableText(job.quotation_products);
+    const quotationProductsSearchText = toSearchableText(
+      job.quotation_products,
+    );
 
-    return basicSearchText.includes(query) || quotationProductsSearchText.includes(query);
+    return (
+      basicSearchText.includes(query) ||
+      quotationProductsSearchText.includes(query)
+    );
   };
 
   // Sort jobs: newest first, then by assignment status and priority
@@ -1179,46 +1400,67 @@ export default function AdminDashboard() {
       // Primary sort: creation date (newest first)
       const aDate = new Date(a.created_at).getTime();
       const bDate = new Date(b.created_at).getTime();
-      
+
       if (aDate !== bDate) {
         return bDate - aDate; // Newest first
       }
-      
+
       // Secondary sort: assignment status (unassigned first)
       const aAssigned = !!a.technician_name;
       const bAssigned = !!b.technician_name;
-      
+
       if (aAssigned && !bAssigned) return 1; // a goes to bottom
       if (!aAssigned && bAssigned) return -1; // b goes to top
-      
+
       // Tertiary sort: priority
-      const priorityOrder = { 'critical': 0, 'urgent': 1, 'high': 2, 'medium': 3, 'low': 4 };
-      const aPriority = priorityOrder[a.priority?.toLowerCase() as keyof typeof priorityOrder] ?? 5;
-      const bPriority = priorityOrder[b.priority?.toLowerCase() as keyof typeof priorityOrder] ?? 5;
-      
+      const priorityOrder = {
+        critical: 0,
+        urgent: 1,
+        high: 2,
+        medium: 3,
+        low: 4,
+      };
+      const aPriority =
+        priorityOrder[
+          a.priority?.toLowerCase() as keyof typeof priorityOrder
+        ] ?? 5;
+      const bPriority =
+        priorityOrder[
+          b.priority?.toLowerCase() as keyof typeof priorityOrder
+        ] ?? 5;
+
       return aPriority - bPriority;
     });
   };
 
-  const filteredJobCards = sortJobs(jobCards.filter(job => {
-    // Show jobs with no technician assigned that are ready for assignment,
-    // but always include jobs explicitly moved to admin.
-    return matchesJobSearch(job) && (
-      isMovedToAdminJob(job) ||
-      (!job.technician_name && canAssignTechnician(job))
-    );
-  }));
+  const filteredJobCards = sortJobs(
+    jobCards.filter((job) => {
+      // Show jobs with no technician assigned that are ready for assignment,
+      // but always include jobs explicitly moved to admin.
+      return (
+        matchesJobSearch(job) &&
+        !isMovedAwayFromAdmin(job) &&
+        (isMovedToAdminJob(job) ||
+          (!job.technician_name && canAssignTechnician(job)))
+      );
+    }),
+  );
 
   const filteredJobsWithParts = sortJobs(
-    jobsWithParts.filter((job) => matchesJobSearch(job))
+    jobsWithParts.filter((job) => matchesJobSearch(job)),
   );
 
   const filteredWaitingForPartsJobs = sortJobs(
-    jobCards.filter((job) => !hasPartsRequired(job) && matchesJobSearch(job))
+    jobCards.filter((job) => !hasPartsRequired(job) && matchesJobSearch(job)),
   );
 
   const filteredAssignedTechnicianJobs = sortJobs(
-    jobCards.filter((job) => job.technician_name && matchesJobSearch(job))
+    jobCards.filter(
+      (job) =>
+        job.technician_name &&
+        matchesJobSearch(job) &&
+        !isMovedAwayFromAdmin(job),
+    ),
   );
 
   // These were used for metrics/analytics but aren't currently referenced in the UI
@@ -1235,58 +1477,75 @@ export default function AdminDashboard() {
 
   const overviewMetrics = [
     {
-      title: 'TOTAL JOBS',
+      title: "TOTAL JOBS",
       value: jobCards.length.toString(),
-      subtitle: 'All job cards',
-      color: 'text-blue-600',
-      icon: BarChart3
+      subtitle: "All job cards",
+      color: "text-blue-600",
+      icon: BarChart3,
     },
     {
-      title: 'PENDING JOBS',
-      value: jobCards.filter(job => job.status === 'pending').length.toString(),
-      subtitle: 'Awaiting assignment',
-      color: 'text-yellow-600',
-      icon: Clock
+      title: "PENDING JOBS",
+      value: jobCards
+        .filter((job) => job.status === "pending")
+        .length.toString(),
+      subtitle: "Awaiting assignment",
+      color: "text-yellow-600",
+      icon: Clock,
     },
     {
-      title: 'IN PROGRESS',
-      value: jobCards.filter(job => job.status === 'in_progress').length.toString(),
-      subtitle: 'Currently being worked on',
-      color: 'text-blue-600',
-      icon: Users
+      title: "IN PROGRESS",
+      value: jobCards
+        .filter((job) => job.status === "in_progress")
+        .length.toString(),
+      subtitle: "Currently being worked on",
+      color: "text-blue-600",
+      icon: Users,
     },
     {
-      title: 'COMPLETED',
-      value: jobCards.filter(job => job.status === 'completed').length.toString(),
-      subtitle: 'Successfully finished',
-      color: 'text-green-600',
-      icon: CheckCircle
+      title: "COMPLETED",
+      value: jobCards
+        .filter((job) => job.status === "completed")
+        .length.toString(),
+      subtitle: "Successfully finished",
+      color: "text-green-600",
+      icon: CheckCircle,
     },
     {
-      title: 'WITH VEHICLE INFO',
-      value: jobCards.filter(job => 
-        job.vehicle_registration || job.vehicle_make || job.vehicle_model
-      ).length.toString(),
-      subtitle: 'Jobs with vehicle details',
-      color: 'text-purple-600',
-      icon: Car
-    }
+      title: "WITH VEHICLE INFO",
+      value: jobCards
+        .filter(
+          (job) =>
+            job.vehicle_registration || job.vehicle_make || job.vehicle_model,
+        )
+        .length.toString(),
+      subtitle: "Jobs with vehicle details",
+      color: "text-purple-600",
+      icon: Car,
+    },
   ];
 
   const tabItems = [
     {
-      value: 'all-jobs',
-      label: 'Awaiting Technician',
+      value: "all-jobs",
+      label: "Awaiting Technician",
       icon: BarChart3,
       content: (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="font-semibold text-gray-900 text-xl">Jobs Ready for Technician</h2>
-              <p className="mt-1 text-gray-600 text-sm">Showing jobs with parts assigned and no technician assigned</p>
+              <h2 className="font-semibold text-gray-900 text-xl">
+                Jobs Ready for Technician
+              </h2>
+              <p className="mt-1 text-gray-600 text-sm">
+                Showing jobs with parts assigned and no technician assigned
+              </p>
             </div>
-            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+            <Button
+              onClick={() => fetchJobCards(true)}
+              variant="outline"
+              size="icon"
+            >
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
@@ -1339,7 +1598,11 @@ export default function AdminDashboard() {
                 <SelectItem value="without_parts">Without Parts</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+            <Button
+              onClick={() => fetchJobCards(true)}
+              variant="outline"
+              size="icon"
+            >
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
@@ -1352,16 +1615,31 @@ export default function AdminDashboard() {
                   <tr className="bg-gray-50 border-b">
                     <th className="py-3 px-4 text-left font-medium text-gray-500">
                       <div className="flex items-center gap-1">
-                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
                         <span>Job Number</span>
                       </div>
                     </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description / At a Glance</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Schedule</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Created</th>
-                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Description / At a Glance
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Customer
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Vehicle
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Schedule
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Created
+                    </th>
+                    <th className="py-3 px-4 text-right font-medium text-gray-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1386,31 +1664,53 @@ export default function AdminDashboard() {
                         <tr key={job.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 align-middle">
                             <div className="flex items-center gap-3">
-                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
                               <div>
-                                <div className="font-medium">{job.job_number}</div>
-                                <div className="text-xs text-gray-500">{(job.job_type || 'job').toUpperCase()}</div>
+                                <div className="font-medium">
+                                  {job.job_number}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {(job.job_type || "job").toUpperCase()}
+                                </div>
                               </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="truncate max-w-[250px]">
-                              {job.job_description || 'No description'}
+                              {job.job_description || "No description"}
                             </div>
                             <div className="mt-1 text-xs text-gray-500">
-                              Client: {job.customer_name || 'N/A'} | Reg: {job.vehicle_registration || 'N/A'}
+                              Client: {job.customer_name || "N/A"} | Reg:{" "}
+                              {job.vehicle_registration || "N/A"}
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">{job.customer_name || 'N/A'}</div>
-                            <div className="text-xs text-gray-500">{job.contact_person || 'No contact person'}</div>
+                            <div className="text-sm font-medium">
+                              {job.customer_name || "N/A"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {job.contact_person || "No contact person"}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">{job.vehicle_registration || 'N/A'}</div>
-                            <div className="text-xs text-gray-500">{[job.vehicle_make, job.vehicle_model].filter(Boolean).join(' ') || 'No vehicle details'}</div>
+                            <div className="text-sm font-medium">
+                              {job.vehicle_registration || "N/A"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {[job.vehicle_make, job.vehicle_model]
+                                .filter(Boolean)
+                                .join(" ") || "No vehicle details"}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.job_date ? new Date(job.job_date).toLocaleDateString() : 'Not scheduled'}</div>
+                            <div className="text-sm">
+                              {job.job_date
+                                ? new Date(job.job_date).toLocaleDateString()
+                                : "Not scheduled"}
+                            </div>
                             <div className="text-xs text-gray-500">
                               {formatStartTimeClock(job.start_time)}
                             </div>
@@ -1418,14 +1718,17 @@ export default function AdminDashboard() {
                           <td className="py-3 px-4 align-middle text-gray-600">
                             {new Date(job.created_at).toLocaleDateString()}
                             <div className="text-xs text-gray-500 mt-1">
-                              {job.customer_phone || job.customer_email || 'No contact'}
+                              {job.customer_phone ||
+                                job.customer_email ||
+                                "No contact"}
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="flex justify-end gap-2">
-                              <Button 
-                                onClick={() => handleViewJob(job)} 
-                                variant="outline" 
+                              {renderMoveJobSelect(job)}
+                              <Button
+                                onClick={() => handleViewJob(job)}
+                                variant="outline"
                                 size="sm"
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                               >
@@ -1437,7 +1740,11 @@ export default function AdminDashboard() {
                                 size="sm"
                                 className="bg-black hover:bg-gray-800 text-white"
                                 disabled={!canAssignTechnician(job)}
-                                title={!canAssignTechnician(job) ? "Parts must be assigned before technician can be assigned" : ""}
+                                title={
+                                  !canAssignTechnician(job)
+                                    ? "Parts must be assigned before technician can be assigned"
+                                    : ""
+                                }
                               >
                                 <UserPlus className="w-4 h-4 mr-2" />
                                 Assign
@@ -1453,24 +1760,32 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-      )
+      ),
     },
     {
-      value: 'assigned-technician',
-      label: 'Assigned',
+      value: "assigned-technician",
+      label: "Assigned",
       icon: Users,
       content: (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="font-semibold text-gray-900 text-xl">Jobs with Technician Assigned</h2>
-              <p className="mt-1 text-gray-600 text-sm">Showing all jobs that have been assigned to technicians</p>
+              <h2 className="font-semibold text-gray-900 text-xl">
+                Jobs with Technician Assigned
+              </h2>
+              <p className="mt-1 text-gray-600 text-sm">
+                Showing all jobs that have been assigned to technicians
+              </p>
             </div>
-            <Button onClick={() => fetchJobCards(true)} variant="outline" size="icon">
+            <Button
+              onClick={() => fetchJobCards(true)}
+              variant="outline"
+              size="icon"
+            >
               <RefreshCw className="w-4 h-4" />
             </Button>
           </div>
-          
+
           {/* Filters */}
           <div className="flex sm:flex-row flex-col gap-4">
             <div className="flex-1">
@@ -1519,21 +1834,46 @@ export default function AdminDashboard() {
                   <tr className="bg-gray-50 border-b">
                     <th className="py-3 px-4 text-left font-medium text-gray-500">
                       <div className="flex items-center gap-1">
-                        <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
                         <span>Job Number</span>
                       </div>
                     </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Priority</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Description</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Customer</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Contact</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Job Type</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Vehicle</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Due Date</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Location</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Est. Duration</th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">Technician</th>
-                    <th className="py-3 px-4 text-right font-medium text-gray-500">Actions</th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Priority
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Description
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Customer
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Contact
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Job Type
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Vehicle
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Due Date
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Location
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Est. Duration
+                    </th>
+                    <th className="py-3 px-4 text-left font-medium text-gray-500">
+                      Technician
+                    </th>
+                    <th className="py-3 px-4 text-right font-medium text-gray-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1551,8 +1891,12 @@ export default function AdminDashboard() {
                       <td colSpan={12} className="p-4 text-center">
                         <div className="py-8 flex flex-col items-center">
                           <Users className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-                          <h3 className="mb-2 font-medium text-gray-900 text-lg">No Jobs with Assigned Technicians</h3>
-                          <p className="text-gray-500">There are no jobs assigned to technicians yet.</p>
+                          <h3 className="mb-2 font-medium text-gray-900 text-lg">
+                            No Jobs with Assigned Technicians
+                          </h3>
+                          <p className="text-gray-500">
+                            There are no jobs assigned to technicians yet.
+                          </p>
                         </div>
                       </td>
                     </tr>
@@ -1562,53 +1906,70 @@ export default function AdminDashboard() {
                         <tr key={job.id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-4 align-middle">
                             <div className="flex items-center gap-3">
-                              <input type="checkbox" className="h-4 w-4 rounded border-gray-300" />
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
                               <div>
-                                <div className="font-medium">{job.job_number}</div>
-                                <div className="text-xs text-gray-500">{(job.job_type || 'job').toUpperCase()}</div>
+                                <div className="font-medium">
+                                  {job.job_number}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {(job.job_type || "job").toUpperCase()}
+                                </div>
                               </div>
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <Badge 
+                            <Badge
                               className={
-                                job.priority === 'high' 
-                                  ? 'bg-red-100 text-red-800' 
-                                  : job.priority === 'medium'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-green-100 text-green-800'
+                                job.priority === "high"
+                                  ? "bg-red-100 text-red-800"
+                                  : job.priority === "medium"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-green-100 text-green-800"
                               }
                             >
-                              {job.priority?.toUpperCase() || 'MEDIUM'}
+                              {job.priority?.toUpperCase() || "MEDIUM"}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="truncate max-w-[200px] text-sm">
-                              {job.job_description || 'No description'}
+                              {job.job_description || "No description"}
                             </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">{job.customer_name || 'N/A'}</div>
-                            <div className="text-xs text-gray-500">{job.customer_email || ''}</div>
+                            <div className="text-sm font-medium">
+                              {job.customer_name || "N/A"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {job.customer_email || ""}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">{job.contact_person || 'Not specified'}</div>
-                            <div className="text-xs text-gray-500">{job.customer_phone || ''}</div>
+                            <div className="text-sm">
+                              {job.contact_person || "Not specified"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {job.customer_phone || ""}
+                            </div>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={
-                                job.job_type === 'deinstall' 
-                                  ? 'border-red-300 text-red-700' 
-                                  : 'border-blue-300 text-blue-700'
+                                job.job_type === "deinstall"
+                                  ? "border-red-300 text-red-700"
+                                  : "border-blue-300 text-blue-700"
                               }
                             >
-                              {job.job_type?.toUpperCase() || 'N/A'}
+                              {job.job_type?.toUpperCase() || "N/A"}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">{job.vehicle_registration || 'N/A'}</div>
+                            <div className="text-sm font-medium">
+                              {job.vehicle_registration || "N/A"}
+                            </div>
                             {job.vehicle_make && job.vehicle_model && (
                               <div className="text-xs text-gray-500">
                                 {job.vehicle_make} {job.vehicle_model}
@@ -1616,13 +1977,17 @@ export default function AdminDashboard() {
                             )}
                           </td>
                           <td className="py-3 px-4 align-middle text-sm">
-                            {job.due_date ? new Date(job.due_date).toLocaleDateString() : 'Not specified'}
+                            {job.due_date
+                              ? new Date(job.due_date).toLocaleDateString()
+                              : "Not specified"}
                           </td>
                           <td className="py-3 px-4 align-middle text-sm">
-                            {job.job_location || 'Not specified'}
+                            {job.job_location || "Not specified"}
                           </td>
                           <td className="py-3 px-4 align-middle text-sm">
-                            {job.estimated_duration_hours ? `${job.estimated_duration_hours}h` : 'Not specified'}
+                            {job.estimated_duration_hours
+                              ? `${job.estimated_duration_hours}h`
+                              : "Not specified"}
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <Badge className="bg-green-100 text-green-800">
@@ -1631,9 +1996,10 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-3 px-4 align-middle">
                             <div className="flex justify-end gap-2">
-                              <Button 
-                                onClick={() => handleViewJob(job)} 
-                                variant="outline" 
+                              {renderMoveJobSelect(job)}
+                              <Button
+                                onClick={() => handleViewJob(job)}
+                                variant="outline"
                                 size="sm"
                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                               >
@@ -1659,24 +2025,20 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-      )
+      ),
     },
     {
-      value: 'schedule',
-      label: 'Schedule',
+      value: "schedule",
+      label: "Schedule",
       icon: Calendar,
-      content: (
-        <AdminScheduleContent embedded />
-      )
+      content: <AdminScheduleContent embedded />,
     },
     {
-      value: 'completed-jobs',
-      label: 'Awaiting Testing',
+      value: "completed-jobs",
+      label: "Awaiting Testing",
       icon: CheckCircle,
-      content: (
-        <AwaitingTestingContent embedded />
-      )
-    }
+      content: <AwaitingTestingContent embedded />,
+    },
   ];
 
   return (
@@ -1686,11 +2048,11 @@ export default function AdminDashboard() {
           <BarChart3 className="w-6 h-6 text-blue-600" />
           <h1 className="font-bold text-gray-900 text-2xl">Admin Dashboard</h1>
         </div>
-        
+
         {/* Notification Bell */}
         <div className="relative">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="icon"
             onClick={() => setNotificationsOpen(!notificationsOpen)}
             className="relative"
@@ -1702,13 +2064,17 @@ export default function AdminDashboard() {
               </span>
             )}
           </Button>
-          
+
           {/* Notifications Dropdown */}
           {notificationsOpen && (
             <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border z-50">
               <div className="p-4 border-b">
-                <h3 className="font-semibold text-gray-900">Urgent Decommission Jobs</h3>
-                <p className="text-xs text-gray-500 mt-1">Jobs with decommission dates requiring technician assignment</p>
+                <h3 className="font-semibold text-gray-900">
+                  Urgent Decommission Jobs
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Jobs with decommission dates requiring technician assignment
+                </p>
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {urgentDecommissionJobs.length === 0 ? (
@@ -1718,8 +2084,8 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   urgentDecommissionJobs.map((job) => (
-                    <div 
-                      key={job.id} 
+                    <div
+                      key={job.id}
                       className="p-4 border-b hover:bg-gray-50 cursor-pointer"
                       onClick={() => {
                         setNotificationsOpen(false);
@@ -1728,14 +2094,24 @@ export default function AdminDashboard() {
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{job.job_number}</p>
-                          <p className="text-sm text-gray-600 mt-1">{job.customer_name}</p>
-                          <p className="text-xs text-gray-500 mt-1">{job.vehicle_registration}</p>
+                          <p className="font-medium text-gray-900">
+                            {job.job_number}
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {job.customer_name}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {job.vehicle_registration}
+                          </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-600 font-semibold">Decom Date</p>
+                          <p className="text-xs text-gray-600 font-semibold">
+                            Decom Date
+                          </p>
                           <p className="text-sm text-gray-900 font-medium">
-                            {new Date(job.decommission_date).toLocaleDateString()}
+                            {new Date(
+                              job.decommission_date,
+                            ).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
@@ -1755,7 +2131,9 @@ export default function AdminDashboard() {
             <div className="flex justify-between items-center">
               <div>
                 <p className="font-medium text-blue-600 text-sm">Total Jobs</p>
-                <p className="font-bold text-blue-900 text-2xl">{jobCards.length}</p>
+                <p className="font-bold text-blue-900 text-2xl">
+                  {jobCards.length}
+                </p>
                 <p className="text-blue-700 text-xs">All job cards</p>
               </div>
               <div className="bg-blue-500 p-3 rounded-full">
@@ -1769,8 +2147,12 @@ export default function AdminDashboard() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="font-medium text-green-600 text-sm">Technicians Assigned</p>
-                <p className="font-bold text-green-900 text-2xl">{jobCards.filter(job => job.technician_name).length}</p>
+                <p className="font-medium text-green-600 text-sm">
+                  Technicians Assigned
+                </p>
+                <p className="font-bold text-green-900 text-2xl">
+                  {jobCards.filter((job) => job.technician_name).length}
+                </p>
                 <p className="text-green-700 text-xs">Jobs with technicians</p>
               </div>
               <div className="bg-green-500 p-3 rounded-full">
@@ -1784,8 +2166,12 @@ export default function AdminDashboard() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="font-medium text-purple-600 text-sm">Jobs with Parts</p>
-                <p className="font-bold text-purple-900 text-2xl">{jobCards.filter(job => hasPartsRequired(job)).length}</p>
+                <p className="font-medium text-purple-600 text-sm">
+                  Jobs with Parts
+                </p>
+                <p className="font-bold text-purple-900 text-2xl">
+                  {jobCards.filter((job) => hasPartsRequired(job)).length}
+                </p>
                 <p className="text-purple-700 text-xs">Parts assigned</p>
               </div>
               <div className="bg-purple-500 p-3 rounded-full">
@@ -1799,64 +2185,89 @@ export default function AdminDashboard() {
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="font-medium text-orange-600 text-sm">Waiting for Parts</p>
-                <p className="font-bold text-orange-900 text-2xl">{jobCards.filter(job => !hasPartsRequired(job)).length}</p>
+                <p className="font-medium text-orange-600 text-sm">
+                  Waiting for Parts
+                </p>
+                <p className="font-bold text-orange-900 text-2xl">
+                  {jobCards.filter((job) => !hasPartsRequired(job)).length}
+                </p>
                 <p className="text-orange-700 text-xs">Need parts assigned</p>
               </div>
               <div className="bg-orange-500 p-3 rounded-full">
                 <Clock className="w-6 h-6 text-white" />
               </div>
             </div>
-
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Access Section */}
       <div className="gap-4 grid grid-cols-1 md:grid-cols-4">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setCreateJobModalOpen(true)}>
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => setCreateJobModalOpen(true)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Plus className="w-8 h-8 text-green-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Create Job</h3>
-                <p className="text-gray-600 text-sm">Create a new job with photos and details</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/completed-jobs'}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
-                <p className="text-gray-600 text-sm">View completed jobs ready for Finance Controller</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/protected/admin/schedule'}>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-8 h-8 text-green-600" />
-              <div>
-                <h3 className="font-semibold text-gray-900">Schedule</h3>
-                <p className="text-gray-600 text-sm">View technicians&apos; calendars and schedule</p>
+                <p className="text-gray-600 text-sm">
+                  Create a new job with photos and details
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('assigned-technician')}>
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() =>
+            (window.location.href = "/protected/admin/completed-jobs")
+          }
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
+                <p className="text-gray-600 text-sm">
+                  View completed jobs ready for Finance Controller
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => (window.location.href = "/protected/admin/schedule")}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-8 h-8 text-green-600" />
+              <div>
+                <h3 className="font-semibold text-gray-900">Schedule</h3>
+                <p className="text-gray-600 text-sm">
+                  View technicians&apos; calendars and schedule
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => setActiveTab("assigned-technician")}
+        >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <Users className="w-8 h-8 text-blue-600" />
               <div>
                 <h3 className="font-semibold text-gray-900">Assigned Jobs</h3>
-                <p className="text-gray-600 text-sm">View jobs that already have technicians assigned</p>
+                <p className="text-gray-600 text-sm">
+                  View jobs that already have technicians assigned
+                </p>
               </div>
             </div>
           </CardContent>
@@ -1872,8 +2283,8 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab(item.value)}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-md text-sm font-medium transition-all duration-200 ${
                 activeTab === item.value
-                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                  ? "bg-blue-50 text-blue-600 border border-blue-200"
+                  : "text-gray-700 hover:text-gray-900 hover:bg-gray-50"
               }`}
             >
               {item.icon && <item.icon className="w-4 h-4" />}
@@ -1884,18 +2295,18 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tab Content */}
-      {tabItems.map((item) => (
-        activeTab === item.value && (
-          <div key={item.value}>
-            {item.content}
-          </div>
-        )
-      ))}
+      {tabItems.map(
+        (item) =>
+          activeTab === item.value && (
+            <div key={item.value}>{item.content}</div>
+          ),
+      )}
 
       {/* Assign Technician Dialog */}
-      <Dialog 
-        open={assignTechnicianOpen} 
-        onOpenChange={setAssignTechnicianOpen}>
+      <Dialog
+        open={assignTechnicianOpen}
+        onOpenChange={setAssignTechnicianOpen}
+      >
         <DialogContent className="w-[90vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1923,33 +2334,64 @@ export default function AdminDashboard() {
                   </div>
                   <div className="p-4 space-y-3">
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
-                      <p className="text-sm text-gray-900">{selectedJob.job_description || 'No description'}</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Description
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {selectedJob.job_description || "No description"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Scheduling Context</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Scheduling Context
+                      </p>
                       <p className="text-sm text-gray-900">
-                        {getJobContextLabel(selectedJob.job_type)} assignment details
+                        {getJobContextLabel(selectedJob.job_type)} assignment
+                        details
                       </p>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Job Type</p>
-                        <p className="text-sm text-gray-900">{selectedJob.job_type?.toUpperCase()}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Job Type
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.job_type?.toUpperCase()}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Due Date</p>
-                        <p className="text-sm text-gray-900">{selectedJob.due_date ? new Date(selectedJob.due_date).toLocaleDateString() : 'Not set'}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Due Date
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.due_date
+                            ? new Date(
+                                selectedJob.due_date,
+                              ).toLocaleDateString()
+                            : "Not set"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Est. Duration</p>
-                        <p className="text-sm text-gray-900">{selectedJob.estimated_duration_hours ? `${selectedJob.estimated_duration_hours}h` : 'Not set'}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Est. Duration
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.estimated_duration_hours
+                            ? `${selectedJob.estimated_duration_hours}h`
+                            : "Not set"}
+                        </p>
                       </div>
                     </div>
                     {selectedJob.decommission_date && (
                       <div className="bg-gray-50 border border-gray-200 rounded p-3">
-                        <p className="text-xs text-gray-600 font-semibold mb-1">DECOMMISSION DATE</p>
-                        <p className="text-sm text-gray-900 font-medium">{new Date(selectedJob.decommission_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-600 font-semibold mb-1">
+                          DECOMMISSION DATE
+                        </p>
+                        <p className="text-sm text-gray-900 font-medium">
+                          {new Date(
+                            selectedJob.decommission_date,
+                          ).toLocaleDateString()}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1958,35 +2400,61 @@ export default function AdminDashboard() {
                 {/* Customer & Contact Card */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-gray-50 border-b p-3">
-                    <h3 className="font-semibold text-gray-900">Customer Information</h3>
+                    <h3 className="font-semibold text-gray-900">
+                      Customer Information
+                    </h3>
                   </div>
                   <div className="p-4 grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Customer Name</p>
-                      <p className="text-sm text-gray-900 font-medium">{selectedJob.customer_name}</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Customer Name
+                      </p>
+                      <p className="text-sm text-gray-900 font-medium">
+                        {selectedJob.customer_name}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Contact Person</p>
-                      <p className="text-sm text-gray-900">{selectedJob.contact_person || 'Not specified'}</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Contact Person
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {selectedJob.contact_person || "Not specified"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Email</p>
-                      <p className="text-sm text-gray-900">{selectedJob.customer_email || 'Not provided'}</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Email
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {selectedJob.customer_email || "Not provided"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-1">Phone</p>
-                      <p className="text-sm text-gray-900">{selectedJob.customer_phone || 'Not provided'}</p>
+                      <p className="text-xs text-gray-500 font-medium mb-1">
+                        Phone
+                      </p>
+                      <p className="text-sm text-gray-900">
+                        {selectedJob.customer_phone || "Not provided"}
+                      </p>
                     </div>
                     {selectedJob.customer_address && (
                       <div className="col-span-2">
-                        <p className="text-xs text-gray-500 font-medium mb-1">Address</p>
-                        <p className="text-sm text-gray-900">{selectedJob.customer_address}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Address
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.customer_address}
+                        </p>
                       </div>
                     )}
                     {selectedJob.job_location && (
                       <div className="col-span-2">
-                        <p className="text-xs text-gray-500 font-medium mb-1">Job Location</p>
-                        <p className="text-sm text-gray-900">{selectedJob.job_location}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Job Location
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.job_location}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1996,110 +2464,175 @@ export default function AdminDashboard() {
                 {shouldShowVehicleInfo(selectedJob) && (
                   <div className="border rounded-lg overflow-hidden">
                     <div className="bg-gray-50 border-b p-3">
-                      <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
+                      <h3 className="font-semibold text-gray-900">
+                        Vehicle Information
+                      </h3>
                     </div>
                     <div className="p-4 grid grid-cols-3 gap-4">
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Registration</p>
-                        <p className="text-sm text-gray-900 font-medium">{selectedJob.vehicle_registration || 'N/A'}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Registration
+                        </p>
+                        <p className="text-sm text-gray-900 font-medium">
+                          {selectedJob.vehicle_registration || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Make</p>
-                        <p className="text-sm text-gray-900">{selectedJob.vehicle_make || 'N/A'}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Make
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.vehicle_make || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-medium mb-1">Model</p>
-                        <p className="text-sm text-gray-900">{selectedJob.vehicle_model || 'N/A'}</p>
+                        <p className="text-xs text-gray-500 font-medium mb-1">
+                          Model
+                        </p>
+                        <p className="text-sm text-gray-900">
+                          {selectedJob.vehicle_model || "N/A"}
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Parts Assigned Card */}
-                {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="bg-gray-50 border-b p-3">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                        <Package className="w-4 h-4" />
-                        Items to {getPartsActionLabel(selectedJob.job_type)} ({selectedJob.parts_required.length})
-                      </h3>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto">
-                      {selectedJob.parts_required.map((part, index) => (
-                        <div key={index} className="p-3 border-b last:border-b-0 hover:bg-gray-50">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">{part.description}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Code: {part.code} • Qty: {part.quantity} • Supplier: {part.supplier}
-                              </p>
-                              {part.serial_number && (
-                                <p className="text-xs text-blue-600 mt-1">Serial: {part.serial_number}</p>
-                              )}
-                              {part.ip_address && (
-                                <p className="text-xs text-blue-600 mt-1">IP: {part.ip_address}</p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-gray-900">R{part.total_cost}</p>
+                {selectedJob.parts_required &&
+                  selectedJob.parts_required.length > 0 && (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 border-b p-3">
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                          <Package className="w-4 h-4" />
+                          Items to {getPartsActionLabel(selectedJob.job_type)} (
+                          {selectedJob.parts_required.length})
+                        </h3>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {selectedJob.parts_required.map((part, index) => (
+                          <div
+                            key={index}
+                            className="p-3 border-b last:border-b-0 hover:bg-gray-50"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {part.description}
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Code: {part.code} • Qty: {part.quantity} •
+                                  Supplier: {part.supplier}
+                                </p>
+                                {part.serial_number && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    Serial: {part.serial_number}
+                                  </p>
+                                )}
+                                {part.ip_address && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    IP: {part.ip_address}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-gray-900">
+                                  R{part.total_cost}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      <div className="bg-gray-50 border-t p-3 flex justify-between items-center">
+                        <span className="text-sm font-semibold text-gray-900">
+                          Total Cost
+                        </span>
+                        <span className="text-sm font-bold text-gray-900">
+                          R
+                          {selectedJob.parts_required
+                            .reduce(
+                              (sum, part) =>
+                                sum + (parseFloat(part.total_cost) || 0),
+                              0,
+                            )
+                            .toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="bg-gray-50 border-t p-3 flex justify-between items-center">
-                      <span className="text-sm font-semibold text-gray-900">Total Cost</span>
-                      <span className="text-sm font-bold text-gray-900">
-                        R{selectedJob.parts_required.reduce((sum, part) => sum + (parseFloat(part.total_cost) || 0), 0).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
+                  )}
               </>
             )}
             {/* Technician Assignment Card */}
             <div className="border rounded-lg overflow-hidden">
               <div className="bg-gray-50 border-b p-3">
-                <h3 className="font-semibold text-gray-900">Technician Assignment</h3>
+                <h3 className="font-semibold text-gray-900">
+                  Technician Assignment
+                </h3>
               </div>
               <div className="p-4 space-y-4">
                 {selectedJob?.technician_name && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <p className="text-xs text-yellow-700 font-semibold mb-1">CURRENT ASSIGNMENT</p>
-                    <p className="text-sm text-yellow-900">Currently assigned to: <strong>{selectedJob.technician_name}</strong></p>
+                    <p className="text-xs text-yellow-700 font-semibold mb-1">
+                      CURRENT ASSIGNMENT
+                    </p>
+                    <p className="text-sm text-yellow-900">
+                      Currently assigned to:{" "}
+                      <strong>{selectedJob.technician_name}</strong>
+                    </p>
                   </div>
                 )}
                 <div>
                   <Label className="text-sm font-medium mb-2 block">
-                    {selectedJob?.technician_name ? 'Select New Technician *' : 'Select Technician *'}
+                    {selectedJob?.technician_name
+                      ? "Select New Technician *"
+                      : "Select Technician *"}
                   </Label>
-                  <Select value={selectedTechnician} onValueChange={(value) => {
-                    if (value && !selectedTechnicians.includes(value)) {
-                      setSelectedTechnicians(prev => [...prev, value]);
-                    }
-                    setSelectedTechnician('');
-                  }}>
+                  <Select
+                    value={selectedTechnician}
+                    onValueChange={(value) => {
+                      if (value && !selectedTechnicians.includes(value)) {
+                        setSelectedTechnicians((prev) => [...prev, value]);
+                      }
+                      setSelectedTechnician("");
+                    }}
+                  >
                     <SelectTrigger className="w-full border-gray-300 h-9 text-sm">
                       <SelectValue placeholder="Select a technician" />
                     </SelectTrigger>
                     <SelectContent>
-                      {technicians.filter(tech => !selectedTechnicians.includes(tech.name)).map((technician) => (
-                        <SelectItem key={technician.id} value={technician.name}>
-                          {technician.name} ({technician.email})
-                        </SelectItem>
-                      ))}
+                      {technicians
+                        .filter(
+                          (tech) => !selectedTechnicians.includes(tech.name),
+                        )
+                        .map((technician) => (
+                          <SelectItem
+                            key={technician.id}
+                            value={technician.name}
+                          >
+                            {technician.name} ({technician.email})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
                 {selectedTechnicians.length > 0 && (
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Selected Technicians</Label>
+                    <Label className="text-sm font-medium mb-2 block">
+                      Selected Technicians
+                    </Label>
                     <div className="flex flex-wrap gap-2">
                       {selectedTechnicians.map((techName, index) => (
-                        <div key={index} className="flex items-center bg-blue-100 text-blue-800 px-3 py-1.5 rounded text-sm">
+                        <div
+                          key={index}
+                          className="flex items-center bg-blue-100 text-blue-800 px-3 py-1.5 rounded text-sm"
+                        >
                           <span>{techName}</span>
                           <button
-                            onClick={() => setSelectedTechnicians(prev => prev.filter((_, i) => i !== index))}
+                            onClick={() =>
+                              setSelectedTechnicians((prev) =>
+                                prev.filter((_, i) => i !== index),
+                              )
+                            }
                             className="ml-2 text-blue-600 hover:text-blue-800 font-bold"
                           >
                             ×
@@ -2109,10 +2642,12 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 )}
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Assignment Date *</Label>
+                    <Label className="text-sm font-medium mb-2 block">
+                      Assignment Date *
+                    </Label>
                     <Input
                       id="assignment-date"
                       type="date"
@@ -2120,9 +2655,11 @@ export default function AdminDashboard() {
                       onChange={(e) => setAssignmentDate(e.target.value)}
                     />
                   </div>
-                  
+
                   <div>
-                    <Label className="text-sm font-medium mb-2 block">Assignment Time</Label>
+                    <Label className="text-sm font-medium mb-2 block">
+                      Assignment Time
+                    </Label>
                     <Input
                       id="assignment-time"
                       type="time"
@@ -2131,9 +2668,11 @@ export default function AdminDashboard() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">Notes (Optional)</Label>
+                  <Label className="text-sm font-medium mb-2 block">
+                    Notes (Optional)
+                  </Label>
                   <Textarea
                     id="assignment-notes"
                     placeholder="Add any notes about this assignment..."
@@ -2144,21 +2683,21 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setAssignTechnicianOpen(false)}
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={confirmAssignTechnician} 
+              <Button
+                onClick={confirmAssignTechnician}
                 disabled={selectedTechnicians.length === 0}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <UserPlus className="mr-2 w-4 h-4" />
-                Assign Technician{selectedTechnicians.length > 1 ? 's' : ''}
+                Assign Technician{selectedTechnicians.length > 1 ? "s" : ""}
               </Button>
             </div>
           </div>
@@ -2180,21 +2719,33 @@ export default function AdminDashboard() {
               <div className="bg-gray-50 p-5 rounded-lg border border-gray-100">
                 <div className="flex flex-col md:flex-row justify-between gap-4">
                   <div>
-                    <span className="text-sm font-medium text-gray-500">Job Number</span>
-                    <h2 className="text-2xl font-bold text-gray-900">{selectedJob.job_number}</h2>
-                    <p className="text-gray-500 text-sm mt-1">Created: {new Date(selectedJob.created_at).toLocaleDateString()}</p>
+                    <span className="text-sm font-medium text-gray-500">
+                      Job Number
+                    </span>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {selectedJob.job_number}
+                    </h2>
+                    <p className="text-gray-500 text-sm mt-1">
+                      Created:{" "}
+                      {new Date(selectedJob.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end">
                     <div className="flex items-start gap-2 flex-wrap">
                       <Badge className={getStatusColor(selectedJob.status)}>
-                        {selectedJob.status.replace('_', ' ').toUpperCase()}
+                        {selectedJob.status.replace("_", " ").toUpperCase()}
                       </Badge>
-                      <Badge className={`${getPriorityColor(selectedJob.priority)} border font-semibold`}>
+                      <Badge
+                        className={`${getPriorityColor(selectedJob.priority)} border font-semibold`}
+                      >
                         {selectedJob.priority.toUpperCase()}
                       </Badge>
-                      {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
-                        <Badge className="bg-purple-100 text-purple-800">PARTS ASSIGNED</Badge>
-                      )}
+                      {selectedJob.parts_required &&
+                        selectedJob.parts_required.length > 0 && (
+                          <Badge className="bg-purple-100 text-purple-800">
+                            PARTS ASSIGNED
+                          </Badge>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -2215,12 +2766,15 @@ export default function AdminDashboard() {
                     <div className="p-5">
                       <div className="space-y-3">
                         <div>
-                          <h4 className="font-semibold text-gray-900">{selectedJob.customer_name || 'N/A'}</h4>
+                          <h4 className="font-semibold text-gray-900">
+                            {selectedJob.customer_name || "N/A"}
+                          </h4>
                         </div>
                         {selectedJob.contact_person && (
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <User className="w-4 h-4 text-gray-400" />
-                            <span className="font-medium">Contact:</span> {selectedJob.contact_person}
+                            <span className="font-medium">Contact:</span>{" "}
+                            {selectedJob.contact_person}
                           </div>
                         )}
                         {selectedJob.customer_email && (
@@ -2238,14 +2792,22 @@ export default function AdminDashboard() {
                         {selectedJob.customer_address && (
                           <div className="flex items-start gap-2 text-sm text-gray-600">
                             <MapPin className="w-4 h-4 text-gray-400 mt-1" />
-                            <span className="whitespace-pre-wrap">{selectedJob.customer_address}</span>
+                            <span className="whitespace-pre-wrap">
+                              {selectedJob.customer_address}
+                            </span>
                           </div>
                         )}
                         {selectedJob.decommission_date && (
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span className="font-medium text-gray-700">Decommission Date:</span>
-                            <span className="text-gray-900 font-semibold">{new Date(selectedJob.decommission_date).toLocaleDateString()}</span>
+                            <span className="font-medium text-gray-700">
+                              Decommission Date:
+                            </span>
+                            <span className="text-gray-900 font-semibold">
+                              {new Date(
+                                selectedJob.decommission_date,
+                              ).toLocaleDateString()}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -2259,27 +2821,32 @@ export default function AdminDashboard() {
                         <Car className="w-4 h-4 mr-2 text-gray-500" />
                         Vehicle Information
                       </h3>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => setIsEditingVehicle(!isEditingVehicle)}
                         className="text-xs font-medium"
                       >
-                        {isEditingVehicle ? 'Cancel' : 'Edit Vehicle'}
+                        {isEditingVehicle ? "Cancel" : "Edit Vehicle"}
                       </Button>
                     </div>
                     <div className="p-5">
                       {!isEditingVehicle ? (
                         <div className="space-y-3">
                           <div>
-                            <h4 className="font-semibold text-gray-900">{selectedJob.vehicle_registration || 'No Registration'}</h4>
+                            <h4 className="font-semibold text-gray-900">
+                              {selectedJob.vehicle_registration ||
+                                "No Registration"}
+                            </h4>
                           </div>
-                          {selectedJob.vehicle_make && selectedJob.vehicle_model && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <Car className="w-4 h-4 text-gray-400" />
-                              {selectedJob.vehicle_make} {selectedJob.vehicle_model}
-                            </div>
-                          )}
+                          {selectedJob.vehicle_make &&
+                            selectedJob.vehicle_model && (
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Car className="w-4 h-4 text-gray-400" />
+                                {selectedJob.vehicle_make}{" "}
+                                {selectedJob.vehicle_model}
+                              </div>
+                            )}
                           {selectedJob.vehicle_year && (
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                               <Clock className="w-4 h-4 text-gray-400" />
@@ -2303,62 +2870,122 @@ export default function AdminDashboard() {
                         <div className="space-y-4">
                           <div className="grid grid-cols-1 gap-4">
                             <div>
-                              <Label htmlFor="vehicle-registration" className="text-xs text-gray-500 font-medium">Registration</Label>
-                              <Input 
-                                id="vehicle-registration" 
-                                value={editableVehicle.registration} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, registration: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-registration"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                Registration
+                              </Label>
+                              <Input
+                                id="vehicle-registration"
+                                value={editableVehicle.registration}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    registration: e.target.value,
+                                  })
+                                }
                                 placeholder="Vehicle Registration"
                                 className="mt-1"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="vehicle-make" className="text-xs text-gray-500 font-medium">Make</Label>
-                              <Input 
-                                id="vehicle-make" 
-                                value={editableVehicle.make} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, make: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-make"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                Make
+                              </Label>
+                              <Input
+                                id="vehicle-make"
+                                value={editableVehicle.make}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    make: e.target.value,
+                                  })
+                                }
                                 placeholder="Vehicle Make"
                                 className="mt-1"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="vehicle-model" className="text-xs text-gray-500 font-medium">Model</Label>
-                              <Input 
-                                id="vehicle-model" 
-                                value={editableVehicle.model} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, model: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-model"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                Model
+                              </Label>
+                              <Input
+                                id="vehicle-model"
+                                value={editableVehicle.model}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    model: e.target.value,
+                                  })
+                                }
                                 placeholder="Vehicle Model"
                                 className="mt-1"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="vehicle-year" className="text-xs text-gray-500 font-medium">Year</Label>
-                              <Input 
-                                id="vehicle-year" 
-                                value={editableVehicle.year} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, year: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-year"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                Year
+                              </Label>
+                              <Input
+                                id="vehicle-year"
+                                value={editableVehicle.year}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    year: e.target.value,
+                                  })
+                                }
                                 placeholder="Vehicle Year"
                                 type="number"
                                 className="mt-1"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="vehicle-vin" className="text-xs text-gray-500 font-medium">VIN Number</Label>
-                              <Input 
-                                id="vehicle-vin" 
-                                value={editableVehicle.vin} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, vin: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-vin"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                VIN Number
+                              </Label>
+                              <Input
+                                id="vehicle-vin"
+                                value={editableVehicle.vin}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    vin: e.target.value,
+                                  })
+                                }
                                 placeholder="VIN Number"
                                 className="mt-1"
                               />
                             </div>
                             <div>
-                              <Label htmlFor="vehicle-odometer" className="text-xs text-gray-500 font-medium">Odometer</Label>
-                              <Input 
-                                id="vehicle-odometer" 
-                                value={editableVehicle.odometer} 
-                                onChange={(e) => setEditableVehicle({...editableVehicle, odometer: e.target.value})}
+                              <Label
+                                htmlFor="vehicle-odometer"
+                                className="text-xs text-gray-500 font-medium"
+                              >
+                                Odometer
+                              </Label>
+                              <Input
+                                id="vehicle-odometer"
+                                value={editableVehicle.odometer}
+                                onChange={(e) =>
+                                  setEditableVehicle({
+                                    ...editableVehicle,
+                                    odometer: e.target.value,
+                                  })
+                                }
                                 placeholder="Odometer Reading"
                                 className="mt-1"
                               />
@@ -2373,7 +3000,7 @@ export default function AdminDashboard() {
                             >
                               Cancel
                             </Button>
-                            <Button 
+                            <Button
                               onClick={handleSaveVehicleInfo}
                               className="bg-black hover:bg-gray-800 text-white text-xs"
                               size="sm"
@@ -2400,96 +3027,161 @@ export default function AdminDashboard() {
                     <div className="p-5">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 gap-x-6">
                         <div>
-                          <p className="text-xs font-medium text-gray-500 mb-1">Job Type</p>
-                          <p className="font-medium">{selectedJob.job_type?.toUpperCase() || 'N/A'}</p>
+                          <p className="text-xs font-medium text-gray-500 mb-1">
+                            Job Type
+                          </p>
+                          <p className="font-medium">
+                            {selectedJob.job_type?.toUpperCase() || "N/A"}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-gray-500 mb-1">Job Date</p>
+                          <p className="text-xs font-medium text-gray-500 mb-1">
+                            Job Date
+                          </p>
                           <p className="font-medium">
-                            {selectedJob.job_date ? new Date(selectedJob.job_date).toLocaleDateString() : 'Not Scheduled'}
+                            {selectedJob.job_date
+                              ? new Date(
+                                  selectedJob.job_date,
+                                ).toLocaleDateString()
+                              : "Not Scheduled"}
                           </p>
                         </div>
                         {selectedJob.due_date && (
                           <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">Due Date</p>
-                            <p className="font-medium">{new Date(selectedJob.due_date).toLocaleDateString()}</p>
+                            <p className="text-xs font-medium text-gray-500 mb-1">
+                              Due Date
+                            </p>
+                            <p className="font-medium">
+                              {new Date(
+                                selectedJob.due_date,
+                              ).toLocaleDateString()}
+                            </p>
                           </div>
                         )}
                         {selectedJob.estimated_duration_hours && (
                           <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">Est. Duration</p>
-                            <p className="font-medium">{selectedJob.estimated_duration_hours} hours</p>
+                            <p className="text-xs font-medium text-gray-500 mb-1">
+                              Est. Duration
+                            </p>
+                            <p className="font-medium">
+                              {selectedJob.estimated_duration_hours} hours
+                            </p>
                           </div>
                         )}
                         {selectedJob.estimated_cost && (
                           <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">Est. Cost</p>
-                            <p className="font-medium">R{selectedJob.estimated_cost}</p>
+                            <p className="text-xs font-medium text-gray-500 mb-1">
+                              Est. Cost
+                            </p>
+                            <p className="font-medium">
+                              R{selectedJob.estimated_cost}
+                            </p>
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Description section */}
                       {selectedJob.job_description && (
                         <div className="mt-6 pt-6 border-t border-gray-100">
-                          <p className="text-xs font-medium text-gray-500 mb-2">Description</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedJob.job_description}</p>
+                          <p className="text-xs font-medium text-gray-500 mb-2">
+                            Description
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {selectedJob.job_description}
+                          </p>
                         </div>
                       )}
-                      
+
                       {/* Work Notes section */}
                       {selectedJob.work_notes && (
                         <div className="mt-6 pt-6 border-t border-gray-100">
-                          <p className="text-xs font-medium text-gray-500 mb-2">Work Notes</p>
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedJob.work_notes}</p>
+                          <p className="text-xs font-medium text-gray-500 mb-2">
+                            Work Notes
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                            {selectedJob.work_notes}
+                          </p>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Parts Required Card */}
-                  {selectedJob.parts_required && selectedJob.parts_required.length > 0 && (
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                      <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
-                        <h3 className="text-md font-semibold text-gray-800 flex items-center">
-                          <Package className="w-4 h-4 mr-2 text-gray-500" />
-                          Parts Assigned
-                        </h3>
-                      </div>
-                      <div className="p-0">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                              <tr>
-                                <th className="px-5 py-3 text-left font-medium text-gray-500">Description</th>
-                                <th className="px-5 py-3 text-left font-medium text-gray-500">Quantity</th>
-                                <th className="px-5 py-3 text-left font-medium text-gray-500">Code</th>
-                                <th className="px-5 py-3 text-left font-medium text-gray-500">Supplier</th>
-                                <th className="px-5 py-3 text-right font-medium text-gray-500">Cost</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedJob.parts_required.map((part, index) => (
-                                <tr key={index} className="border-b border-gray-100">
-                                  <td className="px-5 py-3">{part.description}</td>
-                                  <td className="px-5 py-3">{part.quantity}</td>
-                                  <td className="px-5 py-3">{part.code}</td>
-                                  <td className="px-5 py-3">{part.supplier}</td>
-                                  <td className="px-5 py-3 text-right">R{part.total_cost}</td>
+                  {selectedJob.parts_required &&
+                    selectedJob.parts_required.length > 0 && (
+                      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                          <h3 className="text-md font-semibold text-gray-800 flex items-center">
+                            <Package className="w-4 h-4 mr-2 text-gray-500" />
+                            Parts Assigned
+                          </h3>
+                        </div>
+                        <div className="p-0">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                  <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                    Description
+                                  </th>
+                                  <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                    Quantity
+                                  </th>
+                                  <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                    Code
+                                  </th>
+                                  <th className="px-5 py-3 text-left font-medium text-gray-500">
+                                    Supplier
+                                  </th>
+                                  <th className="px-5 py-3 text-right font-medium text-gray-500">
+                                    Cost
+                                  </th>
                                 </tr>
-                              ))}
-                              <tr className="bg-gray-50">
-                                <td colSpan={4} className="px-5 py-3 font-medium text-right">Total:</td>
-                                <td className="px-5 py-3 font-bold text-right">
-                                  R{selectedJob.parts_required.reduce((sum, part) => sum + part.total_cost, 0)}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {selectedJob.parts_required.map(
+                                  (part, index) => (
+                                    <tr
+                                      key={index}
+                                      className="border-b border-gray-100"
+                                    >
+                                      <td className="px-5 py-3">
+                                        {part.description}
+                                      </td>
+                                      <td className="px-5 py-3">
+                                        {part.quantity}
+                                      </td>
+                                      <td className="px-5 py-3">{part.code}</td>
+                                      <td className="px-5 py-3">
+                                        {part.supplier}
+                                      </td>
+                                      <td className="px-5 py-3 text-right">
+                                        R{part.total_cost}
+                                      </td>
+                                    </tr>
+                                  ),
+                                )}
+                                <tr className="bg-gray-50">
+                                  <td
+                                    colSpan={4}
+                                    className="px-5 py-3 font-medium text-right"
+                                  >
+                                    Total:
+                                  </td>
+                                  <td className="px-5 py-3 font-bold text-right">
+                                    R
+                                    {selectedJob.parts_required.reduce(
+                                      (sum, part) => sum + part.total_cost,
+                                      0,
+                                    )}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
 
@@ -2498,11 +3190,15 @@ export default function AdminDashboard() {
                 <Button variant="outline" onClick={() => setViewJobOpen(false)}>
                   Close
                 </Button>
+                {selectedJob && renderMoveJobSelect(selectedJob, "w-[170px]")}
                 {!selectedJob.technician_name && (
                   <Button
                     onClick={() => {
                       setViewJobOpen(false);
-                      setTimeout(() => handleAssignTechnician(selectedJob), 100);
+                      setTimeout(
+                        () => handleAssignTechnician(selectedJob),
+                        100,
+                      );
                     }}
                     disabled={!canAssignTechnician(selectedJob)}
                     className="bg-black hover:bg-gray-800 text-white"
@@ -2518,29 +3214,37 @@ export default function AdminDashboard() {
       </Dialog>
 
       {/* Create Job Dialog */}
-      <Dialog open={createJobOpen} onOpenChange={(open) => {
-        setCreateJobOpen(open);
-        if (!open) {
-          resetCreateJobForm();
-        }
-      }}>
+      <Dialog
+        open={createJobOpen}
+        onOpenChange={(open) => {
+          setCreateJobOpen(open);
+          if (!open) {
+            resetCreateJobForm();
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {createJobStep === 1 ? 'Create New Job' : 'Assign Technician'}
+              {createJobStep === 1 ? "Create New Job" : "Assign Technician"}
             </DialogTitle>
           </DialogHeader>
-          
+
           {createJobStep === 1 ? (
             // Step 1: Job Creation Form
             <div className="space-y-6">
               {/* Job Details Section */}
               <div className="space-y-4">
-                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Job Details</h3>
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">
+                  Job Details
+                </h3>
                 <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                   <div>
                     <Label htmlFor="jobType">Job Type *</Label>
-                    <Select value={newJobData.jobType} onValueChange={handleJobTypeChange}>
+                    <Select
+                      value={newJobData.jobType}
+                      onValueChange={handleJobTypeChange}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -2552,7 +3256,12 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <Label htmlFor="priority">Priority *</Label>
-                    <Select value={newJobData.priority} onValueChange={(value) => setNewJobData(prev => ({ ...prev, priority: value }))}>
+                    <Select
+                      value={newJobData.priority}
+                      onValueChange={(value) =>
+                        setNewJobData((prev) => ({ ...prev, priority: value }))
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -2572,16 +3281,22 @@ export default function AdminDashboard() {
                     id="jobDescription"
                     placeholder="Describe the job requirements..."
                     value={newJobData.jobDescription}
-                    onChange={(e) => setNewJobData(prev => ({ ...prev, jobDescription: e.target.value }))}
+                    onChange={(e) =>
+                      setNewJobData((prev) => ({
+                        ...prev,
+                        jobDescription: e.target.value,
+                      }))
+                    }
                     rows={3}
                   />
                 </div>
-
               </div>
 
               {/* Customer Details Section */}
               <div className="space-y-4">
-                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Customer Details</h3>
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">
+                  Customer Details
+                </h3>
                 <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                   <div>
                     <Label htmlFor="customerName">Customer Name *</Label>
@@ -2589,7 +3304,12 @@ export default function AdminDashboard() {
                       id="customerName"
                       placeholder="Enter customer name..."
                       value={newJobData.customerName}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerName: e.target.value }))}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          customerName: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div>
@@ -2599,7 +3319,12 @@ export default function AdminDashboard() {
                       type="email"
                       placeholder="Enter customer email..."
                       value={newJobData.customerEmail}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerEmail: e.target.value }))}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          customerEmail: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
@@ -2610,7 +3335,12 @@ export default function AdminDashboard() {
                       id="customerPhone"
                       placeholder="Enter customer phone..."
                       value={newJobData.customerPhone}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerPhone: e.target.value }))}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          customerPhone: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                   <div>
@@ -2619,7 +3349,12 @@ export default function AdminDashboard() {
                       id="customerAddress"
                       placeholder="Enter customer address..."
                       value={newJobData.customerAddress}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, customerAddress: e.target.value }))}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          customerAddress: e.target.value,
+                        }))
+                      }
                     />
                   </div>
                 </div>
@@ -2627,11 +3362,15 @@ export default function AdminDashboard() {
 
               {/* Vehicle Details Section */}
               <div className="space-y-4">
-                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Vehicle Details</h3>
-                
-                {newJobData.jobType === 'deinstall' && (
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">
+                  Vehicle Details
+                </h3>
+
+                {newJobData.jobType === "deinstall" && (
                   <div className="bg-blue-50 mb-4 p-4 border border-blue-200 rounded-lg">
-                    <h4 className="mb-3 font-medium text-blue-800">Select Vehicle for Deinstall</h4>
+                    <h4 className="mb-3 font-medium text-blue-800">
+                      Select Vehicle for Deinstall
+                    </h4>
                     {loadingVehiclesIp ? (
                       <div className="text-blue-600">Loading vehicles...</div>
                     ) : vehiclesIp.length === 0 ? (
@@ -2639,19 +3378,25 @@ export default function AdminDashboard() {
                     ) : (
                       <div className="space-y-2 max-h-40 overflow-auto">
                         {vehiclesIp.map((vehicle) => (
-                          <div 
-                            key={vehicle.id} 
+                          <div
+                            key={vehicle.id}
                             className={`p-2 border rounded cursor-pointer hover:bg-blue-100 ${
-                              selectedVehicleIp?.id === vehicle.id ? 'bg-blue-200 border-blue-400' : 'bg-white'
+                              selectedVehicleIp?.id === vehicle.id
+                                ? "bg-blue-200 border-blue-400"
+                                : "bg-white"
                             }`}
                             onClick={() => handleVehicleIpSelect(vehicle)}
                           >
-                            <div className="font-medium text-sm">{vehicle.new_registration || 'No Registration'}</div>
+                            <div className="font-medium text-sm">
+                              {vehicle.new_registration || "No Registration"}
+                            </div>
                             <div className="text-gray-600 text-xs">
-                              Company: {vehicle.company || 'N/A'} | Group: {vehicle.group_name || 'N/A'}
+                              Company: {vehicle.company || "N/A"} | Group:{" "}
+                              {vehicle.group_name || "N/A"}
                             </div>
                             <div className="text-gray-500 text-xs">
-                              IP: {vehicle.ip_address || 'N/A'} | VIN: {vehicle.vin_number || 'N/A'}
+                              IP: {vehicle.ip_address || "N/A"} | VIN:{" "}
+                              {vehicle.vin_number || "N/A"}
                             </div>
                           </div>
                         ))}
@@ -2662,13 +3407,22 @@ export default function AdminDashboard() {
 
                 <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="vehicleRegistration">Vehicle Registration</Label>
+                    <Label htmlFor="vehicleRegistration">
+                      Vehicle Registration
+                    </Label>
                     <Input
                       id="vehicleRegistration"
                       placeholder="Enter vehicle registration..."
                       value={newJobData.vehicleRegistration}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleRegistration: e.target.value }))}
-                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          vehicleRegistration: e.target.value,
+                        }))
+                      }
+                      readOnly={
+                        newJobData.jobType === "deinstall" && selectedVehicleIp
+                      }
                     />
                   </div>
                   <div>
@@ -2677,8 +3431,15 @@ export default function AdminDashboard() {
                       id="vehicleMake"
                       placeholder="Enter vehicle make..."
                       value={newJobData.vehicleMake}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleMake: e.target.value }))}
-                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          vehicleMake: e.target.value,
+                        }))
+                      }
+                      readOnly={
+                        newJobData.jobType === "deinstall" && selectedVehicleIp
+                      }
                     />
                   </div>
                 </div>
@@ -2689,8 +3450,15 @@ export default function AdminDashboard() {
                       id="vehicleModel"
                       placeholder="Enter vehicle model..."
                       value={newJobData.vehicleModel}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleModel: e.target.value }))}
-                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          vehicleModel: e.target.value,
+                        }))
+                      }
+                      readOnly={
+                        newJobData.jobType === "deinstall" && selectedVehicleIp
+                      }
                     />
                   </div>
                   <div>
@@ -2701,8 +3469,15 @@ export default function AdminDashboard() {
                       min="1900"
                       max={new Date().getFullYear() + 1}
                       value={newJobData.vehicleYear}
-                      onChange={(e) => setNewJobData(prev => ({ ...prev, vehicleYear: parseInt(e.target.value) || 2023 }))}
-                      readOnly={newJobData.jobType === 'deinstall' && selectedVehicleIp}
+                      onChange={(e) =>
+                        setNewJobData((prev) => ({
+                          ...prev,
+                          vehicleYear: parseInt(e.target.value) || 2023,
+                        }))
+                      }
+                      readOnly={
+                        newJobData.jobType === "deinstall" && selectedVehicleIp
+                      }
                     />
                   </div>
                 </div>
@@ -2710,43 +3485,64 @@ export default function AdminDashboard() {
 
               {/* Products (FC external quotation style) */}
               <div className="space-y-4">
-                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Products</h3>
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">
+                  Products
+                </h3>
                 <div className="gap-3 grid grid-cols-1 md:grid-cols-3">
                   <div>
                     <Label className="text-sm">Type</Label>
-                    <Select value={aqSelectedType} onValueChange={setAqSelectedType}>
+                    <Select
+                      value={aqSelectedType}
+                      onValueChange={setAqSelectedType}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="All types" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
-                        {aqProductTypes.map(t => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        {aqProductTypes.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="text-sm">Category</Label>
-                    <Select value={aqSelectedCategory} onValueChange={setAqSelectedCategory}>
+                    <Select
+                      value={aqSelectedCategory}
+                      onValueChange={setAqSelectedCategory}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="All categories" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All</SelectItem>
-                        {aqProductCategories.map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        {aqProductCategories.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label className="text-sm">Search</Label>
-                    <Input value={aqSearchTerm} onChange={(e) => setAqSearchTerm(e.target.value)} placeholder="Search products" />
+                    <Input
+                      value={aqSearchTerm}
+                      onChange={(e) => setAqSearchTerm(e.target.value)}
+                      placeholder="Search products"
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <Button size="sm" variant="outline" onClick={fetchAqProducts} disabled={aqLoadingProducts}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchAqProducts}
+                    disabled={aqLoadingProducts}
+                  >
                     Refresh
                   </Button>
                 </div>
@@ -2754,7 +3550,9 @@ export default function AdminDashboard() {
                 <div className="gap-3 grid grid-cols-1 md:grid-cols-2">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-sm">Available Products</CardTitle>
+                      <CardTitle className="text-sm">
+                        Available Products
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 max-h-64 overflow-auto">
                       {aqLoadingProducts ? (
@@ -2763,12 +3561,22 @@ export default function AdminDashboard() {
                         <div className="text-gray-500 text-sm">No products</div>
                       ) : (
                         aqProducts.map((p: Record<string, unknown>) => (
-                          <div key={p.id} className="flex justify-between items-center py-2 border-b">
+                          <div
+                            key={p.id}
+                            className="flex justify-between items-center py-2 border-b"
+                          >
                             <div>
-                              <div className="font-medium text-sm">{p.product}</div>
-                              <div className="text-gray-500 text-xs">Installation: R{(p.installation || 0).toFixed(2)}</div>
+                              <div className="font-medium text-sm">
+                                {p.product}
+                              </div>
+                              <div className="text-gray-500 text-xs">
+                                Installation: R
+                                {(p.installation || 0).toFixed(2)}
+                              </div>
                             </div>
-                            <Button size="sm" onClick={() => aqAddProduct(p)}>Add</Button>
+                            <Button size="sm" onClick={() => aqAddProduct(p)}>
+                              Add
+                            </Button>
                           </div>
                         ))
                       )}
@@ -2777,46 +3585,117 @@ export default function AdminDashboard() {
 
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-sm">Selected Products</CardTitle>
+                      <CardTitle className="text-sm">
+                        Selected Products
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 max-h-64 overflow-auto">
                       {aqSelectedProducts.length === 0 ? (
-                        <div className="text-gray-500 text-sm">No products selected</div>
+                        <div className="text-gray-500 text-sm">
+                          No products selected
+                        </div>
                       ) : (
                         aqSelectedProducts.map((prod, idx) => (
-                          <div key={idx} className="space-y-2 p-2 border rounded">
+                          <div
+                            key={idx}
+                            className="space-y-2 p-2 border rounded"
+                          >
                             <div className="flex justify-between items-center">
-                              <div className="font-medium text-sm">{prod.name}</div>
-                              <Button size="icon" variant="ghost" onClick={() => aqRemoveProduct(idx)}>
+                              <div className="font-medium text-sm">
+                                {prod.name}
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => aqRemoveProduct(idx)}
+                              >
                                 ×
                               </Button>
                             </div>
                             <div className="gap-3 grid grid-cols-3">
                               <div>
                                 <Label className="text-xs">Cash ex VAT</Label>
-                                <Input type="number" value={prod.cashPrice} onChange={(e) => aqUpdateProduct(idx, 'cashPrice', parseFloat(e.target.value) || 0)} />
+                                <Input
+                                  type="number"
+                                  value={prod.cashPrice}
+                                  onChange={(e) =>
+                                    aqUpdateProduct(
+                                      idx,
+                                      "cashPrice",
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
                               </div>
                               <div>
                                 <Label className="text-xs">Cash Discount</Label>
-                                <Input type="number" value={prod.cashDiscount} onChange={(e) => aqUpdateProduct(idx, 'cashDiscount', parseFloat(e.target.value) || 0)} />
+                                <Input
+                                  type="number"
+                                  value={prod.cashDiscount}
+                                  onChange={(e) =>
+                                    aqUpdateProduct(
+                                      idx,
+                                      "cashDiscount",
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
                               </div>
                               <div>
                                 <Label className="text-xs">Qty</Label>
-                                <Input type="number" min={1} value={prod.quantity} onChange={(e) => aqUpdateProduct(idx, 'quantity', parseInt(e.target.value) || 1)} />
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={prod.quantity}
+                                  onChange={(e) =>
+                                    aqUpdateProduct(
+                                      idx,
+                                      "quantity",
+                                      parseInt(e.target.value) || 1,
+                                    )
+                                  }
+                                />
                               </div>
                             </div>
                             <div className="gap-3 grid grid-cols-3">
                               <div>
-                                <Label className="text-xs">Install ex VAT</Label>
-                                <Input type="number" value={prod.installationPrice} onChange={(e) => aqUpdateProduct(idx, 'installationPrice', parseFloat(e.target.value) || 0)} />
+                                <Label className="text-xs">
+                                  Install ex VAT
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={prod.installationPrice}
+                                  onChange={(e) =>
+                                    aqUpdateProduct(
+                                      idx,
+                                      "installationPrice",
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
                               </div>
                               <div>
-                                <Label className="text-xs">Install Discount</Label>
-                                <Input type="number" value={prod.installationDiscount} onChange={(e) => aqUpdateProduct(idx, 'installationDiscount', parseFloat(e.target.value) || 0)} />
+                                <Label className="text-xs">
+                                  Install Discount
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={prod.installationDiscount}
+                                  onChange={(e) =>
+                                    aqUpdateProduct(
+                                      idx,
+                                      "installationDiscount",
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                />
                               </div>
                               <div>
                                 <Label className="text-xs">Line Total</Label>
-                                <Input readOnly value={aqGetProductTotal(prod).toFixed(2)} />
+                                <Input
+                                  readOnly
+                                  value={aqGetProductTotal(prod).toFixed(2)}
+                                />
                               </div>
                             </div>
                           </div>
@@ -2828,22 +3707,39 @@ export default function AdminDashboard() {
 
                 <Separator />
                 <div className="flex justify-end gap-6 text-sm">
-                  <div>Subtotal: <span className="font-semibold">R{aqSubtotal.toFixed(2)}</span></div>
-                  <div>VAT (15%): <span className="font-semibold">R{aqVat.toFixed(2)}</span></div>
-                  <div>Total: <span className="font-semibold">R{aqTotal.toFixed(2)}</span></div>
+                  <div>
+                    Subtotal:{" "}
+                    <span className="font-semibold">
+                      R{aqSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    VAT (15%):{" "}
+                    <span className="font-semibold">R{aqVat.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    Total:{" "}
+                    <span className="font-semibold">R{aqTotal.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => {
-                  resetCreateJobForm();
-                  setCreateJobOpen(false);
-                }}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    resetCreateJobForm();
+                    setCreateJobOpen(false);
+                  }}
+                >
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleCreateJob} 
-                  disabled={!newJobData.customerName.trim() || (newJobData.jobType === 'deinstall' && !selectedVehicleIp)}
+                <Button
+                  onClick={handleCreateJob}
+                  disabled={
+                    !newJobData.customerName.trim() ||
+                    (newJobData.jobType === "deinstall" && !selectedVehicleIp)
+                  }
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Plus className="mr-2 w-4 h-4" />
@@ -2855,15 +3751,24 @@ export default function AdminDashboard() {
             // Step 2: Technician Assignment
             <div className="space-y-6">
               <div className="bg-green-50 p-4 border border-green-200 rounded-lg">
-                <h4 className="mb-2 font-medium text-green-800">Job Created Successfully!</h4>
-                <p className="text-green-700 text-sm">Now assign a technician to complete the setup.</p>
+                <h4 className="mb-2 font-medium text-green-800">
+                  Job Created Successfully!
+                </h4>
+                <p className="text-green-700 text-sm">
+                  Now assign a technician to complete the setup.
+                </p>
               </div>
 
               <div className="space-y-4">
-                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">Technician Assignment</h3>
+                <h3 className="pb-2 border-b font-semibold text-gray-900 text-lg">
+                  Technician Assignment
+                </h3>
                 <div>
                   <Label htmlFor="technicianForJob">Select Technician *</Label>
-                  <Select value={selectedTechnicianForJob} onValueChange={setSelectedTechnicianForJob}>
+                  <Select
+                    value={selectedTechnicianForJob}
+                    onValueChange={setSelectedTechnicianForJob}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose a technician" />
                     </SelectTrigger>
@@ -2878,7 +3783,9 @@ export default function AdminDashboard() {
                 </div>
                 <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="assignmentDateForJob">Assignment Date *</Label>
+                    <Label htmlFor="assignmentDateForJob">
+                      Assignment Date *
+                    </Label>
                     <Input
                       id="assignmentDateForJob"
                       type="date"
@@ -2887,7 +3794,9 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="assignmentTimeForJob">Assignment Time</Label>
+                    <Label htmlFor="assignmentTimeForJob">
+                      Assignment Time
+                    </Label>
                     <Input
                       id="assignmentTimeForJob"
                       type="time"
@@ -2902,8 +3811,8 @@ export default function AdminDashboard() {
                 <Button variant="outline" onClick={() => setCreateJobStep(1)}>
                   Back
                 </Button>
-                <Button 
-                  onClick={handleAssignTechnicianToNewJob} 
+                <Button
+                  onClick={handleAssignTechnicianToNewJob}
                   disabled={!selectedTechnicianForJob || !assignmentDateForJob}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
@@ -2920,7 +3829,9 @@ export default function AdminDashboard() {
       <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-amber-600">⚠️ Scheduling Conflict</DialogTitle>
+            <DialogTitle className="text-lg font-bold text-amber-600">
+              ⚠️ Scheduling Conflict
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -2928,39 +3839,47 @@ export default function AdminDashboard() {
                 ⚠️ WARNING: This will create a double booking!
               </p>
               <p className="text-red-700 text-sm mt-1">
-                {selectedTechnicians.join(', ')} {selectedTechnicians.length > 1 ? 'are' : 'is'} already assigned to other jobs within 1 hour of the selected time.
+                {selectedTechnicians.join(", ")}{" "}
+                {selectedTechnicians.length > 1 ? "are" : "is"} already assigned
+                to other jobs within 1 hour of the selected time.
               </p>
             </div>
-            
+
             {conflictData?.conflicts?.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 max-h-60 overflow-y-auto">
                 <div className="font-semibold text-amber-800">
                   Conflicting Job #{conflictData.conflicts[0].job_number}
                 </div>
                 <div className="mt-2 text-sm text-amber-700 space-y-1">
-                  <p>Customer: {conflictData.conflicts[0].customer_name || 'Not provided'}</p>
                   <p>
-                    Time: {formatConflictTime(conflictData.conflicts[0].start_time)}
+                    Customer:{" "}
+                    {conflictData.conflicts[0].customer_name || "Not provided"}
                   </p>
                   <p>
-                    Date: {formatConflictDate(conflictData.conflicts[0].job_date)}
+                    Time:{" "}
+                    {formatConflictTime(conflictData.conflicts[0].start_time)}
+                  </p>
+                  <p>
+                    Date:{" "}
+                    {formatConflictDate(conflictData.conflicts[0].job_date)}
                   </p>
                 </div>
               </div>
             )}
-            
+
             <p className="text-gray-600 text-sm">
-              Proceeding will override the scheduling conflict. Do you want to continue?
+              Proceeding will override the scheduling conflict. Do you want to
+              continue?
             </p>
-            
+
             <div className="flex justify-end gap-3 pt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setConflictDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleOverrideAssignment}
                 className="bg-amber-600 hover:bg-amber-700 text-white"
               >
@@ -2979,7 +3898,7 @@ export default function AdminDashboard() {
           toast.success(`Job created successfully: ${jobData.job_number}`);
           setCreateJobModalOpen(false);
           // Refresh job data if needed
-          if (activeTab === 'all-jobs') {
+          if (activeTab === "all-jobs") {
             fetchJobCards();
           }
         }}
