@@ -372,6 +372,19 @@ export default function StockOrderModal({ onOrderSubmitted }) {
         item.gl_group.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
+  const formatCurrency = (amount) =>
+    `R ${Number(amount || 0).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const formatDate = (value) =>
+    new Date(value).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
@@ -646,111 +659,215 @@ export default function StockOrderModal({ onOrderSubmitted }) {
 
             <div
               id="invoice-content"
-              className="bg-white p-6 border rounded-lg"
+              className="bg-white border rounded-lg overflow-hidden"
             >
-              <div className="mb-6 text-center">
-                <h1 className="font-bold text-2xl">Stock Order Invoice</h1>
-                <p className="text-gray-600">Order #{orderNumber}</p>
-                <p className="text-gray-600">
-                  {new Date().toLocaleDateString()}
-                </p>
-              </div>
-
-              <div className="gap-8 grid grid-cols-2 mb-6">
-                <div>
-                  <h3 className="mb-2 font-semibold">Order Details</h3>
-                  <p>
-                    <strong>Order Number:</strong> {orderNumber}
-                  </p>
-                  <p>
-                    <strong>Date:</strong> {new Date().toLocaleDateString()}
-                  </p>
-                  <p>
-                    <strong>Supplier:</strong> {supplier || "N/A"}
-                  </p>
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b p-4">
+                <div className="flex items-start gap-4">
+                  <img
+                    src="/soltrack_logo.png"
+                    alt="Soltrack"
+                    className="w-24 h-auto"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      Soltrack (PTY) LTD
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Reg No: 2018/095975/07
+                    </p>
+                    <p className="text-xs text-gray-500">VAT No: 4580161802</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="mb-2 font-semibold">Contact Information</h3>
-                  <p>
-                    <strong>Company:</strong> Got Motion
+                <div className="text-sm text-gray-700">
+                  <p className="font-semibold text-gray-900">
+                    Stock Order Invoice
                   </p>
                   <p>
-                    <strong>Address:</strong> [Your Company Address]
+                    Invoice: <span className="font-medium">{orderNumber}</span>
                   </p>
                   <p>
-                    <strong>Phone:</strong> [Your Phone Number]
+                    Date:{" "}
+                    <span className="font-medium">
+                      {formatDate(new Date().toISOString())}
+                    </span>
                   </p>
                 </div>
               </div>
 
-              <div className="mb-6">
-                <h3 className="mb-3 font-semibold">Order Items</h3>
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full">
+              <div className="grid grid-cols-1 gap-4 border-b p-4 md:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Bill To
+                  </p>
+                  <p className="font-semibold text-gray-900">
+                    {supplier || "Stock Procurement"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Purchasing request prepared from Accounts / Inventory
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Preferred suppliers and pricing metadata included per line
+                    item
+                  </p>
+                </div>
+                <div className="text-sm text-gray-700">
+                  <p>
+                    <span className="text-gray-500">Supplier:</span>{" "}
+                    {supplier || "Not specified"}
+                  </p>
+                  <p>
+                    <span className="text-gray-500">Line Items:</span>{" "}
+                    {orderItems.length}
+                  </p>
+                  <p>
+                    <span className="text-gray-500">Currencies:</span>{" "}
+                    {[
+                      ...new Set(
+                        orderItems
+                          .map((item) => item.purchasing_currency || "ZAR")
+                          .filter(Boolean),
+                      ),
+                    ].join(", ")}
+                  </p>
+                  <p>
+                    <span className="text-gray-500">Prepared For:</span> Stock
+                    Order Processing
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="overflow-hidden rounded-lg border">
+                  <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="p-3 border-b text-left">Description</th>
-                        <th className="p-3 border-b text-left">
-                          Supplier Info
-                        </th>
-                        <th className="p-3 border-b text-left">Cost (ZAR)</th>
-                        <th className="p-3 border-b text-left">Quantity</th>
-                        <th className="p-3 border-b text-left">Total (ZAR)</th>
+                        <th className="border-b p-3 text-left">Item</th>
+                        <th className="border-b p-3 text-left">Description</th>
+                        <th className="border-b p-3 text-left">Supplier</th>
+                        <th className="border-b p-3 text-left">Commercial</th>
+                        <th className="border-b p-3 text-right">Qty</th>
+                        <th className="border-b p-3 text-right">Unit Price</th>
+                        <th className="border-b p-3 text-right">VAT %</th>
+                        <th className="border-b p-3 text-right">VAT</th>
+                        <th className="border-b p-3 text-right">Total Incl.</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {orderItems.map((item, index) => (
-                        <tr
-                          key={item.id}
-                          className={
-                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                          }
-                        >
-                          <td className="p-3 border-b">{item.description}</td>
-                          <td className="p-3 border-b">
-                            <div>
-                              {item.preferred_supplier ||
-                                item.supplier ||
-                                "N/A"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {item.supplier_product_code || "No code"} •{" "}
-                              {item.purchasing_currency || "ZAR"}
-                            </div>
-                          </td>
-                          <td className="p-3 border-b">
-                            R {item.cost_excl_vat_zar.toFixed(2)}
-                          </td>
-                          <td className="p-3 border-b">{item.quantity}</td>
-                          <td className="p-3 border-b">
-                            R{" "}
-                            {(item.cost_excl_vat_zar * item.quantity).toFixed(
-                              2,
-                            )}
+                      {orderItems.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={9}
+                            className="p-4 text-center text-sm text-gray-500"
+                          >
+                            No stock items selected for this order yet.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        orderItems.map((item, index) => {
+                          const qty = Math.max(1, Number(item.quantity) || 1);
+                          const unitPrice = Number(item.cost_excl_vat_zar || 0);
+                          const lineSubtotal = unitPrice * qty;
+                          const lineVat = lineSubtotal * 0.15;
+                          const lineTotal = lineSubtotal + lineVat;
+
+                          return (
+                            <tr
+                              key={item.id}
+                              className={
+                                index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                              }
+                            >
+                              <td className="border-b p-3 font-medium">
+                                {item.stock_type || "Stock Item"}
+                              </td>
+                              <td className="border-b p-3 text-gray-600">
+                                <div>{item.description}</div>
+                                <div className="text-xs text-gray-500">
+                                  {item.gl_group || "No GL group"} |{" "}
+                                  {item.requires_serial_number
+                                    ? "Serial required"
+                                    : "No serial required"}{" "}
+                                  |{" "}
+                                  {item.is_tangible
+                                    ? "Tangible"
+                                    : "Non-tangible"}
+                                </div>
+                              </td>
+                              <td className="border-b p-3 text-gray-600">
+                                <div>
+                                  {item.preferred_supplier ||
+                                    item.supplier ||
+                                    "N/A"}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {item.supplier_product_code || "No code"}
+                                </div>
+                              </td>
+                              <td className="border-b p-3 text-gray-600">
+                                <div>
+                                  {item.purchasing_currency || "ZAR"}
+                                  {item.forex_base_price
+                                    ? ` ${Number(item.forex_base_price).toFixed(2)}`
+                                    : ""}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  ROE:{" "}
+                                  {item.current_roe
+                                    ? Number(item.current_roe).toFixed(2)
+                                    : "N/A"}{" "}
+                                  | {item.valuation_method || "No valuation"}
+                                </div>
+                              </td>
+                              <td className="border-b p-3 text-right">{qty}</td>
+                              <td className="border-b p-3 text-right">
+                                {formatCurrency(unitPrice)}
+                              </td>
+                              <td className="border-b p-3 text-right">15%</td>
+                              <td className="border-b p-3 text-right">
+                                {formatCurrency(lineVat)}
+                              </td>
+                              <td className="border-b p-3 text-right font-semibold">
+                                {formatCurrency(lineTotal)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              <div className="space-y-2 text-right">
-                <div className="flex justify-end gap-4">
-                  <span>Subtotal (ex VAT):</span>
-                  <span className="font-semibold">
-                    R {calculateTotal().toFixed(2)}
-                  </span>
+              <div className="grid grid-cols-1 gap-4 border-t p-4 md:grid-cols-2">
+                <div className="text-sm text-gray-600">
+                  <p className="font-semibold text-gray-900">Notes</p>
+                  <p>
+                    This invoice preview reflects the exact stock order payload
+                    that will be saved, including supplier, product code,
+                    currency, GL group, serial requirements, and valuation data.
+                  </p>
                 </div>
-                <div className="flex justify-end gap-4">
-                  <span>VAT (15%):</span>
-                  <span className="font-semibold">
-                    R {calculateVAT().toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-end gap-4 font-bold text-lg">
-                  <span>Total (inc VAT):</span>
-                  <span>R {calculateTotalInclVAT().toFixed(2)}</span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Total Excl. VAT</span>
+                    <span className="font-medium text-gray-900">
+                      {formatCurrency(calculateTotal())}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">VAT (15%)</span>
+                    <span className="font-medium text-gray-900">
+                      {formatCurrency(calculateVAT())}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t pt-2">
+                    <span className="font-semibold text-gray-900">
+                      Total Incl. VAT
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {formatCurrency(calculateTotalInclVAT())}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

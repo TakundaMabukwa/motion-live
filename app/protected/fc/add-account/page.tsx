@@ -1,16 +1,30 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft, Save, X, Building2, FileText, ExternalLink, CheckCircle } from 'lucide-react';
-import Link from 'next/link';
+import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  ArrowLeft,
+  Save,
+  X,
+  Building2,
+  FileText,
+  ExternalLink,
+  CheckCircle,
+} from "lucide-react";
+import Link from "next/link";
 
 export default function AddAccountPage() {
   const router = useRouter();
@@ -18,68 +32,68 @@ export default function AddAccountPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    account_number: '',
-    company: '',
-    legal_name: '',
-    trading_name: '',
-    holding_company: '',
-    annual_billing_run_date: '',
-    payment_terms: '',
-    category: '',
-    accounts_status: 'active',
-    acc_contact: '',
-    sales_rep: '',
-    date_added: new Date().toISOString().split('T')[0],
-    switchboard: '',
-    cell_no: '',
-    email: '',
-    send_accounts_to_contact: 'yes',
-    send_accounts_to_email_for_statements_and_multibilling: 'yes',
-    vat_number: '',
-    vat_exempt_number: '',
-    registration_number: '',
-    creator: '',
-    modified_by: '',
-    date_modified: new Date().toISOString().split('T')[0],
-    physical_address_1: '',
-    physical_address_2: '',
-    physical_area: '',
-    physical_province: '',
-    physical_code: '',
-    physical_country: 'South Africa',
-    postal_address_1: '',
-    postal_address_2: '',
-    postal_area: '',
-    postal_province: '',
-    postal_code: '',
-    postal_country: 'South Africa',
-    branch_person: '',
-    branch_person_number: '',
-    branch_person_email: '',
-    count_of_products: '0',
-    divisions: ''
+    account_number: "",
+    company: "",
+    legal_name: "",
+    trading_name: "",
+    holding_company: "",
+    annual_billing_run_date: "",
+    payment_terms: "",
+    category: "",
+    accounts_status: "active",
+    acc_contact: "",
+    sales_rep: "",
+    date_added: new Date().toISOString().split("T")[0],
+    switchboard: "",
+    cell_no: "",
+    email: "",
+    send_accounts_to_contact: "yes",
+    send_accounts_to_email_for_statements_and_multibilling: "yes",
+    vat_number: "",
+    vat_exempt_number: "",
+    registration_number: "",
+    creator: "",
+    modified_by: "",
+    date_modified: new Date().toISOString().split("T")[0],
+    physical_address_1: "",
+    physical_address_2: "",
+    physical_area: "",
+    physical_province: "",
+    physical_code: "",
+    physical_country: "South Africa",
+    postal_address_1: "",
+    postal_address_2: "",
+    postal_area: "",
+    postal_province: "",
+    postal_code: "",
+    postal_country: "South Africa",
+    branch_person: "",
+    branch_person_number: "",
+    branch_person_email: "",
+    count_of_products: "0",
+    divisions: "",
   });
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => {
+    setFormData((prev) => {
       const updated = {
         ...prev,
-        [field]: value
+        [field]: value,
       };
-      
+
       // Auto-generate account number when company name changes
-      if (field === 'company' && value.length >= 4) {
+      if (field === "company" && value.length >= 4) {
         const firstFourChars = value.substring(0, 4).toUpperCase();
         updated.account_number = `${firstFourChars}-0001`;
       }
-      
+
       return updated;
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Basic validation
     if (!formData.company) {
       toast({
@@ -89,7 +103,7 @@ export default function AddAccountPage() {
       });
       return;
     }
-    
+
     // Ensure account number is generated
     if (!formData.account_number && formData.company.length >= 4) {
       const firstFourChars = formData.company.substring(0, 4).toUpperCase();
@@ -97,19 +111,19 @@ export default function AddAccountPage() {
     }
 
     setLoading(true);
-    
+
     try {
-      const response = await fetch('/api/customers', {
-        method: 'POST',
+      const response = await fetch("/api/customers", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create account');
+        throw new Error(errorData.error || "Failed to create account");
       }
 
       const result = await response.json();
@@ -118,16 +132,18 @@ export default function AddAccountPage() {
         title: "Account Created Successfully!",
         description: `Account ${result.data.account_number} has been created for ${result.data.company}`,
       });
-      
-      // Redirect back to FC dashboard
-      router.push('/protected/fc');
-      
+
+      // Redirect to the client's cost centers so FC can keep adding more.
+      router.push(
+        `/protected/fc/clients/cost-centers?accounts=${encodeURIComponent(result.data.account_number)}`,
+      );
     } catch (error) {
-      console.error('Error creating account:', error);
+      console.error("Error creating account:", error);
       toast({
         variant: "destructive",
         title: "Account Creation Failed",
-        description: error.message || 'Failed to create account. Please try again.',
+        description:
+          error.message || "Failed to create account. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -135,7 +151,7 @@ export default function AddAccountPage() {
   };
 
   const handleCancel = () => {
-    router.push('/protected/fc');
+    router.push("/protected/fc");
   };
 
   return (
@@ -158,22 +174,42 @@ export default function AddAccountPage() {
       <div className="mb-6 border-gray-200 border-b">
         <nav className="flex space-x-8">
           {[
-            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
-            { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
-            { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
-            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
+            {
+              id: "accounts",
+              label: "Accounts",
+              icon: Building2,
+              href: "/protected/fc",
+            },
+            {
+              id: "quotes",
+              label: "Quotes",
+              icon: FileText,
+              href: "/protected/fc/quotes",
+            },
+            {
+              id: "external-quotation",
+              label: "External Quotation",
+              icon: ExternalLink,
+              href: "/protected/fc/external-quotation",
+            },
+            {
+              id: "completed-jobs",
+              label: "Job Card Review",
+              icon: CheckCircle,
+              href: "/protected/fc/completed-jobs",
+            },
           ].map((navItem) => {
             const Icon = navItem.icon;
             const isActive = pathname === navItem.href;
-            
+
             return (
               <Link
                 key={navItem.id}
                 href={navItem.href}
                 className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   isActive
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? "border-blue-500 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -198,7 +234,9 @@ export default function AddAccountPage() {
                 <Input
                   id="account_number"
                   value={formData.account_number}
-                  onChange={(e) => handleInputChange('account_number', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("account_number", e.target.value)
+                  }
                   placeholder="Auto-generated from company name"
                   required
                   readOnly
@@ -209,7 +247,7 @@ export default function AddAccountPage() {
                 <Input
                   id="company"
                   value={formData.company}
-                  onChange={(e) => handleInputChange('company', e.target.value)}
+                  onChange={(e) => handleInputChange("company", e.target.value)}
                   placeholder="Enter company name"
                   required
                 />
@@ -222,7 +260,9 @@ export default function AddAccountPage() {
                 <Input
                   id="legal_name"
                   value={formData.legal_name}
-                  onChange={(e) => handleInputChange('legal_name', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("legal_name", e.target.value)
+                  }
                   placeholder="Enter legal name"
                 />
               </div>
@@ -231,7 +271,9 @@ export default function AddAccountPage() {
                 <Input
                   id="trading_name"
                   value={formData.trading_name}
-                  onChange={(e) => handleInputChange('trading_name', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("trading_name", e.target.value)
+                  }
                   placeholder="Enter trading name"
                 />
               </div>
@@ -243,7 +285,9 @@ export default function AddAccountPage() {
                 <Input
                   id="holding_company"
                   value={formData.holding_company}
-                  onChange={(e) => handleInputChange('holding_company', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("holding_company", e.target.value)
+                  }
                   placeholder="Enter holding company"
                 />
               </div>
@@ -251,14 +295,18 @@ export default function AddAccountPage() {
 
             {/* Contact Information */}
             <div className="pt-4 border-t">
-              <h3 className="mb-4 font-semibold text-lg">Contact Information</h3>
+              <h3 className="mb-4 font-semibold text-lg">
+                Contact Information
+              </h3>
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                 <div>
                   <Label htmlFor="acc_contact">Account Contact</Label>
                   <Input
                     id="acc_contact"
                     value={formData.acc_contact}
-                    onChange={(e) => handleInputChange('acc_contact', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("acc_contact", e.target.value)
+                    }
                     placeholder="Enter account contact"
                   />
                 </div>
@@ -267,7 +315,9 @@ export default function AddAccountPage() {
                   <Input
                     id="sales_rep"
                     value={formData.sales_rep}
-                    onChange={(e) => handleInputChange('sales_rep', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("sales_rep", e.target.value)
+                    }
                     placeholder="Enter sales representative"
                   />
                 </div>
@@ -279,7 +329,9 @@ export default function AddAccountPage() {
                   <Input
                     id="switchboard"
                     value={formData.switchboard}
-                    onChange={(e) => handleInputChange('switchboard', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("switchboard", e.target.value)
+                    }
                     placeholder="Enter switchboard number"
                   />
                 </div>
@@ -288,7 +340,9 @@ export default function AddAccountPage() {
                   <Input
                     id="cell_no"
                     value={formData.cell_no}
-                    onChange={(e) => handleInputChange('cell_no', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("cell_no", e.target.value)
+                    }
                     placeholder="Enter cell number"
                   />
                 </div>
@@ -300,7 +354,7 @@ export default function AddAccountPage() {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
                   placeholder="Enter email address"
                 />
               </div>
@@ -308,11 +362,18 @@ export default function AddAccountPage() {
 
             {/* Business Information */}
             <div className="pt-4 border-t">
-              <h3 className="mb-4 font-semibold text-lg">Business Information</h3>
+              <h3 className="mb-4 font-semibold text-lg">
+                Business Information
+              </h3>
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                 <div>
                   <Label htmlFor="category">Category</Label>
-                  <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) =>
+                      handleInputChange("category", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
@@ -326,7 +387,12 @@ export default function AddAccountPage() {
                 </div>
                 <div>
                   <Label htmlFor="accounts_status">Account Status</Label>
-                  <Select value={formData.accounts_status} onValueChange={(value) => handleInputChange('accounts_status', value)}>
+                  <Select
+                    value={formData.accounts_status}
+                    onValueChange={(value) =>
+                      handleInputChange("accounts_status", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -343,7 +409,12 @@ export default function AddAccountPage() {
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mt-4">
                 <div>
                   <Label htmlFor="payment_terms">Payment Terms</Label>
-                <Select value={formData.payment_terms} onValueChange={(value) => handleInputChange('payment_terms', value)}>
+                  <Select
+                    value={formData.payment_terms}
+                    onValueChange={(value) =>
+                      handleInputChange("payment_terms", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select payment terms" />
                     </SelectTrigger>
@@ -356,11 +427,18 @@ export default function AddAccountPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="annual_billing_run_date">Annual Billing Run Date</Label>
+                  <Label htmlFor="annual_billing_run_date">
+                    Annual Billing Run Date
+                  </Label>
                   <Input
                     id="annual_billing_run_date"
                     value={formData.annual_billing_run_date}
-                    onChange={(e) => handleInputChange('annual_billing_run_date', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "annual_billing_run_date",
+                        e.target.value,
+                      )
+                    }
                     placeholder="Enter billing run date"
                   />
                 </div>
@@ -372,16 +450,22 @@ export default function AddAccountPage() {
                   <Input
                     id="vat_number"
                     value={formData.vat_number}
-                    onChange={(e) => handleInputChange('vat_number', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("vat_number", e.target.value)
+                    }
                     placeholder="Enter VAT number"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="registration_number">Registration Number</Label>
+                  <Label htmlFor="registration_number">
+                    Registration Number
+                  </Label>
                   <Input
                     id="registration_number"
                     value={formData.registration_number}
-                    onChange={(e) => handleInputChange('registration_number', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("registration_number", e.target.value)
+                    }
                     placeholder="Enter registration number"
                   />
                 </div>
@@ -397,7 +481,9 @@ export default function AddAccountPage() {
                   <Input
                     id="physical_address_1"
                     value={formData.physical_address_1}
-                    onChange={(e) => handleInputChange('physical_address_1', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("physical_address_1", e.target.value)
+                    }
                     placeholder="Enter address line 1"
                   />
                 </div>
@@ -406,7 +492,9 @@ export default function AddAccountPage() {
                   <Input
                     id="physical_address_2"
                     value={formData.physical_address_2}
-                    onChange={(e) => handleInputChange('physical_address_2', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("physical_address_2", e.target.value)
+                    }
                     placeholder="Enter address line 2"
                   />
                 </div>
@@ -418,26 +506,37 @@ export default function AddAccountPage() {
                   <Input
                     id="physical_area"
                     value={formData.physical_area}
-                    onChange={(e) => handleInputChange('physical_area', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("physical_area", e.target.value)
+                    }
                     placeholder="Enter area"
                   />
                 </div>
                 <div>
                   <Label htmlFor="physical_province">Province</Label>
-                  <Select value={formData.physical_province} onValueChange={(value) => handleInputChange('physical_province', value)}>
+                  <Select
+                    value={formData.physical_province}
+                    onValueChange={(value) =>
+                      handleInputChange("physical_province", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select province" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gauteng">Gauteng</SelectItem>
                       <SelectItem value="western_cape">Western Cape</SelectItem>
-                      <SelectItem value="kwazulu_natal">KwaZulu-Natal</SelectItem>
+                      <SelectItem value="kwazulu_natal">
+                        KwaZulu-Natal
+                      </SelectItem>
                       <SelectItem value="eastern_cape">Eastern Cape</SelectItem>
                       <SelectItem value="free_state">Free State</SelectItem>
                       <SelectItem value="mpumalanga">Mpumalanga</SelectItem>
                       <SelectItem value="limpopo">Limpopo</SelectItem>
                       <SelectItem value="north_west">North West</SelectItem>
-                      <SelectItem value="northern_cape">Northern Cape</SelectItem>
+                      <SelectItem value="northern_cape">
+                        Northern Cape
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -446,7 +545,9 @@ export default function AddAccountPage() {
                   <Input
                     id="physical_code"
                     value={formData.physical_code}
-                    onChange={(e) => handleInputChange('physical_code', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("physical_code", e.target.value)
+                    }
                     placeholder="Enter postal code"
                   />
                 </div>
@@ -462,7 +563,9 @@ export default function AddAccountPage() {
                   <Input
                     id="postal_address_1"
                     value={formData.postal_address_1}
-                    onChange={(e) => handleInputChange('postal_address_1', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("postal_address_1", e.target.value)
+                    }
                     placeholder="Enter postal address line 1"
                   />
                 </div>
@@ -471,7 +574,9 @@ export default function AddAccountPage() {
                   <Input
                     id="postal_address_2"
                     value={formData.postal_address_2}
-                    onChange={(e) => handleInputChange('postal_address_2', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("postal_address_2", e.target.value)
+                    }
                     placeholder="Enter postal address line 2"
                   />
                 </div>
@@ -483,26 +588,37 @@ export default function AddAccountPage() {
                   <Input
                     id="postal_area"
                     value={formData.postal_area}
-                    onChange={(e) => handleInputChange('postal_area', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("postal_area", e.target.value)
+                    }
                     placeholder="Enter postal area"
                   />
                 </div>
                 <div>
                   <Label htmlFor="postal_province">Province</Label>
-                  <Select value={formData.postal_province} onValueChange={(value) => handleInputChange('postal_province', value)}>
+                  <Select
+                    value={formData.postal_province}
+                    onValueChange={(value) =>
+                      handleInputChange("postal_province", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select province" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gauteng">Gauteng</SelectItem>
                       <SelectItem value="western_cape">Western Cape</SelectItem>
-                      <SelectItem value="kwazulu_natal">KwaZulu-Natal</SelectItem>
+                      <SelectItem value="kwazulu_natal">
+                        KwaZulu-Natal
+                      </SelectItem>
                       <SelectItem value="eastern_cape">Eastern Cape</SelectItem>
                       <SelectItem value="free_state">Free State</SelectItem>
                       <SelectItem value="mpumalanga">Mpumalanga</SelectItem>
                       <SelectItem value="limpopo">Limpopo</SelectItem>
                       <SelectItem value="north_west">North West</SelectItem>
-                      <SelectItem value="northern_cape">Northern Cape</SelectItem>
+                      <SelectItem value="northern_cape">
+                        Northern Cape
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -511,7 +627,9 @@ export default function AddAccountPage() {
                   <Input
                     id="postal_code"
                     value={formData.postal_code}
-                    onChange={(e) => handleInputChange('postal_code', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("postal_code", e.target.value)
+                    }
                     placeholder="Enter postal code"
                   />
                 </div>
@@ -527,16 +645,22 @@ export default function AddAccountPage() {
                   <Input
                     id="branch_person"
                     value={formData.branch_person}
-                    onChange={(e) => handleInputChange('branch_person', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("branch_person", e.target.value)
+                    }
                     placeholder="Enter branch person name"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="branch_person_number">Branch Person Number</Label>
+                  <Label htmlFor="branch_person_number">
+                    Branch Person Number
+                  </Label>
                   <Input
                     id="branch_person_number"
                     value={formData.branch_person_number}
-                    onChange={(e) => handleInputChange('branch_person_number', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("branch_person_number", e.target.value)
+                    }
                     placeholder="Enter branch person number"
                   />
                 </div>
@@ -548,7 +672,9 @@ export default function AddAccountPage() {
                   id="branch_person_email"
                   type="email"
                   value={formData.branch_person_email}
-                  onChange={(e) => handleInputChange('branch_person_email', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("branch_person_email", e.target.value)
+                  }
                   placeholder="Enter branch person email"
                 />
               </div>
@@ -556,7 +682,9 @@ export default function AddAccountPage() {
 
             {/* Additional Information */}
             <div className="pt-4 border-t">
-              <h3 className="mb-4 font-semibold text-lg">Additional Information</h3>
+              <h3 className="mb-4 font-semibold text-lg">
+                Additional Information
+              </h3>
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                 <div>
                   <Label htmlFor="count_of_products">Count of Products</Label>
@@ -564,7 +692,9 @@ export default function AddAccountPage() {
                     id="count_of_products"
                     type="number"
                     value={formData.count_of_products}
-                    onChange={(e) => handleInputChange('count_of_products', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("count_of_products", e.target.value)
+                    }
                     placeholder="Enter product count"
                   />
                 </div>
@@ -573,7 +703,9 @@ export default function AddAccountPage() {
                   <Input
                     id="divisions"
                     value={formData.divisions}
-                    onChange={(e) => handleInputChange('divisions', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("divisions", e.target.value)
+                    }
                     placeholder="Enter divisions"
                   />
                 </div>
@@ -581,8 +713,15 @@ export default function AddAccountPage() {
 
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mt-4">
                 <div>
-                  <Label htmlFor="send_accounts_to_contact">Send Accounts to Contact</Label>
-                  <Select value={formData.send_accounts_to_contact} onValueChange={(value) => handleInputChange('send_accounts_to_contact', value)}>
+                  <Label htmlFor="send_accounts_to_contact">
+                    Send Accounts to Contact
+                  </Label>
+                  <Select
+                    value={formData.send_accounts_to_contact}
+                    onValueChange={(value) =>
+                      handleInputChange("send_accounts_to_contact", value)
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -593,8 +732,20 @@ export default function AddAccountPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="send_accounts_to_email_for_statements_and_multibilling">Send Accounts to Email</Label>
-                  <Select value={formData.send_accounts_to_email_for_statements_and_multibilling} onValueChange={(value) => handleInputChange('send_accounts_to_email_for_statements_and_multibilling', value)}>
+                  <Label htmlFor="send_accounts_to_email_for_statements_and_multibilling">
+                    Send Accounts to Email
+                  </Label>
+                  <Select
+                    value={
+                      formData.send_accounts_to_email_for_statements_and_multibilling
+                    }
+                    onValueChange={(value) =>
+                      handleInputChange(
+                        "send_accounts_to_email_for_statements_and_multibilling",
+                        value,
+                      )
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -624,7 +775,7 @@ export default function AddAccountPage() {
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 <Save className="mr-2 w-4 h-4" />
-                {loading ? 'Creating...' : 'Create Account'}
+                {loading ? "Creating..." : "Create Account"}
               </Button>
             </div>
           </CardContent>
