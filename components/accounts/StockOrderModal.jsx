@@ -1,24 +1,45 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { Package, Plus, Trash2, Download, FileText, Search } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Package,
+  Plus,
+  Trash2,
+  Download,
+  FileText,
+  Search,
+} from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { createClient } from "@/lib/supabase/client";
 
 export default function StockOrderModal({ onOrderSubmitted }) {
   const [orderItems, setOrderItems] = useState([]);
-  const [newItem, setNewItem] = useState({ description: '', cost_excl_vat_zar: '', quantity: 1 });
-  const [supplier, setSupplier] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
+  const [newItem, setNewItem] = useState({
+    description: "",
+    cost_excl_vat_zar: "",
+    quantity: 1,
+    purchasing_currency: "ZAR",
+    preferred_supplier: "",
+    supplier_product_code: "",
+  });
+  const [supplier, setSupplier] = useState("");
+  const [orderNumber, setOrderNumber] = useState("");
   const [showInvoice, setShowInvoice] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stockPricingData, setStockPricingData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { toast } = useToast();
@@ -33,17 +54,19 @@ export default function StockOrderModal({ onOrderSubmitted }) {
   const fetchStockPricing = async () => {
     try {
       const { data, error } = await supabase
-        .from('stock_pricing')
-        .select('id, description, cost_excl_vat_zar, USD, supplier, stock_type');
-      
+        .from("stock_pricing")
+        .select(
+          "id, description, cost_excl_vat_zar, USD, supplier, stock_type, preferred_supplier, supplier_product_code, purchasing_currency, forex_base_price, current_roe, gl_group, requires_serial_number, is_tangible, valuation_method, override_tax_type",
+        );
+
       if (error) throw error;
       setStockPricingData(data || []);
     } catch (error) {
-      console.error('Error fetching stock pricing:', error);
+      console.error("Error fetching stock pricing:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch stock items"
+        description: "Failed to fetch stock items",
       });
     } finally {
       setLoading(false);
@@ -57,49 +80,82 @@ export default function StockOrderModal({ onOrderSubmitted }) {
   };
 
   const addToOrder = (item) => {
-    const existingItem = orderItems.find(orderItem => orderItem.id === item.id);
+    const existingItem = orderItems.find(
+      (orderItem) => orderItem.id === item.id,
+    );
     if (existingItem) {
-      setOrderItems(orderItems.map(orderItem =>
-        orderItem.id === item.id
-          ? { ...orderItem, quantity: orderItem.quantity + 1 }
-          : orderItem
-      ));
+      setOrderItems(
+        orderItems.map((orderItem) =>
+          orderItem.id === item.id
+            ? { ...orderItem, quantity: orderItem.quantity + 1 }
+            : orderItem,
+        ),
+      );
     } else {
-      setOrderItems([...orderItems, {
-        id: item.id,
-        description: item.description,
-        cost_excl_vat_zar: parseFloat(item.cost_excl_vat_zar || 0),
-        USD: parseFloat(item.USD || 0),
-        supplier: item.supplier,
-        stock_type: item.stock_type,
-        quantity: 1
-      }]);
+      setOrderItems([
+        ...orderItems,
+        {
+          id: item.id,
+          description: item.description,
+          cost_excl_vat_zar: parseFloat(item.cost_excl_vat_zar || 0),
+          USD: parseFloat(item.USD || 0),
+          supplier: item.supplier,
+          stock_type: item.stock_type,
+          preferred_supplier: item.preferred_supplier || item.supplier || "",
+          supplier_product_code: item.supplier_product_code || "",
+          purchasing_currency: item.purchasing_currency || "ZAR",
+          forex_base_price: parseFloat(item.forex_base_price || 0),
+          current_roe: parseFloat(item.current_roe || 0),
+          gl_group: item.gl_group || "",
+          requires_serial_number: Boolean(item.requires_serial_number),
+          is_tangible: item.is_tangible ?? true,
+          valuation_method: item.valuation_method || "",
+          override_tax_type: item.override_tax_type || "",
+          quantity: 1,
+        },
+      ]);
     }
   };
 
   const updateQuantity = (itemId, quantity) => {
     if (quantity <= 0) {
-      setOrderItems(orderItems.filter(item => item.id !== itemId));
+      setOrderItems(orderItems.filter((item) => item.id !== itemId));
     } else {
-      const existingItem = orderItems.find(item => item.id === itemId);
+      const existingItem = orderItems.find((item) => item.id === itemId);
       if (existingItem) {
         // Update existing item
-        setOrderItems(orderItems.map(item =>
-          item.id === itemId ? { ...item, quantity } : item
-        ));
+        setOrderItems(
+          orderItems.map((item) =>
+            item.id === itemId ? { ...item, quantity } : item,
+          ),
+        );
       } else {
         // Add new item from stockPricingData
-        const stockItem = stockPricingData.find(item => item.id === itemId);
+        const stockItem = stockPricingData.find((item) => item.id === itemId);
         if (stockItem) {
-          setOrderItems([...orderItems, {
-            id: stockItem.id,
-            description: stockItem.description,
-            cost_excl_vat_zar: parseFloat(stockItem.cost_excl_vat_zar || 0),
-            USD: parseFloat(stockItem.USD || 0),
-            supplier: stockItem.supplier,
-            stock_type: stockItem.stock_type,
-            quantity: quantity
-          }]);
+          setOrderItems([
+            ...orderItems,
+            {
+              id: stockItem.id,
+              description: stockItem.description,
+              cost_excl_vat_zar: parseFloat(stockItem.cost_excl_vat_zar || 0),
+              USD: parseFloat(stockItem.USD || 0),
+              supplier: stockItem.supplier,
+              stock_type: stockItem.stock_type,
+              preferred_supplier:
+                stockItem.preferred_supplier || stockItem.supplier || "",
+              supplier_product_code: stockItem.supplier_product_code || "",
+              purchasing_currency: stockItem.purchasing_currency || "ZAR",
+              forex_base_price: parseFloat(stockItem.forex_base_price || 0),
+              current_roe: parseFloat(stockItem.current_roe || 0),
+              gl_group: stockItem.gl_group || "",
+              requires_serial_number: Boolean(stockItem.requires_serial_number),
+              is_tangible: stockItem.is_tangible ?? true,
+              valuation_method: stockItem.valuation_method || "",
+              override_tax_type: stockItem.override_tax_type || "",
+              quantity: quantity,
+            },
+          ]);
         }
       }
     }
@@ -110,7 +166,7 @@ export default function StockOrderModal({ onOrderSubmitted }) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please fill in all fields"
+        description: "Please fill in all fields",
       });
       return;
     }
@@ -120,22 +176,42 @@ export default function StockOrderModal({ onOrderSubmitted }) {
       description: newItem.description,
       cost_excl_vat_zar: parseFloat(newItem.cost_excl_vat_zar),
       USD: 0,
-      supplier: 'Custom',
-      stock_type: 'Custom',
-      quantity: parseInt(newItem.quantity)
+      supplier: "Custom",
+      stock_type: "Custom",
+      preferred_supplier: newItem.preferred_supplier || "Custom",
+      supplier_product_code: newItem.supplier_product_code || "",
+      purchasing_currency: newItem.purchasing_currency || "ZAR",
+      forex_base_price: 0,
+      current_roe: 0,
+      gl_group: "",
+      requires_serial_number: false,
+      is_tangible: true,
+      valuation_method: "",
+      override_tax_type: "",
+      quantity: parseInt(newItem.quantity),
     };
 
     setOrderItems([...orderItems, customItem]);
-    setNewItem({ description: '', cost_excl_vat_zar: '', quantity: 1 });
+    setNewItem({
+      description: "",
+      cost_excl_vat_zar: "",
+      quantity: 1,
+      purchasing_currency: "ZAR",
+      preferred_supplier: "",
+      supplier_product_code: "",
+    });
     toast({
       variant: "success",
       title: "Success",
-      description: "Custom item added"
+      description: "Custom item added",
     });
   };
 
   const calculateTotal = () => {
-    return orderItems.reduce((total, item) => total + (item.cost_excl_vat_zar * item.quantity), 0);
+    return orderItems.reduce(
+      (total, item) => total + item.cost_excl_vat_zar * item.quantity,
+      0,
+    );
   };
 
   const calculateVAT = () => {
@@ -153,26 +229,29 @@ export default function StockOrderModal({ onOrderSubmitted }) {
         order_date: new Date().toISOString(),
         supplier: supplier,
         total_amount_ex_vat: calculateTotal(),
-        total_amount_usd: orderItems.reduce((total, item) => total + (item.USD * item.quantity), 0),
-        status: 'pending',
-        created_by: 'Inventory User',
+        total_amount_usd: orderItems.reduce(
+          (total, item) => total + item.USD * item.quantity,
+          0,
+        ),
+        status: "pending",
+        created_by: "Inventory User",
         order_items: orderItems,
-        invoice_link: invoiceLink
+        invoice_link: invoiceLink,
       };
 
       const { data, error } = await supabase
-        .from('stock_orders')
+        .from("stock_orders")
         .insert([orderData])
         .select();
 
       if (error) throw error;
       return data[0];
     } catch (error) {
-      console.error('Error saving order:', error);
+      console.error("Error saving order:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save order"
+        description: "Failed to save order",
       });
       return null;
     }
@@ -188,14 +267,14 @@ export default function StockOrderModal({ onOrderSubmitted }) {
           toast({
             variant: "success",
             title: "Success",
-            description: "Order submitted successfully!"
+            description: "Order submitted successfully!",
           });
           setShowInvoice(false);
           setOrderItems([]);
-          setSupplier('');
+          setSupplier("");
           generateOrderNumber();
           setIsDialogOpen(false);
-          
+
           // Call the callback to refresh stock orders
           if (onOrderSubmitted) {
             onOrderSubmitted();
@@ -203,11 +282,11 @@ export default function StockOrderModal({ onOrderSubmitted }) {
         }
       }
     } catch (error) {
-      console.error('Error submitting order:', error);
+      console.error("Error submitting order:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to submit order"
+        description: "Failed to submit order",
       });
     } finally {
       setIsSubmitting(false);
@@ -216,18 +295,22 @@ export default function StockOrderModal({ onOrderSubmitted }) {
 
   const downloadPDF = async () => {
     try {
-      const element = document.getElementById('invoice-content');
+      const element = document.getElementById("invoice-content");
       if (!element) return null;
 
-      const canvas = await import('html2canvas').then(module => module.default(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true
-      }));
+      const canvas = await import("html2canvas").then((module) =>
+        module.default(element, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+        }),
+      );
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = await import('jspdf').then(module => new module.default('p', 'mm', 'a4'));
-      
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = await import("jspdf").then(
+        (module) => new module.default("p", "mm", "a4"),
+      );
+
       const imgWidth = 210;
       const pageHeight = 295;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
@@ -235,52 +318,64 @@ export default function StockOrderModal({ onOrderSubmitted }) {
 
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
 
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
 
-      const pdfBlob = pdf.output('blob');
+      const pdfBlob = pdf.output("blob");
       const fileName = `stock-order-${orderNumber}-${Date.now()}.pdf`;
 
       const { data, error } = await supabase.storage
-        .from('invoices')
+        .from("invoices")
         .upload(fileName, pdfBlob, {
-          contentType: 'application/pdf'
+          contentType: "application/pdf",
         });
 
       if (error) throw error;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('invoices')
-        .getPublicUrl(fileName);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("invoices").getPublicUrl(fileName);
 
       return publicUrl;
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error("Error generating PDF:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to generate PDF"
+        description: "Failed to generate PDF",
       });
       return null;
     }
   };
 
-  const filteredStockItems = stockPricingData.filter(item =>
-    item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.supplier && item.supplier.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredStockItems = stockPricingData.filter(
+    (item) =>
+      item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.supplier &&
+        item.supplier.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.preferred_supplier &&
+        item.preferred_supplier
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())) ||
+      (item.supplier_product_code &&
+        item.supplier_product_code
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())) ||
+      (item.gl_group &&
+        item.gl_group.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <Button 
+        <Button
           className="bg-blue-600 hover:bg-blue-700"
           onClick={() => setIsDialogOpen(true)}
         >
@@ -288,12 +383,13 @@ export default function StockOrderModal({ onOrderSubmitted }) {
           Order Stock
         </Button>
       </DialogTrigger>
-      
+
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Order Stock</DialogTitle>
           <DialogDescription>
-            Select stock items, specify quantities, and submit your order. You can also add custom items with custom pricing.
+            Select stock items, specify quantities, and submit your order. You
+            can also add custom items with custom pricing.
           </DialogDescription>
         </DialogHeader>
 
@@ -336,7 +432,7 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                   />
                 </div>
               </div>
-              
+
               {/* Add Custom Item - moved to top right */}
               <div className="p-4 border rounded-lg min-w-[300px]">
                 <h3 className="mb-4 font-semibold text-lg">Add Custom Item</h3>
@@ -346,7 +442,9 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                     <Input
                       id="description"
                       value={newItem.description}
-                      onChange={(e) => setNewItem({...newItem, description: e.target.value})}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, description: e.target.value })
+                      }
                       placeholder="Item description"
                     />
                   </div>
@@ -358,7 +456,12 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                         type="number"
                         step="0.01"
                         value={newItem.cost_excl_vat_zar}
-                        onChange={(e) => setNewItem({...newItem, cost_excl_vat_zar: e.target.value})}
+                        onChange={(e) =>
+                          setNewItem({
+                            ...newItem,
+                            cost_excl_vat_zar: e.target.value,
+                          })
+                        }
                         placeholder="0.00"
                       />
                     </div>
@@ -368,12 +471,63 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                         id="quantity"
                         type="number"
                         value={newItem.quantity}
-                        onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
+                        onChange={(e) =>
+                          setNewItem({ ...newItem, quantity: e.target.value })
+                        }
                         placeholder="1"
                       />
                     </div>
                   </div>
-                  <Button onClick={addNewItem} className="bg-purple-600 hover:bg-purple-700 w-full">
+                  <div className="gap-3 grid grid-cols-2">
+                    <div>
+                      <Label htmlFor="customCurrency">Currency</Label>
+                      <Input
+                        id="customCurrency"
+                        value={newItem.purchasing_currency}
+                        onChange={(e) =>
+                          setNewItem({
+                            ...newItem,
+                            purchasing_currency: e.target.value,
+                          })
+                        }
+                        placeholder="ZAR"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="customSupplierCode">Supplier Code</Label>
+                      <Input
+                        id="customSupplierCode"
+                        value={newItem.supplier_product_code}
+                        onChange={(e) =>
+                          setNewItem({
+                            ...newItem,
+                            supplier_product_code: e.target.value,
+                          })
+                        }
+                        placeholder="Supplier product code"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="customPreferredSupplier">
+                      Preferred Supplier
+                    </Label>
+                    <Input
+                      id="customPreferredSupplier"
+                      value={newItem.preferred_supplier}
+                      onChange={(e) =>
+                        setNewItem({
+                          ...newItem,
+                          preferred_supplier: e.target.value,
+                        })
+                      }
+                      placeholder="Preferred supplier"
+                    />
+                  </div>
+                  <Button
+                    onClick={addNewItem}
+                    className="bg-purple-600 hover:bg-purple-700 w-full"
+                  >
                     <Plus className="mr-2 w-4 h-4" />
                     Add Custom Item
                   </Button>
@@ -383,23 +537,45 @@ export default function StockOrderModal({ onOrderSubmitted }) {
 
             {/* Stock Items List */}
             <div>
-              <h3 className="mb-4 font-semibold text-lg">Available Stock Items</h3>
+              <h3 className="mb-4 font-semibold text-lg">
+                Available Stock Items
+              </h3>
               {loading ? (
                 <div className="py-4 text-center">Loading stock items...</div>
               ) : (
                 <div className="space-y-2 p-4 border rounded-lg max-h-96 overflow-y-auto">
                   {filteredStockItems.map((item) => {
-                    const orderItem = orderItems.find(oi => oi.id === item.id);
+                    const orderItem = orderItems.find(
+                      (oi) => oi.id === item.id,
+                    );
                     const selectedQuantity = orderItem ? orderItem.quantity : 0;
-                    
+
                     return (
-                      <div key={item.id} className="flex justify-between items-center hover:bg-gray-50 p-3 border rounded-lg">
+                      <div
+                        key={item.id}
+                        className="flex justify-between items-center hover:bg-gray-50 p-3 border rounded-lg"
+                      >
                         <div className="flex-1">
                           <div className="font-medium">{item.description}</div>
                           <div className="text-gray-600 text-sm">
-                            Cost: R {parseFloat(item.cost_excl_vat_zar || 0).toFixed(2)} | 
-                            USD: ${parseFloat(item.USD || 0).toFixed(2)} | 
-                            Supplier: {item.supplier || 'N/A'}
+                            Cost: R{" "}
+                            {parseFloat(item.cost_excl_vat_zar || 0).toFixed(2)}{" "}
+                            | USD: ${parseFloat(item.USD || 0).toFixed(2)} |
+                            Supplier:{" "}
+                            {item.preferred_supplier || item.supplier || "N/A"}
+                          </div>
+                          <div className="text-gray-500 text-xs">
+                            Supplier Code: {item.supplier_product_code || "N/A"}{" "}
+                            | Currency: {item.purchasing_currency || "ZAR"} |
+                            GL: {item.gl_group || "N/A"}
+                          </div>
+                          <div className="text-gray-500 text-xs">
+                            {item.requires_serial_number
+                              ? "Serial required"
+                              : "No serial required"}{" "}
+                            | {item.is_tangible ? "Tangible" : "Non-tangible"} |{" "}
+                            {item.valuation_method || "No valuation"} |{" "}
+                            {item.override_tax_type || "No tax override"}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
@@ -407,17 +583,31 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                             <div>Selected: {selectedQuantity}</div>
                             {selectedQuantity > 0 && (
                               <div className="font-medium text-blue-600">
-                                R {(parseFloat(item.cost_excl_vat_zar || 0) * selectedQuantity).toFixed(2)}
+                                R{" "}
+                                {(
+                                  parseFloat(item.cost_excl_vat_zar || 0) *
+                                  selectedQuantity
+                                ).toFixed(2)}
                               </div>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor={`qty-${item.id}`} className="text-sm">Qty:</Label>
+                            <Label
+                              htmlFor={`qty-${item.id}`}
+                              className="text-sm"
+                            >
+                              Qty:
+                            </Label>
                             <Input
                               id={`qty-${item.id}`}
                               type="number"
                               value={selectedQuantity}
-                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) =>
+                                updateQuantity(
+                                  item.id,
+                                  parseInt(e.target.value) || 0,
+                                )
+                              }
                               className="w-20"
                               min="0"
                               placeholder="0"
@@ -453,29 +643,46 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                 Download PDF
               </Button>
             </div>
-            
-            <div id="invoice-content" className="bg-white p-6 border rounded-lg">
+
+            <div
+              id="invoice-content"
+              className="bg-white p-6 border rounded-lg"
+            >
               <div className="mb-6 text-center">
                 <h1 className="font-bold text-2xl">Stock Order Invoice</h1>
                 <p className="text-gray-600">Order #{orderNumber}</p>
-                <p className="text-gray-600">{new Date().toLocaleDateString()}</p>
+                <p className="text-gray-600">
+                  {new Date().toLocaleDateString()}
+                </p>
               </div>
-              
+
               <div className="gap-8 grid grid-cols-2 mb-6">
                 <div>
                   <h3 className="mb-2 font-semibold">Order Details</h3>
-                  <p><strong>Order Number:</strong> {orderNumber}</p>
-                  <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                  <p><strong>Supplier:</strong> {supplier || 'N/A'}</p>
+                  <p>
+                    <strong>Order Number:</strong> {orderNumber}
+                  </p>
+                  <p>
+                    <strong>Date:</strong> {new Date().toLocaleDateString()}
+                  </p>
+                  <p>
+                    <strong>Supplier:</strong> {supplier || "N/A"}
+                  </p>
                 </div>
                 <div>
                   <h3 className="mb-2 font-semibold">Contact Information</h3>
-                  <p><strong>Company:</strong> Got Motion</p>
-                  <p><strong>Address:</strong> [Your Company Address]</p>
-                  <p><strong>Phone:</strong> [Your Phone Number]</p>
+                  <p>
+                    <strong>Company:</strong> Got Motion
+                  </p>
+                  <p>
+                    <strong>Address:</strong> [Your Company Address]
+                  </p>
+                  <p>
+                    <strong>Phone:</strong> [Your Phone Number]
+                  </p>
                 </div>
               </div>
-              
+
               <div className="mb-6">
                 <h3 className="mb-3 font-semibold">Order Items</h3>
                 <div className="border rounded-lg overflow-hidden">
@@ -483,6 +690,9 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="p-3 border-b text-left">Description</th>
+                        <th className="p-3 border-b text-left">
+                          Supplier Info
+                        </th>
                         <th className="p-3 border-b text-left">Cost (ZAR)</th>
                         <th className="p-3 border-b text-left">Quantity</th>
                         <th className="p-3 border-b text-left">Total (ZAR)</th>
@@ -490,26 +700,53 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                     </thead>
                     <tbody>
                       {orderItems.map((item, index) => (
-                        <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <tr
+                          key={item.id}
+                          className={
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          }
+                        >
                           <td className="p-3 border-b">{item.description}</td>
-                          <td className="p-3 border-b">R {item.cost_excl_vat_zar.toFixed(2)}</td>
+                          <td className="p-3 border-b">
+                            <div>
+                              {item.preferred_supplier ||
+                                item.supplier ||
+                                "N/A"}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {item.supplier_product_code || "No code"} •{" "}
+                              {item.purchasing_currency || "ZAR"}
+                            </div>
+                          </td>
+                          <td className="p-3 border-b">
+                            R {item.cost_excl_vat_zar.toFixed(2)}
+                          </td>
                           <td className="p-3 border-b">{item.quantity}</td>
-                          <td className="p-3 border-b">R {(item.cost_excl_vat_zar * item.quantity).toFixed(2)}</td>
+                          <td className="p-3 border-b">
+                            R{" "}
+                            {(item.cost_excl_vat_zar * item.quantity).toFixed(
+                              2,
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-              
+
               <div className="space-y-2 text-right">
                 <div className="flex justify-end gap-4">
                   <span>Subtotal (ex VAT):</span>
-                  <span className="font-semibold">R {calculateTotal().toFixed(2)}</span>
+                  <span className="font-semibold">
+                    R {calculateTotal().toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-end gap-4">
                   <span>VAT (15%):</span>
-                  <span className="font-semibold">R {calculateVAT().toFixed(2)}</span>
+                  <span className="font-semibold">
+                    R {calculateVAT().toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-end gap-4 font-bold text-lg">
                   <span>Total (inc VAT):</span>
@@ -517,7 +754,7 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex justify-end gap-3">
               <Button onClick={() => setShowInvoice(false)} variant="outline">
                 Back to Order
@@ -527,7 +764,7 @@ export default function StockOrderModal({ onOrderSubmitted }) {
                 disabled={isSubmitting}
                 className="bg-green-600 hover:bg-green-700"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Order'}
+                {isSubmitting ? "Submitting..." : "Submit Order"}
               </Button>
             </div>
           </div>
