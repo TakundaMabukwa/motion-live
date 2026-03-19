@@ -391,6 +391,11 @@ const getBillingColumnForField = (
   if (preferSub && BILLABLE_SET.has(`${field}_sub`)) return `${field}_sub`;
   if (preferRental && BILLABLE_SET.has(`${field}_rental`))
     return `${field}_rental`;
+  if (special?.sub && BILLABLE_SET.has(special.sub)) return special.sub;
+  if (BILLABLE_SET.has(`${field}_sub`)) return `${field}_sub`;
+  if (special?.rental && BILLABLE_SET.has(special.rental))
+    return special.rental;
+  if (BILLABLE_SET.has(`${field}_rental`)) return `${field}_rental`;
   return null;
 };
 
@@ -489,8 +494,11 @@ const pickBillingColumn = (
     if (familyColumn) return familyColumn;
   }
 
-  // If nothing matched but amount exists, do not guess.
-  return amount > 0 ? null : null;
+  if (amount > 0 && BILLABLE_SET.has("total_sub")) {
+    return "total_sub";
+  }
+
+  return null;
 };
 
 export async function POST(request: NextRequest) {
