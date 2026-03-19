@@ -1,20 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
+
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Fetch completed jobs where role is 'accounts' and job_status is 'Completed'
     const { data, error } = await supabase
-      .from('job_cards')
-      .select(`
+      .from("job_cards")
+      .select(
+        `
         id,
         job_number,
         job_date,
@@ -52,6 +56,8 @@ export async function GET(request: NextRequest) {
         quotation_job_type,
         quote_type,
         quotation_products,
+        parts_required,
+        equipment_used,
         quotation_subtotal,
         quotation_vat_amount,
         quotation_total_amount,
@@ -70,18 +76,22 @@ export async function GET(request: NextRequest) {
         new_account_number,
         contact_person,
         annuity_end_date
-      `)
-      .eq('role', 'accounts')
-      .eq('job_status', 'Completed')
-      .order('completion_date', { ascending: false });
+      `,
+      )
+      .eq("role", "accounts")
+      .eq("job_status", "Completed")
+      .order("completion_date", { ascending: false });
 
     if (error) {
-      console.error('Error fetching accounts completed jobs:', error);
-      return NextResponse.json({ error: 'Failed to fetch completed jobs' }, { status: 500 });
+      console.error("Error fetching accounts completed jobs:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch completed jobs" },
+        { status: 500 },
+      );
     }
 
     // Transform the data to match the expected format
-    const transformedJobs = (data || []).map(job => ({
+    const transformedJobs = (data || []).map((job) => ({
       id: job.id,
       job_number: job.job_number,
       job_date: job.job_date,
@@ -119,6 +129,8 @@ export async function GET(request: NextRequest) {
       quotation_job_type: job.quotation_job_type,
       quote_type: job.quote_type,
       quotation_products: job.quotation_products,
+      parts_required: job.parts_required,
+      equipment_used: job.equipment_used,
       quotation_subtotal: job.quotation_subtotal,
       quotation_vat_amount: job.quotation_vat_amount,
       quotation_total_amount: job.quotation_total_amount,
@@ -136,16 +148,18 @@ export async function GET(request: NextRequest) {
       ip_address: job.ip_address,
       new_account_number: job.new_account_number,
       contact_person: job.contact_person,
-      annuity_end_date: job.annuity_end_date
+      annuity_end_date: job.annuity_end_date,
     }));
 
     return NextResponse.json({
       jobs: transformedJobs,
-      total: transformedJobs.length
+      total: transformedJobs.length,
     });
-
   } catch (error) {
-    console.error('Error in accounts completed jobs GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in accounts completed jobs GET:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

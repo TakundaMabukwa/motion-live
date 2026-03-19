@@ -9,6 +9,28 @@ const DEFAULT_FILE = path.join('stock-uploads', 'STOCK.xlsx');
 const DEFAULT_SHEET_INDEX = 0;
 const BATCH_SIZE = 500;
 
+function loadDotEnv(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex === -1) continue;
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (key && !process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+}
+
 function clean(value) {
   return String(value ?? '').replace(/\u00A0/g, ' ').trim();
 }
@@ -46,41 +68,132 @@ function buildNotes(row) {
   return parts.join(' | ') || null;
 }
 
-async function main() {
-  const filePath = DEFAULT_FILE;
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
+function parseArgs(argv) {
+  const result = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const current = argv[index];
+    if (current === '--file' && argv[index + 1]) {
+      result.file = argv[index + 1];
+      index += 1;
+      continue;
+    }
+    if (current === '--sheet' && argv[index + 1]) {
+      result.sheet = argv[index + 1];
+      index += 1;
+      continue;
+    }
   }
+  return result;
+}
 
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[DEFAULT_SHEET_INDEX];
+function parseWorkbookRows(workbook, sheetName) {
   const worksheet = workbook.Sheets[sheetName];
   const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  if (!rawRows.length) {
+    throw new Error('Workbook does not contain any rows to import');
+  }
+
+  const firstRow = rawRows[0].map((value) => clean(value));
+  const isSerialReportFormat =
+    firstRow.includes('Stock Code') &&
+    firstRow.includes('Stock Description') &&
+    firstRow.includes('Serial Number');
+
+  if (isSerialReportFormat) {
+    const header = firstRow;
+    const dataRows = rawRows
+      .slice(1)
+      .filter((row) => row.some((cell) => clean(cell)))
+      .map((row) => Object.fromEntries(header.map((key, index) => [key, row[index]])));
+
+    return {
+      format: 'serial_report',
+      dataRows,
+      categories: Array.from(
+        new Map(
+          dataRows
+            .map((row) => {
+              const code = clean(row['Stock Code']);
+              const description = clean(row['Stock Description']);
+              return [code, { code, description }];
+            })
+            .filter(([code, item]) => code && item.description)
+        ).values()
+      ),
+      items: dataRows
+        .map((row) => ({
+          category_code: clean(row['Stock Code']),
+          serial_number: clean(row['Serial Number']),
+          date_adjusted: null,
+          container: null,
+          direction: null,
+          status: Number(row['Qty On Hand']) > 0 ? 'IN STOCK' : 'OUT OF STOCK',
+          company: null,
+          notes: clean(row['Stock Description']) ? `Description: ${clean(row['Stock Description'])}` : null,
+        }))
+        .filter((item) => item.category_code && item.serial_number),
+    };
+  }
 
   if (rawRows.length < 3) {
     throw new Error('Workbook does not contain enough rows to import');
   }
 
   const header = rawRows[1].map((value) => clean(value));
-  const dataRows = rawRows.slice(2).map((row) => Object.fromEntries(header.map((key, index) => [key, row[index]])));
+  const dataRows = rawRows
+    .slice(2)
+    .filter((row) => row.some((cell) => clean(cell)))
+    .map((row) => Object.fromEntries(header.map((key, index) => [key, row[index]])));
 
-  const categories = Array.from(
-    new Map(
-      dataRows.map((row) => {
-        const code = clean(row['CODE']);
-        const description = clean(row['DESCRIPTION']);
-        return [code, { code, description }];
-      }).filter(([code, item]) => code && item.description)
-    ).values()
-  );
+  return {
+    format: 'stock_adjustment',
+    dataRows,
+    categories: Array.from(
+      new Map(
+        dataRows
+          .map((row) => {
+            const code = clean(row['CODE']);
+            const description = clean(row['DESCRIPTION']);
+            return [code, { code, description }];
+          })
+          .filter(([code, item]) => code && item.description)
+      ).values()
+    ),
+    items: dataRows
+      .map((row) => ({
+        category_code: clean(row['CODE']),
+        serial_number: clean(row['S/N']),
+        date_adjusted: excelDateToIsoDate(row['DATE ADJUSTED']),
+        container: clean(row['CONTAINER']) || null,
+        direction: clean(row['DIRECTION']) || null,
+        status: 'IN STOCK',
+        company: clean(row['CLIENT/SUPPLIER']) || null,
+        notes: buildNotes(row),
+      }))
+      .filter((item) => item.category_code && item.serial_number),
+  };
+}
+
+async function main() {
+  loadDotEnv(path.join(process.cwd(), '.env.local'));
+
+  const args = parseArgs(process.argv.slice(2));
+  const filePath = args.file || DEFAULT_FILE;
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+
+  const workbook = XLSX.readFile(filePath);
+  const sheetName = args.sheet || workbook.SheetNames[DEFAULT_SHEET_INDEX];
+  const { format, dataRows, categories, items: rawItems } = parseWorkbookRows(workbook, sheetName);
 
   const duplicateSerials = new Map();
   const items = [];
   const seenSerials = new Set();
 
-  for (const row of dataRows) {
-    const categoryCode = clean(row['CODE']);
-    const serialNumber = clean(row['S/N']);
+  for (const item of rawItems) {
+    const categoryCode = clean(item.category_code);
+    const serialNumber = clean(item.serial_number);
     if (!categoryCode || !serialNumber) continue;
 
     if (seenSerials.has(serialNumber)) {
@@ -90,19 +203,15 @@ async function main() {
     seenSerials.add(serialNumber);
 
     items.push({
+      ...item,
       category_code: categoryCode,
       serial_number: serialNumber,
-      date_adjusted: excelDateToIsoDate(row['DATE ADJUSTED']),
-      container: clean(row['CONTAINER']) || null,
-      direction: clean(row['DIRECTION']) || null,
-      status: 'IN STOCK',
-      company: clean(row['CLIENT/SUPPLIER']) || null,
-      notes: buildNotes(row),
     });
   }
 
   console.log(`Workbook: ${filePath}`);
   console.log(`Sheet: ${sheetName}`);
+  console.log(`Detected format: ${format}`);
   console.log(`Rows read: ${dataRows.length}`);
   console.log(`Categories to insert: ${categories.length}`);
   console.log(`Items to insert: ${items.length}`);

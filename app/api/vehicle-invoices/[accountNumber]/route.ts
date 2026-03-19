@@ -1,91 +1,258 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+
+const BILLABLE_COLUMNS = new Set([
+  "skylink_trailer_unit_rental",
+  "skylink_trailer_sub",
+  "sky_on_batt_ign_rental",
+  "sky_on_batt_sub",
+  "skylink_voice_kit_rental",
+  "skylink_voice_kit_sub",
+  "sky_scout_12v_rental",
+  "sky_scout_12v_sub",
+  "sky_scout_24v_rental",
+  "sky_scout_24v_sub",
+  "skylink_pro_rental",
+  "skylink_pro_sub",
+  "sky_idata_rental",
+  "sky_ican_rental",
+  "industrial_panic_rental",
+  "flat_panic_rental",
+  "buzzer_rental",
+  "tag_rental",
+  "tag_reader_rental",
+  "keypad_rental",
+  "early_warning_rental",
+  "cia_rental",
+  "fm_unit_rental",
+  "fm_unit_sub",
+  "gps_rental",
+  "gsm_rental",
+  "tag_rental_",
+  "tag_reader_rental_",
+  "main_fm_harness_rental",
+  "beame_1_rental",
+  "beame_1_sub",
+  "beame_2_rental",
+  "beame_2_sub",
+  "beame_3_rental",
+  "beame_3_sub",
+  "beame_4_rental",
+  "beame_4_sub",
+  "beame_5_rental",
+  "beame_5_sub",
+  "single_probe_rental",
+  "single_probe_sub",
+  "dual_probe_rental",
+  "dual_probe_sub",
+  "_7m_harness_for_probe_rental",
+  "tpiece_rental",
+  "idata_rental",
+  "_1m_extension_cable_rental",
+  "_3m_extension_cable_rental",
+  "_4ch_mdvr_rental",
+  "_4ch_mdvr_sub",
+  "_5ch_mdvr_rental",
+  "_5ch_mdvr_sub",
+  "_8ch_mdvr_rental",
+  "_8ch_mdvr_sub",
+  "a2_dash_cam_rental",
+  "a2_dash_cam_sub",
+  "a3_dash_cam_ai_rental",
+  "_5m_cable_for_camera_4pin_rental",
+  "_5m_cable_6pin_rental",
+  "_10m_cable_for_camera_4pin_rental",
+  "a2_mec_5_rental",
+  "vw400_dome_1_rental",
+  "vw400_dome_2_rental",
+  "vw300_dakkie_dome_1_rental",
+  "vw300_dakkie_dome_2_rental",
+  "vw502_dual_lens_camera_rental",
+  "vw303_driver_facing_camera_rental",
+  "vw502f_road_facing_camera_rental",
+  "vw306_dvr_road_facing_for_4ch_8ch_rental",
+  "vw306m_a2_dash_cam_rental",
+  "dms01_driver_facing_rental",
+  "adas_02_road_facing_rental",
+  "vw100ip_driver_facing_rental",
+  "sd_card_1tb_rental",
+  "sd_card_2tb_rental",
+  "sd_card_480gb_rental",
+  "sd_card_256gb_rental",
+  "sd_card_512gb_rental",
+  "sd_card_250gb_rental",
+  "mic_rental",
+  "speaker_rental",
+  "pfk_main_unit_rental",
+  "pfk_main_unit_sub",
+  "breathaloc_rental",
+  "pfk_road_facing_rental",
+  "pfk_driver_facing_rental",
+  "pfk_dome_1_rental",
+  "pfk_dome_2_rental",
+  "pfk_5m_rental",
+  "pfk_10m_rental",
+  "pfk_15m_rental",
+  "pfk_20m_rental",
+  "roller_door_switches_rental",
+  "consultancy",
+  "roaming",
+  "maintenance",
+  "after_hours",
+  "controlroom",
+  "total_rental_sub",
+  "total_rental",
+  "total_sub",
+  "software",
+  "additional_data",
+]);
+
+const SERVICE_ONLY_COLUMNS = new Set([
+  "consultancy",
+  "roaming",
+  "maintenance",
+  "after_hours",
+  "controlroom",
+  "software",
+  "additional_data",
+  "total_rental_sub",
+  "total_rental",
+  "total_sub",
+]);
+
+function safeNumber(value: unknown) {
+  const num = typeof value === "string" ? parseFloat(value) : Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function hasEquipmentForBilling(vehicle: Record<string, any>, column: string) {
+  if (SERVICE_ONLY_COLUMNS.has(column)) return true;
+  const baseFieldName = column.replace(/_rental$/, "").replace(/_sub$/, "");
+  return String(vehicle?.[baseFieldName] || "").trim().length > 0;
+}
+
+function buildVehicleSummary(vehicle: Record<string, any>, currentDay: number) {
+  let totalExVat = 0;
+
+  for (const key of Object.keys(vehicle)) {
+    if (!BILLABLE_COLUMNS.has(key)) continue;
+    if (!hasEquipmentForBilling(vehicle, key)) continue;
+    totalExVat += safeNumber(vehicle[key]);
+  }
+
+  let monthsLate = 0;
+  if (currentDay > 21) {
+    monthsLate = 1;
+  }
+
+  const overdue1_30 = monthsLate >= 1 ? totalExVat : 0;
+  const overdue31_60 = monthsLate >= 2 ? totalExVat : 0;
+  const overdue61_90 = monthsLate >= 3 ? totalExVat : 0;
+  const overdue91_plus = monthsLate >= 4 ? totalExVat : 0;
+  const totalOverdue =
+    overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
+
+  return {
+    id: vehicle.id,
+    stock_code: vehicle.reg || vehicle.fleet_number || `VEH-${vehicle.id}`,
+    stock_description:
+      [vehicle.make, vehicle.model, vehicle.year]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "Vehicle",
+    new_account_number:
+      vehicle.new_account_number || vehicle.account_number || "",
+    company: vehicle.company || "Unknown Company",
+    monthlyAmount: totalExVat,
+    overdue1_30,
+    overdue31_60,
+    overdue61_90,
+    overdue91_plus,
+    totalOverdue,
+    monthsLate,
+    isOverdue: totalOverdue > 0,
+  };
+}
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { accountNumber: string } }
+  { params }: { params: { accountNumber: string } },
 ) {
   try {
     const supabase = await createClient();
-    
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const accountNumber = params.accountNumber;
+    const currentDay = new Date().getDate();
 
-    // Get current date and calculate overdue periods
-    const now = new Date();
-    const currentDay = now.getDate();
-    const paymentDueDay = 21;
-
-    // Fetch vehicle invoices for the specific account
-    const { data: invoices, error } = await supabase
-      .from('vehicle_invoices')
-      .select('*')
-      .eq('new_account_number', accountNumber)
-      .order('company', { ascending: true });
+    const { data: vehicles, error } = await supabase
+      .from("vehicles")
+      .select("*")
+      .or(
+        `new_account_number.eq.${accountNumber},account_number.eq.${accountNumber}`,
+      )
+      .order("company", { ascending: true });
 
     if (error) {
-      console.error('Error fetching vehicle invoices for account:', error);
-      return NextResponse.json({ error: 'Failed to fetch vehicle invoices' }, { status: 500 });
+      console.error("Error fetching vehicles for account:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch vehicles" },
+        { status: 500 },
+      );
     }
 
-    // Process invoices to calculate overdue amounts and monthly totals
-    const processedInvoices = invoices?.map(invoice => {
-      const monthlyAmount = parseFloat(invoice.one_month) || 0;
-      
-      // Calculate overdue months based on current date vs payment due date
-      let monthsLate = 0;
-      if (currentDay > paymentDueDay) {
-        monthsLate = 1; // Current month is overdue
-      }
-      
-      // Calculate overdue amounts for different periods
-      const overdue1_30 = monthsLate >= 1 ? monthlyAmount : 0;
-      const overdue31_60 = monthsLate >= 2 ? monthlyAmount : 0;
-      const overdue61_90 = monthsLate >= 3 ? monthlyAmount : 0;
-      const overdue91_plus = monthsLate >= 4 ? monthlyAmount : 0;
-      
-      const totalOverdue = overdue1_30 + overdue31_60 + overdue61_90 + overdue91_plus;
+    const processedVehicles = (vehicles || []).map((vehicle) =>
+      buildVehicleSummary(vehicle, currentDay),
+    );
 
-      return {
-        ...invoice,
-        monthlyAmount,
-        overdue1_30,
-        overdue31_60,
-        overdue61_90,
-        overdue91_plus,
-        totalOverdue,
-        monthsLate,
-        isOverdue: totalOverdue > 0
-      };
-    }) || [];
-
-    // Calculate account summary
     const accountSummary = {
       accountNumber,
-      company: invoices?.[0]?.company || 'Unknown Company',
-      totalMonthlyAmount: processedInvoices.reduce((sum, inv) => sum + inv.monthlyAmount, 0),
-      totalOverdue: processedInvoices.reduce((sum, inv) => sum + inv.totalOverdue, 0),
-      overdue1_30: processedInvoices.reduce((sum, inv) => sum + inv.overdue1_30, 0),
-      overdue31_60: processedInvoices.reduce((sum, inv) => sum + inv.overdue31_60, 0),
-      overdue61_90: processedInvoices.reduce((sum, inv) => sum + inv.overdue61_90, 0),
-      overdue91_plus: processedInvoices.reduce((sum, inv) => sum + inv.overdue91_plus, 0),
-      vehicleCount: processedInvoices.length,
-      invoices: processedInvoices
+      company: vehicles?.[0]?.company || "Unknown Company",
+      totalMonthlyAmount: processedVehicles.reduce(
+        (sum, item) => sum + item.monthlyAmount,
+        0,
+      ),
+      totalOverdue: processedVehicles.reduce(
+        (sum, item) => sum + item.totalOverdue,
+        0,
+      ),
+      overdue1_30: processedVehicles.reduce(
+        (sum, item) => sum + item.overdue1_30,
+        0,
+      ),
+      overdue31_60: processedVehicles.reduce(
+        (sum, item) => sum + item.overdue31_60,
+        0,
+      ),
+      overdue61_90: processedVehicles.reduce(
+        (sum, item) => sum + item.overdue61_90,
+        0,
+      ),
+      overdue91_plus: processedVehicles.reduce(
+        (sum, item) => sum + item.overdue91_plus,
+        0,
+      ),
+      vehicleCount: processedVehicles.length,
+      invoices: processedVehicles,
     };
 
     return NextResponse.json({
       success: true,
       accountSummary,
-      invoices: processedInvoices
+      invoices: processedVehicles,
     });
-
   } catch (error) {
-    console.error('Error in vehicle invoices by account GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in vehicle invoices by account GET:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
