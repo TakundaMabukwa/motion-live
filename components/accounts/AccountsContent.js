@@ -658,10 +658,21 @@ export default function AccountsContent({ activeSection }) {
         },
       };
 
+      const shouldMarkInvoiced = key === "invoice";
+      const patchPayload = {
+        billing_statuses: nextStatuses,
+        ...(shouldMarkInvoiced
+          ? {
+              job_status: "Invoiced",
+              status: "completed",
+            }
+          : {}),
+      };
+
       const response = await fetch(`/api/job-cards/${job.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ billing_statuses: nextStatuses }),
+        body: JSON.stringify(patchPayload),
       });
 
       if (!response.ok) {
@@ -672,9 +683,24 @@ export default function AccountsContent({ activeSection }) {
       setCompletedJobs((prev) =>
         prev.map((item) =>
           item.id === job.id
-            ? { ...item, billing_statuses: updated.billing_statuses }
+            ? {
+                ...item,
+                billing_statuses: updated.billing_statuses,
+                job_status: updated.job_status ?? item.job_status,
+                status: updated.status ?? item.status,
+              }
             : item,
         ),
+      );
+      setSelectedJobDetails((prev) =>
+        prev?.id === job.id
+          ? {
+              ...prev,
+              billing_statuses: updated.billing_statuses,
+              job_status: updated.job_status ?? prev.job_status,
+              status: updated.status ?? prev.status,
+            }
+          : prev,
       );
       toast.success(
         `${key.charAt(0).toUpperCase() + key.slice(1)} marked as done`,
@@ -1364,12 +1390,25 @@ export default function AccountsContent({ activeSection }) {
                       <span className="text-gray-500 text-sm font-medium">
                         Status:
                       </span>
-                      <Badge
-                        variant="default"
-                        className="bg-green-100 text-green-800"
-                      >
-                        Completed
-                      </Badge>
+                      {(() => {
+                        const isInvoiced = getBillingStatusValue(
+                          selectedJobDetails,
+                          "invoice",
+                        );
+                        const statusLabel = isInvoiced
+                          ? "Invoiced"
+                          : selectedJobDetails.job_status ||
+                            selectedJobDetails.status ||
+                            "Completed";
+                        const statusClass = isInvoiced
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-green-100 text-green-800";
+                        return (
+                          <Badge variant="default" className={statusClass}>
+                            {statusLabel}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                     <div>
                       <span className="text-gray-500 text-sm font-medium">
