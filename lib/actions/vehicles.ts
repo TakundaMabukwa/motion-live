@@ -208,6 +208,18 @@ export interface Vehicle {
   after_hours: string | null;
   controlroom: string | null;
   software: string | null;
+  eps_software_development: string | null;
+  maysene_software_development: string | null;
+  waterford_software_development: string | null;
+  klaver_software_development: string | null;
+  advatrans_software_development: string | null;
+  tt_linehaul_software_development: string | null;
+  tt_express_software_development: string | null;
+  tt_fmcg_software_development: string | null;
+  rapid_freight_software_development: string | null;
+  remco_freight_software_development: string | null;
+  vt_logistics_software_development: string | null;
+  epilite_software_development: string | null;
   additional_data: string | null;
   total_rental: number | null;
   total_sub: number | null;

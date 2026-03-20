@@ -83,6 +83,13 @@ const PRODUCT_MAPPING_RULES: ProductMappingRule[] = [
   { kind: "direct", field: "consultancy", aliases: ["management_and_consultant"], category: ["services"] },
   { kind: "direct", field: "maintenance", aliases: ["service", "maintenance_module"], category: ["services"] },
   { kind: "direct", field: "software", aliases: ["routing", "routing_opsi"], category: ["services"] },
+  { kind: "direct", field: "tt_linehaul_software_development", aliases: ["tt_linehaul_software_development", "tt_linehaul"], category: ["services"] },
+  { kind: "direct", field: "tt_express_software_development", aliases: ["tt_express_software_development", "tt_express"], category: ["services"] },
+  { kind: "direct", field: "tt_fmcg_software_development", aliases: ["tt_fmcg_software_development", "tt_fmcg"], category: ["services"] },
+  { kind: "direct", field: "rapid_freight_software_development", aliases: ["rapid_freight_software_development", "rapid_freight"], category: ["services"] },
+  { kind: "direct", field: "remco_freight_software_development", aliases: ["remco_freight_software_development", "remco_freight"], category: ["services"] },
+  { kind: "direct", field: "vt_logistics_software_development", aliases: ["vt_logistics_software_development", "vt_logistics"], category: ["services"] },
+  { kind: "direct", field: "epilite_software_development", aliases: ["epilite_software_development", "epilite"], category: ["services"] },
 ];
 
 export function resolveVehicleProductMapping(item: ProductLike): VehicleProductMapping | null {
