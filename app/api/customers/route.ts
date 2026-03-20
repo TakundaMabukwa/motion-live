@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { allocateNewCustomerAccountNumber } from "@/lib/server/account-number";
 
 export async function GET(request: NextRequest) {
   try {
@@ -248,20 +249,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Validate required fields
-    if (!body.account_number || !body.company || !body.trading_name) {
+    if (!body.company || !body.trading_name) {
       return NextResponse.json(
         {
           error:
-            "Missing required fields: account_number, company, and trading_name are required",
+            "Missing required fields: company and trading_name are required",
         },
         { status: 400 },
       );
     }
 
+    const resolvedAccountNumber = await allocateNewCustomerAccountNumber(
+      supabase,
+      body.company,
+    );
+
     // Prepare customer data
     const customerData = {
       divisions: body.divisions || null,
-      account_number: body.account_number,
+      account_number: resolvedAccountNumber,
       company: body.company,
       legal_name: body.legal_name || null,
       trading_name: body.trading_name,
@@ -340,14 +346,14 @@ export async function POST(request: NextRequest) {
         const existingAccountNumbers =
           existingGroup.all_new_account_numbers || "";
         const updatedAccountNumbers = existingAccountNumbers
-          ? `${existingAccountNumbers},${body.account_number}`
-          : body.account_number;
+          ? `${existingAccountNumbers},${resolvedAccountNumber}`
+          : resolvedAccountNumber;
 
         const { error: updateError } = await supabase
           .from("customers_grouped")
           .update({
             all_new_account_numbers: updatedAccountNumbers,
-            cost_code: body.account_number,
+            cost_code: resolvedAccountNumber,
           })
           .eq("id", existingGroup.id);
 
@@ -359,9 +365,9 @@ export async function POST(request: NextRequest) {
         const groupedData = {
           company_group: body.company,
           legal_names: body.legal_name || null,
-          all_account_numbers: body.account_number,
-          all_new_account_numbers: body.account_number,
-          cost_code: body.account_number,
+          all_account_numbers: resolvedAccountNumber,
+          all_new_account_numbers: resolvedAccountNumber,
+          cost_code: resolvedAccountNumber,
         };
 
         const { error: insertGroupError } = await supabase
@@ -385,7 +391,7 @@ export async function POST(request: NextRequest) {
       const { data: existingCostCenter } = await supabase
         .from("cost_centers")
         .select("id")
-        .eq("cost_code", body.account_number)
+        .eq("cost_code", resolvedAccountNumber)
         .maybeSingle();
 
       if (!existingCostCenter) {
@@ -394,7 +400,7 @@ export async function POST(request: NextRequest) {
           .insert([
             {
               company: body.company || null,
-              cost_code: body.account_number,
+              cost_code: resolvedAccountNumber,
               validated: false,
             },
           ]);

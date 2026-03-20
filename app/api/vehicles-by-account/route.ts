@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('vehicles')
       .select('*', { count: 'exact' })
-      .eq('new_account_number', accountNumber);
+      .or(`new_account_number.eq.${accountNumber},account_number.eq.${accountNumber}`);
 
     // Apply pagination and ordering
     query = query

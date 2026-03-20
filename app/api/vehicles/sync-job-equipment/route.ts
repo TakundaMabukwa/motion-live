@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
+import { buildTemporaryRegistration } from "@/lib/temp-registration";
 
 type VehicleRow = Record<string, any>;
 type EquipmentItem = Record<string, any>;
@@ -12,16 +14,6 @@ const GROUPED_FIELD_BASES = new Set([
   "sky_scout_24v",
   "skylink_pro",
 ]);
-
-const SLOT_FAMILIES: Record<string, string[]> = {
-  beame: ["beame_1", "beame_2", "beame_3", "beame_4", "beame_5"],
-  fuel_probe: ["fuel_probe_1", "fuel_probe_2"],
-  vw400_dome: ["vw400_dome_1", "vw400_dome_2"],
-  vw300_dakkie_dome: ["vw300_dakkie_dome_1", "vw300_dakkie_dome_2"],
-  pfk_dome: ["pfk_dome_1", "pfk_dome_2"],
-  tag: ["tag", "tag_"],
-  tag_reader: ["tag_reader", "tag_reader_"],
-};
 
 const DIRECT_ALIASES: Record<string, string> = {
   skylink_trailer_unit: "skylink_trailer_unit",
@@ -105,6 +97,47 @@ const DIRECT_ALIASES: Record<string, string> = {
   klaver_software_development: "klaver_software_development",
   advatrans_software_development: "advatrans_software_development",
 };
+
+const FAMILY_ALIAS_KEYWORDS: Record<string, string[]> = {
+  beame: ["beame", "backup", "beacon", "recovery_unit", "wireless_recovery"],
+  fuel_probe: ["fuel_probe", "probe"],
+  vw400_dome: ["vw400_dome", "vw400"],
+  vw300_dakkie_dome: ["vw300_dakkie_dome", "vw300", "dakkie_dome"],
+  pfk_dome: ["pfk_dome", "pfk"],
+  tag_reader: ["tag_reader", "reader"],
+  tag: ["tag"],
+};
+
+function buildSlotFamilies(fields: string[]) {
+  const grouped: Record<string, Array<{ field: string; index: number }>> = {};
+
+  for (const field of fields) {
+    const match = field.match(/^(.*)_(\d+)$/);
+    if (!match) continue;
+    const [, familyKey, indexText] = match;
+    const index = Number(indexText);
+    if (!Number.isFinite(index)) continue;
+    if (!grouped[familyKey]) grouped[familyKey] = [];
+    grouped[familyKey].push({ field, index });
+  }
+
+  const slotFamilies: Record<string, string[]> = {};
+  for (const [familyKey, familyFields] of Object.entries(grouped)) {
+    slotFamilies[familyKey] = familyFields
+      .sort((a, b) => a.index - b.index)
+      .map((entry) => entry.field);
+  }
+
+  if (!slotFamilies.tag) slotFamilies.tag = ["tag", "tag_"];
+  if (!slotFamilies.tag_reader)
+    slotFamilies.tag_reader = ["tag_reader", "tag_reader_"];
+
+  return slotFamilies;
+}
+
+const SLOT_FAMILIES: Record<string, string[]> = buildSlotFamilies(
+  Array.from(new Set(Object.values(DIRECT_ALIASES))),
+);
 
 const GROUPED_SEARCH_FIELDS = Array.from(GROUPED_FIELD_BASES).flatMap(
   (base) => [`${base}_serial_number`, `${base}_ip`],
@@ -191,6 +224,27 @@ function getUniqueEquipmentValue(item: EquipmentItem) {
   };
 }
 
+function getInstallEquipmentValue(
+  item: EquipmentItem,
+  values: ReturnType<typeof getUniqueEquipmentValue>,
+) {
+  if (values.text) return values.text;
+
+  const fallback = [
+    item?.value,
+    item?.name,
+    item?.product,
+    item?.description,
+    item?.code,
+    item?.item_code,
+    item?.type,
+  ]
+    .map((value) => String(value || "").trim())
+    .find(Boolean);
+
+  return fallback || null;
+}
+
 function findFieldByExistingValue(
   vehicle: VehicleRow,
   values: ReturnType<typeof getUniqueEquipmentValue>,
@@ -234,7 +288,16 @@ function findFieldByExistingValue(
 
 function getVehicleRegs(job: Record<string, any>) {
   const regs = new Set<string>();
-  const fallback = String(job?.vehicle_registration || "").trim();
+  const fallback = String(
+    job?.vehicle_registration ||
+      job?.temporary_registration ||
+      buildTemporaryRegistration(
+        job?.id,
+        job?.job_number,
+        job?.quotation_number,
+        job?.new_account_number,
+      ),
+  ).trim();
   if (fallback) regs.add(fallback);
 
   for (const product of parseArray(job?.quotation_products)) {
@@ -246,6 +309,11 @@ function getVehicleRegs(job: Record<string, any>) {
 }
 
 function resolveField(item: EquipmentItem) {
+  const mappedProduct = resolveVehicleProductMapping(item);
+  if (mappedProduct) {
+    return mappedProduct;
+  }
+
   const directField = normalize(item?.fieldName);
   const knownField = resolveKnownFieldName(directField);
   if (knownField) {
@@ -274,23 +342,19 @@ function resolveField(item: EquipmentItem) {
   }
 
   const joined = candidates.join(" ");
-  if (joined.includes("beame"))
-    return { kind: "family" as const, field: "beame" };
-  if (joined.includes("fuel_probe") || joined.includes("probe"))
-    return { kind: "family" as const, field: "fuel_probe" };
-  if (joined.includes("vw400") && joined.includes("dome"))
-    return { kind: "family" as const, field: "vw400_dome" };
-  if (
-    joined.includes("vw300") &&
-    joined.includes("dakkie") &&
-    joined.includes("dome")
-  )
-    return { kind: "family" as const, field: "vw300_dakkie_dome" };
-  if (joined.includes("pfk") && joined.includes("dome"))
-    return { kind: "family" as const, field: "pfk_dome" };
-  if (joined.includes("tag_reader"))
-    return { kind: "family" as const, field: "tag_reader" };
-  if (joined.includes("tag")) return { kind: "family" as const, field: "tag" };
+  const familyKeys = Object.keys(SLOT_FAMILIES).sort(
+    (a, b) => b.length - a.length,
+  );
+
+  for (const familyKey of familyKeys) {
+    const keywords = [
+      familyKey,
+      ...(FAMILY_ALIAS_KEYWORDS[familyKey] || []),
+    ].filter(Boolean);
+    if (keywords.some((keyword) => joined.includes(keyword))) {
+      return { kind: "family" as const, field: familyKey };
+    }
+  }
 
   return null;
 }
@@ -333,6 +397,7 @@ function buildVehicleUpdate(
   item: EquipmentItem,
 ) {
   const values = getUniqueEquipmentValue(item);
+  const installValue = getInstallEquipmentValue(item, values);
   const mapping =
     findFieldByExistingValue(vehicle, values) || resolveField(item);
   if (!mapping) {
@@ -349,13 +414,13 @@ function buildVehicleUpdate(
       const update: Record<string, any> = {};
       if (values.serial) update[serialField] = values.serial;
       if (values.ip) update[ipField] = values.ip;
-      if (!Object.keys(update).length && values.text)
-        update[serialField] = values.text;
+      if (!Object.keys(update).length && installValue)
+        update[serialField] = installValue;
       return Object.keys(update).length
         ? { update, warning: null }
         : {
             update: null,
-            warning: `No serial or IP found for ${mapping.field}`,
+            warning: `No install value found for ${mapping.field}`,
           };
     }
     return { update: { [serialField]: null, [ipField]: null }, warning: null };
@@ -364,8 +429,8 @@ function buildVehicleUpdate(
   if (mapping.kind === "family") {
     const targetField =
       jobType === "install"
-        ? pickInstallSlot(vehicle, mapping.field, values.text)
-        : pickDeinstallSlot(vehicle, mapping.field, values.text);
+        ? pickInstallSlot(vehicle, mapping.field, installValue)
+        : pickDeinstallSlot(vehicle, mapping.field, installValue);
 
     if (!targetField) {
       return {
@@ -378,20 +443,20 @@ function buildVehicleUpdate(
     }
 
     return {
-      update: { [targetField]: jobType === "install" ? values.text : null },
+      update: { [targetField]: jobType === "install" ? installValue : null },
       warning:
-        values.text || jobType === "deinstall"
+        installValue || jobType === "deinstall"
           ? null
-          : `No unique value found for ${mapping.field}`,
+          : `No install value found for ${mapping.field}`,
     };
   }
 
   if (jobType === "install") {
-    const nextValue = values.text;
+    const nextValue = installValue;
     if (!nextValue) {
       return {
         update: null,
-        warning: `No unique value found for ${mapping.field}`,
+        warning: `No install value found for ${mapping.field}`,
       };
     }
 
@@ -433,14 +498,25 @@ async function getVehiclesForJob(supabase: any, job: Record<string, any>) {
   });
 }
 
-async function createVehicleForJob(supabase: any, job: Record<string, any>) {
+async function createVehicleForJob(
+  supabase: any,
+  job: Record<string, any>,
+  regOverride?: string,
+) {
   const regs = getVehicleRegs(job);
-  const reg = String(regs[0] || job?.vehicle_registration || "").trim();
+  const reg = String(
+    regOverride ||
+      regs[0] ||
+      job?.vehicle_registration ||
+      job?.temporary_registration ||
+      buildTemporaryRegistration(
+        job?.id,
+        job?.job_number,
+        job?.quotation_number,
+        job?.new_account_number,
+      ),
+  ).trim();
   const costCode = String(job?.new_account_number || "").trim();
-
-  if (!reg) {
-    throw new Error("Vehicle registration is required to create a vehicle row");
-  }
 
   const insertData = {
     company: job?.customer_name || null,
@@ -503,6 +579,38 @@ export async function POST(request: NextRequest) {
 
     let createdVehicleId: number | null = null;
     let vehicles = await getVehiclesForJob(supabase, job);
+    const vehicleRegs = getVehicleRegs(job);
+
+    if (jobType === "install") {
+      const costCode = String(job?.new_account_number || "").trim();
+      const existingRegKeys = new Set(
+        vehicles.map((vehicle) => {
+          const reg = String(vehicle?.reg || "")
+            .trim()
+            .toLowerCase();
+          const account = String(
+            vehicle?.new_account_number || vehicle?.account_number || "",
+          )
+            .trim()
+            .toLowerCase();
+          return `${reg}|${account}`;
+        }),
+      );
+
+      for (const reg of vehicleRegs) {
+        const regKey = `${String(reg || "")
+          .trim()
+          .toLowerCase()}|${costCode.toLowerCase()}`;
+        if (!reg || existingRegKeys.has(regKey)) continue;
+        const createdVehicle = await createVehicleForJob(supabase, job, reg);
+        if (createdVehicleId == null) {
+          createdVehicleId = createdVehicle?.id ?? null;
+        }
+        vehicles.push(createdVehicle);
+        existingRegKeys.add(regKey);
+      }
+    }
+
     if (!vehicles.length && jobType === "install") {
       const createdVehicle = await createVehicleForJob(supabase, job);
       createdVehicleId = createdVehicle?.id ?? null;
@@ -517,16 +625,11 @@ export async function POST(request: NextRequest) {
     }
 
     const sourceItems =
-      jobType === "install"
-        ? [
-            ...parseArray(job?.equipment_used),
-            ...parseArray(job?.parts_required),
-          ]
-        : [
-            ...parseArray(job?.quotation_products),
-            ...parseArray(job?.equipment_used),
-            ...parseArray(job?.parts_required),
-          ];
+      [
+        ...parseArray(job?.quotation_products),
+        ...parseArray(job?.equipment_used),
+        ...parseArray(job?.parts_required),
+      ];
 
     if (!sourceItems.length) {
       return NextResponse.json({
@@ -540,6 +643,20 @@ export async function POST(request: NextRequest) {
     let updated = 0;
     const warnings: string[] = [];
 
+    const defaultVehicleReg = String(
+      job?.vehicle_registration ||
+        job?.temporary_registration ||
+        buildTemporaryRegistration(
+          job?.id,
+          job?.job_number,
+          job?.quotation_number,
+          job?.new_account_number,
+        ),
+    )
+      .trim()
+      .toLowerCase();
+    const hasMultipleVehicles = vehicles.length > 1;
+
     for (const vehicle of vehicles) {
       const updateData: Record<string, any> = {};
 
@@ -552,6 +669,16 @@ export async function POST(request: NextRequest) {
             String(vehicle.reg || "")
               .trim()
               .toLowerCase()
+        ) {
+          continue;
+        }
+        if (
+          hasMultipleVehicles &&
+          !itemVehiclePlate &&
+          defaultVehicleReg &&
+          String(vehicle.reg || "")
+            .trim()
+            .toLowerCase() !== defaultVehicleReg
         ) {
           continue;
         }

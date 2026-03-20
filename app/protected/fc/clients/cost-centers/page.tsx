@@ -33,12 +33,28 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface CostCenter {
   id: string;
   created_at: string;
+  cost_code: string;
+  company: string;
+}
+
+interface VehicleSummary {
+  id: string | number;
+  reg?: string | null;
+  fleet_number?: string | null;
+  make?: string | null;
+  model?: string | null;
+  new_account_number?: string | null;
+}
+
+interface DeleteModalState {
+  open: boolean;
   cost_code: string;
   company: string;
 }
@@ -61,6 +77,15 @@ function ClientCostCentersContent() {
   const [creatingCostCenter, setCreatingCostCenter] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newCostCenterCompany, setNewCostCenterCompany] = useState("");
+  const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
+    open: false,
+    cost_code: "",
+    company: "",
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteVehiclesLoading, setDeleteVehiclesLoading] = useState(false);
+  const [deleteVehicles, setDeleteVehicles] = useState<VehicleSummary[]>([]);
+  const [deleteAction, setDeleteAction] = useState("none");
 
   const itemsPerPage = 50;
 
@@ -261,6 +286,87 @@ function ClientCostCentersContent() {
       toast.error(error?.message || "Failed to create cost center");
     } finally {
       setCreatingCostCenter(false);
+    }
+  };
+
+  const openDeleteModal = async (costCenter: CostCenter) => {
+    setDeleteModal({
+      open: true,
+      cost_code: costCenter.cost_code,
+      company: costCenter.company || costCenter.cost_code,
+    });
+    setDeleteAction("none");
+    setDeleteVehicles([]);
+    setDeleteVehiclesLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/cost-centers/check-vehicles?cost_code=${encodeURIComponent(costCenter.cost_code)}`,
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to check vehicles");
+      }
+
+      setDeleteVehicles(payload?.vehicles || []);
+    } catch (error: any) {
+      console.error("Error checking vehicles for delete:", error);
+      toast.error(error?.message || "Failed to check linked vehicles");
+    } finally {
+      setDeleteVehiclesLoading(false);
+    }
+  };
+
+  const handleDeleteCostCenter = async () => {
+    if (!deleteModal.cost_code) {
+      return;
+    }
+
+    try {
+      setDeleteLoading(true);
+
+      const response = await fetch("/api/cost-centers/delete", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          cost_code: deleteModal.cost_code,
+          vehicleAction: deleteAction,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to delete cost center");
+      }
+
+      const updatedAccountNumbers = accountNumbers.filter(
+        (account) => account !== deleteModal.cost_code,
+      );
+
+      setCostCenters((prev) =>
+        prev.filter((center) => center.cost_code !== deleteModal.cost_code),
+      );
+
+      setDeleteModal({ open: false, cost_code: "", company: "" });
+      setDeleteVehicles([]);
+      setDeleteAction("none");
+
+      if (updatedAccountNumbers.length > 0) {
+        router.replace(
+          `/protected/fc/clients/cost-centers?accounts=${encodeURIComponent(updatedAccountNumbers.join(","))}`,
+        );
+      }
+
+      toast.success(`Cost center ${deleteModal.cost_code} deleted successfully`);
+    } catch (error: any) {
+      console.error("Error deleting cost center:", error);
+      toast.error(error?.message || "Failed to delete cost center");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -569,18 +675,29 @@ function ClientCostCentersContent() {
 
                       {/* Actions Column */}
                       <div className="flex justify-end items-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            router.push(
-                              `/protected/fc/accounts/${costCenter.cost_code}`,
-                            )
-                          }
-                          className="hover:bg-blue-50 text-blue-600 hover:text-blue-700"
-                        >
-                          View
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              router.push(
+                                `/protected/fc/accounts/${costCenter.cost_code}`,
+                              )
+                            }
+                            className="hover:bg-blue-50 text-blue-600 hover:text-blue-700"
+                          >
+                            View
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openDeleteModal(costCenter)}
+                            className="hover:bg-red-50 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-1 w-4 h-4" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -730,6 +847,120 @@ function ClientCostCentersContent() {
                 <Plus className="mr-2 w-4 h-4" />
               )}
               {creatingCostCenter ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteModal.open}
+        onOpenChange={(open) => {
+          if (!deleteLoading) {
+            setDeleteModal((prev) => ({ ...prev, open }));
+            if (!open) {
+              setDeleteVehicles([]);
+              setDeleteAction("none");
+            }
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Delete Cost Center</DialogTitle>
+            <DialogDescription>
+              Review attached vehicles before deleting{" "}
+              <span className="font-medium text-slate-900">
+                {deleteModal.company || deleteModal.cost_code}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">
+              <div className="font-medium text-slate-900">
+                {deleteModal.cost_code || "N/A"}
+              </div>
+              <div>{deleteModal.company || "No company name"}</div>
+            </div>
+
+            {deleteVehiclesLoading ? (
+              <div className="flex items-center text-slate-600 text-sm">
+                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+                Checking linked vehicles...
+              </div>
+            ) : deleteVehicles.length > 0 ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 text-sm">
+                  {deleteVehicles.length} vehicle(s) are linked to this cost center.
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-auto rounded-lg border p-3">
+                  {deleteVehicles.map((vehicle) => (
+                    <div
+                      key={String(vehicle.id)}
+                      className="border-slate-200 border-b last:border-b-0 pb-2 last:pb-0 text-sm"
+                    >
+                      <div className="font-medium text-slate-900">
+                        {vehicle.reg || vehicle.fleet_number || `Vehicle ${vehicle.id}`}
+                      </div>
+                      <div className="text-slate-600">
+                        {[vehicle.make, vehicle.model].filter(Boolean).join(" ")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="delete-vehicle-action">Vehicle Action</Label>
+                  <select
+                    id="delete-vehicle-action"
+                    value={deleteAction}
+                    onChange={(e) => setDeleteAction(e.target.value)}
+                    className="border border-gray-300 rounded-md w-full h-10"
+                  >
+                    <option value="none">Leave vehicles unchanged</option>
+                    <option value="delete">Delete linked vehicles too</option>
+                    {costCenters
+                      .filter((center) => center.cost_code !== deleteModal.cost_code)
+                      .map((center) => (
+                        <option key={center.cost_code} value={center.cost_code}>
+                          Move vehicles to {center.cost_code} - {center.company}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-900 text-sm">
+                No vehicles are linked to this cost center.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteModal({ open: false, cost_code: "", company: "" });
+                setDeleteVehicles([]);
+                setDeleteAction("none");
+              }}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteCostCenter}
+              disabled={deleteLoading || deleteVehiclesLoading}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleteLoading ? (
+                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 w-4 h-4" />
+              )}
+              {deleteLoading ? "Deleting..." : "Delete Cost Center"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -345,6 +345,7 @@ export default function ClientQuoteForm({
       deInstallationDiscount: Number(p.de_installation_discount || p.deInstallationDiscount || 0),
       subscriptionPrice: Number(p.subscription_price || p.subscriptionPrice || 0),
       subscriptionDiscount: Number(p.subscription_discount || p.subscriptionDiscount || 0),
+      annuityEndDate: p.annuity_end_date || p.annuityEndDate || "",
       vehicleId: p.vehicle_id || null,
       vehiclePlate: p.vehicle_plate || null,
     });
@@ -548,6 +549,7 @@ export default function ClientQuoteForm({
         deInstallationDiscount: 0,
         subscriptionPrice: 0,
         subscriptionDiscount: 0,
+        annuityEndDate: '',
         vehicleId: product.vehicleId,
         vehiclePlate: product.vehiclePlate,
       };
@@ -644,11 +646,10 @@ export default function ClientQuoteForm({
       case 0:
         const basicRequirements = formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
         if (formData.jobType === 'deinstall') {
-          const hasAnnuityEndDate = Boolean(formData.annuityEndDate);
           if (formData.jobSubType === 'decommission') {
-            return basicRequirements && formData.decommissionDate && hasAnnuityEndDate && Boolean(formData.moveToRole);
+            return basicRequirements && formData.decommissionDate && Boolean(formData.moveToRole);
           }
-          return basicRequirements && hasAnnuityEndDate;
+          return basicRequirements;
         }
         return basicRequirements;
       case 1:
@@ -827,6 +828,9 @@ export default function ClientQuoteForm({
           subscription_discount: subscriptionDiscount,
           subscription_gross: subscriptionGross,
           total_price: totalPrice,
+          annuity_end_date: formData.jobType === 'deinstall'
+            ? (product.annuityEndDate || null)
+            : null,
           vehicle_id: product.vehicleId,
           vehicle_plate: product.vehiclePlate,
         };
@@ -853,7 +857,7 @@ export default function ClientQuoteForm({
         customerAddress: formData.customerAddress,
         contactPerson: formData.contactPerson,
         decommissionDate: formData.decommissionDate,
-        annuityEndDate: formData.annuityEndDate,
+        annuityEndDate: null,
         moveToRole: formData.moveToRole || null,
         
         // Vehicle information
@@ -892,7 +896,8 @@ export default function ClientQuoteForm({
                 type: part.type,
                 category: part.category,
                 code: part.code || '',
-                quantity: part.quantity || 1
+                quantity: part.quantity || 1,
+                annuity_end_date: part.annuityEndDate || null
               }))
             };
           })
@@ -934,7 +939,7 @@ export default function ClientQuoteForm({
         customer_address: formData.customerAddress,
         contact_person: formData.contactPerson || null,
         decommission_date: formData.decommissionDate || null,
-        annuity_end_date: formData.annuityEndDate || null,
+        annuity_end_date: null,
         move_to_role: formData.moveToRole || null,
         vehicle_registration: formData.vehicle_registration || null,
         vehicle_make: formData.vehicle_make || null,
@@ -1233,22 +1238,6 @@ export default function ClientQuoteForm({
                 </div>
               )}
 
-              {formData.jobType === 'deinstall' && (
-                <div className="space-y-2">
-                  <Label htmlFor="annuityEndDate">Annuity End Date *</Label>
-                  <Input
-                    id="annuityEndDate"
-                    type="date"
-                    value={formData.annuityEndDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, annuityEndDate: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                  <p className="text-sm text-blue-700">
-                    This is required for de-install and decommission quotes.
-                  </p>
-                </div>
-              )}
-
               {formData.jobType === 'deinstall' && formData.jobSubType === 'decommission' && (
                 <div className="space-y-2">
                   <Label htmlFor="moveToRole">Send Job Card To Role *</Label>
@@ -1454,6 +1443,7 @@ export default function ClientQuoteForm({
                           deInstallationDiscount: 0,
                           subscriptionPrice: 0,
                           subscriptionDiscount: 0,
+                          annuityEndDate: '',
                         };
                         setSelectedProducts(prev => [...(prev || []), labourItem]);
                       }}
@@ -1579,6 +1569,7 @@ export default function ClientQuoteForm({
                           deInstallationDiscount: 0,
                           subscriptionPrice: 0,
                           subscriptionDiscount: 0,
+                          annuityEndDate: '',
                         };
                         setSelectedProducts(prev => [...(prev || []), labourItem]);
                       }}
@@ -1686,6 +1677,21 @@ export default function ClientQuoteForm({
                                   updateProduct(index, "quantity", parseFloat(e.target.value) || 1)
                                 }
                                 placeholder="Number of hours or units"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {formData.jobType === 'deinstall' && !product.isLabour && (
+                          <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
+                            <div className="space-y-2">
+                              <Label>Annuity End Date</Label>
+                              <Input
+                                type="date"
+                                value={product.annuityEndDate || ""}
+                                onChange={(e) =>
+                                  updateProduct(index, "annuityEndDate", e.target.value)
+                                }
                               />
                             </div>
                           </div>

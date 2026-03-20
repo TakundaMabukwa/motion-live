@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,9 +82,8 @@ export default function AddAccountPage() {
       };
 
       // Auto-generate account number when company name changes
-      if (field === "company" && value.length >= 4) {
-        const firstFourChars = value.substring(0, 4).toUpperCase();
-        updated.account_number = `${firstFourChars}-0001`;
+      if (field === "company") {
+        updated.account_number = "";
       }
 
       return updated;
@@ -105,11 +104,6 @@ export default function AddAccountPage() {
     }
 
     // Ensure account number is generated
-    if (!formData.account_number && formData.company.length >= 4) {
-      const firstFourChars = formData.company.substring(0, 4).toUpperCase();
-      formData.account_number = `${firstFourChars}-0001`;
-    }
-
     setLoading(true);
 
     try {
@@ -153,6 +147,41 @@ export default function AddAccountPage() {
   const handleCancel = () => {
     router.push("/protected/fc");
   };
+
+  useEffect(() => {
+    const company = formData.company.trim();
+
+    if (!company) {
+      setFormData((prev) =>
+        prev.account_number ? { ...prev, account_number: "" } : prev,
+      );
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/customers/next-account-number?company=${encodeURIComponent(company)}`,
+        );
+        if (!response.ok) return;
+
+        const result = await response.json();
+        const nextCode = String(result?.account_number || "").trim();
+
+        if (nextCode) {
+          setFormData((prev) =>
+            prev.company.trim() === company && prev.account_number !== nextCode
+              ? { ...prev, account_number: nextCode }
+              : prev,
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching next account number:", error);
+      }
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.company]);
 
   return (
     <div className="space-y-6 p-6">

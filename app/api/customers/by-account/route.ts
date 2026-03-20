@@ -21,11 +21,12 @@ export async function GET(request: NextRequest) {
     }
 
     // First try to find customer by new_account_number
-    let { data: customer, error: customerError } = await supabase
+    const { data: initialCustomer, error: customerError } = await supabase
       .from('customers')
       .select('*')
       .eq('new_account_number', accountNumber)
       .single();
+    let customer = initialCustomer;
 
     // If not found, try to find by account_number
     if (customerError && customerError.code === 'PGRST116') {
@@ -78,6 +79,8 @@ export async function GET(request: NextRequest) {
         company: customer.company,
         legal_name: customer.legal_name,
         trading_name: customer.trading_name,
+        vat_number: customer.vat_number,
+        vat_exempt_number: customer.vat_exempt_number,
         email: customer.email,
         cell_no: customer.cell_no,
         switchboard: customer.switchboard,
@@ -99,4 +102,3 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
-

@@ -1,539 +1,1135 @@
 "use client";
 
-import React, { useState } from 'react';
-import Image from 'next/image';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { Download, Mail } from 'lucide-react';
-import { toast } from 'sonner';
+import React, { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Download, Mail } from "lucide-react";
+import { toast } from "sonner";
 
+const COMPANY_INFO = {
+  name: "Soltrack (PTY) LTD",
+  regNo: "2018/095975/07",
+  vatNo: "4580161802",
+  headOffice: [
+    "8 Viscount Road",
+    "Viscount office park, Block C unit 4 & 5",
+    "Bedfordview, 2008",
+  ],
+  postal: ["P.O Box 95603", "Grant Park 2051"],
+  contact: ["Phone: 011 824 0066", "Email: accounts@soltrack.co.za", "Website: www.soltrack.co.za"],
+  banking: ["Nedbank Northrand", "Code - 146905", "A/C No. - 1469109069"],
+};
 
-export default function InvoiceReportComponent({ costCenter, clientLegalName, invoiceData }) {
+const VAT_RATE = 0.15;
+
+const toNumber = (value) => {
+  const amount = Number.parseFloat(value);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const parseFormattedAmount = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const normalized = raw
+    .replace(/\s/g, "")
+    .replace(/R/gi, "")
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+    .replace(/,(?=\d{2}$)/, ".");
+  const amount = Number.parseFloat(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const formatAmount = (amount) =>
+  toNumber(amount).toLocaleString("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatTotalAmount = (amount) => `R ${formatAmount(amount)}`;
+
+const formatDate = (value) => {
+  if (!value) {
+    return new Date().toLocaleDateString("en-GB");
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString("en-GB");
+};
+
+const getRealInvoiceNumber = (...values) => {
+  for (const value of values) {
+    const normalized = String(value || "").trim().toUpperCase();
+    if (/^(SOL|INV)-\d+$/.test(normalized)) {
+      return normalized;
+    }
+  }
+  return "";
+};
+
+const buildClientAddress = (customerInfo, fallbackAddress = "") => {
+  const addressParts = [
+    customerInfo?.physical_address_1,
+    customerInfo?.physical_address_2,
+    customerInfo?.physical_address_3,
+    customerInfo?.physical_area,
+    customerInfo?.physical_province,
+    customerInfo?.physical_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (addressParts.length > 0) {
+    return addressParts.join("\n");
+  }
+
+  return String(fallbackAddress || "").trim();
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const buildInvoiceStyles = () => `
+  :root {
+    --invoice-text: #111111;
+    --invoice-border: #404040;
+    --invoice-line: #b7b7b7;
+    --invoice-fill: #d8d8d8;
+    --invoice-bg: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--invoice-bg);
+    color: var(--invoice-text);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body {
+    padding: 24px;
+  }
+
+  .invoice-page {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    background: #fff;
+  }
+
+  .invoice-sheet {
+    min-height: 1122px;
+  }
+
+  .invoice-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .invoice-logo {
+    width: 220px;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .invoice-company {
+    text-align: center;
+    font-size: 16px;
+    line-height: 1.3;
+  }
+
+  .invoice-company strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .invoice-rule {
+    border-top: 2px solid var(--invoice-line);
+    margin: 12px 0 8px;
+  }
+
+  .invoice-title {
+    text-align: center;
+    font-weight: 700;
+    font-size: 20px;
+    margin: 8px 0 36px;
+    text-transform: uppercase;
+  }
+
+  .invoice-party-row {
+    display: grid;
+    grid-template-columns: 1.45fr 0.85fr;
+    gap: 24px;
+    min-height: 150px;
+    margin-bottom: 26px;
+  }
+
+  .invoice-client-name,
+  .invoice-meta-label,
+  .invoice-meta-value {
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .invoice-client-block {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .invoice-client-address {
+    white-space: pre-line;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .invoice-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px 14px;
+    align-content: start;
+  }
+
+  .invoice-table,
+  .invoice-summary-table,
+  .invoice-footer-table,
+  .invoice-totals-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .invoice-summary-table {
+    margin-bottom: 16px;
+  }
+
+  .invoice-summary-table th,
+  .invoice-summary-table td,
+  .invoice-table th,
+  .invoice-table td,
+  .invoice-footer-table td,
+  .invoice-totals-table td {
+    border: 2px solid var(--invoice-border);
+    padding: 4px 6px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .invoice-summary-table th,
+  .invoice-table thead th {
+    background: var(--invoice-fill);
+    font-weight: 700;
+  }
+
+  .invoice-summary-table th {
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .invoice-summary-table td {
+    text-align: center;
+    font-size: 14px;
+    height: 38px;
+    vertical-align: middle;
+  }
+
+  .invoice-table {
+    margin-bottom: 16px;
+  }
+
+  .invoice-table thead th {
+    font-size: 11px;
+    text-align: left;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .invoice-table tbody td {
+    font-size: 11px;
+    line-height: 1.2;
+    height: 30px;
+  }
+
+  .invoice-table tbody tr:nth-child(even) td {
+    background: #efefef;
+  }
+
+  .col-center {
+    text-align: center;
+  }
+
+  .col-right {
+    text-align: right;
+  }
+
+  .invoice-body-spacer td {
+    height: 168px;
+    background: #fff !important;
+  }
+
+  .invoice-notes-totals {
+    display: grid;
+    grid-template-columns: 1.25fr 0.85fr;
+    gap: 30px;
+    align-items: start;
+    margin-bottom: 150px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .invoice-notes {
+    white-space: pre-line;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+
+  .invoice-notes strong {
+    font-size: 14px;
+  }
+
+  .invoice-totals-table td {
+    height: 40px;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .invoice-totals-table .label {
+    font-weight: 700;
+    width: 55%;
+  }
+
+  .invoice-totals-table .value {
+    text-align: right;
+    width: 45%;
+  }
+
+  .invoice-totals-table .grand-total td {
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .invoice-footer-table td {
+    height: 132px;
+    font-size: 12px;
+    line-height: 1.35;
+    vertical-align: top;
+  }
+
+  .invoice-footer-table,
+  .invoice-footer-table tr,
+  .invoice-footer-table td,
+  .invoice-powered {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .invoice-footer-table strong {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  .invoice-powered {
+    margin-top: 24px;
+    text-align: right;
+    font-size: 12px;
+    color: #666666;
+  }
+
+  .invoice-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @media print {
+    body {
+      padding: 0;
+    }
+
+    .invoice-actions {
+      display: none !important;
+    }
+
+    .invoice-page {
+      max-width: none;
+    }
+
+    .invoice-sheet {
+      min-height: auto;
+    }
+
+    .invoice-notes-totals {
+      margin-bottom: 48px;
+    }
+
+    .invoice-footer-table {
+      margin-top: 0;
+      break-before: avoid;
+      page-break-before: avoid;
+    }
+
+    .invoice-powered {
+      margin-top: 16px;
+    }
+
+    .invoice-company {
+      font-size: 15px;
+    }
+
+    .invoice-company strong,
+    .invoice-client-name,
+    .invoice-meta-label,
+    .invoice-meta-value {
+      font-size: 16px;
+    }
+
+    .invoice-client-address {
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .invoice-summary-table th,
+    .invoice-summary-table td {
+      font-size: 11px;
+      padding: 4px 5px;
+    }
+
+    .invoice-table thead th,
+    .invoice-table tbody td {
+      font-size: 9px;
+      padding: 3px 4px;
+      line-height: 1.15;
+    }
+
+    .invoice-totals-table td,
+    .invoice-footer-table td,
+    .invoice-notes {
+      font-size: 11px;
+    }
+  }
+`;
+
+function InvoiceDocument({ logoUrl, invoiceView }) {
+  const {
+    clientName,
+    clientAddress,
+    invoiceNumber,
+    invoiceDate,
+    accountNumber,
+    customerVatNumber,
+    notes,
+    rows,
+    totals,
+  } = invoiceView;
+
+  return (
+    <div className="invoice-page">
+      <style>{buildInvoiceStyles()}</style>
+      <div className="invoice-sheet" data-invoice-content>
+        <div className="invoice-top">
+          <div>
+            <img src={logoUrl} alt="Soltrack Logo" className="invoice-logo" />
+          </div>
+          <div className="invoice-company">
+            <strong>{COMPANY_INFO.name}</strong>
+            <div>Reg No: {COMPANY_INFO.regNo}</div>
+            <div>VAT No.: {COMPANY_INFO.vatNo}</div>
+          </div>
+        </div>
+
+        <div className="invoice-rule" />
+        <div className="invoice-title">Tax Invoice</div>
+
+        <div className="invoice-party-row">
+          <div className="invoice-client-block">
+            <div className="invoice-client-name">{clientName}</div>
+            <div className="invoice-client-address">{clientAddress}</div>
+          </div>
+          <div className="invoice-meta">
+            <div className="invoice-meta-label">TAX INVOICE :</div>
+            <div className="invoice-meta-value">{invoiceNumber}</div>
+            <div className="invoice-meta-label">Date:</div>
+            <div className="invoice-meta-value">{invoiceDate}</div>
+          </div>
+        </div>
+
+        <table className="invoice-summary-table">
+          <colgroup>
+            <col style={{ width: "12.5%" }} />
+            <col style={{ width: "40.5%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "33%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Your Reference</th>
+              <th>VAT %</th>
+              <th>Customer Vat Number</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{accountNumber}</td>
+              <td>{clientName}</td>
+              <td>VAT 15%</td>
+              <td>{customerVatNumber}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="invoice-table">
+          <colgroup>
+            <col style={{ width: "9.5%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "8.5%" }} />
+            <col style={{ width: "6.5%" }} />
+            <col style={{ width: "5.5%" }} />
+            <col style={{ width: "8%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Previous Reg</th>
+              <th>New Reg</th>
+              <th>Item Code</th>
+              <th>Description</th>
+              <th>Comments</th>
+              <th className="col-center">Units</th>
+              <th className="col-right">Unit Price</th>
+              <th className="col-right">Vat</th>
+              <th className="col-center">Vat%</th>
+              <th className="col-right">Total Incl</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`${row.itemCode}-${row.previousReg}-${index}`}>
+                <td>{row.previousReg}</td>
+                <td>{row.newReg}</td>
+                <td>{row.itemCode}</td>
+                <td>{row.description}</td>
+                <td>{row.comments}</td>
+                <td className="col-center">{row.units}</td>
+                <td className="col-right">{row.unitPrice}</td>
+                <td className="col-right">{row.vatAmount}</td>
+                <td className="col-center">{row.vatPercent}</td>
+                <td className="col-right">{row.totalIncl}</td>
+              </tr>
+            ))}
+            <tr className="invoice-body-spacer">
+              <td colSpan={10} />
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="invoice-notes-totals">
+          <div className="invoice-notes">
+            <strong>Notes:</strong> {notes}
+          </div>
+
+          <table className="invoice-totals-table">
+            <tbody>
+              <tr>
+                <td className="label">Total Ex. VAT</td>
+                <td className="value">{formatTotalAmount(totals.totalExVat)}</td>
+              </tr>
+              <tr>
+                <td className="label">Discount</td>
+                <td className="value">{formatTotalAmount(totals.discount)}</td>
+              </tr>
+              <tr>
+                <td className="label">VAT</td>
+                <td className="value">{formatTotalAmount(totals.totalVat)}</td>
+              </tr>
+              <tr className="grand-total">
+                <td className="label">Total Incl. VAT</td>
+                <td className="value">{formatTotalAmount(totals.totalInclVat)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <table className="invoice-footer-table">
+          <colgroup>
+            <col style={{ width: "35%" }} />
+            <col style={{ width: "19%" }} />
+            <col style={{ width: "26%" }} />
+            <col style={{ width: "20%" }} />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td>
+                <strong>Head Office:</strong>
+                {COMPANY_INFO.headOffice.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </td>
+              <td>
+                <strong>Postal Address:</strong>
+                {COMPANY_INFO.postal.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </td>
+              <td>
+                <strong>Contact Details</strong>
+                {COMPANY_INFO.contact.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </td>
+              <td>
+                <strong>{COMPANY_INFO.name}</strong>
+                {COMPANY_INFO.banking.map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+      </div>
+    </div>
+  );
+}
+
+export default function InvoiceReportComponent({
+  costCenter,
+  clientLegalName,
+  invoiceData,
+  onInvoiceGenerated,
+}) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [customerInfo, setCustomerInfo] = useState(null);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState(
+    costCenter?.costCenterInfo || null,
+  );
 
-  // Invoice report data structure using vehicle_invoices table data
-  const invoiceReportData = {
-    company: {
-      name: "Soltrack (PTY) LTD",
-      regNo: "2018/095975/07",
-      vatNo: "4580161802",
-      tagline: "VEHICLE BUREAU SERVICE"
-    },
-    client: {
-      name: clientLegalName || "Client Name",
-      accountNumber: costCenter?.accountNumber || "N/A",
-      costCenter: costCenter?.accountName || "N/A"
-    },
-    invoice: {
-      number: `INV-${costCenter?.accountNumber || 'N/A'}`,
-      date: new Date().toLocaleDateString(),
-      type: "Tax Invoice"
+  useEffect(() => {
+    if (costCenter?.costCenterInfo) {
+      setCustomerInfo(costCenter.costCenterInfo);
     }
-  };
+  }, [costCenter?.costCenterInfo]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR'
-    }).format(amount);
-  };
+  useEffect(() => {
+    let active = true;
 
-  // Calculate totals from all vehicle invoices
-  const calculateTotals = () => {
-    if (!invoiceData?.invoiceItems || !Array.isArray(invoiceData.invoiceItems)) {
-      return { totalExVat: 0, totalVat: 0, totalInclVat: 0, totalPaid: 0, totalBalanceDue: 0, totalOverdue: 0 };
-    }
+    const loadCustomerInfo = async () => {
+      if (!costCenter?.accountNumber) return;
 
-    return invoiceData.invoiceItems.reduce((totals, item) => {
-      const exVat = parseFloat(item.unit_price_without_vat || item.amountExcludingVat || item.total_excl_vat) || 0;
-      const vat = parseFloat(item.vat_amount || item.vatAmount) || (exVat * 0.15);
-      const inclVat = parseFloat(item.total_including_vat || item.total_incl_vat || item.totalRentalSub) || (exVat + vat);
-      const paid = parseFloat(item.paidAmount) || 0;
+      try {
+        const costCenterResponse = await fetch(
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(costCenter.accountNumber)}`,
+        );
+
+        if (costCenterResponse.ok) {
+          const costCenterResult = await costCenterResponse.json();
+          const matchedCostCenter = Array.isArray(costCenterResult?.costCenters)
+            ? costCenterResult.costCenters.find(
+                (item) =>
+                  String(item?.cost_code || "")
+                    .trim()
+                    .toUpperCase() === String(costCenter.accountNumber).trim().toUpperCase(),
+              ) || costCenterResult.costCenters[0]
+            : null;
+
+          if (active && matchedCostCenter) {
+            setCustomerInfo(matchedCostCenter);
+            return;
+          }
+        }
+        if (active) {
+          setCustomerInfo(null);
+        }
+      } catch (error) {
+        console.error("Error loading customer info for invoice:", error);
+      }
+    };
+
+    loadCustomerInfo();
+
+    return () => {
+      active = false;
+    };
+  }, [costCenter?.accountNumber]);
+
+  const logoUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/soltrack_logo.png`
+      : "/soltrack_logo.png";
+
+  const invoiceView = useMemo(() => {
+    const items = Array.isArray(invoiceData?.invoiceItems)
+      ? invoiceData.invoiceItems
+      : Array.isArray(invoiceData?.invoice_items)
+        ? invoiceData.invoice_items
+        : [];
+
+    const rows = items.map((item) => {
+      const exVat = toNumber(
+        item.unit_price_without_vat ??
+          item.amountExcludingVat ??
+          item.total_excl_vat ??
+          item.unit_price,
+      );
+      const vatAmountSource = toNumber(item.vat_amount ?? item.vatAmount);
+      const vatAmount = Number.isFinite(vatAmountSource) && vatAmountSource > 0
+        ? vatAmountSource
+        : exVat * VAT_RATE;
+      const totalInclSource = toNumber(
+        item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub,
+      );
+      const totalIncl =
+        Number.isFinite(totalInclSource) && totalInclSource > 0
+          ? totalInclSource
+          : exVat + vatAmount;
+
+      const regText = [item.reg, item.fleetNumber].filter(Boolean).join(" ").trim();
 
       return {
-        totalExVat: totals.totalExVat + exVat,
-        totalVat: totals.totalVat + vat,
-        totalInclVat: totals.totalInclVat + inclVat,
-        totalPaid: totals.totalPaid + paid,
-        totalBalanceDue: totals.totalBalanceDue + inclVat,
-        totalOverdue: totals.totalOverdue + (parseFloat(item.totalOverdue) || 0)
+        previousReg: item.reg || "-",
+        newReg: item.fleetNumber || item.reg || "-",
+        itemCode: item.item_code || "-",
+        description: item.description || "-",
+        comments: item.company || "",
+        units: item.units || 1,
+        unitPrice: formatAmount(exVat),
+        vatAmount: formatAmount(vatAmount),
+        vatPercent: "15.00%",
+        totalIncl: formatAmount(totalIncl),
+        noteReg: regText,
+        exVat,
+        vat: vatAmount,
+        incl: totalIncl,
       };
-    }, { totalExVat: 0, totalVat: 0, totalInclVat: 0, totalPaid: 0, totalBalanceDue: 0, totalOverdue: 0 });
-  };
+    });
 
-  const totals = calculateTotals();
+    const rowTotals = rows.reduce(
+      (acc, row) => ({
+        totalExVat: acc.totalExVat + row.exVat,
+        totalVat: acc.totalVat + row.vat,
+        totalInclVat: acc.totalInclVat + row.incl,
+        discount: 0,
+      }),
+      { totalExVat: 0, totalVat: 0, totalInclVat: 0, discount: 0 }
+    );
 
-  // Print Report function using browser print
-  const printReport = () => {
-    // Create a new window with the content
-    const printWindow = window.open('', '_blank');
-    
-    // Get the current component's HTML content
-    const content = document.querySelector('[data-invoice-content]');
-    
-    // Create the print HTML with proper styling
-    const printHTML = `
+    const clientName =
+      customerInfo?.legal_name ||
+      customerInfo?.company ||
+      invoiceData?.company_name ||
+      clientLegalName ||
+      costCenter?.accountName ||
+      "";
+    const clientAddress = buildClientAddress(
+      customerInfo,
+      invoiceData?.client_address || invoiceData?.company_address || "",
+    );
+    const invoiceNumber =
+      getRealInvoiceNumber(
+        invoiceData?.invoice_number,
+        invoiceData?.invoiceNumber,
+        invoiceData?.invoice_no,
+      ) || "PENDING";
+
+    const totals = {
+      totalExVat:
+        toNumber(invoiceData?.subtotal) || rowTotals.totalExVat,
+      totalVat:
+        toNumber(invoiceData?.vat_amount) || rowTotals.totalVat,
+      totalInclVat:
+        toNumber(invoiceData?.total_amount) || rowTotals.totalInclVat,
+      discount: 0,
+    };
+
+    const noteLines = [
+      clientName,
+      ...(rows.map((row) => row.noteReg).filter(Boolean)),
+    ];
+
+    return {
+      clientName,
+      clientAddress,
+      invoiceNumber,
+      invoiceDate: formatDate(invoiceData?.invoice_date),
+      accountNumber: costCenter?.accountNumber || invoiceData?.account_number || "",
+      customerVatNumber:
+        customerInfo?.vat_number ||
+        invoiceData?.customer_vat_number ||
+        "",
+      notes: noteLines.join("\n"),
+      rows,
+      totals,
+    };
+  }, [clientLegalName, costCenter, customerInfo, invoiceData]);
+
+  const getPrintableHtml = () => {
+    const rowMarkup =
+      invoiceView.rows
+        .map(
+          (row, index) => `
+            <tr>
+              <td>${escapeHtml(row.previousReg)}</td>
+              <td>${escapeHtml(row.newReg)}</td>
+              <td>${escapeHtml(row.itemCode)}</td>
+              <td>${escapeHtml(row.description)}</td>
+              <td>${escapeHtml(row.comments)}</td>
+              <td class="col-center">${escapeHtml(row.units)}</td>
+              <td class="col-right">${escapeHtml(row.unitPrice)}</td>
+              <td class="col-right">${escapeHtml(row.vatAmount)}</td>
+              <td class="col-center">${escapeHtml(row.vatPercent)}</td>
+              <td class="col-right">${escapeHtml(row.totalIncl)}</td>
+            </tr>
+          `
+        )
+        .join("") || `<tr><td colspan="10">No invoice rows available</td></tr>`;
+
+    return `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Invoice - ${costCenter?.accountNumber}</title>
-          <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 20mm;
-              }
-            }
-            
-            body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 20px;
-              background: white;
-            }
-            
-            .company-header {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              padding-bottom: 20px;
-              border-bottom: 2px solid #3b82f6;
-              margin-bottom: 30px;
-            }
-            
-            .company-info {
-              display: flex;
-              align-items: flex-start;
-              gap: 20px;
-            }
-            
-            .company-logo {
-              width: 120px;
-              height: 120px;
-            }
-            
-            .company-details h2 {
-              color: #3b82f6;
-              font-size: 24px;
-              margin: 0 0 10px 0;
-            }
-            
-            .company-details p {
-              margin: 5px 0;
-              color: #6b7280;
-            }
-            
-            .invoice-header {
-              background: #f8fafc;
-              padding: 20px;
-              border-radius: 8px;
-              border: 1px solid #d1d5db;
-              margin-bottom: 20px;
-            }
-            
-            .invoice-header h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .invoice-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 20px;
-            }
-            
-            .invoice-grid label {
-              font-weight: 600;
-              color: #374151;
-              font-size: 12px;
-              text-transform: uppercase;
-            }
-            
-            .invoice-grid p {
-              margin: 5px 0;
-              color: #111827;
-              font-weight: 600;
-            }
-            
-            .notes-section {
-              background: #eff6ff;
-              padding: 20px;
-              border: 1px solid #93c5fd;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            
-            .notes-section h3 {
-              margin: 0 0 10px 0;
-              color: #374151;
-            }
-            
-            .notes-section p {
-              margin: 0;
-              color: #1e40af;
-            }
-            
-            .table-section h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .invoice-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 30px;
-            }
-            
-            .invoice-table th {
-              background: #f3f4f6;
-              padding: 12px;
-              text-align: left;
-              border: 1px solid #d1d5db;
-              font-weight: 600;
-              font-size: 12px;
-              text-transform: uppercase;
-            }
-            
-            .invoice-table td {
-              padding: 12px;
-              border: 1px solid #d1d5db;
-              font-size: 12px;
-            }
-            
-            .invoice-table tr:nth-child(even) {
-              background: #f9fafb;
-            }
-            
-            .summary-section {
-              background: #f8fafc;
-              padding: 30px;
-              border: 1px solid #d1d5db;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            
-            .summary-section h3 {
-              margin: 0 0 20px 0;
-              color: #374151;
-              text-align: center;
-            }
-            
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              gap: 30px;
-            }
-            
-            .summary-box {
-              text-align: center;
-              padding: 20px;
-              border-radius: 8px;
-              color: white;
-            }
-            
-            .summary-box.blue {
-              background: #3b82f6;
-            }
-            
-            .summary-box.green {
-              background: #22c55e;
-            }
-            
-            .summary-box.red {
-              background: #ef4444;
-            }
-            
-            .summary-box label {
-              display: block;
-              margin-bottom: 10px;
-              font-size: 14px;
-              font-weight: 600;
-            }
-            
-            .summary-box p {
-              margin: 0;
-              font-size: 24px;
-              font-weight: bold;
-            }
-            
-            .footer {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 20px;
-              padding-top: 30px;
-              border-top: 1px solid #d1d5db;
-              margin-top: 30px;
-            }
-            
-            .footer h4 {
-              margin: 0 0 10px 0;
-              color: #374151;
-              font-size: 14px;
-            }
-            
-            .footer p {
-              margin: 5px 0;
-              color: #6b7280;
-              font-size: 12px;
-            }
-            
-            @media print {
-              .download-btn {
-                display: none;
-              }
-            }
-          </style>
+          <meta charset="utf-8" />
+          <title>Invoice - ${escapeHtml(invoiceView.accountNumber)}</title>
+          <style>${buildInvoiceStyles()}</style>
         </head>
         <body>
-          <div class="company-header">
-            <div class="company-info">
-              <img src="/soltrack_logo.png" alt="Soltrack Logo" class="company-logo" />
-              <div class="company-details">
-                <h2>${invoiceReportData.company.name}</h2>
-                <p>${invoiceReportData.company.tagline}</p>
-                <p>Reg No: ${invoiceReportData.company.regNo}</p>
-                <p>VAT No: ${invoiceReportData.company.vatNo}</p>
+          <div class="invoice-page">
+            <div class="invoice-sheet">
+              <div class="invoice-top">
+                <div>
+                  <img src="${escapeHtml(logoUrl)}" alt="Soltrack Logo" class="invoice-logo" />
+                </div>
+                <div class="invoice-company">
+                  <strong>${escapeHtml(COMPANY_INFO.name)}</strong>
+                  <div>Reg No: ${escapeHtml(COMPANY_INFO.regNo)}</div>
+                  <div>VAT No.: ${escapeHtml(COMPANY_INFO.vatNo)}</div>
+                </div>
               </div>
-            </div>
-            <div class="invoice-header">
-              <h3>${invoiceReportData.invoice.type.toUpperCase()}: ${invoiceReportData.invoice.number}</h3>
-              <p>Date: ${invoiceReportData.invoice.date}</p>
-            </div>
-          </div>
-          
-          <div class="invoice-header">
-            <h3>Invoice Information</h3>
-            <div class="invoice-grid">
-              <div>
-                <label>Account:</label>
-                <p>${invoiceReportData.client.accountNumber}</p>
+                <div class="invoice-rule"></div>
+                <div class="invoice-title">Tax Invoice</div>
+                <div class="invoice-party-row">
+                  <div class="invoice-client-block">
+                    <div class="invoice-client-name">${escapeHtml(invoiceView.clientName)}</div>
+                    <div class="invoice-client-address">${escapeHtml(invoiceView.clientAddress)}</div>
+                  </div>
+                  <div class="invoice-meta">
+                    <div class="invoice-meta-label">TAX INVOICE :</div>
+                    <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceNumber)}</div>
+                  <div class="invoice-meta-label">Date:</div>
+                  <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceDate)}</div>
+                </div>
               </div>
-              <div>
-                <label>Cost Center:</label>
-                <p>${invoiceReportData.client.costCenter}</p>
-              </div>
-              <div>
-                <label>Client:</label>
-                <p>${invoiceReportData.client.name}</p>
-              </div>
-              <div>
-                <label>Invoice Date:</label>
-                <p>${invoiceReportData.invoice.date}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="notes-section">
-            <h3>Notes</h3>
-            <p>FOR ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()} ANNUITY BILLING RUN</p>
-          </div>
-          
-          <div class="summary-section">
-            <h3>Summary</h3>
-            <table class="invoice-table" style="width: 50%; margin-bottom: 0;">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Amount (Ex VAT)</th>
-                  <th>VAT</th>
-                  <th>Total (Incl VAT)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>MONTHLY SERVICE SUBSCRIPTION</td>
-                  <td>${formatCurrency(totals.totalExVat)}</td>
-                  <td>${formatCurrency(totals.totalVat)}</td>
-                  <td>${formatCurrency(totals.totalInclVat)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="table-section">
-            <h3>Payment Details</h3>
-            <table class="invoice-table">
-              <thead>
-                <tr>
-                  <th>Previous Reg</th>
-                  <th>New Reg</th>
-                  <th>Item Code</th>
-                  <th>Description</th>
-                  <th>Comments</th>
-                  <th>Units</th>
-                  <th>Unit Price</th>
-                  <th>Vat</th>
-                  <th>Vat%</th>
-                  <th>Total Incl</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${invoiceData?.invoiceItems?.map((item) => {
-                  const exVat = item.unit_price_without_vat || item.amountExcludingVat || 0; // Unit price without VAT
-                  const vat = item.vat_amount || item.vatAmount || 0; // VAT amount
-                  const inclVat = item.total_including_vat || item.totalRentalSub || 0; // Total including VAT
-                  
-                  return `
+              <table class="invoice-summary-table">
+                <colgroup>
+                  <col style="width:12.5%" />
+                  <col style="width:40.5%" />
+                  <col style="width:14%" />
+                  <col style="width:33%" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Your Reference</th>
+                    <th>VAT %</th>
+                    <th>Customer Vat Number</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>${escapeHtml(invoiceView.accountNumber)}</td>
+                    <td>${escapeHtml(invoiceView.clientName)}</td>
+                    <td>VAT 15%</td>
+                    <td>${escapeHtml(invoiceView.customerVatNumber)}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <table class="invoice-table">
+                <colgroup>
+                  <col style="width:9.5%" />
+                  <col style="width:12%" />
+                  <col style="width:14%" />
+                  <col style="width:16%" />
+                  <col style="width:11%" />
+                  <col style="width:5%" />
+                  <col style="width:8.5%" />
+                  <col style="width:6.5%" />
+                  <col style="width:5.5%" />
+                  <col style="width:8%" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Previous Reg</th>
+                    <th>New Reg</th>
+                    <th>Item Code</th>
+                    <th>Description</th>
+                    <th>Comments</th>
+                    <th class="col-center">Units</th>
+                    <th class="col-right">Unit Price</th>
+                    <th class="col-right">Vat</th>
+                    <th class="col-center">Vat%</th>
+                    <th class="col-right">Total Incl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowMarkup}
+                  <tr class="invoice-body-spacer"><td colspan="10"></td></tr>
+                </tbody>
+              </table>
+              <div class="invoice-notes-totals">
+                <div class="invoice-notes"><strong>Notes:</strong> ${escapeHtml(invoiceView.notes).replace(/\n/g, "<br />")}</div>
+                <table class="invoice-totals-table">
+                  <tbody>
                     <tr>
-                      <td>${item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
-                      <td>${item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
-                      <td>${item.item_code || '-'}</td>
-                      <td>${item.description || '-'}</td>
-                      <td>-</td>
-                      <td>1</td>
-                      <td>${formatCurrency(exVat)}</td>
-                      <td>${formatCurrency(vat)}</td>
-                      <td>15.00%</td>
-                      <td>${formatCurrency(inclVat)}</td>
+                      <td class="label">Total Ex. VAT</td>
+                      <td class="value">${escapeHtml(formatTotalAmount(invoiceView.totals.totalExVat))}</td>
                     </tr>
-                  `;
-                }).join('') || '<tr><td colspan="10" class="text-center">No vehicle data available</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="summary-section">
-            <h3>Vehicle Invoice Summary</h3>
-            <div class="summary-grid">
-              <div class="summary-box blue">
-                <label>Total Ex. VAT</label>
-                <p>${formatCurrency(totals.totalExVat)}</p>
+                    <tr>
+                      <td class="label">Discount</td>
+                      <td class="value">${escapeHtml(formatTotalAmount(invoiceView.totals.discount))}</td>
+                    </tr>
+                    <tr>
+                      <td class="label">VAT</td>
+                      <td class="value">${escapeHtml(formatTotalAmount(invoiceView.totals.totalVat))}</td>
+                    </tr>
+                    <tr class="grand-total">
+                      <td class="label">Total Incl. VAT</td>
+                      <td class="value">${escapeHtml(formatTotalAmount(invoiceView.totals.totalInclVat))}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div class="summary-box green">
-                <label>VAT (15%)</label>
-                <p>${formatCurrency(totals.totalVat)}</p>
-              </div>
-              <div class="summary-box red">
-                <label>Total Incl. VAT</label>
-                <p>${formatCurrency(totals.totalInclVat)}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="footer">
-            <div>
-              <h4>Head Office:</h4>
-              <p>8 Viscount Road</p>
-              <p>Viscount office park, Block C unit 4 & 5</p>
-              <p>Bedfordview, 2008</p>
-            </div>
-            <div>
-              <h4>Postal Address:</h4>
-              <p>P.O Box 95603</p>
-              <p>Grant Park 2051</p>
-            </div>
-            <div>
-              <h4>Contact Details:</h4>
-              <p>Phone: 011 824 0066</p>
-              <p>Email: sales@soltrack.co.za</p>
-              <p>Website: www.soltrack.co.za</p>
-            </div>
-            <div>
-              <h4>Soltrack (PTY) LTD:</h4>
-              <p>Nedbank Northrand</p>
-              <p>Code - 146905</p>
-              <p>A/C No. - 1469109069</p>
+              <table class="invoice-footer-table">
+                <colgroup>
+                  <col style="width:35%" />
+                  <col style="width:19%" />
+                  <col style="width:26%" />
+                  <col style="width:20%" />
+                </colgroup>
+                <tbody>
+                  <tr>
+                    <td><strong>Head Office:</strong>${COMPANY_INFO.headOffice
+                      .map((line) => `<div>${escapeHtml(line)}</div>`)
+                      .join("")}</td>
+                    <td><strong>Postal Address:</strong>${COMPANY_INFO.postal
+                      .map((line) => `<div>${escapeHtml(line)}</div>`)
+                      .join("")}</td>
+                    <td><strong>Contact Details</strong>${COMPANY_INFO.contact
+                      .map((line) => `<div>${escapeHtml(line)}</div>`)
+                      .join("")}</td>
+                    <td><strong>${escapeHtml(COMPANY_INFO.name)}</strong>${COMPANY_INFO.banking
+                      .map((line) => `<div>${escapeHtml(line)}</div>`)
+                      .join("")}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </body>
       </html>
     `;
-    
-    // Write the HTML to the new window
-    printWindow.document.write(printHTML);
+  };
+
+  const printReport = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Please allow popups to print the invoice");
+      return;
+    }
+
+    printWindow.document.write(getPrintableHtml());
     printWindow.document.close();
-    
-    // Wait for content to load, then print
-    printWindow.onload = function() {
-      printWindow.print();
-      // Close the window after printing
-      setTimeout(() => {
-        printWindow.close();
-      }, 1000);
+    printWindow.focus();
+    printWindow.onload = () => {
+      const image = printWindow.document.querySelector("img");
+      if (image && !image.complete) {
+        image.onload = () => {
+          setTimeout(() => printWindow.print(), 150);
+        };
+        image.onerror = () => {
+          setTimeout(() => printWindow.print(), 150);
+        };
+        return;
+      }
+
+      setTimeout(() => printWindow.print(), 150);
     };
   };
 
-  // Email PDF function
+  const generateInvoice = async () => {
+    if (!costCenter?.accountNumber) {
+      toast.error("Account number not found");
+      return;
+    }
+
+    setIsGeneratingInvoice(true);
+
+    try {
+      const lineItems = invoiceView.rows.map((row) => ({
+        previous_reg: row.previousReg,
+        new_reg: row.newReg,
+        item_code: row.itemCode,
+        description: row.description,
+        comments: row.comments,
+        units: row.units,
+        quantity: row.units,
+        unit_price_without_vat: parseFormattedAmount(row.unitPrice),
+        amountExcludingVat: parseFormattedAmount(row.unitPrice),
+        vat_amount: parseFormattedAmount(row.vatAmount),
+        total_incl_vat: parseFormattedAmount(row.totalIncl),
+        total_including_vat: parseFormattedAmount(row.totalIncl),
+        reg: row.previousReg,
+        fleetNumber: row.newReg,
+        company: row.comments,
+      }));
+
+      const response = await fetch("/api/invoices/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          accountNumber: costCenter.accountNumber,
+          billingMonth: costCenter.billingMonth || null,
+          companyName: invoiceView.clientName,
+          clientAddress: invoiceView.clientAddress,
+          customerVatNumber: invoiceView.customerVatNumber,
+          invoiceDate: new Date().toISOString(),
+          subtotal: invoiceView.totals.totalExVat,
+          vatAmount: invoiceView.totals.totalVat,
+          discountAmount: invoiceView.totals.discount,
+          totalAmount: invoiceView.totals.totalInclVat,
+          lineItems,
+          notes: invoiceView.notes,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.invoice) {
+        throw new Error(result?.error || "Failed to generate invoice");
+      }
+
+      onInvoiceGenerated?.(result.invoice);
+      toast.success("Invoice generated successfully");
+    } catch (error) {
+      toast.error(error?.message || "Failed to generate invoice");
+    } finally {
+      setIsGeneratingInvoice(false);
+    }
+  };
+
   const emailPDF = async () => {
     if (!costCenter?.accountNumber) {
-      toast.error('Account number not found');
+      toast.error("Account number not found");
       return;
     }
 
     setIsSendingEmail(true);
 
     try {
-      // First, fetch customer information
-      const customerResponse = await fetch(`/api/customers/by-account?account_number=${costCenter.accountNumber}`);
-      const customerResult = await customerResponse.json();
+      let customer = customerInfo;
 
-      if (!customerResult.success) {
-        throw new Error(customerResult.error || 'Customer not found');
+      if (!customer) {
+        const costCenterResponse = await fetch(
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(costCenter.accountNumber)}`,
+        );
+
+        if (costCenterResponse.ok) {
+          const costCenterResult = await costCenterResponse.json();
+          const matchedCostCenter = Array.isArray(costCenterResult?.costCenters)
+            ? costCenterResult.costCenters.find(
+                (item) =>
+                  String(item?.cost_code || "")
+                    .trim()
+                    .toUpperCase() === String(costCenter.accountNumber).trim().toUpperCase(),
+              ) || costCenterResult.costCenters[0]
+            : null;
+
+          if (matchedCostCenter) {
+            customer = matchedCostCenter;
+            setCustomerInfo(matchedCostCenter);
+          }
+        }
       }
 
-      const customer = customerResult.customer;
-      setCustomerInfo(customer);
-
-      if (!customer.email) {
-        toast.error('No email address found for this customer');
+      if (!customer?.email) {
+        toast.error("No email address found for this customer");
         return;
       }
 
-      // Prepare invoice data for email
       const invoiceEmailData = {
-        invoiceNumber: invoiceReportData.invoice.number,
-        clientName: customer.legal_name || customer.company || customer.trading_name || clientLegalName,
+        invoiceNumber: invoiceView.invoiceNumber,
+        clientName: invoiceView.clientName,
         clientEmail: customer.email,
-        clientPhone: customer.cell_no || customer.switchboard || '',
+        clientPhone: customer.cell_no || customer.switchboard || "",
         clientAddress: [
           customer.physical_address_1,
           customer.physical_address_2,
           customer.physical_address_3,
           customer.physical_area,
           customer.physical_province,
-          customer.physical_code
-        ].filter(Boolean).join(', '),
-        invoiceDate: invoiceReportData.invoice.date,
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-        totalAmount: totals.totalInclVat,
-        vatAmount: totals.totalVat,
-        subtotal: totals.totalExVat,
-        items: invoiceData?.invoiceItems?.map(item => ({
-          description: item.description || 'MONTHLY SERVICE SUBSCRIPTION',
-          quantity: 1,
-          unitPrice: item.amountExcludingVat || item.dueAmount || 0,
-          total: item.totalRentalSub || item.balanceDue || 0,
-          vehicleRegistration: item.reg || item.fleetNumber || 'N/A'
-        })) || [{
-          description: 'MONTHLY SERVICE SUBSCRIPTION',
-          quantity: 1,
-          unitPrice: totals.totalExVat,
-          total: totals.totalInclVat,
-          vehicleRegistration: 'N/A'
-        }],
-        paymentTerms: '30 days',
-        notes: `FOR ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()} ANNUITY BILLING RUN`
+          customer.physical_code,
+        ]
+          .filter(Boolean)
+          .join(", "),
+        invoiceDate: invoiceView.invoiceDate,
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        totalAmount: invoiceView.totals.totalInclVat,
+        vatAmount: invoiceView.totals.totalVat,
+        subtotal: invoiceView.totals.totalExVat,
+        items:
+          invoiceView.rows.map((row) => ({
+            description: row.description,
+            quantity: row.units,
+            unitPrice: parseFormattedAmount(row.unitPrice),
+            total: parseFormattedAmount(row.totalIncl),
+            vehicleRegistration: row.previousReg,
+          })) || [],
+        paymentTerms: "30 days",
+        notes: invoiceView.notes,
       };
 
-      // Send email via API
-      const emailResponse = await fetch('/api/send-invoice-email', {
-        method: 'POST',
+      const emailResponse = await fetch("/api/send-invoice-email", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(invoiceEmailData),
       });
 
       const emailResult = await emailResponse.json();
 
-      if (emailResult.success) {
-        toast.success(`Invoice sent successfully to ${customer.email}!`);
-      } else {
-        throw new Error(emailResult.error || 'Failed to send invoice email');
+      if (!emailResult.success) {
+        throw new Error(emailResult.error || "Failed to send invoice email");
       }
+
+      toast.success(`Invoice sent successfully to ${customer.email}!`);
     } catch (error) {
-      console.error('Error sending invoice email:', error);
+      console.error("Error sending invoice email:", error);
       toast.error(`Failed to send invoice email: ${error.message}`);
     } finally {
       setIsSendingEmail(false);
@@ -542,228 +1138,47 @@ export default function InvoiceReportComponent({ costCenter, clientLegalName, in
 
   return (
     <div className="w-full">
-      <div className="space-y-6 p-4">
-        {/* Company Header with Download Button */}
-        <div className="flex justify-between items-start pb-4 border-b">
-          <div className="flex items-start gap-4">
-            <Image 
-              src="/soltrack_logo.png" 
-              alt="Soltrack Logo" 
-              width={192}
-              height={192}
-            />
-            <div>
-              <h2 className="font-bold text-blue-600 text-xl">
-                {invoiceReportData.company.name}
-              </h2>
-              <p className="text-gray-600 text-sm">{invoiceReportData.company.tagline}</p>
-              <p className="text-gray-500 text-xs">Reg No: {invoiceReportData.company.regNo}</p>
-              <p className="text-gray-500 text-xs">VAT No: {invoiceReportData.company.vatNo}</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="text-right">
-              <p className="font-semibold">{invoiceReportData.invoice.type.toUpperCase()}: {invoiceReportData.invoice.number}</p>
-              <p className="text-gray-600 text-sm">Date: {invoiceReportData.invoice.date}</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={printReport}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white"
-              >
-                <Download className="w-4 h-4" />
-                Print Report
-              </Button>
-              <Button
-                onClick={emailPDF}
-                disabled={isSendingEmail}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-white"
-              >
-                {isSendingEmail ? (
-                  <>
-                    <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4" />
-                    Email PDF
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Invoice Header Section */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Invoice Information</h3>
-          <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Account:</label>
-              <p className="font-semibold text-gray-900 text-sm">{invoiceReportData.client.accountNumber}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Cost Center:</label>
-              <p className="text-gray-900 text-sm">{invoiceReportData.client.costCenter}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Client:</label>
-              <p className="text-gray-900 text-sm">{invoiceReportData.client.name}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Invoice Date:</label>
-              <p className="text-gray-900 text-sm">{invoiceReportData.invoice.date}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Notes Section */}
-        <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
-          <h3 className="mb-3 font-semibold text-gray-800">Notes</h3>
-          <p className="text-gray-700 text-sm">
-            FOR {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).toUpperCase()} ANNUITY BILLING RUN
-          </p>
-        </div>
-
-        {/* Summary Section */}
-        <div className="bg-gray-50 p-4 border border-gray-200 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Summary</h3>
-          <div className="overflow-x-auto">
-            <table className="border border-gray-300 w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Description</th>
-                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Amount (Ex VAT)</th>
-                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">VAT</th>
-                  <th className="px-3 py-2 border border-gray-300 font-medium text-gray-700 text-xs text-left uppercase">Total (Incl VAT)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="px-3 py-2 border border-gray-300 text-sm">MONTHLY SERVICE SUBSCRIPTION</td>
-                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalExVat)}</td>
-                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalVat)}</td>
-                  <td className="px-3 py-2 border border-gray-300 font-medium text-sm">{formatCurrency(totals.totalInclVat)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Payment Details Table */}
-        <div>
-          <h3 className="mb-4 font-semibold text-gray-800">Payment Details</h3>
-          <div className="overflow-x-auto">
-            <table className="border border-gray-300 w-full border-collapse">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Previous Reg</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">New Reg</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Item Code</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Description</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Comments</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">Units</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Unit Price</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Vat</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">Vat%</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Total Incl</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoiceData?.invoiceItems?.map((item, index) => {
-      const exVat = Number(item.unit_price_without_vat || item.amountExcludingVat || item.total_excl_vat || 0);
-      const vat = Number(item.vat_amount || item.vatAmount || (exVat * 0.15));
-      const inclVat = Number(item.total_including_vat || item.total_incl_vat || item.totalRentalSub || (exVat + vat));
-      const vatPercentage = '15.00';
-                  
-                  return (
-                    <tr
-                      key={`${item.item_code || 'item'}-${item.regFleetDisplay || item.reg || item.fleetNumber || 'row'}-${index}`}
-                      className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                    >
-                      <td className="p-3 border border-gray-300 text-sm">{item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{item.regFleetDisplay || item.reg || item.fleetNumber || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{item.item_code || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">{item.description || '-'}</td>
-                      <td className="p-3 border border-gray-300 text-sm">-</td>
-                      <td className="p-3 border border-gray-300 text-sm text-center">1</td>
-                      <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(exVat)}</td>
-                      <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(vat)}</td>
-                      <td className="p-3 border border-gray-300 text-sm text-center">{vatPercentage}%</td>
-                      <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(inclVat)}</td>
-                    </tr>
-                  );
-                }) || (
-                  <tr className="bg-white">
-                    <td colSpan="10" className="p-3 border border-gray-300 text-gray-500 text-sm text-center">
-                      No payment data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Totals Section */}
-        <div className="bg-gray-50 p-6 border border-gray-200 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Payment Summary</h3>
-            <div className="gap-6 grid grid-cols-2 md:grid-cols-3">
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">Total Ex. VAT</label>
-                <p className="font-bold text-blue-600 text-2xl">{formatCurrency(totals.totalExVat)}</p>
-              </div>
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">VAT (15%)</label>
-                <p className="font-bold text-green-600 text-2xl">{formatCurrency(totals.totalVat)}</p>
-              </div>
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">Total Incl. VAT</label>
-                <p className="font-bold text-red-600 text-2xl">{formatCurrency(totals.totalInclVat)}</p>
-              </div>
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">Payment Status</label>
-                <p className="font-bold text-purple-600 text-lg">{invoiceData?.paymentStatus?.toUpperCase() || 'PENDING'}</p>
-              </div>
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">Reference</label>
-                <p className="font-bold text-gray-600 text-lg">{invoiceData?.reference || 'N/A'}</p>
-              </div>
-              <div className="text-center">
-                <label className="block mb-2 font-medium text-gray-700 text-sm">Billing Month</label>
-                <p className="font-bold text-gray-600 text-lg">{invoiceData?.billingMonth ? new Date(invoiceData.billingMonth).toLocaleDateString() : 'N/A'}</p>
-              </div>
-            </div>
-        </div>
-
-        {/* Footer */}
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-4 pt-4 border-t text-gray-600 text-xs">
-          <div>
-            <h4 className="font-medium text-gray-800">Head Office:</h4>
-            <p>8 Viscount Road</p>
-            <p>Viscount office park, Block C unit 4 & 5</p>
-            <p>Bedfordview, 2008</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Postal Address:</h4>
-            <p>P.O Box 95603</p>
-            <p>Grant Park 2051</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Contact Details:</h4>
-            <p>Phone: 011 824 0066</p>
-            <p>Email: sales@soltrack.co.za</p>
-            <p>Website: www.soltrack.co.za</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Soltrack (PTY) LTD:</h4>
-            <p>Nedbank Northrand</p>
-            <p>Code - 146905</p>
-            <p>A/C No. - 1469109069</p>
-          </div>
-        </div>
+      <div className="invoice-actions">
+        {invoiceView.invoiceNumber === "PENDING" && (
+          <Button
+            onClick={generateInvoice}
+            disabled={isGeneratingInvoice}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {isGeneratingInvoice ? (
+              <>
+                <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              "Generate Invoice"
+            )}
+          </Button>
+        )}
+        <Button onClick={printReport} className="flex items-center gap-2">
+          <Download className="w-4 h-4" />
+          Print / Save PDF
+        </Button>
+        <Button
+          onClick={emailPDF}
+          disabled={isSendingEmail}
+          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isSendingEmail ? (
+            <>
+              <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Mail className="w-4 h-4" />
+              Email PDF
+            </>
+          )}
+        </Button>
       </div>
+
+      <InvoiceDocument logoUrl={logoUrl} invoiceView={invoiceView} />
     </div>
   );
 }

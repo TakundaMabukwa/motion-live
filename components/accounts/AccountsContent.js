@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { buildTemporaryRegistration } from "@/lib/temp-registration";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,8 @@ export default function AccountsContent({ activeSection }) {
     notes: "",
   });
   const [generatedInvoice, setGeneratedInvoice] = useState(null);
+  const [storedInvoiceRecord, setStoredInvoiceRecord] = useState(null);
+  const [selectedCostCenterInfo, setSelectedCostCenterInfo] = useState(null);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState({});
@@ -254,6 +257,8 @@ export default function AccountsContent({ activeSection }) {
 
   const handleInvoiceClient = async (job) => {
     setSelectedJobForInvoice(job);
+    setStoredInvoiceRecord(null);
+    setSelectedCostCenterInfo(null);
     // Pre-fill form with available job data
     setInvoiceFormData({
       clientName: job.customer_name || "",
@@ -269,9 +274,70 @@ export default function AccountsContent({ activeSection }) {
     setShowInvoiceModal(true);
   };
 
+  const handleViewStoredInvoice = async (job) => {
+    try {
+      const response = await fetch(
+        `/api/invoices/job-card?jobCardId=${encodeURIComponent(job.id)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch stored invoice");
+      }
+
+      const result = await response.json();
+      const invoice = result?.invoice;
+
+      if (!invoice) {
+        handleInvoiceClient(job);
+        toast.error("No stored invoice found yet. Generate the invoice first.");
+        return;
+      }
+
+      setSelectedJobForInvoice(job);
+      setStoredInvoiceRecord(invoice);
+      setSelectedCostCenterInfo(null);
+      setGeneratedInvoice({
+        invoiceNumber: invoice.invoice_number,
+        jobNumber: invoice.job_number || job.job_number,
+        generatedAt: invoice.invoice_date,
+        pdfUrl: invoice.pdf_url || `#invoice-${invoice.invoice_number}`,
+        invoiceId: invoice.id,
+        clientInfo: {
+          clientName: invoice.client_name || job.customer_name || "",
+          clientEmail: invoice.client_email || job.customer_email || "",
+          clientPhone: invoice.client_phone || job.customer_phone || "",
+          clientAddress: invoice.client_address || job.customer_address || "",
+          dueDate: invoice.due_date || "",
+        },
+      });
+      setInvoiceFormData({
+        clientName: invoice.client_name || job.customer_name || "",
+        clientEmail: invoice.client_email || job.customer_email || "",
+        clientPhone: invoice.client_phone || job.customer_phone || "",
+        clientAddress: invoice.client_address || job.customer_address || "",
+        paymentTerms: invoice.payment_terms || "30 days",
+        dueDate: invoice.due_date || "",
+        notes: invoice.notes || "",
+      });
+      setShowInvoiceModal(true);
+    } catch (error) {
+      console.error("Error viewing stored invoice:", error);
+      toast.error(error?.message || "Failed to load stored invoice");
+    }
+  };
+
   const handleViewJobDetails = (job) => {
     setSelectedJobDetails(job);
     setShowJobDetailsModal(true);
+  };
+
+  const hasStoredInvoice = (job) => {
+    const invoiceStatus = job?.billing_statuses?.invoice;
+    return Boolean(
+      invoiceStatus &&
+        typeof invoiceStatus === "object" &&
+        (invoiceStatus.invoice_id || invoiceStatus.invoice_number),
+    );
   };
 
   const generateInvoice = async () => {
@@ -279,42 +345,92 @@ export default function AccountsContent({ activeSection }) {
 
     setIsGeneratingInvoice(true);
     try {
-      // Simulate PDF generation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const effectiveAccountNumber = String(
+        selectedJobForInvoice?.new_account_number ||
+          selectedCostCenterInfo?.cost_code ||
+          "",
+      ).trim();
+      const jobForVehicleSync = effectiveAccountNumber
+        ? {
+            ...selectedJobForInvoice,
+            new_account_number: effectiveAccountNumber,
+          }
+        : selectedJobForInvoice;
+
+      const invoicePreview = buildCompletedJobInvoiceView();
+      const lineItems = (invoicePreview?.rows || []).map((row) => ({
+        previous_reg: row.previousReg,
+        new_reg: row.newReg,
+        item_code: row.itemCode,
+        description: row.description,
+        comments: row.comments,
+        quantity: row.qty,
+        unit_price: row.unitPrice,
+        vat_percent: row.vatPercent,
+        vat_amount: row.vatAmount,
+        total_incl: row.totalIncl,
+      }));
+
+      const invoiceCreateResponse = await fetch("/api/invoices/job-card", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobCardId: selectedJobForInvoice.id,
+          jobNumber: selectedJobForInvoice.job_number,
+          quotationNumber: selectedJobForInvoice.quotation_number,
+          accountNumber: effectiveAccountNumber,
+          clientName:
+            invoiceFormData.clientName || selectedJobForInvoice.customer_name,
+          clientEmail:
+            invoiceFormData.clientEmail || selectedJobForInvoice.customer_email,
+          clientPhone:
+            invoiceFormData.clientPhone || selectedJobForInvoice.customer_phone,
+          clientAddress:
+            invoiceFormData.clientAddress ||
+            selectedJobForInvoice.customer_address,
+          invoiceDate: new Date().toISOString(),
+          dueDate: invoiceFormData.dueDate,
+          paymentTerms: invoiceFormData.paymentTerms,
+          notes:
+            invoiceFormData.notes ||
+            selectedJobForInvoice.special_instructions ||
+            "No special instructions.",
+          subtotal: invoicePreview?.totals?.subtotal || 0,
+          vatAmount: invoicePreview?.totals?.vat || 0,
+          discountAmount: invoicePreview?.totals?.discount || 0,
+          totalAmount: invoicePreview?.totals?.total || 0,
+          lineItems,
+        }),
+      });
+
+      if (!invoiceCreateResponse.ok) {
+        throw new Error("Failed to create invoice");
+      }
+
+      const invoiceCreateResult = await invoiceCreateResponse.json();
+      const invoiceRecord = invoiceCreateResult?.invoice;
+      const invoiceNumber = invoiceRecord?.invoice_number;
+
+      if (!invoiceRecord || !invoiceNumber) {
+        throw new Error("Invoice record was not returned");
+      }
 
       const invoiceData = {
-        invoiceNumber: `INV-${Date.now()}`,
+        invoiceNumber,
         jobNumber: selectedJobForInvoice.job_number,
         clientInfo: invoiceFormData,
         jobDetails: selectedJobForInvoice,
-        generatedAt: new Date().toISOString(),
-        pdfUrl: `#invoice-${Date.now()}`, // Placeholder for actual PDF URL
+        generatedAt: invoiceRecord.invoice_date || new Date().toISOString(),
+        pdfUrl: invoiceRecord.pdf_url || `#invoice-${invoiceNumber}`,
+        invoiceId: invoiceRecord.id,
       };
 
       setGeneratedInvoice(invoiceData);
-      const equipmentResponse = await fetch(
-        "/api/vehicles/sync-job-equipment",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            job: selectedJobForInvoice,
-          }),
-        },
-      );
+      setStoredInvoiceRecord(invoiceRecord);
 
-      if (!equipmentResponse.ok) {
-        const equipmentError = await equipmentResponse.json().catch(() => ({}));
-        throw new Error(
-          equipmentError?.details ||
-            equipmentError?.error ||
-            "Failed to update vehicle equipment",
-        );
-      }
-
-      const equipmentResult = await equipmentResponse.json();
-
-      if (selectedJobForInvoice?.new_account_number) {
+      if (effectiveAccountNumber) {
         const products = parseQuotationProducts(
           selectedJobForInvoice.quotation_products,
         );
@@ -325,7 +441,14 @@ export default function AccountsContent({ activeSection }) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                cost_code: selectedJobForInvoice.new_account_number,
+                cost_code: effectiveAccountNumber,
+                job_card_id: selectedJobForInvoice.id,
+                job_number: selectedJobForInvoice.job_number,
+                job_type:
+                  selectedJobForInvoice.job_type ||
+                  selectedJobForInvoice.quotation_job_type,
+                quotation_number: selectedJobForInvoice.quotation_number,
+                invoice_number: invoiceNumber,
                 quotation_products: products,
                 vehicle_registration:
                   selectedJobForInvoice.vehicle_registration,
@@ -348,7 +471,36 @@ export default function AccountsContent({ activeSection }) {
         }
       }
 
-      await updateBillingStatus(selectedJobForInvoice, "invoice");
+      const equipmentResponse = await fetch(
+        "/api/vehicles/sync-job-equipment",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            job: jobForVehicleSync,
+          }),
+        },
+      );
+
+      if (!equipmentResponse.ok) {
+        const equipmentError = await equipmentResponse.json().catch(() => ({}));
+        throw new Error(
+          equipmentError?.details ||
+            equipmentError?.error ||
+            "Failed to update vehicle equipment",
+        );
+      }
+
+      const equipmentResult = await equipmentResponse.json();
+
+      await updateBillingStatus(selectedJobForInvoice, "invoice", {
+        invoice_number: invoiceNumber,
+        invoice_id: invoiceRecord.id,
+        invoice_date: invoiceData.generatedAt,
+        subtotal: invoiceRecord.subtotal || 0,
+        vat_amount: invoiceRecord.vat_amount || 0,
+        total_amount: invoiceRecord.total_amount || 0,
+      });
       if (equipmentResult?.warnings?.length) {
         toast.success(
           `Invoice generated. Vehicle equipment updated with ${equipmentResult.warnings.length} warning(s).`,
@@ -464,8 +616,56 @@ export default function AccountsContent({ activeSection }) {
       notes: "",
     });
     setGeneratedInvoice(null);
+    setStoredInvoiceRecord(null);
     setSelectedJobForInvoice(null);
+    setSelectedCostCenterInfo(null);
   };
+
+  useEffect(() => {
+    const accountNumber = selectedJobForInvoice?.new_account_number?.trim();
+
+    if (!showInvoiceModal || !accountNumber) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCostCenterInfo = async () => {
+      try {
+        const response = await fetch(
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch cost center info");
+        }
+
+        const result = await response.json();
+        const matchedCostCenter = Array.isArray(result?.costCenters)
+          ? result.costCenters.find(
+              (item) =>
+                String(item?.cost_code || "")
+                  .trim()
+                  .toUpperCase() === accountNumber.toUpperCase(),
+            ) || result.costCenters[0]
+          : null;
+
+        if (!cancelled) {
+          setSelectedCostCenterInfo(matchedCostCenter || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedCostCenterInfo(null);
+        }
+      }
+    };
+
+    loadCostCenterInfo();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedJobForInvoice, showInvoiceModal]);
 
   const fetchAccountData = async (accountNumber) => {
     try {
@@ -623,6 +823,72 @@ export default function AccountsContent({ activeSection }) {
     return 0;
   };
 
+  const getNormalizedPurchaseType = (product) =>
+    String(product?.purchase_type || "")
+      .trim()
+      .toLowerCase();
+
+  const getProductChargeLines = (product, job) => {
+    const qty = Math.max(1, toNumber(product?.quantity) || 1);
+    const purchaseType = getNormalizedPurchaseType(product);
+    const jobType = String(
+      job?.job_type || job?.quotation_job_type || "",
+    ).toLowerCase();
+    const lines = [];
+
+    const addLine = (key, label) => {
+      const amount = toNumber(product?.[key]);
+      if (amount <= 0) return;
+      lines.push({
+        key,
+        label,
+        qty,
+        unitPrice: amount,
+        subtotal: amount * qty,
+      });
+    };
+
+    const isDeinstall =
+      jobType.includes("deinstall") ||
+      jobType.includes("de-install") ||
+      jobType.includes("decomm");
+
+    if (purchaseType === "rental" || purchaseType === "subscription" || !purchaseType) {
+      addLine("subscription_price", "Subscription");
+    }
+    if (purchaseType === "rental" || !purchaseType) {
+      addLine("rental_price", "Rental");
+    }
+    if (purchaseType === "purchase" || purchaseType === "cash") {
+      addLine("cash_price", "Cash");
+    }
+    if (!isDeinstall) {
+      addLine("installation_price", "Installation");
+    }
+    if (isDeinstall) {
+      addLine("de_installation_price", "De-Installation");
+    }
+    if (lines.length === 0) {
+      addLine("price", "Price");
+      addLine("unit_price", "Unit Price");
+    }
+
+    if (lines.length === 0) {
+      const fallbackUnitPrice = getProductUnitPrice(product);
+      if (fallbackUnitPrice > 0) {
+        lines.push({
+          key: "fallback",
+          label: "Charge",
+          qty,
+          unitPrice: fallbackUnitPrice,
+          subtotal: fallbackUnitPrice * qty,
+        });
+      }
+    }
+
+    return lines;
+  };
+
   const getJobTotal = (job) => {
     return (
       toNumber(job?.quotation_total_amount) ||
@@ -639,7 +905,7 @@ export default function AccountsContent({ activeSection }) {
     return false;
   };
 
-  const updateBillingStatus = async (job, key = "invoice") => {
+  const updateBillingStatus = async (job, key = "invoice", metadata = {}) => {
     if (!job?.id || !BILLING_STATUS_KEYS.includes(key)) return;
     const loadingKey = `${job.id}:${key}`;
     setBillingActionLoading((prev) => ({ ...prev, [loadingKey]: true }));
@@ -655,6 +921,7 @@ export default function AccountsContent({ activeSection }) {
         [key]: {
           done: true,
           at: new Date().toISOString(),
+          ...metadata,
         },
       };
 
@@ -702,6 +969,16 @@ export default function AccountsContent({ activeSection }) {
             }
           : prev,
       );
+      setSelectedJobForInvoice((prev) =>
+        prev?.id === job.id
+          ? {
+              ...prev,
+              billing_statuses: updated.billing_statuses,
+              job_status: updated.job_status ?? prev.job_status,
+              status: updated.status ?? prev.status,
+            }
+          : prev,
+      );
       toast.success(
         `${key.charAt(0).toUpperCase() + key.slice(1)} marked as done`,
       );
@@ -714,13 +991,13 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const openInvoicePdf = (mode = "view") => {
-    const preview = document.getElementById("invoice-preview");
-    if (!preview) {
+    const invoiceView = buildCompletedJobInvoiceView();
+    if (!invoiceView) {
       toast.error("Invoice preview not available");
       return;
     }
 
-    const invoiceHtml = preview.outerHTML;
+    const invoiceHtml = buildCompletedJobInvoiceHtml(invoiceView);
     const printWindow = window.open("", "_blank", "width=900,height=1000");
     if (!printWindow) {
       toast.error("Popup blocked. Please allow popups to view the invoice.");
@@ -728,140 +1005,72 @@ export default function AccountsContent({ activeSection }) {
     }
 
     printWindow.document.open();
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: "Segoe UI", Arial, sans-serif;
-              margin: 24px;
-              color: #111827;
-              background: #ffffff;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            img { max-width: 120px; height: auto; }
-            .border { border: 1px solid #e5e7eb; }
-            .border-b { border-bottom: 1px solid #e5e7eb; }
-            .border-t { border-top: 1px solid #e5e7eb; }
-            .rounded-lg { border-radius: 12px; }
-            .p-4 { padding: 16px; }
-            .pt-2 { padding-top: 8px; }
-            .pt-4 { padding-top: 16px; }
-            .mt-4 { margin-top: 16px; }
-            .w-full { width: 100%; }
-            .flex { display: flex; }
-            .flex-col { flex-direction: column; }
-            .items-start { align-items: flex-start; }
-            .items-center { align-items: center; }
-            .justify-between { justify-content: space-between; }
-            .gap-4 { gap: 16px; }
-            .grid { display: grid; gap: 16px; }
-            .grid-cols-1 { grid-template-columns: 1fr; }
-            .space-y-2 > * + * { margin-top: 8px; }
-            .space-y-4 > * + * { margin-top: 16px; }
-            .text-right { text-align: right; }
-            .text-sm { font-size: 13px; }
-            .text-xs { font-size: 12px; }
-            .font-semibold { font-weight: 600; }
-            .font-medium { font-weight: 500; }
-            .text-gray-500 { color: #6b7280; }
-            .text-gray-600 { color: #4b5563; }
-            .text-gray-700 { color: #374151; }
-            .text-gray-900 { color: #111827; }
-            .bg-white { background: #ffffff; }
-            table { width: 100%; border-collapse: collapse; font-size: 13px; }
-            th, td { padding: 8px 6px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
-            th { font-weight: 600; color: #6b7280; }
-            @media (min-width: 768px) {
-              .md\\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-              .md\\:flex-row { flex-direction: row; }
-              .md\\:items-start { align-items: flex-start; }
-              .md\\:justify-between { justify-content: space-between; }
-            }
-            @media print {
-              body { margin: 12mm; }
-            }
-          </style>
-        </head>
-        <body>${invoiceHtml}</body>
-      </html>
-    `);
+    printWindow.document.write(invoiceHtml);
     printWindow.document.close();
+    printWindow.focus();
 
     if (mode === "download") {
-      printWindow.focus();
-      printWindow.print();
+      printWindow.onload = () => {
+        setTimeout(() => printWindow.print(), 150);
+      };
     }
   };
 
   const getInvoiceVehicles = (job) => {
-    const jobType = (
-      job?.job_type ||
-      job?.quotation_job_type ||
-      ""
-    ).toLowerCase();
     const products = parseQuotationProducts(job?.quotation_products);
-
-    if (
-      jobType.includes("deinstall") ||
-      jobType.includes("de-install") ||
-      jobType.includes("decomm")
-    ) {
-      const plates = products
-        .map((product) => product?.vehicle_plate)
-        .filter(
-          (plate) => typeof plate === "string" && plate.trim().length > 0,
-        );
-      return Array.from(new Set(plates));
-    }
-
-    const reg = job?.vehicle_registration?.trim();
-    if (!reg) return [];
+    const plates = products
+      .map((product) => product?.vehicle_plate)
+      .filter(
+        (plate) => typeof plate === "string" && plate.trim().length > 0,
+      )
+      .map((plate) => plate.trim());
+    const fallbackReg =
+      job?.vehicle_registration?.trim() ||
+      job?.temporary_registration?.trim() ||
+      buildTemporaryRegistration(
+        job?.id,
+        job?.job_number,
+        job?.quotation_number,
+        job?.new_account_number,
+      );
+    const regs = Array.from(new Set([...plates, fallbackReg].filter(Boolean)));
     const make = (job?.vehicle_make || "").trim();
     const model = (job?.vehicle_model || "").trim();
-    const descriptor = [reg, make, model].filter(Boolean).join(" ");
-    return [descriptor];
+    return regs.map((reg) => ({
+      reg,
+      make: make || null,
+      model: model || null,
+      year: job?.vehicle_year || null,
+      company: job?.customer_name || null,
+    }));
   };
 
   const getInvoiceVehiclePayloads = (job) => {
-    const jobType = (
-      job?.job_type ||
-      job?.quotation_job_type ||
-      ""
-    ).toLowerCase();
     const products = parseQuotationProducts(job?.quotation_products);
+    const plates = products
+      .map((product) => product?.vehicle_plate)
+      .filter(
+        (plate) => typeof plate === "string" && plate.trim().length > 0,
+      )
+      .map((plate) => plate.trim());
+    const fallbackReg =
+      job?.vehicle_registration?.trim() ||
+      job?.temporary_registration?.trim() ||
+      buildTemporaryRegistration(
+        job?.id,
+        job?.job_number,
+        job?.quotation_number,
+        job?.new_account_number,
+      );
+    const regs = Array.from(new Set([...plates, fallbackReg].filter(Boolean)));
 
-    if (
-      jobType.includes("deinstall") ||
-      jobType.includes("de-install") ||
-      jobType.includes("decomm")
-    ) {
-      const plates = products
-        .map((product) => product?.vehicle_plate)
-        .filter(
-          (plate) => typeof plate === "string" && plate.trim().length > 0,
-        );
-      return Array.from(new Set(plates)).map((plate) => ({
-        reg: plate.trim(),
-        company: job?.customer_name || null,
-      }));
-    }
-
-    const reg = job?.vehicle_registration?.trim();
-    if (!reg) return [];
-    return [
-      {
-        reg,
-        make: job?.vehicle_make || null,
-        model: job?.vehicle_model || null,
-        year: job?.vehicle_year || null,
-        company: job?.customer_name || null,
-      },
-    ];
+    return regs.map((reg) => ({
+      reg,
+      make: job?.vehicle_make || null,
+      model: job?.vehicle_model || null,
+      year: job?.vehicle_year || null,
+      company: job?.customer_name || null,
+    }));
   };
 
   const getInvoiceTotals = (job) => {
@@ -877,6 +1086,395 @@ export default function AccountsContent({ activeSection }) {
     const total = toNumber(job?.quotation_total_amount) || subtotal + vat;
 
     return { products, subtotal, vat, total };
+  };
+
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const buildClientAddress = (costCenterInfo, fallbackAddress) => {
+    const addressParts = [
+      costCenterInfo?.physical_address_1,
+      costCenterInfo?.physical_address_2,
+      costCenterInfo?.physical_address_3,
+      costCenterInfo?.physical_area,
+      costCenterInfo?.physical_code,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+
+    if (addressParts.length > 0) {
+      return addressParts.join("\n");
+    }
+
+    return fallbackAddress || "No address provided";
+  };
+
+  const buildCompletedJobInvoiceView = () => {
+    if (!selectedJobForInvoice) return null;
+
+    const rawTotals = getInvoiceTotals(selectedJobForInvoice);
+    const invoiceVehicles = getInvoiceVehicles(selectedJobForInvoice);
+    const vehicleSummary =
+      invoiceVehicles.length > 0
+        ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ")
+        : "N/A";
+
+    const invoiceNumber =
+      storedInvoiceRecord?.invoice_number ||
+      selectedJobForInvoice?.billing_statuses?.invoice?.invoice_number ||
+      generatedInvoice?.invoiceNumber ||
+      "PENDING";
+    const invoiceDate =
+      storedInvoiceRecord?.invoice_date ||
+      selectedJobForInvoice?.billing_statuses?.invoice?.invoice_date ||
+      generatedInvoice?.generatedAt ||
+      new Date().toISOString();
+
+    const rows =
+      Array.isArray(storedInvoiceRecord?.line_items) &&
+      storedInvoiceRecord.line_items.length > 0
+        ? storedInvoiceRecord.line_items.map((item, index) => ({
+            key: `${item?.item_code || item?.description || "item"}-${index}`,
+            previousReg: item?.previous_reg || vehicleSummary || "N/A",
+            newReg:
+              item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+            itemCode: item?.item_code || "Item",
+            description: item?.description || "-",
+            comments: item?.comments || "",
+            qty: Math.max(1, toNumber(item?.quantity) || 1),
+            unitPrice: toNumber(item?.unit_price),
+            vatPercent: item?.vat_percent || "15.00%",
+            vatAmount: toNumber(item?.vat_amount),
+            totalIncl: toNumber(item?.total_incl),
+          }))
+        : rawTotals.products.length > 0
+        ? rawTotals.products.flatMap((product, index) => {
+            const chargeLines = getProductChargeLines(
+              product,
+              selectedJobForInvoice,
+            );
+
+            return chargeLines.map((chargeLine) => {
+              const lineVat = chargeLine.subtotal * VAT_RATE;
+              const lineTotal = chargeLine.subtotal + lineVat;
+
+              return {
+                key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
+                previousReg: product?.vehicle_plate || vehicleSummary || "N/A",
+                newReg: product?.vehicle_plate || vehicleSummary || "N/A",
+                itemCode: product?.name || product?.item_code || "Item",
+                description:
+                  product?.description || product?.category || "-",
+                comments: chargeLine.label,
+                qty: chargeLine.qty,
+                unitPrice: chargeLine.unitPrice,
+                vatPercent: "15.00%",
+                vatAmount: lineVat,
+                totalIncl: lineTotal,
+              };
+            });
+          })
+        : [
+            {
+              key: "fallback-row",
+              previousReg: vehicleSummary || "N/A",
+              newReg: vehicleSummary || "N/A",
+              itemCode: selectedJobForInvoice.job_type || "Service",
+              description:
+                selectedJobForInvoice.job_description || "Job completion",
+              comments: "",
+              qty: 1,
+              unitPrice: rawTotals.subtotal,
+              vatPercent: "15.00%",
+              vatAmount: rawTotals.vat,
+              totalIncl: rawTotals.total,
+            },
+          ];
+
+    const totals = storedInvoiceRecord
+      ? {
+          subtotal: toNumber(storedInvoiceRecord.subtotal),
+          vat: toNumber(storedInvoiceRecord.vat_amount),
+          total: toNumber(storedInvoiceRecord.total_amount),
+          discount: toNumber(storedInvoiceRecord.discount_amount),
+        }
+      : rows.reduce(
+          (acc, row) => {
+            acc.subtotal += row.unitPrice * row.qty;
+            acc.vat += row.vatAmount;
+            acc.total += row.totalIncl;
+            return acc;
+          },
+          { subtotal: 0, vat: 0, total: 0, discount: 0 },
+        );
+
+    return {
+      invoiceNumber,
+      invoiceDate: formatDate(invoiceDate),
+      clientName:
+        storedInvoiceRecord?.client_name ||
+        invoiceFormData.clientName ||
+        selectedJobForInvoice.customer_name ||
+        "N/A",
+      clientEmail:
+        storedInvoiceRecord?.client_email ||
+        invoiceFormData.clientEmail ||
+        selectedJobForInvoice.customer_email ||
+        "No email provided",
+      clientPhone:
+        storedInvoiceRecord?.client_phone ||
+        invoiceFormData.clientPhone ||
+        selectedJobForInvoice.customer_phone ||
+        "No phone provided",
+      clientAddress:
+        buildClientAddress(
+          selectedCostCenterInfo,
+          storedInvoiceRecord?.client_address ||
+            invoiceFormData.clientAddress ||
+            selectedJobForInvoice.customer_address,
+        ),
+      accountNumber: selectedJobForInvoice.new_account_number || "N/A",
+      customerVatNumber:
+        selectedCostCenterInfo?.vat_number ||
+        selectedCostCenterInfo?.vat_exempt_number ||
+        "-",
+      notes:
+        storedInvoiceRecord?.notes ||
+        invoiceFormData.notes ||
+        selectedJobForInvoice.special_instructions ||
+        "No special instructions.",
+      totals,
+      rows,
+    };
+  };
+
+  const buildCompletedJobInvoiceHtml = (invoiceView) => {
+    if (!invoiceView) return "";
+
+    const rowsHtml = invoiceView.rows
+      .map(
+        (row) => `
+          <tr>
+            <td>${escapeHtml(row.previousReg)}</td>
+            <td>${escapeHtml(row.newReg)}</td>
+            <td>${escapeHtml(row.itemCode)}</td>
+            <td>${escapeHtml(row.description)}</td>
+            <td>${escapeHtml(row.comments)}</td>
+            <td class="text-center">${escapeHtml(row.qty)}</td>
+            <td class="text-right">${escapeHtml(row.unitPrice.toFixed(2))}</td>
+            <td class="text-right">${escapeHtml(row.vatAmount.toFixed(2))}</td>
+            <td class="text-center">${escapeHtml(row.vatPercent)}</td>
+            <td class="text-right">${escapeHtml(row.totalIncl.toFixed(2))}</td>
+          </tr>
+        `,
+      )
+      .join("");
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Invoice</title>
+          <style>
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            html, body { margin: 0; padding: 0; background: #ffffff; font-family: Arial, Helvetica, sans-serif; color: #000000; }
+            body { padding: 0; }
+            .page { width: 100%; max-width: 980px; margin: 0 auto; padding: 0 18px 26px; background: #fff; }
+            .top { display: grid; grid-template-columns: 1fr 1fr; align-items: start; margin-top: 2px; }
+            .logo { width: 210px; height: auto; margin-top: 18px; }
+            .company-right { text-align: center; font-size: 18px; line-height: 1.35; font-weight: 700; }
+            .company-right div { margin-top: 10px; font-weight: 400; }
+            .rule { border-top: 2px solid #bcbcbc; margin: 12px 24px 8px; }
+            .title { text-align: center; font-size: 21px; font-weight: 700; margin: 6px 0 34px; }
+            .party-row { display: grid; grid-template-columns: 1.5fr 0.9fr; gap: 22px; min-height: 146px; padding: 0 26px; }
+            .bill-to { margin-top: 10px; }
+            .bill-company { font-size: 17px; font-weight: 700; margin-top: 0; }
+            .bill-address { margin-top: 14px; font-size: 15px; line-height: 1.55; white-space: pre-line; }
+            .invoice-meta { align-self: start; font-size: 17px; }
+            .invoice-meta-row { display: grid; grid-template-columns: 170px 1fr; margin-bottom: 24px; }
+            .invoice-meta-row .label { font-weight: 700; }
+            .box-table, .line-table, .totals-table, .footer-table { width: calc(100% - 48px); margin: 0 24px; border-collapse: collapse; table-layout: fixed; }
+            .box-table th, .box-table td, .line-table th, .line-table td, .totals-table td, .footer-table td { border: 2px solid #505050; }
+            .box-table { margin-top: 8px; }
+            .box-table th { font-size: 12px; font-weight: 700; text-align: center; padding: 4px 4px; }
+            .box-table td { font-size: 14px; text-align: center; padding: 6px 4px; }
+            .line-table { margin-top: 16px; }
+            .line-table th { background: #d6d6d6; font-size: 11px; font-weight: 700; text-align: left; padding: 4px 3px; white-space: nowrap; }
+            .line-table td { font-size: 11px; padding: 3px 3px; vertical-align: top; }
+            .line-table tbody tr:nth-child(even) td { background: #dcdcdc; }
+            .line-table .text-right { text-align: right; }
+            .line-table .text-center { text-align: center; }
+            .line-table .spacer td { height: 168px; background: #fff !important; }
+            .bottom-row { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: start; margin: 16px 24px 0; }
+            .notes { font-size: 14px; white-space: pre-line; }
+            .notes strong { font-size: 16px; }
+            .totals-table td { font-size: 14px; padding: 8px 8px; }
+            .totals-table .label { font-weight: 700; width: 58%; }
+            .totals-table .value { text-align: right; width: 42%; }
+            .totals-table .grand td { font-size: 16px; font-weight: 700; }
+            .footer-table { margin-top: 86px; }
+            .footer-table td { vertical-align: top; height: 136px; padding: 8px 10px; font-size: 12px; line-height: 1.5; }
+            .footer-table strong { display: block; margin-bottom: 18px; font-size: 12px; }
+            .powered { text-align: right; color: #777777; font-size: 12px; margin: 56px 36px 0 0; }
+            @page { size: A4 portrait; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="top">
+              <div>
+                <img class="logo" src="${window.location.origin}/soltrack_logo.png" alt="Soltrack" />
+              </div>
+              <div class="company-right">
+                Soltrack (PTY) LTD
+                <div>Reg No: 2018/095975/07</div>
+                <div>VAT No.: 4580161802</div>
+              </div>
+            </div>
+            <div class="rule"></div>
+            <div class="title">TAX INVOICE</div>
+            <div class="party-row">
+              <div class="bill-to">
+                <div class="bill-company">${escapeHtml(invoiceView.clientName)}</div>
+                <div class="bill-address">${escapeHtml(invoiceView.clientAddress)}</div>
+              </div>
+              <div class="invoice-meta">
+                <div class="invoice-meta-row">
+                  <div class="label">TAX INVOICE :</div>
+                  <div>${escapeHtml(invoiceView.invoiceNumber)}</div>
+                </div>
+                <div class="invoice-meta-row">
+                  <div class="label">Date:</div>
+                  <div>${escapeHtml(invoiceView.invoiceDate)}</div>
+                </div>
+              </div>
+            </div>
+            <table class="box-table">
+              <colgroup>
+                <col style="width:12.5%" />
+                <col style="width:40.5%" />
+                <col style="width:14%" />
+                <col style="width:33%" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Your Reference</th>
+                  <th>VAT %</th>
+                  <th>Customer Vat Number</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${escapeHtml(invoiceView.accountNumber)}</td>
+                  <td>${escapeHtml(invoiceView.clientName)}</td>
+                  <td>VAT 15%</td>
+                  <td>${escapeHtml(invoiceView.customerVatNumber)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table class="line-table">
+              <colgroup>
+                <col style="width:10%" />
+                <col style="width:13%" />
+                <col style="width:15%" />
+                <col style="width:16%" />
+                <col style="width:10%" />
+                <col style="width:5%" />
+                <col style="width:8.5%" />
+                <col style="width:7%" />
+                <col style="width:5%" />
+                <col style="width:10.5%" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Previous Reg</th>
+                  <th>New Reg</th>
+                  <th>Item Code</th>
+                  <th>Description</th>
+                  <th>Comments</th>
+                  <th class="text-center">Units</th>
+                  <th class="text-right">Unit Price</th>
+                  <th class="text-right">Vat</th>
+                  <th class="text-center">Vat%</th>
+                  <th class="text-right">Total Incl</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+                <tr class="spacer"><td colspan="10"></td></tr>
+              </tbody>
+            </table>
+            <div class="bottom-row">
+              <div class="notes">
+                <strong>Notes:</strong> ${escapeHtml(invoiceView.notes)}
+              </div>
+              <table class="totals-table">
+                <tbody>
+                  <tr>
+                    <td class="label">Total Ex. VAT</td>
+                    <td class="value">R ${escapeHtml(invoiceView.totals.subtotal.toFixed(2))}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Discount</td>
+                    <td class="value">R ${escapeHtml(invoiceView.totals.discount.toFixed(2))}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">VAT</td>
+                    <td class="value">R ${escapeHtml(invoiceView.totals.vat.toFixed(2))}</td>
+                  </tr>
+                  <tr class="grand">
+                    <td class="label">Total Incl. VAT</td>
+                    <td class="value">R ${escapeHtml(invoiceView.totals.total.toFixed(2))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <table class="footer-table">
+              <colgroup>
+                <col style="width:35%" />
+                <col style="width:19%" />
+                <col style="width:26%" />
+                <col style="width:20%" />
+              </colgroup>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong>Head Office:</strong>
+                    <div>8 Viscount Road</div>
+                    <div>Viscount office park, Block C unit 4 & 5</div>
+                    <div>Bedfordview, 2008</div>
+                  </td>
+                  <td>
+                    <strong>Postal Address:</strong>
+                    <div>P.O Box 95603</div>
+                    <div>Grant Park 2051</div>
+                  </td>
+                  <td>
+                    <strong>Contact Details</strong>
+                    <div><strong style="display:inline;margin:0;font-size:12px;">Phone:</strong> 011 824 0066</div>
+                    <div><strong style="display:inline;margin:0;font-size:12px;">Email:</strong> accounts@soltrack.co.za</div>
+                    <div><strong style="display:inline;margin:0;font-size:12px;">Website:</strong> www.soltrack.co.za</div>
+                  </td>
+                  <td>
+                    <strong>Soltrack (PTY) LTD</strong>
+                    <div>Nedbank Northrand</div>
+                    <div>Code - 146905</div>
+                    <div>A/C No. - 1469109069</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </body>
+        </html>
+      `;
   };
 
   const formatBilledItems = (job) => {
@@ -1336,6 +1934,16 @@ export default function AccountsContent({ activeSection }) {
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right">
                         <div className="flex justify-end gap-2 flex-wrap">
+                          {hasStoredInvoice(job) && (
+                            <Button
+                              onClick={() => handleViewStoredInvoice(job)}
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-3 text-xs"
+                            >
+                              View Invoice
+                            </Button>
+                          )}
                           <Button
                             onClick={() => handleInvoiceClient(job)}
                             size="sm"
@@ -1816,7 +2424,7 @@ export default function AccountsContent({ activeSection }) {
 
         {/* Invoice Modal */}
         <Dialog open={showInvoiceModal} onOpenChange={setShowInvoiceModal}>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh]">
+          <DialogContent className="w-[96vw] max-w-6xl max-h-[94vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 Generate Invoice - {selectedJobForInvoice?.job_number}
@@ -1824,7 +2432,7 @@ export default function AccountsContent({ activeSection }) {
             </DialogHeader>
 
             {selectedJobForInvoice && (
-              <div className="space-y-6 overflow-y-auto max-h-[70vh]">
+              <div className="space-y-6 overflow-y-auto max-h-[80vh] pr-2">
                 {/* Job Summary */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">
@@ -2011,6 +2619,20 @@ export default function AccountsContent({ activeSection }) {
 
                 {/* Invoice Preview */}
                 {(() => {
+                  const invoiceView = buildCompletedJobInvoiceView();
+                  const invoiceHtml = buildCompletedJobInvoiceHtml(invoiceView);
+
+                  return (
+                    <div id="invoice-preview" className="rounded-lg border bg-white p-2">
+                      <iframe
+                        title="Invoice Preview"
+                        srcDoc={invoiceHtml}
+                        className="h-[1380px] w-full rounded-md border-0"
+                      />
+                    </div>
+                  );
+                })()}
+                {false && (() => {
                   const totals = getInvoiceTotals(selectedJobForInvoice);
                   const invoiceVehicles = getInvoiceVehicles(
                     selectedJobForInvoice,
@@ -2227,7 +2849,7 @@ export default function AccountsContent({ activeSection }) {
                 })()}
 
                 {/* Generated Invoice Preview */}
-                {generatedInvoice && (
+                {false && generatedInvoice && (
                   <div className="bg-green-50 p-4 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <FileText className="w-5 h-5 text-green-600" />

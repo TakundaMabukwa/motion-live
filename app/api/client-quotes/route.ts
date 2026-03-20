@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { ensureExternalClientSetup } from '@/lib/server/ensure-external-client';
 
 function extractMissingColumnName(message?: string | null): string | null {
   if (!message) return null;
@@ -22,6 +23,17 @@ export async function POST(request: NextRequest) {
     const normalizedJobSubType = String(body.jobSubType || body.job_sub_type || '').trim().toLowerCase();
     const isDecommissionQuote = normalizedJobSubType === 'decommission';
     const normalizedStatus = String(body.status || 'pending').trim().toLowerCase();
+    const normalizedQuoteType = String(body.quoteType || body.quote_type || 'internal')
+      .trim()
+      .toLowerCase();
+
+    let resolvedNewAccountNumber =
+      body.new_account_number || body.accountNumber || null;
+
+    if (normalizedQuoteType === 'external') {
+      const externalClientSetup = await ensureExternalClientSetup(supabase, body);
+      resolvedNewAccountNumber = externalClientSetup.costCode;
+    }
     
     // Debug logging
     console.log('Received client quote data:', {
@@ -81,7 +93,7 @@ export async function POST(request: NextRequest) {
       
       // Account information
       account_id: body.accountId || null,
-      new_account_number: body.new_account_number || body.accountNumber || null, // Prioritize new_account_number field
+      new_account_number: resolvedNewAccountNumber, // Prioritize ensured external client cost code
 
       // Quotation products and pricing
       quotation_products: body.quotationProducts || [],

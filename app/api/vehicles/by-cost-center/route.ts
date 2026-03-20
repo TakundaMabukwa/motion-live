@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { data: vehicles, error } = await supabase
       .from('vehicles')
       .select('reg, make, model, year, fleet_number')
-      .eq('new_account_number', costCenter)
+      .or(`new_account_number.eq.${costCenter},account_number.eq.${costCenter}`)
       .order('reg');
 
     if (error) {

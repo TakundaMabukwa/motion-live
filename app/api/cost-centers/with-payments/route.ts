@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
     const { data: costCenters, error: centersError } = await supabase
       .from('cost_centers')
-      .select('id, created_at, company, cost_code, validated')
+      .select('*')
       .ilike('cost_code', `${cleanPrefix}-%`)
       .order('cost_code', { ascending: true });
 
@@ -62,10 +62,35 @@ export async function GET(request: Request) {
       .order('billing_month', { ascending: false })
       .order('due_date', { ascending: false });
 
+    const { data: accountInvoices, error: invoicesError } = await supabase
+      .from('account_invoices')
+      .select(`
+        id,
+        account_number,
+        billing_month,
+        invoice_number,
+        invoice_date,
+        subtotal,
+        vat_amount,
+        total_amount,
+        created_at
+      `)
+      .in('account_number', codes)
+      .order('billing_month', { ascending: false })
+      .order('created_at', { ascending: false });
+
     if (paymentsError) {
       console.error('Error fetching payments for cost centers:', paymentsError);
       return NextResponse.json(
         { error: 'Failed to fetch payments', details: paymentsError.message },
+        { status: 500 }
+      );
+    }
+
+    if (invoicesError) {
+      console.error('Error fetching account invoices for cost centers:', invoicesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch account invoices', details: invoicesError.message },
         { status: 500 }
       );
     }
@@ -78,9 +103,18 @@ export async function GET(request: Request) {
       }
     });
 
+    const latestInvoiceByCode = new Map();
+    (accountInvoices || []).forEach((invoice) => {
+      if (!invoice?.account_number) return;
+      if (!latestInvoiceByCode.has(invoice.account_number)) {
+        latestInvoiceByCode.set(invoice.account_number, invoice);
+      }
+    });
+
     const enrichedCostCenters = (costCenters || []).map((center) => ({
       ...center,
-      payment: latestPaymentByCode.get(center.cost_code) || null
+      payment: latestPaymentByCode.get(center.cost_code) || null,
+      invoice: latestInvoiceByCode.get(center.cost_code) || null,
     }));
 
     return NextResponse.json({ costCenters: enrichedCostCenters });

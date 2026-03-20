@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { ensureExternalClientSetup } from '@/lib/server/ensure-external-client';
 
 function generateSolJobNumber(): string {
   const n = Math.floor(100000 + Math.random() * 900000);
@@ -79,6 +80,18 @@ export async function POST(request: NextRequest) {
     // }
 
     const body = await request.json();
+    const normalizedQuoteType = String(body.quoteType || body.quote_type || '')
+      .trim()
+      .toLowerCase();
+    const isExternalQuote = !body.repair && normalizedQuoteType === 'external';
+
+    let resolvedNewAccountNumber =
+      body.newAccountNumber || body.new_account_number || null;
+
+    if (isExternalQuote) {
+      const externalClientSetup = await ensureExternalClientSetup(supabase, body);
+      resolvedNewAccountNumber = externalClientSetup.costCode;
+    }
     
     // Generate unique identifiers
     const timestamp = Date.now();
@@ -111,7 +124,7 @@ export async function POST(request: NextRequest) {
       
       // Customer information
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
-      new_account_number: body.newAccountNumber || body.new_account_number || null, // Include new_account_number field
+      new_account_number: resolvedNewAccountNumber, // Include ensured new_account_number field
       customer_name: body.customerName || body.customer_name || '',
       customer_email: body.customerEmail || body.customer_email || '',
       customer_phone: body.customerPhone || body.customer_phone || '',

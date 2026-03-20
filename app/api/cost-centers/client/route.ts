@@ -38,11 +38,10 @@ export async function GET(request: NextRequest) {
 
     console.log('Deduplicated account numbers:', accountNumbers);
 
-    // Single optimized query with case-insensitive matching
     const { data: costCenters, error } = await supabase
       .from('cost_centers')
       .select('*')
-      .or(accountNumbers.map(num => `cost_code.ilike.${num}`).join(','))
+      .in('cost_code', accountNumbers)
       .order('cost_code', { ascending: true });
 
     if (error) {

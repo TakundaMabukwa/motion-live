@@ -49,6 +49,33 @@ export default function ClientCostCentersPage() {
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
 
+  const isRealInvoiceNumber = (value) =>
+    /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
+
+  const buildCostCenterInfoMap = async (accountNumbers) => {
+    if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
+      return new Map();
+    }
+
+    const response = await fetch(
+      `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}`,
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch cost center details');
+    }
+
+    const payload = await response.json();
+    const costCenters = Array.isArray(payload?.costCenters) ? payload.costCenters : [];
+
+    return new Map(
+      costCenters.map((center) => [
+        String(center?.cost_code || '').trim().toUpperCase(),
+        center,
+      ]),
+    );
+  };
+
   const mapPaymentsToVehicles = (payments, fallbackCompany) => {
     return (payments || []).map((payment) => ({
       doc_no: payment.id,
@@ -96,7 +123,40 @@ export default function ClientCostCentersPage() {
     return summary;
   };
 
-  const loadFromPaymentsData = ({ clientInfo, payments, summary, searchDetails, searchMethod }) => {
+  const buildCostCenterAmounts = (payment, invoice) => {
+    const dueAmount = Number(payment?.due_amount || 0);
+    const paidAmount = Number(payment?.paid_amount || 0);
+    const balanceDue = Number(payment?.balance_due || 0);
+    const invoiceTotal = Number(invoice?.total_amount || 0);
+    const hasPaymentAmounts = dueAmount > 0 || paidAmount > 0 || balanceDue > 0;
+
+    if (hasPaymentAmounts) {
+      return {
+        dueAmount,
+        paidAmount,
+        balanceDue,
+        paymentStatus: payment?.payment_status || 'pending',
+      };
+    }
+
+    if (invoiceTotal > 0) {
+      return {
+        dueAmount: invoiceTotal,
+        paidAmount: 0,
+        balanceDue: invoiceTotal,
+        paymentStatus: 'pending',
+      };
+    }
+
+    return {
+      dueAmount: 0,
+      paidAmount: 0,
+      balanceDue: 0,
+      paymentStatus: payment?.payment_status || 'pending',
+    };
+  };
+
+  const loadFromPaymentsData = ({ clientInfo, payments, summary, searchDetails, searchMethod, costCenterInfoMap = new Map() }) => {
     const vehicles = mapPaymentsToVehicles(payments, clientInfo.companyGroup || code);
     setClientLegalName(clientInfo.companyGroup || code);
 
@@ -143,6 +203,7 @@ export default function ClientCostCentersPage() {
       const data = await response.json();
       const payments = Array.isArray(data?.payments) ? data.payments : [];
       const summary = data?.summary || null;
+      const costCenterInfoMap = await buildCostCenterInfoMap(accountNumbers);
 
       loadFromPaymentsData({
         clientInfo: {
@@ -159,7 +220,8 @@ export default function ClientCostCentersPage() {
           totalDueAmount: summary?.totalDueAmount || 0,
           totalBalanceDue: summary?.totalBalanceDue || 0
         },
-        searchMethod: 'payments_table_focus'
+        searchMethod: 'payments_table_focus',
+        costCenterInfoMap
       });
 
       setLoading(false);
@@ -190,30 +252,38 @@ export default function ClientCostCentersPage() {
         return false;
       }
 
-      const payments = centers.map((center) => ({
-        id: center.payment?.id || null,
-        company: center.company || center.payment?.company || prefix,
-        cost_code: center.cost_code,
-        reference: center.payment?.reference || '',
-        due_amount: center.payment?.due_amount || 0,
-        paid_amount: center.payment?.paid_amount || 0,
-        balance_due: center.payment?.balance_due || 0,
-        invoice_date: center.payment?.invoice_date || null,
-        due_date: center.payment?.due_date || null,
-        payment_status: center.payment?.payment_status || 'pending',
-        overdue_30_days: center.payment?.overdue_30_days || 0,
-        overdue_60_days: center.payment?.overdue_60_days || 0,
-        overdue_90_days: center.payment?.overdue_90_days || 0,
-        last_updated: center.payment?.last_updated || null,
-        billing_month: center.payment?.billing_month || null
-      }));
+      const payments = centers.map((center) => {
+        const amounts = buildCostCenterAmounts(center.payment, center.invoice);
+        const reference = isRealInvoiceNumber(center.invoice?.invoice_number)
+          ? center.invoice.invoice_number
+          : isRealInvoiceNumber(center.payment?.reference)
+            ? center.payment.reference
+            : '';
+        return {
+          id: center.payment?.id || center.invoice?.id || null,
+          company: center.legal_name || center.company || center.payment?.company || center.invoice?.company_name || prefix,
+          cost_code: center.cost_code,
+          reference,
+          due_amount: amounts.dueAmount,
+          paid_amount: amounts.paidAmount,
+          balance_due: amounts.balanceDue,
+          invoice_date: center.payment?.invoice_date || center.invoice?.invoice_date || null,
+          due_date: center.payment?.due_date || null,
+          payment_status: amounts.paymentStatus,
+          overdue_30_days: center.payment?.overdue_30_days || 0,
+          overdue_60_days: center.payment?.overdue_60_days || 0,
+          overdue_90_days: center.payment?.overdue_90_days || 0,
+          last_updated: center.payment?.last_updated || center.invoice?.created_at || null,
+          billing_month: center.payment?.billing_month || center.invoice?.billing_month || null
+        };
+      });
 
       const summary = buildSummaryFromPayments(payments);
 
       loadFromPaymentsData({
         clientInfo: {
-          companyGroup: centers[0]?.company || prefix,
-          legalNames: [],
+          companyGroup: centers[0]?.legal_name || centers[0]?.company || prefix,
+          legalNames: centers.map((center) => center.legal_name).filter(Boolean),
           accountNumbers: centers.map((center) => center.cost_code).join(', '),
           searchMethod: 'cost_centers_with_payments'
         },
@@ -225,7 +295,13 @@ export default function ClientCostCentersPage() {
           totalDueAmount: summary.totalDueAmount,
           totalBalanceDue: summary.totalBalanceDue
         },
-        searchMethod: 'cost_centers_with_payments'
+        searchMethod: 'cost_centers_with_payments',
+        costCenterInfoMap: new Map(
+          centers.map((center) => [
+            String(center?.cost_code || '').trim().toUpperCase(),
+            center,
+          ]),
+        )
       });
 
       setLoading(false);
@@ -554,14 +630,20 @@ export default function ClientCostCentersPage() {
       setClientLegalName(clientInfo.companyGroup || code);
 
       // Convert payments_ table data to cost centers format
-      const costCentersFromPayments = payments?.map(payment => ({
+      const costCentersFromPayments = payments?.map(payment => {
+        const matchedCostCenter =
+          costCenterInfoMap.get(String(payment.cost_code || '').trim().toUpperCase()) || null;
+        const reference = isRealInvoiceNumber(payment.reference) ? payment.reference : '';
+
+        return {
         accountNumber: payment.cost_code,
-        accountName: payment.company || payment.cost_code,
+        accountName: matchedCostCenter?.legal_name || matchedCostCenter?.company || payment.company || payment.cost_code,
+        company: matchedCostCenter?.company || payment.company || payment.cost_code,
         dueAmount: payment.due_amount || 0,
         paidAmount: payment.paid_amount || 0,
         balanceDue: payment.balance_due || 0,
         paymentStatus: payment.payment_status || 'pending',
-        reference: payment.reference || '',
+        reference,
         billingMonth: payment.billing_month,
         overdue30Days: payment.overdue_30_days || 0,
         overdue60Days: payment.overdue_60_days || 0,
@@ -569,13 +651,14 @@ export default function ClientCostCentersPage() {
         lastUpdated: payment.last_updated,
         invoiceDate: payment.invoice_date,
         dueDate: payment.due_date,
+        costCenterInfo: matchedCostCenter,
         vehicleCount: 1, // Each payment record represents one cost center
         vehicles: [{
           doc_no: payment.id,
           stock_code: payment.cost_code,
-          stock_description: `${payment.company || 'N/A'} - ${payment.cost_code}`,
+          stock_description: `${matchedCostCenter?.company || payment.company || 'N/A'} - ${payment.cost_code}`,
           account_number: payment.cost_code,
-          company: payment.company || clientInfo.companyGroup,
+          company: matchedCostCenter?.company || payment.company || clientInfo.companyGroup,
           total_ex_vat: Number(payment.due_amount || 0),
           total_vat: 0,
           total_incl_vat: Number(payment.due_amount || 0),
@@ -586,12 +669,13 @@ export default function ClientCostCentersPage() {
           monthly_amount: Number(payment.due_amount || 0),
           payment_status: payment.payment_status,
           billing_month: payment.billing_month,
-          reference: payment.reference,
+          reference,
           overdue_30_days: Number(payment.overdue_30_days || 0),
           overdue_60_days: Number(payment.overdue_60_days || 0),
           overdue_90_days: Number(payment.overdue_90_days || 0)
         }]
-      })) || [];
+      };
+      }) || [];
 
       console.log('Converted cost centers from payments:', costCentersFromPayments);
 
@@ -838,7 +922,7 @@ export default function ClientCostCentersPage() {
           paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
           balanceDue: vehicle.amount_due || 0,
           paymentStatus: vehicle.payment_status || 'pending',
-          reference: vehicle.reference || '',
+          reference: isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '',
           billingMonth: vehicle.billing_month,
           vehicleCount: 0,
           vehicles: []
@@ -850,7 +934,7 @@ export default function ClientCostCentersPage() {
       costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
       costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
       costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
-      costCenters[accountNumber].reference = vehicle.reference || '';
+      costCenters[accountNumber].reference = isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '';
       costCenters[accountNumber].billingMonth = vehicle.billing_month;
       costCenters[accountNumber].vehicleCount += 1;
       costCenters[accountNumber].vehicles.push(vehicle);
@@ -2303,7 +2387,13 @@ export default function ClientCostCentersPage() {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
       
       // Fetch vehicle invoice data from vehicles table
-      const response = await fetch(`/api/vehicles/invoice?accountNumber=${costCenter.accountNumber}`);
+      const query = new URLSearchParams({
+        accountNumber: costCenter.accountNumber,
+      });
+      if (costCenter.billingMonth) {
+        query.set("billingMonth", costCenter.billingMonth);
+      }
+      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch vehicle invoice data');
       }
@@ -3371,7 +3461,9 @@ export default function ClientCostCentersPage() {
           <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
             {/* Modal Header */}
             <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
-              <h3 className="font-semibold text-gray-900 text-xl">Invoice Report - {selectedCostCenterForInvoice.accountNumber}</h3>
+              <h3 className="font-semibold text-gray-900 text-xl">
+                Invoice - {selectedCostCenterForInvoice.accountName || selectedCostCenterForInvoice.company || clientLegalName || selectedCostCenterForInvoice.accountNumber}
+              </h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -3391,6 +3483,44 @@ export default function ClientCostCentersPage() {
                 costCenter={selectedCostCenterForInvoice}
                 clientLegalName={clientLegalName}
                 invoiceData={selectedCostCenterForInvoice.invoiceData}
+                onInvoiceGenerated={(invoice) => {
+                  setSelectedCostCenterForInvoice((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          reference: invoice.invoice_number,
+                          invoiceData: {
+                            ...(prev.invoiceData || {}),
+                            invoice_number: invoice.invoice_number,
+                            invoice_date: invoice.invoice_date,
+                            client_address: invoice.client_address,
+                            customer_vat_number: invoice.customer_vat_number,
+                            subtotal: invoice.subtotal,
+                            vat_amount: invoice.vat_amount,
+                            total_amount: invoice.total_amount,
+                            invoice_items: invoice.line_items,
+                            invoiceItems: invoice.line_items,
+                          },
+                        }
+                      : prev,
+                  );
+                  setCostCentersWithPayments((prev) =>
+                    prev.map((item) =>
+                      item.accountNumber === selectedCostCenterForInvoice?.accountNumber
+                        ? {
+                            ...item,
+                            reference: invoice.invoice_number,
+                            dueAmount: Number(invoice.total_amount || 0),
+                            balanceDue: Number(invoice.total_amount || 0),
+                            paidAmount: 0,
+                            paymentStatus: 'pending',
+                            billingMonth: invoice.billing_month || item.billingMonth,
+                            invoiceDate: invoice.invoice_date || item.invoiceDate,
+                          }
+                        : item,
+                    ),
+                  );
+                }}
               />
             </div>
           </div>

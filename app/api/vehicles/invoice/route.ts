@@ -1,6 +1,89 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+const buildAddress = (source?: Record<string, unknown> | null) =>
+  [
+    source?.physical_address_1,
+    source?.physical_address_2,
+    source?.physical_address_3,
+    source?.physical_area,
+    source?.physical_province,
+    source?.physical_code,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n');
+
+const TOTAL_BILLING_COLUMNS = new Set([
+  'total_rental_sub',
+  'total_rental',
+  'total_sub',
+]);
+
+const SERVICE_ONLY_COLUMNS = new Set([
+  'consultancy',
+  'roaming',
+  'maintenance',
+  'after_hours',
+  'controlroom',
+  'software',
+  'additional_data',
+]);
+
+const formatColumnLabel = (value: string) =>
+  value
+    .replace(/^_+/, '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const hasLegacyStoredLineItems = (items: any[]) =>
+  items.some((item) => {
+    const itemCode = String(item?.item_code || '').trim().toUpperCase();
+    const description = String(item?.description || '').trim().toUpperCase();
+    return (
+      itemCode.startsWith('TOTAL_') ||
+      description === 'TOTAL RENTAL SUB' ||
+      description === 'TOTAL RENTAL' ||
+      description === 'TOTAL SUB'
+    );
+  });
+
+const pushInvoiceItem = (
+  invoiceItems: any[],
+  vehicle: Record<string, any>,
+  companyName: string,
+  regFleetDisplay: string,
+  itemCode: string,
+  description: string,
+  comments: string,
+  amount: number,
+) => {
+  const vatAmount = amount * 0.15;
+  const totalInclVat = amount + vatAmount;
+
+  invoiceItems.push({
+    reg: vehicle.reg || null,
+    fleetNumber: vehicle.fleet_number || null,
+    regFleetDisplay,
+    item_code: itemCode,
+    description,
+    company: comments,
+    account_number: vehicle.account_number || vehicle.new_account_number || '',
+    units: 1,
+    unit_price: amount.toFixed(2),
+    unit_price_without_vat: amount.toFixed(2),
+    amountExcludingVat: amount.toFixed(2),
+    total_excl_vat: amount.toFixed(2),
+    vat_amount: vatAmount.toFixed(2),
+    vatAmount: vatAmount.toFixed(2),
+    total_incl_vat: totalInclVat.toFixed(2),
+    total_including_vat: totalInclVat.toFixed(2),
+    totalRentalSub: totalInclVat.toFixed(2),
+  });
+
+  return totalInclVat;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -12,10 +95,44 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = searchParams.get('accountNumber');
+    const billingMonth = searchParams.get('billingMonth');
 
     if (!accountNumber) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
     }
+
+    let storedInvoiceQuery = supabase
+      .from('account_invoices')
+      .select('*')
+      .eq('account_number', accountNumber)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    storedInvoiceQuery = billingMonth
+      ? storedInvoiceQuery.eq('billing_month', billingMonth)
+      : storedInvoiceQuery.is('billing_month', null);
+
+    const { data: storedInvoiceRows, error: storedInvoiceError } = await storedInvoiceQuery;
+    if (storedInvoiceError) {
+      console.error('Error fetching stored account invoice:', storedInvoiceError);
+      throw storedInvoiceError;
+    }
+
+    const storedInvoice = Array.isArray(storedInvoiceRows) ? storedInvoiceRows[0] || null : null;
+
+    const { data: costCenterRows, error: costCenterError } = await supabase
+      .from('cost_centers')
+      .select('*')
+      .eq('cost_code', accountNumber)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (costCenterError) {
+      console.error('Error fetching cost center for invoice:', costCenterError);
+      throw costCenterError;
+    }
+
+    const costCenter = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
 
     // Fetch all vehicle fields
     const { data: vehicles, error } = await supabase
@@ -24,7 +141,7 @@ export async function GET(request: NextRequest) {
       .or(`account_number.eq.${accountNumber},new_account_number.eq.${accountNumber}`);
 
     if (error) throw error;
-    if (!vehicles || vehicles.length === 0) {
+    if ((!vehicles || vehicles.length === 0) && !storedInvoice) {
       return NextResponse.json({ 
         success: true,
         accountNumber,
@@ -33,14 +150,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Fetch customer details
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('legal_name, company, trading_name, new_account_number, account_number')
-      .or(`account_number.eq.${accountNumber},new_account_number.eq.${accountNumber}`);
-
-    const customer = customers?.[0];
-    const companyName = customer?.legal_name || customer?.company || customer?.trading_name || '';
+    const companyName =
+      storedInvoice?.company_name ||
+      costCenter?.legal_name ||
+      costCenter?.company ||
+      '';
+    const clientAddress =
+      storedInvoice?.client_address ||
+      buildAddress(costCenter);
+    const customerVatNumber =
+      storedInvoice?.customer_vat_number ||
+      costCenter?.vat_number ||
+      '';
 
     // Build invoice items
     const invoiceItems: any[] = [];
@@ -152,7 +273,7 @@ export async function GET(request: NextRequest) {
       'additional_data'
     ]);
 
-    vehicles.forEach((vehicle) => {
+    (vehicles || []).forEach((vehicle) => {
       // Show both reg and fleet_number if available
       let regFleetDisplay = '';
       if (vehicle.reg && vehicle.fleet_number) {
@@ -160,11 +281,12 @@ export async function GET(request: NextRequest) {
       } else {
         regFleetDisplay = vehicle.reg || vehicle.fleet_number || '';
       }
+      let vehicleHasSpecificItems = false;
       
       // Loop through all fields to find billable items
       Object.keys(vehicle).forEach((key) => {
         // Check if it's a rental, sub, or roaming field with a value
-        if (BILLABLE_COLUMNS.has(key) && vehicle[key]) {
+        if (BILLABLE_COLUMNS.has(key) && vehicle[key] && !TOTAL_BILLING_COLUMNS.has(key)) {
           const amount = parseFloat(vehicle[key]) || 0;
           if (amount > 0) {
             // Get the base field name (without _rental or _sub)
@@ -174,50 +296,124 @@ export async function GET(request: NextRequest) {
             const equipmentField = vehicle[baseFieldName];
             const hasEquipment = equipmentField && equipmentField.toString().trim() !== '';
             
-            if (hasEquipment || key === 'roaming') {
-              const vatAmount = amount * 0.15;
-              const totalInclVat = amount + vatAmount;
-              
-              // Format the field name as item description
-              const itemName = key
-                .replace(/_/g, ' ')
-                .replace(/\b\w/g, l => l.toUpperCase());
-              
-              invoiceItems.push({
-                reg: vehicle.reg || null,
-                fleetNumber: vehicle.fleet_number || null,
+            if (hasEquipment || SERVICE_ONLY_COLUMNS.has(key)) {
+              const rawEquipmentValue = String(equipmentField || '').trim();
+              const itemCode = key.toUpperCase();
+              const description = hasEquipment
+                ? rawEquipmentValue
+                : formatColumnLabel(key);
+              const comments = hasEquipment
+                ? formatColumnLabel(baseFieldName)
+                : (vehicle.company || companyName);
+              vehicleHasSpecificItems = true;
+              totalAmount += pushInvoiceItem(
+                invoiceItems,
+                vehicle,
+                companyName,
                 regFleetDisplay,
-                item_code: key.toUpperCase(),
-                description: itemName,
-                company: vehicle.company || companyName,
-                account_number: vehicle.account_number || vehicle.new_account_number || '',
-                units: 1,
-                unit_price: amount.toFixed(2),
-                unit_price_without_vat: amount.toFixed(2),
-                amountExcludingVat: amount.toFixed(2),
-                total_excl_vat: amount.toFixed(2),
-                vat_amount: vatAmount.toFixed(2),
-                vatAmount: vatAmount.toFixed(2),
-                total_incl_vat: totalInclVat.toFixed(2),
-                total_including_vat: totalInclVat.toFixed(2),
-                totalRentalSub: totalInclVat.toFixed(2)
-              });
-              
-              totalAmount += totalInclVat;
+                itemCode,
+                description,
+                comments,
+                amount,
+              );
             }
           }
         }
       });
+
+      if (!vehicleHasSpecificItems) {
+        const monthlyRental = parseFloat(String(vehicle.total_rental || 0)) || 0;
+        const monthlySub = parseFloat(String(vehicle.total_sub || 0)) || 0;
+
+        if (monthlyRental > 0) {
+          totalAmount += pushInvoiceItem(
+            invoiceItems,
+            vehicle,
+            companyName,
+            regFleetDisplay,
+            'MONTHLY_RENTAL',
+            'Monthly Rental',
+            vehicle.company || companyName,
+            monthlyRental,
+          );
+        }
+
+        if (monthlySub > 0) {
+          totalAmount += pushInvoiceItem(
+            invoiceItems,
+            vehicle,
+            companyName,
+            regFleetDisplay,
+            'MONTHLY_SUB',
+            'Monthly Subscription',
+            vehicle.company || companyName,
+            monthlySub,
+          );
+        }
+      }
     });
 
-    // Structure invoice
+    const storedLineItems =
+      Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
+        ? storedInvoice.line_items
+        : [];
+    const useStoredLineItems =
+      storedLineItems.length > 0 && !hasLegacyStoredLineItems(storedLineItems);
+    const resolvedLineItems = useStoredLineItems ? storedLineItems : invoiceItems;
+
+    const resolvedSubtotal =
+      (useStoredLineItems ? storedInvoice?.subtotal : null) ??
+      resolvedLineItems.reduce(
+        (sum, item) =>
+          sum +
+          (parseFloat(
+            String(
+              item.amountExcludingVat ??
+              item.total_excl_vat ??
+              item.unit_price_without_vat ??
+              item.unit_price ??
+              0,
+            ),
+          ) || 0),
+        0,
+      );
+
+    const resolvedVat =
+      (useStoredLineItems ? storedInvoice?.vat_amount : null) ??
+      resolvedLineItems.reduce(
+        (sum, item) => sum + (parseFloat(String(item.vat_amount ?? item.vatAmount ?? 0)) || 0),
+        0,
+      );
+
+    const resolvedTotal =
+      (useStoredLineItems ? storedInvoice?.total_amount : null) ??
+      resolvedLineItems.reduce(
+        (sum, item) =>
+          sum +
+          (parseFloat(
+            String(
+              item.total_including_vat ??
+              item.total_incl_vat ??
+              item.totalRentalSub ??
+              0,
+            ),
+          ) || 0),
+        0,
+      );
+
     const invoiceData = {
       company_name: companyName,
       account_number: accountNumber,
-      invoice_date: new Date().toLocaleDateString(),
-      invoice_items: invoiceItems,
-      invoiceItems: invoiceItems,
-      total_amount: totalAmount.toFixed(2)
+      billing_month: billingMonth,
+      invoice_date: storedInvoice?.invoice_date || new Date().toISOString(),
+      invoice_number: storedInvoice?.invoice_number || '',
+      client_address: storedInvoice?.client_address || clientAddress,
+      customer_vat_number: customerVatNumber,
+      invoice_items: resolvedLineItems,
+      invoiceItems: resolvedLineItems,
+      total_amount: resolvedTotal,
+      subtotal: resolvedSubtotal,
+      vat_amount: resolvedVat,
     };
 
     return NextResponse.json({
