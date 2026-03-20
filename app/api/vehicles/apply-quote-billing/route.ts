@@ -16,6 +16,8 @@ const BILLABLE_COLUMNS = [
   "sky_scout_24v_sub",
   "skylink_pro_rental",
   "skylink_pro_sub",
+  "skyspy_rental",
+  "skyspy_sub",
   "sky_idata_rental",
   "sky_ican_rental",
   "industrial_panic_rental",
@@ -161,6 +163,7 @@ const DIRECT_ALIASES: Record<string, string> = {
   sky_scout_12v: "sky_scout_12v",
   sky_scout_24v: "sky_scout_24v",
   skylink_pro: "skylink_pro",
+  skyspy: "skyspy",
   skylink_sim_card_no: "skylink_sim_card_no",
   skylink_data_number: "skylink_data_number",
   sky_safety: "sky_safety",
@@ -244,6 +247,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   remco_freight_software_development: "remco_freight_software_development",
   vt_logistics_software_development: "vt_logistics_software_development",
   epilite_software_development: "epilite_software_development",
+  skyspy_rental: "skyspy_rental",
+  skyspy_sub: "skyspy_sub",
 };
 
 const FAMILY_ALIAS_KEYWORDS: Record<string, string[]> = {

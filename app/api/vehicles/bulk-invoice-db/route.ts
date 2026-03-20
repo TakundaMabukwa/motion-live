@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
           if (lower.includes('sky_scout_12v')) return lower.includes('_sub') ? 'Sky Scout 12V - Subscription' : 'Sky Scout 12V - Rental';
           if (lower.includes('sky_scout_24v')) return lower.includes('_sub') ? 'Sky Scout 24V - Subscription' : 'Sky Scout 24V - Rental';
           if (lower.includes('skylink_pro')) return lower.includes('_sub') ? 'Skylink Pro - Subscription' : 'Skylink Pro - Rental';
+          if (lower.includes('skyspy')) return lower.includes('_sub') ? 'SkySpy - Subscription' : 'SkySpy - Rental';
           
           // Camera equipment
           if (lower.includes('_4ch_mdvr')) return lower.includes('_sub') ? '4CH MDVR - Subscription' : '4CH MDVR - Rental';

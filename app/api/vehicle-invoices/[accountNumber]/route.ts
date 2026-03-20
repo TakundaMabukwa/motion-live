@@ -14,6 +14,8 @@ const BILLABLE_COLUMNS = new Set([
   "sky_scout_24v_sub",
   "skylink_pro_rental",
   "skylink_pro_sub",
+  "skyspy_rental",
+  "skyspy_sub",
   "sky_idata_rental",
   "sky_ican_rental",
   "industrial_panic_rental",

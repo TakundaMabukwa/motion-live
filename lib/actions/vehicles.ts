@@ -29,6 +29,7 @@ export interface Vehicle {
   sky_scout_24v_ip: string | null;
   skylink_pro_serial_number: string | null;
   skylink_pro_ip: string | null;
+  skyspy: string | null;
   skylink_sim_card_no: string | null;
   skylink_data_number: string | null;
   sky_safety: string | null;
@@ -121,6 +122,8 @@ export interface Vehicle {
   sky_scout_24v_sub: string | null;
   skylink_pro_rental: string | null;
   skylink_pro_sub: string | null;
+  skyspy_rental: string | null;
+  skyspy_sub: string | null;
   sky_idata_rental: string | null;
   sky_ican_rental: string | null;
   industrial_panic_rental: string | null;

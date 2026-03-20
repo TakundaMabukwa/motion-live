@@ -31,6 +31,7 @@ const PRODUCT_MAPPING_RULES: ProductMappingRule[] = [
   { kind: "grouped", field: "skylink_trailer_unit", aliases: ["skylink_asset_trailer", "skylink_asset", "trailer_unit", "ituran_starlink_4g_au"], type: ["fms"], category: ["fms"] },
   { kind: "grouped", field: "sky_scout_12v", aliases: ["skylink_scout_12v", "scout_12v"], type: ["fms"], category: ["fms"] },
   { kind: "grouped", field: "sky_scout_24v", aliases: ["skylink_scout_24v", "scout_24v"], type: ["fms"], category: ["fms"] },
+  { kind: "direct", field: "skyspy", aliases: ["skyspy"], type: ["fms"], category: ["fms", "services"] },
   { kind: "family", field: "beame", aliases: ["beame_backup_unit", "beame_beacon", "wireless_recovery_unit", "wireless_recovery_unit_only", "backup_unit", "beacon"], category: ["backup"] },
   { kind: "direct", field: "sky_safety", aliases: ["sky_safety"], category: ["module"] },
   { kind: "direct", field: "sky_ican", aliases: ["sky_can", "canbus_integration"], category: ["module"] },

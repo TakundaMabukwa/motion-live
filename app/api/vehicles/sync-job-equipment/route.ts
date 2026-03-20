@@ -22,6 +22,7 @@ const DIRECT_ALIASES: Record<string, string> = {
   sky_scout_12v: "sky_scout_12v",
   sky_scout_24v: "sky_scout_24v",
   skylink_pro: "skylink_pro",
+  skyspy: "skyspy",
   skylink_sim_card_no: "skylink_sim_card_no",
   skylink_data_number: "skylink_data_number",
   sky_safety: "sky_safety",
