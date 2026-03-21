@@ -78,7 +78,9 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
   const fetchCompanyGroups = useCallback(async (search = "") => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`);
+      const response = await fetch(`/api/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`, {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch company groups');
       }
@@ -135,6 +137,7 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
       // Make single batch API call
       const response = await fetch('/api/customers/contact-info/batch', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -178,42 +181,10 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
   const clearData = useCallback(() => {
     setCompanyGroups([]);
     setContactInfo({});
+    setPaymentData({});
     setTotalCount(0);
     setIsDataLoaded(false);
   }, []);
-
-  // Load data from localStorage on mount if available
-  useEffect(() => {
-    try {
-      const savedCompanyGroups = localStorage.getItem('fc_company_groups');
-      const savedContactInfo = localStorage.getItem('fc_contact_info');
-      const savedTotalCount = localStorage.getItem('fc_total_count');
-      
-      if (savedCompanyGroups && savedContactInfo && savedTotalCount) {
-        setCompanyGroups(JSON.parse(savedCompanyGroups));
-        setContactInfo(JSON.parse(savedContactInfo));
-        setTotalCount(JSON.parse(savedTotalCount));
-        setIsDataLoaded(true);
-        console.log('Loaded client data from localStorage');
-      }
-    } catch (error) {
-      console.error('Error loading data from localStorage:', error);
-    }
-  }, []);
-
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    if (isDataLoaded) {
-      try {
-        localStorage.setItem('fc_company_groups', JSON.stringify(companyGroups));
-        localStorage.setItem('fc_contact_info', JSON.stringify(contactInfo));
-        localStorage.setItem('fc_total_count', JSON.stringify(totalCount));
-        console.log('Saved client data to localStorage');
-      } catch (error) {
-        console.error('Error saving data to localStorage:', error);
-      }
-    }
-  }, [companyGroups, contactInfo, totalCount, isDataLoaded]);
 
   const value: ClientsContextType = {
     companyGroups,

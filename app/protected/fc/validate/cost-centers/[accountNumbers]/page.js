@@ -25,17 +25,33 @@ export default function ValidateCostCentersPage() {
   const [deleteAction, setDeleteAction] = useState(null); // 'transfer' or 'delete'
   const accountNumbers = params?.accountNumbers ? decodeURIComponent(params.accountNumbers) : "";
 
+  const normalizedAccountNumbers = accountNumbers
+    .split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter(Boolean);
+
   useEffect(() => {
     const fetchCostCenters = async () => {
       try {
-        if (!accountNumbers) {
+        if (normalizedAccountNumbers.length === 0) {
           console.error('No account numbers provided');
           toast.error('No account numbers provided');
+          setCostCenters([]);
+          setLoading(false);
           return;
         }
 
-        console.log('Fetching cost centers for accounts:', accountNumbers);
-        const response = await fetch(`/api/cost-centers?accounts=${encodeURIComponent(accountNumbers)}`);
+        const isSingleAccount = normalizedAccountNumbers.length === 1;
+        const singleAccount = normalizedAccountNumbers[0] || "";
+        const prefix = singleAccount.split("-")[0]?.trim();
+
+        const requestUrl =
+          isSingleAccount && prefix
+            ? `/api/cost-centers?prefix=${encodeURIComponent(prefix)}`
+            : `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(normalizedAccountNumbers.join(","))}`;
+
+        console.log('Fetching cost centers using request:', requestUrl);
+        const response = await fetch(requestUrl, { cache: "no-store" });
         console.log('Cost centers response status:', response.status);
         
         if (!response.ok) {
@@ -46,7 +62,39 @@ export default function ValidateCostCentersPage() {
         
         const data = await response.json();
         console.log('Cost centers data:', data);
-        setCostCenters(Array.isArray(data) ? data : []);
+
+        const fetchedCenters = Array.isArray(data?.costCenters)
+          ? data.costCenters
+          : Array.isArray(data)
+            ? data
+            : [];
+
+        const orderedCenters =
+          isSingleAccount && prefix
+            ? fetchedCenters.filter((center) =>
+                String(center?.cost_code || "").trim().toUpperCase().startsWith(`${prefix}-`),
+              )
+            : normalizedAccountNumbers
+                .map((code) =>
+                  fetchedCenters.find(
+                    (center) =>
+                      String(center?.cost_code || "").trim().toUpperCase() === code,
+                  ),
+                )
+                .filter(Boolean);
+
+        setCostCenters(orderedCenters);
+
+        if (!isSingleAccount && orderedCenters.length !== normalizedAccountNumbers.length) {
+          const missingCodes = normalizedAccountNumbers.filter(
+            (code) =>
+              !fetchedCenters.some(
+                (center) =>
+                  String(center?.cost_code || "").trim().toUpperCase() === code,
+              ),
+          );
+          console.warn("Missing cost centers for codes:", missingCodes);
+        }
       } catch (error) {
         console.error('Error fetching cost centers:', error);
         toast.error('Failed to load cost centers: ' + error.message);

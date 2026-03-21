@@ -15,11 +15,18 @@ export async function GET(request) {
 
     const supabase = await createClient();
 
-    // Find all vehicles with this new_account_number
-    const { data: vehicles, error } = await supabase
-      .from('vehicles')
-      .select('id, reg, fleet_number, make, model, new_account_number')
-      .eq('new_account_number', costCode);
+    const [newAccountResult, accountResult] = await Promise.all([
+      supabase
+        .from('vehicles')
+        .select('id, reg, fleet_number, make, model, new_account_number, account_number')
+        .eq('new_account_number', costCode),
+      supabase
+        .from('vehicles')
+        .select('id, reg, fleet_number, make, model, new_account_number, account_number')
+        .eq('account_number', costCode),
+    ]);
+
+    const error = newAccountResult.error || accountResult.error;
 
     if (error) {
       console.error('Error fetching vehicles:', error);
@@ -28,6 +35,15 @@ export async function GET(request) {
         { status: 500 }
       );
     }
+
+    const byId = new Map();
+    [...(newAccountResult.data || []), ...(accountResult.data || [])].forEach((vehicle) => {
+      if (vehicle?.id != null) {
+        byId.set(vehicle.id, vehicle);
+      }
+    });
+
+    const vehicles = Array.from(byId.values());
 
     return NextResponse.json({
       vehicles: vehicles || [],

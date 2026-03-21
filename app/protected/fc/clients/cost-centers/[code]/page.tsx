@@ -61,56 +61,15 @@ export default function ClientCostCentersPage() {
     }
   }, [clientCode]);
 
-  // Check for stored payment data from sessionStorage
-  useEffect(() => {
-    const storedPaymentData = sessionStorage.getItem('clientPaymentData');
-    if (storedPaymentData) {
-      try {
-        const data = JSON.parse(storedPaymentData);
-        console.log('Retrieved payment data from sessionStorage:', data);
-        
-        if (data.clientInfo) {
-          setClientInfo(data.clientInfo);
-        }
-        
-        if (data.payments && Array.isArray(data.payments)) {
-          // Convert array to object keyed by cost_code
-          const paymentMap: Record<string, PaymentInfo> = {};
-          data.payments.forEach((payment: any) => {
-            paymentMap[payment.cost_code] = {
-              cost_code: payment.cost_code,
-              due_amount: parseFloat(payment.due_amount) || 0,
-              balance_due: parseFloat(payment.balance_due) || 0,
-              payment_status: payment.payment_status || 'pending',
-              billing_month: payment.billing_month || '',
-              overdue_30_days: parseFloat(payment.overdue_30_days) || 0,
-              overdue_60_days: parseFloat(payment.overdue_60_days) || 0,
-              overdue_90_days: parseFloat(payment.overdue_90_days) || 0,
-              last_updated: payment.last_updated || '',
-            };
-          });
-          setPaymentData(paymentMap);
-        }
-        
-        if (data.summary) {
-          setPaymentSummary(data.summary);
-        }
-        
-        // Remove the data from sessionStorage after using it
-        sessionStorage.removeItem('clientPaymentData');
-      } catch (error) {
-        console.error('Error parsing stored payment data:', error);
-      }
-    }
-  }, []);
-
   const fetchClientData = async (code: string) => {
     try {
       setLoading(true);
       console.log(`Fetching client data for code: ${code}`);
       
       // Fetch client data using the client-payments API
-      const response = await fetch(`/api/client-payments?code=${encodeURIComponent(code)}&includeLegalNames=true`);
+      const response = await fetch(`/api/client-payments?code=${encodeURIComponent(code)}&includeLegalNames=true`, {
+        cache: 'no-store',
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch client data: ${response.status}`);

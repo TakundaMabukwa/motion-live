@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
@@ -47,7 +47,6 @@ export default function AccountsDashboard() {
     isDataLoaded 
   } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
   const [giveAccessDialog, setGiveAccessDialog] = useState({ open: false, clientName: "" });
 
@@ -55,24 +54,32 @@ export default function AccountsDashboard() {
 
   // Initial load
   useEffect(() => {
-    if (activeTab === 'companies' && !isDataLoaded) {
+    if (activeTab === 'companies') {
       fetchCompanyGroups("");
     }
-  }, [fetchCompanyGroups, activeTab, isDataLoaded]);
+  }, [fetchCompanyGroups, activeTab, pathname]);
 
-  // Debounced search effect
   useEffect(() => {
-    if (activeTab === 'companies') {
-      const timer = setTimeout(() => {
-        if (searchTerm !== debouncedSearchTerm) {
-          setDebouncedSearchTerm(searchTerm);
-          fetchCompanyGroups(searchTerm);
-        }
-      }, 500);
+    if (activeTab !== 'companies') return;
 
-      return () => clearTimeout(timer);
-    }
-  }, [searchTerm, fetchCompanyGroups, activeTab]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCompanyGroups("");
+      }
+    };
+
+    const handleWindowFocus = () => {
+      fetchCompanyGroups("");
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [fetchCompanyGroups, activeTab]);
 
   const filteredCompanyGroups = useMemo(() => {
     console.log('🔍 [FC DASHBOARD] Company groups loaded:', companyGroups.length);
@@ -89,6 +96,25 @@ export default function AccountsDashboard() {
     
     return companyGroups;
   }, [companyGroups]);
+
+  const visibleCompanyGroups = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return companyGroups;
+
+    return companyGroups.filter((group) => {
+      const searchText = [
+        group.company_group,
+        group.legal_names,
+        group.all_new_account_numbers,
+        ...(group.legal_names_list || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchText.includes(normalizedSearch);
+    });
+  }, [companyGroups, searchTerm]);
 
   const handleNewAccount = () => {
     router.push('/protected/fc/add-account');
@@ -143,7 +169,7 @@ export default function AccountsDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => fetchCompanyGroups(searchTerm)}
+                onClick={() => fetchCompanyGroups("")}
                 disabled={loading}
                 className="flex items-center gap-2"
               >
@@ -159,7 +185,7 @@ export default function AccountsDashboard() {
             {/* Results count */}
             {!loading && (
               <div className="text-sm text-gray-600">
-                Showing {filteredCompanyGroups.length} of {totalCount} clients
+                Showing {visibleCompanyGroups.length} of {totalCount} clients
                 {searchTerm && ` matching "${searchTerm}"`}
                 {loadingContacts && (
                   <span className="ml-2 text-blue-600">
@@ -170,7 +196,7 @@ export default function AccountsDashboard() {
                 {isDataLoaded && (
                   <span className="ml-2 text-green-600">
                     <CheckCircle className="w-3 h-3 inline mr-1" />
-                    Data cached
+                    Data loaded
                   </span>
                 )}
                 {/* Debug: Show which groups have ALLI-0001 */}
@@ -194,7 +220,7 @@ export default function AccountsDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {companyGroups.length === 0 ? (
+                    {visibleCompanyGroups.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={3} className="text-center py-8">
                           <div className="flex flex-col items-center">
@@ -204,7 +230,7 @@ export default function AccountsDashboard() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      companyGroups.map((group) => {
+                      visibleCompanyGroups.map((group) => {
                         const contact = contactInfo[group.id];
                         return (
                           <TableRow key={group.id} className="hover:bg-gray-50">

@@ -49,16 +49,30 @@ export default function RootLayout({
           src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"
           strategy="beforeInteractive"
         />
-        <Script id="register-sw" strategy="afterInteractive">
+        <Script id="cleanup-sw" strategy="afterInteractive">
           {`
-            if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-              navigator.serviceWorker.register('/sw.js')
-                .then((registration) => {
-                  console.log('SW registered:', registration.scope);
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations()
+                .then((registrations) => {
+                  registrations.forEach((registration) => {
+                    registration.unregister();
+                  });
                 })
                 .catch((error) => {
-                  console.log('SW registration failed:', error);
+                  console.log('SW cleanup failed:', error);
                 });
+
+              if (window.caches) {
+                caches.keys()
+                  .then((keys) => Promise.all(
+                    keys
+                      .filter((key) => key.startsWith('solflo-'))
+                      .map((key) => caches.delete(key))
+                  ))
+                  .catch((error) => {
+                    console.log('Cache cleanup failed:', error);
+                  });
+              }
             }
           `}
         </Script>

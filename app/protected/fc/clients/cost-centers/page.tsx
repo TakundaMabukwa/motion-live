@@ -103,10 +103,63 @@ function ClientCostCentersContent() {
       if (accounts[0]) {
         const derivedPrefix = accounts[0].split("-")[0]?.trim() || "";
         setClientInfo({ company_group: derivedPrefix || accounts[0] });
+        fetchClientGroupInfo(accounts[0]);
       }
       fetchCostCenters(decodedAccounts);
     }
   }, [accountsParam]);
+
+  const fetchClientGroupInfo = async (account: string) => {
+    try {
+      let response = await fetch(
+        `/api/customers-grouped/by-account/${encodeURIComponent(account)}`,
+        { cache: "no-store" },
+      );
+
+      if (!response.ok) {
+        const fallbackResponse = await fetch(
+          `/api/customers-grouped?fetchAll=true`,
+          { cache: "no-store" },
+        );
+
+        if (!fallbackResponse.ok) {
+          throw new Error("Failed to fetch grouped client info");
+        }
+
+        const fallbackPayload = await fallbackResponse.json();
+        const groups = Array.isArray(fallbackPayload?.companyGroups)
+          ? fallbackPayload.companyGroups
+          : [];
+
+        const normalizedAccount = account.trim().toUpperCase();
+        const matchedGroup = groups.find((group: any) => {
+          const accounts = String(group?.all_new_account_numbers || "")
+            .split(",")
+            .map((value) => value.trim().toUpperCase())
+            .filter(Boolean);
+          return accounts.includes(normalizedAccount);
+        });
+
+        if (!matchedGroup) {
+          throw new Error("Failed to fetch grouped client info");
+        }
+
+        setClientInfo((prev: any) => ({
+          ...prev,
+          ...matchedGroup,
+        }));
+        return;
+      }
+
+      const payload = await response.json();
+      setClientInfo((prev: any) => ({
+        ...prev,
+        ...payload,
+      }));
+    } catch (error) {
+      console.error("Error fetching grouped client info:", error);
+    }
+  };
 
   // Filter cost centers based on search term (company only)
   useEffect(() => {
@@ -167,10 +220,17 @@ function ClientCostCentersContent() {
       }
 
       // Fetch cost centers from the database where cost_code matches account numbers
-      const apiUrl = `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(allNewAccountNumbers)}`;
+      const normalizedAccounts = accounts.map((acc) => acc.toUpperCase());
+      const isSingleAccount = normalizedAccounts.length === 1;
+      const singleAccount = normalizedAccounts[0] || "";
+      const prefix = singleAccount.split("-")[0]?.trim();
+      const apiUrl =
+        isSingleAccount && prefix
+          ? `/api/cost-centers?prefix=${encodeURIComponent(prefix)}`
+          : `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(allNewAccountNumbers)}`;
       console.log("🌐 [COST CENTERS] API call:", apiUrl);
 
-      const response = await fetch(apiUrl);
+      const response = await fetch(apiUrl, { cache: "no-store" });
 
       console.log("📡 [COST CENTERS] Response status:", response.status);
       console.log(
@@ -194,7 +254,41 @@ function ClientCostCentersContent() {
       );
       console.log("📋 [COST CENTERS] Cost centers data:", data.costCenters);
 
-      setCostCenters(data.costCenters || []);
+      const fetchedCenters = Array.isArray(data?.costCenters)
+        ? data.costCenters
+        : Array.isArray(data)
+          ? data
+          : [];
+
+      const resolvedCenters =
+        isSingleAccount && prefix
+          ? fetchedCenters.filter((center: any) =>
+              String(center?.cost_code || "")
+                .trim()
+                .toUpperCase()
+                .startsWith(`${prefix}-`),
+            )
+          : fetchedCenters;
+
+      setCostCenters(resolvedCenters);
+
+      if (isSingleAccount && resolvedCenters.length > 0) {
+        const expandedAccounts = resolvedCenters
+          .map((center: any) => String(center?.cost_code || "").trim())
+          .filter(Boolean);
+
+        if (expandedAccounts.length > 0) {
+          setAccountNumbers(expandedAccounts);
+
+          const currentJoined = accounts.join(",");
+          const expandedJoined = expandedAccounts.join(",");
+          if (expandedJoined && expandedJoined !== currentJoined) {
+            router.replace(
+              `/protected/fc/clients/cost-centers?accounts=${encodeURIComponent(expandedJoined)}`,
+            );
+          }
+        }
+      }
     } catch (error) {
       console.error(
         "💥 [COST CENTERS] Error fetching cost centers from database:",
@@ -245,6 +339,7 @@ function ClientCostCentersContent() {
         body: JSON.stringify({
           company: costCenterCompany,
           prefix_source: clientCompanyName,
+          customers_grouped_id: clientInfo?.id || null,
         }),
       });
 

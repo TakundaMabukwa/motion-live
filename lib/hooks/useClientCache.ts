@@ -62,6 +62,7 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [hasHydratedCache, setHasHydratedCache] = useState(false);
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -69,16 +70,29 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
       const savedCompanyGroups = localStorage.getItem(`${cacheKey}_company_groups`);
       const savedContactInfo = localStorage.getItem(`${cacheKey}_contact_info`);
       const savedTotalCount = localStorage.getItem(`${cacheKey}_total_count`);
+      const savedTimestamp = localStorage.getItem(`${cacheKey}_updated_at`);
+      const maxAgeMs = 5 * 60 * 1000;
+      const isFresh =
+        savedTimestamp &&
+        Number.isFinite(Number(savedTimestamp)) &&
+        Date.now() - Number(savedTimestamp) < maxAgeMs;
       
-      if (savedCompanyGroups && savedContactInfo && savedTotalCount) {
+      if (isFresh && savedCompanyGroups && savedContactInfo && savedTotalCount) {
         setCompanyGroups(JSON.parse(savedCompanyGroups));
         setContactInfo(JSON.parse(savedContactInfo));
         setTotalCount(JSON.parse(savedTotalCount));
         setIsDataLoaded(true);
         console.log(`Loaded client data from localStorage for key: ${cacheKey}`);
+      } else if (savedCompanyGroups || savedContactInfo || savedTotalCount) {
+        localStorage.removeItem(`${cacheKey}_company_groups`);
+        localStorage.removeItem(`${cacheKey}_contact_info`);
+        localStorage.removeItem(`${cacheKey}_total_count`);
+        localStorage.removeItem(`${cacheKey}_updated_at`);
       }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
+    } finally {
+      setHasHydratedCache(true);
     }
   }, [cacheKey]);
 
@@ -89,6 +103,7 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
         localStorage.setItem(`${cacheKey}_company_groups`, JSON.stringify(companyGroups));
         localStorage.setItem(`${cacheKey}_contact_info`, JSON.stringify(contactInfo));
         localStorage.setItem(`${cacheKey}_total_count`, JSON.stringify(totalCount));
+        localStorage.setItem(`${cacheKey}_updated_at`, String(Date.now()));
         console.log(`Saved client data to localStorage for key: ${cacheKey}`);
       } catch (error) {
         console.error('Error saving data to localStorage:', error);
@@ -99,7 +114,9 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
   const fetchCompanyGroups = useCallback(async (search = "") => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`);
+      const response = await fetch(`/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`, {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch company groups');
       }
@@ -151,7 +168,7 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
               const apiUrl = `/api/customers/contact-info?accountNumber=${encodeURIComponent(accountNumber)}`;
               console.log(`🌐 [CACHE] API call: ${apiUrl}`);
               
-              const response = await fetch(apiUrl);
+              const response = await fetch(apiUrl, { cache: 'no-store' });
               if (response.ok) {
                 const data = await response.json();
                 if (data.customer) {
@@ -187,7 +204,7 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
               const apiUrl = `/api/customers/contact-info?prefix=${prefix}`;
               console.log(`🌐 [CACHE] Fallback API call: ${apiUrl}`);
               
-              const response = await fetch(apiUrl);
+              const response = await fetch(apiUrl, { cache: 'no-store' });
               if (response.ok) {
                 const data = await response.json();
                 if (data.customer) {
@@ -247,10 +264,16 @@ export const useClientCache = (cacheKey: string = 'default'): UseClientCacheRetu
       localStorage.removeItem(`${cacheKey}_company_groups`);
       localStorage.removeItem(`${cacheKey}_contact_info`);
       localStorage.removeItem(`${cacheKey}_total_count`);
+      localStorage.removeItem(`${cacheKey}_updated_at`);
     } catch (error) {
       console.error('Error clearing localStorage:', error);
     }
   }, [cacheKey]);
+
+  useEffect(() => {
+    if (!hasHydratedCache) return;
+    fetchCompanyGroups();
+  }, [hasHydratedCache, fetchCompanyGroups]);
 
   const getContactForGroup = useCallback((groupId: string): ContactInfo | null => {
     return contactInfo[groupId] || null;

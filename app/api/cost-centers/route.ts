@@ -78,7 +78,7 @@ export async function GET(request) {
     // Parse comma-separated account numbers
     const accountArray = accounts
       .split(",")
-      .map((a) => a.trim())
+      .map((a) => a.trim().toUpperCase())
       .filter((a) => a);
     console.log("Fetching cost centers for accounts:", accountArray);
 
@@ -154,6 +154,9 @@ export async function POST(request) {
     const prefixSource = (body?.prefix_source || body?.client_name || company)
       .toString()
       .trim();
+    const customersGroupedId = (body?.customers_grouped_id || "")
+      .toString()
+      .trim();
     const explicitCostCode = (body?.cost_code || "")
       .toString()
       .trim()
@@ -178,6 +181,18 @@ export async function POST(request) {
 
     const prefix = buildClientPrefix(prefixSource);
 
+    const groupedQuery = customersGroupedId
+      ? supabase
+          .from("customers_grouped")
+          .select("id, company_group, all_new_account_numbers")
+          .eq("id", customersGroupedId)
+          .limit(1)
+      : supabase
+          .from("customers_grouped")
+          .select("id, company_group, all_new_account_numbers")
+          .eq("company_group", prefixSource)
+          .limit(1);
+
     const [
       { data: existingCenters, error: centersError },
       { data: groupedRows, error: groupedError },
@@ -186,11 +201,7 @@ export async function POST(request) {
         .from("cost_centers")
         .select("cost_code")
         .ilike("cost_code", `${prefix}-%`),
-      supabase
-        .from("customers_grouped")
-        .select("id, company_group, all_new_account_numbers")
-        .eq("company_group", company)
-        .limit(1),
+      groupedQuery,
     ]);
 
     if (centersError) {
