@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
           .eq("account_number", normalizedAccountNumber),
         supabase
           .from("cost_centers")
-          .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_province, physical_code")
+          .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code")
           .eq("cost_code", normalizedAccountNumber)
           .maybeSingle(),
       ]);
@@ -146,7 +146,6 @@ export async function POST(request: NextRequest) {
           costCenterRow?.physical_address_2,
           costCenterRow?.physical_address_3,
           costCenterRow?.physical_area,
-          costCenterRow?.physical_province,
           costCenterRow?.physical_code,
         ]
           .map((value) => String(value || "").trim())
