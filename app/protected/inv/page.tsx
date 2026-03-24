@@ -180,6 +180,7 @@ export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
   const [showAssignParts, setShowAssignParts] = useState(false);
+  const [markingNoPartsRequired, setMarkingNoPartsRequired] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [selectedQRJob, setSelectedQRJob] = useState<JobCard | null>(null);
   const [showCompletedJobDetails, setShowCompletedJobDetails] = useState(false);
@@ -559,6 +560,22 @@ export default function InventoryPage() {
     );
   };
 
+  const isMovedAwayFromInventory = (job: JobCard) => {
+    const normalizedRole = String(job.role || "").toLowerCase();
+    const normalizedMoveTo = String(job.move_to || "").toLowerCase();
+    const normalizedStatus = String(job.status || "").toLowerCase();
+
+    return (
+      ["admin", "accounts", "fc"].includes(normalizedRole) ||
+      ["admin", "accounts", "fc"].includes(normalizedMoveTo) ||
+      [
+        "moved_to_admin",
+        "moved_to_accounts",
+        "moved_to_fc",
+      ].includes(normalizedStatus)
+    );
+  };
+
   const filteredJobCards = jobCards.filter((job: JobCard) => {
     const matchesSearch =
       job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -574,11 +591,17 @@ export default function InventoryPage() {
       !Array.isArray(job.parts_required) ||
       job.parts_required.length === 0;
 
-    return matchesSearch && hasNoParts && !isCompletedInventoryJob(job);
+    return (
+      matchesSearch &&
+      hasNoParts &&
+      !isCompletedInventoryJob(job) &&
+      !isMovedAwayFromInventory(job)
+    );
   });
 
   const jobCardsWithParts = jobCards.filter(
     (job: JobCard) =>
+      !isMovedAwayFromInventory(job) &&
       job.parts_required &&
       Array.isArray(job.parts_required) &&
       job.parts_required.length > 0,
@@ -683,6 +706,43 @@ export default function InventoryPage() {
     fetchJobCards();
     setShowAssignParts(false);
     setSelectedJobCard(null);
+  };
+
+  const handleNoPartsRequired = async () => {
+    if (!selectedJobCard?.id) return;
+
+    setMarkingNoPartsRequired(true);
+
+    try {
+      const response = await fetch(`/api/job-cards/${selectedJobCard.id}/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ destination: "admin" }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || "Failed to move job to admin",
+        );
+      }
+
+      toast.success(
+        `Job ${selectedJobCard.job_number} moved to admin with no parts required`,
+      );
+      fetchJobCards();
+      setShowAssignParts(false);
+      setSelectedJobCard(null);
+    } catch (error) {
+      console.error("Error marking no parts required:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to move job to admin",
+      );
+    } finally {
+      setMarkingNoPartsRequired(false);
+    }
   };
 
   const handleBookStock = async (job: JobCard) => {
@@ -3824,6 +3884,8 @@ export default function InventoryPage() {
           }}
           jobCard={selectedJobCard}
           onPartsAssigned={handlePartsAssigned}
+          onNoPartsRequired={handleNoPartsRequired}
+          processingNoPartsRequired={markingNoPartsRequired}
           allIpAddresses={allIpAddresses}
           allStockItems={allStockItems}
         />

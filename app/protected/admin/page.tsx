@@ -406,11 +406,11 @@ export default function AdminDashboard() {
 
       setLoading(true);
       try {
-        const response = await fetch("/api/job-cards");
+        const response = await fetch("/api/admin/jobs?status=open");
         if (!response.ok) throw new Error("Failed to fetch job cards");
 
         const data = await response.json();
-        setJobCards(data.job_cards || []);
+        setJobCards(data.jobs || []);
         setJobsLoaded(true);
       } catch (error) {
         console.error("Error fetching job cards:", error);
@@ -431,7 +431,7 @@ export default function AdminDashboard() {
   const fetchJobsWithParts = useCallback(async () => {
     try {
       setLoadingJobsWithParts(true);
-      const response = await fetch("/api/job-cards");
+      const response = await fetch("/api/admin/jobs?status=open");
       if (!response.ok) {
         throw new Error("Failed to fetch jobs with parts");
       }
@@ -439,7 +439,7 @@ export default function AdminDashboard() {
       console.log("Jobs API response:", data);
 
       // Filter jobs with parts on the frontend
-      const jobsWithActualParts = (data.job_cards || []).filter((job) => {
+      const jobsWithActualParts = (data.jobs || []).filter((job) => {
         const hasParts = hasPartsRequired(job);
         console.log(
           `Job ${job.job_number} parts_required:`,
@@ -1397,12 +1397,12 @@ export default function AdminDashboard() {
   // Sort jobs: newest first, then by assignment status and priority
   const sortJobs = (jobs: JobCard[]) => {
     return [...jobs].sort((a, b) => {
-      // Primary sort: creation date (newest first)
-      const aDate = new Date(a.created_at).getTime();
-      const bDate = new Date(b.created_at).getTime();
+      // Primary sort: latest activity first so recently moved/admin-routed jobs surface immediately
+      const aDate = new Date(a.updated_at || a.created_at).getTime();
+      const bDate = new Date(b.updated_at || b.created_at).getTime();
 
       if (aDate !== bDate) {
-        return bDate - aDate; // Newest first
+        return bDate - aDate;
       }
 
       // Secondary sort: assignment status (unassigned first)

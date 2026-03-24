@@ -92,12 +92,12 @@ export async function GET(request: Request) {
 
     const { data: vehiclesByNewAccount, error: vehiclesByNewAccountError } = await supabase
       .from('vehicles')
-      .select('company, new_account_number, account_number, total_rental, total_sub')
+      .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
       .in('new_account_number', codes);
 
     const { data: vehiclesByAccount, error: vehiclesByAccountError } = await supabase
       .from('vehicles')
-      .select('company, new_account_number, account_number, total_rental, total_sub')
+      .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
       .in('account_number', codes);
 
     if (paymentsError) {
@@ -147,13 +147,16 @@ export async function GET(request: Request) {
 
     const vehicleMap = new Map();
     [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
-      const vehicleKey = JSON.stringify([
-        vehicle?.new_account_number || '',
-        vehicle?.account_number || '',
-        vehicle?.company || '',
-        vehicle?.total_rental || '',
-        vehicle?.total_sub || '',
-      ]);
+      const vehicleKey =
+        String(vehicle?.id || '').trim() ||
+        String(vehicle?.reg || '').trim().toUpperCase() ||
+        JSON.stringify([
+          vehicle?.new_account_number || '',
+          vehicle?.account_number || '',
+          vehicle?.company || '',
+          vehicle?.total_rental || '',
+          vehicle?.total_sub || '',
+        ]);
       if (!vehicleMap.has(vehicleKey)) {
         vehicleMap.set(vehicleKey, vehicle);
       }
@@ -202,9 +205,9 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ costCenters: enrichedCostCenters });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { error: 'Unexpected error', details: error?.message || 'Unknown error' },
+      { error: 'Unexpected error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

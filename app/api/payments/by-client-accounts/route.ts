@@ -80,11 +80,11 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false }),
       supabase
         .from('vehicles')
-        .select('company, new_account_number, account_number, total_rental, total_sub')
+        .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
         .in('new_account_number', accountNumbers),
       supabase
         .from('vehicles')
-        .select('company, new_account_number, account_number, total_rental, total_sub')
+        .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
         .in('account_number', accountNumbers),
       supabase
         .from('cost_centers')
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const invoiceByCode = new Map<string, any>();
+    const invoiceByCode = new Map<string, Record<string, unknown>>();
     (invoices || []).forEach((invoice) => {
       const accountNumber = String(invoice?.account_number || '').trim().toUpperCase();
       if (!accountNumber || invoiceByCode.has(accountNumber)) {
@@ -115,22 +115,25 @@ export async function GET(request: NextRequest) {
       invoiceByCode.set(accountNumber, invoice);
     });
 
-    const vehicleMap = new Map<string, any>();
+    const vehicleMap = new Map<string, Record<string, unknown>>();
     [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
-      const vehicleKey = JSON.stringify([
-        String(vehicle?.new_account_number || '').trim().toUpperCase(),
-        String(vehicle?.account_number || '').trim().toUpperCase(),
-        vehicle?.company || '',
-        vehicle?.total_rental || '',
-        vehicle?.total_sub || '',
-      ]);
+      const vehicleKey =
+        String(vehicle?.id || '').trim() ||
+        String(vehicle?.reg || '').trim().toUpperCase() ||
+        JSON.stringify([
+          String(vehicle?.new_account_number || '').trim().toUpperCase(),
+          String(vehicle?.account_number || '').trim().toUpperCase(),
+          vehicle?.company || '',
+          vehicle?.total_rental || '',
+          vehicle?.total_sub || '',
+        ]);
       if (!vehicleMap.has(vehicleKey)) {
         vehicleMap.set(vehicleKey, vehicle);
       }
     });
 
     const draftPaymentsByCode = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values()));
-    const costCenterByCode = new Map<string, any>();
+    const costCenterByCode = new Map<string, Record<string, unknown>>();
     (costCenters || []).forEach((center) => {
       const accountNumber = String(center?.cost_code || '').trim().toUpperCase();
       if (accountNumber) {

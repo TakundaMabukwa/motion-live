@@ -10,8 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ThreeDotsMenu } from "@/components/ui/three-dots-menu";
-import { GiveAccessDialog } from "@/components/ui/give-access-dialog";
 import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
 import {
@@ -26,6 +24,7 @@ import {
   FileText,
   ExternalLink,
   CheckCircle,
+  MoreHorizontal,
   Phone,
   Mail,
   MapPin,
@@ -48,7 +47,6 @@ export default function AccountsDashboard() {
   } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
-  const [giveAccessDialog, setGiveAccessDialog] = useState({ open: false, clientName: "" });
 
 
 
@@ -128,13 +126,6 @@ export default function AccountsDashboard() {
     } else {
       console.log('⚠️ [FC DASHBOARD] No account numbers found for group:', group);
     }
-  };
-
-  const handleGiveAccess = (group) => {
-    setGiveAccessDialog({
-      open: true,
-      clientName: group.legal_names || group.company_group || 'Unknown Client'
-    });
   };
 
   // Render content based on active tab
@@ -317,10 +308,14 @@ export default function AccountsDashboard() {
                                 >
                                   Validate
                                 </Button>
-                                <ThreeDotsMenu
-                                  onViewDetails={() => handleViewDetails(group)}
-                                  onGiveAccess={() => handleGiveAccess(group)}
-                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewDetails(group)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -461,13 +456,6 @@ export default function AccountsDashboard() {
 
       {/* Content based on active tab */}
       {renderContent()}
-
-      {/* Give Access Dialog */}
-      <GiveAccessDialog
-        open={giveAccessDialog.open}
-        onOpenChange={(open) => setGiveAccessDialog({ ...giveAccessDialog, open })}
-        clientName={giveAccessDialog.clientName}
-      />
 
     </div>
   );

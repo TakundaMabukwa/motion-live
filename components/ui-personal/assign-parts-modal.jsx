@@ -121,6 +121,8 @@ export default function AssignPartsModal({
   onClose,
   jobCard,
   onPartsAssigned,
+  onNoPartsRequired,
+  processingNoPartsRequired = false,
   stockSource = "soltrack",
   stockOwner = "",
   clientOptions = [],
@@ -1244,6 +1246,17 @@ export default function AssignPartsModal({
                 <div className="flex flex-col gap-2 mt-4">
                   <Button variant="outline" onClick={onClose}>
                     Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onNoPartsRequired?.()}
+                    disabled={submitting || processingNoPartsRequired}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                  >
+                    {processingNoPartsRequired
+                      ? "Moving to Admin..."
+                      : "No Parts Required"}
                   </Button>
                   <Button
                     onClick={handleSubmit}

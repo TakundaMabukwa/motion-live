@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,11 +17,14 @@ import {
 import { 
   FileText, 
   Search, 
-  RefreshCw
+  RefreshCw,
+  Edit,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function CustomerJobCards({ accountNumber }) {
+  const router = useRouter();
   const [jobCards, setJobCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -272,6 +276,7 @@ export default function CustomerJobCards({ accountNumber }) {
                     <TableHead>Quote</TableHead>
                     <TableHead>Created Date</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -302,6 +307,28 @@ export default function CustomerJobCards({ accountNumber }) {
                           {getStatusText(job.job_status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/protected/fc/jobs/${job.id}/edit`)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              window.location.href = `/protected/fc/jobs/${job.id}`;
+                            }}
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -312,4 +339,4 @@ export default function CustomerJobCards({ accountNumber }) {
       )}
     </div>
   );
-} 
+}

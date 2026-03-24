@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  defaultDueDate,
+  buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
   normalizeBillingMonth,
   resolveAccountInvoice,
@@ -55,11 +57,150 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const invoice = await resolveAccountInvoice(supabase, {
+    let invoice = await resolveAccountInvoice(supabase, {
       accountInvoiceId: accountInvoiceId ? String(accountInvoiceId) : null,
       accountNumber: accountNumber ? String(accountNumber).trim() : null,
       billingMonth: normalizeBillingMonth(billingMonth),
     });
+
+    if (!invoice && accountNumber) {
+      const normalizedAccountNumber = String(accountNumber).trim().toUpperCase();
+      const normalizedBillingMonth = normalizeBillingMonth(billingMonth) || (() => {
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        return currentMonth.toISOString().slice(0, 10);
+      })();
+
+      const [
+        { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
+        { data: vehiclesByAccount, error: vehiclesByAccountError },
+        { data: costCenterRow, error: costCenterError },
+      ] = await Promise.all([
+        supabase
+          .from("vehicles")
+          .select("id, reg, company, new_account_number, account_number, total_rental, total_sub")
+          .eq("new_account_number", normalizedAccountNumber),
+        supabase
+          .from("vehicles")
+          .select("id, reg, company, new_account_number, account_number, total_rental, total_sub")
+          .eq("account_number", normalizedAccountNumber),
+        supabase
+          .from("cost_centers")
+          .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_province, physical_code")
+          .eq("cost_code", normalizedAccountNumber)
+          .maybeSingle(),
+      ]);
+
+      if (vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
+        const message =
+          vehiclesByNewAccountError?.message ||
+          vehiclesByAccountError?.message ||
+          costCenterError?.message ||
+          "Failed to prepare draft invoice";
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
+
+      const vehicleMap = new Map<string, Record<string, unknown>>();
+      [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
+        const key =
+          String(vehicle?.id || "").trim() ||
+          String(vehicle?.reg || "").trim().toUpperCase() ||
+          JSON.stringify([
+            String(vehicle?.new_account_number || "").trim().toUpperCase(),
+            String(vehicle?.account_number || "").trim().toUpperCase(),
+            vehicle?.company || "",
+            vehicle?.total_rental || "",
+            vehicle?.total_sub || "",
+          ]);
+        if (!vehicleMap.has(key)) {
+          vehicleMap.set(key, vehicle);
+        }
+      });
+
+      const draft = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values())).get(normalizedAccountNumber);
+
+      if (draft && Number(draft.due_amount || 0) > 0) {
+        const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
+          "allocate_document_number",
+          {
+            sequence_name: "invoice",
+            prefix: "INV-",
+          },
+        );
+
+        if (numberError || !allocatedInvoiceNumber) {
+          return NextResponse.json(
+            { error: numberError?.message || "Failed to allocate invoice number" },
+            { status: 500 },
+          );
+        }
+
+        const invoiceDate = new Date().toISOString();
+        const companyName =
+          costCenterRow?.legal_name ||
+          costCenterRow?.company ||
+          draft.company ||
+          normalizedAccountNumber;
+        const clientAddress = [
+          costCenterRow?.physical_address_1,
+          costCenterRow?.physical_address_2,
+          costCenterRow?.physical_address_3,
+          costCenterRow?.physical_area,
+          costCenterRow?.physical_province,
+          costCenterRow?.physical_code,
+        ]
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+          .join("\n");
+
+        const totalAmount = Number(draft.due_amount || 0);
+        const subtotal = Number((totalAmount / 1.15).toFixed(2));
+        const vatAmount = Number((totalAmount - subtotal).toFixed(2));
+
+        const { data: insertedInvoice, error: insertError } = await supabase
+          .from("account_invoices")
+          .insert({
+            account_number: normalizedAccountNumber,
+            billing_month: normalizedBillingMonth,
+            invoice_number: allocatedInvoiceNumber,
+            company_name: companyName,
+            client_address: clientAddress || null,
+            customer_vat_number: costCenterRow?.vat_number || null,
+            invoice_date: invoiceDate,
+            due_date: defaultDueDate(invoiceDate),
+            subtotal: subtotal,
+            vat_amount: vatAmount,
+            discount_amount: 0,
+            total_amount: totalAmount,
+            paid_amount: 0,
+            balance_due: totalAmount,
+            payment_status: "pending",
+            line_items: [
+              {
+                item_code: "CURRENT-BILLING",
+                description: "Current vehicle billing draft",
+                amountExcludingVat: subtotal.toFixed(2),
+                vat_amount: vatAmount.toFixed(2),
+                total_including_vat: totalAmount.toFixed(2),
+              },
+            ],
+            notes: "Auto-created during payment from current vehicle billing draft",
+            created_by: user?.id || null,
+          })
+          .select("*")
+          .single();
+
+        if (insertError) {
+          return NextResponse.json(
+            { error: insertError.message || "Failed to create invoice snapshot for payment" },
+            { status: 500 },
+          );
+        }
+
+        await upsertPaymentsMirror(supabase, insertedInvoice);
+        invoice = insertedInvoice;
+      }
+    }
 
     if (!invoice) {
       return NextResponse.json(

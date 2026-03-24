@@ -43,6 +43,7 @@ export default function ClientQuoteForm({
   initialQuote = null,
   mode = "create", // "create" | "edit"
   quoteId = null,
+  saveTarget = "quote", // "quote" | "job"
   embedded = false,
 }) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -368,7 +369,7 @@ export default function ClientQuoteForm({
       vehicle_make: initialQuote.vehicle_make || "",
       vehicle_model: initialQuote.vehicle_model || "",
       vehicle_year: initialQuote.vehicle_year ? String(initialQuote.vehicle_year) : "",
-      vin_number: initialQuote.vin_number || "",
+      vin_number: initialQuote.vin_number || initialQuote.vin_numer || "",
       odormeter: initialQuote.odormeter || "",
       extraNotes: initialQuote.quote_notes || "",
       emailSubject: initialQuote.quote_email_subject || prev.emailSubject,
@@ -533,7 +534,8 @@ export default function ClientQuoteForm({
       const vehicleWithProducts = {
         id: product.id,
         name: product.name,
-        description: product.description + ' - marked for de-install',
+        description: product.description,
+        detailValue: product.value || "",
         type: product.type,
         category: product.category,
         code: product.code || 'N/A',
@@ -588,6 +590,14 @@ export default function ClientQuoteForm({
     setSelectedProducts(prev => 
       prev.map((product, i) => 
         i === index ? { ...product, [field]: value } : product
+      )
+    );
+  }, []);
+
+  const updateProductById = useCallback((productId, updates) => {
+    setSelectedProducts((prev) =>
+      prev.map((product) =>
+        product.id === productId ? { ...product, ...updates } : product
       )
     );
   }, []);
@@ -926,6 +936,7 @@ export default function ClientQuoteForm({
       };
 
       const isEditMode = mode === "edit" && !!quoteId;
+      const isJobEditMode = isEditMode && saveTarget === "job";
 
       const updatePayload = {
         job_type: formData.jobType,
@@ -945,8 +956,9 @@ export default function ClientQuoteForm({
         vehicle_make: formData.vehicle_make || null,
         vehicle_model: formData.vehicle_model || null,
         vehicle_year: formData.vehicle_year ? parseInt(formData.vehicle_year) : null,
-        vin_number: formData.vin_number || null,
+        vin_numer: formData.vin_number || null,
         odormeter: formData.odormeter || null,
+        ip_address: formData.ip_address || null,
         quote_notes: formData.extraNotes || "",
         quote_email_subject: formData.emailSubject || "",
         quote_email_body: formData.emailBody || "",
@@ -964,8 +976,12 @@ export default function ClientQuoteForm({
 
       console.log('Submitting quotation data:', isEditMode ? updatePayload : quotationData);
 
-      const response = await fetch(isEditMode ? `${baseUrl}/api/client-quotes/${quoteId}` : `${baseUrl}/api/client-quotes`, {
-        method: isEditMode ? 'PUT' : 'POST',
+      const response = await fetch(
+        isEditMode
+          ? (isJobEditMode ? `${baseUrl}/api/job-cards/${quoteId}` : `${baseUrl}/api/client-quotes/${quoteId}`)
+          : `${baseUrl}/api/client-quotes`,
+        {
+        method: isEditMode ? (isJobEditMode ? 'PATCH' : 'PUT') : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -975,7 +991,9 @@ export default function ClientQuoteForm({
       const result = await response.json();
 
       if (!response.ok) {
-        const fallback = isEditMode ? 'Failed to update client quote' : 'Failed to create client quote';
+        const fallback = isEditMode
+          ? (isJobEditMode ? 'Failed to update job card' : 'Failed to update client quote')
+          : 'Failed to create client quote';
         throw new Error(result.details ? `${result.error || fallback}: ${result.details}` : (result.error || fallback));
       }
 
@@ -1040,8 +1058,8 @@ export default function ClientQuoteForm({
       }
       
       if (isEditMode) {
-        toast.success('Client quote updated successfully!', {
-          description: `Quote Number: ${initialQuote?.job_number || ''}`.trim(),
+        toast.success(isJobEditMode ? 'Job updated successfully!' : 'Client quote updated successfully!', {
+          description: `${isJobEditMode ? 'Job Number' : 'Quote Number'}: ${initialQuote?.job_number || ''}`.trim(),
           duration: 5000,
         });
         if (onQuoteCreated) onQuoteCreated();
@@ -1514,6 +1532,7 @@ export default function ClientQuoteForm({
                     fetchVehiclesFromIP={fetchVehiclesFromIP}
                     toggleVehicleSelection={toggleVehicleSelection}
                     addProduct={addProduct}
+                    updateProductById={updateProductById}
                     viewVehicleParts={viewVehicleParts}
                     backToVehicleSelection={backToVehicleSelection}
                     selectedProducts={selectedProducts}

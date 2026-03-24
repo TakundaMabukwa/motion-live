@@ -48,7 +48,8 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
-  const showBillingColumns = false;
+  const showCostCenterTotalColumn = true;
+  const showPaidAndBalanceColumns = true;
   const currentBillingMonthKey = useMemo(() => {
     const currentMonth = new Date();
     currentMonth.setDate(1);
@@ -1102,11 +1103,14 @@ export default function ClientCostCentersPage() {
     };
   };
 
+  const getOutstandingAmount = (costCenter) =>
+    Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0);
+
   const handlePayCostCenter = (costCenter) => {
     setPaymentDetails({
       type: 'costCenter',
       title: `Pay Cost Center: ${costCenter.accountName || costCenter.accountNumber}`,
-      amount: costCenter.amountDue,
+      amount: getOutstandingAmount(costCenter),
       description: `Amount owed for ${costCenter.accountName || costCenter.accountNumber} (${costCenter.accountNumber})`,
       costCenter: costCenter
     });
@@ -1253,7 +1257,7 @@ export default function ClientCostCentersPage() {
       const printWindow = window.open('', '_blank');
       
       // Calculate totals for all cost centers
-      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0);
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + getOutstandingAmount(cc), 0);
       const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + (cc.monthlyAmount || 0), 0);
       const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
       
@@ -1547,7 +1551,7 @@ export default function ClientCostCentersPage() {
                       <td>${costCenter.accountName || 'N/A'}</td>
                       <td>${costCenter.accountNumber}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.monthlyAmount)}</td>
-                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.amountDue)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(getOutstandingAmount(costCenter))}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.firstMonth || 0)}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.overdue || 0)}</td>
                       <td>${costCenter.vehicleCount}</td>
@@ -1640,7 +1644,7 @@ export default function ClientCostCentersPage() {
       const printWindow = window.open('', '_blank');
       
       // Calculate totals for all cost centers
-      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0);
+      const totalOutstanding = costCentersWithPayments.reduce((sum, cc) => sum + getOutstandingAmount(cc), 0);
       const totalMonthly = costCentersWithPayments.reduce((sum, cc) => sum + (cc.monthlyAmount || 0), 0);
       const totalPaid = costCentersWithPayments.reduce((sum, cc) => sum + (cc.totalPaid || 0), 0);
       
@@ -1934,7 +1938,7 @@ export default function ClientCostCentersPage() {
                       <td>${costCenter.accountName || 'N/A'}</td>
                       <td>${costCenter.accountNumber}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.monthlyAmount)}</td>
-                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.amountDue)}</td>
+                      <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(getOutstandingAmount(costCenter))}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.firstMonth || 0)}</td>
                       <td>${new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(costCenter.overdue || 0)}</td>
                       <td>${costCenter.vehicleCount}</td>
@@ -2142,7 +2146,7 @@ export default function ClientCostCentersPage() {
               const result = await response.json();
               if (result.success) {
                 successCount++;
-                totalProcessed += Math.min(amount - totalProcessed, costCenter.amountDue);
+                totalProcessed += Math.min(amount - totalProcessed, getOutstandingAmount(costCenter));
               }
             }
           } catch (error) {
@@ -3048,9 +3052,9 @@ export default function ClientCostCentersPage() {
                     )}
                   </Button>
                 </div>
-                {showBillingColumns && costCentersWithPayments.filter(cc => (cc.amountDue || 0) > 0).length > 0 && (
+                {showCostCenterTotalColumn && costCentersWithPayments.filter(cc => getOutstandingAmount(cc) > 0).length > 0 && (
                   <p className="mt-1 text-gray-500 text-xs">
-                    Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
+                    Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + getOutstandingAmount(cc), 0))}
                   </p>
                 )}
               </div>
@@ -3062,14 +3066,13 @@ export default function ClientCostCentersPage() {
                 <thead className="bg-gray-50">
                   <tr className="border-gray-200 border-b">
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Account Name</th>
-                    {showBillingColumns && (
+                    {showCostCenterTotalColumn && (
+                      <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Cost Center Total</th>
+                    )}
+                    {showPaidAndBalanceColumns && (
                       <>
-                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Due Amount</th>
-                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Paid Amount</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Amount Paid</th>
                         <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
-                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Payment Status</th>
-                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Reference</th>
-                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Billing Month</th>
                       </>
                     )}
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
@@ -3089,73 +3092,41 @@ export default function ClientCostCentersPage() {
                           </Badge>
                         </div>
                       </td>
-                      {showBillingColumns && (
+                      {showCostCenterTotalColumn && (
+                        <td className="p-4">
+                          <div className="font-semibold text-gray-900">
+                            {formatCurrency(getOutstandingAmount(costCenter))}
+                          </div>
+                          <p className="text-gray-500 text-xs">
+                            {costCenter.amountSource === 'vehicles_draft'
+                              ? 'Current vehicle billing draft'
+                              : costCenter.amountSource === 'account_invoice'
+                                ? 'Generated invoice total'
+                                : costCenter.amountSource === 'no_billing_data'
+                                  ? 'No current billing data'
+                                  : 'Current cost center total'}
+                          </p>
+                        </td>
+                      )}
+                      {showPaidAndBalanceColumns && (
                         <>
                           <td className="p-4">
-                            <div className="font-semibold text-gray-900">{formatCurrency(costCenter.dueAmount || 0)}</div>
+                            <div className="font-semibold text-green-600">
+                              {formatCurrency(costCenter.paidAmount || 0)}
+                            </div>
                             <p className="text-gray-500 text-xs">
-                              {costCenter.amountSource === 'vehicles_draft'
-                                ? 'From current vehicle billing'
-                                : costCenter.amountSource === 'account_invoice'
-                                  ? 'From generated invoice'
-                                  : costCenter.amountSource === 'no_billing_data'
-                                    ? 'No current billing data'
-                                    : 'From current billing record'}
+                              Paid so far
                             </p>
                           </td>
                           <td className="p-4">
-                            <div className="space-y-1">
-                              <span className="font-semibold text-green-600">
-                                {formatCurrency(costCenter.paidAmount || 0)}
-                              </span>
-                              <p className="font-medium text-green-600 text-xs">
-                                {costCenter.paidAmount > 0
-                                  ? `Paid ${formatCurrency(costCenter.paidAmount || 0)}`
-                                  : 'Amount Paid'}
-                              </p>
+                            <div className={`font-semibold ${
+                              Number(costCenter.balanceDue || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {formatCurrency(costCenter.balanceDue || 0)}
                             </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="space-y-1">
-                              <span className={`font-semibold ${
-                                costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {formatCurrency(costCenter.balanceDue || 0)}
-                              </span>
-                              <p className={`text-xs font-medium ${
-                                costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {costCenter.balanceDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
-                              </p>
-                              <p className="text-gray-500 text-xs">
-                                {formatCurrency(costCenter.paidAmount || 0)} paid of {formatCurrency(costCenter.dueAmount || 0)}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                costCenter.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
-                                costCenter.paymentStatus === 'overdue' ? 'bg-red-100 text-red-800' :
-                                costCenter.paymentStatus === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {costCenter.paymentStatus || 'pending'}
-                              </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-semibold text-gray-700 text-sm">
-                              {costCenter.reference || 'PENDING'}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-semibold text-blue-600 text-sm">
-                              {costCenter.billingMonth
-                                ? new Date(costCenter.billingMonth).toLocaleDateString('en-ZA', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                  })
-                                : 'Current Month'}
-                            </span>
+                            <p className="text-gray-500 text-xs">
+                              Outstanding after payments
+                            </p>
                           </td>
                         </>
                       )}
@@ -3340,12 +3311,18 @@ export default function ClientCostCentersPage() {
                 {paymentDetails.type === 'allCostCenters' && (
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium text-gray-700 text-sm">Cost Centers:</span>
-                    <span className="text-gray-900 text-sm">{costCentersWithPayments.filter(cc => cc.amountDue > 0).length} cost centers with outstanding amounts</span>
+                    <span className="text-gray-900 text-sm">{costCentersWithPayments.filter(cc => getOutstandingAmount(cc) > 0).length} cost centers with outstanding amounts</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-gray-700 text-sm">Client Code:</span>
-                  <span className="font-semibold text-gray-900 text-sm">{code}</span>
+                  <span className="font-medium text-gray-700 text-sm">
+                    {paymentDetails.type === 'costCenter' ? 'Cost Center Code:' : 'Client Code:'}
+                  </span>
+                  <span className="font-semibold text-gray-900 text-sm">
+                    {paymentDetails.type === 'costCenter'
+                      ? (paymentDetails.costCenter?.accountNumber || code)
+                      : code}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium text-gray-700 text-sm">Entered Amount:</span>
@@ -3457,7 +3434,7 @@ export default function ClientCostCentersPage() {
                       Enter total payment amount
                     </span>
                     <span className="font-medium text-blue-600">
-                      Selected Total: {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + cc.amountDue, 0))}
+                      Selected Total: {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + getOutstandingAmount(cc), 0))}
                     </span>
                   </div>
                 </div>
@@ -3505,7 +3482,7 @@ export default function ClientCostCentersPage() {
                       <label htmlFor={`cc-${costCenter.accountNumber}`} className="flex-1 cursor-pointer">
                         <div className="font-medium text-gray-900 text-sm">{costCenter.accountName}</div>
                         <div className="text-gray-500 text-xs">
-                          {costCenter.accountNumber} • Amount Due: {formatCurrency(costCenter.amountDue)}
+                          {costCenter.accountNumber} • Amount Due: {formatCurrency(getOutstandingAmount(costCenter))}
                         </div>
                       </label>
                     </div>
@@ -3518,7 +3495,7 @@ export default function ClientCostCentersPage() {
                 <div className="text-center">
                   <div className="mb-1 text-blue-600 text-sm">Total Amount for Selected Cost Centers</div>
                   <div className="font-bold text-blue-700 text-3xl">
-                    {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + cc.amountDue, 0))}
+                    {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + getOutstandingAmount(cc), 0))}
                   </div>
                   <div className="mt-1 text-blue-600 text-sm">
                     {selectedCostCenters.filter(cc => cc.selected).length} cost center(s) selected

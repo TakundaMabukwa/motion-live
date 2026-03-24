@@ -15,12 +15,63 @@ const DeinstallationFlow = ({
   fetchVehiclesFromIP, 
   toggleVehicleSelection, 
   addProduct,
+  updateProductById,
   viewVehicleParts,
   backToVehicleSelection,
   selectedProducts
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEquipment, setSelectedEquipment] = useState([]);
+  const [equipmentEdits, setEquipmentEdits] = useState({});
+
+  useEffect(() => {
+    setEquipmentEdits({});
+  }, [deInstallData.currentVehicleId]);
+
+  const getMergedEquipment = useCallback((equipment) => {
+    const selectedProduct = (selectedProducts || []).find((product) => product.id === equipment.id);
+    const draft = equipmentEdits[equipment.id] || {};
+    const name = draft.name ?? selectedProduct?.name ?? equipment.name;
+    const value = draft.value ?? selectedProduct?.detailValue ?? equipment.value;
+
+    return {
+      ...equipment,
+      name,
+      value,
+      description: `De-installation of ${name}${value ? ` - ${value}` : ""}`,
+    };
+  }, [equipmentEdits, selectedProducts]);
+
+  const handleEquipmentChange = useCallback((equipment, field, value) => {
+    setEquipmentEdits((prev) => ({
+      ...prev,
+      [equipment.id]: {
+        ...(prev[equipment.id] || {}),
+        [field]: value,
+      },
+    }));
+
+    const selectedProduct = (selectedProducts || []).find((product) => product.id === equipment.id);
+    if (!selectedProduct || !updateProductById) {
+      return;
+    }
+
+    const nextName =
+      field === "name"
+        ? value
+        : (equipmentEdits[equipment.id]?.name ?? selectedProduct.name ?? equipment.name);
+    const nextValue =
+      field === "value"
+        ? value
+        : (equipmentEdits[equipment.id]?.value ?? selectedProduct.detailValue ?? equipment.value);
+
+    updateProductById(equipment.id, {
+      name: nextName,
+      detailValue: nextValue,
+      description: `De-installation of ${nextName}${nextValue ? ` - ${nextValue}` : ""}`,
+    });
+  }, [equipmentEdits, selectedProducts, updateProductById]);
+
   if (deInstallData.loadingVehicles) {
     return (
       <div className="py-8 text-center">
@@ -243,7 +294,7 @@ const DeinstallationFlow = ({
                   installedEquipment.forEach(equipment => {
                     const isAlreadySelected = selectedProducts.some(p => p.id === equipment.id);
                     if (!isAlreadySelected) {
-                      addProduct(equipment);
+                      addProduct(getMergedEquipment(equipment));
                     }
                   });
                 }}
@@ -257,28 +308,45 @@ const DeinstallationFlow = ({
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {installedEquipment.map((equipment) => {
                 const isSelected = selectedProducts.some(p => p.id === equipment.id);
+                const mergedEquipment = getMergedEquipment(equipment);
                 return (
-                  <div key={equipment.id} className={`flex justify-between items-start p-3 border rounded-lg transition-colors ${
+                  <div key={equipment.id} className={`p-3 border rounded-lg transition-colors ${
                     isSelected ? 'bg-green-50 border-green-200' : 'bg-gray-50 hover:bg-gray-100'
                   }`}>
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{equipment.name}</div>
-                      <div className="text-gray-600 text-xs mt-1">
-                        <span className="font-medium">Details:</span> {equipment.value}
+                    <div className="flex gap-3 items-start">
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <Label className="text-xs font-medium text-gray-600">Item</Label>
+                          <Input
+                            value={mergedEquipment.name}
+                            onChange={(e) => handleEquipmentChange(equipment, "name", e.target.value)}
+                            className="mt-1 h-8 text-sm bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-gray-600">Details</Label>
+                          <Input
+                            value={mergedEquipment.value}
+                            onChange={(e) => handleEquipmentChange(equipment, "value", e.target.value)}
+                            className="mt-1 h-8 text-sm bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div className="pt-6">
+                        <Button
+                          size="sm"
+                          onClick={() => addProduct(mergedEquipment)}
+                          disabled={isSelected}
+                          className={`text-xs ${
+                            isSelected 
+                              ? 'bg-green-600 text-white cursor-not-allowed' 
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          {isSelected ? 'Added' : 'Add'}
+                        </Button>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => addProduct(equipment)}
-                      disabled={isSelected}
-                      className={`text-xs ${
-                        isSelected 
-                          ? 'bg-green-600 text-white cursor-not-allowed' 
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
-                      }`}
-                    >
-                      {isSelected ? 'Added' : 'Add'}
-                    </Button>
                   </div>
                 );
               })}

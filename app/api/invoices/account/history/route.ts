@@ -23,22 +23,37 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("account_invoices")
-      .select("id, account_number, billing_month, invoice_number, invoice_date, total_amount, notes, created_at")
-      .eq("account_number", accountNumber)
-      .order("billing_month", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false });
+    const [
+      { data: invoices, error: invoicesError },
+      { data: payments, error: paymentsError },
+    ] = await Promise.all([
+      supabase
+        .from("account_invoices")
+        .select("id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, notes, created_at")
+        .eq("account_number", accountNumber)
+        .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("account_invoice_payments")
+        .select("id, account_invoice_id, account_number, billing_month, invoice_number, payment_reference, amount, payment_date, payment_method, notes, created_at")
+        .eq("account_number", accountNumber)
+        .order("payment_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (error) {
-      console.error("Failed to fetch account invoice history:", error);
+    if (invoicesError || paymentsError) {
+      const error = invoicesError || paymentsError;
+      console.error("Failed to fetch account invoice/payment history:", error);
       return NextResponse.json(
         { error: error.message || "Failed to fetch account invoice history" },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ invoices: data || [] });
+    return NextResponse.json({
+      invoices: invoices || [],
+      payments: payments || [],
+    });
   } catch (error) {
     console.error("Unexpected error in account invoice history GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
