@@ -9,6 +9,153 @@ import {
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
 
+const TOTAL_BILLING_COLUMNS = new Set([
+  "total_rental_sub",
+  "total_rental",
+  "total_sub",
+]);
+
+const SERVICE_ONLY_COLUMNS = new Set([
+  "consultancy",
+  "roaming",
+  "maintenance",
+  "after_hours",
+  "controlroom",
+  "software",
+  "eps_software_development",
+  "maysene_software_development",
+  "waterford_software_development",
+  "klaver_software_development",
+  "advatrans_software_development",
+  "tt_linehaul_software_development",
+  "tt_express_software_development",
+  "tt_fmcg_software_development",
+  "rapid_freight_software_development",
+  "remco_freight_software_development",
+  "vt_logistics_software_development",
+  "epilite_software_development",
+  "additional_data",
+  "driver_app",
+]);
+
+const formatColumnLabel = (value: string) =>
+  value
+    .replace(/^_+/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const normalizeBillingLabel = (value: string) =>
+  formatColumnLabel(value)
+    .replace(/\bSub\b/gi, "Subscription")
+    .replace(/\bRental\b/gi, "Rental");
+
+const toAmount = (value: unknown) => {
+  const amount = Number.parseFloat(String(value ?? "").trim());
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const buildAddress = (source?: Record<string, unknown> | null) =>
+  [
+    source?.physical_address_1,
+    source?.physical_address_2,
+    source?.physical_address_3,
+    source?.physical_area,
+    source?.physical_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join("\n");
+
+const isBillableVehicleColumn = (key: string) =>
+  key.endsWith("_rental") ||
+  key.endsWith("_sub") ||
+  SERVICE_ONLY_COLUMNS.has(key) ||
+  TOTAL_BILLING_COLUMNS.has(key);
+
+const buildDetailedInvoiceItems = (
+  vehicles: Array<Record<string, unknown>>,
+  companyName: string,
+) => {
+  const invoiceItems: Array<Record<string, unknown>> = [];
+
+  vehicles.forEach((vehicle) => {
+    let regFleetDisplay = "";
+    if (vehicle.reg && vehicle.fleet_number) {
+      regFleetDisplay = `${vehicle.reg} / ${vehicle.fleet_number}`;
+    } else {
+      regFleetDisplay = vehicle.reg || vehicle.fleet_number || "";
+    }
+
+    const billedItemLabels = Object.keys(vehicle)
+      .filter((key) => isBillableVehicleColumn(key) && !TOTAL_BILLING_COLUMNS.has(key))
+      .filter((key) => toAmount(vehicle[key]) > 0)
+      .map((key) => normalizeBillingLabel(key))
+      .filter(Boolean);
+
+    const monthlyRental = toAmount(vehicle.total_rental);
+    const monthlySub = toAmount(vehicle.total_sub);
+    const totalExVat = Number((monthlyRental + monthlySub).toFixed(2));
+    if (totalExVat <= 0) {
+      return;
+    }
+
+    const uniqueLabels = Array.from(new Set(billedItemLabels));
+    if (uniqueLabels.length === 0) {
+      if (monthlyRental > 0) uniqueLabels.push("Monthly Rental");
+      if (monthlySub > 0) uniqueLabels.push("Monthly Subscription");
+    }
+
+    const vatAmount = Number((totalExVat * 0.15).toFixed(2));
+    const totalInclVat = Number((totalExVat + vatAmount).toFixed(2));
+
+    invoiceItems.push({
+      previous_reg: vehicle.previous_reg || null,
+      reg: vehicle.reg || null,
+      fleetNumber: vehicle.fleet_number || null,
+      regFleetDisplay,
+      item_code: "MULTI BILLING",
+      description: uniqueLabels.join(", "),
+      comments: vehicle.company || companyName,
+      company: vehicle.company || companyName,
+      account_number: vehicle.account_number || vehicle.new_account_number || "",
+      units: 1,
+      unit_price: totalExVat.toFixed(2),
+      unit_price_without_vat: totalExVat.toFixed(2),
+      amountExcludingVat: totalExVat.toFixed(2),
+      total_excl_vat: totalExVat.toFixed(2),
+      vat_amount: vatAmount.toFixed(2),
+      vatAmount: vatAmount.toFixed(2),
+      vat_percentage: "15",
+      total_incl_vat: totalInclVat.toFixed(2),
+      total_including_vat: totalInclVat.toFixed(2),
+      totalRentalSub: totalInclVat.toFixed(2),
+    });
+  });
+
+  const subtotal = Number(
+    invoiceItems
+      .reduce((sum, item) => sum + Number(item.amountExcludingVat || 0), 0)
+      .toFixed(2),
+  );
+  const vatAmount = Number(
+    invoiceItems
+      .reduce((sum, item) => sum + Number(item.vat_amount || 0), 0)
+      .toFixed(2),
+  );
+  const totalAmount = Number(
+    invoiceItems
+      .reduce((sum, item) => sum + Number(item.total_including_vat || 0), 0)
+      .toFixed(2),
+  );
+
+  return {
+    invoiceItems,
+    subtotal,
+    vatAmount,
+    totalAmount,
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
@@ -78,11 +225,11 @@ export async function POST(request: NextRequest) {
       ] = await Promise.all([
         supabase
           .from("vehicles")
-          .select("id, reg, company, new_account_number, account_number, total_rental, total_sub")
+          .select("*")
           .eq("new_account_number", normalizedAccountNumber),
         supabase
           .from("vehicles")
-          .select("id, reg, company, new_account_number, account_number, total_rental, total_sub")
+          .select("*")
           .eq("account_number", normalizedAccountNumber),
         supabase
           .from("cost_centers")
@@ -141,20 +288,9 @@ export async function POST(request: NextRequest) {
           costCenterRow?.company ||
           draft.company ||
           normalizedAccountNumber;
-        const clientAddress = [
-          costCenterRow?.physical_address_1,
-          costCenterRow?.physical_address_2,
-          costCenterRow?.physical_address_3,
-          costCenterRow?.physical_area,
-          costCenterRow?.physical_code,
-        ]
-          .map((value) => String(value || "").trim())
-          .filter(Boolean)
-          .join("\n");
-
-        const totalAmount = Number(draft.due_amount || 0);
-        const subtotal = Number((totalAmount / 1.15).toFixed(2));
-        const vatAmount = Number((totalAmount - subtotal).toFixed(2));
+        const clientAddress = buildAddress(costCenterRow);
+        const { invoiceItems, subtotal, vatAmount, totalAmount } =
+          buildDetailedInvoiceItems(Array.from(vehicleMap.values()), companyName);
 
         const { data: insertedInvoice, error: insertError } = await supabase
           .from("account_invoices")
@@ -174,16 +310,8 @@ export async function POST(request: NextRequest) {
             paid_amount: 0,
             balance_due: totalAmount,
             payment_status: "pending",
-            line_items: [
-              {
-                item_code: "CURRENT-BILLING",
-                description: "Current vehicle billing draft",
-                amountExcludingVat: subtotal.toFixed(2),
-                vat_amount: vatAmount.toFixed(2),
-                total_including_vat: totalAmount.toFixed(2),
-              },
-            ],
-            notes: "Auto-created during payment from current vehicle billing draft",
+            line_items: invoiceItems,
+            notes: "Auto-created during payment from current vehicle billing draft with full vehicle detail",
             created_by: user?.id || null,
           })
           .select("*")

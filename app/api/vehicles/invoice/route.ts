@@ -185,6 +185,8 @@ const hasLegacyStoredLineItems = (items: any[]) =>
     const itemCode = String(item?.item_code || '').trim().toUpperCase();
     const description = String(item?.description || '').trim().toUpperCase();
     return (
+      itemCode === 'CURRENT-BILLING' ||
+      description === 'CURRENT VEHICLE BILLING DRAFT' ||
       itemCode.startsWith('TOTAL_') ||
       description === 'TOTAL RENTAL SUB' ||
       description === 'TOTAL RENTAL' ||
