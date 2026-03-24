@@ -48,6 +48,12 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
+  const showBillingColumns = false;
+  const currentBillingMonthKey = useMemo(() => {
+    const currentMonth = new Date();
+    currentMonth.setDate(1);
+    return currentMonth.toISOString().slice(0, 10);
+  }, []);
 
   const isRealInvoiceNumber = (value) =>
     /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
@@ -82,6 +88,7 @@ export default function ClientCostCentersPage() {
       stock_code: payment.cost_code,
       stock_description: `${payment.company || fallbackCompany || 'N/A'} - ${payment.cost_code}`,
       account_number: payment.cost_code,
+      account_invoice_id: payment.account_invoice_id || null,
       company: payment.company || fallbackCompany,
       total_ex_vat: Number(payment.due_amount || 0),
       total_vat: 0,
@@ -124,10 +131,25 @@ export default function ClientCostCentersPage() {
   };
 
   const buildCostCenterAmounts = (payment, invoice) => {
+    const invoiceDueAmount = Number(invoice?.total_amount || 0);
+    const invoicePaidAmount = Number(invoice?.paid_amount || 0);
+    const invoiceBalanceDue =
+      Number(invoice?.balance_due ?? Math.max(0, invoiceDueAmount - invoicePaidAmount));
+    const hasInvoiceAmounts =
+      invoiceDueAmount > 0 || invoicePaidAmount > 0 || invoiceBalanceDue > 0;
+
+    if (hasInvoiceAmounts) {
+      return {
+        dueAmount: invoiceDueAmount,
+        paidAmount: invoicePaidAmount,
+        balanceDue: invoiceBalanceDue,
+        paymentStatus: invoice?.payment_status || 'pending',
+      };
+    }
+
     const dueAmount = Number(payment?.due_amount || 0);
     const paidAmount = Number(payment?.paid_amount || 0);
     const balanceDue = Number(payment?.balance_due || 0);
-    const invoiceTotal = Number(invoice?.total_amount || 0);
     const hasPaymentAmounts = dueAmount > 0 || paidAmount > 0 || balanceDue > 0;
 
     if (hasPaymentAmounts) {
@@ -136,15 +158,6 @@ export default function ClientCostCentersPage() {
         paidAmount,
         balanceDue,
         paymentStatus: payment?.payment_status || 'pending',
-      };
-    }
-
-    if (invoiceTotal > 0) {
-      return {
-        dueAmount: invoiceTotal,
-        paidAmount: 0,
-        balanceDue: invoiceTotal,
-        paymentStatus: 'pending',
       };
     }
 
@@ -195,7 +208,7 @@ export default function ClientCostCentersPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/payments/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}`);
+      const response = await fetch(`/api/billing/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}`);
       if (!response.ok) {
         return false;
       }
@@ -254,13 +267,15 @@ export default function ClientCostCentersPage() {
 
       const payments = centers.map((center) => {
         const amounts = buildCostCenterAmounts(center.payment, center.invoice);
-        const reference = isRealInvoiceNumber(center.invoice?.invoice_number)
+      const reference = isRealInvoiceNumber(center.invoice?.invoice_number)
           ? center.invoice.invoice_number
           : isRealInvoiceNumber(center.payment?.reference)
             ? center.payment.reference
-            : '';
+            : (center.payment?.source === 'vehicles_draft' ? 'PENDING' : '');
         return {
           id: center.payment?.id || center.invoice?.id || null,
+          account_invoice_id: center.invoice?.id || center.payment?.account_invoice_id || null,
+          accountInvoiceId: center.invoice?.id || center.payment?.account_invoice_id || null,
           company: center.legal_name || center.company || center.payment?.company || center.invoice?.company_name || prefix,
           cost_code: center.cost_code,
           reference,
@@ -270,6 +285,7 @@ export default function ClientCostCentersPage() {
           invoice_date: center.payment?.invoice_date || center.invoice?.invoice_date || null,
           due_date: center.payment?.due_date || null,
           payment_status: amounts.paymentStatus,
+          amountSource: center.payment?.source || (center.invoice ? 'account_invoice' : 'payments'),
           overdue_30_days: center.payment?.overdue_30_days || 0,
           overdue_60_days: center.payment?.overdue_60_days || 0,
           overdue_90_days: center.payment?.overdue_90_days || 0,
@@ -310,6 +326,17 @@ export default function ClientCostCentersPage() {
       console.error('Error fetching cost centers with payments:', error);
       setLoading(false);
       return false;
+    }
+  };
+
+  const refreshVisibleClientData = async () => {
+    if ((decodedCode || '').includes(',')) {
+      return fetchPaymentsByAccountsList();
+    }
+
+    const loaded = await fetchCostCentersWithPayments();
+    if (!loaded) {
+      await fetchClientDataWithPaymentsFocus();
     }
   };
 
@@ -376,6 +403,41 @@ export default function ClientCostCentersPage() {
       filterCostCenters();
     }
   }, [searchTerm, clientData]);
+
+  const overviewTotals = useMemo(() => {
+    const totals = {
+      due: 0,
+      paid: 0,
+      balance: 0,
+      costCenters: costCentersWithPayments.length,
+      paidCount: 0,
+      partialCount: 0,
+      pendingCount: 0,
+      overdueCount: 0,
+    };
+
+    costCentersWithPayments.forEach((costCenter) => {
+      totals.due += Number(costCenter?.dueAmount || 0);
+      totals.paid += Number(costCenter?.paidAmount || 0);
+      totals.balance += Number(costCenter?.balanceDue || 0);
+      const status = String(costCenter?.paymentStatus || 'pending').toLowerCase();
+      if (status === 'paid') totals.paidCount += 1;
+      else if (status === 'partial') totals.partialCount += 1;
+      else if (status === 'overdue') totals.overdueCount += 1;
+      else totals.pendingCount += 1;
+    });
+
+    return totals;
+  }, [costCentersWithPayments]);
+
+  const displayBillingMonth = useMemo(() => {
+    const selectedMonth =
+      costCentersWithPayments.find((item) => item?.billingMonth)?.billingMonth ||
+      currentBillingMonthKey;
+    const date = new Date(selectedMonth);
+    if (Number.isNaN(date.getTime())) return selectedMonth;
+    return date.toLocaleDateString('en-ZA', { year: 'numeric', month: 'long' });
+  }, [costCentersWithPayments, currentBillingMonthKey]);
 
   // Handle amount input changes - allow decimals and better formatting
   const handleAmountChange = (e) => {
@@ -543,11 +605,23 @@ export default function ClientCostCentersPage() {
       doc.text(`Total: ${formatCurrency(totalDue)}`, rightX, y + 4, { align: 'right' });
 
       // Aging summary
-      const overdue30 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_30_days'), 0);
-      const overdue60 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_60_days'), 0);
-      const overdue90 = costCentersWithPayments.reduce((sum, cc) => sum + getOverdueValue(cc, 'overdue_90_days'), 0);
-      const overdue120 = 0;
-      const currentDue = Math.max(0, totalDue - overdue30 - overdue60 - overdue90 - overdue120);
+      const agingSummary = costCentersWithPayments.reduce(
+        (sum, cc) => {
+          const buckets = getAgingBuckets(cc);
+          sum.current += buckets.current;
+          sum.days30 += buckets.days30;
+          sum.days60 += buckets.days60;
+          sum.days90 += buckets.days90;
+          sum.days91Plus += buckets.days91Plus;
+          return sum;
+        },
+        { current: 0, days30: 0, days60: 0, days90: 0, days91Plus: 0 }
+      );
+      const overdue30 = agingSummary.days30;
+      const overdue60 = agingSummary.days60;
+      const overdue90 = agingSummary.days90;
+      const overdue120 = agingSummary.days91Plus;
+      const currentDue = agingSummary.current;
 
       const agingTop = y + 14;
       doc.rect(14, agingTop, rightX - 14, 12);
@@ -617,6 +691,7 @@ export default function ClientCostCentersPage() {
       setLoading(true);
       
       const { clientInfo, payments, summary, searchDetails } = sessionData;
+      const costCenterInfoLookup = new Map();
       
       console.log('Loading from sessionStorage - payments_ table data:', {
         clientInfo,
@@ -632,13 +707,14 @@ export default function ClientCostCentersPage() {
       // Convert payments_ table data to cost centers format
       const costCentersFromPayments = payments?.map(payment => {
         const matchedCostCenter =
-          costCenterInfoMap.get(String(payment.cost_code || '').trim().toUpperCase()) || null;
+          costCenterInfoLookup.get(String(payment.cost_code || '').trim().toUpperCase()) || null;
         const reference = isRealInvoiceNumber(payment.reference) ? payment.reference : '';
 
         return {
         accountNumber: payment.cost_code,
         accountName: matchedCostCenter?.legal_name || matchedCostCenter?.company || payment.company || payment.cost_code,
         company: matchedCostCenter?.company || payment.company || payment.cost_code,
+        accountInvoiceId: payment.account_invoice_id || null,
         dueAmount: payment.due_amount || 0,
         paidAmount: payment.paid_amount || 0,
         balanceDue: payment.balance_due || 0,
@@ -658,6 +734,7 @@ export default function ClientCostCentersPage() {
           stock_code: payment.cost_code,
           stock_description: `${matchedCostCenter?.company || payment.company || 'N/A'} - ${payment.cost_code}`,
           account_number: payment.cost_code,
+          account_invoice_id: payment.account_invoice_id || null,
           company: matchedCostCenter?.company || payment.company || clientInfo.companyGroup,
           total_ex_vat: Number(payment.due_amount || 0),
           total_vat: 0,
@@ -918,12 +995,13 @@ export default function ClientCostCentersPage() {
         costCenters[accountNumber] = {
           accountNumber,
           accountName: vehicle.company || vehicle.stock_description || vehicle.stock_code || accountNumber,
-          dueAmount: vehicle.total_ex_vat || 0,
-          paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
-          balanceDue: vehicle.amount_due || 0,
-          paymentStatus: vehicle.payment_status || 'pending',
-          reference: isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '',
-          billingMonth: vehicle.billing_month,
+        dueAmount: vehicle.total_ex_vat || 0,
+        paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
+        balanceDue: vehicle.amount_due || 0,
+        paymentStatus: vehicle.payment_status || 'pending',
+        accountInvoiceId: vehicle.account_invoice_id || null,
+        reference: isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '',
+        billingMonth: vehicle.billing_month,
           vehicleCount: 0,
           vehicles: []
         };
@@ -934,6 +1012,8 @@ export default function ClientCostCentersPage() {
       costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
       costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
       costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
+      costCenters[accountNumber].accountInvoiceId =
+        vehicle.account_invoice_id || costCenters[accountNumber].accountInvoiceId || null;
       costCenters[accountNumber].reference = isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '';
       costCenters[accountNumber].billingMonth = vehicle.billing_month;
       costCenters[accountNumber].vehicleCount += 1;
@@ -994,6 +1074,32 @@ export default function ClientCostCentersPage() {
       style: 'currency',
       currency: 'ZAR'
     }).format(amount);
+  };
+
+  const getAgingBuckets = (costCenter) => {
+    const balanceDue = Number(costCenter?.balanceDue || 0);
+    const dueDateValue = costCenter?.dueDate || costCenter?.invoiceDate || costCenter?.billingMonth;
+    const dueDate = dueDateValue ? new Date(dueDateValue) : null;
+
+    if (balanceDue <= 0 || !dueDate || Number.isNaN(dueDate.getTime())) {
+      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+    }
+
+    const today = new Date();
+    const diffMs = today.setHours(0, 0, 0, 0) - dueDate.setHours(0, 0, 0, 0);
+    const daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+    if (daysOverdue <= 0) {
+      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+    }
+
+    return {
+      current: 0,
+      days30: daysOverdue <= 30 ? balanceDue : 0,
+      days60: daysOverdue >= 31 && daysOverdue <= 60 ? balanceDue : 0,
+      days90: daysOverdue >= 61 && daysOverdue <= 90 ? balanceDue : 0,
+      days91Plus: daysOverdue > 90 ? balanceDue : 0,
+    };
   };
 
   const handlePayCostCenter = (costCenter) => {
@@ -1091,13 +1197,13 @@ export default function ClientCostCentersPage() {
     setProcessingPayment(true);
     
     try {
-      // Prepare bulk payment data
       const bulkPayments = selectedCostCentersToPay.map(costCenter => ({
         accountNumber: costCenter.accountNumber,
+        accountInvoiceId: costCenter.accountInvoiceId || costCenter.account_invoice_id || null,
+        billingMonth: costCenter.billingMonth || null,
         amount: costCenter.balanceDue
       }));
 
-      // Process all payments in one API call
       const response = await fetch('/api/payments/bulk-process', {
         method: 'POST',
         headers: {
@@ -1118,8 +1224,30 @@ export default function ClientCostCentersPage() {
       const successCount = result.summary.successful;
       const errors = result.errors || [];
 
+      await refreshVisibleClientData();
+
+      toast({
+        title: successCount === selectedCostCentersToPay.length ? "Bulk Payment Successful" : "Bulk Payment Completed",
+        description:
+          errors.length > 0
+            ? `${successCount} payment(s) processed. ${errors.length} failed.`
+            : `${successCount} payment(s) processed successfully.`,
+      });
+      closePayAllModal();
+    } catch (error) {
+      console.error('Bulk payment error:', error);
+      toast({
+        variant: "destructive",
+        title: "Bulk Payment Error",
+        description: error instanceof Error ? error.message : "Failed to process bulk payment.",
+      });
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
   // Handle Due for All Cost Centers
-  const handleDueForAllCostCenters = async () => {
+  const _unusedHandleDueForAllCostCenters = async () => {
     try {
       // Create a new window with the comprehensive due report
       const printWindow = window.open('', '_blank');
@@ -1502,47 +1630,6 @@ export default function ClientCostCentersPage() {
         title: "Report Generation Failed",
         description: "Failed to generate due report for all cost centers. Please try again.",
       });
-    }
-  };
-
-      if (successCount > 0) {
-        const totalAmount = result.summary.totalAmount;
-        const message = successCount === selectedCostCentersToPay.length
-          ? `Successfully processed payments for all ${successCount} cost centers! Total amount: ${formatCurrency(totalAmount)}`
-          : `Successfully processed payments for ${successCount} out of ${selectedCostCentersToPay.length} cost centers. Total amount: ${formatCurrency(totalAmount)}`;
-        
-        toast({
-          title: "Pay All Successful",
-          description: message,
-        });
-        
-        if (errors.length > 0) {
-          console.error('Payment errors:', errors);
-          toast({
-            variant: "destructive",
-            title: "Some Payments Failed",
-            description: `${errors.length} payments failed. Check console for details.`
-          });
-        }
-        
-        // Refresh client data to show updated amounts
-        await fetchClientData();
-        setShowPayAllModal(false);
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Pay All Failed",
-          description: "All payments failed. Please check the console for details."
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Payment Error",
-        description: `Failed to process payments: ${error.message}`
-      });
-    } finally {
-      setProcessingPayment(false);
     }
   };
 
@@ -1977,6 +2064,11 @@ export default function ClientCostCentersPage() {
           },
           body: JSON.stringify({
             accountNumber: paymentDetails.costCenter.accountNumber,
+            accountInvoiceId:
+              paymentDetails.costCenter.accountInvoiceId ||
+              paymentDetails.costCenter.account_invoice_id ||
+              null,
+            billingMonth: paymentDetails.costCenter.billingMonth || null,
             amount: amount,
             paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
             paymentType: 'cost_center_payment'
@@ -1984,7 +2076,8 @@ export default function ClientCostCentersPage() {
         });
 
         if (!response.ok) {
-          throw new Error('Payment processing failed');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Payment processing failed');
         }
 
         const result = await response.json();
@@ -2002,7 +2095,7 @@ export default function ClientCostCentersPage() {
           });
           
           // Refresh client data to show updated amounts
-          await fetchClientData();
+          await refreshVisibleClientData();
         } else {
           toast({
             variant: "destructive",
@@ -2037,6 +2130,8 @@ export default function ClientCostCentersPage() {
               },
               body: JSON.stringify({
                 accountNumber: costCenter.accountNumber,
+                accountInvoiceId: costCenter.accountInvoiceId || costCenter.account_invoice_id || null,
+                billingMonth: costCenter.billingMonth || null,
                 amount: Math.min(amount - totalProcessed, costCenter.balanceDue),
                 paymentReference: paymentReference.trim() || `Bulk payment for ${costCenter.accountNumber}`,
                 paymentType: 'cost_center_payment'
@@ -2066,7 +2161,7 @@ export default function ClientCostCentersPage() {
           });
           
           // Refresh client data to show updated amounts
-          await fetchClientData();
+          await refreshVisibleClientData();
         } else {
           toast({
             variant: "destructive",
@@ -2132,7 +2227,13 @@ export default function ClientCostCentersPage() {
   const handleShowDueReport = async (costCenter) => { // Renamed function
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
-      const response = await fetch(`/api/payments/by-account?accountNumber=${costCenter.accountNumber}`);
+      const query = new URLSearchParams({
+        accountNumber: costCenter.accountNumber,
+      });
+      if (costCenter.billingMonth) {
+        query.set('billingMonth', costCenter.billingMonth);
+      }
+      const response = await fetch(`/api/payments/by-account?${query.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch payment data');
       }
@@ -2463,7 +2564,13 @@ export default function ClientCostCentersPage() {
           isFirstInvoice = false;
           
           // Fetch vehicle invoice data for this cost center
-          const response = await fetch(`/api/vehicles/invoice?accountNumber=${costCenter.accountNumber}`);
+          const query = new URLSearchParams({
+            accountNumber: costCenter.accountNumber,
+          });
+          if (costCenter.billingMonth) {
+            query.set('billingMonth', costCenter.billingMonth);
+          }
+          const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
           if (!response.ok) {
             throw new Error(`Failed to fetch data for ${costCenter.accountNumber}`);
           }
@@ -2720,6 +2827,9 @@ export default function ClientCostCentersPage() {
                   )}
                 </div>
                 <p className="text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
+                <p className="mt-1 text-gray-400 text-xs">
+                  Current billing month: {displayBillingMonth}
+                </p>
                 {clientData?.searchDetails && (
                   <p className="mt-1 text-gray-400 text-xs">
                     Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
@@ -2752,19 +2862,19 @@ export default function ClientCostCentersPage() {
             </CardHeader>
             <CardContent>
               <div className="font-bold text-red-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
+                {formatCurrency(overviewTotals.balance)}
               </div>
               <p className={`mt-1 text-xs font-medium ${
-                costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                overviewTotals.balance > 0 
                   ? 'text-red-600' 
                   : 'text-green-600'
               }`}>
-                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                {overviewTotals.balance > 0 
                   ? 'Due / Not Paid' 
                   : 'Paid in Full'
                 }
               </p>
-              <p className="mt-1 text-gray-500 text-xs">From payments table</p>
+              <p className="mt-1 text-gray-500 text-xs">Current month outstanding balance</p>
             </CardContent>
           </Card>
 
@@ -2785,8 +2895,10 @@ export default function ClientCostCentersPage() {
               <Users className="w-5 h-5 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="font-bold text-green-600 text-2xl">{costCentersWithPayments.length}</div>
-              <p className="mt-1 text-gray-500 text-xs">Active centers</p>
+              <div className="font-bold text-green-600 text-2xl">{overviewTotals.costCenters}</div>
+              <p className="mt-1 text-gray-500 text-xs">
+                {overviewTotals.paidCount} paid, {overviewTotals.pendingCount + overviewTotals.partialCount + overviewTotals.overdueCount} outstanding
+              </p>
             </CardContent>
           </Card>
 
@@ -2797,9 +2909,9 @@ export default function ClientCostCentersPage() {
             </CardHeader>
             <CardContent>
               <div className="font-bold text-indigo-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.dueAmount || 0), 0))}
+                {formatCurrency(overviewTotals.due)}
               </div>
-              <p className="mt-1 text-gray-500 text-xs">Total amount due from payments table</p>
+              <p className="mt-1 text-gray-500 text-xs">Current month billed total</p>
             </CardContent>
           </Card>
 
@@ -2810,19 +2922,19 @@ export default function ClientCostCentersPage() {
             </CardHeader>
             <CardContent>
               <div className="font-bold text-orange-600 text-2xl">
-                {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
+                {formatCurrency(overviewTotals.balance)}
               </div>
               <p className={`mt-1 text-xs font-medium ${
-                costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                overviewTotals.balance > 0 
                   ? 'text-orange-600' 
                   : 'text-green-600'
               }`}>
-                {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                {overviewTotals.balance > 0 
                   ? 'Due / Not Paid' 
                   : 'Paid in Full'
                 }
               </p>
-              <p className="mt-1 text-gray-500 text-xs">Balance due from payments table</p>
+              <p className="mt-1 text-gray-500 text-xs">Outstanding after payments</p>
             </CardContent>
           </Card>
         </div>
@@ -2833,14 +2945,14 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-gray-900 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0))}
+                  {formatCurrency(overviewTotals.balance)}
                 </div>
                 <p className={`text-xs font-medium ${
-                  costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                  overviewTotals.balance > 0 
                     ? 'text-red-600' 
                     : 'text-green-600'
                 }`}>
-                  {costCentersWithPayments.reduce((sum, cc) => sum + (cc.balanceDue || 0), 0) > 0 
+                  {overviewTotals.balance > 0 
                     ? 'Due / Not Paid' 
                     : 'Paid in Full'
                   }
@@ -2854,7 +2966,7 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-green-600 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.paidAmount || 0), 0))}
+                  {formatCurrency(overviewTotals.paid)}
                 </div>
                 <p className="text-gray-500 text-xs">Total Amount Paid</p>
               </div>
@@ -2865,7 +2977,7 @@ export default function ClientCostCentersPage() {
             <CardContent className="p-4">
               <div className="text-center">
                 <div className="font-bold text-red-600 text-lg">
-                  {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.dueAmount || 0), 0))}
+                  {formatCurrency(overviewTotals.due)}
                 </div>
                 <p className="text-gray-500 text-xs">Total Amount Due</p>
               </div>
@@ -2936,7 +3048,7 @@ export default function ClientCostCentersPage() {
                     )}
                   </Button>
                 </div>
-                {costCentersWithPayments.filter(cc => (cc.amountDue || 0) > 0).length > 0 && (
+                {showBillingColumns && costCentersWithPayments.filter(cc => (cc.amountDue || 0) > 0).length > 0 && (
                   <p className="mt-1 text-gray-500 text-xs">
                     Total Outstanding: {formatCurrency(costCentersWithPayments.reduce((sum, cc) => sum + (cc.amountDue || 0), 0))}
                   </p>
@@ -2950,12 +3062,16 @@ export default function ClientCostCentersPage() {
                 <thead className="bg-gray-50">
                   <tr className="border-gray-200 border-b">
                     <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Account Name</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Due Amount</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Paid Amount</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Payment Status</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Reference</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Billing Month</th>
+                    {showBillingColumns && (
+                      <>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Due Amount</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Paid Amount</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Payment Status</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Reference</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Billing Month</th>
+                      </>
+                    )}
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th>
                   </tr>
@@ -2973,54 +3089,76 @@ export default function ClientCostCentersPage() {
                           </Badge>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="font-semibold text-gray-900">{formatCurrency(costCenter.dueAmount || 0)}</div>
-                        <p className="text-gray-500 text-xs">From payments table</p>
-                      </td>
-                      <td className="p-4">
-                        <div className="space-y-1">
-                          <span className="font-semibold text-green-600">
-                            {formatCurrency(costCenter.paidAmount || 0)}
-                          </span>
-                          <p className="font-medium text-green-600 text-xs">
-                            Amount Paid
-                          </p>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="space-y-1">
-                          <span className={`font-semibold ${
-                            costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {formatCurrency(costCenter.balanceDue || 0)}
-                          </span>
-                          <p className={`text-xs font-medium ${
-                            costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            {costCenter.balanceDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            costCenter.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
-                            costCenter.paymentStatus === 'overdue' ? 'bg-red-100 text-red-800' :
-                            costCenter.paymentStatus === 'partial' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {costCenter.paymentStatus || 'pending'}
-                          </span>
-                      </td>
-                      <td className="p-4">
-                        <span className="font-semibold text-gray-700 text-sm">
-                          {costCenter.reference || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className="font-semibold text-blue-600 text-sm">
-                          {costCenter.billingMonth ? new Date(costCenter.billingMonth).toLocaleDateString() : 'N/A'}
-                        </span>
-                      </td>
+                      {showBillingColumns && (
+                        <>
+                          <td className="p-4">
+                            <div className="font-semibold text-gray-900">{formatCurrency(costCenter.dueAmount || 0)}</div>
+                            <p className="text-gray-500 text-xs">
+                              {costCenter.amountSource === 'vehicles_draft'
+                                ? 'From current vehicle billing'
+                                : costCenter.amountSource === 'account_invoice'
+                                  ? 'From generated invoice'
+                                  : costCenter.amountSource === 'no_billing_data'
+                                    ? 'No current billing data'
+                                    : 'From current billing record'}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            <div className="space-y-1">
+                              <span className="font-semibold text-green-600">
+                                {formatCurrency(costCenter.paidAmount || 0)}
+                              </span>
+                              <p className="font-medium text-green-600 text-xs">
+                                {costCenter.paidAmount > 0
+                                  ? `Paid ${formatCurrency(costCenter.paidAmount || 0)}`
+                                  : 'Amount Paid'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="space-y-1">
+                              <span className={`font-semibold ${
+                                costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                {formatCurrency(costCenter.balanceDue || 0)}
+                              </span>
+                              <p className={`text-xs font-medium ${
+                                costCenter.balanceDue > 0 ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                {costCenter.balanceDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
+                              </p>
+                              <p className="text-gray-500 text-xs">
+                                {formatCurrency(costCenter.paidAmount || 0)} paid of {formatCurrency(costCenter.dueAmount || 0)}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                costCenter.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
+                                costCenter.paymentStatus === 'overdue' ? 'bg-red-100 text-red-800' :
+                                costCenter.paymentStatus === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {costCenter.paymentStatus || 'pending'}
+                              </span>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-semibold text-gray-700 text-sm">
+                              {costCenter.reference || 'PENDING'}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <span className="font-semibold text-blue-600 text-sm">
+                              {costCenter.billingMonth
+                                ? new Date(costCenter.billingMonth).toLocaleDateString('en-ZA', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                  })
+                                : 'Current Month'}
+                            </span>
+                          </td>
+                        </>
+                      )}
                       <td className="p-4 text-center">
                         <Button
                           onClick={() => handlePayCostCenter(costCenter)}
@@ -3488,16 +3626,23 @@ export default function ClientCostCentersPage() {
                     prev
                       ? {
                           ...prev,
+                          accountInvoiceId: invoice.id,
                           reference: invoice.invoice_number,
                           invoiceData: {
                             ...(prev.invoiceData || {}),
+                            id: invoice.id,
                             invoice_number: invoice.invoice_number,
                             invoice_date: invoice.invoice_date,
+                            billing_month: invoice.billing_month,
+                            due_date: invoice.due_date,
                             client_address: invoice.client_address,
                             customer_vat_number: invoice.customer_vat_number,
                             subtotal: invoice.subtotal,
                             vat_amount: invoice.vat_amount,
                             total_amount: invoice.total_amount,
+                            paid_amount: invoice.paid_amount,
+                            balance_due: invoice.balance_due,
+                            payment_status: invoice.payment_status,
                             invoice_items: invoice.line_items,
                             invoiceItems: invoice.line_items,
                           },
@@ -3509,13 +3654,15 @@ export default function ClientCostCentersPage() {
                       item.accountNumber === selectedCostCenterForInvoice?.accountNumber
                         ? {
                             ...item,
+                            accountInvoiceId: invoice.id,
                             reference: invoice.invoice_number,
                             dueAmount: Number(invoice.total_amount || 0),
-                            balanceDue: Number(invoice.total_amount || 0),
-                            paidAmount: 0,
-                            paymentStatus: 'pending',
+                            balanceDue: Number(invoice.balance_due ?? invoice.total_amount ?? 0),
+                            paidAmount: Number(invoice.paid_amount || 0),
+                            paymentStatus: invoice.payment_status || 'pending',
                             billingMonth: invoice.billing_month || item.billingMonth,
                             invoiceDate: invoice.invoice_date || item.invoiceDate,
+                            dueDate: invoice.due_date || item.dueDate,
                           }
                         : item,
                     ),

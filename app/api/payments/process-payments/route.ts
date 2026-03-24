@@ -1,196 +1,178 @@
-import { createClient } from '@/lib/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  buildInvoiceFinancials,
+  normalizeBillingMonth,
+  resolveAccountInvoice,
+  upsertPaymentsMirror,
+} from "@/lib/server/account-invoice-payments";
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Payments_ API called');
     const requestBody = await request.json();
-    console.log('Raw request body:', requestBody);
-    
-    const { accountNumber, paymentReference, amount, paymentType } = requestBody;
-    console.log('Payment request data:', { accountNumber, paymentReference, amount, paymentType });
+    const {
+      accountNumber,
+      accountInvoiceId,
+      billingMonth,
+      paymentReference,
+      amount,
+      paymentMethod,
+      notes,
+      paymentType,
+    } = requestBody;
 
-    // Validate required fields
-    if (!accountNumber || !paymentReference || !amount) {
-      console.log('Missing required fields');
+    if (!paymentReference || !String(paymentReference).trim()) {
       return NextResponse.json(
-        { error: 'Missing required fields: accountNumber, paymentReference, amount' },
-        { status: 400 }
+        { error: "Payment reference is required" },
+        { status: 400 },
       );
     }
 
-    // Validate amount is positive
-    if (amount <= 0) {
-      console.log('Invalid amount:', amount);
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than 0' },
-        { status: 400 }
+        { error: "Amount must be greater than 0" },
+        { status: 400 },
       );
     }
 
-    // Validate amount is reasonable (not more than 1 million)
-    if (amount > 1000000) {
-      console.log('Amount too high:', amount);
+    if (numericAmount > 1000000) {
       return NextResponse.json(
-        { error: 'Amount seems unreasonably high. Please verify the payment amount.' },
-        { status: 400 }
+        { error: "Amount seems unreasonably high. Please verify the payment amount." },
+        { status: 400 },
       );
     }
 
-    console.log('Creating Supabase client...');
+    if (paymentType !== "cost_center_payment") {
+      return NextResponse.json(
+        { error: "Unsupported payment type" },
+        { status: 400 },
+      );
+    }
+
     const supabase = await createClient();
-    console.log('Supabase client created');
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    // Handle cost center payments using payments_ table
-    if (paymentType === 'cost_center_payment') {
-      console.log('Processing cost center payment for account:', accountNumber);
-      
-      // First, check if a payment record already exists for this cost_code
-      console.log('Checking for existing payment record for cost_code:', accountNumber);
-      const { data: existingPayment, error: lookupError } = await supabase
-        .from('payments_')
-        .select('*')
-        .eq('cost_code', accountNumber)
-        .single();
+    const invoice = await resolveAccountInvoice(supabase, {
+      accountInvoiceId: accountInvoiceId ? String(accountInvoiceId) : null,
+      accountNumber: accountNumber ? String(accountNumber).trim() : null,
+      billingMonth: normalizeBillingMonth(billingMonth),
+    });
 
-      if (lookupError && lookupError.code !== 'PGRST116') {
-        console.error('Error looking up existing payment:', lookupError);
-        return NextResponse.json(
-          { error: 'Failed to check existing payment record' },
-          { status: 500 }
-        );
-      }
-
-      console.log('Existing payment lookup result:', { existingPayment, lookupError });
-
-      let payment;
-      let paymentError;
-
-      if (existingPayment) {
-        // Update existing payment record
-        console.log('Updating existing payment record for cost_code:', accountNumber);
-        console.log('Current due_amount:', existingPayment.due_amount, 'Current paid_amount:', existingPayment.paid_amount);
-        console.log('Current balance_due:', existingPayment.balance_due, 'Adding payment:', amount);
-        
-        // Calculate new paid amount and balance due
-        const currentPaidAmount = parseFloat(existingPayment.paid_amount) || 0;
-        const currentBalanceDue = parseFloat(existingPayment.balance_due) || 0;
-        const currentDueAmount = parseFloat(existingPayment.due_amount) || 0;
-        
-        const newPaidAmount = currentPaidAmount + amount;
-        const newBalanceDue = Math.max(0, currentBalanceDue - amount);
-        
-        // Determine payment status
-        let paymentStatus = 'partial';
-        if (newBalanceDue === 0) {
-          paymentStatus = 'paid';
-        } else if (newBalanceDue > 0 && newPaidAmount < currentDueAmount) {
-          paymentStatus = 'partial';
-        } else if (newBalanceDue > 0 && newPaidAmount >= currentDueAmount) {
-          paymentStatus = 'overdue';
-        }
-        
-        // Calculate overdue amounts based on due_date
-        const today = new Date();
-        const dueDate = existingPayment.due_date ? new Date(existingPayment.due_date) : new Date();
-        const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
-        
-        let overdue30Days = 0;
-        let overdue60Days = 0;
-        let overdue90Days = 0;
-        
-        if (newBalanceDue > 0) {
-          if (daysOverdue > 90) {
-            overdue90Days = newBalanceDue;
-          } else if (daysOverdue > 60) {
-            overdue60Days = newBalanceDue;
-          } else if (daysOverdue > 30) {
-            overdue30Days = newBalanceDue;
-          }
-        }
-        
-        const { data: updatedPayment, error: updateError } = await supabase
-          .from('payments_')
-          .update({
-            reference: paymentReference,
-            paid_amount: newPaidAmount,
-            balance_due: newBalanceDue,
-            payment_status: paymentStatus,
-            overdue_30_days: overdue30Days,
-            overdue_60_days: overdue60Days,
-            overdue_90_days: overdue90Days,
-            last_updated: new Date().toISOString()
-          })
-          .eq('cost_code', accountNumber)
-          .select()
-          .single();
-
-        console.log('Update result:', { updatedPayment, updateError });
-        console.log('Payment updated - paid_amount:', newPaidAmount, 'balance_due:', newBalanceDue, 'status:', paymentStatus);
-        payment = updatedPayment;
-        paymentError = updateError;
-      } else {
-        // Create new payment record - this shouldn't happen often as payments_ should be pre-populated
-        console.log('Creating new payment record for cost_code:', accountNumber);
-        
-        const { data: newPayment, error: insertError } = await supabase
-          .from('payments_')
-          .insert({
-            cost_code: accountNumber,
-            company: '', // Will be populated from other data
-            reference: paymentReference,
-            due_amount: amount, // Initial due amount
-            paid_amount: amount, // First payment
-            balance_due: 0, // Fully paid
-            payment_status: 'paid',
-            invoice_date: new Date().toISOString().split('T')[0],
-            due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-            overdue_30_days: 0,
-            overdue_60_days: 0,
-            overdue_90_days: 0,
-            billing_month: new Date().toISOString().split('T')[0].substring(0, 7) + '-01', // First day of current month
-            last_updated: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        console.log('Insert result:', { newPayment, insertError });
-        payment = newPayment;
-        paymentError = insertError;
-      }
-
-      if (paymentError) {
-        console.error('Payment processing error:', paymentError);
-        return NextResponse.json(
-          { error: 'Failed to process payment' },
-          { status: 500 }
-        );
-      }
-
-      console.log('Payment processed successfully:', payment);
-      
-      // Return the payment data with updated amounts
-      return NextResponse.json({
-        success: true,
-        message: 'Payment processed successfully',
-        payment: {
-          ...payment,
-          message: `Payment of ${amount} recorded successfully. New balance due: ${payment.balance_due}`
-        }
-      });
+    if (!invoice) {
+      return NextResponse.json(
+        { error: "No invoice found for this account and billing month" },
+        { status: 404 },
+      );
     }
 
-    // Handle other payment types if needed
-    return NextResponse.json(
-      { error: 'Unsupported payment type' },
-      { status: 400 }
+    const currentBalance = Number(invoice.balance_due ?? invoice.total_amount ?? 0);
+    if (numericAmount > currentBalance) {
+      return NextResponse.json(
+        {
+          error: `Payment amount cannot exceed current balance due (${currentBalance.toFixed(2)})`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const paymentInsert = {
+      account_invoice_id: invoice.id,
+      account_number: invoice.account_number,
+      billing_month: invoice.billing_month,
+      invoice_number: invoice.invoice_number,
+      payment_reference: String(paymentReference).trim(),
+      amount: numericAmount,
+      payment_date: new Date().toISOString(),
+      payment_method: paymentMethod ? String(paymentMethod).trim() : null,
+      notes: notes ? String(notes).trim() : null,
+      created_by: user?.id || null,
+    };
+
+    const { data: insertedPayment, error: insertError } = await supabase
+      .from("account_invoice_payments")
+      .insert(paymentInsert)
+      .select("*")
+      .single();
+
+    if (insertError) {
+      console.error("Failed to insert account invoice payment:", insertError);
+      return NextResponse.json(
+        { error: insertError.message || "Failed to record payment" },
+        { status: 500 },
+      );
+    }
+
+    const { data: paymentRows, error: paymentsError } = await supabase
+      .from("account_invoice_payments")
+      .select("amount")
+      .eq("account_invoice_id", invoice.id);
+
+    if (paymentsError) {
+      console.error("Failed to total account invoice payments:", paymentsError);
+      return NextResponse.json(
+        { error: paymentsError.message || "Failed to total payments" },
+        { status: 500 },
+      );
+    }
+
+    const totalPaid = (paymentRows || []).reduce(
+      (sum, row) => sum + Number(row.amount || 0),
+      0,
     );
 
+    const financials = buildInvoiceFinancials({
+      totalAmount: invoice.total_amount,
+      paidAmount: totalPaid,
+      dueDate: invoice.due_date,
+    });
+
+    const invoiceUpdatePayload = {
+      paid_amount: financials.paidAmount,
+      balance_due: financials.balanceDue,
+      payment_status: financials.paymentStatus,
+      last_payment_at: insertedPayment.payment_date,
+      last_payment_reference: insertedPayment.payment_reference,
+      fully_paid_at:
+        financials.balanceDue <= 0
+          ? invoice.fully_paid_at || new Date().toISOString()
+          : null,
+    };
+
+    const { data: updatedInvoice, error: updateInvoiceError } = await supabase
+      .from("account_invoices")
+      .update(invoiceUpdatePayload)
+      .eq("id", invoice.id)
+      .select("*")
+      .single();
+
+    if (updateInvoiceError) {
+      console.error("Failed to update account invoice payment state:", updateInvoiceError);
+      return NextResponse.json(
+        { error: updateInvoiceError.message || "Failed to update invoice" },
+        { status: 500 },
+      );
+    }
+
+    await upsertPaymentsMirror(supabase, updatedInvoice);
+
+    return NextResponse.json({
+      success: true,
+      message: "Payment processed successfully",
+      payment: {
+        ...updatedInvoice,
+        account_invoice_id: updatedInvoice.id,
+        invoice_number: updatedInvoice.invoice_number,
+      },
+      paymentEntry: insertedPayment,
+    });
   } catch (error) {
-    console.error('Payment processing error:', error);
+    console.error("Payment processing error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

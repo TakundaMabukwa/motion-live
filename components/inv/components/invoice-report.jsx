@@ -626,15 +626,75 @@ export default function InvoiceReportComponent({
 }) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [isLoadingInvoiceMonth, setIsLoadingInvoiceMonth] = useState(false);
+  const [invoiceHistory, setInvoiceHistory] = useState([]);
+  const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("__current__");
+  const [activeInvoiceData, setActiveInvoiceData] = useState(invoiceData);
+  const [editableNotes, setEditableNotes] = useState(
+    String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ""),
+  );
   const [customerInfo, setCustomerInfo] = useState(
     costCenter?.costCenterInfo || null,
   );
+
+  useEffect(() => {
+    setActiveInvoiceData(invoiceData);
+    setSelectedInvoiceMonth("__current__");
+  }, [invoiceData]);
+
+  useEffect(() => {
+    setEditableNotes(
+      String(
+        activeInvoiceData?.notes ??
+        activeInvoiceData?.note ??
+        activeInvoiceData?.quote_notes ??
+        "",
+      ),
+    );
+  }, [activeInvoiceData]);
 
   useEffect(() => {
     if (costCenter?.costCenterInfo) {
       setCustomerInfo(costCenter.costCenterInfo);
     }
   }, [costCenter?.costCenterInfo]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadInvoiceHistory = async () => {
+      if (!costCenter?.accountNumber) {
+        if (active) setInvoiceHistory([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch invoice history");
+        }
+
+        const result = await response.json();
+        if (active) {
+          setInvoiceHistory(Array.isArray(result?.invoices) ? result.invoices : []);
+        }
+      } catch (error) {
+        console.error("Error loading invoice history:", error);
+        if (active) {
+          setInvoiceHistory([]);
+        }
+      }
+    };
+
+    loadInvoiceHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [costCenter?.accountNumber]);
 
   useEffect(() => {
     let active = true;
@@ -684,10 +744,10 @@ export default function InvoiceReportComponent({
       : "/soltrack_logo.png";
 
   const invoiceView = useMemo(() => {
-    const items = Array.isArray(invoiceData?.invoiceItems)
-      ? invoiceData.invoiceItems
-      : Array.isArray(invoiceData?.invoice_items)
-        ? invoiceData.invoice_items
+    const items = Array.isArray(activeInvoiceData?.invoiceItems)
+      ? activeInvoiceData.invoiceItems
+      : Array.isArray(activeInvoiceData?.invoice_items)
+        ? activeInvoiceData.invoice_items
         : [];
 
     const rows = items.map((item) => {
@@ -720,7 +780,7 @@ export default function InvoiceReportComponent({
         units: item.units || 1,
         unitPrice: formatAmount(exVat),
         vatAmount: formatAmount(vatAmount),
-        vatPercent: "15.00%",
+        vatPercent: "15%",
         totalIncl: formatAmount(totalIncl),
         noteReg: regText,
         exVat,
@@ -742,51 +802,50 @@ export default function InvoiceReportComponent({
     const clientName =
       customerInfo?.legal_name ||
       customerInfo?.company ||
-      invoiceData?.company_name ||
+      activeInvoiceData?.company_name ||
       clientLegalName ||
       costCenter?.accountName ||
       "";
     const clientAddress = buildClientAddress(
       customerInfo,
-      invoiceData?.client_address || invoiceData?.company_address || "",
+      activeInvoiceData?.client_address || activeInvoiceData?.company_address || "",
     );
     const invoiceNumber =
       getRealInvoiceNumber(
-        invoiceData?.invoice_number,
-        invoiceData?.invoiceNumber,
-        invoiceData?.invoice_no,
+        activeInvoiceData?.invoice_number,
+        activeInvoiceData?.invoiceNumber,
+        activeInvoiceData?.invoice_no,
       ) || "PENDING";
 
     const totals = {
       totalExVat:
-        toNumber(invoiceData?.subtotal) || rowTotals.totalExVat,
+        toNumber(activeInvoiceData?.subtotal) || rowTotals.totalExVat,
       totalVat:
-        toNumber(invoiceData?.vat_amount) || rowTotals.totalVat,
+        toNumber(activeInvoiceData?.vat_amount) || rowTotals.totalVat,
       totalInclVat:
-        toNumber(invoiceData?.total_amount) || rowTotals.totalInclVat,
+        toNumber(activeInvoiceData?.total_amount) || rowTotals.totalInclVat,
       discount: 0,
     };
 
-    const noteLines = [
-      clientName,
-      ...(rows.map((row) => row.noteReg).filter(Boolean)),
-    ];
+    const noteText = String(
+      editableNotes ?? "",
+    ).trim();
 
     return {
       clientName,
       clientAddress,
       invoiceNumber,
-      invoiceDate: formatDate(invoiceData?.invoice_date),
-      accountNumber: costCenter?.accountNumber || invoiceData?.account_number || "",
+      invoiceDate: formatDate(activeInvoiceData?.invoice_date),
+      accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
       customerVatNumber:
         customerInfo?.vat_number ||
-        invoiceData?.customer_vat_number ||
+        activeInvoiceData?.customer_vat_number ||
         "",
-      notes: noteLines.join("\n"),
+      notes: noteText,
       rows,
       totals,
     };
-  }, [clientLegalName, costCenter, customerInfo, invoiceData]);
+  }, [activeInvoiceData, clientLegalName, costCenter, customerInfo, editableNotes]);
 
   const getPrintableHtml = () => {
     const rowMarkup =
@@ -1024,7 +1083,7 @@ export default function InvoiceReportComponent({
           discountAmount: invoiceView.totals.discount,
           totalAmount: invoiceView.totals.totalInclVat,
           lineItems,
-          notes: invoiceView.notes,
+          notes: editableNotes.trim(),
         }),
       });
 
@@ -1033,12 +1092,63 @@ export default function InvoiceReportComponent({
         throw new Error(result?.error || "Failed to generate invoice");
       }
 
+      const normalizedStoredInvoice = {
+        ...result.invoice,
+        invoice_items: Array.isArray(result.invoice?.line_items) ? result.invoice.line_items : [],
+        invoiceItems: Array.isArray(result.invoice?.line_items) ? result.invoice.line_items : [],
+      };
+      setActiveInvoiceData(normalizedStoredInvoice);
+      setEditableNotes(String(result.invoice?.notes || ""));
+      setInvoiceHistory((prev) => {
+        const next = Array.isArray(prev) ? [...prev] : [];
+        const existingIndex = next.findIndex((item) => item?.id === result.invoice?.id);
+        if (existingIndex >= 0) {
+          next[existingIndex] = result.invoice;
+        } else {
+          next.unshift(result.invoice);
+        }
+        return next;
+      });
+
       onInvoiceGenerated?.(result.invoice);
       toast.success("Invoice generated successfully");
     } catch (error) {
       toast.error(error?.message || "Failed to generate invoice");
     } finally {
       setIsGeneratingInvoice(false);
+    }
+  };
+
+  const handleInvoiceMonthChange = async (value) => {
+    setSelectedInvoiceMonth(value);
+
+    if (value === "__current__") {
+      setActiveInvoiceData(invoiceData);
+      return;
+    }
+
+    if (!costCenter?.accountNumber) return;
+
+    setIsLoadingInvoiceMonth(true);
+    try {
+      const query = new URLSearchParams({
+        accountNumber: costCenter.accountNumber,
+        billingMonth: value,
+      });
+      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+      const result = await response.json();
+
+      if (!response.ok || !result?.invoiceData) {
+        throw new Error(result?.error || "Failed to load invoice");
+      }
+
+      setActiveInvoiceData(result.invoiceData);
+    } catch (error) {
+      toast.error(error?.message || "Failed to load invoice");
+      setSelectedInvoiceMonth("__current__");
+      setActiveInvoiceData(invoiceData);
+    } finally {
+      setIsLoadingInvoiceMonth(false);
     }
   };
 
@@ -1139,6 +1249,23 @@ export default function InvoiceReportComponent({
   return (
     <div className="w-full">
       <div className="invoice-actions">
+        <select
+          value={selectedInvoiceMonth}
+          onChange={(event) => handleInvoiceMonthChange(event.target.value)}
+          disabled={isLoadingInvoiceMonth}
+          className="border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900"
+        >
+          <option value="__current__">Current Billing</option>
+          {invoiceHistory.map((invoice) => {
+            const billingMonthValue = String(invoice?.billing_month || "").trim();
+            if (!billingMonthValue) return null;
+            return (
+              <option key={`${invoice.id}-${billingMonthValue}`} value={billingMonthValue}>
+                {`${formatDate(billingMonthValue)} - ${invoice.invoice_number || "Stored Invoice"}`}
+              </option>
+            );
+          })}
+        </select>
         {invoiceView.invoiceNumber === "PENDING" && (
           <Button
             onClick={generateInvoice}
@@ -1176,6 +1303,19 @@ export default function InvoiceReportComponent({
             </>
           )}
         </Button>
+      </div>
+
+      <div className="mb-4">
+        <label className="block mb-2 font-medium text-sm text-gray-700">
+          Invoice Notes
+        </label>
+        <textarea
+          value={editableNotes}
+          onChange={(event) => setEditableNotes(event.target.value)}
+          rows={4}
+          className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          placeholder="Add invoice notes for this month..."
+        />
       </div>
 
       <InvoiceDocument logoUrl={logoUrl} invoiceView={invoiceView} />

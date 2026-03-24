@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildDraftPaymentsFromVehicles, calculateOverdueBuckets } from '@/lib/server/account-invoice-payments';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +14,9 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
+    const currentBillingMonth = new Date();
+    currentBillingMonth.setDate(1);
+    const currentBillingMonthKey = currentBillingMonth.toISOString().slice(0, 10);
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,7 +24,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log(`Fetching payments data for: ${allNewAccountNumbers ? 'all_new_account_numbers' : 'code'}: ${allNewAccountNumbers || code}`);
+    // console.log(`Fetching payments data for: ${allNewAccountNumbers ? 'all_new_account_numbers' : 'code'}: ${allNewAccountNumbers || code}`);
 
     let customerGroup;
     let groupError;
@@ -90,10 +94,6 @@ export async function GET(request: NextRequest) {
           .filter((num: string) => num.length > 0)
       : [];
 
-    console.log('🔍 DEBUG: Raw all_new_account_numbers source:', accountNumbersSource);
-    console.log('🔍 DEBUG: Parsed account numbers:', accountNumbers);
-    console.log('🔍 DEBUG: Number of account numbers found:', accountNumbers.length);
-
     if (accountNumbers.length === 0) {
       console.log('No account numbers found for customer group');
       return NextResponse.json({
@@ -102,9 +102,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    console.log('🔍 DEBUG: Account numbers to search in payments_ table:', accountNumbers);
-    console.log('🔍 DEBUG: Searching payments_ table for cost_code IN:', accountNumbers);
-
     // Fetch payments data from payments_ table using cost_code
     const { data: payments, error: paymentsError } = await supabase
       .from('payments_')
@@ -112,6 +109,8 @@ export async function GET(request: NextRequest) {
         id,
         company,
         cost_code,
+        account_invoice_id,
+        invoice_number,
         reference,
         due_amount,
         paid_amount,
@@ -133,24 +132,71 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching payments:', paymentsError);
       return NextResponse.json({ error: 'Failed to fetch payments data' }, { status: 500 });
     }
-
-    console.log(`✅ Found ${payments?.length || 0} payment records from payments_ table`);
-    console.log('✅ DEBUG: Payment records found:', payments?.map(p => ({ 
-      cost_code: p.cost_code, 
-      company: p.company,
-      due_amount: p.due_amount,
-      balance_due: p.balance_due
-    })) || []);
     
+    const { data: vehiclesByNewAccount, error: vehiclesByNewAccountError } = await supabase
+      .from('vehicles')
+      .select('company, new_account_number, account_number, total_rental, total_sub')
+      .in('new_account_number', accountNumbers);
+
+    const { data: vehiclesByAccount, error: vehiclesByAccountError } = await supabase
+      .from('vehicles')
+      .select('company, new_account_number, account_number, total_rental, total_sub')
+      .in('account_number', accountNumbers);
+
+    if (vehiclesByNewAccountError || vehiclesByAccountError) {
+      return NextResponse.json(
+        { error: 'Failed to fetch vehicle billing totals' },
+        { status: 500 },
+      );
+    }
+
+    const latestPaymentsMap = {};
+    payments?.forEach(payment => {
+      if (!payment?.cost_code) {
+        return;
+      }
+      if (String(payment.billing_month || '') !== currentBillingMonthKey) {
+        return;
+      }
+      if (latestPaymentsMap[payment.cost_code]) {
+        return;
+      }
+      latestPaymentsMap[payment.cost_code] = payment;
+    });
+
+    const vehicleMap = new Map();
+    [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
+      const vehicleKey = JSON.stringify([
+        vehicle?.new_account_number || '',
+        vehicle?.account_number || '',
+        vehicle?.company || '',
+        vehicle?.total_rental || '',
+        vehicle?.total_sub || '',
+      ]);
+      if (!vehicleMap.has(vehicleKey)) {
+        vehicleMap.set(vehicleKey, vehicle);
+      }
+    });
+
+    const draftPaymentsByCode = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values()));
+    accountNumbers.forEach((accountNumber) => {
+      if (latestPaymentsMap[accountNumber]) return;
+      const draft = draftPaymentsByCode.get(accountNumber);
+      if (draft) {
+        latestPaymentsMap[accountNumber] = draft;
+      }
+    });
+
+    const latestPayments = Object.values(latestPaymentsMap);
+
     // Group results by cost_code to show which account numbers had matches
     const matchesByAccount = {};
-    payments?.forEach(payment => {
+    latestPayments.forEach(payment => {
       if (!matchesByAccount[payment.cost_code]) {
         matchesByAccount[payment.cost_code] = 0;
       }
       matchesByAccount[payment.cost_code]++;
     });
-    console.log('✅ DEBUG: Matches by account number:', matchesByAccount);
 
     // Calculate summary statistics
     const summary = {
@@ -169,14 +215,18 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    if (payments && payments.length > 0) {
-      payments.forEach(payment => {
+    if (latestPayments.length > 0) {
+      latestPayments.forEach(payment => {
+        const overdue = calculateOverdueBuckets({
+          balanceDue: payment.balance_due,
+          dueDate: payment.due_date,
+        });
         summary.totalDueAmount += Number(payment.due_amount || 0);
         summary.totalPaidAmount += Number(payment.paid_amount || 0);
         summary.totalBalanceDue += Number(payment.balance_due || 0);
-        summary.totalOverdue30 += Number(payment.overdue_30_days || 0);
-        summary.totalOverdue60 += Number(payment.overdue_60_days || 0);
-        summary.totalOverdue90 += Number(payment.overdue_90_days || 0);
+        summary.totalOverdue30 += overdue.overdue30Days;
+        summary.totalOverdue60 += overdue.overdue60Days;
+        summary.totalOverdue90 += overdue.overdue90Days + overdue.overdue91PlusDays;
         
         // Count payment statuses
         const status = payment.payment_status?.toLowerCase();
@@ -187,27 +237,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Transform payments data into the expected format
-    const vehicles = payments?.map(payment => ({
-      doc_no: payment.id,
-      stock_code: payment.cost_code,
-      stock_description: `${payment.company || customerGroup?.company_group || 'N/A'} - ${payment.cost_code}`,
-      account_number: payment.cost_code,
-      company: payment.company || customerGroup?.company_group || null,
-      total_ex_vat: Number(payment.due_amount || 0),
-      total_vat: 0,
-      total_incl_vat: Number(payment.due_amount || 0),
-      one_month: Number(payment.due_amount || 0),
-      '2nd_month': 0,
-      '3rd_month': 0,
-      amount_due: Number(payment.balance_due || 0),
-      monthly_amount: Number(payment.due_amount || 0),
-      payment_status: payment.payment_status,
-      billing_month: payment.billing_month,
-      reference: payment.reference,
-      overdue_30_days: Number(payment.overdue_30_days || 0),
-      overdue_60_days: Number(payment.overdue_60_days || 0),
-      overdue_90_days: Number(payment.overdue_90_days || 0)
-    })) || [];
+    const vehicles = latestPayments.map(payment => {
+      const overdue = calculateOverdueBuckets({
+        balanceDue: payment.balance_due,
+        dueDate: payment.due_date,
+      });
+      return {
+        doc_no: payment.id,
+        stock_code: payment.cost_code,
+        stock_description: `${payment.company || customerGroup?.company_group || 'N/A'} - ${payment.cost_code}`,
+        account_number: payment.cost_code,
+        account_invoice_id: payment.account_invoice_id || null,
+        company: payment.company || customerGroup?.company_group || null,
+        total_ex_vat: Number(payment.due_amount || 0),
+        total_vat: 0,
+        total_incl_vat: Number(payment.due_amount || 0),
+        one_month: Number(payment.due_amount || 0),
+        '2nd_month': 0,
+        '3rd_month': 0,
+        amount_due: Number(payment.balance_due || 0),
+        monthly_amount: Number(payment.due_amount || 0),
+        payment_status: payment.payment_status,
+        billing_month: payment.billing_month,
+        reference: payment.invoice_number || payment.reference,
+        overdue_30_days: overdue.overdue30Days,
+        overdue_60_days: overdue.overdue60Days,
+        overdue_90_days: overdue.overdue90Days + overdue.overdue91PlusDays,
+        overdue_91_plus_days: overdue.overdue91PlusDays
+      };
+    }) || [];
 
     // Create customer summary
     const customer = {

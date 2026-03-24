@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { calculateOverdueBuckets } from '@/lib/server/account-invoice-payments';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,15 +44,15 @@ export async function GET(request: NextRequest) {
       // Get company name from payments_ table, fallback to 'Unknown Company'
       const company = payment.company || 'Unknown Company';
       
-      // Calculate total overdue amount using balance_due from payments_ table
-      // Ensure proper number conversion to avoid NaN
+      const aging = calculateOverdueBuckets({
+        balanceDue: payment.balance_due,
+        dueDate: payment.due_date,
+      });
       const totalOverdue = parseFloat(payment.balance_due) || 0;
-      
-      // Extract overdue amounts by period from payments_ table
-      const overdue1_30 = parseFloat(payment.overdue_30_days) || 0;
-      const overdue31_60 = parseFloat(payment.overdue_60_days) || 0;
-      const overdue61_90 = parseFloat(payment.overdue_90_days) || 0;
-      const overdue91_plus = Math.max(0, totalOverdue - overdue1_30 - overdue31_60 - overdue61_90);
+      const overdue1_30 = aging.days30;
+      const overdue31_60 = aging.days60;
+      const overdue61_90 = aging.days90;
+      const overdue91_plus = aging.days91Plus;
 
       // Get monthly due amount
       const totalMonthlyAmount = parseFloat(payment.due_amount) || 0;
@@ -77,9 +78,9 @@ export async function GET(request: NextRequest) {
         paymentStatus: payment.payment_status,
         billingMonth: payment.billing_month,
         lastUpdated: payment.last_updated,
-        overdue30Days: parseFloat(payment.overdue_30_days) || 0,
-        overdue60Days: parseFloat(payment.overdue_60_days) || 0,
-        overdue90Days: parseFloat(payment.overdue_90_days) || 0
+        overdue30Days: aging.days30,
+        overdue60Days: aging.days60,
+        overdue90Days: aging.days90 + aging.days91Plus
       });
     });
 
@@ -186,15 +187,15 @@ export async function POST(request: NextRequest) {
       // Get company name from payments_ table, fallback to 'Unknown Company'
       const company = payment.company || 'Unknown Company';
       
-      // Calculate total overdue amount using balance_due from payments_ table
-      // Ensure proper number conversion to avoid NaN
+      const aging = calculateOverdueBuckets({
+        balanceDue: payment.balance_due,
+        dueDate: payment.due_date,
+      });
       const totalOverdue = parseFloat(payment.balance_due) || 0;
-      
-      // Extract overdue amounts by period from payments_ table
-      const overdue1_30 = parseFloat(payment.overdue_30_days) || 0;
-      const overdue31_60 = parseFloat(payment.overdue_60_days) || 0;
-      const overdue61_90 = parseFloat(payment.overdue_90_days) || 0;
-      const overdue91_plus = Math.max(0, totalOverdue - overdue1_30 - overdue31_60 - overdue61_90);
+      const overdue1_30 = aging.days30;
+      const overdue31_60 = aging.days60;
+      const overdue61_90 = aging.days90;
+      const overdue91_plus = aging.days91Plus;
 
       // Get monthly due amount
       const totalMonthlyAmount = parseFloat(payment.due_amount) || 0;
@@ -220,9 +221,9 @@ export async function POST(request: NextRequest) {
         paymentStatus: payment.payment_status,
         billingMonth: payment.billing_month,
         lastUpdated: payment.last_updated,
-        overdue30Days: parseFloat(payment.overdue_30_days) || 0,
-        overdue60Days: parseFloat(payment.overdue_60_days) || 0,
-        overdue90Days: parseFloat(payment.overdue_90_days) || 0
+        overdue30Days: aging.days30,
+        overdue60Days: aging.days60,
+        overdue90Days: aging.days90 + aging.days91Plus
       });
     });
 

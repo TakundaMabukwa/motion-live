@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
@@ -239,6 +239,7 @@ export default function InventoryPage() {
   const [expandedStockCategories, setExpandedStockCategories] = useState<
     Record<string, boolean>
   >({});
+  const cleanedInstallEquipmentJobsRef = useRef<Set<string>>(new Set());
   const [clientStockClients, setClientStockClients] = useState<
     ClientStockClient[]
   >([]);
@@ -546,6 +547,18 @@ export default function InventoryPage() {
     }
   };
 
+  const isCompletedInventoryJob = (job: JobCard) => {
+    const normalizedJobStatus = String(job.job_status || "").toLowerCase();
+    const normalizedStatus = String(job.status || "").toLowerCase();
+
+    return (
+      normalizedJobStatus === "completed" ||
+      normalizedStatus === "completed" ||
+      normalizedJobStatus === "invoiced" ||
+      normalizedStatus === "invoiced"
+    );
+  };
+
   const filteredJobCards = jobCards.filter((job: JobCard) => {
     const matchesSearch =
       job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -561,7 +574,7 @@ export default function InventoryPage() {
       !Array.isArray(job.parts_required) ||
       job.parts_required.length === 0;
 
-    return matchesSearch && hasNoParts;
+    return matchesSearch && hasNoParts && !isCompletedInventoryJob(job);
   });
 
   const jobCardsWithParts = jobCards.filter(
@@ -572,17 +585,13 @@ export default function InventoryPage() {
   );
 
   const completedJobs = jobCards.filter((job: JobCard) => {
-    const normalizedJobStatus = job.job_status?.toLowerCase();
-    const normalizedStatus = job.status?.toLowerCase();
     const normalizedRole = String(job.role || "").toLowerCase();
     const normalizedMoveTo = String(job.move_to || "").toLowerCase();
 
-    const isCompleted =
-      normalizedJobStatus === "completed" || normalizedStatus === "completed";
     const isInventoryRouted =
       normalizedRole === "inv" || normalizedMoveTo === "inv";
 
-    return isCompleted && isInventoryRouted;
+    return isCompletedInventoryJob(job) && isInventoryRouted;
   });
 
   interface OrderItem {
@@ -927,6 +936,24 @@ export default function InventoryPage() {
     );
   };
 
+  const isInstallJob = (job: JobCard | null): boolean => {
+    if (!job || isDeInstallJob(job)) return false;
+
+    const normalizedJobType = String(job.job_type || "").toLowerCase();
+    const normalizedQuotationJobType = String(
+      job.quotation_job_type || "",
+    ).toLowerCase();
+    const normalizedSubType = String(job.job_sub_type || "").toLowerCase();
+
+    return (
+      normalizedJobType.includes("install") ||
+      normalizedQuotationJobType.includes("install") ||
+      normalizedSubType.includes("install") ||
+      normalizedJobType.includes("installation") ||
+      normalizedQuotationJobType.includes("installation")
+    );
+  };
+
   const handleViewCompletedJobDetails = async (jobId: string) => {
     setLoadingCompletedJobDetails(true);
     setShowCompletedJobDetails(true);
@@ -967,7 +994,7 @@ export default function InventoryPage() {
     context: "deinstalled" | "stock-used" | "quotation",
     item: Record<string, unknown>,
     index: number,
-    destination: "client" | "soltrack",
+    destination: "client" | "soltrack" | "decommission",
   ) => {
     if (!selectedCompletedJob?.id) {
       toast.error("No completed job selected");
@@ -978,7 +1005,9 @@ export default function InventoryPage() {
     const loadingLabel =
       destination === "client"
         ? "Adding to client stock..."
-        : "Adding to Soltrack stock...";
+        : destination === "soltrack"
+          ? "Adding to Soltrack stock..."
+          : "Decommissioning item...";
     setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
 
     try {
@@ -1010,12 +1039,18 @@ export default function InventoryPage() {
           destination === "soltrack"
             ? "moved"
             : prev[`${itemKey}:soltrack`] || "",
+        [`${itemKey}:decommission`]:
+          destination === "decommission"
+            ? "moved"
+            : prev[`${itemKey}:decommission`] || "",
       }));
 
       toast.success(
         destination === "client"
           ? "Item added to client stock"
-          : "Item added to Soltrack stock",
+          : destination === "soltrack"
+            ? "Item added to Soltrack stock"
+            : "Item decommissioned",
       );
     } catch (error) {
       console.error("Error moving item to stock:", error);
@@ -1371,6 +1406,9 @@ export default function InventoryPage() {
     };
   };
 
+  const isBootStockItem = (item: Record<string, unknown>) =>
+    String(item?.boot_stock || "").toLowerCase() === "yes";
+
   const mergeStockUsed = (
     equipmentUsed: Record<string, unknown>[],
     partsUsed: Part[],
@@ -1378,12 +1416,14 @@ export default function InventoryPage() {
     const merged = new Map<string, ReturnType<typeof normalizeStockItem>>();
 
     equipmentUsed.forEach((item) => {
+      if (isBootStockItem(item)) return;
       const normalized = normalizeStockItem(item, "equipment_used");
       const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ""}`;
       merged.set(key, normalized);
     });
 
     partsUsed.forEach((part) => {
+      if (isBootStockItem(part as Record<string, unknown>)) return;
       const normalized = normalizeStockItem(
         part as Record<string, unknown>,
         "parts_required",
@@ -1407,15 +1447,64 @@ export default function InventoryPage() {
     selectedCompletedJobEquipmentUsed,
     selectedCompletedJobPartsUsed,
   );
+  const selectedCompletedJobEquipmentStockUsed =
+    selectedCompletedJobEquipmentUsed
+      .filter((item) => !isBootStockItem(item))
+      .map((item) =>
+        normalizeStockItem(item, "equipment_used"),
+      );
+  const selectedCompletedJobPartsStockUsed = selectedCompletedJobPartsUsed
+    .map((part) =>
+      normalizeStockItem(part as Record<string, unknown>, "parts_required"),
+    )
+    .filter((part) => !isBootStockItem(part.raw as Record<string, unknown>));
   const selectedCompletedJobQuotationProducts = parseQuotationProducts(
     selectedCompletedJob?.quotation_products,
   );
   const selectedCompletedJobDeInstalledItems =
     selectedCompletedJobQuotationProducts;
   const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
+  const selectedCompletedJobIsInstall = isInstallJob(selectedCompletedJob);
   const selectedCompletedJobCostCode = String(
     selectedCompletedJob?.new_account_number || "",
   ).trim();
+  const selectedCompletedJobDisplayStockUsed = selectedCompletedJobIsInstall
+    ? selectedCompletedJobEquipmentStockUsed.length > 0
+      ? selectedCompletedJobEquipmentStockUsed
+      : selectedCompletedJobPartsStockUsed
+    : selectedCompletedJobStockUsed;
+
+  useEffect(() => {
+    const cleanupInstallEquipment = async () => {
+      const jobId = String(selectedCompletedJob?.id || "");
+      if (!jobId || !selectedCompletedJobIsInstall) return;
+      if (selectedCompletedJobEquipmentUsed.length === 0) return;
+      if (cleanedInstallEquipmentJobsRef.current.has(jobId)) return;
+
+      cleanedInstallEquipmentJobsRef.current.add(jobId);
+
+      try {
+        await fetch("/api/inventory/remove-used-equipment", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            job_id: jobId,
+            equipment_used: selectedCompletedJobEquipmentUsed,
+          }),
+        });
+      } catch (error) {
+        console.error("Error removing used equipment from Soltrack stock:", error);
+      }
+    };
+
+    cleanupInstallEquipment();
+  }, [
+    selectedCompletedJob?.id,
+    selectedCompletedJobEquipmentUsed,
+    selectedCompletedJobIsInstall,
+  ]);
 
   // Function kept for potential future use with a global refresh button
   // const handleRefresh = () => {
@@ -3040,11 +3129,12 @@ export default function InventoryPage() {
                     expandedStockCategories[group.key] ?? false;
                   const threshold = getItemThreshold(group.key);
                   const groupIsLow = group.totalQuantity <= threshold;
+                  const groupRowKey = `group-row-${group.key}`;
+                  const groupSubtableKey = `group-subtable-${group.key}`;
 
                   return (
-                    <>
+                    <Fragment key={groupRowKey}>
                       <tr
-                        key={`group-${group.key}`}
                         className={`${groupIsLow ? "bg-red-50" : "bg-white"} border-t hover:bg-slate-50`}
                       >
                         <td className="px-4 py-3 text-sm">
@@ -3113,7 +3203,7 @@ export default function InventoryPage() {
                       </tr>
                       {isExpanded && (
                         <tr
-                          key={`subtable-${group.key}`}
+                          key={groupSubtableKey}
                           className="bg-slate-50"
                         >
                           <td colSpan={7} className="p-0">
@@ -3130,10 +3220,16 @@ export default function InventoryPage() {
                                   const isLow = isLowStock(item);
                                   const isSelected =
                                     selectedStockItem?.id === item.id;
+                                  const itemRowKey = [
+                                    group.key,
+                                    item.id ?? "no-id",
+                                    item.serial_number ?? "no-serial",
+                                    item.category_code ?? "no-category",
+                                  ].join("-");
 
                                   return (
                                     <tr
-                                      key={item.id}
+                                      key={itemRowKey}
                                       className={`cursor-pointer border-t hover:bg-gray-50 ${getLowStockStyle(item)} ${isSelected ? "bg-blue-50" : ""}`}
                                       onClick={() => setSelectedStockItem(item)}
                                     >
@@ -3169,7 +3265,7 @@ export default function InventoryPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -3261,7 +3357,10 @@ export default function InventoryPage() {
             </thead>
             <tbody className="bg-white">
               {bootStock.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
+                <tr
+                  key={`${item.code || item.description || "boot-stock"}-${item.date_added || index}`}
+                  className="hover:bg-gray-50"
+                >
                   <td className="px-4 py-3 border border-gray-200 text-sm">
                     <div className="font-medium text-gray-900">
                       {item.description}
@@ -4203,27 +4302,35 @@ export default function InventoryPage() {
 
               <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h3 className="font-semibold text-blue-900">Stock Used</h3>
+                  <h3 className="font-semibold text-blue-900">
+                    {selectedCompletedJobIsInstall
+                      ? "Parts Required Used"
+                      : "Stock Used"}
+                  </h3>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <Badge variant="outline">
-                      {selectedCompletedJobStockUsed.length} item
-                      {selectedCompletedJobStockUsed.length === 1 ? "" : "s"}
-                    </Badge>
-                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                      Equipment Used: {selectedCompletedJobEquipmentUsed.length}
+                      {selectedCompletedJobDisplayStockUsed.length} item
+                      {selectedCompletedJobDisplayStockUsed.length === 1 ? "" : "s"}
                     </Badge>
                     <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
                       Parts Required: {selectedCompletedJobPartsUsed.length}
                     </Badge>
+                    {selectedCompletedJobEquipmentUsed.length > 0 && (
+                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                        Equipment Used: {selectedCompletedJobEquipmentUsed.length}
+                      </Badge>
+                    )}
                   </div>
                 </div>
-                {selectedCompletedJobStockUsed.length === 0 ? (
+                {selectedCompletedJobDisplayStockUsed.length === 0 ? (
                   <p className="text-sm text-blue-800">
-                    No stock used recorded on this job.
+                    {selectedCompletedJobIsInstall
+                      ? "No parts required recorded on this installation job."
+                      : "No stock used recorded on this job."}
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {selectedCompletedJobStockUsed.map((part, index) => (
+                    {selectedCompletedJobDisplayStockUsed.map((part, index) => (
                       <div
                         key={`${part.code || part.description || "part"}-${index}`}
                         className="rounded-lg border border-blue-100 bg-white p-3"
@@ -4258,9 +4365,11 @@ export default function InventoryPage() {
                             <span className="font-medium text-gray-700">
                               Source:
                             </span>{" "}
-                            {part.source === "equipment_used"
-                              ? "Equipment Used"
-                              : "Parts Required"}
+                            {selectedCompletedJobIsInstall
+                              ? "Parts Required"
+                              : part.source === "equipment_used"
+                                ? "Equipment Used"
+                                : "Parts Required"}
                           </div>
                           <div>
                             <span className="font-medium text-gray-700">
@@ -4329,6 +4438,35 @@ export default function InventoryPage() {
                                   ] === "moved"
                                 ? "Added to Soltrack Stock"
                                 : "Add to Soltrack Stock"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              movingDeinstalledItemKey ===
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission` ||
+                              movedDeinstalledItems[
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission`
+                              ] === "moved"
+                            }
+                            onClick={() =>
+                              handleMoveJobItem(
+                                "stock-used",
+                                part.raw as Record<string, unknown>,
+                                index,
+                                "decommission",
+                              )
+                            }
+                            className="text-xs"
+                          >
+                            {movingDeinstalledItemKey ===
+                            `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission`
+                              ? "Decommissioning..."
+                              : movedDeinstalledItems[
+                                    `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission`
+                                  ] === "moved"
+                                ? "Decommissioned"
+                                : "Decommission"}
                           </Button>
                         </div>
                       </div>
@@ -4436,6 +4574,35 @@ export default function InventoryPage() {
                                     ? "Added to Soltrack Stock"
                                     : "Add to Soltrack Stock"}
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  movingDeinstalledItemKey ===
+                                    `${getMoveItemKey("deinstalled", item, index)}:decommission` ||
+                                  movedDeinstalledItems[
+                                    `${getMoveItemKey("deinstalled", item, index)}:decommission`
+                                  ] === "moved"
+                                }
+                                onClick={() =>
+                                  handleMoveJobItem(
+                                    "deinstalled",
+                                    item,
+                                    index,
+                                    "decommission",
+                                  )
+                                }
+                                className="text-xs"
+                              >
+                                {movingDeinstalledItemKey ===
+                                `${getMoveItemKey("deinstalled", item, index)}:decommission`
+                                  ? "Decommissioning..."
+                                  : movedDeinstalledItems[
+                                        `${getMoveItemKey("deinstalled", item, index)}:decommission`
+                                      ] === "moved"
+                                    ? "Decommissioned"
+                                    : "Decommission"}
+                              </Button>
                             </div>
                           </div>
                         ),
@@ -4525,6 +4692,7 @@ export default function InventoryPage() {
                 </div>
               </div>
 
+              {!selectedCompletedJobIsInstall && (
               <div className="rounded-lg border p-4">
                 <h3 className="font-semibold text-gray-900 mb-3">
                   Quotation Products
@@ -4553,7 +4721,7 @@ export default function InventoryPage() {
                           <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">
                             Amount
                           </th>
-                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-1/10">
+                          <th className="text-right py-2 pr-2 font-semibold text-gray-700 w-[220px]">
                             Move
                           </th>
                         </tr>
@@ -4598,8 +4766,8 @@ export default function InventoryPage() {
                                 <td className="py-2 pr-2 text-right">
                                   {amount ? `R ${amount.toFixed(2)}` : "R 0.00"}
                                 </td>
-                                <td className="py-2 pr-2 text-right">
-                                  <div className="flex justify-end gap-2">
+                                <td className="py-3 pr-2 text-right align-top">
+                                  <div className="flex flex-wrap justify-end gap-2 min-w-[210px]">
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -4618,7 +4786,7 @@ export default function InventoryPage() {
                                           "client",
                                         )
                                       }
-                                      className="text-xs"
+                                      className="min-w-[72px] text-xs"
                                     >
                                       {movingDeinstalledItemKey ===
                                       `${getMoveItemKey("quotation", item, index)}:client`
@@ -4647,7 +4815,7 @@ export default function InventoryPage() {
                                           "soltrack",
                                         )
                                       }
-                                      className="text-xs"
+                                      className="min-w-[80px] text-xs"
                                     >
                                       {movingDeinstalledItemKey ===
                                       `${getMoveItemKey("quotation", item, index)}:soltrack`
@@ -4657,6 +4825,35 @@ export default function InventoryPage() {
                                             ] === "moved"
                                           ? "Added"
                                           : "Soltrack"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("quotation", item, index)}:decommission` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("quotation", item, index)}:decommission`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "quotation",
+                                          item,
+                                          index,
+                                          "decommission",
+                                        )
+                                      }
+                                      className="min-w-[112px] text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("quotation", item, index)}:decommission`
+                                        ? "Decommissioning..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("quotation", item, index)}:decommission`
+                                            ] === "moved"
+                                          ? "Decommissioned"
+                                          : "Decommission"}
                                     </Button>
                                   </div>
                                 </td>
@@ -4669,6 +4866,7 @@ export default function InventoryPage() {
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
         </DialogContent>

@@ -1,0 +1,1374 @@
+.next/types/validator.ts(666,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/customer-quotes/[id]/approve/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/customer-quotes/[id]/approve">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; message: string; data: { id: any; job_status: any; updated_at: any; }; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(675,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/customer-quotes/[id]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/customer-quotes/[id]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; data: any; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(711,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/customers-grouped/by-account/[account]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/customers-grouped/by-account/[account]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: Request, { params }: { params: { account: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ id: any; company_group: any; legal_names: any; all_new_account_numbers: any; ... 22 more ...; new_account_number: string; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ account: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ account: string; }>; }' is not assignable to type '{ params: { account: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'account' is missing in type 'Promise<{ account: string; }>' but required in type '{ account: string; }'.
+.next/types/validator.ts(954,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/job-cards/[id]/approve/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/job-cards/[id]/approve">'.
+  Types of property 'PUT' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { id: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; message: string; data: { id: any; status: any; updated_at: any; }; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ id: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ id: string; }>; }' is not assignable to type '{ params: { id: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'id' is missing in type 'Promise<{ id: string; }>' but required in type '{ id: string; }'.
+.next/types/validator.ts(1241,39): error TS2306: File 'C:/Users/mabuk/Desktop/motion-live/app/api/quotation/route.ts' is not a module.
+.next/types/validator.ts(1539,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/vehicle-invoices/[accountNumber]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/vehicle-invoices/[accountNumber]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { accountNumber: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; accountSummary: { accountNumber: string; ... 8 more ...; invoices: { ...; }[]; }; invoices: { ...; }[]; }>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ accountNumber: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ accountNumber: string; }>; }' is not assignable to type '{ params: { accountNumber: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'accountNumber' is missing in type 'Promise<{ accountNumber: string; }>' but required in type '{ accountNumber: string; }'.
+.next/types/validator.ts(1548,31): error TS2344: Type 'typeof import("C:/Users/mabuk/Desktop/motion-live/app/api/vehicle-invoices/account/[accountNumber]/route")' does not satisfy the constraint 'RouteHandlerConfig<"/api/vehicle-invoices/account/[accountNumber]">'.
+  Types of property 'GET' are incompatible.
+    Type '(request: NextRequest, { params }: { params: { accountNumber: string; }; }) => Promise<NextResponse<{ error: string; }> | NextResponse<{ success: boolean; accountNumber: string; vehicles: never[]; message: string; }> | NextResponse<...>>' is not assignable to type '(request: NextRequest, context: { params: Promise<{ accountNumber: string; }>; }) => void | Response | Promise<void | Response>'.
+      Types of parameters '__1' and 'context' are incompatible.
+        Type '{ params: Promise<{ accountNumber: string; }>; }' is not assignable to type '{ params: { accountNumber: string; }; }'.
+          Types of property 'params' are incompatible.
+            Property 'accountNumber' is missing in type 'Promise<{ accountNumber: string; }>' but required in type '{ accountNumber: string; }'.
+app/api/accounts/customers-grouped/route.ts(124,37): error TS7006: Parameter 'oneMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(124,47): error TS7006: Parameter 'secondMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(124,60): error TS7006: Parameter 'thirdMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(136,41): error TS7006: Parameter 'oneMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(136,51): error TS7006: Parameter 'secondMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(136,64): error TS7006: Parameter 'thirdMonth' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(212,82): error TS7006: Parameter 'name' implicitly has an 'any' type.
+app/api/accounts/customers-grouped/route.ts(239,40): error TS18046: 'error' is of type 'unknown'.
+app/api/accounts/customers-grouped/route.ts(243,18): error TS18046: 'error' is of type 'unknown'.
+app/api/accounts/customers-grouped/route.ts(244,57): error TS18046: 'error' is of type 'unknown'.
+app/api/accounts/vehicle-amounts/route.ts(63,37): error TS7006: Parameter 'oneMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(63,47): error TS7006: Parameter 'secondMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(63,60): error TS7006: Parameter 'thirdMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(75,41): error TS7006: Parameter 'oneMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(75,51): error TS7006: Parameter 'secondMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(75,64): error TS7006: Parameter 'thirdMonth' implicitly has an 'any' type.
+app/api/accounts/vehicle-amounts/route.ts(153,40): error TS18046: 'error' is of type 'unknown'.
+app/api/accounts/vehicle-amounts/route.ts(157,18): error TS18046: 'error' is of type 'unknown'.
+app/api/accounts/vehicle-amounts/route.ts(158,57): error TS18046: 'error' is of type 'unknown'.
+app/api/admin/jobs/assign-technician/route.ts(190,20): error TS18046: 'dateError' is of type 'unknown'.
+app/api/client-payments/route.ts(133,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/client-payments/route.ts(134,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/client-payments/route.ts(136,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/client-payments/route.ts(168,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ pending: number; paid: number; overdue: number; partial: number; }'.
+app/api/client-quotes/[id]/route.ts(296,68): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/[id]/route.ts(297,25): error TS2339: Property 'code' does not exist on type 'never'.
+app/api/client-quotes/[id]/route.ts(309,32): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/[id]/route.ts(421,60): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/[id]/route.ts(422,17): error TS2339: Property 'code' does not exist on type 'never'.
+app/api/client-quotes/[id]/route.ts(434,24): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/route.ts(153,60): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/route.ts(154,17): error TS2339: Property 'code' does not exist on type 'never'.
+app/api/client-quotes/route.ts(165,24): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/route.ts(166,24): error TS2339: Property 'details' does not exist on type 'never'.
+app/api/client-quotes/route.ts(167,21): error TS2339: Property 'hint' does not exist on type 'never'.
+app/api/client-quotes/route.ts(168,21): error TS2339: Property 'code' does not exist on type 'never'.
+app/api/client-quotes/route.ts(172,24): error TS2339: Property 'message' does not exist on type 'never'.
+app/api/client-quotes/route.ts(263,11): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+app/api/client-quotes/route.ts(264,11): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+app/api/client-quotes/route.ts(349,44): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+app/api/client-quotes/route.ts(349,70): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+app/api/cost-centers/check-vehicles/route.ts(4,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/cost-centers/delete/route.ts(4,30): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/cost-centers/route.ts(21,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/cost-centers/route.ts(79,26): error TS18047: 'accounts' is possibly 'null'.
+app/api/cost-centers/route.ts(116,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cost-centers/route.ts(125,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cost-centers/route.ts(143,45): error TS18046: 'e' is of type 'unknown'.
+app/api/cost-centers/route.ts(149,28): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/cost-centers/route.ts(324,45): error TS18046: 'e' is of type 'unknown'.
+app/api/cost-centers/validate/route.ts(4,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/cron/check-overdue/route.ts(65,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(66,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(79,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(80,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(81,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(82,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(83,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(84,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(85,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/cron/check-overdue/route.ts(104,18): error TS18046: 'acc' is of type 'unknown'.
+app/api/cron/check-overdue/route.ts(105,24): error TS18046: 'acc' is of type 'unknown'.
+app/api/cron/check-overdue/route.ts(106,23): error TS18046: 'acc' is of type 'unknown'.
+app/api/customers-grouped/[id]/route.ts(4,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/customers-grouped/[id]/route.ts(4,38): error TS7031: Binding element 'params' implicitly has an 'any' type.
+app/api/customers-grouped/by-account/[account]/route.ts(33,77): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/api/customers-grouped/by-account/[account]/route.ts(34,38): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+app/api/customers-grouped/route.ts(157,78): error TS7006: Parameter 'name' implicitly has an 'any' type.
+app/api/customers-grouped/route.ts(180,40): error TS18046: 'error' is of type 'unknown'.
+app/api/customers-grouped/route.ts(184,18): error TS18046: 'error' is of type 'unknown'.
+app/api/customers-grouped/route.ts(185,57): error TS18046: 'error' is of type 'unknown'.
+app/api/customers/route.ts(55,14): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(56,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(63,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(64,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(68,9): error TS18046: 'a' is of type 'unknown'.
+app/api/customers/route.ts(68,44): error TS18046: 'b' is of type 'unknown'.
+app/api/customers/route.ts(177,14): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(178,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(189,14): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(190,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(191,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(194,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(197,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(198,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/customers/route.ts(209,39): error TS7053: Element implicitly has an 'any' type because expression of type '"MACS"' can't be used to index type '{}'.
+  Property 'MACS' does not exist on type '{}'.
+app/api/customers/route.ts(213,7): error TS18046: 'a' is of type 'unknown'.
+app/api/customers/route.ts(213,30): error TS18046: 'b' is of type 'unknown'.
+app/api/customers/test/route.ts(91,41): error TS18046: 'error' is of type 'unknown'.
+app/api/customers/test/route.ts(95,18): error TS18046: 'error' is of type 'unknown'.
+app/api/customers/test/route.ts(96,57): error TS18046: 'error' is of type 'unknown'.
+app/api/inventory-categories/test/route.ts(44,77): error TS18046: 'err' is of type 'unknown'.
+app/api/job-cards/[id]/add-vehicle/route.ts(110,29): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/api/job-cards/[id]/add-vehicle/route.ts(116,27): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/api/job-cards/[id]/add-vehicle/route.ts(131,29): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/api/job-cards/[id]/add-vehicle/route.ts(135,27): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/api/job-cards/[id]/assign-parts/route.ts(45,51): error TS7031: Binding element 'params' implicitly has an 'any' type.
+app/api/job-cards/[id]/assign-parts/route.ts(136,37): error TS7006: Parameter 'sel' implicitly has an 'any' type.
+app/api/job-cards/[id]/assign-parts/route.ts(178,18): error TS2339: Property 'assigned_technician_id' does not exist on type '{ parts_required: any; qr_code: string; updated_at: string; updated_by: string; }'.
+app/api/job-cards/[id]/assign-parts/route.ts(179,18): error TS2339: Property 'technician_name' does not exist on type '{ parts_required: any; qr_code: string; updated_at: string; updated_by: string; }'.
+app/api/job-cards/[id]/assign-parts/route.ts(180,18): error TS2339: Property 'technician_phone' does not exist on type '{ parts_required: any; qr_code: string; updated_at: string; updated_by: string; }'.
+app/api/job-cards/schedule/route.ts(149,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/job-cards/schedule/route.ts(156,36): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/job-cards/schedule/route.ts(157,34): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/job-cards/schedule/route.ts(270,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/job-cards/schedule/route.ts(274,36): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/job-cards/schedule/route.ts(275,34): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/jobs/[id]/assign/route.ts(24,32): error TS2339: Property 'id' does not exist on type 'Promise<{ id: string; }>'.
+app/api/jobs/[id]/assign/route.ts(37,56): error TS7006: Parameter 'email' implicitly has an 'any' type.
+app/api/overdue-check-monthly/route.ts(55,11): error TS7034: Variable 'processedOverdueAccounts' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/overdue-check-monthly/route.ts(157,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check-monthly/route.ts(157,36): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check-monthly/route.ts(161,9): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/overdue-check-monthly/route.ts(162,34): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check-monthly/route.ts(170,35): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/overdue-check/route.ts(35,11): error TS7034: Variable 'processedOverdueAccounts' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/overdue-check/route.ts(99,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(99,36): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(103,9): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/overdue-check/route.ts(104,34): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(112,35): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/overdue-check/route.ts(178,11): error TS7034: Variable 'processedOverdueAccounts' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/overdue-check/route.ts(242,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(242,36): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(246,9): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/overdue-check/route.ts(247,34): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/overdue-check/route.ts(254,35): error TS7005: Variable 'processedOverdueAccounts' implicitly has an 'any[]' type.
+app/api/payments/by-client-accounts/route.ts(73,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/payments/by-client-accounts/route.ts(74,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/payments/by-client-accounts/route.ts(76,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/payments/by-client-accounts/route.ts(111,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ pending: number; paid: number; overdue: number; partial: number; }'.
+app/api/stock-orders/upload-to-stock/route.ts(82,67): error TS18046: 'error' is of type 'unknown'.
+app/api/stock/boot-stock/route.ts(73,45): error TS2339: Property 'description' does not exist on type '{ code: any; description: any; stock_type: any; supplier: any; cost_excl_vat_zar: any; }[]'.
+app/api/stock/boot-stock/route.ts(74,38): error TS2339: Property 'code' does not exist on type '{ code: any; description: any; stock_type: any; supplier: any; cost_excl_vat_zar: any; }[]'.
+app/api/stock/boot-stock/route.ts(75,42): error TS2339: Property 'supplier' does not exist on type '{ code: any; description: any; stock_type: any; supplier: any; cost_excl_vat_zar: any; }[]'.
+app/api/stock/boot-stock/route.ts(76,44): error TS2339: Property 'stock_type' does not exist on type '{ code: any; description: any; stock_type: any; supplier: any; cost_excl_vat_zar: any; }[]'.
+app/api/stock/boot-stock/route.ts(87,35): error TS18046: 'error' is of type 'unknown'.
+app/api/stock/boot-stock/route.ts(90,16): error TS18046: 'error' is of type 'unknown'.
+app/api/stock/boot-stock/route.ts(91,55): error TS18046: 'error' is of type 'unknown'.
+app/api/stock/route.ts(97,18): error TS2345: Argument of type '{ id: any; created_at: any; serial_number: any; date_adjusted: any; status: any; category_code: any; assigned_to_technician: any; assigned_date: any; job_card_id: any; container: any; direction: any; company: any; notes: any; inventory_categories: { ...; }[]; }' is not assignable to parameter of type 'InventoryItemRow'.
+  Types of property 'inventory_categories' are incompatible.
+    Type '{ code: any; description: any; total_count: any; }[]' is missing the following properties from type '{ code: string | null; description: string | null; total_count: number | null; }': code, description, total_count
+app/api/tech-stock/route.ts(15,8): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/api/technicians/jobs/route.ts(45,45): error TS2552: Cannot find name 'error'. Did you mean 'Error'?
+app/api/vehicle-invoices-fetch/by-account/route.ts(58,46): error TS2551: Property 'total_rental' does not exist on type '{ id: any; created_at: any; company: any; new_account_number: any; unique_id: any; fleet_number: any; reg: any; total_rental_sub: any; }'. Did you mean 'total_rental_sub'?
+app/api/vehicle-invoices-fetch/by-account/route.ts(59,43): error TS2339: Property 'total_sub' does not exist on type '{ id: any; created_at: any; company: any; new_account_number: any; unique_id: any; fleet_number: any; reg: any; total_rental_sub: any; }'.
+app/api/vehicle-invoices/route.ts(31,9): error TS7034: Variable 'allInvoices' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/vehicle-invoices/route.ts(46,23): error TS7005: Variable 'allInvoices' implicitly has an 'any[]' type.
+app/api/vehicle-invoices/route.ts(68,31): error TS7006: Parameter 'oneMonth' implicitly has an 'any' type.
+app/api/vehicle-invoices/route.ts(68,41): error TS7006: Parameter 'secondMonth' implicitly has an 'any' type.
+app/api/vehicle-invoices/route.ts(68,54): error TS7006: Parameter 'thirdMonth' implicitly has an 'any' type.
+app/api/vehicle-invoices/route.ts(68,66): error TS7006: Parameter 'amountDue' implicitly has an 'any' type.
+app/api/vehicle-invoices/route.ts(95,9): error TS7034: Variable 'allCustomers' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/vehicle-invoices/route.ts(112,24): error TS7005: Variable 'allCustomers' implicitly has an 'any[]' type.
+app/api/vehicle-invoices/route.ts(150,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(151,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(157,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(158,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(167,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(183,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(185,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(186,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(187,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(203,27): error TS7006: Parameter 'value' implicitly has an 'any' type.
+app/api/vehicle-invoices/route.ts(211,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(214,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(223,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(226,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(227,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(229,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicle-invoices/route.ts(249,9): error TS2698: Spread types may only be created from object types.
+app/api/vehicle-invoices/route.ts(250,36): error TS18046: 'customer' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-async/route.ts(74,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-async/route.ts(74,32): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-async/route.ts(75,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-async/route.ts(86,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-async/route.ts(96,24): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/api/vehicles/bulk-invoice-async/route.ts(99,7): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-async/route.ts(99,24): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice-async/route.ts(133,16): error TS18046: 'error' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-db/route.ts(15,9): error TS7034: Variable 'allVehicles' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/vehicles/bulk-invoice-db/route.ts(31,21): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+app/api/vehicles/bulk-invoice-db/route.ts(64,56): error TS18046: 'vehicleList' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-db/route.ts(67,7): error TS18046: 'vehicleList' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-db/route.ts(67,27): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice-db/route.ts(72,33): error TS7006: Parameter 'columnName' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice-db/route.ts(206,43): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+app/api/vehicles/bulk-invoice-detailed/route.ts(24,9): error TS7034: Variable 'allVehicles' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/vehicles/bulk-invoice-detailed/route.ts(56,25): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+app/api/vehicles/bulk-invoice-detailed/route.ts(62,29): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+app/api/vehicles/bulk-invoice-detailed/route.ts(79,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-detailed/route.ts(88,24): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/api/vehicles/bulk-invoice-detailed/route.ts(113,7): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-detailed/route.ts(113,25): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice-excel/route.ts(38,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-excel/route.ts(38,26): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-excel/route.ts(39,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice-excel/route.ts(50,7): error TS18046: 'vehicleList' is of type 'unknown'.
+app/api/vehicles/bulk-invoice-excel/route.ts(50,27): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(22,9): error TS7034: Variable 'allVehicles' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/api/vehicles/bulk-invoice/route.ts(40,21): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+app/api/vehicles/bulk-invoice/route.ts(75,99): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice/route.ts(76,56): error TS18046: 'totalVehiclesProcessed' is of type 'unknown'.
+app/api/vehicles/bulk-invoice/route.ts(93,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/api/vehicles/bulk-invoice/route.ts(103,27): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice/route.ts(103,44): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(103,49): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(104,24): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice/route.ts(104,41): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(104,46): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(105,30): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/bulk-invoice/route.ts(105,47): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(105,52): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/api/vehicles/bulk-invoice/route.ts(107,7): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/api/vehicles/bulk-invoice/route.ts(111,23): error TS18046: 'vehicles' is of type 'unknown'.
+app/api/vehicles/delete/route.ts(4,30): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(496,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(496,15): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(513,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(513,15): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(520,10): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/api/vehicles/invoice/route.ts(520,15): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/api/vehicles/reg-search/route.ts(80,39): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string | null | undefined'.
+app/api/vehicles/reg-search/route.ts(81,41): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string | null | undefined'.
+app/api/vehicles/search/route.ts(20,8): error TS2339: Property 'from' does not exist on type 'Promise<SupabaseClient<any, "public", "public", any, any>>'.
+app/api/vehicles/update-batch/route.ts(4,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/api/vehicles/update/route.ts(4,27): error TS7006: Parameter 'request' implicitly has an 'any' type.
+app/protected/accounts/client-details/[code]/page.tsx(33,24): error TS2345: Argument of type 'any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'any[]' is not assignable to type 'never[]'.
+    Type 'any' is not assignable to type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(36,18): error TS18046: 'err' is of type 'unknown'.
+app/protected/accounts/client-details/[code]/page.tsx(52,34): error TS2339: Property 'cost_code' does not exist on type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(53,37): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(61,34): error TS2339: Property 'cost_code' does not exist on type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(73,32): error TS7006: Parameter 'a' implicitly has an 'any' type.
+app/protected/accounts/client-details/[code]/page.tsx(73,35): error TS7006: Parameter 'b' implicitly has an 'any' type.
+app/protected/accounts/client-details/[code]/page.tsx(77,78): error TS2339: Property 'validated' does not exist on type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(78,83): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/accounts/client-details/[code]/page.tsx(195,39): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/accounts/client-details/[code]/page.tsx(195,47): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/accounts/client/[code]/page.tsx(17,19): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+app/protected/admin/admin-jobs/page.tsx(170,26): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/admin-jobs/page.tsx(171,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/admin-jobs/page.tsx(360,41): error TS18046: 'error' is of type 'unknown'.
+app/protected/admin/components/CreateJobModal.tsx(459,44): error TS18046: 'error' is of type 'unknown'.
+app/protected/admin/map/page.tsx(103,33): error TS7006: Parameter 'type' implicitly has an 'any' type.
+app/protected/admin/map/page.tsx(113,27): error TS7006: Parameter 'status' implicitly has an 'any' type.
+app/protected/admin/map/page.tsx(122,29): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+app/protected/admin/map/page.tsx(146,30): error TS7006: Parameter 'location' implicitly has an 'any' type.
+app/protected/admin/map/page.tsx(202,58): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(209,60): error TS2345: Argument of type '{ id: number; name: string; address: string; lat: number; lng: number; type: string; status: string; contact: string; phone: string; email: string; nextVisit: string; priority: string; }' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type '{ id: number; name: string; address: string; lat: number; lng: number; type: string; status: string; contact: string; phone: string; email: string; nextVisit: string; priority: string; }' provides no match for the signature '(prevState: null): null'.
+app/protected/admin/map/page.tsx(307,45): error TS2339: Property 'name' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(308,73): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(309,41): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(317,81): error TS2339: Property 'address' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(321,73): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(322,43): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(325,43): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(332,69): error TS2339: Property 'contact' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(336,69): error TS2339: Property 'phone' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(340,69): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(344,81): error TS2339: Property 'nextVisit' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(383,45): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/admin/map/page.tsx(388,58): error TS2345: Argument of type '{ id: number; name: string; address: string; lat: number; lng: number; type: string; status: string; contact: string; phone: string; email: string; nextVisit: string; priority: string; }' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type '{ id: number; name: string; address: string; lat: number; lng: number; type: string; status: string; contact: string; phone: string; email: string; nextVisit: string; priority: string; }' provides no match for the signature '(prevState: null): null'.
+app/protected/admin/page.tsx(442,66): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/page.tsx(719,28): error TS2345: Argument of type 'string[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'string[]' is not assignable to type 'never[]'.
+    Type 'string' is not assignable to type 'never'.
+app/protected/admin/page.tsx(732,11): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(732,45): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(733,15): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(797,25): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(811,25): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(825,23): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(841,60): error TS18046: 'error' is of type 'unknown'.
+app/protected/admin/page.tsx(1035,35): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/protected/admin/page.tsx(1038,37): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/protected/admin/page.tsx(1042,13): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/protected/admin/page.tsx(1048,13): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/protected/admin/page.tsx(1054,13): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+app/protected/admin/page.tsx(1089,44): error TS18046: 'error' is of type 'unknown'.
+app/protected/admin/page.tsx(2526,39): error TS2339: Property 'serial_number' does not exist on type 'PartRequired'.
+app/protected/admin/page.tsx(2528,51): error TS2339: Property 'serial_number' does not exist on type 'PartRequired'.
+app/protected/admin/page.tsx(2531,39): error TS2339: Property 'ip_address' does not exist on type 'PartRequired'.
+app/protected/admin/page.tsx(2533,47): error TS2339: Property 'ip_address' does not exist on type 'PartRequired'.
+app/protected/admin/page.tsx(2555,51): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+app/protected/admin/page.tsx(2593,66): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/protected/admin/page.tsx(2594,48): error TS2345: Argument of type '(prev: never[]) => string[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '(prev: never[]) => string[]' is not assignable to type '(prevState: never[]) => never[]'.
+    Type 'string[]' is not assignable to type 'never[]'.
+      Type 'string' is not assignable to type 'never'.
+app/protected/admin/page.tsx(2605,67): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+app/protected/admin/page.tsx(2850,40): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(2853,50): error TS2339: Property 'vehicle_year' does not exist on type 'JobCard'.
+app/protected/admin/page.tsx(3423,23): error TS2322: Type 'false | VehicleIp | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+app/protected/admin/page.tsx(3440,23): error TS2322: Type 'false | VehicleIp | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+app/protected/admin/page.tsx(3459,23): error TS2322: Type 'false | VehicleIp | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+app/protected/admin/page.tsx(3478,23): error TS2322: Type 'false | VehicleIp | null' is not assignable to type 'boolean | undefined'.
+  Type 'null' is not assignable to type 'boolean | undefined'.
+app/protected/admin/page.tsx(3565,29): error TS2322: Type 'unknown' is not assignable to type 'Key | null | undefined'.
+app/protected/admin/page.tsx(3570,33): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/protected/admin/page.tsx(3574,56): error TS2339: Property 'toFixed' does not exist on type '{}'.
+app/protected/admin/page.tsx(3605,33): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/protected/admin/page.tsx(3620,35): error TS2322: Type 'unknown' is not assignable to type 'string | number | readonly string[] | undefined'.
+app/protected/admin/page.tsx(3634,35): error TS2322: Type 'unknown' is not assignable to type 'string | number | readonly string[] | undefined'.
+app/protected/admin/page.tsx(3649,35): error TS2322: Type 'unknown' is not assignable to type 'string | number | readonly string[] | undefined'.
+app/protected/admin/page.tsx(3667,35): error TS2322: Type 'unknown' is not assignable to type 'string | number | readonly string[] | undefined'.
+app/protected/admin/page.tsx(3683,35): error TS2322: Type 'unknown' is not assignable to type 'string | number | readonly string[] | undefined'.
+app/protected/admin/schedule/page.tsx(56,22): error TS7006: Parameter 'colorName' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(82,10): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ blue: string; violet: string; yellow: string; maroon: string; black: string; red: string; green: string; purple: string; orange: string; pink: string; cyan: string; indigo: string; emerald: string; teal: string; ... 7 more ...; stone: string; }'.
+app/protected/admin/schedule/page.tsx(113,27): error TS7006: Parameter 'value' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(122,29): error TS7006: Parameter 'value' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(173,27): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(183,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(184,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(210,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(213,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(214,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(216,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(219,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(245,38): error TS7006: Parameter 'technicianName' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(245,54): error TS7006: Parameter 'technicianEmail' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(270,52): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(297,31): error TS2353: Object literal may only specify known properties, and 'name' does not exist in type '(prevState: null) => null'.
+app/protected/admin/schedule/page.tsx(307,38): error TS7006: Parameter 'technicianJobs' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(315,42): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(327,39): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(333,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(347,29): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(362,33): error TS7006: Parameter 'priority' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(395,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(395,31): error TS18046: 'job' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(396,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(396,28): error TS18046: 'job' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(398,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/admin/schedule/page.tsx(398,26): error TS18046: 'job' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(408,27): error TS7006: Parameter 'date' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(431,26): error TS7006: Parameter 'direction' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(439,26): error TS7006: Parameter 'year' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(439,32): error TS7006: Parameter 'month' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(439,39): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(443,28): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(454,29): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(461,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/admin/schedule/page.tsx(464,27): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(469,26): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/admin/schedule/page.tsx(511,36): error TS2322: Type 'unknown' is not assignable to type 'BackgroundColor | undefined'.
+app/protected/admin/schedule/page.tsx(608,44): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(608,51): error TS7006: Parameter 'eventIndex' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(735,31): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(742,30): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(753,39): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(757,36): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(762,34): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(774,33): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(779,33): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(784,32): error TS18046: 'availability' is of type 'unknown'.
+app/protected/admin/schedule/page.tsx(818,41): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(818,48): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/admin/schedule/page.tsx(880,36): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(885,40): error TS2339: Property 'customerEmail' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(889,40): error TS2339: Property 'customerPhone' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(891,32): error TS2339: Property 'customerAddress' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(894,42): error TS2339: Property 'customerAddress' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(910,59): error TS2339: Property 'date' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(916,59): error TS2339: Property 'time' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(922,61): error TS2339: Property 'technicianColor' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(925,65): error TS2339: Property 'technician' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(928,32): error TS2339: Property 'technicianEmail' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(933,38): error TS2339: Property 'technicianEmail' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(940,63): error TS2339: Property 'jobType' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(946,61): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(954,68): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(955,36): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(958,32): error TS2339: Property 'vehicleRegistration' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(963,38): error TS2339: Property 'vehicleRegistration' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(979,63): error TS2339: Property 'productName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(981,48): error TS2339: Property 'quantity' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(986,36): error TS2339: Property 'subtotal' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(987,37): error TS2339: Property 'totalAmount' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1004,36): error TS2339: Property 'name' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1005,36): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1007,40): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1039,35): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1040,35): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1055,35): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1056,35): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1097,38): error TS2339: Property 'date' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1131,65): error TS2339: Property 'technicianColor' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1132,62): error TS2339: Property 'technicianColor' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1133,52): error TS2339: Property 'technicianColor' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1142,46): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1146,46): error TS2339: Property 'time' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1148,44): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1150,122): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1152,48): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1160,46): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1163,52): error TS2339: Property 'time' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1166,52): error TS2339: Property 'jobType' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1168,44): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1170,58): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1213,36): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1217,38): error TS2339: Property 'date' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1220,38): error TS2339: Property 'time' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1227,42): error TS2339: Property 'productName' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1232,63): error TS2339: Property 'technicianColor' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1234,42): error TS2339: Property 'technician' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1236,34): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1238,76): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1240,38): error TS2339: Property 'priority' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1243,34): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/admin/schedule/page.tsx(1245,38): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(52,32): error TS7006: Parameter 'value' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(55,41): error TS7006: Parameter 'accountNumbers' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(72,24): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(79,34): error TS7006: Parameter 'payments' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(79,44): error TS7006: Parameter 'fallbackCompany' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(80,34): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(104,37): error TS7006: Parameter 'payments' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(115,31): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(127,35): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(127,44): error TS7006: Parameter 'invoice' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(166,35): error TS7031: Binding element 'clientInfo' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(166,47): error TS7031: Binding element 'payments' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(166,57): error TS7031: Binding element 'summary' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(166,66): error TS7031: Binding element 'searchDetails' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(166,81): error TS7031: Binding element 'searchMethod' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(171,7): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(262,37): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(295,36): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(296,40): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(302,48): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(309,24): error TS7006: Parameter 'center' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(395,21): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(401,31): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(422,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(453,28): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(453,40): error TS7006: Parameter 'key' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(479,20): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(imageData: string | HTMLImageElement | HTMLCanvasElement | Uint8Array<ArrayBufferLike> | RGBAData, format: string, x: number, y: number, w: number, h: number, alias?: string | undefined, compression?: ImageCompression | undefined, rotation?: number | undefined): jsPDF', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | HTMLImageElement | HTMLCanvasElement | Uint8Array<ArrayBufferLike> | RGBAData'.
+  Overload 2 of 3, '(imageData: string | HTMLImageElement | HTMLCanvasElement | Uint8Array<ArrayBufferLike> | RGBAData, x: number, y: number, w: number, h: number, alias?: string | undefined, compression?: ImageCompression | undefined, rotation?: number | undefined): jsPDF', gave the following error.
+    Argument of type 'unknown' is not assignable to parameter of type 'string | HTMLImageElement | HTMLCanvasElement | Uint8Array<ArrayBufferLike> | RGBAData'.
+app/protected/client-cost-centers/[code]/page.tsx(511,56): error TS2339: Property 'split' does not exist on type 'string | string[]'.
+  Property 'split' does not exist on type 'string[]'.
+app/protected/client-cost-centers/[code]/page.tsx(531,27): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(533,20): error TS2339: Property 'invoiceDate' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(533,38): error TS2339: Property 'dueDate' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(533,52): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(534,22): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(535,25): error TS2339: Property 'reference' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(535,41): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(536,29): error TS2339: Property 'dueAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(537,20): error TS2339: Property 'paidAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(539,27): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(634,35): error TS7006: Parameter 'sessionData' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(653,53): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(655,11): error TS2552: Cannot find name 'costCenterInfoMap'. Did you mean 'buildCostCenterInfoMap'?
+app/protected/client-cost-centers/[code]/page.tsx(705,9): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(709,53): error TS7006: Parameter 'cc' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(711,51): error TS7006: Parameter 'cc' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(724,68): error TS7006: Parameter 'cc' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(733,56): error TS7006: Parameter 'cc' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(774,52): error TS7006: Parameter 'vehicles' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(774,62): error TS7006: Parameter 'customer' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(782,11): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(785,51): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(785,56): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(786,47): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(786,52): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(787,45): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(787,50): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(795,28): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+app/protected/client-cost-centers/[code]/page.tsx(797,11): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(810,26): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+app/protected/client-cost-centers/[code]/page.tsx(840,52): error TS7006: Parameter 'vehicles' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(840,62): error TS7006: Parameter 'customer' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(848,11): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(851,51): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(851,56): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(852,47): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(852,52): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(853,45): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(853,50): error TS7006: Parameter 'v' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(860,28): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+app/protected/client-cost-centers/[code]/page.tsx(862,11): error TS2353: Object literal may only specify known properties, and 'code' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(875,26): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'undefined' is not assignable to type 'SetStateAction<string>'.
+app/protected/client-cost-centers/[code]/page.tsx(887,22): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(890,51): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(892,33): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(892,49): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(919,30): error TS7006: Parameter 'vehicles' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(924,22): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(939,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(940,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(956,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(956,55): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(957,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(958,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(959,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(960,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(961,39): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(962,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(963,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(964,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(965,7): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(972,24): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(973,22): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(974,20): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(975,21): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(976,24): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(977,23): error TS18046: 'cc' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(985,46): error TS7006: Parameter 'costCenters' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(988,32): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(1017,27): error TS7006: Parameter 'amount' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(1024,32): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(1026,7): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type '(prevState: null) => null'.
+app/protected/client-cost-centers/[code]/page.tsx(1038,76): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1050,28): error TS2345: Argument of type 'any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'any[]' is not assignable to type 'never[]'.
+    Type 'any' is not assignable to type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1051,7): error TS2698: Spread types may only be created from object types.
+app/protected/client-cost-centers/[code]/page.tsx(1056,77): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1063,38): error TS7006: Parameter 'accountNumber' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(1063,53): error TS7006: Parameter 'selected' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(1064,28): error TS2345: Argument of type '(prev: never[]) => any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '(prev: never[]) => any[]' is not assignable to type '(prevState: never[]) => never[]'.
+    Type 'any[]' is not assignable to type 'never[]'.
+      Type 'any' is not assignable to type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1065,10): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1066,13): error TS2698: Spread types may only be created from object types.
+app/protected/client-cost-centers/[code]/page.tsx(1072,10): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1073,13): error TS2698: Spread types may only be created from object types.
+app/protected/client-cost-centers/[code]/page.tsx(1105,74): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1120,35): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1121,38): error TS2339: Property 'accountInvoiceId' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1121,69): error TS2339: Property 'account_invoice_id' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1122,34): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1123,28): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1169,9): error TS2451: Cannot redeclare block-scoped variable 'handleDueForAllCostCenters'.
+app/protected/client-cost-centers/[code]/page.tsx(1175,86): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1176,82): error TS2339: Property 'monthlyAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1177,79): error TS2339: Property 'totalPaid' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1443,77): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1466,40): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1467,40): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1468,118): error TS2339: Property 'monthlyAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1469,118): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1470,118): error TS2339: Property 'firstMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1471,118): error TS2339: Property 'overdue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1472,40): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1473,118): error TS2339: Property 'totalPaid' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1533,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1534,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1537,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1538,9): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1541,11): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1556,9): error TS2451: Cannot redeclare block-scoped variable 'handleDueForAllCostCenters'.
+app/protected/client-cost-centers/[code]/page.tsx(1562,86): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1563,82): error TS2339: Property 'monthlyAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1564,79): error TS2339: Property 'totalPaid' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1830,77): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1853,40): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1854,40): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1855,118): error TS2339: Property 'monthlyAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1856,118): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1857,118): error TS2339: Property 'firstMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1858,118): error TS2339: Property 'overdue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1859,40): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1860,118): error TS2339: Property 'totalPaid' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(1920,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1921,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1924,7): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1925,9): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1928,11): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1956,9): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1966,18): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1970,109): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1975,9): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1985,28): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1987,15): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1988,15): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1990,27): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(1992,66): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(2035,16): error TS18047: 'paymentDetails' is possibly 'null'.
+app/protected/client-cost-centers/[code]/page.tsx(2039,74): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2051,43): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2052,46): error TS2339: Property 'accountInvoiceId' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2052,77): error TS2339: Property 'account_invoice_id' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2053,42): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2054,70): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2055,93): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2064,80): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2068,70): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2131,23): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2131,78): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2131,137): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2132,36): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'unknown[]' is not assignable to type 'never[]'.
+    Type 'unknown' is not assignable to type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2146,38): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2176,40): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2220,32): error TS7006: Parameter 'invoice' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2292,32): error TS7006: Parameter 'invoice' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2292,41): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2399,42): error TS7006: Parameter 'costCenter' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2450,76): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2471,73): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2471,103): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2471,129): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2480,90): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2482,68): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2489,65): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2491,38): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2492,39): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2492,65): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2511,44): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2513,47): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2513,73): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2541,45): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2541,51): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(2575,42): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2575,68): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2577,36): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2590,68): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2592,36): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2593,37): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2593,63): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2595,22): error TS18046: 'error' is of type 'unknown'.
+app/protected/client-cost-centers/[code]/page.tsx(2602,42): error TS2339: Property 'customers' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2602,84): error TS2339: Property 'customers' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2645,33): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2660,35): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2660,90): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2665,34): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2672,32): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2674,44): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2675,41): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2725,33): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2725,88): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2730,32): error TS2339: Property 'searchMethod' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2737,30): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2739,42): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2740,39): error TS2339: Property 'searchDetails' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2769,87): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2772,71): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2776,72): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2791,79): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2814,87): error TS2339: Property 'dueAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2827,87): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2830,71): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2834,72): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2850,89): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2853,73): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2857,74): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2871,89): error TS2339: Property 'paidAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2882,89): error TS2339: Property 'dueAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2920,71): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2953,59): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2955,110): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2979,41): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2983,41): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2986,41): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2991,97): error TS2339: Property 'dueAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(2997,56): error TS2339: Property 'paidAmount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3007,40): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3009,56): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3012,40): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3014,41): error TS2339: Property 'balanceDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3020,40): error TS2339: Property 'paymentStatus' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3021,40): error TS2339: Property 'paymentStatus' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3022,40): error TS2339: Property 'paymentStatus' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3025,41): error TS2339: Property 'paymentStatus' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3030,39): error TS2339: Property 'reference' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3035,39): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3035,74): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3054,39): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(3054,67): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3056,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(3056,58): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3072,39): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(3072,67): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3074,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/client-cost-centers/[code]/page.tsx(3074,58): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3103,83): error TS2339: Property 'title' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3123,50): error TS2339: Property 'amount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3125,70): error TS2339: Property 'description' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3132,86): error TS2339: Property 'amount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3168,57): error TS2339: Property 'amount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3176,53): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3177,35): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3188,35): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3200,37): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3201,37): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3204,33): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3207,87): error TS2339: Property 'costCenter' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3210,33): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3210,73): error TS2339: Property 'costCenter' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3213,77): error TS2339: Property 'costCenter' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3216,33): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3219,102): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3241,37): error TS2339: Property 'amount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3243,64): error TS2339: Property 'amount' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3246,33): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3250,54): error TS2339: Property 'costCenter' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3268,111): error TS2339: Property 'type' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3336,91): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3336,130): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3373,42): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3376,46): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3377,45): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3378,79): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3381,56): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3382,88): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3384,39): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3384,95): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3397,73): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3397,112): error TS2339: Property 'amountDue' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3400,58): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3419,163): error TS2339: Property 'selected' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3446,108): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3465,58): error TS2339: Property 'paymentData' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3479,57): error TS2339: Property 'accountName' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3479,101): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3479,160): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3499,59): error TS2339: Property 'invoiceData' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3500,38): error TS7006: Parameter 'invoice' implicitly has an 'any' type.
+app/protected/client-cost-centers/[code]/page.tsx(3504,27): error TS2698: Spread types may only be created from object types.
+app/protected/client-cost-centers/[code]/page.tsx(3508,38): error TS2339: Property 'invoiceData' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3528,46): error TS2345: Argument of type '(prev: never[]) => any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '(prev: never[]) => any[]' is not assignable to type '(prevState: never[]) => never[]'.
+    Type 'any[]' is not assignable to type 'never[]'.
+      Type 'any' is not assignable to type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3530,28): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3530,76): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3532,29): error TS2698: Spread types may only be created from object types.
+app/protected/client-cost-centers/[code]/page.tsx(3539,73): error TS2339: Property 'billingMonth' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3540,71): error TS2339: Property 'invoiceDate' does not exist on type 'never'.
+app/protected/client-cost-centers/[code]/page.tsx(3541,63): error TS2339: Property 'dueDate' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(92,18): error TS18048: 'accountId' is possibly 'undefined'.
+app/protected/fc/accounts/[id]/page.tsx(92,28): error TS2339: Property 'split' does not exist on type 'string | string[]'.
+  Property 'split' does not exist on type 'string[]'.
+app/protected/fc/accounts/[id]/page.tsx(93,24): error TS18048: 'accountId' is possibly 'undefined'.
+app/protected/fc/accounts/[id]/page.tsx(93,34): error TS2339: Property 'split' does not exist on type 'string | string[]'.
+  Property 'split' does not exist on type 'string[]'.
+app/protected/fc/accounts/[id]/page.tsx(94,26): error TS18048: 'accountId' is possibly 'undefined'.
+app/protected/fc/accounts/[id]/page.tsx(94,36): error TS2339: Property 'split' does not exist on type 'string | string[]'.
+  Property 'split' does not exist on type 'string[]'.
+app/protected/fc/accounts/[id]/page.tsx(114,19): error TS2345: Argument of type '{ id: ParamValue; new_account_number: ParamValue; company: any; legal_name: string; trading_name: string; email: null; cell_no: null; switchboard: null; physical_address_1: null; ... 12 more ...; created_at: string; }' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type '{ id: ParamValue; new_account_number: ParamValue; company: any; legal_name: string; trading_name: string; email: null; cell_no: null; switchboard: null; physical_address_1: null; ... 12 more ...; created_at: string; }' provides no match for the signature '(prevState: null): null'.
+app/protected/fc/accounts/[id]/page.tsx(158,71): error TS2345: Argument of type 'ParamValue' is not assignable to parameter of type 'string | number | boolean'.
+  Type 'undefined' is not assignable to type 'string | number | boolean'.
+app/protected/fc/accounts/[id]/page.tsx(225,24): error TS2345: Argument of type 'Vehicle' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type 'Vehicle' provides no match for the signature '(prevState: null): null'.
+app/protected/fc/accounts/[id]/page.tsx(245,17): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(260,43): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(276,9): error TS2353: Object literal may only specify known properties, and 'inserted' does not exist in type '(prevState: null) => null'.
+app/protected/fc/accounts/[id]/page.tsx(315,29): error TS7006: Parameter 'timestamp' implicitly has an 'any' type.
+app/protected/fc/accounts/[id]/page.tsx(319,20): error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/protected/fc/accounts/[id]/page.tsx(319,26): error TS2363: The right-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.
+app/protected/fc/accounts/[id]/page.tsx(397,38): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(442,58): error TS2339: Property 'inserted' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(443,49): error TS2339: Property 'inserted' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(446,49): error TS2339: Property 'sheetName' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(448,47): error TS2339: Property 'missingColumns' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(451,51): error TS2339: Property 'missingColumns' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(477,44): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(585,56): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(594,28): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(595,63): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(609,40): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(626,45): error TS2339: Property 'live_data' does not exist on type 'Vehicle'.
+app/protected/fc/accounts/[id]/page.tsx(634,15): error TS2322: Type 'import("C:/Users/mabuk/Desktop/motion-live/lib/actions/vehicles").Vehicle[]' is not assignable to type 'Vehicle[]'.
+  Type 'import("C:/Users/mabuk/Desktop/motion-live/lib/actions/vehicles").Vehicle' is not assignable to type 'Vehicle'.
+    Types of property 'id' are incompatible.
+      Type 'number' is not assignable to type 'string'.
+app/protected/fc/accounts/[id]/page.tsx(635,40): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(644,38): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(654,25): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(654,45): error TS2339: Property 'trading_name' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(654,70): error TS2339: Property 'legal_name' does not exist on type 'never'.
+app/protected/fc/accounts/[id]/page.tsx(655,40): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/Telekimatics.tsx(156,27): error TS7006: Parameter 'status' implicitly has an 'any' type.
+app/protected/fc/accounts/Telekimatics.tsx(165,29): error TS7006: Parameter 'status' implicitly has an 'any' type.
+app/protected/fc/accounts/Telekimatics.tsx(174,33): error TS7006: Parameter 'status' implicitly has an 'any' type.
+app/protected/fc/accounts/Telekimatics.tsx(188,16): error TS2339: Property 'style' does not exist on type 'never'.
+app/protected/fc/accounts/Telekimatics.tsx(194,16): error TS2339: Property 'style' does not exist on type 'never'.
+app/protected/fc/accounts/Telekimatics.tsx(195,16): error TS2339: Property 'style' does not exist on type 'never'.
+app/protected/fc/accounts/Telekimatics.tsx(196,16): error TS2339: Property 'style' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(38,18): error TS18046: 'err' is of type 'unknown'.
+app/protected/fc/accounts/VehicleList.tsx(52,16): error TS2339: Property 'new_registration' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(53,16): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(54,16): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(55,16): error TS2339: Property 'group_name' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(116,32): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(125,34): error TS2339: Property 'new_registration' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(127,69): error TS2339: Property 'company' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(133,32): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(139,32): error TS2339: Property 'group_name' does not exist on type 'never'.
+app/protected/fc/accounts/VehicleList.tsx(143,56): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/fc/add-account/page.tsx(140,11): error TS18046: 'error' is of type 'unknown'.
+app/protected/fc/companies/[prefix]/page.tsx(91,28): error TS2339: Property 'company_name' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(149,65): error TS2339: Property 'vehicle_count' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(164,28): error TS2339: Property 'company_name' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(200,42): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(202,32): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(206,34): error TS2339: Property 'vehicle_count' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(211,34): error TS2339: Property 'vehicles' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(211,61): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/protected/fc/companies/[prefix]/page.tsx(211,70): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/fc/companies/[prefix]/page.tsx(224,34): error TS2339: Property 'vehicle_count' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(226,39): error TS2339: Property 'vehicle_count' does not exist on type 'never'.
+app/protected/fc/companies/[prefix]/page.tsx(232,69): error TS2339: Property 'new_account_number' does not exist on type 'never'.
+app/protected/inv/page.tsx(47,3): error TS2300: Duplicate identifier 'quotation_products'.
+app/protected/inv/page.tsx(59,3): error TS2300: Duplicate identifier 'quotation_products'.
+app/protected/inv/page.tsx(514,40): error TS7006: Parameter 'stockItems' implicitly has an 'any' type.
+app/protected/inv/page.tsx(516,25): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(518,36): error TS7006: Parameter 'ip' implicitly has an 'any' type.
+app/protected/inv/page.tsx(537,25): error TS2345: Argument of type '{ ip_address: unknown; }[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '{ ip_address: unknown; }[]' is not assignable to type 'never[]'.
+    Type '{ ip_address: unknown; }' is not assignable to type 'never'.
+app/protected/inv/page.tsx(1061,5): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/inv/page.tsx(1158,83): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number'.
+app/protected/inv/page.tsx(1159,92): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type '{}' is not assignable to parameter of type 'string | number'.
+app/protected/inv/page.tsx(1217,115): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+app/protected/inv/page.tsx(1227,5): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/inv/page.tsx(1228,5): error TS18047: 'printWindow' is possibly 'null'.
+app/protected/inv/page.tsx(1235,27): error TS2345: Argument of type 'StockOrder & { invoice_link?: string | undefined; total_amount_ex_vat?: number | undefined; }' is not assignable to parameter of type 'SetStateAction<null>'.
+app/protected/inv/page.tsx(1241,9): error TS2353: Object literal may only specify known properties, and 'title' does not exist in type 'ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<...> | (() => ReactNode)'.
+app/protected/inv/page.tsx(1249,27): error TS2345: Argument of type 'StockOrder' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type 'StockOrder' provides no match for the signature '(prevState: null): null'.
+app/protected/inv/page.tsx(1388,9): error TS2352: Conversion of type 'Part' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'Part'.
+app/protected/inv/page.tsx(1448,32): error TS7006: Parameter 'order' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1455,11): error TS7034: Variable 'items' implicitly has type 'any[]' in some locations where its type cannot be determined.
+app/protected/inv/page.tsx(1456,32): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1456,38): error TS7006: Parameter 'itemIndex' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1473,20): error TS2345: Argument of type 'any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type 'any[]' is not assignable to type 'never[]'.
+    Type 'any' is not assignable to type 'never'.
+app/protected/inv/page.tsx(1473,20): error TS7005: Variable 'items' implicitly has an 'any[]' type.
+app/protected/inv/page.tsx(1477,37): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1490,20): error TS18047: 'uploadOrder' is possibly 'null'.
+app/protected/inv/page.tsx(1502,53): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/inv/page.tsx(1505,19): error TS18046: 'error' is of type 'unknown'.
+app/protected/inv/page.tsx(1511,12): error TS2339: Property 'serialNumber' does not exist on type 'never'.
+app/protected/inv/page.tsx(1525,20): error TS18047: 'uploadOrder' is possibly 'null'.
+app/protected/inv/page.tsx(1543,19): error TS18046: 'error' is of type 'unknown'.
+app/protected/inv/page.tsx(1547,31): error TS7006: Parameter 'itemId' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1547,39): error TS7006: Parameter 'serialNumber' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1548,20): error TS2345: Argument of type '(prev: never[]) => any[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '(prev: never[]) => any[]' is not assignable to type '(prevState: never[]) => never[]'.
+    Type 'any[]' is not assignable to type 'never[]'.
+      Type 'any' is not assignable to type 'never'.
+app/protected/inv/page.tsx(1550,14): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/inv/page.tsx(1550,32): error TS2698: Spread types may only be created from object types.
+app/protected/inv/page.tsx(1630,19): error TS18046: 'error' is of type 'unknown'.
+app/protected/inv/page.tsx(1817,33): error TS7006: Parameter 'itemId' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1817,41): error TS7006: Parameter 'newQuantity' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1894,39): error TS7006: Parameter 'difference' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1916,30): error TS7006: Parameter 'stockType' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1924,12): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ "Tracking Equipment": string; Accessories: string; Hardware: string; Electronics: string; Software: string; }'.
+app/protected/inv/page.tsx(1956,10): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1967,34): error TS7006: Parameter 'itemId' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1967,42): error TS7006: Parameter 'newThreshold' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1974,29): error TS7006: Parameter 'itemId' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1978,23): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(1984,29): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(2390,26): error TS18048: 'job.parts_required.length' is possibly 'undefined'.
+app/protected/inv/page.tsx(2392,31): error TS18048: 'job.parts_required' is possibly 'undefined'.
+app/protected/inv/page.tsx(2710,28): error TS2339: Property 'notes' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2712,32): error TS2339: Property 'notes' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2733,39): error TS2339: Property 'order_date' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2737,41): error TS2339: Property 'total_amount_ex_vat' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2739,28): error TS2339: Property 'total_amount_usd' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2741,43): error TS2339: Property 'total_amount_usd' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2752,30): error TS2339: Property 'invoice_link' does not exist on type 'StockOrder'.
+app/protected/inv/page.tsx(2818,9): error TS2719: Type 'StockItem' is not assignable to type 'StockItem'. Two different types with this name exist, but they are unrelated.
+  Types of property 'id' are incompatible.
+    Type 'string | number' is not assignable to type 'number'.
+      Type 'string' is not assignable to type 'number'.
+app/protected/inv/page.tsx(2948,39): error TS2339: Property 'code' does not exist on type 'string | { code: string; description: string; }'.
+  Property 'code' does not exist on type 'string'.
+app/protected/inv/page.tsx(2948,57): error TS2339: Property 'code' does not exist on type 'string | { code: string; description: string; }'.
+  Property 'code' does not exist on type 'string'.
+app/protected/inv/page.tsx(2949,29): error TS2339: Property 'code' does not exist on type 'string | { code: string; description: string; }'.
+  Property 'code' does not exist on type 'string'.
+app/protected/inv/page.tsx(2949,43): error TS2339: Property 'description' does not exist on type 'string | { code: string; description: string; }'.
+  Property 'description' does not exist on type 'string'.
+app/protected/inv/page.tsx(3267,29): error TS2339: Property 'description' does not exist on type 'never'.
+app/protected/inv/page.tsx(3274,27): error TS2339: Property 'code' does not exist on type 'never'.
+app/protected/inv/page.tsx(3278,29): error TS2339: Property 'quantity' does not exist on type 'never'.
+app/protected/inv/page.tsx(3282,27): error TS2339: Property 'supplier' does not exist on type 'never'.
+app/protected/inv/page.tsx(3285,27): error TS2339: Property 'date_added' does not exist on type 'never'.
+app/protected/inv/page.tsx(3286,39): error TS2339: Property 'date_added' does not exist on type 'never'.
+app/protected/inv/page.tsx(3728,11): error TS2322: Type '{ isOpen: boolean; onClose: () => void; jobCard: JobCard; onPartsAssigned: () => void; allIpAddresses: never[]; allStockItems: never[]; }' is not assignable to type 'IntrinsicAttributes & { isOpen: any; onClose: any; jobCard: any; onPartsAssigned: any; stockSource?: string | undefined; stockOwner?: string | undefined; clientOptions?: never[] | undefined; technicianOptions?: never[] | undefined; }'.
+  Property 'allIpAddresses' does not exist on type 'IntrinsicAttributes & { isOpen: any; onClose: any; jobCard: any; onPartsAssigned: any; stockSource?: string | undefined; stockOwner?: string | undefined; clientOptions?: never[] | undefined; technicianOptions?: never[] | undefined; }'.
+app/protected/inv/page.tsx(3956,23): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(3962,29): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4461,21): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4471,21): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4498,23): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4514,23): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4522,23): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4823,27): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4856,25): error TS2322: Type '{}' is not assignable to type 'ReactNode'.
+app/protected/inv/page.tsx(4948,55): error TS2339: Property 'order_number' does not exist on type 'never'.
+app/protected/inv/page.tsx(4972,34): error TS2339: Property 'invoice_link' does not exist on type 'never'.
+app/protected/inv/page.tsx(4974,41): error TS2339: Property 'invoice_link' does not exist on type 'never'.
+app/protected/inv/page.tsx(4976,64): error TS2339: Property 'order_number' does not exist on type 'never'.
+app/protected/inv/page.tsx(4979,21): error TS2353: Object literal may only specify known properties, and 'title' does not exist in type 'ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<...> | (() => ReactNode)'.
+app/protected/inv/page.tsx(5008,55): error TS2339: Property 'order_number' does not exist on type 'never'.
+app/protected/inv/page.tsx(5029,45): error TS2339: Property 'supplier' does not exist on type 'never'.
+app/protected/inv/page.tsx(5035,45): error TS2339: Property 'status' does not exist on type 'never'.
+app/protected/inv/page.tsx(5043,56): error TS2339: Property 'order_date' does not exist on type 'never'.
+app/protected/inv/page.tsx(5053,46): error TS2339: Property 'total_amount_ex_vat' does not exist on type 'never'.
+app/protected/inv/page.tsx(5058,39): error TS2339: Property 'notes' does not exist on type 'never'.
+app/protected/inv/page.tsx(5062,45): error TS2339: Property 'notes' does not exist on type 'never'.
+app/protected/inv/page.tsx(5069,37): error TS2339: Property 'order_items' does not exist on type 'never'.
+app/protected/inv/page.tsx(5070,50): error TS2339: Property 'order_items' does not exist on type 'never'.
+app/protected/inv/page.tsx(5071,36): error TS2339: Property 'order_items' does not exist on type 'never'.
+app/protected/inv/page.tsx(5085,45): error TS2339: Property 'order_items' does not exist on type 'never'.
+app/protected/inv/page.tsx(5085,62): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/inv/page.tsx(5085,68): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/inv/page.tsx(5148,55): error TS2339: Property 'serialNumber' does not exist on type 'never'.
+app/protected/inv/page.tsx(5156,50): error TS2339: Property 'serialNumber' does not exist on type 'never'.
+app/protected/inv/page.tsx(5182,35): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/inv/page.tsx(5186,33): error TS2339: Property 'description' does not exist on type 'never'.
+app/protected/inv/page.tsx(5191,33): error TS2339: Property 'categoryCode' does not exist on type 'never'.
+app/protected/inv/page.tsx(5196,39): error TS2339: Property 'serialNumber' does not exist on type 'never'.
+app/protected/inv/page.tsx(5198,53): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/inv/page.tsx(5208,43): error TS2339: Property 'serialNumber' does not exist on type 'never'.
+app/protected/tech/boot-stock/page.tsx(60,48): error TS7006: Parameter 'item' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(95,46): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(96,47): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(102,52): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(106,52): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(135,24): error TS7006: Parameter 'e' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(180,29): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(186,26): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(200,82): error TS2339: Property 'vehicle_registration' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(200,129): error TS2339: Property 'vin_number' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(229,31): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(241,9): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(241,28): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(241,49): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(261,36): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(266,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(267,19): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(269,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(308,9): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(308,28): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(308,49): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(326,36): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(331,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(332,19): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(334,17): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(418,46): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(419,33): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(424,72): error TS2339: Property 'user' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(435,27): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(474,23): error TS2353: Object literal may only specify known properties, and 'user' does not exist in type '(prevState: null) => null'.
+app/protected/tech/calendar/page.tsx(480,44): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(487,30): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(488,27): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(490,25): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(579,28): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(598,25): error TS2353: Object literal may only specify known properties, and 'user' does not exist in type '(prevState: null) => null'.
+app/protected/tech/calendar/page.tsx(603,46): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(608,32): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(609,29): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(611,27): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/calendar/page.tsx(688,46): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(697,63): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'null' is not assignable to type 'SetStateAction<string>'.
+app/protected/tech/calendar/page.tsx(703,56): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(703,63): error TS7006: Parameter 'eventIndex' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(737,55): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'null' is not assignable to type 'SetStateAction<string>'.
+app/protected/tech/calendar/page.tsx(777,28): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(787,20): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/calendar/page.tsx(787,54): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(787,61): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/tech/calendar/page.tsx(839,29): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(840,36): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(841,37): error TS2339: Property 'customerEmail' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(856,41): error TS2339: Property 'jobNumber' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(856,67): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/tech/calendar/page.tsx(869,10): error TS2741: Property 'userJobs' is missing in type '{ isOpen: true; onClose: () => void; job: null; onJobStarted: (jobData: any) => void; onJobCompleted: (jobData: any) => void; }' but required in type 'StartJobModalProps'.
+app/protected/tech/components/CreateRepairJobModal.tsx(420,51): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/EndJobModal.tsx(122,11): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/EndJobModal.tsx(124,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/EndJobModal.tsx(126,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/EndJobModal.tsx(128,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/EndJobModal.tsx(130,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/NewStockNotification.tsx(112,42): error TS2339: Property 'new_stock_assigned' does not exist on type '{} | { [key: string]: any; }'.
+  Property 'new_stock_assigned' does not exist on type '{}'.
+app/protected/tech/components/StartJobModal.tsx(472,11): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(474,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(476,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(478,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(480,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(637,11): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(639,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(641,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(965,29): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1005,11): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1007,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1009,18): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1012,44): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1109,43): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/StartJobModal.tsx(1189,46): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/components/VinScanner.tsx(369,7): error TS2552: Cannot find name 'setCreatingVehicle'. Did you mean 'setExistingVehicle'?
+app/protected/tech/components/VinScanner.tsx(383,9): error TS2304: Cannot find name 'setFoundVehicle'.
+app/protected/tech/components/VinScanner.tsx(384,9): error TS2304: Cannot find name 'setShowVehicleDetails'.
+app/protected/tech/components/VinScanner.tsx(402,7): error TS2552: Cannot find name 'setCreatingVehicle'. Did you mean 'setExistingVehicle'?
+app/protected/tech/components/VinScanner.tsx(408,7): error TS2304: Cannot find name 'onVehicleFound'.
+app/protected/tech/components/VinScanner.tsx(488,40): error TS2304: Cannot find name 'Vehicle'.
+app/protected/tech/components/VinScanner.tsx(489,5): error TS2304: Cannot find name 'setFoundVehicle'.
+app/protected/tech/components/VinScanner.tsx(490,5): error TS2304: Cannot find name 'setShowVehicleDetails'.
+app/protected/tech/job/page.tsx(145,61): error TS7006: Parameter 'quote' implicitly has an 'any' type.
+app/protected/tech/job/page.tsx(158,21): error TS2345: Argument of type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to parameter of type 'SetStateAction<Job[]>'.
+  Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to type 'Job[]'.
+    Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }' is missing the following properties from type 'Job': id, job_number, customer_name, vehicle_registration, and 4 more.
+app/protected/tech/job/page.tsx(161,31): error TS2345: Argument of type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to parameter of type 'Job[]'.
+  Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }' is missing the following properties from type 'Job': id, job_number, customer_name, vehicle_registration, and 4 more.
+app/protected/tech/job/page.tsx(209,7): error TS2322: Type 'Job[]' is not assignable to type 'never[]'.
+  Type 'Job' is not assignable to type 'never'.
+app/protected/tech/job/page.tsx(313,53): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/job/page.tsx(338,58): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/page.tsx(109,59): error TS7006: Parameter 'quote' implicitly has an 'any' type.
+app/protected/tech/page.tsx(121,19): error TS2345: Argument of type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to parameter of type 'SetStateAction<Job[]>'.
+  Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to type 'Job[]'.
+    Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }' is missing the following properties from type 'Job': id, job_number, customer_name, vehicle_registration, and 4 more.
+app/protected/tech/page.tsx(122,15): error TS2345: Argument of type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to parameter of type 'SetStateAction<never[]>'.
+  Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }[]' is not assignable to type 'never[]'.
+    Type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }' is not assignable to type 'never'.
+app/protected/tech/page.tsx(124,52): error TS2339: Property 'job_status' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(124,85): error TS2339: Property 'technician_phone' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(125,53): error TS2339: Property 'job_status' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(125,85): error TS2339: Property 'technician_phone' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(126,58): error TS2339: Property 'job_status' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(127,58): error TS2339: Property 'job_status' does not exist on type '{ created_at?: string | undefined; job_date?: string | undefined; start_time?: string | undefined; }'.
+app/protected/tech/page.tsx(223,59): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/page.tsx(246,64): error TS18046: 'error' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(118,28): error TS7006: Parameter 'colorName' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(143,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ blue: string; violet: string; yellow: string; maroon: string; black: string; red: string; green: string; purple: string; orange: string; pink: string; cyan: string; indigo: string; emerald: string; teal: string; ... 7 more ...; stone: string; }'.
+app/protected/tech/schedule/page.tsx(157,29): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(163,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(164,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(188,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(192,16): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(193,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(195,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(199,13): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(219,38): error TS7006: Parameter 'technicianJobs' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(227,41): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(236,38): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(238,7): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/schedule/page.tsx(262,14): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(262,29): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(263,11): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(263,26): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(265,9): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{}'.
+app/protected/tech/schedule/page.tsx(265,24): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(272,27): error TS7006: Parameter 'date' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(295,26): error TS7006: Parameter 'direction' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(303,26): error TS7006: Parameter 'year' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(303,32): error TS7006: Parameter 'month' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(303,39): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(307,28): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(314,29): error TS7006: Parameter 'day' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(317,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/schedule/page.tsx(320,27): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(325,34): error TS7006: Parameter 'technicianEmail' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(325,51): error TS7006: Parameter 'availability' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(330,26): error TS7006: Parameter 'job' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(344,82): error TS2339: Property 'vehicle_registration' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(344,129): error TS2339: Property 'vin_number' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(373,31): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(374,5): error TS2304: Cannot find name 'setSelectedVehicle'.
+app/protected/tech/schedule/page.tsx(399,26): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.
+  No index signature with a parameter of type 'string' was found on type '{}'.
+app/protected/tech/schedule/page.tsx(415,20): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(435,26): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(444,39): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(445,26): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(556,44): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(556,51): error TS7006: Parameter 'eventIndex' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(577,46): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(603,24): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(633,28): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(643,32): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(647,41): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(648,28): error TS18046: 'availability' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(676,41): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(676,48): error TS7006: Parameter 'index' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(690,38): error TS2339: Property 'isTechAdmin' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(729,29): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(730,36): error TS2339: Property 'customerName' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(731,37): error TS2339: Property 'customerEmail' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(739,41): error TS2339: Property 'jobNumber' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(739,67): error TS2339: Property 'id' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(756,36): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(766,43): error TS2339: Property 'isAvailable' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(772,45): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(775,56): error TS2339: Property 'isAvailable' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(776,43): error TS2339: Property 'todaysJobs' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(821,77): error TS7006: Parameter 'event' implicitly has an 'any' type.
+app/protected/tech/schedule/page.tsx(822,67): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(823,72): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(864,27): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(864,65): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(865,27): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(865,70): error TS2339: Property 'email' does not exist on type 'never'.
+app/protected/tech/schedule/page.tsx(878,70): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(880,36): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(880,47): error TS18046: 'job' is of type 'unknown'.
+app/protected/tech/schedule/page.tsx(883,74): error TS18046: 'job' is of type 'unknown'.
+components/accounts/AccountDashboard.tsx(55,9): error TS2353: Object literal may only specify known properties, and 'company' does not exist in type '(prevState: null) => null'.
+components/accounts/AccountDashboard.tsx(93,27): error TS7006: Parameter 'amount' implicitly has an 'any' type.
+components/accounts/AccountDashboard.tsx(118,29): error TS7006: Parameter 'totalOverdue' implicitly has an 'any' type.
+components/accounts/AccountDashboard.tsx(125,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+components/accounts/AccountDashboard.tsx(158,88): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(159,73): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(168,75): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(169,64): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(189,49): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(240,83): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(252,83): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(264,83): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(295,45): error TS2339: Property 'totalMonthlyAmount' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(330,58): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(331,66): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(332,59): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(335,39): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(341,40): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(344,52): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(346,38): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(348,49): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(371,32): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(376,55): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(459,62): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(460,70): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(461,61): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(462,59): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(463,63): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(466,42): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(472,44): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(475,56): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(477,42): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(479,53): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(511,38): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(513,66): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(532,81): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(533,72): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(534,70): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(542,88): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(653,62): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(654,61): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(655,59): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(656,63): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(659,42): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(665,44): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(668,56): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(670,42): error TS2339: Property 'beame' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(672,53): error TS2339: Property 'beame' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(700,40): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(718,80): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(719,72): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(720,70): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/AccountDashboard.tsx(728,78): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/CacheStatusIndicator.tsx(8,11): error TS2339: Property 'cacheMetadata' does not exist on type 'AccountsContextType'.
+components/accounts/CacheStatusIndicator.tsx(8,40): error TS2339: Property 'markDataAsStale' does not exist on type 'AccountsContextType'.
+components/accounts/InternalAccountDashboard.tsx(61,26): error TS2345: Argument of type '{ company: any; accountNumber: any; totalMonthlyAmount: any; totalOverdue: any; vehicleCount: any; }' is not assignable to parameter of type 'SetStateAction<null>'.
+  Type '{ company: any; accountNumber: any; totalMonthlyAmount: any; totalOverdue: any; vehicleCount: any; }' provides no match for the signature '(prevState: null): null'.
+components/accounts/InternalAccountDashboard.tsx(73,53): error TS18046: 'error' is of type 'unknown'.
+components/accounts/InternalAccountDashboard.tsx(92,27): error TS7006: Parameter 'amount' implicitly has an 'any' type.
+components/accounts/InternalAccountDashboard.tsx(100,29): error TS7006: Parameter 'totalOverdue' implicitly has an 'any' type.
+components/accounts/InternalAccountDashboard.tsx(107,28): error TS7006: Parameter 'status' implicitly has an 'any' type.
+components/accounts/InternalAccountDashboard.tsx(151,88): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(152,73): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(164,75): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(165,64): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(217,80): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(229,47): error TS2339: Property 'totalMonthlyAmount' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(242,47): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(276,58): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(278,39): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(283,38): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(286,50): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(356,64): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(357,72): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(358,63): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(359,61): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(360,65): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(363,44): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(369,46): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(372,58): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(374,44): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(376,55): error TS2339: Property 'group_name' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(408,40): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(410,68): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(479,47): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(485,47): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(522,62): error TS2339: Property 'one_month' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(523,61): error TS2339: Property 'total_ex_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(524,59): error TS2339: Property 'total_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(525,63): error TS2339: Property 'total_incl_vat' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(528,42): error TS2339: Property 'id' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(531,40): error TS2339: Property 'stock_description' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(534,40): error TS2339: Property 'stock_code' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(581,62): error TS2339: Property 'company' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(585,62): error TS2339: Property 'accountNumber' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(589,62): error TS2339: Property 'vehicleCount' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(594,49): error TS2339: Property 'totalMonthlyAmount' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(600,49): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(621,51): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/accounts/InternalAccountDashboard.tsx(627,51): error TS2339: Property 'totalOverdue' does not exist on type 'never'.
+components/overdue/OverdueAccountsWidget.tsx(162,31): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+components/overdue/OverdueDashboard.tsx(14,72): error TS2554: Expected 0-1 arguments, but got 2.
+components/shared/RoleSwitcher.tsx(56,29): error TS2339: Property 'icon' does not exist on type '{ value: string; label: string; }'.
+components/shared/RoleSwitcher.tsx(80,69): error TS2339: Property 'icon' does not exist on type '{ value: string; label: string; }'.
+components/ui-personal/accounts.tsx(29,33): error TS2339: Property 'searchTerm' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(29,45): error TS2339: Property 'onSearch' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(29,55): error TS2339: Property 'onClearSearch' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(58,41): error TS2339: Property 'searchTerm' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(58,53): error TS2339: Property 'accounts' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(58,63): error TS2339: Property 'totalCount' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(114,36): error TS2339: Property 'error' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(114,43): error TS2339: Property 'onRetry' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(114,52): error TS2339: Property 'onDebug' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(114,61): error TS2339: Property 'debugInfo' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(155,33): error TS2339: Property 'searchTerm' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(155,45): error TS2339: Property 'onClearSearch' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(155,60): error TS2339: Property 'onDebug' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(155,69): error TS2339: Property 'debugInfo' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(198,34): error TS2339: Property 'account' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(198,43): error TS2339: Property 'index' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(198,50): error TS2339: Property 'onViewDetails' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(255,38): error TS2339: Property 'hasMore' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(255,47): error TS2339: Property 'loadingMore' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(255,60): error TS2339: Property 'onLoadMore' does not exist on type '{}'.
+components/ui-personal/accounts.tsx(463,13): error TS2322: Type '{ searchTerm: string; onSearch: (value: string) => void; onClearSearch: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'searchTerm' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(476,13): error TS2322: Type '{ searchTerm: string; onSearch: (value: string) => void; onClearSearch: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'searchTerm' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(481,13): error TS2322: Type '{ error: string; onRetry: () => void; onDebug: () => Promise<void>; debugInfo: any; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'error' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(493,11): error TS2322: Type '{ searchTerm: string; onSearch: (value: string) => void; onClearSearch: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'searchTerm' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(498,11): error TS2322: Type '{ searchTerm: string; accounts: Account[]; totalCount: number; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'searchTerm' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(504,13): error TS2322: Type '{ searchTerm: string; onClearSearch: () => void; onDebug: () => Promise<void>; debugInfo: any; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'searchTerm' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(513,13): error TS2322: Type '{ key: string; account: Account; index: number; onViewDetails: (accountId: string) => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'account' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/accounts.tsx(519,11): error TS2322: Type '{ hasMore: boolean; loadingMore: boolean; onLoadMore: () => void; }' is not assignable to type 'IntrinsicAttributes & object'.
+  Property 'hasMore' does not exist on type 'IntrinsicAttributes & object'.
+components/ui-personal/global-view.tsx(92,46): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+components/ui-personal/global-view.tsx(105,37): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+components/ui-personal/vehicle-map-view.tsx(135,80): error TS18046: 'externalError' is of type 'unknown'.
+components/ui-personal/vehicle-map-view.tsx(135,116): error TS18046: 'internalError' is of type 'unknown'.
+components/ui-personal/vehicle-map-view.tsx(178,30): error TS18046: 'error' is of type 'unknown'.
+components/ui-personal/vehicle-map-view.tsx(207,22): error TS2307: Cannot find module 'mapbox-gl/dist/mapbox-gl.css' or its corresponding type declarations.
+components/ui-personal/VehicleDetailsForm.tsx(11,46): error TS7031: Binding element 'vehicles' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(11,56): error TS7031: Binding element 'onVehiclesChange' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(25,32): error TS7006: Parameter 'index' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(26,46): error TS7006: Parameter '_' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(26,49): error TS7006: Parameter 'i' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(30,30): error TS7006: Parameter 'e' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(41,24): error TS7006: Parameter 'vehicle' implicitly has an 'any' type.
+components/ui-personal/VehicleDetailsForm.tsx(41,33): error TS7006: Parameter 'index' implicitly has an 'any' type.
+components/ui/give-access-dialog.tsx(104,54): error TS2339: Property 'id' does not exist on type 'never'.
+components/ui/give-access-dialog.tsx(104,89): error TS2339: Property 'system_name' does not exist on type 'never'.
+components/ui/give-access-dialog.tsx(124,22): error TS18046: 'error' is of type 'unknown'.
+components/ui/give-access-dialog.tsx(191,46): error TS2339: Property 'id' does not exist on type 'never'.
+components/ui/give-access-dialog.tsx(191,64): error TS2339: Property 'id' does not exist on type 'never'.
+components/ui/give-access-dialog.tsx(192,32): error TS2339: Property 'system_name' does not exist on type 'never'.
+components/vehicle-tracking/VehicleDetailsModal.tsx(1973,22): error TS2604: JSX element type 'Icon' does not have any construct or call signatures.
+components/vehicle-tracking/VehicleDetailsModal.tsx(1973,22): error TS2786: 'Icon' cannot be used as a JSX component.
+  Its type 'ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>> | null' is not a valid JSX element type.
+    Type 'null' is not assignable to type 'ElementType'.
+components/vehicle-tracking/VehicleTrackingModal.tsx(176,19): error TS18046: 'error' is of type 'unknown'.
+supabase/functions/bulk-invoice-excel/index.ts(1,23): error TS2307: Cannot find module 'https://deno.land/std@0.168.0/http/server.ts' or its corresponding type declarations.
+supabase/functions/bulk-invoice-excel/index.ts(2,30): error TS2307: Cannot find module 'https://esm.sh/@supabase/supabase-js@2' or its corresponding type declarations.
+supabase/functions/bulk-invoice-excel/index.ts(3,23): error TS2307: Cannot find module 'https://esm.sh/xlsx@0.18.5' or its corresponding type declarations.
+supabase/functions/bulk-invoice-excel/index.ts(10,14): error TS7006: Parameter 'req' implicitly has an 'any' type.
+supabase/functions/bulk-invoice-excel/index.ts(17,7): error TS2304: Cannot find name 'Deno'.
+supabase/functions/bulk-invoice-excel/index.ts(18,7): error TS2304: Cannot find name 'Deno'.
+supabase/functions/bulk-invoice-excel/index.ts(24,9): error TS7034: Variable 'allVehicles' implicitly has type 'any[]' in some locations where its type cannot be determined.
+supabase/functions/bulk-invoice-excel/index.ts(43,25): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+supabase/functions/bulk-invoice-excel/index.ts(49,23): error TS7005: Variable 'allVehicles' implicitly has an 'any[]' type.
+supabase/functions/bulk-invoice-excel/index.ts(126,31): error TS18046: 'error' is of type 'unknown'.

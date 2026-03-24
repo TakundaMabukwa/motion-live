@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-type Destination = 'client' | 'soltrack';
+type Destination = 'client' | 'soltrack' | 'decommission';
 
 const getStringValue = (value: unknown): string => {
   if (value === null || value === undefined) return '';
@@ -79,8 +79,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'job_id is required' }, { status: 400 });
     }
 
-    if (destination !== 'client' && destination !== 'soltrack') {
-      return NextResponse.json({ error: 'destination must be client or soltrack' }, { status: 400 });
+    if (
+      destination !== 'client' &&
+      destination !== 'soltrack' &&
+      destination !== 'decommission'
+    ) {
+      return NextResponse.json(
+        { error: 'destination must be client, soltrack, or decommission' },
+        { status: 400 },
+      );
     }
 
     const { data: job, error: jobError } = await supabase
@@ -153,6 +160,18 @@ export async function POST(request: NextRequest) {
         success: true,
         destination: 'soltrack',
         item: insertedItem,
+      });
+    }
+
+    if (destination === 'decommission') {
+      return NextResponse.json({
+        success: true,
+        destination: 'decommission',
+        item: {
+          category_code: categoryCode,
+          serial_number: serialNumber,
+          notes,
+        },
       });
     }
 

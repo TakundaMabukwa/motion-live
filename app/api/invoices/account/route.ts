@@ -1,35 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-const normalizeBillingMonth = (value: unknown) => {
-  if (!value) return null;
-  const raw = String(value).trim();
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
-};
-
-const syncPaymentReference = async (
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  accountNumber: string,
-  billingMonth: string | null,
-  invoiceNumber: string,
-) => {
-  let query = supabase
-    .from("payments_")
-    .update({ reference: invoiceNumber })
-    .eq("cost_code", accountNumber);
-
-  query = billingMonth
-    ? query.eq("billing_month", billingMonth)
-    : query.is("billing_month", null);
-
-  const { error } = await query;
-  if (error) {
-    console.error("Failed to sync payment reference for account invoice:", error);
-  }
-};
+import {
+  buildInvoiceFinancials,
+  defaultDueDate,
+  normalizeBillingMonth,
+  upsertPaymentsMirror,
+} from "@/lib/server/account-invoice-payments";
 
 export async function GET(request: NextRequest) {
   try {
@@ -94,6 +70,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
+    const invoiceDate = body?.invoiceDate || new Date().toISOString();
+    const dueDate = body?.dueDate || defaultDueDate(invoiceDate);
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -128,13 +106,50 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (existingInvoice) {
-      await syncPaymentReference(
-        supabase,
-        accountNumber,
-        billingMonth,
-        existingInvoice.invoice_number,
-      );
-      return NextResponse.json({ invoice: existingInvoice, reused: true });
+      const financials = buildInvoiceFinancials({
+        totalAmount: Number(body?.totalAmount ?? existingInvoice.total_amount ?? 0),
+        paidAmount: existingInvoice.paid_amount ?? 0,
+        dueDate: body?.dueDate || existingInvoice.due_date || dueDate,
+      });
+
+      const updatePayload = {
+        company_name: body?.companyName || existingInvoice.company_name || null,
+        client_address: body?.clientAddress || existingInvoice.client_address || null,
+        customer_vat_number: body?.customerVatNumber || existingInvoice.customer_vat_number || null,
+        invoice_date: invoiceDate || existingInvoice.invoice_date,
+        due_date: body?.dueDate || existingInvoice.due_date || dueDate,
+        subtotal: Number(body?.subtotal ?? existingInvoice.subtotal ?? 0),
+        vat_amount: Number(body?.vatAmount ?? existingInvoice.vat_amount ?? 0),
+        discount_amount: Number(body?.discountAmount ?? existingInvoice.discount_amount ?? 0),
+        total_amount: financials.totalAmount,
+        paid_amount: financials.paidAmount,
+        balance_due: financials.balanceDue,
+        payment_status: financials.paymentStatus,
+        fully_paid_at:
+          financials.balanceDue <= 0
+            ? existingInvoice.fully_paid_at || new Date().toISOString()
+            : null,
+        line_items: Array.isArray(body?.lineItems) ? body.lineItems : existingInvoice.line_items || [],
+        notes: body?.notes ?? existingInvoice.notes ?? null,
+      };
+
+      const { data: updatedInvoice, error: updateError } = await supabase
+        .from("account_invoices")
+        .update(updatePayload)
+        .eq("id", existingInvoice.id)
+        .select("*")
+        .single();
+
+      if (updateError) {
+        console.error("Failed to update existing account invoice:", updateError);
+        return NextResponse.json(
+          { error: updateError.message || "Failed to update existing account invoice" },
+          { status: 500 },
+        );
+      }
+
+      await upsertPaymentsMirror(supabase, updatedInvoice);
+      return NextResponse.json({ invoice: updatedInvoice, reused: true });
     }
 
     const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
@@ -160,11 +175,15 @@ export async function POST(request: NextRequest) {
       company_name: body?.companyName || null,
       client_address: body?.clientAddress || null,
       customer_vat_number: body?.customerVatNumber || null,
-      invoice_date: body?.invoiceDate || new Date().toISOString(),
+      invoice_date: invoiceDate,
+      due_date: dueDate,
       subtotal: Number(body?.subtotal || 0),
       vat_amount: Number(body?.vatAmount || 0),
       discount_amount: Number(body?.discountAmount || 0),
       total_amount: Number(body?.totalAmount || 0),
+      paid_amount: 0,
+      balance_due: Number(body?.totalAmount || 0),
+      payment_status: "pending",
       line_items: Array.isArray(body?.lineItems) ? body.lineItems : [],
       notes: body?.notes || null,
       created_by: user.id,
@@ -184,12 +203,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await syncPaymentReference(
-      supabase,
-      accountNumber,
-      billingMonth,
-      insertedInvoice.invoice_number,
-    );
+    await upsertPaymentsMirror(supabase, insertedInvoice);
 
     return NextResponse.json({ invoice: insertedInvoice, reused: false });
   } catch (error) {

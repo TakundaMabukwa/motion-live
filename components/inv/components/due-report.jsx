@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,30 @@ import { Download } from 'lucide-react';
 
 
 export default function DueReportComponent({ costCenter, clientLegalName, paymentData }) {
+  const agingBuckets = useMemo(() => {
+    const balanceDue = Number(paymentData?.balance_due || 0);
+    const dueDate = paymentData?.due_date ? new Date(paymentData.due_date) : null;
+
+    if (balanceDue <= 0 || !dueDate || Number.isNaN(dueDate.getTime())) {
+      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+    }
+
+    const today = new Date();
+    const diffMs = today.setHours(0, 0, 0, 0) - dueDate.setHours(0, 0, 0, 0);
+    const daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+    if (daysOverdue <= 0) {
+      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+    }
+
+    return {
+      current: 0,
+      days30: daysOverdue <= 30 ? balanceDue : 0,
+      days60: daysOverdue >= 31 && daysOverdue <= 60 ? balanceDue : 0,
+      days90: daysOverdue >= 61 && daysOverdue <= 90 ? balanceDue : 0,
+      days91Plus: daysOverdue > 90 ? balanceDue : 0,
+    };
+  }, [paymentData]);
 
   // Due report data structure using payments table data
   const dueReportData = {
@@ -21,7 +45,10 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
       name: clientLegalName || "Client Name",
       accountNumber: costCenter?.accountNumber || "N/A",
       costCenter: costCenter?.accountName || "N/A",
-      vatNumber: "4290137910"
+      vatNumber:
+        costCenter?.costCenterInfo?.vat_number ||
+        costCenter?.invoiceData?.customer_vat_number ||
+        "N/A"
     },
     statement: {
       number: `STMT-${costCenter?.accountNumber || 'N/A'}`,
@@ -34,27 +61,27 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
     aging: [
       {
         period: "120 Days",
-        amount: paymentData?.overdue_90_days || 0,
+        amount: agingBuckets.days91Plus || 0,
         status: "Overdue"
       },
       {
         period: "90 Days",
-        amount: paymentData?.overdue_60_days || 0,
+        amount: agingBuckets.days90 || 0,
         status: "Overdue"
       },
       {
         period: "60 Days",
-        amount: paymentData?.overdue_30_days || 0,
+        amount: agingBuckets.days60 || 0,
         status: "Overdue"
       },
       {
         period: "30 Days",
-        amount: 0,
+        amount: agingBuckets.days30 || 0,
         status: "Current"
       },
       {
         period: "Current",
-        amount: paymentData?.balance_due || 0,
+        amount: agingBuckets.current || 0,
         status: "Outstanding"
       }
     ],
@@ -78,14 +105,14 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
   const currentBalance = paymentData?.balance_due || 0;
 
   // Build 3-month view rows: current + 1/2/3 months overdue buckets
-  const overdue30 = paymentData?.overdue_30_days || 0;
-  const overdue60 = paymentData?.overdue_60_days || 0;
-  const overdue90 = paymentData?.overdue_90_days || 0;
+  const overdue30 = agingBuckets.days30 || 0;
+  const overdue60 = agingBuckets.days60 || 0;
+  const overdue90 = (agingBuckets.days90 || 0) + (agingBuckets.days91Plus || 0);
 
   dueReportData.transactions.push({
     date: shiftMonthLabel(baseDate, 0),
     client: clientLegalName || "Client Name",
-    invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+    invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
     totalInvoiced: currentDue,
     paid: currentPaid,
     credited: 0,
@@ -96,7 +123,7 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
     dueReportData.transactions.push({
       date: shiftMonthLabel(baseDate, -1),
       client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
       totalInvoiced: overdue30,
       paid: 0,
       credited: 0,
@@ -108,7 +135,7 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
     dueReportData.transactions.push({
       date: shiftMonthLabel(baseDate, -2),
       client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
       totalInvoiced: overdue60,
       paid: 0,
       credited: 0,
@@ -120,7 +147,7 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
     dueReportData.transactions.push({
       date: shiftMonthLabel(baseDate, -3),
       client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.cost_code || `INV-${costCenter?.accountNumber || 'N/A'}`,
+      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
       totalInvoiced: overdue90,
       paid: 0,
       credited: 0,
@@ -132,12 +159,11 @@ export default function DueReportComponent({ costCenter, clientLegalName, paymen
   const calculateOverdueDistribution = () => {
     const balanceDue = paymentData?.balance_due || 0;
     if (balanceDue > 0) {
-      // Use actual overdue amounts from payments_ table
-      dueReportData.aging[0].amount = 0; // 120+ days
-      dueReportData.aging[1].amount = paymentData?.overdue_90_days || 0; // 90+ days
-      dueReportData.aging[2].amount = paymentData?.overdue_60_days || 0; // 60+ days
-      dueReportData.aging[3].amount = paymentData?.overdue_30_days || 0; // 30+ days
-      dueReportData.aging[4].amount = balanceDue; // Current outstanding
+      dueReportData.aging[0].amount = agingBuckets.days91Plus || 0;
+      dueReportData.aging[1].amount = agingBuckets.days90 || 0;
+      dueReportData.aging[2].amount = agingBuckets.days60 || 0;
+      dueReportData.aging[3].amount = agingBuckets.days30 || 0;
+      dueReportData.aging[4].amount = agingBuckets.current || 0;
     }
   };
 

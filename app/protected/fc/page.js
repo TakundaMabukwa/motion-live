@@ -82,8 +82,6 @@ export default function AccountsDashboard() {
   }, [fetchCompanyGroups, activeTab]);
 
   const filteredCompanyGroups = useMemo(() => {
-    console.log('🔍 [FC DASHBOARD] Company groups loaded:', companyGroups.length);
-    console.log('🔍 [FC DASHBOARD] Company groups data:', companyGroups);
     
     // Log each group's account numbers for debugging
     companyGroups.forEach((group, index) => {
@@ -121,16 +119,10 @@ export default function AccountsDashboard() {
   };
 
   const handleViewDetails = (group) => {
-    console.log('🔍 [FC DASHBOARD] handleViewDetails called for group:', group);
-    console.log('🔍 [FC DASHBOARD] Group company_group:', group.company_group);
-    console.log('🔍 [FC DASHBOARD] Group legal_names:', group.legal_names);
-    console.log('🔍 [FC DASHBOARD] Group all_new_account_numbers:', group.all_new_account_numbers);
     
     if (group.all_new_account_numbers) {
       // Pass the entire all_new_account_numbers string to the cost centers page
       const encodedAccountNumbers = encodeURIComponent(group.all_new_account_numbers);
-      console.log('🌐 [FC DASHBOARD] Encoded account numbers:', encodedAccountNumbers);
-      console.log('🌐 [FC DASHBOARD] Navigation URL:', `/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
       
       router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
     } else {

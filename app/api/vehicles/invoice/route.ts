@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { normalizeBillingMonth } from '@/lib/server/account-invoice-payments';
 
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
@@ -47,6 +48,137 @@ const formatColumnLabel = (value: string) =>
     .replace(/^_+/, '')
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const BILLING_COLUMN_LABELS: Record<string, string> = {
+  skylink_trailer_unit_rental: 'Skylink Trailer Unit Rental',
+  skylink_trailer_sub: 'Skylink Trailer Unit Subscription',
+  sky_on_batt_ign_rental: 'Sky On Batt Ign Rental',
+  sky_on_batt_sub: 'Sky On Batt Ign Subscription',
+  skylink_voice_kit_rental: 'Skylink Voice Kit Rental',
+  skylink_voice_kit_sub: 'Skylink Voice Kit Subscription',
+  sky_scout_12v_rental: 'Sky Scout 12V Rental',
+  sky_scout_12v_sub: 'Sky Scout 12V Subscription',
+  sky_scout_24v_rental: 'Sky Scout 24V Rental',
+  sky_scout_24v_sub: 'Sky Scout 24V Subscription',
+  skylink_pro_rental: 'Skylink Pro Rental',
+  skylink_pro_sub: 'Skylink Pro Subscription',
+  skyspy_rental: 'SkySpy Rental',
+  skyspy_sub: 'SkySpy Subscription',
+  sky_idata_rental: 'Sky IData Rental',
+  sky_ican_rental: 'Sky ICan Rental',
+  industrial_panic_rental: 'Industrial Panic Rental',
+  flat_panic_rental: 'Flat Panic Rental',
+  buzzer_rental: 'Buzzer Rental',
+  tag_rental: 'Tag Rental',
+  tag_reader_rental: 'Tag Reader Rental',
+  keypad_rental: 'Keypad Rental',
+  early_warning_rental: 'Early Warning Rental',
+  cia_rental: 'CIA Rental',
+  fm_unit_rental: 'FM Unit Rental',
+  fm_unit_sub: 'FM Unit Subscription',
+  gps_rental: 'GPS Rental',
+  gsm_rental: 'GSM Rental',
+  tag_rental_: 'Tag Rental',
+  tag_reader_rental_: 'Tag Reader Rental',
+  main_fm_harness_rental: 'Main FM Harness Rental',
+  beame_1_rental: 'Beame Rental',
+  beame_1_sub: 'Beame Subscription',
+  beame_2_rental: 'Beame Rental',
+  beame_2_sub: 'Beame Subscription',
+  beame_3_rental: 'Beame Rental',
+  beame_3_sub: 'Beame Subscription',
+  beame_4_rental: 'Beame Rental',
+  beame_4_sub: 'Beame Subscription',
+  beame_5_rental: 'Beame Rental',
+  beame_5_sub: 'Beame Subscription',
+  single_probe_rental: 'Single Probe Rental',
+  single_probe_sub: 'Single Probe Subscription',
+  dual_probe_rental: 'Dual Probe Rental',
+  dual_probe_sub: 'Dual Probe Subscription',
+  _7m_harness_for_probe_rental: '7M Harness For Probe Rental',
+  tpiece_rental: 'T-Piece Rental',
+  idata_rental: 'IData Rental',
+  _1m_extension_cable_rental: '1M Extension Cable Rental',
+  _3m_extension_cable_rental: '3M Extension Cable Rental',
+  _4ch_mdvr_rental: '4CH MDVR Rental',
+  _4ch_mdvr_sub: '4CH MDVR Subscription',
+  _5ch_mdvr_rental: '5CH MDVR Rental',
+  _5ch_mdvr_sub: '5CH MDVR Subscription',
+  _8ch_mdvr_rental: '8CH MDVR Rental',
+  _8ch_mdvr_sub: '8CH MDVR Subscription',
+  a2_dash_cam_rental: 'A2 Dash Cam Rental',
+  a2_dash_cam_sub: 'A2 Dash Cam Subscription',
+  a3_dash_cam_ai_rental: 'A3 Dash Cam AI Rental',
+  _5m_cable_for_camera_4pin_rental: '5M Camera Cable 4 Pin Rental',
+  _5m_cable_6pin_rental: '5M Cable 6 Pin Rental',
+  _10m_cable_for_camera_4pin_rental: '10M Camera Cable 4 Pin Rental',
+  a2_mec_5_rental: 'A2 MEC 5 Rental',
+  vw400_dome_1_rental: 'VW400 Dome Rental',
+  vw400_dome_2_rental: 'VW400 Dome Rental',
+  vw300_dakkie_dome_1_rental: 'VW300 Dakkie Dome Rental',
+  vw300_dakkie_dome_2_rental: 'VW300 Dakkie Dome Rental',
+  vw502_dual_lens_camera_rental: 'VW502 Dual Lens Camera Rental',
+  vw303_driver_facing_camera_rental: 'VW303 Driver Facing Camera Rental',
+  vw502f_road_facing_camera_rental: 'VW502F Road Facing Camera Rental',
+  vw306_dvr_road_facing_for_4ch_8ch_rental: 'VW306 DVR Road Facing Rental',
+  vw306m_a2_dash_cam_rental: 'VW306M A2 Dash Cam Rental',
+  dms01_driver_facing_rental: 'DMS01 Driver Facing Rental',
+  adas_02_road_facing_rental: 'ADAS 02 Road Facing Rental',
+  vw100ip_driver_facing_rental: 'VW100IP Driver Facing Rental',
+  sd_card_1tb_rental: 'SD Card 1TB Rental',
+  sd_card_2tb_rental: 'SD Card 2TB Rental',
+  sd_card_480gb_rental: 'SD Card 480GB Rental',
+  sd_card_256gb_rental: 'SD Card 256GB Rental',
+  sd_card_512gb_rental: 'SD Card 512GB Rental',
+  sd_card_250gb_rental: 'SD Card 250GB Rental',
+  mic_rental: 'Mic Rental',
+  speaker_rental: 'Speaker Rental',
+  pfk_main_unit_rental: 'PFK Main Unit Rental',
+  pfk_main_unit_sub: 'PFK Main Unit Subscription',
+  breathaloc_rental: 'Breathaloc Rental',
+  pfk_road_facing_rental: 'PFK Road Facing Rental',
+  pfk_driver_facing_rental: 'PFK Driver Facing Rental',
+  pfk_dome_1_rental: 'PFK Dome Rental',
+  pfk_dome_2_rental: 'PFK Dome Rental',
+  pfk_5m_rental: 'PFK 5M Rental',
+  pfk_10m_rental: 'PFK 10M Rental',
+  pfk_15m_rental: 'PFK 15M Rental',
+  pfk_20m_rental: 'PFK 20M Rental',
+  roller_door_switches_rental: 'Roller Door Switches Rental',
+  consultancy: 'Consultancy',
+  roaming: 'Roaming',
+  maintenance: 'Maintenance',
+  after_hours: 'After Hours',
+  controlroom: 'Control Room',
+  software: 'Software',
+  additional_data: 'Additional Data',
+  eps_software_development: 'EPS Software Development',
+  maysene_software_development: 'Maysene Software Development',
+  waterford_software_development: 'Waterford Software Development',
+  klaver_software_development: 'Klaver Software Development',
+  advatrans_software_development: 'Advatrans Software Development',
+  tt_linehaul_software_development: 'TT Linehaul Software Development',
+  tt_express_software_development: 'TT Express Software Development',
+  tt_fmcg_software_development: 'TT FMCG Software Development',
+  rapid_freight_software_development: 'Rapid Freight Software Development',
+  remco_freight_software_development: 'Remco Freight Software Development',
+  vt_logistics_software_development: 'VT Logistics Software Development',
+  epilite_software_development: 'Epilite Software Development',
+  mtx_mc202x_rental: 'MTX MC202X Rental',
+  mtx_mc202x_sub: 'MTX MC202X Subscription',
+  driver_app: 'Driver App',
+};
+
+const normalizeBillingLabel = (value: string) =>
+  BILLING_COLUMN_LABELS[value] ||
+  formatColumnLabel(value)
+    .replace(/\bSub\b/gi, 'Subscription')
+    .replace(/\bRental\b/gi, 'Rental');
+
+const toAmount = (value: unknown) => {
+  const amount = Number.parseFloat(String(value ?? '').trim());
+  return Number.isFinite(amount) ? amount : 0;
+};
 
 const hasLegacyStoredLineItems = (items: any[]) =>
   items.some((item) => {
@@ -107,7 +239,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = searchParams.get('accountNumber');
-    const billingMonth = searchParams.get('billingMonth');
+    const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
 
     if (!accountNumber) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
@@ -122,7 +254,7 @@ export async function GET(request: NextRequest) {
 
     storedInvoiceQuery = billingMonth
       ? storedInvoiceQuery.eq('billing_month', billingMonth)
-      : storedInvoiceQuery.is('billing_month', null);
+      : storedInvoiceQuery;
 
     const { data: storedInvoiceRows, error: storedInvoiceError } = await storedInvoiceQuery;
     if (storedInvoiceError) {
@@ -292,6 +424,9 @@ export async function GET(request: NextRequest) {
       'remco_freight_software_development',
       'vt_logistics_software_development',
       'epilite_software_development',
+      'mtx_mc202x_rental',
+      'mtx_mc202x_sub',
+      'driver_app',
       'total_rental_sub',
       'total_rental',
       'total_sub',
@@ -300,82 +435,51 @@ export async function GET(request: NextRequest) {
     ]);
 
     (vehicles || []).forEach((vehicle) => {
-      // Show both reg and fleet_number if available
       let regFleetDisplay = '';
       if (vehicle.reg && vehicle.fleet_number) {
         regFleetDisplay = `${vehicle.reg} / ${vehicle.fleet_number}`;
       } else {
         regFleetDisplay = vehicle.reg || vehicle.fleet_number || '';
       }
-      let vehicleHasSpecificItems = false;
-      
-      // Loop through all fields to find billable items
+
+      const billedItemLabels: string[] = [];
+
       Object.keys(vehicle).forEach((key) => {
-        // Check if it's a rental, sub, or roaming field with a value
-        if (BILLABLE_COLUMNS.has(key) && vehicle[key] && !TOTAL_BILLING_COLUMNS.has(key)) {
-          const amount = parseFloat(vehicle[key]) || 0;
-          if (amount > 0) {
-            // Get the base field name (without _rental or _sub)
-            const baseFieldName = key.replace(/_rental$/, '').replace(/_sub$/, '');
-            
-            // Check if the corresponding equipment field is not empty
-            const equipmentField = vehicle[baseFieldName];
-            const hasEquipment = equipmentField && equipmentField.toString().trim() !== '';
-            
-            if (hasEquipment || SERVICE_ONLY_COLUMNS.has(key)) {
-              const rawEquipmentValue = String(equipmentField || '').trim();
-              const itemCode = key.toUpperCase();
-              const description = hasEquipment
-                ? rawEquipmentValue
-                : formatColumnLabel(key);
-              const comments = hasEquipment
-                ? formatColumnLabel(baseFieldName)
-                : (vehicle.company || companyName);
-              vehicleHasSpecificItems = true;
-              totalAmount += pushInvoiceItem(
-                invoiceItems,
-                vehicle,
-                companyName,
-                regFleetDisplay,
-                itemCode,
-                description,
-                comments,
-                amount,
-              );
-            }
-          }
-        }
+        if (!BILLABLE_COLUMNS.has(key) || TOTAL_BILLING_COLUMNS.has(key)) return;
+
+        const amount = toAmount(vehicle[key]);
+        if (amount <= 0) return;
+        billedItemLabels.push(normalizeBillingLabel(key));
       });
 
-      if (!vehicleHasSpecificItems) {
-        const monthlyRental = parseFloat(String(vehicle.total_rental || 0)) || 0;
-        const monthlySub = parseFloat(String(vehicle.total_sub || 0)) || 0;
+      const monthlyRental = toAmount(vehicle.total_rental);
+      const monthlySub = toAmount(vehicle.total_sub);
+      const totalExVat = monthlyRental + monthlySub;
 
-        if (monthlyRental > 0) {
-          totalAmount += pushInvoiceItem(
-            invoiceItems,
-            vehicle,
-            companyName,
-            regFleetDisplay,
-            'MONTHLY_RENTAL',
-            'Monthly Rental',
-            vehicle.company || companyName,
-            monthlyRental,
-          );
+      if (totalExVat > 0) {
+        const uniqueLabels = Array.from(
+          new Set(
+            billedItemLabels
+              .map((label) => String(label || '').trim())
+              .filter(Boolean),
+          ),
+        );
+
+        if (uniqueLabels.length === 0) {
+          if (monthlyRental > 0) uniqueLabels.push('Monthly Rental');
+          if (monthlySub > 0) uniqueLabels.push('Monthly Subscription');
         }
 
-        if (monthlySub > 0) {
-          totalAmount += pushInvoiceItem(
-            invoiceItems,
-            vehicle,
-            companyName,
-            regFleetDisplay,
-            'MONTHLY_SUB',
-            'Monthly Subscription',
-            vehicle.company || companyName,
-            monthlySub,
-          );
-        }
+        totalAmount += pushInvoiceItem(
+          invoiceItems,
+          vehicle,
+          companyName,
+          regFleetDisplay,
+          'MULTI BILLING',
+          uniqueLabels.join(', '),
+          vehicle.company || companyName,
+          totalExVat,
+        );
       }
     });
 
@@ -435,6 +539,7 @@ export async function GET(request: NextRequest) {
       invoice_number: storedInvoice?.invoice_number || '',
       client_address: storedInvoice?.client_address || clientAddress,
       customer_vat_number: customerVatNumber,
+      notes: storedInvoice?.notes || '',
       invoice_items: resolvedLineItems,
       invoiceItems: resolvedLineItems,
       total_amount: resolvedTotal,
