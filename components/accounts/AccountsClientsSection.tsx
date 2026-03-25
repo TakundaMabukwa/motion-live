@@ -49,7 +49,7 @@ export default function AccountsClientsSection() {
       'Bedfordview, 2008',
     ],
     postal: ['P.O Box 95603', 'Grant Park', '2051'],
-    contact: ['011 824 0066', 'sales@soltrack.co.za', 'www.soltrack.co.za'],
+    contact: ['011 824 0066', 'accounts@soltrack.co.za', 'www.soltrack.co.za'],
     banking: ['Nedbank', 'Account No: 1674094422', 'Branch Code: 198765'],
   };
 
