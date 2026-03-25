@@ -39,12 +39,12 @@ export async function POST(
       );
     }
 
-    // When moving to FC, mark the job as completed and run the same
-    // completion flow used by PATCH /api/job-cards/[id].
-    if (targetRole === "fc") {
+    // These destinations all display jobs inside their completed/review tabs,
+    // so route them as completed jobs instead of "moved_to_*" records.
+    if (["fc", "inv", "accounts"].includes(targetRole)) {
       const completionPayload = {
-        role: "fc",
-        move_to: "fc",
+        role: targetRole,
+        move_to: targetRole,
         status: "completed",
         job_status: "Completed",
         completion_date: new Date().toISOString(),
@@ -67,7 +67,7 @@ export async function POST(
       if (!patchResponse.ok) {
         return NextResponse.json(
           {
-            error: "Failed to complete and move job to FC",
+            error: `Failed to complete and move job to ${targetRole.toUpperCase()}`,
             details: patchBody?.error || patchBody?.details || "Unknown error",
           },
           { status: patchResponse.status },
@@ -76,7 +76,7 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        message: "Job moved to FC and marked as completed",
+        message: `Job moved to ${targetRole.toUpperCase()} and marked as completed`,
         job: patchBody,
       });
     }

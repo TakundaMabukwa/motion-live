@@ -332,6 +332,7 @@ export default function ClientQuoteForm({
       description: p.description || "",
       type: p.type || "",
       category: p.category || "",
+      detailValue: p.detailValue || p.detail_value || p.value || "",
       code: p.code || "N/A",
       quantity: Number(p.quantity) || 1,
       purchaseType: p.purchase_type || initialQuote.purchase_type || "purchase",
@@ -817,6 +818,7 @@ export default function ClientQuoteForm({
           id: product.id,
           name: product.name,
           description: product.description,
+          detail_value: product.detailValue || "",
           type: product.type,
           category: product.category,
           quantity,
@@ -903,6 +905,7 @@ export default function ClientQuoteForm({
                 id: part.id,
                 name: part.name,
                 description: part.description,
+                detail_value: part.detailValue || '',
                 type: part.type,
                 category: part.category,
                 code: part.code || '',
@@ -1649,16 +1652,22 @@ export default function ClientQuoteForm({
                               <Label>Product</Label>
                               <Input
                                 value={product.name}
-                                readOnly
-                                className="bg-gray-50"
+                                onChange={(e) =>
+                                  updateProduct(index, "name", e.target.value)
+                                }
+                                readOnly={formData.jobType !== 'deinstall'}
+                                className={formData.jobType === 'deinstall' ? '' : 'bg-gray-50'}
                               />
                             </div>
                             <div className="space-y-2">
                               <Label>Code</Label>
                               <Input
                                 value={product.code || 'N/A'}
-                                readOnly
-                                className="bg-gray-50"
+                                onChange={(e) =>
+                                  updateProduct(index, "code", e.target.value)
+                                }
+                                readOnly={formData.jobType !== 'deinstall'}
+                                className={formData.jobType === 'deinstall' ? '' : 'bg-gray-50'}
                               />
                             </div>
                             <div className="space-y-2">
@@ -1703,6 +1712,16 @@ export default function ClientQuoteForm({
 
                         {formData.jobType === 'deinstall' && !product.isLabour && (
                           <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Details</Label>
+                              <Input
+                                value={product.detailValue || ""}
+                                onChange={(e) =>
+                                  updateProduct(index, "detailValue", e.target.value)
+                                }
+                                placeholder="e.g. IP, serial number, SIM number"
+                              />
+                            </div>
                             <div className="space-y-2">
                               <Label>Annuity End Date</Label>
                               <Input

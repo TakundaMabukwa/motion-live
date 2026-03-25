@@ -244,14 +244,10 @@ export function AwaitingTestingContent({
   const handleSendToInventory = async (job: CompletedJob) => {
     setSendingJobId(job.id);
     try {
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: "inv",
-          move_to: "inv",
-          updated_by: "admin",
-        }),
+        body: JSON.stringify({ destination: "inv" }),
       });
 
       if (!response.ok) {
@@ -282,14 +278,10 @@ export function AwaitingTestingContent({
   const handleSendToRia = async (job: CompletedJob) => {
     setSendingJobId(job.id);
     try {
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: "accounts",
-          move_to: "accounts",
-          updated_by: "admin",
-        }),
+        body: JSON.stringify({ destination: "accounts" }),
       });
 
       if (!response.ok) {

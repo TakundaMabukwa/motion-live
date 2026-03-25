@@ -257,6 +257,8 @@ export default function ValidateVehiclesPage() {
   ];
   const specialBillingFields = billingFields;
   const allPossibleBillingFields = [
+    "bidtrack_rental",
+    "bidtrack_sub",
     "skyspy_rental",
     "skyspy_sub",
     "skylink_trailer_unit_rental",

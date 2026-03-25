@@ -25,10 +25,14 @@ export default function ValidateCostCentersPage() {
   const [deleteAction, setDeleteAction] = useState(null); // 'transfer' or 'delete'
   const accountNumbers = params?.accountNumbers ? decodeURIComponent(params.accountNumbers) : "";
 
-  const normalizedAccountNumbers = accountNumbers
-    .split(",")
-    .map((value) => value.trim().toUpperCase())
-    .filter(Boolean);
+  const normalizedAccountNumbers = Array.from(
+    new Set(
+      accountNumbers
+        .split(",")
+        .map((value) => value.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  );
 
   useEffect(() => {
     const fetchCostCenters = async () => {
