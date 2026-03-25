@@ -120,7 +120,7 @@ export default function UsersPage() {
               <div key={role} className={`p-3 border rounded-lg text-center cursor-pointer hover:border-blue-500 transition-colors ${getRoleColor(role)}`}>
                 <div className="font-medium capitalize">{role}</div>
                 <div className="mt-1 text-xs">
-                  {role === 'fc' && 'Finance Controller'}
+                  {role === 'fc' && 'Fleet Consultant'}
                   {role === 'inv' && 'Inventory Manager'}
                   {role === 'admin' && 'Administrator'}
                   {role === 'technician' && 'Technical Support'}

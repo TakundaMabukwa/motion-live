@@ -173,6 +173,37 @@ const normalizeBillingLabel = (value: string) =>
     .replace(/\bSub\b/gi, "Subscription")
     .replace(/\bRental\b/gi, "Rental");
 
+const resolveInvoiceItemCode = (labels: string[], vehicle: Record<string, unknown>) => {
+  const normalizedLabels = Array.from(
+    new Set(
+      labels
+        .map((label) => String(label || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const hasRental = toAmount(vehicle.total_rental) > 0;
+  const hasSubscription = toAmount(vehicle.total_sub) > 0;
+
+  if (normalizedLabels.length === 1) {
+    return normalizedLabels[0].toUpperCase();
+  }
+
+  if (hasRental && hasSubscription) {
+    return "MONTHLY RENTAL + SUBSCRIPTION";
+  }
+
+  if (hasRental) {
+    return "MONTHLY RENTAL";
+  }
+
+  if (hasSubscription) {
+    return "MONTHLY SUBSCRIPTION";
+  }
+
+  return normalizedLabels.join(" + ").toUpperCase() || "MONTHLY BILLING";
+};
+
 const calculateVehicleExVat = (vehicle: Record<string, unknown>) => {
   const totalRentalSub = toAmount(vehicle.total_rental_sub);
   const totalRental = toAmount(vehicle.total_rental);
@@ -442,10 +473,7 @@ export async function GET() {
           if (hasSubscription) uniqueLabels.push("Monthly Subscription");
         }
 
-        const itemCode =
-          uniqueLabels.length > 1
-            ? "MULTI BILLING"
-            : uniqueLabels[0]?.toUpperCase() || "MONTHLY SUBSCRIPTION";
+        const itemCode = resolveInvoiceItemCode(uniqueLabels, vehicle);
         const description =
           uniqueLabels.join(", ") || "MONTHLY SERVICE SUBSCRIPTION";
 

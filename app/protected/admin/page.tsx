@@ -2254,7 +2254,7 @@ export default function AdminDashboard() {
               <div>
                 <h3 className="font-semibold text-gray-900">Completed Jobs</h3>
                 <p className="text-gray-600 text-sm">
-                  View completed jobs ready for Finance Controller
+                  View completed jobs ready for Fleet Consultant
                 </p>
               </div>
             </div>

@@ -123,6 +123,78 @@ export default function CustomerJobCards({ accountNumber }) {
     return 'No registration';
   };
 
+  const getFcMoveNote = (job) => {
+    const notes = String(job?.completion_notes || '').trim();
+    if (!notes) return '';
+
+    const sections = notes.split(/\[Move note to FC\]/gi).map((part) => part.trim()).filter(Boolean);
+    if (sections.length > 0) {
+      return sections[sections.length - 1].split(/\n{2,}/)[0].trim();
+    }
+
+    return notes;
+  };
+
+  const clearFcMoveNote = (notes) => {
+    const normalized = String(notes || '');
+    if (!/\[Move note to FC\]/i.test(normalized)) {
+      return normalized.trim();
+    }
+
+    const cleaned = normalized
+      .split(/\[Move note to FC\]/gi)[0]
+      .trim();
+
+    return cleaned;
+  };
+
+  const hasFcMoveNote = (job) => Boolean(getFcMoveNote(job));
+
+  const handleEditJob = async (job) => {
+    try {
+      if (hasFcMoveNote(job)) {
+        const response = await fetch(`/api/job-cards/${job.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            completion_notes: clearFcMoveNote(job.completion_notes) || null,
+            status: 'pending',
+            job_status: 'created',
+            role: 'fc',
+            move_to: 'fc',
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to acknowledge FC note');
+        }
+
+        setJobCards((current) =>
+          current.map((currentJob) =>
+            currentJob.id === job.id
+              ? {
+                  ...currentJob,
+                  completion_notes: clearFcMoveNote(currentJob.completion_notes) || null,
+                  status: 'pending',
+                  job_status: 'created',
+                  role: 'fc',
+                  move_to: 'fc',
+                }
+              : currentJob,
+          ),
+        );
+      }
+
+      router.push(`/protected/fc/jobs/${job.id}/edit`);
+    } catch (error) {
+      console.error('Error preparing returned FC job for edit:', error);
+      toast.error(error.message || 'Failed to open job for edit');
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
@@ -150,7 +222,7 @@ export default function CustomerJobCards({ accountNumber }) {
         job.customer_name?.toLowerCase().includes(searchLower) ||
         job.customer_address?.toLowerCase().includes(searchLower) ||
         job.job_type?.toLowerCase().includes(searchLower) ||
-        job.quotation_number?.toLowerCase().includes(searchLower) ||
+        getFcMoveNote(job).toLowerCase().includes(searchLower) ||
         getVehicleRegistration(job).toLowerCase().includes(searchLower)
       );
     }
@@ -273,7 +345,7 @@ export default function CustomerJobCards({ accountNumber }) {
                     <TableHead>Account</TableHead>
                     <TableHead>Job Type</TableHead>
                     <TableHead>Vehicle Reg</TableHead>
-                    <TableHead>Quote</TableHead>
+                    <TableHead>Note</TableHead>
                     <TableHead>Created Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -297,9 +369,16 @@ export default function CustomerJobCards({ accountNumber }) {
                         <div className="font-mono text-sm">{getVehicleRegistration(job)}</div>
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-[220px] truncate" title={job.quotation_number || ''}>
-                          {job.quotation_number || 'N/A'}
-                        </div>
+                        {hasFcMoveNote(job) ? (
+                          <div
+                            className="max-w-[260px] rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700 text-sm whitespace-normal break-words animate-pulse"
+                            title={getFcMoveNote(job)}
+                          >
+                            {getFcMoveNote(job)}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">N/A</span>
+                        )}
                       </TableCell>
                       <TableCell>{formatDate(job.created_at)}</TableCell>
                       <TableCell>
@@ -312,7 +391,7 @@ export default function CustomerJobCards({ accountNumber }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => router.push(`/protected/fc/jobs/${job.id}/edit`)}
+                            onClick={() => handleEditJob(job)}
                           >
                             <Edit className="mr-2 h-4 w-4" />
                             Edit

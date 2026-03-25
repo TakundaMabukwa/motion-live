@@ -230,6 +230,41 @@ const pushInvoiceItem = (
   return totalInclVat;
 };
 
+const resolveInvoiceItemCode = (
+  labels: string[],
+  monthlyRental: number,
+  monthlySub: number,
+) => {
+  const normalizedLabels = Array.from(
+    new Set(
+      labels
+        .map((label) => String(label || '').trim())
+        .filter(Boolean),
+    ),
+  );
+
+  const hasRental = monthlyRental > 0;
+  const hasSubscription = monthlySub > 0;
+
+  if (normalizedLabels.length === 1) {
+    return normalizedLabels[0].toUpperCase();
+  }
+
+  if (hasRental && hasSubscription) {
+    return 'MONTHLY RENTAL + SUBSCRIPTION';
+  }
+
+  if (hasRental) {
+    return 'MONTHLY RENTAL';
+  }
+
+  if (hasSubscription) {
+    return 'MONTHLY SUBSCRIPTION';
+  }
+
+  return normalizedLabels.join(' + ').toUpperCase() || 'MONTHLY BILLING';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -472,12 +507,14 @@ export async function GET(request: NextRequest) {
           if (monthlySub > 0) uniqueLabels.push('Monthly Subscription');
         }
 
+        const itemCode = resolveInvoiceItemCode(uniqueLabels, monthlyRental, monthlySub);
+
         totalAmount += pushInvoiceItem(
           invoiceItems,
           vehicle,
           companyName,
           regFleetDisplay,
-          'MULTI BILLING',
+          itemCode,
           uniqueLabels.join(', '),
           vehicle.company || companyName,
           totalExVat,

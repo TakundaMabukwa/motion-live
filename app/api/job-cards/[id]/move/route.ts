@@ -8,7 +8,7 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { id } = await params;
-    const { destination } = await request.json();
+    const { destination, note } = await request.json();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -42,6 +42,22 @@ export async function POST(
     // These destinations all display jobs inside their completed/review tabs,
     // so route them as completed jobs instead of "moved_to_*" records.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
+      let nextCompletionNotes: string | null | undefined;
+
+      if (typeof note === "string" && note.trim()) {
+        const { data: existingJob } = await supabase
+          .from("job_cards")
+          .select("completion_notes")
+          .eq("id", id)
+          .maybeSingle();
+
+        const trimmedNote = note.trim();
+        const existingNotes = String(existingJob?.completion_notes || "").trim();
+        nextCompletionNotes = existingNotes
+          ? `${existingNotes}\n\n[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`
+          : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
+      }
+
       const completionPayload = {
         role: targetRole,
         move_to: targetRole,
@@ -49,6 +65,7 @@ export async function POST(
         job_status: "Completed",
         completion_date: new Date().toISOString(),
         end_time: new Date().toISOString(),
+        ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
       };
 
       const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;

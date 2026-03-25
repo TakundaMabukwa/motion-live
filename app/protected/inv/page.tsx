@@ -127,6 +127,7 @@ interface TechnicianStockRow {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -264,6 +265,9 @@ export default function InventoryPage() {
   const [showAssignTechStock, setShowAssignTechStock] = useState(false);
   const [selectedTechForAssign, setSelectedTechForAssign] =
     useState<TechnicianStockRow | null>(null);
+  const [showMoveToFcDialog, setShowMoveToFcDialog] = useState(false);
+  const [pendingMoveJobId, setPendingMoveJobId] = useState<string | null>(null);
+  const [moveToFcNote, setMoveToFcNote] = useState("");
   const router = useRouter();
 
   // IP address assignment state
@@ -273,6 +277,13 @@ export default function InventoryPage() {
   );
 
   const handleMoveJob = async (jobId: string, destination: string) => {
+    if (destination === "fc") {
+      setPendingMoveJobId(jobId);
+      setMoveToFcNote("");
+      setShowMoveToFcDialog(true);
+      return;
+    }
+
     const loadingToast = toast.loading(`Moving job to ${destination}...`);
     try {
       const response = await fetch(`/api/job-cards/${jobId}/move`, {
@@ -299,6 +310,42 @@ export default function InventoryPage() {
         error instanceof Error ? error.message : "An unknown error occurred";
       toast.error(errorMessage);
       console.error(`Error moving job to ${destination}:`, error);
+    }
+  };
+
+  const confirmMoveToFc = async () => {
+    if (!pendingMoveJobId) return;
+
+    const loadingToast = toast.loading("Moving job to FC...");
+    try {
+      const response = await fetch(`/api/job-cards/${pendingMoveJobId}/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          destination: "fc",
+          note: moveToFcNote,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to move job to FC");
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success("Job successfully moved to FC");
+      setShowMoveToFcDialog(false);
+      setPendingMoveJobId(null);
+      setMoveToFcNote("");
+      fetchJobCards();
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      toast.error(errorMessage);
+      console.error("Error moving job to FC:", error);
     }
   };
 
@@ -976,6 +1023,17 @@ export default function InventoryPage() {
     return [];
   };
 
+  const extractQuotedItemValue = (item: Record<string, unknown>): string => {
+    const directValue = String(
+      item.value || item.detail_value || item.detailValue || "",
+    ).trim();
+    if (directValue) return directValue;
+
+    const description = String(item.description || "");
+    const descriptionValueMatch = description.match(/Value:\s*([^-\n\r]+)/i);
+    return descriptionValueMatch?.[1]?.trim() || "";
+  };
+
   const isDeInstallJob = (job: JobCard | null): boolean => {
     if (!job) return false;
     const normalizedJobType = String(job.job_type || "").toLowerCase();
@@ -1523,6 +1581,35 @@ export default function InventoryPage() {
   );
   const selectedCompletedJobDeInstalledItems =
     selectedCompletedJobQuotationProducts;
+  const selectedCompletedJobDeInstalledGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      { vehiclePlate: string; items: Record<string, unknown>[] }
+    >();
+
+    selectedCompletedJobDeInstalledItems.forEach((item, index) => {
+      const vehiclePlate = String(
+        item.vehicle_plate ||
+          selectedCompletedJob?.vehicle_registration ||
+          `Vehicle ${index + 1}`,
+      ).trim();
+
+      const existing = groups.get(vehiclePlate);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        groups.set(vehiclePlate, {
+          vehiclePlate,
+          items: [item],
+        });
+      }
+    });
+
+    return Array.from(groups.values());
+  }, [
+    selectedCompletedJob?.vehicle_registration,
+    selectedCompletedJobDeInstalledItems,
+  ]);
   const selectedCompletedJobIsDeInstall = isDeInstallJob(selectedCompletedJob);
   const selectedCompletedJobIsInstall = isInstallJob(selectedCompletedJob);
   const selectedCompletedJobCostCode = String(
@@ -4554,121 +4641,167 @@ export default function InventoryPage() {
                       No de-installed items recorded in quotation products.
                     </p>
                   ) : (
-                    <div className="space-y-2">
-                      {selectedCompletedJobDeInstalledItems.map(
-                        (item, index) => (
-                          <div
-                            key={`deinstalled-${index}`}
-                            className="rounded border border-red-200 bg-white p-3"
-                          >
-                            <div className="font-medium text-gray-900">
-                              {String(
+                    <div className="space-y-4">
+                      {selectedCompletedJobDeInstalledGroups.map((group) => (
+                        <div
+                          key={`deinstalled-group-${group.vehiclePlate}`}
+                          className="rounded border border-red-200 bg-white p-3"
+                        >
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <h4 className="font-semibold text-gray-900">
+                                {group.vehiclePlate}
+                              </h4>
+                              <p className="text-xs text-gray-500">
+                                {group.items.length} de-installed item
+                                {group.items.length === 1 ? "" : "s"}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              Vehicle Plate
+                            </Badge>
+                          </div>
+
+                          <div className="space-y-2">
+                            {group.items.map((item, index) => {
+                              const itemIndex =
+                                selectedCompletedJobDeInstalledItems.indexOf(
+                                  item,
+                                );
+                              const itemName = String(
                                 item.name ||
                                   item.product ||
                                   item.description ||
                                   item.category ||
                                   `Item ${index + 1}`,
-                              )}
-                            </div>
-                            <div className="mt-1 text-sm text-gray-700">
-                              Qty: {String(item.quantity ?? 1)}
-                              {item.type ? ` | Type: ${String(item.type)}` : ""}
-                              {item.category
-                                ? ` | Category: ${String(item.category)}`
-                                : ""}
-                            </div>
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  movingDeinstalledItemKey ===
-                                    `${getMoveItemKey("deinstalled", item, index)}:client` ||
-                                  movedDeinstalledItems[
-                                    `${getMoveItemKey("deinstalled", item, index)}:client`
-                                  ] === "moved"
-                                }
-                                onClick={() =>
-                                  handleMoveJobItem(
-                                    "deinstalled",
-                                    item,
-                                    index,
-                                    "client",
-                                  )
-                                }
-                                className="text-xs"
-                              >
-                                {movingDeinstalledItemKey ===
-                                `${getMoveItemKey("deinstalled", item, index)}:client`
-                                  ? "Adding..."
-                                  : movedDeinstalledItems[
-                                        `${getMoveItemKey("deinstalled", item, index)}:client`
-                                      ] === "moved"
-                                    ? "Added to Client Stock"
-                                    : "Add to Client Stock"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  movingDeinstalledItemKey ===
-                                    `${getMoveItemKey("deinstalled", item, index)}:soltrack` ||
-                                  movedDeinstalledItems[
-                                    `${getMoveItemKey("deinstalled", item, index)}:soltrack`
-                                  ] === "moved"
-                                }
-                                onClick={() =>
-                                  handleMoveJobItem(
-                                    "deinstalled",
-                                    item,
-                                    index,
-                                    "soltrack",
-                                  )
-                                }
-                                className="text-xs"
-                              >
-                                {movingDeinstalledItemKey ===
-                                `${getMoveItemKey("deinstalled", item, index)}:soltrack`
-                                  ? "Adding..."
-                                  : movedDeinstalledItems[
-                                        `${getMoveItemKey("deinstalled", item, index)}:soltrack`
-                                      ] === "moved"
-                                    ? "Added to Soltrack Stock"
-                                    : "Add to Soltrack Stock"}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  movingDeinstalledItemKey ===
-                                    `${getMoveItemKey("deinstalled", item, index)}:decommission` ||
-                                  movedDeinstalledItems[
-                                    `${getMoveItemKey("deinstalled", item, index)}:decommission`
-                                  ] === "moved"
-                                }
-                                onClick={() =>
-                                  handleMoveJobItem(
-                                    "deinstalled",
-                                    item,
-                                    index,
-                                    "decommission",
-                                  )
-                                }
-                                className="text-xs"
-                              >
-                                {movingDeinstalledItemKey ===
-                                `${getMoveItemKey("deinstalled", item, index)}:decommission`
-                                  ? "Decommissioning..."
-                                  : movedDeinstalledItems[
-                                        `${getMoveItemKey("deinstalled", item, index)}:decommission`
-                                      ] === "moved"
-                                    ? "Decommissioned"
-                                    : "Decommission"}
-                              </Button>
-                            </div>
+                              );
+                              const itemValue = extractQuotedItemValue(item);
+
+                              return (
+                                <div
+                                  key={`deinstalled-${group.vehiclePlate}-${itemIndex}`}
+                                  className="rounded border border-red-100 bg-red-50/40 p-3"
+                                >
+                                  <div className="font-medium text-gray-900">
+                                    {itemName}
+                                  </div>
+                                  <div className="mt-1 text-sm text-gray-700">
+                                    Qty: {String(item.quantity ?? 1)}
+                                    {item.type
+                                      ? ` | Type: ${String(item.type)}`
+                                      : ""}
+                                    {item.category
+                                      ? ` | Category: ${String(item.category)}`
+                                      : ""}
+                                  </div>
+                                  {itemValue && (
+                                    <div className="mt-1 text-sm text-gray-700">
+                                      <span className="font-medium text-gray-900">
+                                        Value:
+                                      </span>{" "}
+                                      <span className="font-mono rounded bg-amber-50 px-1 py-0.5 text-amber-700">
+                                        {itemValue}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="mt-1 text-sm text-gray-600">
+                                    {String(item.description || "No description")}
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:client` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:client`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "deinstalled",
+                                          item,
+                                          itemIndex,
+                                          "client",
+                                        )
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("deinstalled", item, itemIndex)}:client`
+                                        ? "Adding..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("deinstalled", item, itemIndex)}:client`
+                                            ] === "moved"
+                                          ? "Added to Client Stock"
+                                          : "Add to Client Stock"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:soltrack` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:soltrack`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "deinstalled",
+                                          item,
+                                          itemIndex,
+                                          "soltrack",
+                                        )
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("deinstalled", item, itemIndex)}:soltrack`
+                                        ? "Adding..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("deinstalled", item, itemIndex)}:soltrack`
+                                            ] === "moved"
+                                          ? "Added to Soltrack Stock"
+                                          : "Add to Soltrack Stock"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:decommission` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:decommission`
+                                        ] === "moved"
+                                      }
+                                      onClick={() =>
+                                        handleMoveJobItem(
+                                          "deinstalled",
+                                          item,
+                                          itemIndex,
+                                          "decommission",
+                                        )
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("deinstalled", item, itemIndex)}:decommission`
+                                        ? "Decommissioning..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("deinstalled", item, itemIndex)}:decommission`
+                                            ] === "moved"
+                                          ? "Decommissioned"
+                                          : "Decommission"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ),
-                      )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -5653,6 +5786,48 @@ export default function InventoryPage() {
             >
               Add Item
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showMoveToFcDialog} onOpenChange={setShowMoveToFcDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Move Job Back to FC</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Add an optional note for FC before moving this job back.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Note for FC
+              </label>
+              <Textarea
+                value={moveToFcNote}
+                onChange={(e) => setMoveToFcNote(e.target.value)}
+                placeholder="Optional note for Fleet Consultant..."
+                rows={5}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowMoveToFcDialog(false);
+                  setPendingMoveJobId(null);
+                  setMoveToFcNote("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmMoveToFc}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Move to FC
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

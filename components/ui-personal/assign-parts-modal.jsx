@@ -796,6 +796,9 @@ export default function AssignPartsModal({
                               <th className="px-2 py-1.5 font-medium">
                                 Product
                               </th>
+                              <th className="px-2 py-1.5 font-medium">
+                                Value
+                              </th>
                               <th className="px-2 py-1.5 font-medium">Type</th>
                               <th className="px-2 py-1.5 font-medium">
                                 Vehicle
@@ -817,6 +820,16 @@ export default function AssignPartsModal({
                                   product.description?.match(/S\/N:\s*(\w+)/i);
                                 const ipMatch =
                                   product.description?.match(/IP:\s*([\d.]+)/i);
+                                const descriptionValueMatch =
+                                  product.description?.match(
+                                    /Value:\s*([^-\n\r]+)/i,
+                                  );
+                                const detailValue =
+                                  product.value ||
+                                  product.detail_value ||
+                                  product.detailValue ||
+                                  descriptionValueMatch?.[1]?.trim() ||
+                                  null;
                                 const serialNumber = snMatch
                                   ? snMatch[1]
                                   : null;
@@ -830,6 +843,13 @@ export default function AssignPartsModal({
                                           product.product_name ||
                                           "N/A"}
                                       </span>
+                                    </td>
+                                    <td className="px-2 py-1.5">
+                                      {detailValue && (
+                                        <span className="font-mono text-amber-700 bg-amber-50 px-1 rounded">
+                                          {detailValue}
+                                        </span>
+                                      )}
                                     </td>
                                     <td className="px-2 py-1.5">
                                       <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1">
@@ -882,7 +902,7 @@ export default function AssignPartsModal({
                           <tfoot className="bg-gray-50 border-t">
                             <tr>
                               <td
-                                colSpan="6"
+                                colSpan="7"
                                 className="px-2 py-1.5 text-right font-semibold text-gray-700"
                               >
                                 Total:

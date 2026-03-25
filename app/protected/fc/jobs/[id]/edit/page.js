@@ -16,6 +16,18 @@ export default function EditJobPage() {
   const [job, setJob] = useState(null);
   const [customer, setCustomer] = useState(null);
   const [accountInfo, setAccountInfo] = useState(null);
+  const [preparingReturnedJob, setPreparingReturnedJob] = useState(false);
+
+  const extractAndClearFcMoveNote = (notes) => {
+    const normalized = String(notes || "");
+    if (!/\[Move note to FC\]/i.test(normalized)) {
+      return normalized.trim();
+    }
+
+    return normalized
+      .split(/\[Move note to FC\]/gi)[0]
+      .trim();
+  };
 
   const goBackOrJobs = () => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -41,24 +53,50 @@ export default function EditJobPage() {
         }
 
         const loadedJob = await response.json();
-        setJob(loadedJob);
+        let resolvedJob = loadedJob;
+
+        if (/\[Move note to FC\]/i.test(String(loadedJob?.completion_notes || ""))) {
+          setPreparingReturnedJob(true);
+
+          const acknowledgeResponse = await fetch(`/api/job-cards/${jobId}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              completion_notes: extractAndClearFcMoveNote(loadedJob.completion_notes) || null,
+              status: "pending",
+              job_status: "created",
+              role: "fc",
+              move_to: "fc",
+            }),
+          });
+
+          if (acknowledgeResponse.ok) {
+            resolvedJob = await acknowledgeResponse.json();
+          }
+
+          setPreparingReturnedJob(false);
+        }
+
+        setJob(resolvedJob);
 
         const customerData = {
-          company: loadedJob.customer_name || "",
-          trading_name: loadedJob.customer_name || "",
-          email: loadedJob.customer_email || "",
-          cell_no: loadedJob.customer_phone || "",
-          new_account_number: loadedJob.new_account_number || "",
+          company: resolvedJob.customer_name || "",
+          trading_name: resolvedJob.customer_name || "",
+          email: resolvedJob.customer_email || "",
+          cell_no: resolvedJob.customer_phone || "",
+          new_account_number: resolvedJob.new_account_number || "",
         };
 
         const accountData = {
-          new_account_number: loadedJob.new_account_number || "",
-          account_id: loadedJob.account_id || null,
-          trading_name: loadedJob.customer_name || "",
-          company: loadedJob.customer_name || "",
-          email: loadedJob.customer_email || "",
-          cell_no: loadedJob.customer_phone || "",
-          branch_person_name: loadedJob.contact_person || "",
+          new_account_number: resolvedJob.new_account_number || "",
+          account_id: resolvedJob.account_id || null,
+          trading_name: resolvedJob.customer_name || "",
+          company: resolvedJob.customer_name || "",
+          email: resolvedJob.customer_email || "",
+          cell_no: resolvedJob.customer_phone || "",
+          branch_person_name: resolvedJob.contact_person || "",
         };
 
         setCustomer(customerData);
@@ -78,6 +116,14 @@ export default function EditJobPage() {
   }, [jobId]);
 
   if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (preparingReturnedJob) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
