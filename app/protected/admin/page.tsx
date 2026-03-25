@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,7 @@ interface Technician {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("all-jobs");
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -166,6 +168,11 @@ export default function AdminDashboard() {
   const [selectedTechnicianForJob, setSelectedTechnicianForJob] = useState("");
   const [assignmentDateForJob, setAssignmentDateForJob] = useState("");
   const [assignmentTimeForJob, setAssignmentTimeForJob] = useState("");
+
+  const handleUnauthorizedApi = useCallback(() => {
+    toast.error("Your session has expired. Please sign in again.");
+    router.push("/auth/login");
+  }, [router]);
 
   // FC External-quotation style product selection for installation
   const [aqProducts, setAqProducts] = useState<Record<string, unknown>[]>([]);
@@ -407,6 +414,11 @@ export default function AdminDashboard() {
       setLoading(true);
       try {
         const response = await fetch("/api/admin/jobs?status=open");
+        if (response.status === 401) {
+          handleUnauthorizedApi();
+          setJobCards([]);
+          return;
+        }
         if (!response.ok) throw new Error("Failed to fetch job cards");
 
         const data = await response.json();
@@ -418,7 +430,7 @@ export default function AdminDashboard() {
         setLoading(false);
       }
     },
-    [jobsLoaded],
+    [handleUnauthorizedApi, jobsLoaded],
   );
 
   // Set default assignment date to today
@@ -432,6 +444,11 @@ export default function AdminDashboard() {
     try {
       setLoadingJobsWithParts(true);
       const response = await fetch("/api/admin/jobs?status=open");
+      if (response.status === 401) {
+        handleUnauthorizedApi();
+        setJobsWithParts([]);
+        return;
+      }
       if (!response.ok) {
         throw new Error("Failed to fetch jobs with parts");
       }
@@ -457,7 +474,7 @@ export default function AdminDashboard() {
     } finally {
       setLoadingJobsWithParts(false);
     }
-  }, []);
+  }, [handleUnauthorizedApi]);
 
   // Create test job cards
   const createTestJobCards = async () => {
@@ -600,6 +617,11 @@ export default function AdminDashboard() {
   const fetchTechnicians = useCallback(async () => {
     try {
       const response = await fetch("/api/technicians");
+      if (response.status === 401) {
+        handleUnauthorizedApi();
+        setTechnicians([]);
+        return;
+      }
       if (!response.ok) {
         throw new Error("Failed to fetch technicians");
       }
@@ -609,7 +631,7 @@ export default function AdminDashboard() {
       console.error("Error fetching technicians:", error);
       toast.error("Failed to load technicians");
     }
-  }, []);
+  }, [handleUnauthorizedApi]);
 
   useEffect(() => {
     fetchJobCards();
