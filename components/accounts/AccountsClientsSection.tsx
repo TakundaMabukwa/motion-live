@@ -4,13 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Users, 
   Search, 
-  Download, 
-  AlertTriangle, 
+  AlertTriangle,
   RefreshCw,
   Loader2,
   Eye,
@@ -23,18 +21,15 @@ import { useAccounts } from '@/contexts/AccountsContext';
 export default function AccountsClientsSection() {
   const { 
     companyGroups, 
-    vehicleAmounts,
     loading, 
-    loadingAmounts,
-    totalCount, 
     fetchCompanyGroups, 
-    fetchVehicleAmounts,
     isDataLoaded 
   } = useAccounts();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
+  const [isGeneratingAllInvoicesExcel, setIsGeneratingAllInvoicesExcel] = useState(false);
 
   // Initial load
   useEffect(() => {
@@ -59,13 +54,6 @@ export default function AccountsClientsSection() {
     return companyGroups;
   }, [companyGroups]);
 
-  // Calculate statistics for customers with and without cost centers
-  const customerStats = useMemo(() => {
-    const withCostCenters = companyGroups.filter(group => group.hasCostCenters !== false).length;
-    const withoutCostCenters = companyGroups.filter(group => group.hasCostCenters === false).length;
-    return { withCostCenters, withoutCostCenters };
-  }, [companyGroups]);
-
   const handleRefresh = async () => {
     try {
       await fetchCompanyGroups(searchTerm);
@@ -76,7 +64,7 @@ export default function AccountsClientsSection() {
     }
   };
 
-  const handleViewClients = async (group: any) => {
+  const handleViewClients = async (group: Record<string, unknown>) => {
     console.log('handleViewClients called with group:', group);
     console.log('Group all_new_account_numbers:', group.all_new_account_numbers);
     
@@ -143,6 +131,40 @@ export default function AccountsClientsSection() {
     }
   };
 
+  // Handle invoice export for all cost centers grouped by new_account_number
+  const handleAllInvoicesExcel = async () => {
+    try {
+      setIsGeneratingAllInvoicesExcel(true);
+      toast.success('Generating all client invoices Excel...');
+
+      const response = await fetch('/api/vehicles/bulk-client-invoices-excel');
+      if (!response.ok) {
+        throw new Error('Failed to generate client invoices Excel');
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const fileName = fileNameMatch?.[1] || `All_Client_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(anchor);
+
+      toast.success('All client invoices Excel downloaded');
+    } catch (error) {
+      console.error('Error generating all client invoices Excel:', error);
+      toast.error('Failed to generate all client invoices Excel');
+    } finally {
+      setIsGeneratingAllInvoicesExcel(false);
+    }
+  };
+
   // Handle Bulk Invoice Generation - Database with Storage
   const handleBulkInvoice = async () => {
     try {
@@ -197,23 +219,6 @@ export default function AccountsClientsSection() {
     return `R ${amount.toFixed(2)}`;
   };
 
-  const getOverdueStatus = (totalAmountDue: number) => {
-    if (totalAmountDue === 0) return 'current';
-    if (totalAmountDue < 1000) return 'low';
-    if (totalAmountDue < 5000) return 'medium';
-    return 'high';
-  };
-
-  const getOverdueColor = (status: string) => {
-    switch (status) {
-      case 'current': return 'bg-green-100 text-green-800';
-      case 'low': return 'bg-yellow-100 text-yellow-800';
-      case 'medium': return 'bg-orange-100 text-orange-800';
-      case 'high': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -236,6 +241,14 @@ export default function AccountsClientsSection() {
           <p className="mt-2 text-gray-600">Manage and view all client information with legal names and vehicle amounts</p>
         </div>
         <div className="flex gap-3">
+          <Button
+            onClick={handleAllInvoicesExcel}
+            disabled={isGeneratingAllInvoicesExcel}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            <FileText className={`w-4 h-4 mr-2 ${isGeneratingAllInvoicesExcel ? 'animate-pulse' : ''}`} />
+            {isGeneratingAllInvoicesExcel ? 'Generating Invoices...' : 'All Invoices (Excel)'}
+          </Button>
           <Button 
             onClick={handleBulkInvoice}
             disabled={isGeneratingBulkInvoice}
@@ -251,10 +264,6 @@ export default function AccountsClientsSection() {
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 w-4 h-4" />
-            Export
           </Button>
         </div>
       </div>

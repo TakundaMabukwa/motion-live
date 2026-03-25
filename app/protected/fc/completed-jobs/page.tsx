@@ -52,17 +52,29 @@ type QuotationProduct = {
   type?: string;
   purchase_type?: string;
   quantity?: number | string;
+  is_labour?: boolean;
   total_price?: number | string;
+  cash_gross?: number | string;
   cash_price?: number | string;
+  cash_discount?: number | string;
+  rental_gross?: number | string;
   rental_price?: number | string;
+  rental_discount?: number | string;
+  installation_gross?: number | string;
+  installation_discount?: number | string;
   subscription_price?: number | string;
+  subscription_gross?: number | string;
+  subscription_discount?: number | string;
   installation_price?: number | string;
   de_installation_price?: number | string;
+  de_installation_gross?: number | string;
+  de_installation_discount?: number | string;
 };
 
 interface CompletedJob {
   id: string;
   job_number?: string | null;
+  order_number?: string | null;
   job_date?: string | null;
   due_date?: string | null;
   completion_date?: string | null;
@@ -138,6 +150,7 @@ interface CompletedJob {
 
 type EditFormData = {
   vehicle_registration: string;
+  order_number: string;
   vehicle_make: string;
   vehicle_model: string;
   vehicle_year: string;
@@ -160,6 +173,7 @@ type EditFormData = {
 
 const EMPTY_FORM_DATA: EditFormData = {
   vehicle_registration: "",
+  order_number: "",
   vehicle_make: "",
   vehicle_model: "",
   vehicle_year: "",
@@ -214,6 +228,82 @@ const parseQuotationProducts = (value: unknown): QuotationProduct[] =>
     (item): item is QuotationProduct =>
       typeof item === "object" && item !== null,
   );
+
+const PRICE_FIELDS = [
+  "cash_price",
+  "rental_price",
+  "subscription_price",
+  "installation_price",
+  "de_installation_price",
+] as const;
+
+type PriceField = (typeof PRICE_FIELDS)[number];
+
+const toFiniteNumber = (value: unknown): number => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatMoneyInput = (value: number): string =>
+  Number.isFinite(value) ? value.toFixed(2) : "0.00";
+
+const getPreferredPriceField = (product: QuotationProduct): PriceField => {
+  const purchaseType = (product.purchase_type || "").toLowerCase();
+
+  const preferredOrder: PriceField[] =
+    purchaseType === "cash"
+      ? [
+          "cash_price",
+          "rental_price",
+          "subscription_price",
+          "installation_price",
+          "de_installation_price",
+        ]
+      : purchaseType === "rental"
+        ? [
+            "rental_price",
+            "subscription_price",
+            "cash_price",
+            "installation_price",
+            "de_installation_price",
+          ]
+        : purchaseType === "subscription"
+          ? [
+              "subscription_price",
+              "rental_price",
+              "cash_price",
+              "installation_price",
+              "de_installation_price",
+            ]
+          : purchaseType === "installation"
+            ? [
+                "installation_price",
+                "cash_price",
+                "rental_price",
+                "subscription_price",
+                "de_installation_price",
+              ]
+            : purchaseType === "de_installation" ||
+                purchaseType === "de-installation"
+              ? [
+                  "de_installation_price",
+                  "installation_price",
+                  "cash_price",
+                  "rental_price",
+                  "subscription_price",
+                ]
+              : [...PRICE_FIELDS];
+
+  return (
+    preferredOrder.find((field) => toFiniteNumber(product[field]) > 0) ||
+    preferredOrder[0]
+  );
+};
 
 const countFromArrayLike = (value: unknown): number =>
   parseArrayValue(value).length;
@@ -289,6 +379,9 @@ export default function FCCompletedJobsPage() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingJob, setEditingJob] = useState<CompletedJob | null>(null);
   const [formData, setFormData] = useState<EditFormData>(EMPTY_FORM_DATA);
+  const [editableQuotationProducts, setEditableQuotationProducts] = useState<
+    QuotationProduct[]
+  >([]);
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
 
@@ -361,10 +454,12 @@ export default function FCCompletedJobsPage() {
   };
 
   const handleEditJob = (job: CompletedJob) => {
+    const quotationProducts = parseQuotationProducts(job.quotation_products);
     setEditingJob(job);
     setFinalizeError(null);
     setFormData({
       vehicle_registration: toStringSafe(job.vehicle_registration),
+      order_number: toStringSafe(job.order_number),
       vehicle_make: toStringSafe(job.vehicle_make),
       vehicle_model: toStringSafe(job.vehicle_model),
       vehicle_year: toStringSafe(job.vehicle_year),
@@ -384,6 +479,7 @@ export default function FCCompletedJobsPage() {
       special_instructions: toStringSafe(job.special_instructions),
       customer_feedback: toStringSafe(job.customer_feedback),
     });
+    setEditableQuotationProducts(quotationProducts);
     setShowEditDialog(true);
   };
 
@@ -438,6 +534,57 @@ export default function FCCompletedJobsPage() {
     }));
   };
 
+  const syncQuotationTotalsFromProducts = (products: QuotationProduct[]) => {
+    const subtotal = products.reduce(
+      (sum, product) => sum + toFiniteNumber(product.total_price),
+      0,
+    );
+    const vat = Number((subtotal * 0.15).toFixed(2));
+    const total = Number((subtotal + vat).toFixed(2));
+
+    setFormData((prev) => ({
+      ...prev,
+      quotation_subtotal: formatMoneyInput(subtotal),
+      quotation_vat_amount: formatMoneyInput(vat),
+      quotation_total_amount: formatMoneyInput(total),
+    }));
+  };
+
+  const handleQuotationProductFieldChange = (
+    index: number,
+    field: keyof QuotationProduct,
+    value: string,
+  ) => {
+    setEditableQuotationProducts((prev) => {
+      const next = [...prev];
+      const current = { ...next[index] };
+      if (!current) return prev;
+
+      if (field === "quantity") {
+        const quantity = Math.max(0, toFiniteNumber(value));
+        current.quantity = quantity;
+        const activePrice = toFiniteNumber(
+          current[getPreferredPriceField(current)],
+        );
+        current.total_price = Number((quantity * activePrice).toFixed(2));
+      } else if (PRICE_FIELDS.includes(field as PriceField)) {
+        const price = Math.max(0, toFiniteNumber(value));
+        current[field as PriceField] = price;
+        const quantity = Math.max(1, toFiniteNumber(current.quantity) || 1);
+        current.quantity = quantity;
+        current.total_price = Number((quantity * price).toFixed(2));
+      } else if (field === "total_price") {
+        current.total_price = Math.max(0, toFiniteNumber(value));
+      } else {
+        current[field] = value;
+      }
+
+      next[index] = current;
+      syncQuotationTotalsFromProducts(next);
+      return next;
+    });
+  };
+
   const handleFinalizeJob = async () => {
     if (!editingJob) return;
     if (finalizeMissingFields.length > 0) {
@@ -453,6 +600,7 @@ export default function FCCompletedJobsPage() {
 
       const finalizeData = {
         vehicle_registration: formData.vehicle_registration.trim(),
+        order_number: formData.order_number.trim() || null,
         vehicle_make: formData.vehicle_make.trim() || null,
         vehicle_model: formData.vehicle_model.trim() || null,
         vehicle_year: toNumberOrNull(formData.vehicle_year),
@@ -465,6 +613,7 @@ export default function FCCompletedJobsPage() {
         quotation_subtotal: toNumberOrNull(formData.quotation_subtotal),
         quotation_vat_amount: toNumberOrNull(formData.quotation_vat_amount),
         quotation_total_amount: toNumberOrNull(formData.quotation_total_amount),
+        quotation_products: editableQuotationProducts,
         estimated_cost: toNumberOrNull(formData.estimated_cost),
         actual_cost: toNumberOrNull(formData.actual_cost),
         work_notes: formData.work_notes.trim() || null,
@@ -534,6 +683,7 @@ export default function FCCompletedJobsPage() {
       setShowEditDialog(false);
       setEditingJob(null);
       setFormData(EMPTY_FORM_DATA);
+      setEditableQuotationProducts([]);
       fetchCompletedJobs();
     } catch (error) {
       console.error("Error finalizing job:", error);
@@ -1602,6 +1752,203 @@ export default function FCCompletedJobsPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {editableQuotationProducts.length > 0 && (
+                        <div className="md:col-span-2 space-y-4 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                          <div>
+                            <h4 className="font-medium text-gray-900">
+                              Quotation Items
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              Update the item pricing fields below. Totals above
+                              will roll up from all items automatically.
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            {editableQuotationProducts.map((product, index) => {
+                              const activePriceField =
+                                getPreferredPriceField(product);
+
+                              return (
+                                <div
+                                  key={product.id || `${product.name}-${index}`}
+                                  className="rounded-lg border bg-white p-4"
+                                >
+                                  <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <p className="font-medium text-gray-900">
+                                        {product.name || `Item ${index + 1}`}
+                                      </p>
+                                      <p className="text-sm text-gray-600">
+                                        {product.description || "No description"}
+                                      </p>
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                      <p>
+                                        <strong>Purchase Type:</strong>{" "}
+                                        {product.purchase_type || "N/A"}
+                                      </p>
+                                      <p>
+                                        <strong>Category:</strong>{" "}
+                                        {product.category || "N/A"}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                    <div className="space-y-2">
+                                      <Label>Quantity</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={toStringSafe(product.quantity || 1)}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "quantity",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>
+                                        Active Price (
+                                        {activePriceField.replaceAll("_", " ")})
+                                      </Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product[activePriceField] ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            activePriceField,
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Total Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.total_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "total_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Subscription Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.subscription_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "subscription_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Rental Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.rental_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "rental_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Cash Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.cash_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "cash_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Installation Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.installation_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "installation_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>De-installation Price</Label>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={toStringSafe(
+                                          product.de_installation_price ?? "",
+                                        )}
+                                        onChange={(e) =>
+                                          handleQuotationProductFieldChange(
+                                            index,
+                                            "de_installation_price",
+                                            e.target.value,
+                                          )
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label htmlFor="quotation_subtotal">
                           Quotation Subtotal
@@ -1612,6 +1959,7 @@ export default function FCCompletedJobsPage() {
                           step="0.01"
                           value={formData.quotation_subtotal}
                           onChange={(e) => handleSubtotalChange(e.target.value)}
+                          readOnly={editableQuotationProducts.length > 0}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1622,6 +1970,7 @@ export default function FCCompletedJobsPage() {
                           step="0.01"
                           value={formData.quotation_vat_amount}
                           onChange={(e) => handleVatChange(e.target.value)}
+                          readOnly={editableQuotationProducts.length > 0}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1639,6 +1988,7 @@ export default function FCCompletedJobsPage() {
                               e.target.value,
                             )
                           }
+                          readOnly={editableQuotationProducts.length > 0}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1731,6 +2081,21 @@ export default function FCCompletedJobsPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="order_number">Order Number</Label>
+                        <Input
+                          id="order_number"
+                          value={formData.order_number}
+                          onChange={(e) =>
+                            updateFormField("order_number", e.target.value)
+                          }
+                          placeholder="Order number (Optional)"
+                        />
+                        <p className="text-sm text-gray-500">
+                          Optional. Leave blank if there is no order number yet.
+                        </p>
+                      </div>
+
                       <div className="rounded-lg bg-blue-50 p-4">
                         <h4 className="mb-2 font-medium text-blue-900">
                           Final Review
@@ -1747,6 +2112,10 @@ export default function FCCompletedJobsPage() {
                           <p>
                             <strong>Account Code:</strong>{" "}
                             {editingJob.new_account_number || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Order Number:</strong>{" "}
+                            {formData.order_number || "Not set"}
                           </p>
                           <p>
                             <strong>Vehicle:</strong>{" "}
