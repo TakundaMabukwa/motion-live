@@ -64,6 +64,12 @@ const sortJobsNewestFirst = <T extends { created_at?: string; job_date?: string;
     return bDate - aDate;
   });
 
+const isCompletedJob = (job: { job_status?: string; status?: string }) => {
+  const jobStatus = String(job.job_status || '').toLowerCase();
+  const status = String(job.status || '').toLowerCase();
+  return jobStatus === 'completed' || status === 'completed';
+};
+
 export default function Dashboard() {
   const [userRole, setUserRole] = useState('technician');
   const [userEmail, setUserEmail] = useState('');
@@ -397,8 +403,9 @@ export default function Dashboard() {
     return date.toLocaleString();
   };
 
-  const myJobs = userJobs.filter((job) => isJobAssignedToCurrentUser(job));
-  const availableJobs = userJobs.filter((job) => !isJobAssignedToCurrentUser(job));
+  const activeUserJobs = userJobs.filter((job) => !isCompletedJob(job));
+  const myJobs = activeUserJobs.filter((job) => isJobAssignedToCurrentUser(job));
+  const availableJobs = activeUserJobs.filter((job) => !isJobAssignedToCurrentUser(job));
   const displayedJobs = activeJobsView === 'my-jobs' ? myJobs : availableJobs;
 
   const JobTable = ({ jobs }: { jobs: Job[] }) => (
