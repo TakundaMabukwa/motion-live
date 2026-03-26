@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
       account_number: accountNumber,
       billing_month: billingMonth,
       company_name: body?.companyName || null,
+      company_registration_number: body?.companyRegistrationNumber || null,
       client_address: body?.clientAddress || null,
       customer_vat_number: body?.customerVatNumber || null,
       invoice_date: invoiceDate,
@@ -186,6 +187,9 @@ export async function PATCH(request: NextRequest) {
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceNumber = body?.invoiceNumber === undefined ? null : String(body.invoiceNumber || "").trim();
     const customerVatNumber = body?.customerVatNumber === undefined ? null : String(body.customerVatNumber || "").trim();
+    const companyName = body?.companyName === undefined ? null : String(body.companyName || "").trim();
+    const companyRegistrationNumber =
+      body?.companyRegistrationNumber === undefined ? null : String(body.companyRegistrationNumber || "").trim();
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -201,9 +205,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (invoiceNumber === null && customerVatNumber === null) {
+    if (
+      invoiceNumber === null &&
+      customerVatNumber === null &&
+      companyName === null &&
+      companyRegistrationNumber === null
+    ) {
       return NextResponse.json(
-        { error: "invoiceNumber or customerVatNumber is required" },
+        { error: "At least one editable field is required" },
         { status: 400 },
       );
     }
@@ -220,6 +229,12 @@ export async function PATCH(request: NextRequest) {
     }
     if (customerVatNumber !== null) {
       updatePayload.customer_vat_number = customerVatNumber;
+    }
+    if (companyName !== null) {
+      updatePayload.company_name = companyName;
+    }
+    if (companyRegistrationNumber !== null) {
+      updatePayload.company_registration_number = companyRegistrationNumber;
     }
 
     const { data: updatedInvoice, error: updateError } = await supabase

@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
           invoice_number: existingInvoice.invoice_number || '',
           invoice_date: existingInvoice.invoice_date || new Date().toISOString(),
           billing_month: existingInvoice.billing_month || billingMonthKey,
+          company_registration_number: existingInvoice.company_registration_number || '',
           subtotal: existingInvoice.subtotal ?? 0,
           vat_amount: existingInvoice.vat_amount ?? 0,
           total_amount: existingInvoice.total_amount ?? 0,
@@ -154,6 +155,7 @@ export async function GET(request: NextRequest) {
             accountNumber,
             billingMonth: draftInvoiceData?.billing_month || billingMonthKey,
             companyName: draftInvoiceData?.company_name || accountNumber,
+            companyRegistrationNumber: draftInvoiceData?.company_registration_number || null,
             clientAddress: draftInvoiceData?.client_address || null,
             customerVatNumber: draftInvoiceData?.customer_vat_number || null,
             invoiceDate: draftInvoiceData?.invoice_date || new Date().toISOString(),
@@ -180,6 +182,10 @@ export async function GET(request: NextRequest) {
             invoice_number: persistedInvoice?.invoice_number || draftInvoiceData?.invoice_number || '',
             invoice_date: persistedInvoice?.invoice_date || draftInvoiceData?.invoice_date,
             billing_month: persistedInvoice?.billing_month || draftInvoiceData?.billing_month || billingMonthKey,
+            company_registration_number:
+              persistedInvoice?.company_registration_number ??
+              draftInvoiceData?.company_registration_number ??
+              '',
             subtotal: persistedInvoice?.subtotal ?? draftInvoiceData?.subtotal ?? 0,
             vat_amount: persistedInvoice?.vat_amount ?? draftInvoiceData?.vat_amount ?? 0,
             total_amount: persistedInvoice?.total_amount ?? draftInvoiceData?.total_amount ?? 0,

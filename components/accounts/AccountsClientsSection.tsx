@@ -54,7 +54,7 @@ export default function AccountsClientsSection() {
     ],
     postal: ['P.O Box 95603', 'Grant Park', '2051'],
     contact: ['011 824 0066', 'accounts@soltrack.co.za', 'www.soltrack.co.za'],
-    banking: ['Nedbank', 'Account No: 1674094422', 'Branch Code: 198765'],
+    banking: ['Nedbank Northrand', 'Code - 146905', 'A/C No. - 1469109069'],
   };
 
   const VAT_RATE = 0.15;
@@ -164,6 +164,13 @@ export default function AccountsClientsSection() {
     .invoice-client-name {
       font-size: 16px;
       font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .invoice-client-edit-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
       margin-bottom: 6px;
     }
     .invoice-meta {
@@ -568,7 +575,24 @@ export default function AccountsClientsSection() {
                 <div class="invoice-title">Tax Invoice</div>
                 <div class="invoice-party-row">
                   <div class="invoice-client-block">
-                    <div class="invoice-client-name">${escapeHtml(invoiceData?.company_name || accountNumber)}</div>
+                    <div class="invoice-client-edit-row">
+                      <input
+                        class="invoice-inline-input"
+                        value="${escapeHtml(invoiceData?.company_name || accountNumber)}"
+                        data-role="company-name"
+                      />
+                      <button class="invoice-inline-save" type="button" data-role="save-company-details">Save</button>
+                      <span class="invoice-inline-status" data-role="company-save-status"></span>
+                    </div>
+                    <div class="invoice-client-edit-row">
+                      <strong>Company Reg:</strong>
+                      <input
+                        class="invoice-inline-input"
+                        value="${escapeHtml(invoiceData?.company_registration_number || '')}"
+                        data-role="company-registration-number"
+                        placeholder="Enter company registration number"
+                      />
+                    </div>
                     <div>${escapeHtml(String(invoiceData?.client_address || '')).replace(/\n/g, '<br />')}</div>
                   </div>
                   <div class="invoice-meta">
@@ -728,7 +752,64 @@ export default function AccountsClientsSection() {
                   }
                 }
 
+                async function saveCompanyDetails(page) {
+                  const companyNameInput = page.querySelector('[data-role="company-name"]');
+                  const companyRegistrationInput = page.querySelector('[data-role="company-registration-number"]');
+                  const button = page.querySelector('[data-role="save-company-details"]');
+                  const status = page.querySelector('[data-role="company-save-status"]');
+                  const accountNumber = page.getAttribute('data-account-number') || '';
+                  const billingMonth = page.getAttribute('data-billing-month') || '';
+                  const companyName = companyNameInput && companyNameInput.value ? companyNameInput.value.trim() : '';
+                  const companyRegistrationNumber =
+                    companyRegistrationInput && companyRegistrationInput.value
+                      ? companyRegistrationInput.value.trim()
+                      : '';
+
+                  if (!accountNumber || !billingMonth) {
+                    if (status) status.textContent = 'Missing account or month';
+                    return;
+                  }
+
+                  if (!companyName) {
+                    if (status) status.textContent = 'Enter a client name';
+                    return;
+                  }
+
+                  if (button) button.disabled = true;
+                  if (status) status.textContent = 'Saving...';
+
+                  try {
+                    const response = await fetch('/api/invoices/bulk-account', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accountNumber,
+                        billingMonth,
+                        companyName,
+                        companyRegistrationNumber,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      const errorData = await response.json().catch(() => ({}));
+                      throw new Error(errorData.error || 'Failed to save company details');
+                    }
+
+                    if (status) status.textContent = 'Saved';
+                  } catch (error) {
+                    if (status) status.textContent = error && error.message ? error.message : 'Save failed';
+                  } finally {
+                    if (button) button.disabled = false;
+                  }
+                }
+
                 document.querySelectorAll('.invoice-page').forEach(function(page) {
+                  const companyButton = page.querySelector('[data-role="save-company-details"]');
+                  if (companyButton) {
+                    companyButton.addEventListener('click', function() {
+                      saveCompanyDetails(page);
+                    });
+                  }
                   const vatButton = page.querySelector('[data-role="save-vat-number"]');
                   if (vatButton) {
                     vatButton.addEventListener('click', function() {

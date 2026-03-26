@@ -343,6 +343,10 @@ export async function GET(request: NextRequest) {
       storedInvoice?.customer_vat_number ||
       costCenter?.vat_number ||
       '';
+    const companyRegistrationNumber =
+      storedInvoice?.company_registration_number ||
+      costCenter?.registration_number ||
+      '';
 
     // Build invoice items
     const invoiceItems: any[] = [];
@@ -578,6 +582,7 @@ export async function GET(request: NextRequest) {
       invoice_number: storedInvoice?.invoice_number || '',
       client_address: storedInvoice?.client_address || clientAddress,
       customer_vat_number: customerVatNumber,
+      company_registration_number: companyRegistrationNumber,
       notes: storedInvoice?.notes || '',
       invoice_items: resolvedLineItems,
       invoiceItems: resolvedLineItems,
