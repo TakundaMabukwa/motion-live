@@ -7,6 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,6 +36,7 @@ export default function CustomerJobCards({ accountNumber }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [movingJobId, setMovingJobId] = useState(null);
 
   const fetchJobCards = async () => {
     try {
@@ -67,6 +75,62 @@ export default function CustomerJobCards({ accountNumber }) {
     setRefreshing(true);
     await fetchJobCards();
     setRefreshing(false);
+  };
+
+  const handleMoveJob = async (job, destination) => {
+    if (!job?.id || !destination) return;
+
+    setMovingJobId(job.id);
+    const destinationLabel =
+      destination === 'inv'
+        ? 'Inventory Assign Parts'
+        : 'Admin Awaiting Technician';
+    const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
+
+    try {
+      const payload =
+        destination === 'inv'
+          ? {
+              role: 'inv',
+              move_to: 'inv',
+              status: 'pending',
+              job_status: 'pending',
+              completion_date: null,
+              end_time: null,
+            }
+          : {
+              role: 'admin',
+              move_to: 'admin',
+              status: 'admin_created',
+              job_status: 'created',
+              assigned_technician_id: null,
+              technician_name: null,
+              technician_phone: null,
+            };
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to move job to ${destinationLabel}`);
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job moved to ${destinationLabel}`);
+      await fetchJobCards();
+    } catch (error) {
+      console.error(`Error moving job to ${destination}:`, error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || `Failed to move job to ${destinationLabel}`);
+    } finally {
+      setMovingJobId(null);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -388,6 +452,20 @@ export default function CustomerJobCards({ accountNumber }) {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Select
+                            disabled={movingJobId === job.id}
+                            onValueChange={(value) => handleMoveJob(job, value)}
+                          >
+                            <SelectTrigger className="w-[135px]">
+                              <SelectValue
+                                placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inv">Inventory</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button
                             size="sm"
                             variant="outline"

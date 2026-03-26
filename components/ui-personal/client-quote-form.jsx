@@ -524,15 +524,19 @@ export default function ClientQuoteForm({
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType !== 'deinstall') {
+    if (formData.jobType) {
       fetchProductItems();
     }
-  }, [selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
+  }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
 
   const addProduct = useCallback((product) => {
     if (formData.jobType === 'deinstall') {
-      // For de-installation, add vehicle with its products
-      const vehicleWithProducts = {
+      const isVehicleEquipment =
+        Boolean(product.vehicleId) ||
+        Boolean(product.vehiclePlate) ||
+        Boolean(product.fieldName);
+
+      const deInstallProduct = isVehicleEquipment ? {
         id: product.id,
         name: product.name,
         description: product.description,
@@ -555,8 +559,31 @@ export default function ClientQuoteForm({
         annuityEndDate: '',
         vehicleId: product.vehicleId,
         vehiclePlate: product.vehiclePlate,
+      } : {
+        id: product.id,
+        name: product.product || product.name,
+        description: product.description,
+        detailValue: product.value || "",
+        type: product.type,
+        category: product.category,
+        code: product.code || 'N/A',
+        quantity: 1,
+        purchaseType: 'service',
+        cashPrice: product.price || 0,
+        cashDiscount: 0,
+        rentalPrice: 0,
+        rentalDiscount: 0,
+        installationPrice: 0,
+        installationDiscount: 0,
+        deInstallationPrice: product.de_installation_price || product.installation || 0,
+        deInstallationDiscount: 0,
+        subscriptionPrice: 0,
+        subscriptionDiscount: 0,
+        annuityEndDate: '',
+        vehicleId: null,
+        vehiclePlate: null,
       };
-      setSelectedProducts(prev => [...prev, vehicleWithProducts]);
+      setSelectedProducts(prev => [...prev, deInstallProduct]);
     } else {
       // For installation, add product normally - match external quotation structure
       const productWithDefaults = {
@@ -786,6 +813,16 @@ export default function ClientQuoteForm({
         const purchaseType = product.purchaseType || (formData.jobType === 'deinstall' ? 'service' : formData.purchaseType || 'purchase');
         const isRental = !isLabour && purchaseType === 'rental';
         const isPurchase = !isLabour && purchaseType === 'purchase';
+        const detailValue = product.detailValue || "";
+        const isVehicleLinkedDeinstall = Boolean(product.vehicleId || product.vehiclePlate);
+        const serializedDescription =
+          formData.jobType === 'deinstall' && !isLabour
+            ? (
+                detailValue
+                  ? `De-installation of ${product.name} - Value: ${detailValue}${isVehicleLinkedDeinstall ? ' - marked for de-install' : ''}`
+                  : (product.description || `De-installation of ${product.name}`)
+              )
+            : product.description;
 
         // Persist all pricing fields; total calculation still respects purchase type for base price
         const cashPrice = isLabour ? (product.cashPrice || 0) : (product.cashPrice || 0);
@@ -817,8 +854,8 @@ export default function ClientQuoteForm({
         return {
           id: product.id,
           name: product.name,
-          description: product.description,
-          detail_value: product.detailValue || "",
+          description: serializedDescription,
+          detail_value: detailValue,
           type: product.type,
           category: product.category,
           quantity,
@@ -1387,10 +1424,10 @@ export default function ClientQuoteForm({
         return (
           <div className="space-y-6">
             {/* Product Selection */}
-            {formData.jobType !== 'deinstall' && (
+            {formData.jobType && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Product Selection</CardTitle>
+                  <CardTitle>{formData.jobType === 'deinstall' ? 'Add Products' : 'Product Selection'}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Filters */}
@@ -1440,40 +1477,42 @@ export default function ClientQuoteForm({
                   </div>
 
                   {/* Add Labour Button */}
-                  <div className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const labourItem = {
-                          id: `labour-${Date.now()}`,
-                          name: 'Labour Charge',
-                          description: 'Manual labour charge',
-                          type: 'Labour',
-                          category: 'Labour',
-                          quantity: 1,
-                          purchaseType: 'service',
-                          isLabour: true,
-                          cashPrice: 0,
-                          cashDiscount: 0,
-                          rentalPrice: 0,
-                          rentalDiscount: 0,
-                          installationPrice: 0,
-                          installationDiscount: 0,
-                          deInstallationPrice: 0,
-                          deInstallationDiscount: 0,
-                          subscriptionPrice: 0,
-                          subscriptionDiscount: 0,
-                          annuityEndDate: '',
-                        };
-                        setSelectedProducts(prev => [...(prev || []), labourItem]);
-                      }}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      Add Labour Charge
-                    </Button>
-                  </div>
+                  {formData.jobType !== 'deinstall' && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const labourItem = {
+                            id: `labour-${Date.now()}`,
+                            name: 'Labour Charge',
+                            description: 'Manual labour charge',
+                            type: 'Labour',
+                            category: 'Labour',
+                            quantity: 1,
+                            purchaseType: 'service',
+                            isLabour: true,
+                            cashPrice: 0,
+                            cashDiscount: 0,
+                            rentalPrice: 0,
+                            rentalDiscount: 0,
+                            installationPrice: 0,
+                            installationDiscount: 0,
+                            deInstallationPrice: 0,
+                            deInstallationDiscount: 0,
+                            subscriptionPrice: 0,
+                            subscriptionDiscount: 0,
+                            annuityEndDate: '',
+                          };
+                          setSelectedProducts(prev => [...(prev || []), labourItem]);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Labour Charge
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Product List */}
                   {loadingProducts ? (
