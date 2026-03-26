@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { checkAuthSession, handleAuthError } from '@/lib/auth-session-utils';
 import {
   Plus,
@@ -89,6 +96,7 @@ export default function Jobs() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
+  const [movingJobId, setMovingJobId] = useState<string | null>(null);
 
   const itemsPerPage = 50;
   const pathname = usePathname();
@@ -339,6 +347,59 @@ export default function Jobs() {
     }
   };
 
+  const handleMoveJob = async (job: Job, destination: string) => {
+    if (!job?.id || !destination) return;
+
+    setMovingJobId(job.id);
+    const destinationLabel = destination === 'inv' ? 'Inventory' : 'Admin Awaiting Technician';
+    const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
+
+    try {
+      const payload =
+        destination === 'inv'
+          ? {
+              role: 'inv',
+              move_to: 'inv',
+              status: 'pending',
+              job_status: 'pending',
+              completion_date: null,
+              end_time: null,
+            }
+          : {
+              role: 'admin',
+              move_to: 'admin',
+              status: 'admin_created',
+              job_status: 'created',
+              assigned_technician_id: null,
+              technician_name: null,
+              technician_phone: null,
+            };
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to move job to ${destinationLabel}`);
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job moved to ${destinationLabel}`);
+      fetchUserInfoAndJobs();
+    } catch (error) {
+      console.error('Error moving technician job:', error);
+      toast.dismiss(loadingToast);
+      toast.error(error instanceof Error ? error.message : `Failed to move job to ${destinationLabel}`);
+    } finally {
+      setMovingJobId(null);
+    }
+  };
+
   const stats = getJobStats();
 
   if (loading) {
@@ -467,6 +528,18 @@ export default function Jobs() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">
+                      <Select
+                        disabled={movingJobId === job.id}
+                        onValueChange={(value) => handleMoveJob(job, value)}
+                      >
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inv">Inventory</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
                         <>
                           <Button 

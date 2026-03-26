@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -85,6 +92,7 @@ export default function AccountsContent({ activeSection }) {
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState({});
+  const [movingJobId, setMovingJobId] = useState(null);
 
   // Overdue section state
   const [refreshKey, setRefreshKey] = useState(0);
@@ -252,6 +260,62 @@ export default function AccountsContent({ activeSection }) {
       toast.error("Failed to load completed jobs");
     } finally {
       setCompletedJobsLoading(false);
+    }
+  };
+
+  const handleMoveJob = async (job, destination) => {
+    if (!job?.id || !destination) return;
+
+    setMovingJobId(job.id);
+    const destinationLabel =
+      destination === "inv" ? "Inventory" : "Admin Awaiting Technician";
+    const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
+
+    try {
+      const payload =
+        destination === "inv"
+          ? {
+              role: "inv",
+              move_to: "inv",
+              status: "pending",
+              job_status: "pending",
+              completion_date: null,
+              end_time: null,
+            }
+          : {
+              role: "admin",
+              move_to: "admin",
+              status: "admin_created",
+              job_status: "created",
+              assigned_technician_id: null,
+              technician_name: null,
+              technician_phone: null,
+            };
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to move job to ${destinationLabel}`,
+        );
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job moved to ${destinationLabel}`);
+      await fetchCompletedJobs();
+    } catch (error) {
+      console.error("Error moving accounts completed job:", error);
+      toast.dismiss(loadingToast);
+      toast.error(error.message || `Failed to move job to ${destinationLabel}`);
+    } finally {
+      setMovingJobId(null);
     }
   };
 
@@ -1934,6 +1998,20 @@ export default function AccountsContent({ activeSection }) {
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right">
                         <div className="flex justify-end gap-2 flex-wrap">
+                          <Select
+                            disabled={movingJobId === job.id}
+                            onValueChange={(value) => handleMoveJob(job, value)}
+                          >
+                            <SelectTrigger className="h-8 w-[120px] text-xs">
+                              <SelectValue
+                                placeholder={movingJobId === job.id ? "Moving..." : "Move to"}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="inv">Inventory</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                          </Select>
                           {hasStoredInvoice(job) && (
                             <Button
                               onClick={() => handleViewStoredInvoice(job)}

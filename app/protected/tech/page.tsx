@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { checkAuthSession, handleAuthError } from '@/lib/auth-session-utils';
 import {
   Plus,
@@ -68,6 +75,7 @@ export default function Dashboard() {
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
   const [activeJobsView, setActiveJobsView] = useState<'my-jobs' | 'available-jobs'>('my-jobs');
+  const [movingJobId, setMovingJobId] = useState<string | null>(null);
   const [jobStats, setJobStats] = useState([
     { title: 'New Jobs', value: 0, change: '+0 today', color: 'bg-blue-500', icon: Plus },
     { title: 'Open Jobs', value: 0, change: '+0 since yesterday', color: 'bg-orange-500', icon: Clock },
@@ -244,6 +252,59 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error adding vehicle to inventory:', error);
       sonnerToast.error(`Failed to add vehicle to inventory: ${error.message}`);
+    }
+  };
+
+  const handleMoveJob = async (job: Job, destination: string) => {
+    if (!job?.id || !destination) return;
+
+    setMovingJobId(job.id);
+    const destinationLabel = destination === 'inv' ? 'Inventory' : 'Admin Awaiting Technician';
+    const loadingToast = sonnerToast.loading(`Moving job to ${destinationLabel}...`);
+
+    try {
+      const payload =
+        destination === 'inv'
+          ? {
+              role: 'inv',
+              move_to: 'inv',
+              status: 'pending',
+              job_status: 'pending',
+              completion_date: null,
+              end_time: null,
+            }
+          : {
+              role: 'admin',
+              move_to: 'admin',
+              status: 'admin_created',
+              job_status: 'created',
+              assigned_technician_id: null,
+              technician_name: null,
+              technician_phone: null,
+            };
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to move job to ${destinationLabel}`);
+      }
+
+      sonnerToast.dismiss(loadingToast);
+      sonnerToast.success(`Job moved to ${destinationLabel}`);
+      fetchUserInfoAndJobs();
+    } catch (error) {
+      console.error('Error moving technician job:', error);
+      sonnerToast.dismiss(loadingToast);
+      sonnerToast.error(error instanceof Error ? error.message : `Failed to move job to ${destinationLabel}`);
+    } finally {
+      setMovingJobId(null);
     }
   };
 
@@ -482,6 +543,18 @@ export default function Dashboard() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">
+                      <Select
+                        disabled={movingJobId === job.id}
+                        onValueChange={(value) => handleMoveJob(job, value)}
+                      >
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inv">Inventory</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
                         <>
                           <Button 
