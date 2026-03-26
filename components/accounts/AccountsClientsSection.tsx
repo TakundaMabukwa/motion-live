@@ -101,6 +101,28 @@ export default function AccountsClientsSection() {
       max-width: 1120px;
       margin: 0 auto;
     }
+    .invoice-toolbar {
+      position: sticky;
+      top: 12px;
+      z-index: 1000;
+      max-width: 1120px;
+      margin: 0 auto 16px;
+      display: flex;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    .invoice-print-btn {
+      padding: 10px 16px;
+      border: 1px solid #111827;
+      border-radius: 6px;
+      background: #111827;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+      pointer-events: auto;
+    }
     .invoice-top {
       display: flex;
       justify-content: space-between;
@@ -282,6 +304,10 @@ export default function AccountsClientsSection() {
         width: auto !important;
         background: transparent !important;
         box-shadow: none !important;
+      }
+      .invoice-toolbar,
+      .invoice-print-btn {
+        display: none !important;
       }
     }
   `;
@@ -648,9 +674,20 @@ export default function AccountsClientsSection() {
             <title>All Client Invoices</title>
             <style>${buildInvoiceStyles()}</style>
           </head>
-          <body>${invoicePages}
+          <body>
+            <div class="invoice-toolbar">
+              <button class="invoice-print-btn" type="button" data-role="print-invoices">Print</button>
+            </div>
+            ${invoicePages}
             <script>
               (function () {
+                const printButton = document.querySelector('[data-role="print-invoices"]');
+                if (printButton) {
+                  printButton.addEventListener('click', function() {
+                    window.print();
+                  });
+                }
+
                 async function saveVatNumber(page) {
                   const input = page.querySelector('[data-role="vat-number"]');
                   const button = page.querySelector('[data-role="save-vat-number"]');
