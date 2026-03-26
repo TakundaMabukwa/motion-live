@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const hasRealInvoiceNumber = (value: unknown) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  return Boolean(normalized) && normalized !== 'PENDING';
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -57,6 +62,7 @@ export async function GET(request: NextRequest) {
       const existingInvoice = existingBulkInvoiceByAccount.get(accountNumber);
       const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
       if (!existingInvoice || existingLineItems.length === 0) continue;
+      if (!hasRealInvoiceNumber(existingInvoice?.invoice_number)) continue;
 
       invoices.push({
         accountNumber,
@@ -76,9 +82,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const missingAccountNumbers = accountNumbers.filter(
-      (accountNumber) => !existingBulkInvoiceByAccount.has(accountNumber),
-    );
+    const missingAccountNumbers = accountNumbers.filter((accountNumber) => {
+      const existingInvoice = existingBulkInvoiceByAccount.get(accountNumber);
+      const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
+      if (!existingInvoice) return true;
+      if (existingLineItems.length === 0) return true;
+      return !hasRealInvoiceNumber(existingInvoice?.invoice_number);
+    });
 
     const headers = {
       Cookie: request.headers.get('Cookie') || '',

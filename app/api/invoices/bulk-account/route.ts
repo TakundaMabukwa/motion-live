@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeBillingMonth } from "@/lib/server/account-invoice-payments";
 
+const hasRealInvoiceNumber = (value: unknown) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return Boolean(normalized) && normalized !== "PENDING";
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -114,9 +119,33 @@ export async function POST(request: NextRequest) {
     };
 
     if (existingInvoice) {
+      let invoiceNumberToKeep = existingInvoice.invoice_number;
+
+      if (!hasRealInvoiceNumber(invoiceNumberToKeep)) {
+        const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
+          "allocate_bulk_document_number",
+          {
+            sequence_name: "bulk_invoice",
+            prefix: "INV",
+          },
+        );
+
+        if (numberError || !allocatedInvoiceNumber) {
+          return NextResponse.json(
+            { error: numberError?.message || "Failed to allocate bulk invoice number" },
+            { status: 500 },
+          );
+        }
+
+        invoiceNumberToKeep = allocatedInvoiceNumber;
+      }
+
       const { data: updatedInvoice, error: updateError } = await supabase
         .from("bulk_account_invoices")
-        .update(payload)
+        .update({
+          ...payload,
+          invoice_number: invoiceNumberToKeep,
+        })
         .eq("id", existingInvoice.id)
         .select("*")
         .single();

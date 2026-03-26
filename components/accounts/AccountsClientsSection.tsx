@@ -24,7 +24,7 @@ import { toast } from 'sonner';
 import { useAccounts } from '@/contexts/AccountsContext';
 // Dynamic import for XLSX to avoid build issues
 
-export default function AccountsClientsSection() {
+export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'clients' | 'client-info' }) {
   const { 
     companyGroups, 
     loading, 
@@ -42,6 +42,15 @@ export default function AccountsClientsSection() {
   const [bulkInvoiceRows, setBulkInvoiceRows] = useState<Array<Record<string, unknown>>>([]);
   const [loadingBulkInvoiceRows, setLoadingBulkInvoiceRows] = useState(false);
   const [savingBulkInvoiceNumber, setSavingBulkInvoiceNumber] = useState<string | null>(null);
+  const [editableCostCenters, setEditableCostCenters] = useState<Array<Record<string, unknown>>>([]);
+  const [loadingEditableCostCenters, setLoadingEditableCostCenters] = useState(false);
+  const [savingCostCenterId, setSavingCostCenterId] = useState<string | null>(null);
+  const [savingAllCostCenters, setSavingAllCostCenters] = useState(false);
+  const [dirtyCostCenterIds, setDirtyCostCenterIds] = useState<string[]>([]);
+  const tableInputClass = 'w-full bg-white text-sm';
+  const standardCellClass = 'min-w-[220px]';
+  const compactCellClass = 'min-w-[140px]';
+  const addressCellClass = 'min-w-[280px]';
 
   const COMPANY_INFO = {
     name: 'Soltrack (PTY) LTD',
@@ -334,6 +343,12 @@ export default function AccountsClientsSection() {
     }
   }, [fetchCompanyGroups, isDataLoaded]);
 
+  useEffect(() => {
+    if (mode === 'client-info' && editableCostCenters.length === 0) {
+      fetchEditableCostCenters();
+    }
+  }, [mode, editableCostCenters.length]);
+
   // Debounced search effect
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -361,6 +376,108 @@ export default function AccountsClientsSection() {
     } catch (error) {
       console.error('Error refreshing data:', error);
       toast.error('Failed to refresh data');
+    }
+  };
+
+  const fetchEditableCostCenters = async () => {
+    try {
+      setLoadingEditableCostCenters(true);
+      const response = await fetch('/api/cost-centers/editable');
+      if (!response.ok) {
+        throw new Error('Failed to fetch cost centers');
+      }
+      const result = await response.json();
+      setEditableCostCenters(Array.isArray(result?.costCenters) ? result.costCenters : []);
+      setDirtyCostCenterIds([]);
+    } catch (error) {
+      console.error('Error fetching editable cost centers:', error);
+      toast.error('Failed to load client info');
+    } finally {
+      setLoadingEditableCostCenters(false);
+    }
+  };
+
+  const updateEditableCostCenter = (id: string, field: string, value: unknown) => {
+    setEditableCostCenters((prev) =>
+      prev.map((row) => (String(row.id) === id ? { ...row, [field]: value } : row)),
+    );
+    setDirtyCostCenterIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
+
+  const handleSaveCostCenter = async (row: Record<string, unknown>) => {
+    const id = String(row.id || '');
+    if (!id) {
+      toast.error('Missing cost center id');
+      return;
+    }
+
+    try {
+      setSavingCostCenterId(id);
+      const response = await fetch('/api/cost-centers/editable', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(row),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save cost center');
+      }
+
+      const result = await response.json();
+      setEditableCostCenters((prev) =>
+        prev.map((item) => (String(item.id) === id ? (result?.costCenter || item) : item)),
+      );
+      setDirtyCostCenterIds((prev) => prev.filter((itemId) => itemId !== id));
+      toast.success(`Saved ${String(row.cost_code || 'cost center')}`);
+    } catch (error) {
+      console.error('Error saving cost center:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save cost center');
+    } finally {
+      setSavingCostCenterId(null);
+    }
+  };
+
+  const handleSaveAllCostCenters = async () => {
+    if (dirtyCostCenterIds.length === 0) {
+      toast.success('No changes to save');
+      return;
+    }
+
+    try {
+      setSavingAllCostCenters(true);
+      const rowsToSave = editableCostCenters.filter((row) => dirtyCostCenterIds.includes(String(row.id || '')));
+      const response = await fetch('/api/cost-centers/editable', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rows: rowsToSave,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to save all cost centers');
+      }
+
+      const result = await response.json();
+      const savedRows = Array.isArray(result?.costCenters) ? result.costCenters : [];
+      const savedRowsById = new Map(savedRows.map((row: Record<string, unknown>) => [String(row.id || ''), row]));
+
+      setEditableCostCenters((prev) =>
+        prev.map((row) => savedRowsById.get(String(row.id || '')) || row),
+      );
+      setDirtyCostCenterIds([]);
+      toast.success(`Saved ${rowsToSave.length} cost centers`);
+    } catch (error) {
+      console.error('Error saving all cost centers:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save all cost centers');
+    } finally {
+      setSavingAllCostCenters(false);
     }
   };
 
@@ -985,6 +1102,116 @@ export default function AccountsClientsSection() {
     );
   }
 
+  if (mode === 'client-info') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-bold text-gray-900 text-3xl">Client Info</h1>
+          <p className="mt-2 text-gray-600">All cost centers in a clean editable table. Save any row to update the database.</p>
+        </div>
+        <Card className="hover:shadow-lg transition-shadow duration-200">
+          <CardHeader className="flex flex-row justify-between items-start gap-4">
+            <div>
+              <CardTitle className="text-lg">Client Info</CardTitle>
+              <p className="text-gray-600 text-sm">All cost centers in an editable table. Save any row to update the database.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSaveAllCostCenters} disabled={savingAllCostCenters || loadingEditableCostCenters}>
+                {savingAllCostCenters ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {savingAllCostCenters ? 'Saving All...' : `Save All${dirtyCostCenterIds.length > 0 ? ` (${dirtyCostCenterIds.length})` : ''}`}
+              </Button>
+              <Button onClick={fetchEditableCostCenters} disabled={loadingEditableCostCenters || savingAllCostCenters} variant="outline">
+                <RefreshCw className={`w-4 h-4 mr-2 ${loadingEditableCostCenters ? 'animate-spin' : ''}`} />
+                {loadingEditableCostCenters ? 'Refreshing...' : 'Refresh'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingEditableCostCenters ? (
+              <div className="py-12 text-center">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                <span>Loading client info...</span>
+              </div>
+            ) : (
+              <div className="overflow-auto border rounded-lg max-h-[70vh]">
+                <Table className="min-w-[3200px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cost Code</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Legal Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>VAT Number</TableHead>
+                      <TableHead>Registration</TableHead>
+                      <TableHead>Physical 1</TableHead>
+                      <TableHead>Physical 2</TableHead>
+                      <TableHead>Physical 3</TableHead>
+                      <TableHead>Area</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Postal 1</TableHead>
+                      <TableHead>Postal 2</TableHead>
+                      <TableHead>Postal 3</TableHead>
+                      <TableHead>Validated</TableHead>
+                      <TableHead className="text-right">Save</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {editableCostCenters.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={17} className="py-8 text-center text-sm text-gray-500">
+                          No cost centers found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      editableCostCenters.map((row) => {
+                        const id = String(row.id || '');
+                        return (
+                          <TableRow key={id}>
+                            <TableCell className={compactCellClass}><Input className={tableInputClass} value={String(row.cost_code || '')} onChange={(e) => updateEditableCostCenter(id, 'cost_code', e.target.value)} /></TableCell>
+                            <TableCell className={standardCellClass}><Input className={tableInputClass} value={String(row.company || '')} onChange={(e) => updateEditableCostCenter(id, 'company', e.target.value)} /></TableCell>
+                            <TableCell className={standardCellClass}><Input className={tableInputClass} value={String(row.legal_name || '')} onChange={(e) => updateEditableCostCenter(id, 'legal_name', e.target.value)} /></TableCell>
+                            <TableCell className={standardCellClass}><Input className={tableInputClass} value={String(row.contact_name || '')} onChange={(e) => updateEditableCostCenter(id, 'contact_name', e.target.value)} /></TableCell>
+                            <TableCell className={standardCellClass}><Input className={tableInputClass} value={String(row.email || '')} onChange={(e) => updateEditableCostCenter(id, 'email', e.target.value)} /></TableCell>
+                            <TableCell className={compactCellClass}><Input className={tableInputClass} value={String(row.vat_number || '')} onChange={(e) => updateEditableCostCenter(id, 'vat_number', e.target.value)} /></TableCell>
+                            <TableCell className={compactCellClass}><Input className={tableInputClass} value={String(row.registration_number || '')} onChange={(e) => updateEditableCostCenter(id, 'registration_number', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.physical_address_1 || '')} onChange={(e) => updateEditableCostCenter(id, 'physical_address_1', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.physical_address_2 || '')} onChange={(e) => updateEditableCostCenter(id, 'physical_address_2', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.physical_address_3 || '')} onChange={(e) => updateEditableCostCenter(id, 'physical_address_3', e.target.value)} /></TableCell>
+                            <TableCell className={compactCellClass}><Input className={tableInputClass} value={String(row.physical_area || '')} onChange={(e) => updateEditableCostCenter(id, 'physical_area', e.target.value)} /></TableCell>
+                            <TableCell className={compactCellClass}><Input className={tableInputClass} value={String(row.physical_code || '')} onChange={(e) => updateEditableCostCenter(id, 'physical_code', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.postal_address_1 || '')} onChange={(e) => updateEditableCostCenter(id, 'postal_address_1', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.postal_address_2 || '')} onChange={(e) => updateEditableCostCenter(id, 'postal_address_2', e.target.value)} /></TableCell>
+                            <TableCell className={addressCellClass}><Input className={tableInputClass} value={String(row.postal_address_3 || '')} onChange={(e) => updateEditableCostCenter(id, 'postal_address_3', e.target.value)} /></TableCell>
+                            <TableCell className={compactCellClass}>
+                              <select
+                                value={String(Boolean(row.validated))}
+                                onChange={(e) => updateEditableCostCenter(id, 'validated', e.target.value === 'true')}
+                                className="border rounded-md h-10 px-3 w-full bg-white text-sm"
+                              >
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                              </select>
+                            </TableCell>
+                            <TableCell className="text-right min-w-[90px]">
+                              <Button size="sm" onClick={() => handleSaveCostCenter(row)} disabled={savingCostCenterId === id || !dirtyCostCenterIds.includes(id)}>
+                                {savingCostCenterId === id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1029,7 +1256,6 @@ export default function AccountsClientsSection() {
         </div>
       </div>
 
-             {/* Summary Stats */}
        <div className="gap-6 grid grid-cols-1 md:grid-cols-2">
          <Card className="hover:shadow-lg transition-shadow duration-200">
            <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">

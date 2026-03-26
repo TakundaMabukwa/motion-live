@@ -3,15 +3,13 @@
 import { 
   ShoppingCart, 
   Wrench, 
-  LogOut,
   LayoutDashboard,
-  Receipt,
   AlertTriangle,
   Car,
   Users,
   CheckCircle
 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { LogoutButton } from '../logout-button';
 
 const getIcon = (name) => {
@@ -37,7 +35,6 @@ const getIcon = (name) => {
 
 export default function AccountsTopBar({ activeSection, onSectionChange }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const handleNavigation = (section) => {
     onSectionChange(section);
@@ -47,6 +44,7 @@ export default function AccountsTopBar({ activeSection, onSectionChange }) {
   const navigation = [
     { name: 'Dashboard', icon: 'grid', key: 'dashboard' },
     { name: 'Clients', icon: 'clients', key: 'clients' },
+    { name: 'Client Info', icon: 'clients', key: 'client-info' },
     { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },

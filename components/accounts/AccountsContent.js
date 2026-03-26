@@ -1850,7 +1850,11 @@ export default function AccountsContent({ activeSection }) {
 
   // Clients Section
   if (activeSection === "clients") {
-    return <AccountsClientsSection />;
+    return <AccountsClientsSection mode="clients" />;
+  }
+
+  if (activeSection === "client-info") {
+    return <AccountsClientsSection mode="client-info" />;
   }
 
   if (activeSection === "purchases") {
