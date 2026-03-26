@@ -38,6 +38,10 @@ export default function AccountsClientsSection() {
   const [isGeneratingAllInvoicesExcel, setIsGeneratingAllInvoicesExcel] = useState(false);
   const [isGeneratingAllInvoicesPdf, setIsGeneratingAllInvoicesPdf] = useState(false);
   const [showAllInvoicesDialog, setShowAllInvoicesDialog] = useState(false);
+  const [showInvoiceNumberDialog, setShowInvoiceNumberDialog] = useState(false);
+  const [bulkInvoiceRows, setBulkInvoiceRows] = useState<Array<Record<string, unknown>>>([]);
+  const [loadingBulkInvoiceRows, setLoadingBulkInvoiceRows] = useState(false);
+  const [savingBulkInvoiceNumber, setSavingBulkInvoiceNumber] = useState<string | null>(null);
 
   const COMPANY_INFO = {
     name: 'Soltrack (PTY) LTD',
@@ -147,6 +151,40 @@ export default function AccountsClientsSection() {
       gap: 4px 10px;
       font-size: 12px;
     }
+    .invoice-editable-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .invoice-inline-input {
+      width: 100%;
+      min-width: 150px;
+      padding: 6px 8px;
+      border: 1px solid #111827;
+      border-radius: 4px;
+      font-size: 12px;
+      box-sizing: border-box;
+      background: white;
+    }
+    .invoice-inline-save {
+      padding: 6px 10px;
+      border: 1px solid #111827;
+      border-radius: 4px;
+      background: white;
+      color: #111827;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .invoice-inline-save:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .invoice-inline-status {
+      font-size: 11px;
+      color: #047857;
+    }
     .invoice-meta-label {
       font-weight: 700;
     }
@@ -232,6 +270,18 @@ export default function AccountsClientsSection() {
       }
       .invoice-page {
         padding: 0;
+      }
+      .invoice-inline-save,
+      .invoice-inline-status {
+        display: none !important;
+      }
+      .invoice-inline-input {
+        border: none !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
+        background: transparent !important;
+        box-shadow: none !important;
       }
     }
   `;
@@ -476,7 +526,7 @@ export default function AccountsClientsSection() {
               .join('') || '<tr><td colspan="10">No invoice rows available</td></tr>';
 
           return `
-            <div class="invoice-page">
+            <div class="invoice-page" data-account-number="${escapeHtml(accountNumber)}" data-billing-month="${escapeHtml(String(invoiceData?.billing_month || ''))}">
               <div class="invoice-sheet">
                 <div class="invoice-top">
                   <div>
@@ -516,7 +566,17 @@ export default function AccountsClientsSection() {
                       <td>${escapeHtml(accountNumber)}</td>
                       <td>${escapeHtml(invoiceData?.company_name || accountNumber)}</td>
                       <td>VAT 15%</td>
-                      <td>${escapeHtml(invoiceData?.customer_vat_number || '')}</td>
+                      <td>
+                        <div class="invoice-editable-cell">
+                          <input
+                            class="invoice-inline-input"
+                            value="${escapeHtml(invoiceData?.customer_vat_number || '')}"
+                            data-role="vat-number"
+                          />
+                          <button class="invoice-inline-save" type="button" data-role="save-vat-number">Save</button>
+                          <span class="invoice-inline-status" data-role="vat-save-status"></span>
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -588,7 +648,60 @@ export default function AccountsClientsSection() {
             <title>All Client Invoices</title>
             <style>${buildInvoiceStyles()}</style>
           </head>
-          <body>${invoicePages}</body>
+          <body>${invoicePages}
+            <script>
+              (function () {
+                async function saveVatNumber(page) {
+                  const input = page.querySelector('[data-role="vat-number"]');
+                  const button = page.querySelector('[data-role="save-vat-number"]');
+                  const status = page.querySelector('[data-role="vat-save-status"]');
+                  const accountNumber = page.getAttribute('data-account-number') || '';
+                  const billingMonth = page.getAttribute('data-billing-month') || '';
+                  const customerVatNumber = input && input.value ? input.value.trim() : '';
+
+                  if (!accountNumber || !billingMonth) {
+                    if (status) status.textContent = 'Missing account or month';
+                    return;
+                  }
+
+                  if (button) button.disabled = true;
+                  if (status) status.textContent = 'Saving...';
+
+                  try {
+                    const response = await fetch('/api/invoices/bulk-account', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        accountNumber,
+                        billingMonth,
+                        customerVatNumber,
+                      }),
+                    });
+
+                    if (!response.ok) {
+                      const errorData = await response.json().catch(() => ({}));
+                      throw new Error(errorData.error || 'Failed to save VAT number');
+                    }
+
+                    if (status) status.textContent = 'Saved';
+                  } catch (error) {
+                    if (status) status.textContent = error && error.message ? error.message : 'Save failed';
+                  } finally {
+                    if (button) button.disabled = false;
+                  }
+                }
+
+                document.querySelectorAll('.invoice-page').forEach(function(page) {
+                  const vatButton = page.querySelector('[data-role="save-vat-number"]');
+                  if (vatButton) {
+                    vatButton.addEventListener('click', function() {
+                      saveVatNumber(page);
+                    });
+                  }
+                });
+              })();
+            </script>
+          </body>
         </html>
       `);
       previewWindow.document.close();
@@ -605,6 +718,85 @@ export default function AccountsClientsSection() {
     } finally {
       setIsGeneratingAllInvoicesPdf(false);
       setShowAllInvoicesDialog(false);
+    }
+  };
+
+  const handleOpenInvoiceNumberDialog = async () => {
+    try {
+      setLoadingBulkInvoiceRows(true);
+      setShowInvoiceNumberDialog(true);
+
+      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data');
+      if (!response.ok) {
+        throw new Error('Failed to load bulk invoices');
+      }
+
+      const result = await response.json();
+      const invoices = Array.isArray(result?.invoices) ? result.invoices : [];
+      const rows = invoices
+        .map(({ accountNumber, invoiceData }: { accountNumber: string; invoiceData: Record<string, unknown> }) => ({
+          accountNumber,
+          companyName: String(invoiceData?.company_name || accountNumber),
+          billingMonth: String(invoiceData?.billing_month || ''),
+          invoiceNumber: String(invoiceData?.invoice_number || ''),
+        }))
+        .sort((a, b) => String(a.companyName).localeCompare(String(b.companyName)));
+
+      setBulkInvoiceRows(rows);
+    } catch (error) {
+      console.error('Error loading bulk invoice numbers:', error);
+      toast.error('Failed to load bulk invoice numbers');
+      setShowInvoiceNumberDialog(false);
+    } finally {
+      setLoadingBulkInvoiceRows(false);
+    }
+  };
+
+  const handleBulkInvoiceNumberChange = (accountNumber: string, value: string) => {
+    setBulkInvoiceRows((prev) =>
+      prev.map((row) =>
+        String(row.accountNumber) === accountNumber
+          ? { ...row, invoiceNumber: value }
+          : row,
+      ),
+    );
+  };
+
+  const handleSaveBulkInvoiceNumber = async (row: Record<string, unknown>) => {
+    const accountNumber = String(row.accountNumber || '').trim();
+    const billingMonth = String(row.billingMonth || '').trim();
+    const invoiceNumber = String(row.invoiceNumber || '').trim();
+
+    if (!accountNumber || !billingMonth || !invoiceNumber) {
+      toast.error('Account, billing month, and invoice number are required');
+      return;
+    }
+
+    try {
+      setSavingBulkInvoiceNumber(accountNumber);
+      const response = await fetch('/api/invoices/bulk-account', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountNumber,
+          billingMonth,
+          invoiceNumber,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update invoice number');
+      }
+
+      toast.success(`Invoice number updated for ${accountNumber}`);
+    } catch (error) {
+      console.error('Error updating bulk invoice number:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update invoice number');
+    } finally {
+      setSavingBulkInvoiceNumber(null);
     }
   };
 
@@ -691,6 +883,14 @@ export default function AccountsClientsSection() {
           >
             <FileText className={`w-4 h-4 mr-2 ${(isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf) ? 'animate-pulse' : ''}`} />
             {(isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf) ? 'Preparing Invoices...' : 'All Invoices'}
+          </Button>
+          <Button
+            onClick={handleOpenInvoiceNumberDialog}
+            disabled={loadingBulkInvoiceRows}
+            variant="outline"
+          >
+            <FileText className={`w-4 h-4 mr-2 ${loadingBulkInvoiceRows ? 'animate-spin' : ''}`} />
+            {loadingBulkInvoiceRows ? 'Loading Numbers...' : 'Edit Invoice Numbers'}
           </Button>
           <Button 
             onClick={handleBulkInvoice}
@@ -868,6 +1068,74 @@ export default function AccountsClientsSection() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showInvoiceNumberDialog} onOpenChange={setShowInvoiceNumberDialog}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Edit Bulk Invoice Numbers</DialogTitle>
+          </DialogHeader>
+          {loadingBulkInvoiceRows ? (
+            <div className="py-10 text-center">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+              <p className="text-sm text-gray-600">Loading current month bulk invoices...</p>
+            </div>
+          ) : (
+            <div className="max-h-[70vh] overflow-y-auto border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Account</TableHead>
+                    <TableHead>Billing Month</TableHead>
+                    <TableHead>Invoice Number</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {bulkInvoiceRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-500 py-8">
+                        No bulk invoices found for the current month.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    bulkInvoiceRows.map((row) => {
+                      const accountNumber = String(row.accountNumber || '');
+                      return (
+                        <TableRow key={accountNumber}>
+                          <TableCell>{String(row.companyName || '')}</TableCell>
+                          <TableCell>{accountNumber}</TableCell>
+                          <TableCell>{String(row.billingMonth || '')}</TableCell>
+                          <TableCell>
+                            <Input
+                              value={String(row.invoiceNumber || '')}
+                              onChange={(event) => handleBulkInvoiceNumberChange(accountNumber, event.target.value)}
+                              placeholder="INV200000"
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveBulkInvoiceNumber(row)}
+                              disabled={savingBulkInvoiceNumber === accountNumber}
+                            >
+                              {savingBulkInvoiceNumber === accountNumber ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                'Save'
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

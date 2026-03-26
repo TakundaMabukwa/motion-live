@@ -168,3 +168,81 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const accountNumber = String(body?.accountNumber || "").trim();
+    const billingMonth = normalizeBillingMonth(body?.billingMonth);
+    const invoiceNumber = body?.invoiceNumber === undefined ? null : String(body.invoiceNumber || "").trim();
+    const customerVatNumber = body?.customerVatNumber === undefined ? null : String(body.customerVatNumber || "").trim();
+
+    if (!accountNumber) {
+      return NextResponse.json(
+        { error: "accountNumber is required" },
+        { status: 400 },
+      );
+    }
+
+    if (!billingMonth) {
+      return NextResponse.json(
+        { error: "billingMonth is required" },
+        { status: 400 },
+      );
+    }
+
+    if (invoiceNumber === null && customerVatNumber === null) {
+      return NextResponse.json(
+        { error: "invoiceNumber or customerVatNumber is required" },
+        { status: 400 },
+      );
+    }
+
+    const updatePayload: Record<string, string> = {};
+    if (invoiceNumber !== null) {
+      if (!invoiceNumber) {
+        return NextResponse.json(
+          { error: "invoiceNumber cannot be empty" },
+          { status: 400 },
+        );
+      }
+      updatePayload.invoice_number = invoiceNumber;
+    }
+    if (customerVatNumber !== null) {
+      updatePayload.customer_vat_number = customerVatNumber;
+    }
+
+    const { data: updatedInvoice, error: updateError } = await supabase
+      .from("bulk_account_invoices")
+      .update({
+        ...updatePayload,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("account_number", accountNumber)
+      .eq("billing_month", billingMonth)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message || "Failed to update bulk invoice number" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ invoice: updatedInvoice });
+  } catch (error) {
+    console.error("Unexpected error in bulk account invoice PATCH:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
