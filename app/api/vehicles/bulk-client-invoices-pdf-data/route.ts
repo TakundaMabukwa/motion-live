@@ -10,19 +10,41 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
 
-    const { data: vehicles, error: vehiclesError } = await supabase
-      .from('vehicles')
-      .select('new_account_number')
-      .not('new_account_number', 'is', null);
+    const allVehicles: Array<Record<string, unknown>> = [];
+    const pageSize = 1000;
+    let from = 0;
 
-    if (vehiclesError) {
-      throw vehiclesError;
+    while (true) {
+      const { data: vehicles, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('new_account_number, account_number')
+        .range(from, from + pageSize - 1);
+
+      if (vehiclesError) {
+        throw vehiclesError;
+      }
+
+      if (!vehicles || vehicles.length === 0) {
+        break;
+      }
+
+      allVehicles.push(...vehicles);
+
+      if (vehicles.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
     }
 
     const accountNumbers = Array.from(
       new Set(
-        (vehicles || [])
-          .map((row) => String(row?.new_account_number || '').trim().toUpperCase())
+        allVehicles
+          .map((row) =>
+            String(row?.new_account_number || row?.account_number || '')
+              .trim()
+              .toUpperCase(),
+          )
           .filter(Boolean),
       ),
     );

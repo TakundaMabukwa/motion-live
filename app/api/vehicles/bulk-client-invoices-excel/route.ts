@@ -325,9 +325,8 @@ export async function GET() {
       const { data, error } = await supabase
         .from("vehicles")
         .select(
-          `reg, fleet_number, company, new_account_number, total_rental_sub, total_rental, total_sub, ${BILLING_COLUMNS.join(", ")}`,
+          `reg, fleet_number, company, new_account_number, account_number, total_rental_sub, total_rental, total_sub, ${BILLING_COLUMNS.join(", ")}`,
         )
-        .not("new_account_number", "is", null)
         .order("new_account_number", { ascending: true })
         .range(from, from + pageSize - 1);
 
@@ -355,7 +354,7 @@ export async function GET() {
     const groupedVehicles = new Map<string, Array<Record<string, unknown>>>();
 
     allVehicles.forEach((vehicle) => {
-      const accountNumber = String(vehicle.new_account_number || "").trim().toUpperCase();
+      const accountNumber = String(vehicle.new_account_number || vehicle.account_number || "").trim().toUpperCase();
       if (!accountNumber) return;
 
       const existing = groupedVehicles.get(accountNumber) || [];
