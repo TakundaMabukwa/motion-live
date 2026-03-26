@@ -103,9 +103,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       }
 
       const existingEquipmentUsed = parseArrayField(jobData?.equipment_used);
-      const existingIds = existingEquipmentUsed
-        .map((item: any) => String(item?.stock_id || item?.id || ''))
-        .filter(Boolean);
+      const existingIds = getExistingEquipmentSelectionKeys(existingEquipmentUsed);
       setSelectedEquipmentIds(existingIds);
       setCompletionNotes(String(jobData?.completion_notes || ''));
     }
@@ -189,6 +187,82 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     }
     return [];
   };
+
+  const isDeinstallJob = (currentJob: any) => {
+    const jobType = String(currentJob?.job_type || '').toLowerCase();
+    return jobType.includes('deinstall') || jobType.includes('de-install');
+  };
+
+  const extractDeinstallValue = (item: Record<string, any>) => {
+    const directValue =
+      item?.detail_value ??
+      item?.detailValue ??
+      item?.value ??
+      item?.serial_number ??
+      item?.serialNumber ??
+      '';
+
+    if (String(directValue || '').trim()) {
+      return String(directValue).trim();
+    }
+
+    const description = String(item?.description || '');
+    const match = description.match(/Value:\s*(.+?)(?:\s*-\s*marked for de-install|$)/i);
+    return match?.[1]?.trim() || '';
+  };
+
+  const getDeinstallOptionKey = (item: Record<string, any>, index: number) => {
+    const baseId = String(
+      item?.id ||
+      item?.quote_item_key ||
+      `${item?.name || 'item'}::${item?.vehicle_plate || item?.vehicle_registration || ''}::${extractDeinstallValue(item)}::${index}`
+    );
+    return `quote:${baseId}`;
+  };
+
+  const getDeinstallEquipmentOptions = (currentJob: any) => {
+    if (!isDeinstallJob(currentJob)) return [];
+
+    return parseQuotationProducts(currentJob?.quotation_products)
+      .filter((item: Record<string, any>) => !item?.is_labour)
+      .map((item: Record<string, any>, index: number) => {
+        const value = extractDeinstallValue(item);
+        const vehiclePlate = String(item?.vehicle_plate || item?.vehicle_registration || item?.reg || '').trim();
+        const selectionKey = getDeinstallOptionKey(item, index);
+        return {
+          selectionKey,
+          equipmentItem: {
+            quote_item_key: selectionKey.replace(/^quote:/, ''),
+            source: 'job_card.quotation_products.deinstall',
+            name: String(item?.name || item?.description || 'Unnamed item'),
+            code: String(item?.code || 'N/A'),
+            description: String(item?.description || ''),
+            value,
+            vehicle_plate: vehiclePlate,
+            quantity: Number(item?.quantity || 1) || 1,
+            selected_at: new Date().toISOString(),
+          },
+        };
+      });
+  };
+
+  const getExistingEquipmentSelectionKeys = (items: any[]) =>
+    items
+      .map((item: any) => {
+        const source = String(item?.source || '');
+        if (source === 'tech_stock.assigned_parts') {
+          const stockId = String(item?.stock_id || item?.id || '').trim();
+          return stockId ? `stock:${stockId}` : '';
+        }
+        if (source === 'job_card.quotation_products.deinstall') {
+          const quoteKey = String(item?.quote_item_key || item?.id || '').trim();
+          if (quoteKey) return `quote:${quoteKey}`;
+          const fallback = `${String(item?.name || '')}::${String(item?.vehicle_plate || '')}::${String(item?.value || '')}`;
+          return fallback.trim() ? `quote:${fallback}` : '';
+        }
+        return '';
+      })
+      .filter(Boolean);
 
   const getRegistrationCandidates = (currentJob: any): string[] => {
     const quotationProducts = parseQuotationProducts(currentJob?.quotation_products);
@@ -292,8 +366,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     try {
       setIsSubmitting(true);
 
-      const selectedItems = technicianStock
-        .filter((item) => selectedEquipmentIds.includes(String(item.id)))
+      const selectedStockItems = technicianStock
+        .filter((item) => selectedEquipmentIds.includes(`stock:${String(item.id)}`))
         .map((item) => ({
           stock_id: item.id,
           code: item.code || '',
@@ -306,14 +380,52 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           source: 'tech_stock.assigned_parts'
         }));
 
+      const selectedDeinstallItems = getDeinstallEquipmentOptions(jobData)
+        .filter((option) => selectedEquipmentIds.includes(option.selectionKey))
+        .map((option) => option.equipmentItem);
+
+      let latestJob = jobData;
+
+      if (selectedStockItems.length > 0) {
+        const transferResponse = await fetch(`/api/job-cards/${jobData.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            equipment_used: selectedStockItems,
+            transfer_equipment_from_assigned_parts: true,
+          }),
+        });
+
+        if (!transferResponse.ok) {
+          const errorData = await transferResponse.json().catch(() => ({}));
+          console.error('Failed to save equipment used:', errorData);
+          throw new Error(`Failed to save equipment used: ${transferResponse.status}`);
+        }
+
+        latestJob = await transferResponse.json();
+      }
+
+      const existingEquipmentUsed = parseArrayField(latestJob?.equipment_used);
+      const preservedEquipmentUsed = existingEquipmentUsed.filter((item: any) => {
+        const source = String(item?.source || '');
+        return source !== 'tech_stock.assigned_parts' && source !== 'job_card.quotation_products.deinstall';
+      });
+
+      const mergedEquipmentUsed = [
+        ...preservedEquipmentUsed,
+        ...selectedStockItems,
+        ...selectedDeinstallItems,
+      ];
+
       const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          equipment_used: selectedItems,
-          transfer_equipment_from_assigned_parts: true,
+          equipment_used: mergedEquipmentUsed,
         }),
       });
 
@@ -1709,6 +1821,47 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 </div>
 
+                {isDeinstallJob(jobData) && getDeinstallEquipmentOptions(jobData).length > 0 && (
+                  <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-amber-900">Items being de-installed</p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Select the de-install items the technician actually removed. These will also be saved under equipment used.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {getDeinstallEquipmentOptions(jobData).map((option) => {
+                        const checked = selectedEquipmentIds.includes(option.selectionKey);
+                        return (
+                          <label
+                            key={option.selectionKey}
+                            className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
+                              checked ? 'border-amber-400 bg-white' : 'border-amber-200 bg-white/70'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleEquipmentItem(option.selectionKey)}
+                              className="mt-1 h-4 w-4 accent-amber-600"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">{option.equipmentItem.name}</p>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
+                                <span>Value: {option.equipmentItem.value || 'N/A'}</span>
+                                {option.equipmentItem.vehicle_plate ? (
+                                  <span>Vehicle: {option.equipmentItem.vehicle_plate}</span>
+                                ) : null}
+                                <span>Code: {option.equipmentItem.code || 'N/A'}</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {stockLoading ? (
                   <div className="py-10 text-center">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-gray-500" />
@@ -1723,7 +1876,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                       {technicianStock.map((item: any) => {
                         const itemId = String(item.id);
-                        const checked = selectedEquipmentIds.includes(itemId);
+                        const checked = selectedEquipmentIds.includes(`stock:${itemId}`);
                         return (
                           <label
                             key={itemId}
@@ -1734,7 +1887,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleEquipmentItem(itemId)}
+                              onChange={() => toggleEquipmentItem(`stock:${itemId}`)}
                               className="mt-1 h-4 w-4 accent-blue-600"
                             />
                             <div className="min-w-0">
