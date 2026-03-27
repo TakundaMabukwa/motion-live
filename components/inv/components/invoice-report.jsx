@@ -436,6 +436,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
   const {
     clientName,
     clientAddress,
+    companyRegistrationNumber,
     invoiceNumber,
     invoiceDate,
     accountNumber,
@@ -466,6 +467,9 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
         <div className="invoice-party-row">
           <div className="invoice-client-block">
             <div className="invoice-client-name">{clientName}</div>
+            <div className="invoice-client-address">
+              <strong>Company Reg:</strong> {companyRegistrationNumber || "-"}
+            </div>
             <div className="invoice-client-address">{clientAddress}</div>
           </div>
           <div className="invoice-meta">
@@ -816,6 +820,10 @@ export default function InvoiceReportComponent({
         activeInvoiceData?.invoiceNumber,
         activeInvoiceData?.invoice_no,
       ) || "PENDING";
+    const companyRegistrationNumber =
+      customerInfo?.registration_number ||
+      activeInvoiceData?.company_registration_number ||
+      "";
 
     const totals = {
       totalExVat:
@@ -834,6 +842,7 @@ export default function InvoiceReportComponent({
     return {
       clientName,
       clientAddress,
+      companyRegistrationNumber,
       invoiceNumber,
       invoiceDate: formatDate(activeInvoiceData?.invoice_date),
       accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
@@ -894,6 +903,7 @@ export default function InvoiceReportComponent({
                 <div class="invoice-party-row">
                   <div class="invoice-client-block">
                     <div class="invoice-client-name">${escapeHtml(invoiceView.clientName)}</div>
+                    <div class="invoice-client-address"><strong>Company Reg:</strong> ${escapeHtml(invoiceView.companyRegistrationNumber || "-")}</div>
                     <div class="invoice-client-address">${escapeHtml(invoiceView.clientAddress)}</div>
                   </div>
                   <div class="invoice-meta">
@@ -1075,6 +1085,7 @@ export default function InvoiceReportComponent({
           accountNumber: costCenter.accountNumber,
           billingMonth: costCenter.billingMonth || null,
           companyName: invoiceView.clientName,
+          companyRegistrationNumber: invoiceView.companyRegistrationNumber,
           clientAddress: invoiceView.clientAddress,
           customerVatNumber: invoiceView.customerVatNumber,
           invoiceDate: new Date().toISOString(),

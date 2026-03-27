@@ -128,7 +128,13 @@ function VehicleDetailSkeleton() {
   );
 }
 
-export default function GlobalVehicleSearch() {
+interface GlobalVehicleSearchProps {
+  launcherClassName?: string;
+}
+
+export default function GlobalVehicleSearch({
+  launcherClassName = 'fixed bottom-4 right-4 z-50',
+}: GlobalVehicleSearchProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [loadingResults, setLoadingResults] = useState(false);
@@ -294,7 +300,7 @@ export default function GlobalVehicleSearch() {
 
   return (
     <>
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className={launcherClassName}>
         <Button
           onClick={() => setOpen(true)}
           className="h-11 px-4 shadow-lg"

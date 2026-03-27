@@ -114,6 +114,10 @@ export async function POST(request: NextRequest) {
 
       const updatePayload = {
         company_name: body?.companyName || existingInvoice.company_name || null,
+        company_registration_number:
+          body?.companyRegistrationNumber ||
+          existingInvoice.company_registration_number ||
+          null,
         client_address: body?.clientAddress || existingInvoice.client_address || null,
         customer_vat_number: body?.customerVatNumber || existingInvoice.customer_vat_number || null,
         invoice_date: invoiceDate || existingInvoice.invoice_date,
@@ -173,6 +177,7 @@ export async function POST(request: NextRequest) {
       billing_month: billingMonth,
       invoice_number: allocatedInvoiceNumber,
       company_name: body?.companyName || null,
+      company_registration_number: body?.companyRegistrationNumber || null,
       client_address: body?.clientAddress || null,
       customer_vat_number: body?.customerVatNumber || null,
       invoice_date: invoiceDate,

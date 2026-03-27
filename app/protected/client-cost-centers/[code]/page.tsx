@@ -3612,6 +3612,7 @@ export default function ClientCostCentersPage() {
                             invoice_date: invoice.invoice_date,
                             billing_month: invoice.billing_month,
                             due_date: invoice.due_date,
+                            company_registration_number: invoice.company_registration_number,
                             client_address: invoice.client_address,
                             customer_vat_number: invoice.customer_vat_number,
                             subtotal: invoice.subtotal,
