@@ -156,6 +156,41 @@ const getSupabase = () =>
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
+const fetchAllCostCenters = async (
+  supabase: ReturnType<typeof getSupabase>,
+) => {
+  const allCostCenters: Array<Record<string, unknown>> = [];
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("cost_centers")
+      .select(
+        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code",
+      )
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allCostCenters.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allCostCenters;
+};
+
 const toAmount = (value: unknown) => {
   const amount = Number.parseFloat(String(value ?? "").trim());
   return Number.isFinite(amount) ? amount : 0;
@@ -357,15 +392,7 @@ export async function GET() {
     const accountNumbers = Array.from(groupedVehicles.keys());
     const costCenterMap = new Map<string, Record<string, unknown>>();
 
-    const { data: costCenters, error: costCenterError } = await supabase
-      .from("cost_centers")
-      .select(
-        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code",
-      );
-
-    if (costCenterError) {
-      throw costCenterError;
-    }
+    const costCenters = await fetchAllCostCenters(supabase);
 
     (costCenters || []).forEach((row) => {
       const key = String(row.cost_code || "").trim().toUpperCase();
@@ -373,6 +400,10 @@ export async function GET() {
         costCenterMap.set(key, row);
       }
     });
+
+    const matchedAccountNumbers = accountNumbers.filter((accountNumber) =>
+      costCenterMap.has(accountNumber),
+    );
 
     const worksheetRows: Array<Array<string | number>> = [];
     const sectionMeta: Array<{
@@ -385,7 +416,7 @@ export async function GET() {
       totalRows: number[];
     }> = [];
 
-    accountNumbers.forEach((accountNumber, invoiceIndex) => {
+    matchedAccountNumbers.forEach((accountNumber, invoiceIndex) => {
       const vehicles = groupedVehicles.get(accountNumber) || [];
       const costCenter = costCenterMap.get(accountNumber);
       if (!costCenter) {

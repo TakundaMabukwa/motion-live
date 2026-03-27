@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const hasRealInvoiceNumber = (value: unknown) => {
-  const normalized = String(value || '').trim().toUpperCase();
-  return Boolean(normalized) && normalized !== 'PENDING';
-};
+export const dynamic = 'force-dynamic';
 
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
@@ -19,7 +16,38 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
     .filter(Boolean)
     .join('\n');
 
-const normalizeTextValue = (value: unknown) => String(value || '').trim();
+const fetchAllCostCenters = async (supabase: Awaited<ReturnType<typeof createClient>>) => {
+  const allCostCenters: Array<Record<string, unknown>> = [];
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('cost_centers')
+      .select(
+        'cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code',
+      )
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allCostCenters.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return allCostCenters;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -78,15 +106,7 @@ export async function GET(request: NextRequest) {
     const invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }> = [];
     const costCenterByAccount = new Map<string, Record<string, unknown>>();
 
-    const { data: costCenters, error: costCenterError } = await supabase
-      .from('cost_centers')
-      .select(
-        'cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code',
-      );
-
-    if (costCenterError) {
-      throw costCenterError;
-    }
+    const costCenters = await fetchAllCostCenters(supabase);
 
     for (const row of costCenters || []) {
       const key = String(row?.cost_code || '').trim().toUpperCase();
@@ -95,10 +115,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const matchedAccountNumbers = accountNumbers.filter((accountNumber) =>
+      costCenterByAccount.has(accountNumber),
+    );
+
+    if (matchedAccountNumbers.length === 0) {
+      return NextResponse.json({
+        invoices: [],
+        count: 0,
+      });
+    }
+
     const { data: existingBulkInvoices, error: existingBulkInvoicesError } = await supabase
       .from('bulk_account_invoices')
       .select('*')
-      .in('account_number', accountNumbers)
+      .in('account_number', matchedAccountNumbers)
       .eq('billing_month', billingMonthKey)
       .order('created_at', { ascending: false });
 
@@ -113,81 +144,6 @@ export async function GET(request: NextRequest) {
       existingBulkInvoiceByAccount.set(key, row);
     }
 
-    for (const accountNumber of accountNumbers) {
-      const existingInvoice = existingBulkInvoiceByAccount.get(accountNumber);
-      const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
-      if (!existingInvoice || existingLineItems.length === 0) continue;
-      if (!hasRealInvoiceNumber(existingInvoice?.invoice_number)) continue;
-      const costCenter = costCenterByAccount.get(accountNumber);
-      const companyName = String(
-        existingInvoice?.company_name ||
-          costCenter?.legal_name ||
-          costCenter?.company ||
-          accountNumber,
-      ).trim();
-      const clientAddress = String(
-        existingInvoice?.client_address || buildAddress(costCenter),
-      ).trim();
-      const customerVatNumber = String(
-        existingInvoice?.customer_vat_number || costCenter?.vat_number || '',
-      ).trim();
-      const companyRegistrationNumber = String(
-        existingInvoice?.company_registration_number || costCenter?.registration_number || '',
-      ).trim();
-
-      if (
-        existingInvoice?.id &&
-        (
-          normalizeTextValue(existingInvoice?.company_name) !== normalizeTextValue(companyName) ||
-          normalizeTextValue(existingInvoice?.client_address) !== normalizeTextValue(clientAddress) ||
-          normalizeTextValue(existingInvoice?.customer_vat_number) !== normalizeTextValue(customerVatNumber) ||
-          normalizeTextValue(existingInvoice?.company_registration_number) !== normalizeTextValue(companyRegistrationNumber)
-        )
-      ) {
-        const { error: syncBulkInvoiceError } = await supabase
-          .from('bulk_account_invoices')
-          .update({
-            company_name: companyName || null,
-            client_address: clientAddress || null,
-            customer_vat_number: customerVatNumber || null,
-            company_registration_number: companyRegistrationNumber || null,
-          })
-          .eq('id', existingInvoice.id);
-
-        if (syncBulkInvoiceError) {
-          console.error(`Error syncing bulk invoice client info for ${accountNumber}:`, syncBulkInvoiceError);
-        }
-      }
-
-      invoices.push({
-        accountNumber,
-        invoiceData: {
-          ...existingInvoice,
-          company_name: companyName,
-          invoice_number: existingInvoice.invoice_number || '',
-          invoice_date: existingInvoice.invoice_date || new Date().toISOString(),
-          billing_month: existingInvoice.billing_month || billingMonthKey,
-          client_address: clientAddress,
-          customer_vat_number: customerVatNumber,
-          company_registration_number: companyRegistrationNumber,
-          subtotal: existingInvoice.subtotal ?? 0,
-          vat_amount: existingInvoice.vat_amount ?? 0,
-          total_amount: existingInvoice.total_amount ?? 0,
-          notes: existingInvoice.notes ?? '',
-          invoiceItems: existingLineItems,
-          invoice_items: existingLineItems,
-        },
-      });
-    }
-
-    const missingAccountNumbers = accountNumbers.filter((accountNumber) => {
-      const existingInvoice = existingBulkInvoiceByAccount.get(accountNumber);
-      const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
-      if (!existingInvoice) return true;
-      if (existingLineItems.length === 0) return true;
-      return !hasRealInvoiceNumber(existingInvoice?.invoice_number);
-    });
-
     const headers = {
       Cookie: request.headers.get('Cookie') || '',
       Authorization: request.headers.get('Authorization') || '',
@@ -195,6 +151,10 @@ export async function GET(request: NextRequest) {
 
     const processAccountNumber = async (accountNumber: string) => {
       try {
+        const existingInvoice = existingBulkInvoiceByAccount.get(accountNumber);
+        const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
+        const costCenter = costCenterByAccount.get(accountNumber);
+
         const draftResponse = await fetch(
           `${origin}/api/vehicles/invoice?accountNumber=${encodeURIComponent(accountNumber)}`,
           {
@@ -204,7 +164,45 @@ export async function GET(request: NextRequest) {
         );
 
         if (!draftResponse.ok) {
-          return null;
+          if (!existingInvoice || existingLineItems.length === 0) {
+            return null;
+          }
+
+          const fallbackCompanyName = String(
+            costCenter?.legal_name ||
+              costCenter?.company ||
+              existingInvoice?.company_name ||
+              accountNumber,
+          ).trim();
+          const fallbackClientAddress = String(
+            buildAddress(costCenter) || existingInvoice?.client_address || '',
+          ).trim();
+          const fallbackCustomerVatNumber = String(
+            costCenter?.vat_number || existingInvoice?.customer_vat_number || '',
+          ).trim();
+          const fallbackCompanyRegistrationNumber = String(
+            costCenter?.registration_number || existingInvoice?.company_registration_number || '',
+          ).trim();
+
+          return {
+            accountNumber,
+            invoiceData: {
+              ...existingInvoice,
+              company_name: fallbackCompanyName,
+              invoice_number: existingInvoice?.invoice_number || '',
+              invoice_date: existingInvoice?.invoice_date || new Date().toISOString(),
+              billing_month: existingInvoice?.billing_month || billingMonthKey,
+              client_address: fallbackClientAddress,
+              customer_vat_number: fallbackCustomerVatNumber,
+              company_registration_number: fallbackCompanyRegistrationNumber,
+              subtotal: existingInvoice?.subtotal ?? 0,
+              vat_amount: existingInvoice?.vat_amount ?? 0,
+              total_amount: existingInvoice?.total_amount ?? 0,
+              notes: existingInvoice?.notes ?? '',
+              invoiceItems: existingLineItems,
+              invoice_items: existingLineItems,
+            },
+          };
         }
 
         const result = await draftResponse.json();
@@ -216,10 +214,46 @@ export async function GET(request: NextRequest) {
             : [];
 
         if (!draftInvoiceData || invoiceItems.length === 0) {
-          return null;
-        }
+          if (!existingInvoice || existingLineItems.length === 0) {
+            return null;
+          }
 
-        const costCenter = costCenterByAccount.get(accountNumber);
+          const fallbackCompanyName = String(
+            costCenter?.legal_name ||
+              costCenter?.company ||
+              existingInvoice?.company_name ||
+              accountNumber,
+          ).trim();
+          const fallbackClientAddress = String(
+            buildAddress(costCenter) || existingInvoice?.client_address || '',
+          ).trim();
+          const fallbackCustomerVatNumber = String(
+            costCenter?.vat_number || existingInvoice?.customer_vat_number || '',
+          ).trim();
+          const fallbackCompanyRegistrationNumber = String(
+            costCenter?.registration_number || existingInvoice?.company_registration_number || '',
+          ).trim();
+
+          return {
+            accountNumber,
+            invoiceData: {
+              ...existingInvoice,
+              company_name: fallbackCompanyName,
+              invoice_number: existingInvoice?.invoice_number || '',
+              invoice_date: existingInvoice?.invoice_date || new Date().toISOString(),
+              billing_month: existingInvoice?.billing_month || billingMonthKey,
+              client_address: fallbackClientAddress,
+              customer_vat_number: fallbackCustomerVatNumber,
+              company_registration_number: fallbackCompanyRegistrationNumber,
+              subtotal: existingInvoice?.subtotal ?? 0,
+              vat_amount: existingInvoice?.vat_amount ?? 0,
+              total_amount: existingInvoice?.total_amount ?? 0,
+              notes: existingInvoice?.notes ?? '',
+              invoiceItems: existingLineItems,
+              invoice_items: existingLineItems,
+            },
+          };
+        }
 
         const lineItems = invoiceItems.map((item: Record<string, unknown>) => ({
           previous_reg: item.previous_reg || item.reg || '-',
@@ -265,21 +299,21 @@ export async function GET(request: NextRequest) {
             accountNumber,
             billingMonth: draftInvoiceData?.billing_month || billingMonthKey,
             companyName:
-              draftInvoiceData?.company_name ||
               costCenter?.legal_name ||
               costCenter?.company ||
+              draftInvoiceData?.company_name ||
               accountNumber,
             companyRegistrationNumber:
-              draftInvoiceData?.company_registration_number ||
               costCenter?.registration_number ||
+              draftInvoiceData?.company_registration_number ||
               null,
             clientAddress:
-              draftInvoiceData?.client_address ||
               buildAddress(costCenter) ||
+              draftInvoiceData?.client_address ||
               null,
             customerVatNumber:
-              draftInvoiceData?.customer_vat_number ||
               costCenter?.vat_number ||
+              draftInvoiceData?.customer_vat_number ||
               null,
             invoiceDate: draftInvoiceData?.invoice_date || new Date().toISOString(),
             subtotal: draftInvoiceData?.subtotal || 0,
@@ -298,27 +332,28 @@ export async function GET(request: NextRequest) {
         const persistedResult = await persistResponse.json();
         const persistedInvoice = persistedResult?.invoice;
         const companyName = String(
-          persistedInvoice?.company_name ||
-            draftInvoiceData?.company_name ||
-            costCenter?.legal_name ||
+          costCenter?.legal_name ||
             costCenter?.company ||
+            persistedInvoice?.company_name ||
+            draftInvoiceData?.company_name ||
             accountNumber,
         ).trim();
         const clientAddress = String(
-          persistedInvoice?.client_address ||
+          buildAddress(costCenter) ||
+            persistedInvoice?.client_address ||
             draftInvoiceData?.client_address ||
-            buildAddress(costCenter),
+            '',
         ).trim();
         const customerVatNumber = String(
-          persistedInvoice?.customer_vat_number ||
+          costCenter?.vat_number ||
+            persistedInvoice?.customer_vat_number ||
             draftInvoiceData?.customer_vat_number ||
-            costCenter?.vat_number ||
             '',
         ).trim();
         const companyRegistrationNumber = String(
-          persistedInvoice?.company_registration_number ||
+          costCenter?.registration_number ||
+            persistedInvoice?.company_registration_number ||
             draftInvoiceData?.company_registration_number ||
-            costCenter?.registration_number ||
             '',
         ).trim();
 
@@ -348,8 +383,8 @@ export async function GET(request: NextRequest) {
     };
 
     const batchSize = 8;
-    for (let index = 0; index < missingAccountNumbers.length; index += batchSize) {
-      const batch = missingAccountNumbers.slice(index, index + batchSize);
+    for (let index = 0; index < matchedAccountNumbers.length; index += batchSize) {
+      const batch = matchedAccountNumbers.slice(index, index + batchSize);
       const batchResults = await Promise.all(batch.map(processAccountNumber));
       invoices.push(
         ...batchResults.filter(

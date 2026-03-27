@@ -609,7 +609,9 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       setIsGeneratingAllInvoicesPdf(true);
       toast.success('Preparing all client invoices PDF...');
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data');
+      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data', {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Failed to prepare client invoices PDF');
       }

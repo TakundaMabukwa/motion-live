@@ -1,0 +1,992 @@
+[
+  {
+    "id": 127902,
+    "unique_id": "161dc9be-71c7-41f7-b75e-aa7e93715886",
+    "reg": "MH34BWGP",
+    "fleet_number": " N/A",
+    "vin": null,
+    "new_account_number": "MNFU-0001",
+    "account_number": null,
+    "company": "Mnandi Fuels"
+  },
+  {
+    "id": 127916,
+    "unique_id": "a00ca5a2-e88c-4cc2-9505-42efcb19cacf",
+    "reg": "CV19923",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127918,
+    "unique_id": "c08518fb-b73b-4657-9162-d0d0a6da5071",
+    "reg": "CV19921",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127919,
+    "unique_id": "6424c92a-7ebc-4b5e-a17d-35da8ebbbf32",
+    "reg": "KFY339MP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127920,
+    "unique_id": "bdff6c5d-3435-4afa-8849-f544d615e797",
+    "reg": "LF51BKGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127923,
+    "unique_id": "e966dd3d-83d7-48ec-9d10-f4f7a6f2f6ee",
+    "reg": "CV5239",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127924,
+    "unique_id": "f92ae7e1-5e0d-470e-89af-40d823056365",
+    "reg": "CA405856",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127925,
+    "unique_id": "92a24896-4540-452c-88bc-f10940ad8947",
+    "reg": "HP11MPGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127926,
+    "unique_id": "a07d42a6-5399-48a9-a570-87452c06f202",
+    "reg": "CV11301",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 127955,
+    "unique_id": "e60daa98-2d0e-460c-af1d-98c66c05dec7",
+    "reg": "JZW122NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 127959,
+    "unique_id": "8a2994ef-a0c9-416f-9074-68158c22d630",
+    "reg": "JWX188NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 127964,
+    "unique_id": "d0bd3103-c19f-496b-a4ea-db4dd8612ec2",
+    "reg": "JWF739NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128146,
+    "unique_id": "5d7f4103-dde6-41e3-86d1-6db99486b422",
+    "reg": "CV15618",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128147,
+    "unique_id": "4996f533-29f6-4ed6-ae32-72e289f807f4",
+    "reg": "CV19923",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128148,
+    "unique_id": "d8db67e7-029e-4915-9ade-761dc4416f72",
+    "reg": "CV16801",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128149,
+    "unique_id": "c398cfa5-d9b0-4b62-bbf9-e892c333699f",
+    "reg": "CV19921",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128150,
+    "unique_id": "0f850055-679f-481e-8a53-a265aa7624fd",
+    "reg": "KFY339MP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128151,
+    "unique_id": "5fac34e6-34a9-45e6-8f93-1a52fcd59916",
+    "reg": "LF51BKGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128152,
+    "unique_id": "69a754b4-c35b-4198-a9e3-8bdf1c026423",
+    "reg": "CV14448",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128153,
+    "unique_id": "65eda656-dcd8-4552-9e86-9ca44145b541",
+    "reg": "CV2324",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128154,
+    "unique_id": "4a83c441-8d91-4765-bedf-63f540763071",
+    "reg": "CV5239",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128156,
+    "unique_id": "d113bad9-6c97-45e3-b354-1bf02347a4ed",
+    "reg": "HP11MPGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128158,
+    "unique_id": "f2f1c728-7a65-4656-bd9c-e014b27c6cfe",
+    "reg": "LS43HDGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0001",
+    "account_number": null,
+    "company": "EDGE MB TRANSPORT"
+  },
+  {
+    "id": 128250,
+    "unique_id": "d3a2bc51-60f5-4366-8e77-f9dd80f72fa3",
+    "reg": "JYY917NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128251,
+    "unique_id": "2d68c4a8-8c2a-47ad-bcde-13ec8b7dd92e",
+    "reg": "JPW615NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128252,
+    "unique_id": "7e318426-9edd-4168-8ff7-d942a6bb8cbc",
+    "reg": "JPV310NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128254,
+    "unique_id": "f8c0c957-f58b-4fb8-bd3c-c5be880edcab",
+    "reg": "KFB161NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128255,
+    "unique_id": "6d6bd5e2-7c9a-4c0f-bbf4-490317b12904",
+    "reg": "KLH017NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128256,
+    "unique_id": "1e2121fd-9419-4271-ab02-2cef522e9e05",
+    "reg": "HW36YLGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128257,
+    "unique_id": "5026e6d0-c4fb-4bc4-8945-5f87fc7e8ec1",
+    "reg": "JPV307NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128259,
+    "unique_id": "2eaf816b-ba2c-412f-a310-d275e3cac4de",
+    "reg": "JND968NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128260,
+    "unique_id": "28eba9ff-6309-481e-9d02-c7064af7deca",
+    "reg": "LBB342NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128261,
+    "unique_id": "7ebe21fc-2b6d-4de3-89e8-7e2424df13b0",
+    "reg": "KMB522NW",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0013",
+    "account_number": null,
+    "company": "EDGE - BAPOTRANS"
+  },
+  {
+    "id": 128320,
+    "unique_id": "a7676079-dc9c-4eff-8cfb-7e854bfe6700",
+    "reg": "CCC13601",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128351,
+    "unique_id": "93a74ced-e4e3-4218-b813-dd1d96be0a0e",
+    "reg": "CF247252",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128352,
+    "unique_id": "b3a72882-c392-4cdc-9129-e20c32adf9f6",
+    "reg": "CF247256",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128356,
+    "unique_id": "f220118c-d97c-4b05-8636-2a0fb1d31b9a",
+    "reg": "CF212239",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128357,
+    "unique_id": "062447a1-146c-4048-83ae-bc0bf8914141",
+    "reg": "CF217992",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128358,
+    "unique_id": "5faf8d7d-cbda-42f0-b2a8-a8531be8cd2b",
+    "reg": "CF251368",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128435,
+    "unique_id": "68c655b8-615f-4546-919b-af580d5190bf",
+    "reg": "CF325544",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128436,
+    "unique_id": "185fe8fa-0994-408c-a6a0-827c7a59f806",
+    "reg": "CF325542",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": "EDGE - VDV"
+  },
+  {
+    "id": 128512,
+    "unique_id": "88338f97-48e6-46d4-bad8-adcfe76a1b99",
+    "reg": "CY97419",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128513,
+    "unique_id": "e0acca21-411e-4067-8e89-984c4324d990",
+    "reg": "CY53645",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128514,
+    "unique_id": "b448856c-cb4f-46d2-bced-9f49c9977516",
+    "reg": "CY356185",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128515,
+    "unique_id": "02ebe561-9527-4a17-9c27-8b1990f77b01",
+    "reg": "CY403240",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128516,
+    "unique_id": "ffaf0567-e30e-4039-b792-990c7e1fbec4",
+    "reg": "CAA329833",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128517,
+    "unique_id": "7a1e4b87-7bf3-4e48-9ef2-e8adc94937bb",
+    "reg": "CY30049",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128518,
+    "unique_id": "048b6878-1964-4d6a-b24d-a0abcfc203f7",
+    "reg": "CY354484",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128519,
+    "unique_id": "813ad37d-30ef-4721-a93c-d4f572f8d17e",
+    "reg": "CY354778",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128520,
+    "unique_id": "650459a7-246e-4bb2-a974-5daf2f01523f",
+    "reg": "CY355083",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128521,
+    "unique_id": "925cc62c-7a49-4d4b-951f-25c56e0b4415",
+    "reg": "CY353430",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128522,
+    "unique_id": "fbbfd586-86e4-498b-b746-9f166df816f3",
+    "reg": "CY373872",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128523,
+    "unique_id": "6b779e68-38bf-4976-adee-acee0f1770c3",
+    "reg": "CY413955",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128524,
+    "unique_id": "e76da10a-5e79-453c-ad18-538cab086972",
+    "reg": "CY54189",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128525,
+    "unique_id": "4bab7eda-b266-4667-93f2-ac6534061213",
+    "reg": "TEMP138302",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128526,
+    "unique_id": "54e4ee74-d7c7-4fdf-a519-5a99fdf8dff4",
+    "reg": "TEMP037978",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128527,
+    "unique_id": "3968a6f2-47c1-40c8-b915-97995fe39c07",
+    "reg": "CY440290",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128528,
+    "unique_id": "a5090d3e-605b-442d-baa9-5d16ecf7d04b",
+    "reg": "TEMP819119",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128529,
+    "unique_id": "8d659bb5-75c4-439b-b020-6ddcae218fec",
+    "reg": "JS79PBGP",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128530,
+    "unique_id": "c6a740e1-4a0c-466d-867c-48facf15f892",
+    "reg": "CY47815",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128531,
+    "unique_id": "626c1a87-fbc4-4f01-8753-300b7c37d045",
+    "reg": "CY341865",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128532,
+    "unique_id": "22a82373-4c64-448c-acb0-b228b8b28d09",
+    "reg": "CY387603",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128533,
+    "unique_id": "44b0b2f9-b735-458f-aaef-f07792cb185b",
+    "reg": "CY279105",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128534,
+    "unique_id": "c9b1f479-a9b5-45e5-937e-eb0f825ac363",
+    "reg": "CY195165",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128535,
+    "unique_id": "eaff8cd3-d09b-4734-a685-e7fa3294348b",
+    "reg": "CY364635",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128536,
+    "unique_id": "f5d2214f-eb96-47fe-b847-7c766c968051",
+    "reg": "CY366157",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128537,
+    "unique_id": "31ecae5e-25d5-4b1e-82d6-6e7cd1c7ff59",
+    "reg": "TEMP560860",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128538,
+    "unique_id": "ff77388c-b39b-48ab-b33b-e92b1cf8a4ab",
+    "reg": "TEMPKA1394",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128539,
+    "unique_id": "6fdf5aae-f932-4f03-befd-ba21dcb6f45f",
+    "reg": "TEMP703007",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128540,
+    "unique_id": "1f2956af-bf4d-4a19-99b0-0d38c655247a",
+    "reg": "CY439787",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128541,
+    "unique_id": "e70a20e1-bac8-4ece-aa3e-7b8449215295",
+    "reg": "CY340631",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128542,
+    "unique_id": "70c238c5-35ab-43b7-8e3e-aa9848a95bbe",
+    "reg": "CY441378",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128543,
+    "unique_id": "e96caa6e-7c48-4244-accd-892f987bec17",
+    "reg": "TEMP533707",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128544,
+    "unique_id": "7468ac7b-f23a-49fd-b357-5838bf232c86",
+    "reg": "CY299023",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128545,
+    "unique_id": "f151581f-f6e5-4067-b875-06a7885ac7e2",
+    "reg": "CY43633",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128546,
+    "unique_id": "1e48173b-94f1-4c13-91f0-8b2fe70331c5",
+    "reg": "TEMP87333",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128547,
+    "unique_id": "a4f97fed-92e4-4755-8234-acdd3fab6b98",
+    "reg": "TEMPKA1532",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128548,
+    "unique_id": "cb26079e-16ba-47cc-8968-bde868341cee",
+    "reg": "TEMP002225",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128549,
+    "unique_id": "d92e874f-f9b2-4ac0-8529-487b8844b69d",
+    "reg": "CY303740",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128550,
+    "unique_id": "29067633-ff3f-4c70-bf0e-3af526b73052",
+    "reg": "CH636942",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128551,
+    "unique_id": "26f837ef-3255-48a5-8970-a6862f925e5e",
+    "reg": "CY50947",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128552,
+    "unique_id": "d97c8378-fa9e-4d0e-9e29-321fad1cbca1",
+    "reg": "CY346038",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128553,
+    "unique_id": "70411a8f-c90f-4f19-8194-c6d7b755f340",
+    "reg": "CY326348",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128554,
+    "unique_id": "a28408f2-cf95-49ce-a0d6-b26b2e22e699",
+    "reg": "CY41029",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128555,
+    "unique_id": "ec6ba383-5cf4-4dfd-9f92-437153a71856",
+    "reg": "CY51058",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128556,
+    "unique_id": "0432681b-80d0-4778-9c1f-a0c210d90463",
+    "reg": "CY262002 ",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128557,
+    "unique_id": "b7611904-3f21-459e-8350-defa10ace47d",
+    "reg": "CY240527",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128558,
+    "unique_id": "8cfc3a07-256a-4230-994b-ef1f4da719f7",
+    "reg": "CY248303",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128559,
+    "unique_id": "84b8a906-5ff8-4f0e-adad-2a5ab9cc8907",
+    "reg": "TEMP605019",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128560,
+    "unique_id": "4a65bc6b-698e-4153-9728-8ce8e786c1e0",
+    "reg": "CCK19845",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128561,
+    "unique_id": "6dc88605-a57b-46f9-8072-13714e83965f",
+    "reg": "TEMP636942",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128562,
+    "unique_id": "073c9348-945e-4924-95ee-6b4c04ac0d6a",
+    "reg": "CY420778",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128563,
+    "unique_id": "fcb42a61-f197-4508-afaf-330a9d389788",
+    "reg": "CY409847 ",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 128564,
+    "unique_id": "9dbbe409-3fb5-478c-8849-ef34e8f1ed3f",
+    "reg": "TEMP800739",
+    "fleet_number": null,
+    "vin": null,
+    "new_account_number": "EDGE-0033",
+    "account_number": null,
+    "company": "EDGE - FUZION TRANSPORT"
+  },
+  {
+    "id": 130883,
+    "unique_id": "a16e412d-c329-4e73-91f4-bcec9e9f3cb6",
+    "reg": "DLTB85WP",
+    "fleet_number": "798",
+    "vin": "KNCSGX71LD7717327",
+    "new_account_number": "EDGE-0031",
+    "account_number": null,
+    "company": null
+  },
+  {
+    "id": 130884,
+    "unique_id": "56ca21db-1c37-4ede-9471-cd482f851dd1",
+    "reg": "DV86FTGP",
+    "fleet_number": null,
+    "vin": "KMHJU81VSBU367736",
+    "new_account_number": "ANNE-0001",
+    "account_number": "ANNE-0001",
+    "company": "HANNES VAN DER WALT"
+  },
+  {
+    "id": 130885,
+    "unique_id": "92a83cc0-b699-40a4-89f6-25b8532f02de",
+    "reg": "KS82LTGP",
+    "fleet_number": "633-LB",
+    "vin": "ADNUSN1D5U0209117",
+    "new_account_number": "EDGE-0027",
+    "account_number": null,
+    "company": null
+  },
+  {
+    "id": 131017,
+    "unique_id": "5739eb18-be42-4c04-882b-9c52560dbf12",
+    "reg": "CF242194",
+    "fleet_number": null,
+    "vin": "Y2RS02D0SM994491",
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": null
+  },
+  {
+    "id": 131018,
+    "unique_id": "3c9ac84d-d49f-42c3-b2ab-bdf52ed599a7",
+    "reg": "TEMP271602",
+    "fleet_number": null,
+    "vin": "WBA36BZ070N271602",
+    "new_account_number": "EDGE-0008",
+    "account_number": null,
+    "company": null
+  }
+]

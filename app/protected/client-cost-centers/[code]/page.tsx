@@ -14,6 +14,7 @@ import { jsPDF } from 'jspdf';
 
 
 export default function ClientCostCentersPage() {
+  const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
   const params = useParams();
   const router = useRouter();
   const { code } = params;
@@ -58,6 +59,81 @@ export default function ClientCostCentersPage() {
 
   const isRealInvoiceNumber = (value) =>
     /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
+
+  const expandSpecialCostCenters = async (costCenters) => {
+    if (!Array.isArray(costCenters) || costCenters.length === 0) {
+      return costCenters;
+    }
+
+    const specialCenter = costCenters.find(
+      (center) => String(center?.accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT,
+    );
+
+    if (!specialCenter) {
+      return costCenters;
+    }
+
+    try {
+      const query = new URLSearchParams({
+        accountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
+        sourceAccountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
+        includeGroupSummaries: 'true',
+      });
+
+      if (specialCenter.billingMonth) {
+        query.set('billingMonth', specialCenter.billingMonth);
+      }
+
+      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+      if (!response.ok) {
+        return costCenters;
+      }
+
+      const payload = await response.json();
+      const groupSummaries = Array.isArray(payload?.groupSummaries) ? payload.groupSummaries : [];
+
+      if (groupSummaries.length === 0) {
+        return costCenters;
+      }
+
+      const groupedCenters = groupSummaries.map((group) => ({
+        ...specialCenter,
+        accountNumber: group.accountNumber,
+        sourceAccountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
+        invoiceGroup: group.groupCode,
+        accountName: group.accountName,
+        dueAmount: Number(group.totalAmount || 0),
+        paidAmount: Number(group.paidAmount || 0),
+        balanceDue: Number(group.balanceDue ?? group.totalAmount ?? 0),
+        paymentStatus: group.paymentStatus || 'pending',
+        accountInvoiceId: group.accountInvoiceId || null,
+        reference: isRealInvoiceNumber(group.reference) ? group.reference : '',
+        billingMonth: group.billingMonth || specialCenter.billingMonth,
+        vehicleCount: Number(group.vehicleCount || 0),
+        vehicles: Array.isArray(group.invoiceItems) ? group.invoiceItems : [],
+      }));
+
+      const insertIndex = costCenters.findIndex(
+        (center) => String(center?.accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT,
+      );
+      const remainingCenters = costCenters.filter(
+        (center) => String(center?.accountNumber || '').trim().toUpperCase() !== EPS_SPECIAL_SOURCE_ACCOUNT,
+      );
+
+      if (insertIndex < 0) {
+        return [...remainingCenters, ...groupedCenters];
+      }
+
+      return [
+        ...remainingCenters.slice(0, insertIndex),
+        ...groupedCenters,
+        ...remainingCenters.slice(insertIndex),
+      ];
+    } catch (error) {
+      console.error('Error expanding EPS grouped cost centers:', error);
+      return costCenters;
+    }
+  };
 
   const buildCostCenterInfoMap = async (accountNumbers) => {
     if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
@@ -2214,11 +2290,11 @@ export default function ClientCostCentersPage() {
       const costCenters = groupByCostCenter(filteredCostCenters);
       console.log('Grouped cost centers:', costCenters.length);
       if (clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api' || clientData?.searchMethod === 'cost_centers_with_payments') {
-        setCostCentersWithPayments(costCenters);
+        expandSpecialCostCenters(costCenters).then(setCostCentersWithPayments);
       } else {
         fetchPaymentsForCostCenters(costCenters).then(result => {
           console.log('Final cost centers with payments:', result.length);
-          setCostCentersWithPayments(result);
+          expandSpecialCostCenters(result).then(setCostCentersWithPayments);
         });
       }
     } else {
@@ -2495,6 +2571,12 @@ export default function ClientCostCentersPage() {
       const query = new URLSearchParams({
         accountNumber: costCenter.accountNumber,
       });
+      if (costCenter.sourceAccountNumber) {
+        query.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+      }
+      if (costCenter.invoiceGroup) {
+        query.set('billingGroup', costCenter.invoiceGroup);
+      }
       if (costCenter.billingMonth) {
         query.set("billingMonth", costCenter.billingMonth);
       }

@@ -780,7 +780,7 @@ export default function InvoiceReportComponent({
         newReg: item.fleetNumber || item.reg || "-",
         itemCode: item.item_code || "-",
         description: item.description || "-",
-        comments: item.company || "",
+        comments: item.category || item.company || "",
         units: item.units || 1,
         unitPrice: formatAmount(exVat),
         vatAmount: formatAmount(vatAmount),

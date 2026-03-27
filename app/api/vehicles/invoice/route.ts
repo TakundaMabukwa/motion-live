@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeBillingMonth } from '@/lib/server/account-invoice-payments';
 
+export const dynamic = 'force-dynamic';
+
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
     source?.physical_address_1,
@@ -171,6 +173,11 @@ const BILLING_COLUMN_LABELS: Record<string, string> = {
   driver_app: 'Driver App',
 };
 
+const KNOWN_BILLABLE_COLUMNS = new Set([
+  ...Object.keys(BILLING_COLUMN_LABELS),
+  ...Array.from(TOTAL_BILLING_COLUMNS),
+]);
+
 const normalizeBillingLabel = (value: string) =>
   BILLING_COLUMN_LABELS[value] ||
   formatColumnLabel(value)
@@ -205,6 +212,7 @@ const pushInvoiceItem = (
   description: string,
   comments: string,
   amount: number,
+  category?: string,
 ) => {
   const vatAmount = amount * 0.15;
   const totalInclVat = amount + vatAmount;
@@ -216,6 +224,7 @@ const pushInvoiceItem = (
     item_code: itemCode,
     description,
     company: comments,
+    category: category || null,
     account_number: vehicle.account_number || vehicle.new_account_number || '',
     units: 1,
     unit_price: amount.toFixed(2),
@@ -267,6 +276,256 @@ const resolveInvoiceItemCode = (
   return normalizedLabels.join(' + ').toUpperCase() || 'MONTHLY BILLING';
 };
 
+const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
+
+const EPS_GROUPS = [
+  {
+    code: '117997',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( MONTHLY SERVICES)',
+    bucket: 'monthly_services',
+  },
+  {
+    code: '118080',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( BEAME)',
+    bucket: 'beame',
+  },
+  {
+    code: '118257',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( PVT)',
+    bucket: 'pvt',
+  },
+  {
+    code: '118300',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING)',
+    bucket: 'routing',
+  },
+  {
+    code: '118299',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( DASHBOARD)',
+    bucket: 'dashboard',
+  },
+] as const;
+
+const EPS_GROUP_BY_CODE = new Map(
+  EPS_GROUPS.map((group) => [group.code, group]),
+);
+
+const EPS_GROUP_BY_BUCKET = new Map(
+  EPS_GROUPS.map((group) => [group.bucket, group]),
+);
+
+const EPS_PVT_TOTAL = 574;
+
+const isSameAmount = (left: number, right: number) => Math.abs(left - right) < 0.001;
+
+const getVehicleDisplay = (vehicle: Record<string, any>) => {
+  if (vehicle.reg && vehicle.fleet_number) {
+    return `${vehicle.reg} / ${vehicle.fleet_number}`;
+  }
+
+  return vehicle.reg || vehicle.fleet_number || '';
+};
+
+const getEpsBucketForColumn = (
+  column: string,
+  amount: number,
+) => {
+  if (!column) return 'monthly_services';
+
+  if (isSameAmount(amount, EPS_PVT_TOTAL)) {
+    return 'pvt';
+  }
+
+  if (/^beame_\d+_(rental|sub)$/i.test(column)) {
+    return 'beame';
+  }
+
+  if (column === 'eps_software_development') {
+    return isSameAmount(amount, 99) ? 'routing' : 'dashboard';
+  }
+
+  if (
+    /^(sky|skylink|skyspy)/i.test(column) ||
+    ['sky_idata_rental', 'sky_ican_rental', 'sky_on_batt_sub'].includes(column)
+  ) {
+    return 'monthly_services';
+  }
+
+  if (['driver_app', 'software', 'additional_data'].includes(column)) {
+    return 'routing';
+  }
+
+  if (
+    [
+      'controlroom',
+      'consultancy',
+      'maintenance',
+      'after_hours',
+      '_4ch_mdvr_rental',
+      '_4ch_mdvr_sub',
+      '_5ch_mdvr_rental',
+      '_5ch_mdvr_sub',
+      '_8ch_mdvr_rental',
+      '_8ch_mdvr_sub',
+      'mtx_mc202x_rental',
+      'mtx_mc202x_sub',
+    ].includes(column)
+  ) {
+    return 'monthly_services';
+  }
+
+  return 'monthly_services';
+};
+
+const getEpsCategoryLabel = (groupCode: string) => {
+  const group = EPS_GROUP_BY_CODE.get(groupCode);
+  return group?.name || groupCode;
+};
+
+const getEpsLineDescription = (
+  column: string,
+  bucket: string,
+  amount: number,
+) => {
+  if (bucket === 'sky' && isSameAmount(amount, 292)) {
+    return 'Trailer';
+  }
+
+  if (bucket === 'monthly_services' && isSameAmount(amount, 292)) {
+    return 'Trailer';
+  }
+
+  return normalizeBillingLabel(column);
+};
+
+const buildEpsInvoiceData = (
+  vehicles: Record<string, any>[],
+  companyName: string,
+) => {
+  const itemsByCode = new Map<string, any[]>(
+    EPS_GROUPS.map((group) => [group.code, []]),
+  );
+  const vehicleKeysByCode = new Map<string, Set<string>>(
+    EPS_GROUPS.map((group) => [group.code, new Set()]),
+  );
+
+  vehicles.forEach((vehicle) => {
+    const regFleetDisplay = getVehicleDisplay(vehicle);
+    const totalRentalSub = toAmount(vehicle.total_rental_sub);
+    const vehicleKey = String(vehicle.reg || vehicle.fleet_number || vehicle.id || regFleetDisplay || Math.random());
+
+    if (isSameAmount(totalRentalSub, EPS_PVT_TOTAL)) {
+      const pvtGroup = EPS_GROUP_BY_BUCKET.get('pvt');
+      if (pvtGroup) {
+        pushInvoiceItem(
+          itemsByCode.get(pvtGroup.code) || [],
+          vehicle,
+          companyName,
+          regFleetDisplay,
+          pvtGroup.code,
+          pvtGroup.name,
+          vehicle.company || companyName,
+          totalRentalSub,
+        );
+        vehicleKeysByCode.get(pvtGroup.code)?.add(vehicleKey);
+      }
+      return;
+    }
+
+    Object.keys(vehicle).forEach((key) => {
+      if (
+        KNOWN_BILLABLE_COLUMNS.has(key) &&
+        !TOTAL_BILLING_COLUMNS.has(key) &&
+        toAmount(vehicle[key]) > 0
+      ) {
+        const amount = toAmount(vehicle[key]);
+        const bucket = getEpsBucketForColumn(key, amount);
+        const group = EPS_GROUP_BY_BUCKET.get(bucket);
+        if (!group) return;
+
+      pushInvoiceItem(
+        itemsByCode.get(group.code) || [],
+        vehicle,
+        companyName,
+        regFleetDisplay,
+        group.code,
+        getEpsLineDescription(key, bucket, amount),
+        vehicle.company || companyName,
+        amount,
+        getEpsCategoryLabel(group.code),
+      );
+
+      vehicleKeysByCode.get(group.code)?.add(`${vehicleKey}:${key}`);
+    }
+    });
+  });
+
+  const vehicleCountByCode = new Map<string, Set<string>>(
+    EPS_GROUPS.map((group) => [group.code, new Set()]),
+  );
+
+  EPS_GROUPS.forEach((group) => {
+    const items = itemsByCode.get(group.code) || [];
+    items.forEach((item) => {
+      const vehicleKey = String(item.reg || item.fleetNumber || item.regFleetDisplay || item.account_number || '');
+      if (vehicleKey) {
+        vehicleCountByCode.get(group.code)?.add(vehicleKey);
+      }
+    });
+  });
+
+  const groupSummaries = EPS_GROUPS.map((group) => {
+    const items = itemsByCode.get(group.code) || [];
+    const subtotal = items.reduce(
+      (sum, item) =>
+        sum +
+        (parseFloat(
+          String(
+            item.amountExcludingVat ??
+              item.total_excl_vat ??
+              item.unit_price_without_vat ??
+              item.unit_price ??
+              0,
+          ),
+        ) || 0),
+      0,
+    );
+    const vatAmount = items.reduce(
+      (sum, item) => sum + (parseFloat(String(item.vat_amount ?? item.vatAmount ?? 0)) || 0),
+      0,
+    );
+    const totalAmount = items.reduce(
+      (sum, item) =>
+        sum +
+        (parseFloat(
+          String(
+            item.total_including_vat ??
+              item.total_incl_vat ??
+              item.totalRentalSub ??
+              0,
+          ),
+        ) || 0),
+      0,
+    );
+
+    return {
+      groupCode: group.code,
+      accountNumber: group.code,
+      accountName: group.name,
+      subtotal,
+      vatAmount,
+      totalAmount,
+      vehicleCount: vehicleCountByCode.get(group.code)?.size || 0,
+      invoiceItems: items,
+    };
+  }).filter((group) => group.invoiceItems.length > 0);
+
+  return {
+    groupSummaries,
+    itemsByCode,
+  };
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -278,7 +537,11 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = searchParams.get('accountNumber');
+    const sourceAccountNumber =
+      String(searchParams.get('sourceAccountNumber') || accountNumber || '').trim();
     const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
+    const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
+    const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
 
     if (!accountNumber) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
@@ -306,7 +569,7 @@ export async function GET(request: NextRequest) {
     const { data: costCenterRows, error: costCenterError } = await supabase
       .from('cost_centers')
       .select('*')
-      .eq('cost_code', accountNumber)
+      .eq('cost_code', sourceAccountNumber)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -321,7 +584,7 @@ export async function GET(request: NextRequest) {
     const { data: vehicles, error } = await supabase
       .from('vehicles')
       .select('*')
-      .or(`account_number.eq.${accountNumber},new_account_number.eq.${accountNumber}`);
+      .or(`account_number.eq.${sourceAccountNumber},new_account_number.eq.${sourceAccountNumber}`);
 
     if (error) throw error;
     if ((!vehicles || vehicles.length === 0) && !storedInvoice) {
@@ -334,20 +597,21 @@ export async function GET(request: NextRequest) {
     }
 
     const companyName =
-      storedInvoice?.company_name ||
       costCenter?.legal_name ||
       costCenter?.company ||
+      storedInvoice?.company_name ||
       '';
     const clientAddress =
+      buildAddress(costCenter) ||
       storedInvoice?.client_address ||
-      buildAddress(costCenter);
+      '';
     const customerVatNumber =
-      storedInvoice?.customer_vat_number ||
       costCenter?.vat_number ||
+      storedInvoice?.customer_vat_number ||
       '';
     const companyRegistrationNumber =
-      storedInvoice?.company_registration_number ||
       costCenter?.registration_number ||
+      storedInvoice?.company_registration_number ||
       '';
 
     // Build invoice items
@@ -477,7 +741,70 @@ export async function GET(request: NextRequest) {
       'additional_data'
     ]);
 
-    (vehicles || []).forEach((vehicle) => {
+    let groupSummaries: any[] = [];
+
+    if (sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT) {
+      const epsData = buildEpsInvoiceData(vehicles || [], companyName);
+      groupSummaries = epsData.groupSummaries;
+
+      if (includeGroupSummaries || billingGroup) {
+        const groupAccounts = groupSummaries.map((group) => group.accountNumber);
+        let groupedStoredInvoicesQuery = supabase
+          .from('account_invoices')
+          .select('*')
+          .in('account_number', groupAccounts)
+          .order('created_at', { ascending: false });
+
+        groupedStoredInvoicesQuery = billingMonth
+          ? groupedStoredInvoicesQuery.eq('billing_month', billingMonth)
+          : groupedStoredInvoicesQuery;
+
+        const { data: groupedStoredInvoices, error: groupedStoredInvoicesError } =
+          await groupedStoredInvoicesQuery;
+
+        if (groupedStoredInvoicesError) {
+          console.error('Error fetching EPS grouped stored invoices:', groupedStoredInvoicesError);
+          throw groupedStoredInvoicesError;
+        }
+
+        const storedInvoicesByAccount = new Map();
+        (groupedStoredInvoices || []).forEach((invoice) => {
+          const key = String(invoice.account_number || '').trim().toUpperCase();
+          if (!key || storedInvoicesByAccount.has(key)) return;
+          storedInvoicesByAccount.set(key, invoice);
+        });
+
+        groupSummaries = groupSummaries.map((group) => {
+          const groupStoredInvoice = storedInvoicesByAccount.get(group.accountNumber);
+          return {
+            ...group,
+            reference: groupStoredInvoice?.invoice_number || '',
+            accountInvoiceId: groupStoredInvoice?.id || null,
+            billingMonth: groupStoredInvoice?.billing_month || billingMonth,
+            paidAmount: Number(groupStoredInvoice?.paid_amount || 0),
+            balanceDue:
+              Number(
+                groupStoredInvoice?.balance_due ??
+                  groupStoredInvoice?.total_amount ??
+                  group.totalAmount,
+              ) || 0,
+            paymentStatus: groupStoredInvoice?.payment_status || 'pending',
+          };
+        });
+      }
+
+      if (billingGroup && EPS_GROUP_BY_CODE.has(billingGroup)) {
+        const selectedGroupSummary = groupSummaries.find(
+          (group) => group.accountNumber === billingGroup,
+        );
+        if (selectedGroupSummary) {
+          invoiceItems.push(...selectedGroupSummary.invoiceItems);
+        }
+      }
+    }
+
+    if (invoiceItems.length === 0) {
+      (vehicles || []).forEach((vehicle) => {
       let regFleetDisplay = '';
       if (vehicle.reg && vehicle.fleet_number) {
         regFleetDisplay = `${vehicle.reg} / ${vehicle.fleet_number}`;
@@ -526,7 +853,8 @@ export async function GET(request: NextRequest) {
           totalExVat,
         );
       }
-    });
+      });
+    }
 
     const storedLineItems =
       Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
@@ -579,10 +907,12 @@ export async function GET(request: NextRequest) {
     const invoiceData = {
       company_name: companyName,
       account_number: accountNumber,
+      source_account_number: sourceAccountNumber,
+      billing_group: billingGroup || null,
       billing_month: billingMonth,
       invoice_date: storedInvoice?.invoice_date || new Date().toISOString(),
       invoice_number: storedInvoice?.invoice_number || '',
-      client_address: storedInvoice?.client_address || clientAddress,
+      client_address: clientAddress,
       customer_vat_number: customerVatNumber,
       company_registration_number: companyRegistrationNumber,
       notes: storedInvoice?.notes || '',
@@ -591,6 +921,7 @@ export async function GET(request: NextRequest) {
       total_amount: resolvedTotal,
       subtotal: resolvedSubtotal,
       vat_amount: resolvedVat,
+      group_summaries: groupSummaries,
     };
 
     if (storedInvoice?.id) {
@@ -624,7 +955,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       accountNumber,
+      sourceAccountNumber,
       invoiceData,
+      groupSummaries,
       message: 'Invoice generated successfully'
     });
 
