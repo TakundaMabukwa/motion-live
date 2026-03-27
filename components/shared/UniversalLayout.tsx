@@ -36,7 +36,7 @@ export default function UniversalLayout({ children, currentRole }: UniversalLayo
         </div>
       )}
       {currentRole === 'protected' && (
-        <GlobalVehicleSearch launcherClassName="fixed top-4 left-1/2 z-50 -translate-x-1/2" />
+        <GlobalVehicleSearch launcherClassName="fixed bottom-4 left-4 z-50" />
       )}
       {children}
     </div>
