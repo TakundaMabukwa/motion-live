@@ -182,6 +182,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       flex-wrap: wrap;
       margin-bottom: 6px;
     }
+    .invoice-client-name-row {
+      display: block;
+      width: 100%;
+      margin-bottom: 6px;
+    }
     .invoice-meta {
       min-width: 230px;
       display: grid;
@@ -196,6 +201,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       flex-wrap: wrap;
     }
     .invoice-inline-input {
+      flex: 1 1 260px;
       width: 100%;
       min-width: 150px;
       padding: 6px 8px;
@@ -204,6 +210,13 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       font-size: 12px;
       box-sizing: border-box;
       background: white;
+    }
+    .invoice-inline-input-name {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      font-size: 16px;
+      font-weight: 700;
     }
     .invoice-inline-save {
       padding: 6px 10px;
@@ -676,7 +689,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
               .join('') || '<tr><td colspan="10">No invoice rows available</td></tr>';
 
           return `
-            <div class="invoice-page" data-account-number="${escapeHtml(accountNumber)}" data-billing-month="${escapeHtml(String(invoiceData?.billing_month || ''))}">
+            <div class="invoice-page" data-account-number="${escapeHtml(accountNumber)}" data-billing-month="${escapeHtml(String(invoiceData?.billing_month || ''))}" data-company-name="${escapeHtml(invoiceData?.company_name || accountNumber)}">
               <div class="invoice-sheet">
                 <div class="invoice-top">
                   <div>
@@ -692,14 +705,8 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                 <div class="invoice-title">Tax Invoice</div>
                 <div class="invoice-party-row">
                   <div class="invoice-client-block">
-                    <div class="invoice-client-edit-row">
-                      <input
-                        class="invoice-inline-input"
-                        value="${escapeHtml(invoiceData?.company_name || accountNumber)}"
-                        data-role="company-name"
-                      />
-                      <button class="invoice-inline-save" type="button" data-role="save-company-details">Save</button>
-                      <span class="invoice-inline-status" data-role="company-save-status"></span>
+                    <div class="invoice-client-name-row">
+                      <div class="invoice-client-name">${escapeHtml(invoiceData?.company_name || accountNumber)}</div>
                     </div>
                     <div class="invoice-client-edit-row">
                       <strong>Company Reg:</strong>
@@ -709,6 +716,8 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                         data-role="company-registration-number"
                         placeholder="Enter company registration number"
                       />
+                      <button class="invoice-inline-save" type="button" data-role="save-company-details">Save</button>
+                      <span class="invoice-inline-status" data-role="company-save-status"></span>
                     </div>
                     <div>${escapeHtml(String(invoiceData?.client_address || '')).replace(/\n/g, '<br />')}</div>
                   </div>
@@ -870,13 +879,12 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                 }
 
                 async function saveCompanyDetails(page) {
-                  const companyNameInput = page.querySelector('[data-role="company-name"]');
                   const companyRegistrationInput = page.querySelector('[data-role="company-registration-number"]');
                   const button = page.querySelector('[data-role="save-company-details"]');
                   const status = page.querySelector('[data-role="company-save-status"]');
                   const accountNumber = page.getAttribute('data-account-number') || '';
                   const billingMonth = page.getAttribute('data-billing-month') || '';
-                  const companyName = companyNameInput && companyNameInput.value ? companyNameInput.value.trim() : '';
+                  const companyName = page.getAttribute('data-company-name') || '';
                   const companyRegistrationNumber =
                     companyRegistrationInput && companyRegistrationInput.value
                       ? companyRegistrationInput.value.trim()

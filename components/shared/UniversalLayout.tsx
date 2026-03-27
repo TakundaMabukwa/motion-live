@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getUserRole } from '@/lib/auth-utils';
 import RoleSwitcher from './RoleSwitcher';
+import GlobalVehicleSearch from './GlobalVehicleSearch';
 
 interface UniversalLayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,7 @@ export default function UniversalLayout({ children, currentRole }: UniversalLayo
           <RoleSwitcher currentRole={currentRole} userRole={userRole} />
         </div>
       )}
+      {currentRole === 'protected' && <GlobalVehicleSearch />}
       {children}
     </div>
   );

@@ -220,14 +220,6 @@ const calculateVehicleExVat = (vehicle: Record<string, unknown>) => {
   return 0;
 };
 
-const chunkArray = <T,>(items: T[], size: number) => {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-};
-
 const applyCellStyle = (
   worksheet: XLSX.WorkSheet,
   rowIndex: number,
@@ -365,23 +357,22 @@ export async function GET() {
     const accountNumbers = Array.from(groupedVehicles.keys());
     const costCenterMap = new Map<string, Record<string, unknown>>();
 
-    for (const chunk of chunkArray(accountNumbers, 200)) {
-      const { data: costCenters, error: costCenterError } = await supabase
-        .from("cost_centers")
-        .select("cost_code, company, legal_name, vat_number")
-        .in("cost_code", chunk);
+    const { data: costCenters, error: costCenterError } = await supabase
+      .from("cost_centers")
+      .select(
+        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code",
+      );
 
-      if (costCenterError) {
-        throw costCenterError;
-      }
-
-      (costCenters || []).forEach((row) => {
-        const key = String(row.cost_code || "").trim().toUpperCase();
-        if (key && !costCenterMap.has(key)) {
-          costCenterMap.set(key, row);
-        }
-      });
+    if (costCenterError) {
+      throw costCenterError;
     }
+
+    (costCenters || []).forEach((row) => {
+      const key = String(row.cost_code || "").trim().toUpperCase();
+      if (key && !costCenterMap.has(key)) {
+        costCenterMap.set(key, row);
+      }
+    });
 
     const worksheetRows: Array<Array<string | number>> = [];
     const sectionMeta: Array<{

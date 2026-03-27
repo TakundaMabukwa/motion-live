@@ -12,20 +12,24 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
     const registration = searchParams.get('registration');
 
-    if (!registration) {
+    if (!id && !registration) {
       return NextResponse.json({ 
-        error: 'Registration is required' 
+        error: 'Vehicle id or registration is required' 
       }, { status: 400 });
     }
 
-    // Fetch vehicle details
-    const { data: vehicle, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .or(`reg.eq.${registration},fleet_number.eq.${registration}`)
-      .single();
+    let query = supabase.from('vehicles').select('*');
+
+    if (id) {
+      query = query.eq('id', id);
+    } else {
+      query = query.or(`reg.eq.${registration},fleet_number.eq.${registration}`);
+    }
+
+    const { data: vehicle, error } = await query.limit(1).maybeSingle();
 
     if (error || !vehicle) {
       return NextResponse.json({ 

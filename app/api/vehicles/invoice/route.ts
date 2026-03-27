@@ -15,6 +15,8 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
     .filter(Boolean)
     .join('\n');
 
+const normalizeTextValue = (value: unknown) => String(value || '').trim();
+
 const TOTAL_BILLING_COLUMNS = new Set([
   'total_rental_sub',
   'total_rental',
@@ -590,6 +592,34 @@ export async function GET(request: NextRequest) {
       subtotal: resolvedSubtotal,
       vat_amount: resolvedVat,
     };
+
+    if (storedInvoice?.id) {
+      const currentCompanyName = normalizeTextValue(storedInvoice.company_name);
+      const currentClientAddress = normalizeTextValue(storedInvoice.client_address);
+      const currentVatNumber = normalizeTextValue(storedInvoice.customer_vat_number);
+      const currentRegistrationNumber = normalizeTextValue(storedInvoice.company_registration_number);
+
+      if (
+        currentCompanyName !== normalizeTextValue(companyName) ||
+        currentClientAddress !== normalizeTextValue(clientAddress) ||
+        currentVatNumber !== normalizeTextValue(customerVatNumber) ||
+        currentRegistrationNumber !== normalizeTextValue(companyRegistrationNumber)
+      ) {
+        const { error: syncInvoiceError } = await supabase
+          .from('account_invoices')
+          .update({
+            company_name: companyName || null,
+            client_address: clientAddress || null,
+            customer_vat_number: customerVatNumber || null,
+            company_registration_number: companyRegistrationNumber || null,
+          })
+          .eq('id', storedInvoice.id);
+
+        if (syncInvoiceError) {
+          console.error('Error syncing stored account invoice client info:', syncInvoiceError);
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,

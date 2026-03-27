@@ -6,6 +6,21 @@ const hasRealInvoiceNumber = (value: unknown) => {
   return Boolean(normalized) && normalized !== 'PENDING';
 };
 
+const buildAddress = (source?: Record<string, unknown> | null) =>
+  [
+    source?.physical_address_1,
+    source?.physical_address_2,
+    source?.physical_address_3,
+    source?.physical_area,
+    source?.physical_province,
+    source?.physical_code,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n');
+
+const normalizeTextValue = (value: unknown) => String(value || '').trim();
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -61,6 +76,24 @@ export async function GET(request: NextRequest) {
     billingMonth.setDate(1);
     const billingMonthKey = billingMonth.toISOString().slice(0, 10);
     const invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }> = [];
+    const costCenterByAccount = new Map<string, Record<string, unknown>>();
+
+    const { data: costCenters, error: costCenterError } = await supabase
+      .from('cost_centers')
+      .select(
+        'cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code',
+      );
+
+    if (costCenterError) {
+      throw costCenterError;
+    }
+
+    for (const row of costCenters || []) {
+      const key = String(row?.cost_code || '').trim().toUpperCase();
+      if (key && !costCenterByAccount.has(key)) {
+        costCenterByAccount.set(key, row);
+      }
+    }
 
     const { data: existingBulkInvoices, error: existingBulkInvoicesError } = await supabase
       .from('bulk_account_invoices')
@@ -85,15 +118,58 @@ export async function GET(request: NextRequest) {
       const existingLineItems = Array.isArray(existingInvoice?.line_items) ? existingInvoice.line_items : [];
       if (!existingInvoice || existingLineItems.length === 0) continue;
       if (!hasRealInvoiceNumber(existingInvoice?.invoice_number)) continue;
+      const costCenter = costCenterByAccount.get(accountNumber);
+      const companyName = String(
+        existingInvoice?.company_name ||
+          costCenter?.legal_name ||
+          costCenter?.company ||
+          accountNumber,
+      ).trim();
+      const clientAddress = String(
+        existingInvoice?.client_address || buildAddress(costCenter),
+      ).trim();
+      const customerVatNumber = String(
+        existingInvoice?.customer_vat_number || costCenter?.vat_number || '',
+      ).trim();
+      const companyRegistrationNumber = String(
+        existingInvoice?.company_registration_number || costCenter?.registration_number || '',
+      ).trim();
+
+      if (
+        existingInvoice?.id &&
+        (
+          normalizeTextValue(existingInvoice?.company_name) !== normalizeTextValue(companyName) ||
+          normalizeTextValue(existingInvoice?.client_address) !== normalizeTextValue(clientAddress) ||
+          normalizeTextValue(existingInvoice?.customer_vat_number) !== normalizeTextValue(customerVatNumber) ||
+          normalizeTextValue(existingInvoice?.company_registration_number) !== normalizeTextValue(companyRegistrationNumber)
+        )
+      ) {
+        const { error: syncBulkInvoiceError } = await supabase
+          .from('bulk_account_invoices')
+          .update({
+            company_name: companyName || null,
+            client_address: clientAddress || null,
+            customer_vat_number: customerVatNumber || null,
+            company_registration_number: companyRegistrationNumber || null,
+          })
+          .eq('id', existingInvoice.id);
+
+        if (syncBulkInvoiceError) {
+          console.error(`Error syncing bulk invoice client info for ${accountNumber}:`, syncBulkInvoiceError);
+        }
+      }
 
       invoices.push({
         accountNumber,
         invoiceData: {
           ...existingInvoice,
+          company_name: companyName,
           invoice_number: existingInvoice.invoice_number || '',
           invoice_date: existingInvoice.invoice_date || new Date().toISOString(),
           billing_month: existingInvoice.billing_month || billingMonthKey,
-          company_registration_number: existingInvoice.company_registration_number || '',
+          client_address: clientAddress,
+          customer_vat_number: customerVatNumber,
+          company_registration_number: companyRegistrationNumber,
           subtotal: existingInvoice.subtotal ?? 0,
           vat_amount: existingInvoice.vat_amount ?? 0,
           total_amount: existingInvoice.total_amount ?? 0,
@@ -143,6 +219,8 @@ export async function GET(request: NextRequest) {
           return null;
         }
 
+        const costCenter = costCenterByAccount.get(accountNumber);
+
         const lineItems = invoiceItems.map((item: Record<string, unknown>) => ({
           previous_reg: item.previous_reg || item.reg || '-',
           new_reg: item.new_reg || item.fleetNumber || item.reg || '-',
@@ -186,10 +264,23 @@ export async function GET(request: NextRequest) {
           body: JSON.stringify({
             accountNumber,
             billingMonth: draftInvoiceData?.billing_month || billingMonthKey,
-            companyName: draftInvoiceData?.company_name || accountNumber,
-            companyRegistrationNumber: draftInvoiceData?.company_registration_number || null,
-            clientAddress: draftInvoiceData?.client_address || null,
-            customerVatNumber: draftInvoiceData?.customer_vat_number || null,
+            companyName:
+              draftInvoiceData?.company_name ||
+              costCenter?.legal_name ||
+              costCenter?.company ||
+              accountNumber,
+            companyRegistrationNumber:
+              draftInvoiceData?.company_registration_number ||
+              costCenter?.registration_number ||
+              null,
+            clientAddress:
+              draftInvoiceData?.client_address ||
+              buildAddress(costCenter) ||
+              null,
+            customerVatNumber:
+              draftInvoiceData?.customer_vat_number ||
+              costCenter?.vat_number ||
+              null,
             invoiceDate: draftInvoiceData?.invoice_date || new Date().toISOString(),
             subtotal: draftInvoiceData?.subtotal || 0,
             vatAmount: draftInvoiceData?.vat_amount || 0,
@@ -206,18 +297,42 @@ export async function GET(request: NextRequest) {
 
         const persistedResult = await persistResponse.json();
         const persistedInvoice = persistedResult?.invoice;
+        const companyName = String(
+          persistedInvoice?.company_name ||
+            draftInvoiceData?.company_name ||
+            costCenter?.legal_name ||
+            costCenter?.company ||
+            accountNumber,
+        ).trim();
+        const clientAddress = String(
+          persistedInvoice?.client_address ||
+            draftInvoiceData?.client_address ||
+            buildAddress(costCenter),
+        ).trim();
+        const customerVatNumber = String(
+          persistedInvoice?.customer_vat_number ||
+            draftInvoiceData?.customer_vat_number ||
+            costCenter?.vat_number ||
+            '',
+        ).trim();
+        const companyRegistrationNumber = String(
+          persistedInvoice?.company_registration_number ||
+            draftInvoiceData?.company_registration_number ||
+            costCenter?.registration_number ||
+            '',
+        ).trim();
 
         return {
           accountNumber,
           invoiceData: {
             ...draftInvoiceData,
+            company_name: companyName,
             invoice_number: persistedInvoice?.invoice_number || draftInvoiceData?.invoice_number || '',
             invoice_date: persistedInvoice?.invoice_date || draftInvoiceData?.invoice_date,
             billing_month: persistedInvoice?.billing_month || draftInvoiceData?.billing_month || billingMonthKey,
-            company_registration_number:
-              persistedInvoice?.company_registration_number ??
-              draftInvoiceData?.company_registration_number ??
-              '',
+            client_address: clientAddress,
+            customer_vat_number: customerVatNumber,
+            company_registration_number: companyRegistrationNumber,
             subtotal: persistedInvoice?.subtotal ?? draftInvoiceData?.subtotal ?? 0,
             vat_amount: persistedInvoice?.vat_amount ?? draftInvoiceData?.vat_amount ?? 0,
             total_amount: persistedInvoice?.total_amount ?? draftInvoiceData?.total_amount ?? 0,
