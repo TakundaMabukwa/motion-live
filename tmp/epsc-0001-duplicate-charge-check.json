@@ -1,0 +1,1117 @@
+{
+  "sourceAccountNumber": "EPSC-0001",
+  "generatedAt": "2026-03-27T15:03:13.702Z",
+  "vehicleCount": 275,
+  "duplicateChargeAssignments": [],
+  "multiGroupVehicles": [
+    {
+      "vehicleKey": "JJ03XLGP",
+      "reg": "JJ03XLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JR30SZGP",
+      "reg": "JR30SZGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV26PXGP",
+      "reg": "JV26PXGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81JYGP",
+      "reg": "KK81JYGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GSGP",
+      "reg": "HY87GSGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81LMGP",
+      "reg": "KK81LMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JZ40JBGP",
+      "reg": "JZ40JBGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JJ03NKGP",
+      "reg": "JJ03NKGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JZ09KXGP",
+      "reg": "JZ09KXGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JJ03MNGP",
+      "reg": "JJ03MNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81MZGP",
+      "reg": "KK81MZGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81MWGP",
+      "reg": "KK81MWGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81MLGP",
+      "reg": "KK81MLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81JWGP",
+      "reg": "KK81JWGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81HMGP",
+      "reg": "KK81HMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81JHGP",
+      "reg": "KK81JHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JJ02ZBGP",
+      "reg": "JJ02ZBGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JZ09LKGP",
+      "reg": "JZ09LKGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63MKGP M",
+      "reg": "FF63MKGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HS30YYGP",
+      "reg": "HS30YYGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63HJGP",
+      "reg": "FF63HJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HS30WSGP",
+      "reg": "HS30WSGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HW22SNGP",
+      "reg": "HW22SNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63JDGP",
+      "reg": "FF63JDGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KG32NLGP",
+      "reg": "KG32NLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KF84HXGP",
+      "reg": "KF84HXGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KY69YHGP",
+      "reg": "KY69YHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KY69YCGP",
+      "reg": "KY69YCGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KY69YNGP",
+      "reg": "KY69YNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KD05WCGP",
+      "reg": "KD05WCGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KG32NXGP",
+      "reg": "KG32NXGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KF84HMGP",
+      "reg": "KF84HMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KF84NVGP",
+      "reg": "KF84NVGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KB24XHGP",
+      "reg": "KB24XHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "WKL766GP",
+      "reg": "WKL766GP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "WCX045GP",
+      "reg": "WCX045GP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV26RJGP M",
+      "reg": "JV26RJGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74YXGP M",
+      "reg": "JF74YXGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GKGP",
+      "reg": "HY87GKGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JL64YJGP",
+      "reg": "JL64YJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JK68CLGP",
+      "reg": "JK68CLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JK68FMGP",
+      "reg": "JK68FMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY74WRGP M",
+      "reg": "HY74WRGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74XGGP M",
+      "reg": "JF74XGGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74XHGP M",
+      "reg": "JF74XHGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74YJGP",
+      "reg": "JF74YJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JK68DFGP",
+      "reg": "JK68DFGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JL64ZGGP",
+      "reg": "JL64ZGGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HW67VSGP",
+      "reg": "HW67VSGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GLGP",
+      "reg": "HY87GLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74YHGP",
+      "reg": "JF74YHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JL65CPGP",
+      "reg": "JL65CPGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JL65HNGP",
+      "reg": "JL65HNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JR30TFGP",
+      "reg": "JR30TFGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GWGP M",
+      "reg": "HY87GWGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY74XFGP",
+      "reg": "HY74XFGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GPGP",
+      "reg": "HY87GPGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY74WLGP",
+      "reg": "HY74WLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY87GHGP",
+      "reg": "HY87GHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY40CGGP M",
+      "reg": "HY40CGGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JR30VBGP",
+      "reg": "JR30VBGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JK68DMGP M",
+      "reg": "JK68DMGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JT07LVGP",
+      "reg": "JT07LVGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY74WDGP",
+      "reg": "HY74WDGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JR30SXGP",
+      "reg": "JR30SXGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JM27KHGP",
+      "reg": "JM27KHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HW67VCGP M",
+      "reg": "HW67VCGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JF74XDGP",
+      "reg": "JF74XDGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54WJGP M",
+      "reg": "JY54WJGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54XJGP",
+      "reg": "JY54XJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54XRGP",
+      "reg": "JY54XRGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV26SNGP",
+      "reg": "JV26SNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV26XMGP",
+      "reg": "JV26XMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KB24WNGP",
+      "reg": "KB24WNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54XWGP M",
+      "reg": "JY54XWGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54XGGP",
+      "reg": "JY54XGGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JX63CSGP",
+      "reg": "JX63CSGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JX63GBGP",
+      "reg": "JX63GBGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JX63CJGP",
+      "reg": "JX63CJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54WZGP",
+      "reg": "JY54WZGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JY54VNGP",
+      "reg": "JY54VNGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KB24XFGP",
+      "reg": "KB24XFGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KB24WWGP",
+      "reg": "KB24WWGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88LKGP ",
+      "reg": "MK88LKGP ",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88PSGP",
+      "reg": "MK88PSGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88MPGP",
+      "reg": "MK88MPGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88RHGP",
+      "reg": "MK88RHGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "WLD641GP M",
+      "reg": "WLD641GP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88LTGP",
+      "reg": "MK88LTGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63JRGP",
+      "reg": "FF63JRGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY40CRGP",
+      "reg": "HY40CRGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY74XJGP",
+      "reg": "HY74XJGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63KMGP",
+      "reg": "FF63KMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "WNG807GP",
+      "reg": "WNG807GP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "MK88MLGP",
+      "reg": "MK88MLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HS30XGGP",
+      "reg": "HS30XGGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "FF63LPGP",
+      "reg": "FF63LPGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "WLD585GP",
+      "reg": "WLD585GP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "XLH494GP M",
+      "reg": "XLH494GP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HY40DZGP",
+      "reg": "HY40DZGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JR30TKGP M",
+      "reg": "JR30TKGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV34JJGP M",
+      "reg": "JV34JJGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KB24WLGP",
+      "reg": "KB24WLGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "XNP352GP M",
+      "reg": "XNP352GP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KG32NTGP",
+      "reg": "KG32NTGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "HW22SFGP",
+      "reg": "HW22SFGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JL65BBGP",
+      "reg": "JL65BBGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "routing",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "JV26ZJGP M",
+      "reg": "JV26ZJGP M",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    },
+    {
+      "vehicleKey": "KK81SMGP",
+      "reg": "KK81SMGP",
+      "fleetNumber": "",
+      "buckets": [
+        "beame",
+        "dashboard",
+        "services",
+        "sky"
+      ]
+    }
+  ],
+  "bucketTotals": {
+    "beame": 13200,
+    "dashboard": 10295,
+    "pvt": 14350,
+    "routing": 500,
+    "services": 74166,
+    "sky": 23632
+  },
+  "summary": {
+    "duplicateChargeAssignmentCount": 0,
+    "multiGroupVehicleCount": 109
+  }
+}

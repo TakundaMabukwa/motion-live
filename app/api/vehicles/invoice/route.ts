@@ -280,9 +280,14 @@ const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
 
 const EPS_GROUPS = [
   {
+    code: 'EPS001',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( SERVICES)',
+    bucket: 'services',
+  },
+  {
     code: '117997',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( MONTHLY SERVICES)',
-    bucket: 'monthly_services',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( SKY)',
+    bucket: 'sky',
   },
   {
     code: '118080',
@@ -296,7 +301,7 @@ const EPS_GROUPS = [
   },
   {
     code: '118300',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING)',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING & OPTIMIZATION)',
     bucket: 'routing',
   },
   {
@@ -330,7 +335,7 @@ const getEpsBucketForColumn = (
   column: string,
   amount: number,
 ) => {
-  if (!column) return 'monthly_services';
+  if (!column) return null;
 
   if (isSameAmount(amount, EPS_PVT_TOTAL)) {
     return 'pvt';
@@ -348,7 +353,7 @@ const getEpsBucketForColumn = (
     /^(sky|skylink|skyspy)/i.test(column) ||
     ['sky_idata_rental', 'sky_ican_rental', 'sky_on_batt_sub'].includes(column)
   ) {
-    return 'monthly_services';
+    return 'sky';
   }
 
   if (['driver_app', 'software', 'additional_data'].includes(column)) {
@@ -371,10 +376,10 @@ const getEpsBucketForColumn = (
       'mtx_mc202x_sub',
     ].includes(column)
   ) {
-    return 'monthly_services';
+    return 'services';
   }
 
-  return 'monthly_services';
+  return null;
 };
 
 const getEpsCategoryLabel = (groupCode: string) => {
@@ -391,7 +396,7 @@ const getEpsLineDescription = (
     return 'Trailer';
   }
 
-  if (bucket === 'monthly_services' && isSameAmount(amount, 292)) {
+  if (bucket === 'sky' && isSameAmount(amount, 292)) {
     return 'Trailer';
   }
 
@@ -440,6 +445,7 @@ const buildEpsInvoiceData = (
       ) {
         const amount = toAmount(vehicle[key]);
         const bucket = getEpsBucketForColumn(key, amount);
+        if (!bucket) return;
         const group = EPS_GROUP_BY_BUCKET.get(bucket);
         if (!group) return;
 

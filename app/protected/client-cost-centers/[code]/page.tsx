@@ -60,6 +60,14 @@ export default function ClientCostCentersPage() {
   const isRealInvoiceNumber = (value) =>
     /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
 
+  const isEpsSpecialClientView = useMemo(() => {
+    return String(decodedCode || '')
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean)
+      .includes(EPS_SPECIAL_SOURCE_ACCOUNT);
+  }, [decodedCode]);
+
   const expandSpecialCostCenters = async (costCenters) => {
     if (!Array.isArray(costCenters) || costCenters.length === 0) {
       return costCenters;
@@ -112,6 +120,10 @@ export default function ClientCostCentersPage() {
         vehicleCount: Number(group.vehicleCount || 0),
         vehicles: Array.isArray(group.invoiceItems) ? group.invoiceItems : [],
       }));
+
+      if (isEpsSpecialClientView) {
+        return groupedCenters;
+      }
 
       const insertIndex = costCenters.findIndex(
         (center) => String(center?.accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT,
