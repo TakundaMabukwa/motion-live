@@ -80,7 +80,7 @@ export default function Dashboard() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
-  const [activeJobsView, setActiveJobsView] = useState<'my-jobs' | 'available-jobs'>('my-jobs');
+  const [activeJobsView, setActiveJobsView] = useState<'my-jobs' | 'all-jobs'>('my-jobs');
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
   const [jobStats, setJobStats] = useState([
     { title: 'New Jobs', value: 0, change: '+0 today', color: 'bg-blue-500', icon: Plus },
@@ -403,10 +403,14 @@ export default function Dashboard() {
     return date.toLocaleString();
   };
 
+  const getAssignedTechnicianLabel = (job: Job) =>
+    String(job.technician_name || job.technician_phone || '').trim();
+
   const activeUserJobs = userJobs.filter((job) => !isCompletedJob(job));
-  const myJobs = activeUserJobs.filter((job) => isJobAssignedToCurrentUser(job));
-  const availableJobs = activeUserJobs.filter((job) => !isJobAssignedToCurrentUser(job));
-  const displayedJobs = activeJobsView === 'my-jobs' ? myJobs : availableJobs;
+  const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
+  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job));
+  const allJobs = assignedActiveJobs;
+  const displayedJobs = activeJobsView === 'my-jobs' ? myJobs : allJobs;
 
   const JobTable = ({ jobs }: { jobs: Job[] }) => (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -425,6 +429,7 @@ export default function Dashboard() {
                     <h3 className="font-semibold text-slate-900 text-base truncate">{job.job_number || 'No Job #'}</h3>
                     <p className="text-slate-600 text-sm mt-1">{job.customer_name || 'No customer'}</p>
                     <p className="text-slate-500 text-sm mt-1">Reg: {job.vehicle_registration || 'N/A'}</p>
+                    <p className="text-slate-500 text-sm mt-1">Technician: {getAssignedTechnicianLabel(job) || 'Unassigned'}</p>
                   </div>
                   <Badge variant="outline" className={`${getStatusColor(job.job_status)} text-xs ml-2 shrink-0`}>
                     {job.job_status === 'created' ? 'New' : job.job_status}
@@ -503,6 +508,7 @@ export default function Dashboard() {
               <th className="p-4 font-medium text-slate-700 text-left">Job #</th>
               <th className="p-4 font-medium text-slate-700 text-left">Reg</th>
               <th className="p-4 font-medium text-slate-700 text-left">Customer</th>
+              <th className="p-4 font-medium text-slate-700 text-left">Technician</th>
               <th className="p-4 font-medium text-slate-700 text-left">Quotation Products</th>
               <th className="p-4 font-medium text-slate-700 text-left">Parts Required</th>
               <th className="p-4 font-medium text-slate-700 text-left">Schedule</th>
@@ -513,7 +519,7 @@ export default function Dashboard() {
           <tbody>
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-slate-500 text-center">
+                <td colSpan={9} className="py-12 text-slate-500 text-center">
                   No jobs found
                 </td>
               </tr>
@@ -529,6 +535,9 @@ export default function Dashboard() {
                   <td className="p-4">
                     <div className="font-medium text-slate-900">{job.customer_name || 'N/A'}</div>
                     <div className="text-slate-600 text-xs">{job.job_description || 'N/A'}</div>
+                  </td>
+                  <td className="p-4 text-slate-700 text-sm">
+                    {getAssignedTechnicianLabel(job) || 'Unassigned'}
                   </td>
                   <td className="p-4">
                     <div className="max-w-[280px] rounded-md border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs text-slate-700">
@@ -696,14 +705,14 @@ export default function Dashboard() {
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setActiveJobsView('available-jobs')}
+                  onClick={() => setActiveJobsView('all-jobs')}
                   className={`h-10 rounded-lg px-4 text-sm font-medium transition-all ${
-                    activeJobsView === 'available-jobs'
+                    activeJobsView === 'all-jobs'
                       ? 'bg-white shadow-sm text-slate-900'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  Available Jobs ({availableJobs.length})
+                  All Jobs ({allJobs.length})
                 </Button>
               </div>
             </div>

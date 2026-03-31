@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import DueReportComponent, { StatementDocument } from '@/components/inv/components/due-report';
 import InvoiceReportComponent from '@/components/inv/components/invoice-report';
@@ -30,6 +30,7 @@ export default function ClientCostCentersPage() {
   const [loading, setLoading] = useState(true);
   const [clientData, setClientData] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showVehicleSearchDrawer, setShowVehicleSearchDrawer] = useState(false);
   const [filteredCostCenters, setFilteredCostCenters] = useState([]);
   const [costCentersWithPayments, setCostCentersWithPayments] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -3647,6 +3648,97 @@ export default function ClientCostCentersPage() {
       </div>
 
       <div className="mx-auto p-6 max-w-7xl container">
+        <div className="left-0 z-30 fixed top-32 flex items-start">
+          <button
+            type="button"
+            onClick={() => setShowVehicleSearchDrawer((prev) => !prev)}
+            className="flex items-center gap-2 rounded-r-xl border border-slate-800 bg-slate-900 px-4 py-4 text-white shadow-lg transition hover:bg-slate-800"
+            aria-expanded={showVehicleSearchDrawer}
+            aria-controls="client-cost-center-search-drawer"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-black text-white">
+              <Search className="h-5 w-5" />
+            </div>
+            <span className="font-semibold text-lg">Vehicle Search</span>
+            {showVehicleSearchDrawer ? (
+              <ChevronLeft className="h-5 w-5" />
+            ) : (
+              <ChevronRight className="h-5 w-5" />
+            )}
+          </button>
+
+          {showVehicleSearchDrawer && (
+            <Card
+              id="client-cost-center-search-drawer"
+              className="ml-3 max-h-[70vh] w-[360px] overflow-hidden border-slate-200 bg-white/95 shadow-2xl backdrop-blur"
+            >
+              <CardContent className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900 text-sm">
+                      Vehicle Search
+                    </p>
+                    <p className="text-slate-500 text-xs">
+                      Search cost centers by company, account number, stock code, or description.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowVehicleSearchDrawer(false)}
+                    className="h-8 px-2 text-slate-500 hover:text-slate-800"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-center gap-3">
+                    <Search className="w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search cost centers by company name, account number, stock code, or description..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="flex-1 border-gray-300 bg-white focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Showing</span>
+                    <span className="font-semibold text-slate-900">
+                      {filteredCostCenters.length} / {costCentersWithPayments.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {filteredCostCenters.slice(0, 8).map((costCenter) => (
+                    <div
+                      key={costCenter.accountNumber}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <p className="font-medium text-slate-900 text-sm">
+                        {costCenter.accountName || costCenter.company || costCenter.accountNumber}
+                      </p>
+                      <p className="text-slate-500 text-xs">
+                        {costCenter.accountNumber} • {formatCurrency(getOutstandingAmount(costCenter))}
+                      </p>
+                    </div>
+                  ))}
+                  {filteredCostCenters.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-slate-500 text-sm">
+                      No matching cost centers found.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
         {/* Summary Cards */}
         <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 mb-8">
           <Card className="bg-white shadow-lg hover:shadow-xl border-2 border-red-100 transition-all duration-200">
@@ -3789,23 +3881,6 @@ export default function ClientCostCentersPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Search */}
-        <Card className="bg-white shadow-lg mb-6 border-2 border-gray-200">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Search className="w-5 h-5 text-gray-400" />
-              <Input
-                placeholder="Search cost centers by company name, account number, stock code, or description..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-
 
         {/* Cost Centers Table */}
         <Card className="bg-white shadow-lg border-2 border-gray-200">

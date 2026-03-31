@@ -20,10 +20,13 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Edit,
   Plus,
   Trash2,
   Check,
+  Search,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import {
@@ -216,6 +219,7 @@ export default function ValidateVehiclesPage() {
   const [savingField, setSavingField] = useState(null);
   const [addItemState, setAddItemState] = useState({});
   const [vehicleSearch, setVehicleSearch] = useState("");
+  const [vehicleSearchPanelOpen, setVehicleSearchPanelOpen] = useState(false);
   const [costCenterOptions, setCostCenterOptions] = useState([]);
   const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState(
     {},
@@ -328,6 +332,14 @@ export default function ValidateVehiclesPage() {
       return reg.includes(query) || fleet.includes(query);
     });
   }, [vehicles, deferredVehicleSearch]);
+
+  useEffect(() => {
+    if (vehicleSearchPanelOpen) {
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+      });
+    }
+  }, [vehicleSearchPanelOpen]);
 
   const matchingCostCenters = useMemo(() => {
     const deduped = new Map();
@@ -1223,34 +1235,62 @@ export default function ValidateVehiclesPage() {
         </Card>
       )}
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex-1">
-              <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">
-                Search by Reg or Fleet Number
-              </Label>
-              <Input
-                id="vehicleSearch"
-                value={vehicleSearch}
-                onChange={(e) => setVehicleSearch(e.target.value)}
-                placeholder="Type registration or fleet number..."
-                className="mt-1 h-9 text-sm"
-              />
-            </div>
-            <div className="text-sm text-gray-500 md:text-right">
-              Showing{" "}
-              <span className="font-semibold text-gray-700">
-                {filteredVehicles.length}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold text-gray-700">
-                {vehicles.length}
-              </span>
-            </div>
+      <div className="left-0 z-30 fixed top-32 flex items-start">
+        <button
+          type="button"
+          onClick={() => setVehicleSearchPanelOpen((prev) => !prev)}
+          className="flex items-center gap-2 rounded-r-xl border border-slate-800 bg-slate-900 px-4 py-4 text-white shadow-lg transition hover:bg-slate-800"
+          aria-expanded={vehicleSearchPanelOpen}
+          aria-controls="vehicle-search-bookmark-panel"
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-black text-white">
+            <Search className="h-5 w-5" />
           </div>
-        </CardContent>
-      </Card>
+          <span className="font-semibold text-lg">Vehicle Search</span>
+          {vehicleSearchPanelOpen ? (
+            <ChevronLeft className="h-5 w-5" />
+          ) : (
+            <ChevronRight className="h-5 w-5" />
+          )}
+        </button>
+
+        {vehicleSearchPanelOpen && (
+          <Card
+            id="vehicle-search-bookmark-panel"
+            className="ml-3 w-[360px] border-slate-200 bg-white/95 shadow-2xl backdrop-blur"
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">
+                    Search by Reg or Fleet Number
+                  </Label>
+                  <Input
+                    id="vehicleSearch"
+                    ref={searchInputRef}
+                    value={vehicleSearch}
+                    onChange={(e) => setVehicleSearch(e.target.value)}
+                    placeholder="Type registration or fleet number..."
+                    className="mt-1 h-9 text-sm"
+                  />
+                </div>
+                <div className="min-w-[90px] pt-5 text-right text-sm text-gray-500">
+                  <div>
+                    <span className="font-semibold text-gray-700">
+                      {filteredVehicles.length}
+                    </span>{" "}
+                    /{" "}
+                    <span className="font-semibold text-gray-700">
+                      {vehicles.length}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400">showing</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {vehicles.length === 0 ? (
         <Card>

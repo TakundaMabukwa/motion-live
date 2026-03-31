@@ -22,6 +22,7 @@ import {
   CarFront,
   MapPin,
   BadgeInfo,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -187,8 +188,7 @@ export default function GlobalVehicleSearch({
         const data = await response.json();
         const vehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
         setResults(vehicles);
-      } catch (error) {
-        console.error('Global vehicle search error:', error);
+      } catch {
         toast.error('Failed to search vehicles');
         setResults([]);
       } finally {
@@ -264,6 +264,16 @@ export default function GlobalVehicleSearch({
               tone: 'neutral',
               icon: Building2,
             },
+            {
+              label: 'Account',
+              value: String(
+                vehicleDetails.new_account_number ||
+                  vehicleDetails.account_number ||
+                  'N/A',
+              ),
+              tone: 'neutral',
+              icon: Hash,
+            },
           ]
         : [],
     [vehicleDetails],
@@ -289,9 +299,24 @@ export default function GlobalVehicleSearch({
               icon: BadgeInfo,
             },
             {
-              label: 'Account',
-              value: String(vehicleDetails.account_number || 'N/A'),
+              label: 'VIN',
+              value: String(vehicleDetails.vin || 'N/A'),
               icon: Hash,
+            },
+            {
+              label: 'Year',
+              value: String(vehicleDetails.year || 'N/A'),
+              icon: Calendar,
+            },
+            {
+              label: 'Colour',
+              value: String(vehicleDetails.colour || 'N/A'),
+              icon: BadgeInfo,
+            },
+            {
+              label: 'Engine',
+              value: String(vehicleDetails.engine || 'N/A'),
+              icon: BadgeInfo,
             },
           ]
         : [],
@@ -311,8 +336,8 @@ export default function GlobalVehicleSearch({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="h-[85vh] w-[95vw] max-w-6xl overflow-hidden border-0 p-0 shadow-2xl">
-          <div className="flex h-full flex-col">
+        <DialogContent className="flex h-[90vh] max-h-[90vh] w-[97vw] max-w-7xl flex-col overflow-hidden border-0 p-0 shadow-2xl">
+          <div className="flex h-full min-h-0 flex-col">
             <DialogHeader className="border-b bg-white px-6 py-4">
               <DialogTitle className="flex items-center gap-2">
                 <Search className="h-5 w-5 text-blue-600" />
@@ -323,8 +348,8 @@ export default function GlobalVehicleSearch({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden bg-slate-100/70 lg:grid-cols-[340px_minmax(0,1fr)]">
-              <div className="min-h-0 overflow-hidden border-r bg-white">
+            <div className="grid h-0 min-h-0 flex-1 grid-cols-1 overflow-hidden bg-slate-100/70 lg:grid-cols-[360px_minmax(0,1fr)]">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden border-r bg-white">
                 <div className="border-b p-4">
                   <div className="mb-3">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -344,7 +369,7 @@ export default function GlobalVehicleSearch({
                   />
                 </div>
 
-                <div className="h-full overflow-y-auto">
+                <div className="h-0 min-h-0 flex-1 overflow-y-scroll overscroll-contain">
                   {loadingResults ? (
                     <div className="space-y-2 p-3">
                       {Array.from({ length: 6 }).map((_, index) => (
@@ -434,7 +459,7 @@ export default function GlobalVehicleSearch({
                 </div>
               </div>
 
-              <div className="min-h-0 h-full overflow-hidden bg-slate-50/70">
+              <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50/70">
                 {loadingDetails ? (
                   <VehicleDetailSkeleton />
                 ) : !vehicleDetails ? (
@@ -450,14 +475,14 @@ export default function GlobalVehicleSearch({
                     </div>
                   </div>
                 ) : (
-                  <div className="h-full min-h-0 overflow-y-auto p-5">
+                  <div className="h-0 min-h-0 flex-1 overflow-y-scroll overscroll-contain p-5 pb-10">
                     <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-4 shadow-sm">
                       <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800">
                         <Rows3 className="h-4 w-4 text-blue-600" />
                         Selected Vehicle
                       </div>
 
-                      <div className="grid gap-3 md:grid-cols-3">
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                         {selectedSummary.map((item) => {
                           const Icon = item.icon;
                           const isPrimary = item.tone === 'primary';
@@ -488,7 +513,7 @@ export default function GlobalVehicleSearch({
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {overviewCards.map((item) => {
                         const Icon = item.icon;
                         return (
@@ -509,10 +534,11 @@ export default function GlobalVehicleSearch({
                     </div>
 
                     <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="shrink-0 border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
+                      <div className="sticky top-0 z-10 shrink-0 border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
                         Full Vehicle Record
                       </div>
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[620px] text-sm">
                         <thead className="bg-slate-50">
                           <tr>
                             <th className="px-4 py-3 text-left font-semibold text-slate-700">Field</th>
@@ -536,7 +562,8 @@ export default function GlobalVehicleSearch({
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
