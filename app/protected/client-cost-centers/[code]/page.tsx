@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import DueReportComponent from '@/components/inv/components/due-report';
 import InvoiceReportComponent from '@/components/inv/components/invoice-report';
@@ -38,13 +38,17 @@ export default function ClientCostCentersPage() {
   const [enteredAmount, setEnteredAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [openInvoicesForPayment, setOpenInvoicesForPayment] = useState([]);
+  const [loadingOpenInvoices, setLoadingOpenInvoices] = useState(false);
+  const [selectedPaymentInvoiceId, setSelectedPaymentInvoiceId] = useState(null);
   const [clientLegalName, setClientLegalName] = useState('');
   const [selectedCostCenters, setSelectedCostCenters] = useState([]);
-  const [payAllAmount, setPayAllAmount] = useState('');
   const [payAllReference, setPayAllReference] = useState('');
+  const [bulkInvoiceSelections, setBulkInvoiceSelections] = useState({});
   const [generatingReport, setGeneratingReport] = useState({});
   const [showDueReport, setShowDueReport] = useState(false);
   const [selectedCostCenterForReport, setSelectedCostCenterForReport] = useState(null);
+  const [selectedStatementVariant, setSelectedStatementVariant] = useState('summary');
   const [showInvoiceReport, setShowInvoiceReport] = useState(false);
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
@@ -371,6 +375,7 @@ export default function ClientCostCentersPage() {
           due_amount: amounts.dueAmount,
           paid_amount: amounts.paidAmount,
           balance_due: amounts.balanceDue,
+          credit_amount: Number(center.payment?.credit_amount || 0),
           invoice_date: center.payment?.invoice_date || center.invoice?.invoice_date || null,
           due_date: center.payment?.due_date || null,
           payment_status: amounts.paymentStatus,
@@ -498,6 +503,7 @@ export default function ClientCostCentersPage() {
       due: 0,
       paid: 0,
       balance: 0,
+      credit: 0,
       costCenters: costCentersWithPayments.length,
       paidCount: 0,
       partialCount: 0,
@@ -509,6 +515,7 @@ export default function ClientCostCentersPage() {
       totals.due += Number(costCenter?.dueAmount || 0);
       totals.paid += Number(costCenter?.paidAmount || 0);
       totals.balance += Number(costCenter?.balanceDue || 0);
+      totals.credit += Number(costCenter?.creditAmount || 0);
       const status = String(costCenter?.paymentStatus || 'pending').toLowerCase();
       if (status === 'paid') totals.paidCount += 1;
       else if (status === 'partial') totals.partialCount += 1;
@@ -549,27 +556,6 @@ export default function ClientCostCentersPage() {
     setEnteredAmount(value);
   };
 
-  // Handle Pay All amount input changes
-  const handlePayAllAmountChange = (e) => {
-    let value = e.target.value;
-    
-    // Remove all non-digit and non-decimal characters except the first decimal point
-    value = value.replace(/[^\d.]/g, '');
-    
-    // Ensure only one decimal point
-    const parts = value.split('.');
-    if (parts.length > 2) {
-      value = parts[0] + '.' + parts.slice(1).join('');
-    }
-    
-    // Limit to 2 decimal places
-    if (parts.length === 2 && parts[1].length > 2) {
-      value = parts[0] + '.' + parts[1].substring(0, 2);
-    }
-    
-    setPayAllAmount(value);
-  };
-
   const loadLogoDataUrl = async () => {
     const response = await fetch('/soltrack_logo.png');
     const blob = await response.blob();
@@ -589,7 +575,7 @@ export default function ClientCostCentersPage() {
     );
   };
 
-  const handleDownloadStatement = async () => {
+  const handleDownloadStatement = async (variant = 'summary') => {
     if (!costCentersWithPayments.length) {
       toast({
         variant: "destructive",
@@ -605,6 +591,7 @@ export default function ClientCostCentersPage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const rightX = pageWidth - 14;
       const logoDataUrl = await loadLogoDataUrl();
+      const includeItems = variant === 'items';
 
       // Header
       doc.addImage(logoDataUrl, 'PNG', 14, 12, 42, 22);
@@ -645,19 +632,56 @@ export default function ClientCostCentersPage() {
       doc.text('15%', 14 + 92, tableTop + 18);
       doc.text('-', 14 + 122, tableTop + 18);
 
-      // Statement table
-      let y = 104;
-      doc.setFontSize(8);
-      doc.rect(14, y, rightX - 14, 8);
-      doc.text('Date', 16, y + 5);
-      doc.text('Client', 40, y + 5);
-      doc.text('Invoice No.', 92, y + 5);
-      doc.text('Total Invoiced', 122, y + 5);
-      doc.text('Paid', 150, y + 5);
-      doc.text('Credited', 165, y + 5);
-      doc.text('Outstanding', 182, y + 5);
+      const resolveStatementInvoice = async (row) => {
+        const invoiceQuery = new URLSearchParams({
+          accountNumber: row.accountNumber,
+        });
 
-      y += 10;
+        if (row.sourceAccountNumber) {
+          invoiceQuery.set('sourceAccountNumber', row.sourceAccountNumber);
+        }
+        if (row.invoiceGroup) {
+          invoiceQuery.set('billingGroup', row.invoiceGroup);
+        }
+        if (row.billingMonth) {
+          invoiceQuery.set('billingMonth', row.billingMonth);
+        }
+
+        try {
+          const [bulkInvoiceResponse, invoiceResponse] = await Promise.all([
+            fetch(
+              `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
+            ),
+            fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`),
+          ]);
+
+          let bulkInvoice = null;
+          if (bulkInvoiceResponse.ok) {
+            const bulkPayload = await bulkInvoiceResponse.json();
+            bulkInvoice = bulkPayload?.invoice || null;
+          }
+
+          let invoiceData = null;
+          if (invoiceResponse.ok) {
+            const invoicePayload = await invoiceResponse.json();
+            invoiceData = invoicePayload?.invoiceData || null;
+          }
+
+          return {
+            activeInvoice: bulkInvoice || invoiceData || null,
+            items: Array.isArray(invoiceData?.invoiceItems)
+              ? invoiceData.invoiceItems
+              : Array.isArray(invoiceData?.invoice_items)
+                ? invoiceData.invoice_items
+                : [],
+          };
+        } catch (statementInvoiceError) {
+          console.error('Error resolving statement invoice for', row.accountNumber, statementInvoiceError);
+          return { activeInvoice: null, items: [] };
+        }
+      };
+
+      let y = 104;
       const statementRows = costCentersWithPayments
         .filter(cc => (cc.balanceDue || 0) > 0)
         .map(cc => ({
@@ -667,26 +691,115 @@ export default function ClientCostCentersPage() {
           totalInvoiced: cc.dueAmount || 0,
           paid: cc.paidAmount || 0,
           credited: 0,
-          outstanding: cc.balanceDue || 0
+          outstanding: cc.balanceDue || 0,
+          accountNumber: cc.accountNumber,
+          sourceAccountNumber: cc.sourceAccountNumber,
+          invoiceGroup: cc.invoiceGroup,
+          billingMonth: cc.billingMonth,
+          items: []
         }));
+
+      for (const row of statementRows) {
+        const { activeInvoice, items } = await resolveStatementInvoice(row);
+        if (activeInvoice) {
+          row.invoiceNo = activeInvoice.invoice_number || row.invoiceNo;
+          row.totalInvoiced = Number(activeInvoice.total_amount ?? row.totalInvoiced ?? 0);
+          row.paid = Number(activeInvoice.paid_amount ?? row.paid ?? 0);
+          row.outstanding = Number(activeInvoice.balance_due ?? row.outstanding ?? 0);
+          row.client = activeInvoice.company_name || row.client;
+          row.date =
+            activeInvoice.invoice_date ||
+            activeInvoice.created_at ||
+            row.date;
+        }
+        if (includeItems) {
+          row.items = items;
+        }
+      }
 
       if (statementRows.length === 0) {
         doc.text('No outstanding balances.', 16, y);
         y += 10;
       } else {
-        statementRows.forEach(row => {
-          if (y > 250) {
+        const ensurePageSpace = (requiredHeight) => {
+          if (y + requiredHeight > 236) {
             doc.addPage();
             y = 20;
           }
-          doc.text(row.date ? new Date(row.date).toLocaleDateString('en-GB') : '-', 16, y);
-          doc.text(String(row.client || '').slice(0, 20), 40, y);
-          doc.text(String(row.invoiceNo || '').slice(0, 12), 92, y);
-          doc.text(formatCurrency(row.totalInvoiced), 140, y, { align: 'right' });
-          doc.text(formatCurrency(row.paid), 158, y, { align: 'right' });
-          doc.text(formatCurrency(row.credited), 174, y, { align: 'right' });
-          doc.text(formatCurrency(row.outstanding), rightX, y, { align: 'right' });
-          y += 6;
+        };
+
+        const drawStatementRowHeader = () => {
+          doc.setFontSize(8);
+          doc.rect(14, y, rightX - 14, 8);
+          doc.text('Date', 16, y + 5);
+          doc.text('Client', 40, y + 5);
+          doc.text('Invoice No.', 92, y + 5);
+          doc.text('Total Invoiced', 122, y + 5);
+          doc.text('Paid', 150, y + 5);
+          doc.text('Credited', 165, y + 5);
+          doc.text('Outstanding', 182, y + 5);
+          y += 8;
+        };
+
+        statementRows.forEach(row => {
+          const estimatedHeight =
+            18 +
+            (includeItems && Array.isArray(row.items) && row.items.length > 0
+              ? 8 + row.items.length * 5
+              : 0);
+          ensurePageSpace(estimatedHeight);
+
+          doc.setFillColor(216, 216, 216);
+          doc.rect(14, y, rightX - 14, 7, 'FD');
+          doc.setFontSize(8);
+          doc.text(
+            `Cost Center: ${String(row.accountNumber || '-')} - ${String(row.client || '').slice(0, 70)}`,
+            16,
+            y + 4.5,
+          );
+          y += 9;
+
+          drawStatementRowHeader();
+
+          doc.rect(14, y, rightX - 14, 8);
+          doc.text(row.date ? new Date(row.date).toLocaleDateString('en-GB') : '-', 16, y + 5);
+          doc.text(String(row.client || '').slice(0, 28), 40, y + 5);
+          doc.text(String(row.invoiceNo || '').slice(0, 14), 92, y + 5);
+          doc.text(formatCurrency(row.totalInvoiced), 140, y + 5, { align: 'right' });
+          doc.text(formatCurrency(row.paid), 158, y + 5, { align: 'right' });
+          doc.text(formatCurrency(row.credited), 174, y + 5, { align: 'right' });
+          doc.text(formatCurrency(row.outstanding), rightX, y + 5, { align: 'right' });
+          y += 10;
+
+          if (includeItems && Array.isArray(row.items) && row.items.length > 0) {
+            ensurePageSpace(8 + row.items.length * 5);
+            doc.rect(18, y, rightX - 18, 7);
+            doc.text('Reg / Fleet', 20, y + 4.5);
+            doc.text('Billed Item', 60, y + 4.5);
+            doc.text('Total Incl', rightX - 4, y + 4.5, { align: 'right' });
+            y += 7;
+            doc.setFontSize(7);
+            row.items.forEach((item) => {
+              ensurePageSpace(6);
+              const itemDescription = String(item.description || item.item_code || 'Billed Item');
+              const itemReg = String(
+                item.reg ||
+                item.previous_reg ||
+                item.fleetNumber ||
+                item.fleet_number ||
+                '-',
+              );
+              const itemTotal = formatCurrency(
+                item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub ?? 0,
+              );
+              doc.text(String(itemReg).slice(0, 28), 20, y + 4);
+              doc.text(String(itemDescription).slice(0, 64), 60, y + 4);
+              doc.text(itemTotal, rightX - 4, y + 4, { align: 'right' });
+              y += 5;
+            });
+            doc.setFontSize(8);
+            y += 2;
+          }
         });
       }
 
@@ -755,7 +868,11 @@ export default function ClientCostCentersPage() {
       doc.text('Code - 146905', 170, footerTop + 16);
       doc.text('A/C No. - 1469109069', 170, footerTop + 20);
 
-      doc.save(`Statement-${clientLegalName || decodedCode || 'Client'}.pdf`);
+      doc.save(
+        `${
+          includeItems ? 'Statement-With-Items' : 'Statement'
+        }-${clientLegalName || decodedCode || 'Client'}.pdf`,
+      );
     } catch (error) {
       console.error('Error generating statement:', error);
       toast({
@@ -807,6 +924,7 @@ export default function ClientCostCentersPage() {
         dueAmount: payment.due_amount || 0,
         paidAmount: payment.paid_amount || 0,
         balanceDue: payment.balance_due || 0,
+        creditAmount: Number(payment.credit_amount || 0),
         paymentStatus: payment.payment_status || 'pending',
         reference,
         billingMonth: payment.billing_month,
@@ -832,6 +950,7 @@ export default function ClientCostCentersPage() {
           '2nd_month': 0,
           '3rd_month': 0,
           amount_due: Number(payment.balance_due || 0),
+          credit_amount: Number(payment.credit_amount || 0),
           monthly_amount: Number(payment.due_amount || 0),
           payment_status: payment.payment_status,
           billing_month: payment.billing_month,
@@ -1087,6 +1206,7 @@ export default function ClientCostCentersPage() {
         dueAmount: vehicle.total_ex_vat || 0,
         paidAmount: (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0),
         balanceDue: vehicle.amount_due || 0,
+        creditAmount: Number(vehicle.credit_amount || 0),
         paymentStatus: vehicle.payment_status || 'pending',
         accountInvoiceId: vehicle.account_invoice_id || null,
         reference: isRealInvoiceNumber(vehicle.reference) ? vehicle.reference : '',
@@ -1100,6 +1220,7 @@ export default function ClientCostCentersPage() {
       costCenters[accountNumber].dueAmount = Math.max(costCenters[accountNumber].dueAmount, vehicle.total_ex_vat || 0);
       costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
       costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
+      costCenters[accountNumber].creditAmount = Number(vehicle.credit_amount || 0);
       costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
       costCenters[accountNumber].accountInvoiceId =
         vehicle.account_invoice_id || costCenters[accountNumber].accountInvoiceId || null;
@@ -1140,6 +1261,7 @@ export default function ClientCostCentersPage() {
                   amountDue: paymentData.payment.balance_due || 0,
                   overdue: (paymentData.payment.overdue_30_days || 0) + (paymentData.payment.overdue_60_days || 0) + (paymentData.payment.overdue_90_days || 0),
                   totalPaid: paymentData.payment.paid_amount || 0,
+                  creditAmount: paymentData.payment.credit_amount || costCenter.creditAmount || 0,
                   monthlyAmount: paymentData.payment.due_amount || 0,
                   firstMonth: paymentData.payment.overdue_30_days || 0
                 };
@@ -1194,7 +1316,351 @@ export default function ClientCostCentersPage() {
   const getOutstandingAmount = (costCenter) =>
     Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0);
 
-  const handlePayCostCenter = (costCenter) => {
+  const selectedPaymentInvoice = useMemo(() => {
+    if (!selectedPaymentInvoiceId) return null;
+    return (
+      openInvoicesForPayment.find(
+        (invoice) => String(invoice?.id || '') === String(selectedPaymentInvoiceId),
+      ) || null
+    );
+  }, [openInvoicesForPayment, selectedPaymentInvoiceId]);
+
+  const totalOpenInvoiceBalance = useMemo(
+    () =>
+      openInvoicesForPayment.reduce(
+        (sum, invoice) => sum + Number(invoice?.balance_due || 0),
+        0,
+      ),
+    [openInvoicesForPayment],
+  );
+
+  const getPaymentLimit = () => {
+    if (paymentDetails?.type !== 'costCenter') {
+      return Number(paymentDetails?.amount || 0);
+    }
+
+    if (selectedPaymentInvoice) {
+      return Number(selectedPaymentInvoice.balance_due || 0);
+    }
+
+    return Number(paymentDetails?.amount || 0);
+  };
+
+  const fetchOpenInvoicesForCostCenter = async (costCenter) => {
+    const accountNumber = String(costCenter?.accountNumber || '').trim();
+    if (!accountNumber) {
+      setOpenInvoicesForPayment([]);
+      setSelectedPaymentInvoiceId(null);
+      return;
+    }
+
+    setLoadingOpenInvoices(true);
+    try {
+      const query = new URLSearchParams({ accountNumber });
+      const [historyResponse, bulkInvoiceResponse] = await Promise.all([
+        fetch(`/api/invoices/account/history?${query.toString()}`),
+        fetch(
+          `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(accountNumber)}${
+            costCenter?.billingMonth
+              ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}`
+              : ''
+          }`,
+        ),
+      ]);
+      if (!historyResponse.ok) {
+        throw new Error('Failed to fetch open invoices');
+      }
+
+      const payload = await historyResponse.json();
+      const invoices = Array.isArray(payload?.invoices) ? payload.invoices : [];
+      let openInvoices = invoices.filter(
+        (invoice) => Number(invoice?.balance_due || 0) > 0,
+      );
+      if (bulkInvoiceResponse.ok) {
+        const bulkPayload = await bulkInvoiceResponse.json();
+        openInvoices = mergeOpenInvoices(openInvoices, bulkPayload?.invoice || null);
+      }
+
+      if (
+        openInvoices.length === 0 &&
+        Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0) > 0
+      ) {
+        openInvoices.push({
+          id: costCenter?.accountInvoiceId || costCenter?.account_invoice_id || `draft-${costCenter?.accountNumber || 'current'}`,
+          account_number: costCenter?.accountNumber || null,
+          billing_month: costCenter?.billingMonth || currentBillingMonthKey,
+          invoice_number: costCenter?.reference || 'Current Billing Record',
+          invoice_date:
+            costCenter?.invoiceDate ||
+            costCenter?.billingMonth ||
+            currentBillingMonthKey,
+          created_at: costCenter?.created_at || costCenter?.createdAt || null,
+          total_amount: Number(costCenter?.amountDue || costCenter?.balanceDue || 0),
+          paid_amount: Number(costCenter?.paidAmount || costCenter?.totalPaid || 0),
+          balance_due: Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0),
+          payment_status: costCenter?.paymentStatus || 'pending',
+          isDraft: true,
+        });
+      }
+
+      const preferredInvoiceId =
+        costCenter?.accountInvoiceId || costCenter?.account_invoice_id || null;
+      const preferredInvoice =
+        openInvoices.find(
+          (invoice) => String(invoice?.id || '') === String(preferredInvoiceId || ''),
+        ) || openInvoices[0] || null;
+
+      setOpenInvoicesForPayment(openInvoices);
+      setSelectedPaymentInvoiceId(preferredInvoice?.id || null);
+    } catch (error) {
+      console.error('Error fetching open invoices for payment modal:', error);
+      setOpenInvoicesForPayment([]);
+      setSelectedPaymentInvoiceId(null);
+    } finally {
+      setLoadingOpenInvoices(false);
+    }
+  };
+
+  const buildFallbackOpenInvoice = (costCenter) => ({
+    id: costCenter?.accountInvoiceId || costCenter?.account_invoice_id || `draft-${costCenter?.accountNumber || 'current'}`,
+    account_number: costCenter?.accountNumber || null,
+    billing_month: costCenter?.billingMonth || currentBillingMonthKey,
+    invoice_number: costCenter?.reference || 'Current Billing Record',
+    invoice_date:
+      costCenter?.invoiceDate ||
+      costCenter?.billingMonth ||
+      currentBillingMonthKey,
+    created_at: costCenter?.created_at || costCenter?.createdAt || null,
+    total_amount: Number(costCenter?.amountDue || costCenter?.balanceDue || 0),
+    paid_amount: Number(costCenter?.paidAmount || costCenter?.totalPaid || 0),
+    balance_due: Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0),
+    payment_status: costCenter?.paymentStatus || 'pending',
+    isDraft: true,
+  });
+
+  const isUuidLike = (value) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      String(value || '').trim(),
+    );
+
+  const normalizeBulkInvoiceForSelection = (invoice) => {
+    if (!invoice) return null;
+
+    return {
+      id:
+        invoice.id ||
+        `bulk-${invoice.account_number || 'current'}-${invoice.billing_month || currentBillingMonthKey}`,
+      account_number: invoice.account_number || null,
+      billing_month: invoice.billing_month || currentBillingMonthKey,
+      invoice_number: invoice.invoice_number || 'Bulk Invoice',
+      invoice_date: invoice.invoice_date || invoice.billing_month || currentBillingMonthKey,
+      created_at: invoice.created_at || null,
+      total_amount: Number(invoice.total_amount || 0),
+      paid_amount: Number(invoice.paid_amount || 0),
+      balance_due: Number(
+        invoice.balance_due ??
+          Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0)),
+      ),
+      payment_status: invoice.payment_status || 'pending',
+      isBulkInvoice: true,
+    };
+  };
+
+  const mergeOpenInvoices = (historyInvoices = [], bulkInvoice = null) => {
+    const merged = [...historyInvoices];
+    const normalizedBulkInvoice = normalizeBulkInvoiceForSelection(bulkInvoice);
+
+    if (
+      normalizedBulkInvoice &&
+      Number(normalizedBulkInvoice.balance_due || 0) > 0
+    ) {
+      const alreadyExists = merged.some((invoice) => {
+        const sameId =
+          String(invoice?.id || '').trim() === String(normalizedBulkInvoice.id || '').trim();
+        const sameInvoiceNumber =
+          String(invoice?.invoice_number || '').trim() &&
+          String(invoice?.invoice_number || '').trim() ===
+            String(normalizedBulkInvoice.invoice_number || '').trim();
+        const sameBillingMonth =
+          String(invoice?.billing_month || '').trim() ===
+          String(normalizedBulkInvoice.billing_month || '').trim();
+
+        return sameId || (sameInvoiceNumber && sameBillingMonth);
+      });
+
+      if (!alreadyExists) {
+        merged.unshift(normalizedBulkInvoice);
+      }
+    }
+
+    return merged;
+  };
+
+  const fetchBulkOpenInvoicesForCostCenter = async (costCenter) => {
+    const accountNumber = String(costCenter?.accountNumber || '').trim();
+    if (!accountNumber) {
+      return [];
+    }
+
+    const query = new URLSearchParams({ accountNumber });
+    const [historyResponse, bulkInvoiceResponse] = await Promise.all([
+      fetch(`/api/invoices/account/history?${query.toString()}`),
+      fetch(
+        `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(accountNumber)}${
+          costCenter?.billingMonth
+            ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}`
+            : ''
+        }`,
+      ),
+    ]);
+    if (!historyResponse.ok) {
+      throw new Error('Failed to fetch open invoices');
+    }
+
+    const payload = await historyResponse.json();
+    const invoices = Array.isArray(payload?.invoices) ? payload.invoices : [];
+    let openInvoices = invoices.filter(
+      (invoice) => Number(invoice?.balance_due || 0) > 0,
+    );
+    if (bulkInvoiceResponse.ok) {
+      const bulkPayload = await bulkInvoiceResponse.json();
+      openInvoices = mergeOpenInvoices(openInvoices, bulkPayload?.invoice || null);
+    }
+
+    if (
+      openInvoices.length === 0 &&
+      Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0) > 0
+    ) {
+      openInvoices.push(buildFallbackOpenInvoice(costCenter));
+    }
+
+    return openInvoices;
+  };
+
+  const toggleBulkInvoiceDropdown = async (costCenter) => {
+    const accountNumber = String(costCenter?.accountNumber || '').trim();
+    if (!accountNumber) return;
+
+    const current = bulkInvoiceSelections[accountNumber];
+    const alreadyLoaded = Array.isArray(current?.invoices);
+
+    setBulkInvoiceSelections((prev) => ({
+      ...prev,
+      [accountNumber]: {
+        ...prev[accountNumber],
+        expanded: !prev[accountNumber]?.expanded,
+      },
+    }));
+
+    if (alreadyLoaded || current?.loading) {
+      return;
+    }
+
+    setBulkInvoiceSelections((prev) => ({
+      ...prev,
+      [accountNumber]: {
+        ...prev[accountNumber],
+        expanded: true,
+        loading: true,
+        invoices: prev[accountNumber]?.invoices || [],
+        allocations: prev[accountNumber]?.allocations || {},
+      },
+    }));
+
+    try {
+      const openInvoices = await fetchBulkOpenInvoicesForCostCenter(costCenter);
+      setBulkInvoiceSelections((prev) => ({
+        ...prev,
+        [accountNumber]: {
+          ...prev[accountNumber],
+          expanded: true,
+          loading: false,
+          invoices: openInvoices,
+          allocations:
+            prev[accountNumber]?.allocations ||
+            Object.fromEntries(
+              openInvoices.map((invoice) => [
+                String(invoice.id),
+                {
+                  selected: false,
+                  amount: '',
+                  paymentReference: '',
+                },
+              ]),
+            ),
+        },
+      }));
+    } catch (error) {
+      console.error(`Error fetching bulk invoices for ${accountNumber}:`, error);
+      setBulkInvoiceSelections((prev) => ({
+        ...prev,
+        [accountNumber]: {
+          ...prev[accountNumber],
+          expanded: true,
+          loading: false,
+          invoices: [],
+          allocations: prev[accountNumber]?.allocations || {},
+        },
+      }));
+    }
+  };
+
+  const handleBulkInvoiceAllocationChange = (accountNumber, invoiceId, field, value) => {
+    setBulkInvoiceSelections((prev) => ({
+      ...prev,
+      [accountNumber]: {
+        ...prev[accountNumber],
+        allocations: {
+          ...(prev[accountNumber]?.allocations || {}),
+          [invoiceId]: {
+            ...((prev[accountNumber]?.allocations || {})[invoiceId] || {
+              selected: false,
+              amount: '',
+              paymentReference: '',
+            }),
+            [field]: value,
+          },
+        },
+      },
+    }));
+  };
+
+  const getBulkSelectedAllocations = () => {
+    return selectedCostCenters
+      .filter((costCenter) => costCenter.selected)
+      .flatMap((costCenter) => {
+        const accountNumber = String(costCenter?.accountNumber || '').trim();
+        const state = bulkInvoiceSelections[accountNumber];
+        const invoices = Array.isArray(state?.invoices) ? state.invoices : [];
+        const allocations = state?.allocations || {};
+
+        return invoices
+          .map((invoice) => {
+            const allocation = allocations[String(invoice.id)] || {};
+            const amount = Number(String(allocation.amount || '').replace(/,/g, ''));
+            return {
+              accountNumber,
+              accountInvoiceId:
+                isUuidLike(invoice.id) && !invoice?.isBulkInvoice ? invoice.id : null,
+              billingMonth: invoice.billing_month || null,
+              invoiceNumber: invoice.invoice_number || null,
+              maxAmount: Number(invoice.balance_due || 0),
+              amount,
+              paymentReference: String(allocation.paymentReference || '').trim(),
+              selected: Boolean(allocation.selected),
+            };
+          })
+          .filter((entry) => entry.selected && Number.isFinite(entry.amount) && entry.amount > 0);
+      });
+  };
+
+  const totalBulkAllocatedAmount = useMemo(
+    () =>
+      getBulkSelectedAllocations().reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+    [selectedCostCenters, bulkInvoiceSelections],
+  );
+
+  const handlePayCostCenter = async (costCenter) => {
     setPaymentDetails({
       type: 'costCenter',
       title: `Pay Cost Center: ${costCenter.accountName || costCenter.accountNumber}`,
@@ -1204,7 +1670,10 @@ export default function ClientCostCentersPage() {
     });
     setEnteredAmount('');
     setPaymentReference('');
+    setOpenInvoicesForPayment([]);
+    setSelectedPaymentInvoiceId(null);
     setShowPaymentModal(true);
+    await fetchOpenInvoicesForCostCenter(costCenter);
   };
 
   const handlePayAllCostCenters = () => {
@@ -1224,10 +1693,7 @@ export default function ClientCostCentersPage() {
       ...cc,
       selected: true
     })));
-    
-    // Calculate initial total using balanceDue
-    const totalAmount = outstandingCostCenters.reduce((sum, cc) => sum + cc.balanceDue, 0);
-    setPayAllAmount(totalAmount.toString());
+    setBulkInvoiceSelections({});
     setPayAllReference('');
     
     setShowPayAllModal(true);
@@ -1235,42 +1701,22 @@ export default function ClientCostCentersPage() {
 
   const handleCostCenterSelection = (accountNumber, selected) => {
     setSelectedCostCenters(prev => prev.map(cc => 
+      
       cc.accountNumber === accountNumber 
         ? { ...cc, selected }
         : cc
     ));
     
-    // Recalculate total based on selected cost centers
-    const newSelected = selectedCostCenters.map(cc => 
-      cc.accountNumber === accountNumber 
-        ? { ...cc, selected }
-        : cc
-    );
-    
-    const totalAmount = newSelected
-      .filter(cc => cc.selected)
-      .reduce((sum, cc) => sum + cc.balanceDue, 0);
-    
-    setPayAllAmount(totalAmount.toString());
   };
 
   const handlePayAllSubmit = async () => {
-    const amount = parseFloat(payAllAmount);
-    
-    if (amount <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Invalid Amount",
-        description: "Please enter a valid payment amount greater than 0."
-      });
-      return;
-    }
+    const selectedAllocations = getBulkSelectedAllocations();
 
-    if (!payAllReference.trim()) {
+    if (selectedAllocations.length === 0) {
       toast({
         variant: "destructive",
-        title: "Payment Reference Required",
-        description: "Please enter a payment reference for bulk payments."
+        title: "No Invoice Allocations",
+        description: "Please select at least one invoice and enter an allocation amount."
       });
       return;
     }
@@ -1289,21 +1735,20 @@ export default function ClientCostCentersPage() {
     setProcessingPayment(true);
     
     try {
-      const bulkPayments = selectedCostCentersToPay.map(costCenter => ({
-        accountNumber: costCenter.accountNumber,
-        accountInvoiceId: costCenter.accountInvoiceId || costCenter.account_invoice_id || null,
-        billingMonth: costCenter.billingMonth || null,
-        amount: costCenter.balanceDue
-      }));
-
       const response = await fetch('/api/payments/bulk-process', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          payments: bulkPayments,
-          paymentReference: payAllReference.trim()
+          payments: selectedAllocations.map((allocation) => ({
+            accountNumber: allocation.accountNumber,
+            accountInvoiceId: allocation.accountInvoiceId,
+            billingMonth: allocation.billingMonth,
+            amount: allocation.amount,
+            paymentReference: allocation.paymentReference,
+          })),
+          paymentReference: payAllReference.trim() || null
         }),
       });
 
@@ -1315,16 +1760,19 @@ export default function ClientCostCentersPage() {
       const result = await response.json();
       const successCount = result.summary.successful;
       const errors = result.errors || [];
+      const totalCreditApplied = Array.isArray(result.results)
+        ? result.results.reduce((sum, entry) => sum + Number(entry?.creditAmount || 0), 0)
+        : 0;
 
       await refreshVisibleClientData();
 
-      toast({
-        title: successCount === selectedCostCentersToPay.length ? "Bulk Payment Successful" : "Bulk Payment Completed",
-        description:
-          errors.length > 0
-            ? `${successCount} payment(s) processed. ${errors.length} failed.`
-            : `${successCount} payment(s) processed successfully.`,
-      });
+        toast({
+          title: successCount === selectedCostCentersToPay.length ? "Bulk Payment Successful" : "Bulk Payment Completed",
+          description:
+            errors.length > 0
+            ? `${successCount} allocation(s) processed. ${errors.length} failed. ${errors[0]}${totalCreditApplied > 0 ? ` Credit created: ${formatCurrency(totalCreditApplied)}.` : ''}`
+            : `${successCount} allocation(s) processed successfully.${totalCreditApplied > 0 ? ` Credit created: ${formatCurrency(totalCreditApplied)}.` : ''}`,
+        });
       closePayAllModal();
     } catch (error) {
       console.error('Bulk payment error:', error);
@@ -2125,29 +2573,21 @@ export default function ClientCostCentersPage() {
       return;
     }
 
-    // Validate payment reference for bulk payments
-    if (paymentDetails.type === 'allCostCenters' && !paymentReference.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Payment Reference Required",
-        description: "Please enter a payment reference for bulk payments to help track the transaction."
-      });
-      return;
-    }
-
-    // Check if payment exceeds amount due
-    if (amount > paymentDetails.amount) {
-      toast({
-        variant: "destructive",
-        title: "Payment Too High",
-        description: `Payment amount (${formatCurrency(amount)}) cannot exceed amount due (${formatCurrency(paymentDetails.amount)}).`
-      });
-      return;
-    }
-    
     if (paymentDetails.type === 'costCenter') {
       setProcessingPayment(true);
       try {
+        const selectedInvoiceId =
+          (isUuidLike(selectedPaymentInvoice?.id) && !selectedPaymentInvoice?.isBulkInvoice
+            ? selectedPaymentInvoice?.id
+            : null) ||
+          paymentDetails.costCenter.accountInvoiceId ||
+          paymentDetails.costCenter.account_invoice_id ||
+          null;
+        const selectedBillingMonth =
+          selectedPaymentInvoice?.billing_month ||
+          paymentDetails.costCenter.billingMonth ||
+          null;
+
         // Process payment through API using payments_ table
         const response = await fetch('/api/payments/process-payments', {
           method: 'POST',
@@ -2156,11 +2596,8 @@ export default function ClientCostCentersPage() {
           },
           body: JSON.stringify({
             accountNumber: paymentDetails.costCenter.accountNumber,
-            accountInvoiceId:
-              paymentDetails.costCenter.accountInvoiceId ||
-              paymentDetails.costCenter.account_invoice_id ||
-              null,
-            billingMonth: paymentDetails.costCenter.billingMonth || null,
+            accountInvoiceId: selectedInvoiceId,
+            billingMonth: selectedBillingMonth,
             amount: amount,
             paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
             paymentType: 'cost_center_payment'
@@ -2177,9 +2614,10 @@ export default function ClientCostCentersPage() {
         if (result.success) {
           const newBalanceDue = result.payment.balance_due;
           const paymentStatus = result.payment.payment_status;
+          const creditAmount = Number(result.creditAmount || 0);
           const message = newBalanceDue === 0 
-            ? `Payment of ${formatCurrency(amount)} processed successfully! Balance due is now R 0.00. Status: ${paymentStatus}`
-            : `Payment of ${formatCurrency(amount)} processed successfully! New balance due: ${formatCurrency(newBalanceDue)}. Status: ${paymentStatus}`;
+            ? `Payment of ${formatCurrency(amount)} processed successfully! Balance due is now R 0.00. Status: ${paymentStatus}${creditAmount > 0 ? `. Credit created: ${formatCurrency(creditAmount)}` : ''}`
+            : `Payment of ${formatCurrency(amount)} processed successfully! New balance due: ${formatCurrency(newBalanceDue)}. Status: ${paymentStatus}${creditAmount > 0 ? `. Credit created: ${formatCurrency(creditAmount)}` : ''}`;
           
           toast({
             title: "Payment Successful",
@@ -2284,12 +2722,14 @@ export default function ClientCostCentersPage() {
     setEnteredAmount('');
     setPaymentReference('');
     setProcessingPayment(false);
+    setOpenInvoicesForPayment([]);
+    setLoadingOpenInvoices(false);
+    setSelectedPaymentInvoiceId(null);
   };
 
   const closePayAllModal = () => {
     setShowPayAllModal(false);
     setSelectedCostCenters([]);
-    setPayAllAmount('');
     setPayAllReference('');
     setProcessingPayment(false);
   };
@@ -2316,7 +2756,7 @@ export default function ClientCostCentersPage() {
   }, [filteredCostCenters]);
 
   // Show Due Report Component (replaces PDF generation)
-  const handleShowDueReport = async (costCenter) => { // Renamed function
+  const handleShowDueReport = async (costCenter, variant = 'summary') => {
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
       const query = new URLSearchParams({
@@ -2332,11 +2772,55 @@ export default function ClientCostCentersPage() {
       
       const paymentData = await response.json();
       const payment = paymentData.payment || {};
+      const historyResponse = await fetch(
+        `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`,
+      );
+      const bulkInvoiceResponse = await fetch(
+        `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+          costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ""
+        }`,
+      );
+      let invoiceHistory = [];
+      let paymentHistory = [];
+      let bulkInvoice = null;
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
+        paymentHistory = Array.isArray(historyData?.payments) ? historyData.payments : [];
+      }
+      if (bulkInvoiceResponse.ok) {
+        const bulkInvoiceData = await bulkInvoiceResponse.json();
+        bulkInvoice = bulkInvoiceData?.invoice || null;
+      }
+      let invoiceData = null;
+      const invoiceQuery = new URLSearchParams({
+        accountNumber: costCenter.accountNumber,
+      });
+      if (costCenter.sourceAccountNumber) {
+        invoiceQuery.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+      }
+      if (costCenter.invoiceGroup) {
+        invoiceQuery.set('billingGroup', costCenter.invoiceGroup);
+      }
+      if (costCenter.billingMonth) {
+        invoiceQuery.set('billingMonth', costCenter.billingMonth);
+      }
+
+      const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
+      if (invoiceResponse.ok) {
+        const invoicePayload = await invoiceResponse.json();
+        invoiceData = invoicePayload?.invoiceData || null;
+      }
       
       setSelectedCostCenterForReport({
         ...costCenter,
-        paymentData: payment
+        paymentData: payment,
+        invoiceData: invoiceData || costCenter.invoiceData || null,
+        invoiceHistory,
+        paymentHistory,
+        bulkInvoice,
       });
+      setSelectedStatementVariant(variant);
       setShowDueReport(true);
       
     } catch (error) {
@@ -2870,12 +3354,20 @@ export default function ClientCostCentersPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Button
-                  onClick={handleDownloadStatement}
+                  onClick={() => handleDownloadStatement('summary')}
                   size="sm"
                   variant="outline"
                   disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
                 >
-                  {isGeneratingStatement ? 'Preparing...' : 'Download Statement'}
+                  {isGeneratingStatement ? 'Preparing...' : 'Client Statement'}
+                </Button>
+                <Button
+                  onClick={() => handleDownloadStatement('items')}
+                  size="sm"
+                  variant="outline"
+                  disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+                >
+                  {isGeneratingStatement ? 'Preparing...' : 'Client All'}
                 </Button>
               </div>
             </div>
@@ -2938,12 +3430,20 @@ export default function ClientCostCentersPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleDownloadStatement}
+                onClick={() => handleDownloadStatement('summary')}
                 size="sm"
                 variant="outline"
                 disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
               >
-                {isGeneratingStatement ? 'Preparing...' : 'Download Statement'}
+                {isGeneratingStatement ? 'Preparing...' : 'Client Statement'}
+              </Button>
+              <Button
+                onClick={() => handleDownloadStatement('items')}
+                size="sm"
+                variant="outline"
+                disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+              >
+                {isGeneratingStatement ? 'Preparing...' : 'Client All'}
               </Button>
             </div>
           </div>
@@ -3038,7 +3538,7 @@ export default function ClientCostCentersPage() {
         </div>
 
         {/* Summary Row */}
-        <div className="gap-6 grid grid-cols-1 md:grid-cols-3 mb-6">
+        <div className="gap-6 grid grid-cols-1 md:grid-cols-4 mb-6">
           <Card className="bg-white shadow-lg border-2 border-gray-200">
             <CardContent className="p-4">
               <div className="text-center">
@@ -3067,6 +3567,17 @@ export default function ClientCostCentersPage() {
                   {formatCurrency(overviewTotals.paid)}
                 </div>
                 <p className="text-gray-500 text-xs">Total Amount Paid</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white shadow-lg border-2 border-gray-200">
+            <CardContent className="p-4">
+              <div className="text-center">
+                <div className="font-bold text-blue-600 text-lg">
+                  {formatCurrency(overviewTotals.credit)}
+                </div>
+                <p className="text-gray-500 text-xs">Total Credit Available</p>
               </div>
             </CardContent>
           </Card>
@@ -3105,7 +3616,9 @@ export default function ClientCostCentersPage() {
           <CardHeader className="bg-gray-50 border-gray-200 border-b">
             <div className="flex justify-between items-start">
               <div>
-                <CardTitle className="text-gray-900 text-lg">Cost Centers</CardTitle>
+                <CardTitle className="text-gray-900 text-lg">
+                  {(clientLegalName || decodedCode || code)} - Cost Centers
+                </CardTitle>
                 <p className="mt-1 text-gray-600 text-sm">Individual cost centers with company names and account codes for this client</p>
               </div>
               <div className="text-right">
@@ -3120,12 +3633,40 @@ export default function ClientCostCentersPage() {
                     Pay All
                   </Button>
                   <Button
-                    onClick={() => handleDueForAllCostCenters()}
+                    onClick={() => handleDownloadStatement('summary')}
                     size="sm"
-                    className="bg-red-600 hover:bg-red-700 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200"
+                    disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+                    className="bg-slate-700 hover:bg-slate-800 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
                   >
-                    <AlertTriangle className="mr-2 w-4 h-4" />
-                    Due for All
+                    {isGeneratingStatement ? (
+                      <>
+                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
+                        Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 w-4 h-4" />
+                        Client Statement
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleDownloadStatement('items')}
+                    size="sm"
+                    disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
+                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingStatement ? (
+                      <>
+                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
+                        Preparing...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 w-4 h-4" />
+                        Client All
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={() => handleBulkInvoice()}
@@ -3166,6 +3707,7 @@ export default function ClientCostCentersPage() {
                     {showPaidAndBalanceColumns && (
                       <>
                         <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Amount Paid</th>
+                        <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Credited</th>
                         <th className="p-4 font-semibold text-gray-700 text-sm text-left uppercase tracking-wider">Balance Due</th>
                       </>
                     )}
@@ -3213,6 +3755,14 @@ export default function ClientCostCentersPage() {
                             </p>
                           </td>
                           <td className="p-4">
+                            <div className="font-semibold text-blue-600">
+                              {formatCurrency(costCenter.creditAmount || 0)}
+                            </div>
+                            <p className="text-gray-500 text-xs">
+                              Credited amount
+                            </p>
+                          </td>
+                          <td className="p-4">
                             <div className={`font-semibold ${
                               Number(costCenter.balanceDue || 0) > 0 ? 'text-red-600' : 'text-green-600'
                             }`}>
@@ -3257,7 +3807,7 @@ export default function ClientCostCentersPage() {
                           <Button
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => handleShowDueReport(costCenter)}
+                            onClick={() => handleShowDueReport(costCenter, 'summary')}
                             disabled={generatingReport[costCenter.accountNumber]}
                           >
                             {generatingReport[costCenter.accountNumber] ? (
@@ -3269,6 +3819,24 @@ export default function ClientCostCentersPage() {
                               <>
                                 <FileText className="mr-1 w-3 h-3" />
                                 Statement
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-slate-700 hover:bg-slate-800 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
+                            onClick={() => handleShowDueReport(costCenter, 'items')}
+                            disabled={generatingReport[costCenter.accountNumber]}
+                          >
+                            {generatingReport[costCenter.accountNumber] ? (
+                              <>
+                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
+                                Loading...
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="mr-1 w-3 h-3" />
+                                Full Statement + Items
                               </>
                             )}
                           </Button>
@@ -3286,7 +3854,7 @@ export default function ClientCostCentersPage() {
       {/* Payment Modal */}
       {showPaymentModal && paymentDetails && (
         <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
-          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-md max-h-[90vh]">
+          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-4xl max-h-[90vh]">
             {/* Modal Header */}
             <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
               <h3 className="font-semibold text-gray-900 text-lg">{paymentDetails.title}</h3>
@@ -3309,7 +3877,11 @@ export default function ClientCostCentersPage() {
                 </div>
                 <h4 className="mb-2 font-bold text-gray-900 text-xl">Amount Owed</h4>
                 <div className="mb-2 font-bold text-blue-600 text-3xl">
-                  {formatCurrency(paymentDetails.amount)}
+                  {formatCurrency(
+                    paymentDetails.type === 'costCenter' && openInvoicesForPayment.length > 0
+                      ? totalOpenInvoiceBalance
+                      : paymentDetails.amount,
+                  )}
                 </div>
                 <p className="text-gray-600 text-sm">{paymentDetails.description}</p>
                 
@@ -3317,9 +3889,25 @@ export default function ClientCostCentersPage() {
                 <div className="bg-blue-50 mt-4 p-3 border border-blue-200 rounded-lg">
                   <div className="space-y-1 text-blue-800 text-xs">
                     <div className="flex justify-between">
-                      <span>Current Amount Due:</span>
-                      <span className="font-semibold">{formatCurrency(paymentDetails.amount)}</span>
+                      <span>
+                        {paymentDetails.type === 'costCenter' && openInvoicesForPayment.length > 0
+                          ? 'Total Open Invoices:'
+                          : 'Current Amount Due:'}
+                      </span>
+                      <span className="font-semibold">
+                        {formatCurrency(
+                          paymentDetails.type === 'costCenter' && openInvoicesForPayment.length > 0
+                            ? totalOpenInvoiceBalance
+                            : paymentDetails.amount,
+                        )}
+                      </span>
                     </div>
+                    {paymentDetails.type === 'costCenter' && selectedPaymentInvoice && (
+                      <div className="flex justify-between">
+                        <span>Selected Invoice Due:</span>
+                        <span className="font-semibold">{formatCurrency(selectedPaymentInvoice.balance_due || 0)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>Payment Due Date:</span>
                       <span className="font-semibold">21st of each month</span>
@@ -3330,6 +3918,78 @@ export default function ClientCostCentersPage() {
                   </div>
                 </div>
               </div>
+
+              {paymentDetails.type === 'costCenter' && (
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block font-medium text-gray-700 text-sm">
+                      Open Invoices
+                    </label>
+                    {loadingOpenInvoices && (
+                      <span className="text-blue-600 text-xs">Loading...</span>
+                    )}
+                  </div>
+                  <div className="space-y-2 bg-gray-50 p-4 border border-gray-200 rounded-lg max-h-72 overflow-y-auto">
+                    {loadingOpenInvoices ? (
+                      <div className="text-gray-500 text-sm">Fetching unpaid invoices...</div>
+                    ) : openInvoicesForPayment.length > 0 ? (
+                      openInvoicesForPayment.map((invoice) => {
+                        const isSelected =
+                          String(selectedPaymentInvoiceId || '') === String(invoice.id || '');
+                        return (
+                          <button
+                            key={invoice.id}
+                            type="button"
+                            onClick={() => setSelectedPaymentInvoiceId(invoice.id)}
+                            className={`w-full rounded-lg border px-3 py-3 text-left transition ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 bg-white hover:border-blue-300'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="font-semibold text-gray-900 text-sm">
+                                  {invoice.invoice_number || 'Stored Invoice'}
+                                  {invoice.isDraft && (
+                                    <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                      Draft
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-1 text-gray-500 text-xs">
+                                  Billing Month: {invoice.billing_month || 'N/A'}
+                                </div>
+                                <div className="text-gray-500 text-xs">
+                                  Invoice Date: {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : 'N/A'}
+                                </div>
+                                <div className="text-gray-500 text-xs">
+                                  Generated: {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-semibold text-gray-900 text-sm">
+                                  Full: {formatCurrency(invoice.total_amount || 0)}
+                                </div>
+                                <div className="font-semibold text-red-600 text-sm">
+                                  {formatCurrency(invoice.balance_due || 0)}
+                                </div>
+                                <div className="text-gray-500 text-xs">
+                                  Paid: {formatCurrency(invoice.paid_amount || 0)}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="text-gray-500 text-sm">
+                        No unpaid invoice rows were found for this cost center.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Payment Amount Input */}
               <div className="mb-6">
@@ -3354,7 +4014,7 @@ export default function ClientCostCentersPage() {
                     Enter amount (e.g., 1500.50 or 1500)
                   </span>
                   <span className="font-medium text-blue-600">
-                    Max: {formatCurrency(paymentDetails.amount)}
+                    Invoice Due: {formatCurrency(getPaymentLimit())}
                   </span>
                 </div>
               </div>
@@ -3362,8 +4022,7 @@ export default function ClientCostCentersPage() {
               {/* Payment Reference Input */}
               <div className="mb-6">
                 <label className="block mb-2 font-medium text-gray-700 text-sm">
-                  Payment Reference {paymentDetails.type === 'allCostCenters' ? '(Required)' : '(Optional)'}
-                  {paymentDetails.type === 'allCostCenters' && <span className="ml-1 text-red-500">*</span>}
+                  Payment Reference (Optional)
                 </label>
                 <Input
                   type="text"
@@ -3374,10 +4033,7 @@ export default function ClientCostCentersPage() {
                   className="disabled:opacity-50 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
                 <p className="mt-1 text-gray-500 text-xs">
-                  {paymentDetails.type === 'allCostCenters' 
-                    ? 'Payment reference is required for bulk payments to help track the transaction.'
-                    : 'Add a reference to help track this payment (e.g., invoice number, check number)'
-                  }
+                  Add a reference to help track this payment (e.g., invoice number, check number)
                 </p>
               </div>
 
@@ -3430,12 +4086,50 @@ export default function ClientCostCentersPage() {
                     <span className="font-semibold text-blue-600 text-sm">{paymentReference}</span>
                   </div>
                 )}
+                {paymentDetails.type === 'costCenter' && selectedPaymentInvoice && (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Selected Invoice:</span>
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {selectedPaymentInvoice.invoice_number || 'Stored Invoice'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Selected Period:</span>
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {selectedPaymentInvoice.billing_month || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Invoice Date:</span>
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {selectedPaymentInvoice.invoice_date
+                          ? new Date(selectedPaymentInvoice.invoice_date).toLocaleDateString()
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Generated On:</span>
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {selectedPaymentInvoice.created_at
+                          ? new Date(selectedPaymentInvoice.created_at).toLocaleDateString()
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Full Invoice Amount:</span>
+                      <span className="font-semibold text-gray-900 text-sm">
+                        {formatCurrency(selectedPaymentInvoice.total_amount || 0)}
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium text-gray-700 text-sm">Remaining After Payment:</span>
                   <span className={`font-semibold text-sm ${
-                    (paymentDetails.amount - getNumericAmount()) > 0 ? 'text-orange-600' : 'text-green-600'
+                    (getPaymentLimit() - getNumericAmount()) > 0 ? 'text-orange-600' : 'text-green-600'
                   }`}>
-                    {formatCurrency(Math.max(0, paymentDetails.amount - getNumericAmount()))}
+                    {formatCurrency(Math.max(0, getPaymentLimit() - getNumericAmount()))}
                   </span>
                 </div>
                 {paymentDetails.type === 'costCenter' && (
@@ -3460,7 +4154,12 @@ export default function ClientCostCentersPage() {
                 </Button>
                 <Button
                   onClick={handleConfirmPayment}
-                  disabled={!enteredAmount || getNumericAmount() <= 0 || processingPayment || (paymentDetails.type === 'allCostCenters' && !paymentReference.trim())}
+                  disabled={
+                    !enteredAmount ||
+                    getNumericAmount() <= 0 ||
+                    processingPayment ||
+                    loadingOpenInvoices
+                  }
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white disabled:cursor-not-allowed"
                 >
                   {processingPayment ? (
@@ -3501,98 +4200,175 @@ export default function ClientCostCentersPage() {
 
             {/* Modal Content */}
             <div className="flex-1 p-6 overflow-y-auto">
-              {/* Payment Fields - Moved to Top */}
-              <div className="mb-6">
-                <h5 className="mb-3 font-semibold text-gray-700">Payment Details</h5>
-                
-                {/* Payment Amount Input */}
-                <div className="mb-4">
-                  <label className="block mb-2 font-medium text-gray-700 text-sm">
-                    Payment Amount
-                  </label>
-                  <div className="relative">
-                    <span className="top-1/2 left-3 absolute font-semibold text-gray-500 -translate-y-1/2 transform">
-                      R
-                    </span>
-                    <Input
-                      type="text"
-                      value={payAllAmount}
-                      onChange={handlePayAllAmountChange}
-                      placeholder="0.00"
-                      disabled={processingPayment}
-                      className="disabled:opacity-50 py-3 pr-4 pl-8 border-gray-300 focus:border-blue-500 focus:ring-blue-500 font-mono text-lg disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="flex justify-between items-center mt-2 text-xs">
-                    <span className="text-gray-500">
-                      Enter total payment amount
-                    </span>
-                    <span className="font-medium text-blue-600">
-                      Selected Total: {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + getOutstandingAmount(cc), 0))}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Payment Reference Input */}
-                <div className="mb-4">
-                  <label className="block mb-2 font-medium text-gray-700 text-sm">
-                    Payment Reference <span className="text-red-500">*</span>
-                  </label>
-                  <Input
-                    type="text"
-                    value={payAllReference}
-                    onChange={(e) => setPayAllReference(e.target.value)}
-                    placeholder="Enter payment reference for all payments..."
-                    disabled={processingPayment}
-                    className="disabled:opacity-50 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
-                  <p className="mt-1 text-gray-500 text-xs">
-                    This reference will be used for all selected cost center payments
-                  </p>
-                </div>
-              </div>
-
               <div className="mb-6 text-center">
                 <div className="flex justify-center items-center bg-blue-100 mx-auto mb-4 rounded-full w-16 h-16">
                   <CreditCard className="w-8 h-8 text-blue-600" />
                 </div>
                 <h4 className="mb-2 font-bold text-gray-900 text-xl">Bulk Payment</h4>
-                <p className="text-gray-600 text-sm">Select cost centers and enter payment details</p>
+                <p className="text-gray-600 text-sm">Expand a cost center, pick the invoice, allocate the amount, and enter a reference for each allocation.</p>
               </div>
 
               {/* Cost Centers Selection */}
               <div className="mb-6">
                 <h5 className="mb-3 font-semibold text-gray-700">Select Cost Centers to Pay</h5>
-                <div className="space-y-2 p-4 border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
-                  {selectedCostCenters.map((costCenter) => (
-                    <div key={costCenter.accountNumber} className="flex items-center space-x-3 hover:bg-gray-50 p-2 border border-gray-200 rounded-lg">
-                      <input
-                        type="checkbox"
-                        id={`cc-${costCenter.accountNumber}`}
-                        checked={costCenter.selected}
-                        onChange={(e) => handleCostCenterSelection(costCenter.accountNumber, e.target.checked)}
-                        className="border-gray-300 rounded focus:ring-blue-500 w-4 h-4 text-blue-600"
-                      />
-                      <label htmlFor={`cc-${costCenter.accountNumber}`} className="flex-1 cursor-pointer">
-                        <div className="font-medium text-gray-900 text-sm">{costCenter.accountName}</div>
-                        <div className="text-gray-500 text-xs">
-                          {costCenter.accountNumber} • Amount Due: {formatCurrency(getOutstandingAmount(costCenter))}
+                <div className="space-y-2 p-4 border border-gray-200 rounded-lg max-h-[28rem] overflow-y-auto">
+                  {selectedCostCenters.map((costCenter) => {
+                    const bulkState = bulkInvoiceSelections[costCenter.accountNumber] || {};
+                    return (
+                      <div key={costCenter.accountNumber} className="border border-gray-200 rounded-lg">
+                        <div className="flex items-center gap-3 hover:bg-gray-50 p-3">
+                          <input
+                            type="checkbox"
+                            id={"cc-" + costCenter.accountNumber}
+                            checked={costCenter.selected}
+                            onChange={(e) => handleCostCenterSelection(costCenter.accountNumber, e.target.checked)}
+                            className="border-gray-300 rounded focus:ring-blue-500 w-4 h-4 text-blue-600"
+                          />
+                          <label htmlFor={"cc-" + costCenter.accountNumber} className="flex-1 cursor-pointer">
+                            <div className="font-medium text-gray-900 text-sm">{costCenter.accountName}</div>
+                            <div className="text-gray-500 text-xs">
+                              {costCenter.accountNumber} - Outstanding: {formatCurrency(getOutstandingAmount(costCenter))}
+                            </div>
+                          </label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleBulkInvoiceDropdown(costCenter)}
+                            className="shrink-0"
+                          >
+                            {bulkState.expanded ? (
+                              <ChevronDown className="mr-1 w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="mr-1 w-4 h-4" />
+                            )}
+                            Invoices
+                          </Button>
                         </div>
-                      </label>
-                    </div>
-                  ))}
+
+                        {bulkState.expanded && (
+                          <div className="space-y-3 bg-gray-50 px-3 pb-3">
+                            {bulkState.loading ? (
+                              <div className="px-2 py-3 text-gray-500 text-sm">Loading invoices...</div>
+                            ) : Array.isArray(bulkState.invoices) && bulkState.invoices.length > 0 ? (
+                              bulkState.invoices.map((invoice) => {
+                                const allocation = bulkState.allocations?.[String(invoice.id)] || {};
+                                return (
+                                  <div key={invoice.id} className="bg-white p-3 border border-gray-200 rounded-lg">
+                                    <div className="flex items-start gap-3">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(allocation.selected)}
+                                        onChange={(e) =>
+                                          handleBulkInvoiceAllocationChange(
+                                            costCenter.accountNumber,
+                                            String(invoice.id),
+                                            'selected',
+                                            e.target.checked,
+                                          )
+                                        }
+                                        className="mt-1 border-gray-300 rounded focus:ring-blue-500 w-4 h-4 text-blue-600"
+                                      />
+                                      <div className="flex-1">
+                                        <div className="flex justify-between gap-4">
+                                          <div>
+                                            <div className="font-semibold text-gray-900 text-sm">
+                                              {invoice.invoice_number || 'Stored Invoice'}
+                                              {invoice.isDraft && (
+                                                <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                                                  Draft
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div className="text-gray-500 text-xs">
+                                              Billing Month: {invoice.billing_month || 'N/A'}
+                                            </div>
+                                            <div className="text-gray-500 text-xs">
+                                              Invoice Date: {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : 'N/A'}
+                                            </div>
+                                            <div className="text-gray-500 text-xs">
+                                              Generated: {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
+                                            </div>
+                                          </div>
+                                          <div className="text-right">
+                                            <div className="font-semibold text-gray-900 text-sm">
+                                              Full: {formatCurrency(invoice.total_amount || 0)}
+                                            </div>
+                                            <div className="font-semibold text-red-600 text-sm">
+                                              Due: {formatCurrency(invoice.balance_due || 0)}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="gap-3 grid grid-cols-1 md:grid-cols-2 mt-3">
+                                          <div>
+                                            <label className="block mb-1 font-medium text-gray-700 text-xs">
+                                              Allocate Amount
+                                            </label>
+                                            <Input
+                                              type="text"
+                                              value={allocation.amount || ''}
+                                              onChange={(e) =>
+                                                handleBulkInvoiceAllocationChange(
+                                                  costCenter.accountNumber,
+                                                  String(invoice.id),
+                                                  'amount',
+                                                  e.target.value,
+                                                )
+                                              }
+                                              placeholder="0.00"
+                                              disabled={processingPayment}
+                                              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="block mb-1 font-medium text-gray-700 text-xs">
+                                              Payment Reference
+                                            </label>
+                                            <Input
+                                              type="text"
+                                              value={allocation.paymentReference || ''}
+                                              onChange={(e) =>
+                                                handleBulkInvoiceAllocationChange(
+                                                  costCenter.accountNumber,
+                                                  String(invoice.id),
+                                                  'paymentReference',
+                                                  e.target.value,
+                                                )
+                                              }
+                                              placeholder="Enter reference"
+                                              disabled={processingPayment}
+                                              className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="px-2 py-3 text-gray-500 text-sm">
+                                No unpaid invoice rows were found for this cost center.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Total Amount Display */}
               <div className="bg-blue-50 mb-6 p-4 border border-blue-200 rounded-lg">
                 <div className="text-center">
-                  <div className="mb-1 text-blue-600 text-sm">Total Amount for Selected Cost Centers</div>
+                  <div className="mb-1 text-blue-600 text-sm">Total Allocated Amount</div>
                   <div className="font-bold text-blue-700 text-3xl">
-                    {formatCurrency(selectedCostCenters.filter(cc => cc.selected).reduce((sum, cc) => sum + getOutstandingAmount(cc), 0))}
+                    {formatCurrency(totalBulkAllocatedAmount)}
                   </div>
                   <div className="mt-1 text-blue-600 text-sm">
-                    {selectedCostCenters.filter(cc => cc.selected).length} cost center(s) selected
+                    {getBulkSelectedAllocations().length} invoice allocation(s) selected
                   </div>
                 </div>
               </div>
@@ -3611,7 +4387,7 @@ export default function ClientCostCentersPage() {
                 </Button>
                 <Button
                   onClick={handlePayAllSubmit}
-                  disabled={!payAllAmount || parseFloat(payAllAmount) <= 0 || !payAllReference.trim() || processingPayment || selectedCostCenters.filter(cc => cc.selected).length === 0}
+                  disabled={processingPayment || getBulkSelectedAllocations().length === 0}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white disabled:cursor-not-allowed"
                 >
                   {processingPayment ? (
@@ -3638,13 +4414,16 @@ export default function ClientCostCentersPage() {
           <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
             {/* Modal Header */}
             <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
-              <h3 className="font-semibold text-gray-900 text-xl">Statement - {selectedCostCenterForReport.accountNumber}</h3>
+              <h3 className="font-semibold text-gray-900 text-xl">
+                {selectedStatementVariant === 'items' ? 'Full Debtor Statement With Items' : 'Debtor Statement'} - {selectedCostCenterForReport.accountNumber}
+              </h3>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setShowDueReport(false);
                   setSelectedCostCenterForReport(null);
+                  setSelectedStatementVariant('summary');
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -3658,6 +4437,10 @@ export default function ClientCostCentersPage() {
                 costCenter={selectedCostCenterForReport}
                 clientLegalName={clientLegalName}
                 paymentData={selectedCostCenterForReport.paymentData}
+                invoiceHistory={selectedCostCenterForReport.invoiceHistory}
+                paymentHistory={selectedCostCenterForReport.paymentHistory}
+                bulkInvoice={selectedCostCenterForReport.bulkInvoice}
+                showItemBreakdown={selectedStatementVariant === 'items'}
               />
             </div>
           </div>

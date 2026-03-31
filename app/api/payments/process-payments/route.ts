@@ -156,6 +156,47 @@ const buildDetailedInvoiceItems = (
   };
 };
 
+const formatUnknownError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const errorObject = error as {
+      message?: unknown;
+      code?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      error?: unknown;
+    };
+
+    const parts = [
+      errorObject.message,
+      errorObject.error,
+      errorObject.code,
+      errorObject.details,
+      errorObject.hint,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return "Unknown error";
+};
+
+const isUuidLike = (value: unknown) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim(),
+  );
+
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
@@ -169,13 +210,6 @@ export async function POST(request: NextRequest) {
       notes,
       paymentType,
     } = requestBody;
-
-    if (!paymentReference || !String(paymentReference).trim()) {
-      return NextResponse.json(
-        { error: "Payment reference is required" },
-        { status: 400 },
-      );
-    }
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
@@ -205,7 +239,10 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     let invoice = await resolveAccountInvoice(supabase, {
-      accountInvoiceId: accountInvoiceId ? String(accountInvoiceId) : null,
+      accountInvoiceId:
+        accountInvoiceId && isUuidLike(accountInvoiceId)
+          ? String(accountInvoiceId)
+          : null,
       accountNumber: accountNumber ? String(accountNumber).trim() : null,
       billingMonth: normalizeBillingMonth(billingMonth),
     });
@@ -336,22 +373,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentBalance = Number(invoice.balance_due ?? invoice.total_amount ?? 0);
-    if (numericAmount > currentBalance) {
-      return NextResponse.json(
-        {
-          error: `Payment amount cannot exceed current balance due (${currentBalance.toFixed(2)})`,
-        },
-        { status: 400 },
-      );
-    }
+    const finalPaymentReference =
+      String(paymentReference || "").trim() ||
+      `AUTO-${invoice.account_number}-${invoice.invoice_number || "INV"}-${new Date().toISOString().slice(0, 10)}`;
 
     const paymentInsert = {
       account_invoice_id: invoice.id,
       account_number: invoice.account_number,
       billing_month: invoice.billing_month,
       invoice_number: invoice.invoice_number,
-      payment_reference: String(paymentReference).trim(),
+      payment_reference: finalPaymentReference,
       amount: numericAmount,
       payment_date: new Date().toISOString(),
       payment_method: paymentMethod ? String(paymentMethod).trim() : null,
@@ -390,10 +421,13 @@ export async function POST(request: NextRequest) {
       (sum, row) => sum + Number(row.amount || 0),
       0,
     );
+    const invoiceTotal = Number(invoice.total_amount || 0);
+    const appliedPaidAmount = Math.min(totalPaid, invoiceTotal);
+    const creditAmount = Math.max(0, Number((totalPaid - invoiceTotal).toFixed(2)));
 
     const financials = buildInvoiceFinancials({
-      totalAmount: invoice.total_amount,
-      paidAmount: totalPaid,
+      totalAmount: invoiceTotal,
+      paidAmount: appliedPaidAmount,
       dueDate: invoice.due_date,
     });
 
@@ -424,7 +458,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await upsertPaymentsMirror(supabase, updatedInvoice);
+    await upsertPaymentsMirror(supabase, {
+      ...updatedInvoice,
+      credit_amount: creditAmount,
+    });
 
     return NextResponse.json({
       success: true,
@@ -434,12 +471,13 @@ export async function POST(request: NextRequest) {
         account_invoice_id: updatedInvoice.id,
         invoice_number: updatedInvoice.invoice_number,
       },
+      creditAmount,
       paymentEntry: insertedPayment,
     });
   } catch (error) {
     console.error("Payment processing error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: formatUnknownError(error) },
       { status: 500 },
     );
   }

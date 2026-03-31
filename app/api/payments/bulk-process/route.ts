@@ -1,11 +1,199 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  defaultDueDate,
+  buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
   normalizeBillingMonth,
   resolveAccountInvoice,
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
+
+const TOTAL_BILLING_COLUMNS = new Set([
+  "total_rental_sub",
+  "total_rental",
+  "total_sub",
+]);
+
+const SERVICE_ONLY_COLUMNS = new Set([
+  "consultancy",
+  "roaming",
+  "maintenance",
+  "after_hours",
+  "controlroom",
+  "software",
+  "eps_software_development",
+  "maysene_software_development",
+  "waterford_software_development",
+  "klaver_software_development",
+  "advatrans_software_development",
+  "tt_linehaul_software_development",
+  "tt_express_software_development",
+  "tt_fmcg_software_development",
+  "rapid_freight_software_development",
+  "remco_freight_software_development",
+  "vt_logistics_software_development",
+  "epilite_software_development",
+  "additional_data",
+  "driver_app",
+]);
+
+const formatColumnLabel = (value: string) =>
+  value
+    .replace(/^_+/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const normalizeBillingLabel = (value: string) =>
+  formatColumnLabel(value)
+    .replace(/\bSub\b/gi, "Subscription")
+    .replace(/\bRental\b/gi, "Rental");
+
+const toAmount = (value: unknown) => {
+  const amount = Number.parseFloat(String(value ?? "").trim());
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const buildAddress = (source?: Record<string, unknown> | null) =>
+  [
+    source?.physical_address_1,
+    source?.physical_address_2,
+    source?.physical_address_3,
+    source?.physical_area,
+    source?.physical_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join("\n");
+
+const isBillableVehicleColumn = (key: string) =>
+  key.endsWith("_rental") ||
+  key.endsWith("_sub") ||
+  SERVICE_ONLY_COLUMNS.has(key) ||
+  TOTAL_BILLING_COLUMNS.has(key);
+
+const buildDetailedInvoiceItems = (
+  vehicles: Array<Record<string, unknown>>,
+  companyName: string,
+) => {
+  const invoiceItems: Array<Record<string, unknown>> = [];
+
+  vehicles.forEach((vehicle) => {
+    let regFleetDisplay = "";
+    if (vehicle.reg && vehicle.fleet_number) {
+      regFleetDisplay = `${vehicle.reg} / ${vehicle.fleet_number}`;
+    } else {
+      regFleetDisplay = String(vehicle.reg || vehicle.fleet_number || "");
+    }
+
+    const billedItemLabels = Object.keys(vehicle)
+      .filter((key) => isBillableVehicleColumn(key) && !TOTAL_BILLING_COLUMNS.has(key))
+      .filter((key) => toAmount(vehicle[key]) > 0)
+      .map((key) => normalizeBillingLabel(key))
+      .filter(Boolean);
+
+    const monthlyRental = toAmount(vehicle.total_rental);
+    const monthlySub = toAmount(vehicle.total_sub);
+    const totalExVat = Number((monthlyRental + monthlySub).toFixed(2));
+    if (totalExVat <= 0) {
+      return;
+    }
+
+    const uniqueLabels = Array.from(new Set(billedItemLabels));
+    if (uniqueLabels.length === 0) {
+      if (monthlyRental > 0) uniqueLabels.push("Monthly Rental");
+      if (monthlySub > 0) uniqueLabels.push("Monthly Subscription");
+    }
+
+    const vatAmount = Number((totalExVat * 0.15).toFixed(2));
+    const totalInclVat = Number((totalExVat + vatAmount).toFixed(2));
+
+    invoiceItems.push({
+      previous_reg: vehicle.previous_reg || null,
+      reg: vehicle.reg || null,
+      fleetNumber: vehicle.fleet_number || null,
+      regFleetDisplay,
+      item_code: "MULTI BILLING",
+      description: uniqueLabels.join(", "),
+      comments: vehicle.company || companyName,
+      company: vehicle.company || companyName,
+      account_number: vehicle.account_number || vehicle.new_account_number || "",
+      units: 1,
+      unit_price: totalExVat.toFixed(2),
+      unit_price_without_vat: totalExVat.toFixed(2),
+      amountExcludingVat: totalExVat.toFixed(2),
+      total_excl_vat: totalExVat.toFixed(2),
+      vat_amount: vatAmount.toFixed(2),
+      vatAmount: vatAmount.toFixed(2),
+      vat_percentage: "15",
+      total_incl_vat: totalInclVat.toFixed(2),
+      total_including_vat: totalInclVat.toFixed(2),
+      totalRentalSub: totalInclVat.toFixed(2),
+    });
+  });
+
+  const subtotal = Number(
+    invoiceItems
+      .reduce((sum, item) => sum + Number(item.amountExcludingVat || 0), 0)
+      .toFixed(2),
+  );
+  const vatAmount = Number(
+    invoiceItems.reduce((sum, item) => sum + Number(item.vat_amount || 0), 0).toFixed(2),
+  );
+  const totalAmount = Number(
+    invoiceItems
+      .reduce((sum, item) => sum + Number(item.total_including_vat || 0), 0)
+      .toFixed(2),
+  );
+
+  return {
+    invoiceItems,
+    subtotal,
+    vatAmount,
+    totalAmount,
+  };
+};
+
+const formatUnknownError = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const errorObject = error as {
+      message?: unknown;
+      code?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      error?: unknown;
+    };
+
+    const parts = [
+      errorObject.message,
+      errorObject.error,
+      errorObject.code,
+      errorObject.details,
+      errorObject.hint,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return "Unknown error";
+};
+
+const isUuidLike = (value: unknown) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim(),
+  );
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,13 +207,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!paymentReference || !String(paymentReference).trim()) {
-      return NextResponse.json(
-        { error: "Payment reference is required for bulk payments" },
-        { status: 400 },
-      );
-    }
-
     const supabase = await createClient();
     const {
       data: { user },
@@ -34,8 +215,10 @@ export async function POST(request: NextRequest) {
     const results = [];
     const errors = [];
     let successCount = 0;
+    const buildAutoReference = (invoice: { account_number: string; invoice_number: string }, index: number) =>
+      `AUTO-${invoice.account_number}-${invoice.invoice_number || "INV"}-${String(index + 1).padStart(2, "0")}`;
 
-    for (const payment of payments) {
+    for (const [index, payment] of payments.entries()) {
       try {
         const amount = Number(payment.amount);
         if (!Number.isFinite(amount) || amount <= 0) {
@@ -43,26 +226,151 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const invoice = await resolveAccountInvoice(supabase, {
-          accountInvoiceId: payment.accountInvoiceId
-            ? String(payment.accountInvoiceId)
-            : null,
+        const resolvedPaymentReference = String(
+          payment.paymentReference || paymentReference || "",
+        ).trim();
+
+        let invoice = await resolveAccountInvoice(supabase, {
+          accountInvoiceId:
+            payment.accountInvoiceId && isUuidLike(payment.accountInvoiceId)
+              ? String(payment.accountInvoiceId)
+              : null,
           accountNumber: payment.accountNumber ? String(payment.accountNumber).trim() : null,
           billingMonth: normalizeBillingMonth(payment.billingMonth),
         });
+
+        if (!invoice && payment.accountNumber) {
+          const normalizedAccountNumber = String(payment.accountNumber).trim().toUpperCase();
+          const normalizedBillingMonth = normalizeBillingMonth(payment.billingMonth) || (() => {
+            const currentMonth = new Date();
+            currentMonth.setDate(1);
+            return currentMonth.toISOString().slice(0, 10);
+          })();
+
+          const [
+            { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
+            { data: vehiclesByAccount, error: vehiclesByAccountError },
+            { data: costCenterRow, error: costCenterError },
+          ] = await Promise.all([
+            supabase
+              .from("vehicles")
+              .select("*")
+              .eq("new_account_number", normalizedAccountNumber),
+            supabase
+              .from("vehicles")
+              .select("*")
+              .eq("account_number", normalizedAccountNumber),
+            supabase
+              .from("cost_centers")
+              .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code")
+              .eq("cost_code", normalizedAccountNumber)
+              .maybeSingle(),
+          ]);
+
+          if (vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
+            errors.push(
+              `${normalizedAccountNumber}: ${
+                vehiclesByNewAccountError?.message ||
+                vehiclesByAccountError?.message ||
+                costCenterError?.message ||
+                "Failed to prepare draft invoice"
+              }`,
+            );
+            continue;
+          }
+
+          const vehicleMap = new Map<string, Record<string, unknown>>();
+          [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
+            const key =
+              String(vehicle?.id || "").trim() ||
+              String(vehicle?.reg || "").trim().toUpperCase() ||
+              JSON.stringify([
+                String(vehicle?.new_account_number || "").trim().toUpperCase(),
+                String(vehicle?.account_number || "").trim().toUpperCase(),
+                vehicle?.company || "",
+                vehicle?.total_rental || "",
+                vehicle?.total_sub || "",
+              ]);
+            if (!vehicleMap.has(key)) {
+              vehicleMap.set(key, vehicle);
+            }
+          });
+
+          const draft = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values())).get(normalizedAccountNumber);
+
+          if (!draft || Number(draft.due_amount || 0) <= 0) {
+            errors.push(`${normalizedAccountNumber}: invoice not found`);
+            continue;
+          }
+
+          const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
+            "allocate_document_number",
+            {
+              sequence_name: "invoice",
+              prefix: "INV-",
+            },
+          );
+
+          if (numberError || !allocatedInvoiceNumber) {
+            errors.push(
+              `${normalizedAccountNumber}: ${numberError?.message || "Failed to allocate invoice number"}`,
+            );
+            continue;
+          }
+
+          const invoiceDate = new Date().toISOString();
+          const companyName =
+            costCenterRow?.legal_name ||
+            costCenterRow?.company ||
+            draft.company ||
+            normalizedAccountNumber;
+          const clientAddress = buildAddress(costCenterRow);
+          const { invoiceItems, subtotal, vatAmount, totalAmount } =
+            buildDetailedInvoiceItems(Array.from(vehicleMap.values()), companyName);
+
+          const { data: insertedInvoice, error: insertError } = await supabase
+            .from("account_invoices")
+            .insert({
+              account_number: normalizedAccountNumber,
+              billing_month: normalizedBillingMonth,
+              invoice_number: allocatedInvoiceNumber,
+              company_name: companyName,
+              client_address: clientAddress || null,
+              customer_vat_number: costCenterRow?.vat_number || null,
+              invoice_date: invoiceDate,
+              due_date: defaultDueDate(invoiceDate),
+              subtotal,
+              vat_amount: vatAmount,
+              discount_amount: 0,
+              total_amount: totalAmount,
+              paid_amount: 0,
+              balance_due: totalAmount,
+              payment_status: "pending",
+              line_items: invoiceItems,
+              notes: "Auto-created during bulk payment from current vehicle billing draft with full vehicle detail",
+              created_by: user?.id || null,
+            })
+            .select("*")
+            .single();
+
+          if (insertError || !insertedInvoice) {
+            errors.push(
+              `${normalizedAccountNumber}: ${insertError?.message || "Failed to create invoice snapshot for payment"}`,
+            );
+            continue;
+          }
+
+          await upsertPaymentsMirror(supabase, insertedInvoice);
+          invoice = insertedInvoice;
+        }
 
         if (!invoice) {
           errors.push(`${payment.accountNumber || "unknown"}: invoice not found`);
           continue;
         }
 
-        const currentBalance = Number(invoice.balance_due ?? invoice.total_amount ?? 0);
-        if (amount > currentBalance) {
-          errors.push(
-            `${invoice.account_number}: payment exceeds current balance (${currentBalance.toFixed(2)})`,
-          );
-          continue;
-        }
+        const finalPaymentReference =
+          resolvedPaymentReference || buildAutoReference(invoice, index);
 
         const { data: insertedPayment, error: insertError } = await supabase
           .from("account_invoice_payments")
@@ -71,7 +379,7 @@ export async function POST(request: NextRequest) {
             account_number: invoice.account_number,
             billing_month: invoice.billing_month,
             invoice_number: invoice.invoice_number,
-            payment_reference: String(paymentReference).trim(),
+            payment_reference: finalPaymentReference,
             amount,
             payment_date: new Date().toISOString(),
             payment_method: paymentMethod ? String(paymentMethod).trim() : null,
@@ -100,9 +408,12 @@ export async function POST(request: NextRequest) {
           (sum, row) => sum + Number(row.amount || 0),
           0,
         );
+        const invoiceTotal = Number(invoice.total_amount || 0);
+        const appliedPaidAmount = Math.min(totalPaid, invoiceTotal);
+        const creditAmount = Math.max(0, Number((totalPaid - invoiceTotal).toFixed(2)));
         const financials = buildInvoiceFinancials({
-          totalAmount: invoice.total_amount,
-          paidAmount: totalPaid,
+          totalAmount: invoiceTotal,
+          paidAmount: appliedPaidAmount,
           dueDate: invoice.due_date,
         });
 
@@ -128,12 +439,16 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        await upsertPaymentsMirror(supabase, updatedInvoice);
+        await upsertPaymentsMirror(supabase, {
+          ...updatedInvoice,
+          credit_amount: creditAmount,
+        });
 
         results.push({
           accountNumber: invoice.account_number,
           amount,
           success: true,
+          creditAmount,
           payment: {
             ...updatedInvoice,
             account_invoice_id: updatedInvoice.id,
@@ -141,7 +456,8 @@ export async function POST(request: NextRequest) {
         });
         successCount++;
       } catch (error) {
-        errors.push(`${payment.accountNumber || "unknown"}: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error("Bulk payment allocation error:", payment.accountNumber || "unknown", error);
+        errors.push(`${payment.accountNumber || "unknown"}: ${formatUnknownError(error)}`);
       }
     }
 

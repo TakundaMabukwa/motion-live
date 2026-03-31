@@ -133,7 +133,7 @@ export const buildInvoiceFinancials = ({
 };
 
 export const buildDraftPaymentsFromVehicles = (
-  vehicles: Array<Record<string, any>> = [],
+  vehicles: Array<Record<string, unknown>> = [],
 ) => {
   const currentBillingMonth = new Date();
   currentBillingMonth.setDate(1);
@@ -226,8 +226,17 @@ export const upsertPaymentsMirror = async (
     payment_status?: string | null;
     last_payment_reference?: string | null;
     updated_at?: string | null;
+    credit_amount?: number | null;
   },
 ) => {
+  const isMissingCreditAmountColumnError = (error: unknown) => {
+    const message =
+      typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message || "")
+        : "";
+    return message.includes("credit_amount");
+  };
+
   const billingMonth = normalizeBillingMonth(invoice.billing_month);
   const overdueBuckets = calculateOverdueBuckets({
     balanceDue: invoice.balance_due,
@@ -252,9 +261,15 @@ export const upsertPaymentsMirror = async (
     last_updated: new Date().toISOString(),
   };
 
+  const basePayload = { ...payload };
+  let payloadWithCredit = {
+    ...basePayload,
+    credit_amount: toNumber(invoice.credit_amount ?? 0),
+  };
+
   let existingQuery = supabase
     .from("payments_")
-    .select("id")
+    .select("id, credit_amount")
     .eq("cost_code", invoice.account_number)
     .limit(1);
 
@@ -262,18 +277,51 @@ export const upsertPaymentsMirror = async (
     ? existingQuery.eq("billing_month", billingMonth)
     : existingQuery.is("billing_month", null);
 
-  const { data: existingRows, error: existingError } = await existingQuery;
+  let { data: existingRows, error: existingError } = await existingQuery;
+  if (existingError && isMissingCreditAmountColumnError(existingError)) {
+    let fallbackQuery = supabase
+      .from("payments_")
+      .select("id")
+      .eq("cost_code", invoice.account_number)
+      .limit(1);
+
+    fallbackQuery = billingMonth
+      ? fallbackQuery.eq("billing_month", billingMonth)
+      : fallbackQuery.is("billing_month", null);
+
+    const fallbackResult = await fallbackQuery;
+    existingRows = fallbackResult.data;
+    existingError = fallbackResult.error;
+    payloadWithCredit = basePayload;
+  }
   if (existingError) {
     throw existingError;
   }
 
   const existingPayment = Array.isArray(existingRows) ? existingRows[0] || null : null;
+  const creditAmount =
+    invoice.credit_amount ??
+    (typeof existingPayment === "object" && existingPayment !== null && "credit_amount" in existingPayment
+      ? (existingPayment as { credit_amount?: unknown }).credit_amount
+      : 0) ??
+    0;
+  if ("credit_amount" in payloadWithCredit) {
+    payloadWithCredit.credit_amount = toNumber(creditAmount);
+  }
 
   if (existingPayment?.id) {
-    const { error: updateError } = await supabase
+    let { error: updateError } = await supabase
       .from("payments_")
-      .update(payload)
+      .update(payloadWithCredit)
       .eq("id", existingPayment.id);
+
+    if (updateError && isMissingCreditAmountColumnError(updateError)) {
+      const { error: fallbackUpdateError } = await supabase
+        .from("payments_")
+        .update(basePayload)
+        .eq("id", existingPayment.id);
+      updateError = fallbackUpdateError;
+    }
 
     if (updateError) {
       throw updateError;
@@ -281,7 +329,11 @@ export const upsertPaymentsMirror = async (
     return;
   }
 
-  const { error: insertError } = await supabase.from("payments_").insert(payload);
+  let { error: insertError } = await supabase.from("payments_").insert(payloadWithCredit);
+  if (insertError && isMissingCreditAmountColumnError(insertError)) {
+    const fallbackInsert = await supabase.from("payments_").insert(basePayload);
+    insertError = fallbackInsert.error;
+  }
   if (insertError) {
     throw insertError;
   }

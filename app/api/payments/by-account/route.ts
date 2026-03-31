@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
 
     const [
       { data: invoiceRows, error: invoiceError },
+      { data: paymentsMirrorRows, error: paymentsMirrorError },
       { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
       { data: vehiclesByAccount, error: vehiclesByAccountError },
       { data: costCenterRow, error: costCenterError },
@@ -55,6 +56,28 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(1),
       supabase
+        .from('payments_')
+        .select(`
+          id,
+          cost_code,
+          account_invoice_id,
+          invoice_number,
+          reference,
+          due_amount,
+          paid_amount,
+          balance_due,
+          invoice_date,
+          due_date,
+          payment_status,
+          billing_month,
+          last_updated,
+          credit_amount
+        `)
+        .eq('cost_code', accountNumber)
+        .eq('billing_month', currentBillingMonth)
+        .order('last_updated', { ascending: false })
+        .limit(1),
+      supabase
         .from('vehicles')
         .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
         .eq('new_account_number', accountNumber),
@@ -69,9 +92,10 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ]);
 
-    if (invoiceError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
+    if (invoiceError || paymentsMirrorError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
       const message =
         invoiceError?.message ||
+        paymentsMirrorError?.message ||
         vehiclesByNewAccountError?.message ||
         vehiclesByAccountError?.message ||
         costCenterError?.message ||
@@ -82,6 +106,7 @@ export async function GET(request: NextRequest) {
     }
 
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
+    const paymentsMirror = Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows[0] || null : null;
 
     const dedupedVehicles = new Map<string, Record<string, unknown>>();
     [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
@@ -132,6 +157,7 @@ export async function GET(request: NextRequest) {
         payment_status: invoice.payment_status || financials.paymentStatus,
         billing_month: invoice.billing_month || currentBillingMonth,
         last_updated: invoice.created_at || new Date().toISOString(),
+        credit_amount: Number(paymentsMirror?.credit_amount || 0),
         source: 'account_invoice',
       };
     } else if (draft) {
@@ -140,6 +166,16 @@ export async function GET(request: NextRequest) {
         company,
         cost_code: accountNumber,
         billing_month: draft.billing_month || currentBillingMonth,
+        credit_amount: Number(paymentsMirror?.credit_amount || 0),
+      };
+    } else if (paymentsMirror) {
+      payment = {
+        ...paymentsMirror,
+        company,
+        cost_code: accountNumber,
+        billing_month: paymentsMirror.billing_month || currentBillingMonth,
+        credit_amount: Number(paymentsMirror.credit_amount || 0),
+        source: 'payments_mirror',
       };
     }
 

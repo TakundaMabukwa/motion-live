@@ -1,10 +1,112 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeBillingMonth } from "@/lib/server/account-invoice-payments";
+import {
+  buildInvoiceFinancials,
+  defaultDueDate,
+  normalizeBillingMonth,
+  upsertPaymentsMirror,
+} from "@/lib/server/account-invoice-payments";
 
 const hasRealInvoiceNumber = (value: unknown) => {
   const normalized = String(value || "").trim().toUpperCase();
   return Boolean(normalized) && normalized !== "PENDING";
+};
+
+const syncBulkInvoiceToAccountInvoices = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    bulkInvoice,
+    userId,
+  }: {
+    bulkInvoice: Record<string, unknown>;
+    userId?: string | null;
+  },
+) => {
+  const accountNumber = String(bulkInvoice?.account_number || "").trim();
+  const billingMonth = normalizeBillingMonth(bulkInvoice?.billing_month);
+
+  if (!accountNumber) {
+    return null;
+  }
+
+  let existingQuery = supabase
+    .from("account_invoices")
+    .select("*")
+    .eq("account_number", accountNumber)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  existingQuery = billingMonth
+    ? existingQuery.eq("billing_month", billingMonth)
+    : existingQuery.is("billing_month", null);
+
+  const { data: existingRows, error: existingError } = await existingQuery;
+  if (existingError) {
+    throw existingError;
+  }
+
+  const existingInvoice = Array.isArray(existingRows) ? existingRows[0] || null : null;
+  const invoiceDate = String(bulkInvoice?.invoice_date || new Date().toISOString());
+  const dueDate = existingInvoice?.due_date || defaultDueDate(invoiceDate);
+  const existingPaidAmount = Number(existingInvoice?.paid_amount || 0);
+  const financials = buildInvoiceFinancials({
+    totalAmount: bulkInvoice?.total_amount,
+    paidAmount: existingPaidAmount,
+    dueDate,
+  });
+
+  const payload = {
+    account_number: accountNumber,
+    billing_month: billingMonth,
+    invoice_number: String(bulkInvoice?.invoice_number || "").trim(),
+    company_name: bulkInvoice?.company_name || null,
+    client_address: bulkInvoice?.client_address || null,
+    customer_vat_number: bulkInvoice?.customer_vat_number || null,
+    company_registration_number: bulkInvoice?.company_registration_number || null,
+    invoice_date: invoiceDate,
+    due_date: dueDate,
+    subtotal: Number(bulkInvoice?.subtotal || 0),
+    vat_amount: Number(bulkInvoice?.vat_amount || 0),
+    discount_amount: Number(bulkInvoice?.discount_amount || 0),
+    total_amount: financials.totalAmount,
+    paid_amount: financials.paidAmount,
+    balance_due: financials.balanceDue,
+    payment_status: financials.paymentStatus,
+    line_items: Array.isArray(bulkInvoice?.line_items) ? bulkInvoice.line_items : [],
+    notes: bulkInvoice?.notes || null,
+  };
+
+  if (existingInvoice?.id) {
+    const { data: updatedInvoice, error: updateError } = await supabase
+      .from("account_invoices")
+      .update(payload)
+      .eq("id", existingInvoice.id)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    await upsertPaymentsMirror(supabase, updatedInvoice);
+    return updatedInvoice;
+  }
+
+  const { data: insertedInvoice, error: insertError } = await supabase
+    .from("account_invoices")
+    .insert({
+      ...payload,
+      created_by: userId || null,
+    })
+    .select("*")
+    .single();
+
+  if (insertError) {
+    throw insertError;
+  }
+
+  await upsertPaymentsMirror(supabase, insertedInvoice);
+  return insertedInvoice;
 };
 
 export async function GET(request: NextRequest) {
@@ -157,6 +259,24 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      try {
+        await syncBulkInvoiceToAccountInvoices(supabase, {
+          bulkInvoice: updatedInvoice,
+          userId: user.id,
+        });
+      } catch (syncError) {
+        console.error("Failed to sync bulk invoice to account_invoices:", syncError);
+        return NextResponse.json(
+          {
+            error:
+              syncError instanceof Error
+                ? syncError.message
+                : "Failed to sync bulk invoice to account invoices",
+          },
+          { status: 500 },
+        );
+      }
+
       return NextResponse.json({ invoice: updatedInvoice, reused: true });
     }
 
@@ -188,6 +308,24 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       return NextResponse.json(
         { error: insertError.message || "Failed to create bulk invoice" },
+        { status: 500 },
+      );
+    }
+
+    try {
+      await syncBulkInvoiceToAccountInvoices(supabase, {
+        bulkInvoice: insertedInvoice,
+        userId: user.id,
+      });
+    } catch (syncError) {
+      console.error("Failed to sync bulk invoice to account_invoices:", syncError);
+      return NextResponse.json(
+        {
+          error:
+            syncError instanceof Error
+              ? syncError.message
+              : "Failed to sync bulk invoice to account invoices",
+        },
         { status: 500 },
       );
     }
@@ -280,6 +418,24 @@ export async function PATCH(request: NextRequest) {
     if (updateError) {
       return NextResponse.json(
         { error: updateError.message || "Failed to update bulk invoice number" },
+        { status: 500 },
+      );
+    }
+
+    try {
+      await syncBulkInvoiceToAccountInvoices(supabase, {
+        bulkInvoice: updatedInvoice,
+        userId: user.id,
+      });
+    } catch (syncError) {
+      console.error("Failed to sync edited bulk invoice to account_invoices:", syncError);
+      return NextResponse.json(
+        {
+          error:
+            syncError instanceof Error
+              ? syncError.message
+              : "Failed to sync edited bulk invoice to account invoices",
+        },
         { status: 500 },
       );
     }

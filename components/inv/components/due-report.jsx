@@ -1,837 +1,806 @@
 "use client";
 
-import React, { useMemo } from 'react';
-import Image from 'next/image';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import React, { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
+const COMPANY_INFO = {
+  name: "Soltrack (PTY) LTD",
+  regNo: "2018/095975/07",
+  vatNo: "4580161802",
+  headOffice: [
+    "8 Viscount Road",
+    "Viscount office park, Block C unit 4 & 5",
+    "Bedfordview, 2008",
+  ],
+  postal: ["P.O Box 95603", "Grant Park 2051"],
+  contact: ["Phone: 011 824 0066", "Email: accounts@soltrack.co.za", "Website: www.soltrack.co.za"],
+  banking: ["Nedbank Northrand", "Code - 146905", "A/C No. - 1469109069"],
+};
 
-export default function DueReportComponent({ costCenter, clientLegalName, paymentData }) {
-  const agingBuckets = useMemo(() => {
-    const balanceDue = Number(paymentData?.balance_due || 0);
-    const dueDate = paymentData?.due_date ? new Date(paymentData.due_date) : null;
+const toNumber = (value) => {
+  const amount = Number.parseFloat(value);
+  return Number.isFinite(amount) ? amount : 0;
+};
 
-    if (balanceDue <= 0 || !dueDate || Number.isNaN(dueDate.getTime())) {
-      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+const formatAmount = (amount) =>
+  toNumber(amount).toLocaleString("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatCurrency = (amount) => `R ${formatAmount(amount)}`;
+
+const formatDate = (value) => {
+  if (!value) return "N/A";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toLocaleDateString("en-GB");
+};
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const buildStatementStyles = () => `
+  :root {
+    --statement-text: #111111;
+    --statement-border: #404040;
+    --statement-line: #b7b7b7;
+    --statement-fill: #d8d8d8;
+    --statement-bg: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--statement-bg);
+    color: var(--statement-text);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body {
+    padding: 24px;
+  }
+
+  .statement-page {
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    background: #fff;
+  }
+
+  .statement-sheet {
+    min-height: 1122px;
+  }
+
+  .statement-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .statement-top {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .statement-logo {
+    width: 220px;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .statement-company {
+    text-align: center;
+    font-size: 16px;
+    line-height: 1.3;
+  }
+
+  .statement-company strong {
+    display: block;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .statement-rule {
+    border-top: 2px solid var(--statement-line);
+    margin: 12px 0 8px;
+  }
+
+  .statement-title {
+    text-align: center;
+    font-weight: 700;
+    font-size: 20px;
+    margin: 8px 0 36px;
+    text-transform: uppercase;
+  }
+
+  .statement-party-row {
+    display: grid;
+    grid-template-columns: 1.45fr 0.85fr;
+    gap: 24px;
+    min-height: 150px;
+    margin-bottom: 26px;
+  }
+
+  .statement-client-name,
+  .statement-meta-label,
+  .statement-meta-value {
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .statement-client-block {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .statement-client-address {
+    white-space: pre-line;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .statement-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px 14px;
+    align-content: start;
+  }
+
+  .statement-summary-table,
+  .statement-table,
+  .statement-aging-table,
+  .statement-footer-table,
+  .statement-totals-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .statement-summary-table,
+  .statement-table,
+  .statement-aging-table {
+    margin-bottom: 16px;
+  }
+
+  .statement-summary-table th,
+  .statement-summary-table td,
+  .statement-table th,
+  .statement-table td,
+  .statement-aging-table th,
+  .statement-aging-table td,
+  .statement-footer-table td,
+  .statement-totals-table td {
+    border: 2px solid var(--statement-border);
+    padding: 4px 6px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .statement-summary-table th,
+  .statement-table thead th,
+  .statement-aging-table thead th {
+    background: var(--statement-fill);
+    font-weight: 700;
+  }
+
+  .statement-summary-table th,
+  .statement-aging-table th {
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .statement-summary-table td,
+  .statement-aging-table td {
+    text-align: center;
+    font-size: 14px;
+    height: 38px;
+    vertical-align: middle;
+  }
+
+  .statement-table thead th {
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .statement-table tbody td {
+    font-size: 11px;
+    line-height: 1.2;
+    height: 30px;
+  }
+
+  .statement-table tbody tr:nth-child(even) td {
+    background: #efefef;
+  }
+
+  .col-center {
+    text-align: center;
+  }
+
+  .col-right {
+    text-align: right;
+  }
+
+  .statement-notes-totals {
+    display: grid;
+    grid-template-columns: 1.25fr 0.85fr;
+    gap: 30px;
+    align-items: start;
+    margin: 24px 0 48px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .statement-notes {
+    white-space: pre-line;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .statement-notes strong {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+
+  .statement-totals-table td {
+    height: 40px;
+    font-size: 14px;
+    vertical-align: middle;
+  }
+
+  .statement-totals-table .label {
+    font-weight: 700;
+    width: 55%;
+  }
+
+  .statement-totals-table .value {
+    text-align: right;
+    width: 45%;
+  }
+
+  .statement-totals-table .grand-total td {
+    font-weight: 700;
+    font-size: 16px;
+  }
+
+  .statement-section-title {
+    margin: 20px 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .statement-footer-table td {
+    height: 132px;
+    font-size: 12px;
+    line-height: 1.35;
+    vertical-align: top;
+  }
+
+  .statement-footer-table strong {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @media print {
+    body {
+      padding: 0;
     }
 
-    const today = new Date();
-    const diffMs = today.setHours(0, 0, 0, 0) - dueDate.setHours(0, 0, 0, 0);
-    const daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    .statement-actions {
+      display: none !important;
+    }
 
-    if (daysOverdue <= 0) {
-      return { current: balanceDue, days30: 0, days60: 0, days90: 0, days91Plus: 0 };
+    .statement-page {
+      max-width: none;
+    }
+
+    .statement-sheet {
+      min-height: auto;
+    }
+  }
+`;
+
+function StatementDocument({ statementView, showItemBreakdown = false }) {
+  const {
+    clientName,
+    clientAddress,
+    companyRegistrationNumber,
+    statementNumber,
+    statementDate,
+    accountNumber,
+    customerVatNumber,
+    rows,
+    agingRows,
+    itemRows,
+    totals,
+  } = statementView;
+
+  return `
+    <div class="statement-page">
+      <style>${buildStatementStyles()}</style>
+      <div class="statement-sheet">
+        <div class="statement-top">
+          <div>
+            <img src="/soltrack_logo.png" alt="Soltrack Logo" class="statement-logo" />
+          </div>
+          <div class="statement-company">
+            <strong>${escapeHtml(COMPANY_INFO.name)}</strong>
+            <div>Reg No: ${escapeHtml(COMPANY_INFO.regNo)}</div>
+            <div>VAT No.: ${escapeHtml(COMPANY_INFO.vatNo)}</div>
+          </div>
+        </div>
+
+        <div class="statement-rule"></div>
+        <div class="statement-title">Debtor Statement</div>
+
+        <div class="statement-party-row">
+          <div class="statement-client-block">
+            <div class="statement-client-name">${escapeHtml(clientName)}</div>
+            <div class="statement-client-address"><strong>Company Reg:</strong> ${escapeHtml(companyRegistrationNumber || "-")}</div>
+            <div class="statement-client-address">${escapeHtml(clientAddress)}</div>
+          </div>
+          <div class="statement-meta">
+            <div class="statement-meta-label">DEBTOR STATEMENT :</div>
+            <div class="statement-meta-value">${escapeHtml(statementNumber)}</div>
+            <div class="statement-meta-label">Date:</div>
+            <div class="statement-meta-value">${escapeHtml(statementDate)}</div>
+          </div>
+        </div>
+
+        <table class="statement-summary-table">
+          <colgroup>
+            <col style="width: 12.5%" />
+            <col style="width: 40.5%" />
+            <col style="width: 14%" />
+            <col style="width: 33%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Client</th>
+              <th>VAT %</th>
+              <th>Customer Vat Number</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${escapeHtml(accountNumber)}</td>
+              <td>${escapeHtml(clientName)}</td>
+              <td>VAT 15%</td>
+              <td>${escapeHtml(customerVatNumber || "-")}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table class="statement-table">
+          <colgroup>
+            <col style="width: 14%" />
+            <col style="width: 22%" />
+            <col style="width: 18%" />
+            <col style="width: 12%" />
+            <col style="width: 10%" />
+            <col style="width: 10%" />
+            <col style="width: 14%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Client</th>
+              <th>Invoice Number</th>
+              <th class="col-right">Total Invoiced</th>
+              <th class="col-right">Paid</th>
+              <th class="col-right">Credited</th>
+              <th class="col-right">Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (row) => `
+                  <tr>
+                    <td>${escapeHtml(row.date)}</td>
+                    <td>${escapeHtml(row.client)}</td>
+                    <td>${escapeHtml(row.invoiceNumber)}</td>
+                    <td class="col-right">${escapeHtml(row.totalInvoiced)}</td>
+                    <td class="col-right">${escapeHtml(row.paid)}</td>
+                    <td class="col-right">${escapeHtml(row.credited)}</td>
+                    <td class="col-right">${escapeHtml(row.outstanding)}</td>
+                  </tr>
+                `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+
+        ${
+          showItemBreakdown && itemRows.length > 0
+            ? `
+              <div class="statement-section-title">Full Item Breakdown Making Up Statement Total</div>
+              <table class="statement-table">
+                <colgroup>
+                  <col style="width: 16%" />
+                  <col style="width: 14%" />
+                  <col style="width: 34%" />
+                  <col style="width: 12%" />
+                  <col style="width: 12%" />
+                  <col style="width: 12%" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Vehicle Reg</th>
+                    <th>Fleet No</th>
+                    <th>Description</th>
+                    <th class="col-right">Unit Price</th>
+                    <th class="col-right">VAT</th>
+                    <th class="col-right">Total Incl</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemRows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td>${escapeHtml(row.reg)}</td>
+                          <td>${escapeHtml(row.fleetNumber)}</td>
+                          <td>${escapeHtml(row.description)}</td>
+                          <td class="col-right">${escapeHtml(row.unitPrice)}</td>
+                          <td class="col-right">${escapeHtml(row.vatAmount)}</td>
+                          <td class="col-right">${escapeHtml(row.totalIncl)}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            `
+            : ""
+        }
+
+        <div class="statement-section-title">Age Analysis</div>
+        <table class="statement-aging-table">
+          <colgroup>
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Current</th>
+              <th>30 Days</th>
+              <th>60 Days</th>
+              <th>90 Days</th>
+              <th>120+ Days</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              ${agingRows.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="statement-notes-totals">
+          <div class="statement-notes">
+            <strong>Notes:</strong>
+            This debtor statement reflects the full outstanding amount currently linked to this cost center. Age analysis is shown below using the current invoice balance position.
+          </div>
+
+          <table class="statement-totals-table">
+            <tbody>
+              <tr>
+                <td class="label">Total Invoiced</td>
+                <td class="value">${escapeHtml(totals.totalInvoiced)}</td>
+              </tr>
+              <tr>
+                <td class="label">Paid</td>
+                <td class="value">${escapeHtml(totals.paid)}</td>
+              </tr>
+              <tr>
+                <td class="label">Credited</td>
+                <td class="value">${escapeHtml(totals.credited)}</td>
+              </tr>
+              <tr class="grand-total">
+                <td class="label">Outstanding</td>
+                <td class="value">${escapeHtml(totals.outstanding)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <table class="statement-footer-table">
+          <colgroup>
+            <col style="width: 35%" />
+            <col style="width: 19%" />
+            <col style="width: 26%" />
+            <col style="width: 20%" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <td>
+                <strong>Head Office:</strong>
+                ${COMPANY_INFO.headOffice.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+              </td>
+              <td>
+                <strong>Postal Address:</strong>
+                ${COMPANY_INFO.postal.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+              </td>
+              <td>
+                <strong>Contact Details</strong>
+                ${COMPANY_INFO.contact.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+              </td>
+              <td>
+                <strong>${escapeHtml(COMPANY_INFO.name)}</strong>
+                ${COMPANY_INFO.banking.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+export default function DueReportComponent({
+  costCenter,
+  clientLegalName,
+  paymentData,
+  invoiceHistory = [],
+  paymentHistory = [],
+  bulkInvoice = null,
+  showItemBreakdown = false,
+}) {
+  const statementView = useMemo(() => {
+    const invoiceItems =
+      costCenter?.invoiceData?.invoiceItems ||
+      costCenter?.invoiceData?.invoice_items ||
+      [];
+
+    const currentInvoice =
+      invoiceHistory.find(
+        (invoice) =>
+          String(invoice?.billing_month || "") === String(paymentData?.billing_month || "") &&
+          String(invoice?.account_number || "") === String(costCenter?.accountNumber || ""),
+      ) || null;
+
+    const clientName =
+      costCenter?.invoiceData?.company_name ||
+      bulkInvoice?.company_name ||
+      currentInvoice?.company_name ||
+      costCenter?.accountName ||
+      paymentData?.company_name ||
+      clientLegalName ||
+      costCenter?.accountNumber ||
+      "Client Name";
+
+    const structuredAddress = [
+      costCenter?.costCenterInfo?.physical_address_1,
+      costCenter?.costCenterInfo?.physical_address_2,
+      costCenter?.costCenterInfo?.physical_address_3,
+      costCenter?.costCenterInfo?.physical_area,
+      costCenter?.costCenterInfo?.physical_code,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const clientAddress =
+      costCenter?.invoiceData?.client_address ||
+      bulkInvoice?.client_address ||
+      currentInvoice?.client_address ||
+      paymentData?.client_address ||
+      structuredAddress;
+
+    const activeInvoice =
+      bulkInvoice ||
+      currentInvoice ||
+      (costCenter?.invoiceData
+        ? {
+            invoice_number: costCenter.invoiceData.invoice_number,
+            invoice_date: costCenter.invoiceData.invoice_date,
+            created_at: costCenter.invoiceData.created_at,
+            total_amount: costCenter.invoiceData.total_amount,
+            balance_due: costCenter.invoiceData.balance_due,
+            paid_amount: costCenter.invoiceData.paid_amount,
+            due_date: costCenter.invoiceData.due_date,
+          }
+        : null);
+
+    const actualInvoiceNumber =
+      activeInvoice?.invoice_number ||
+      paymentData?.invoice_number ||
+      costCenter?.invoiceData?.invoice_number ||
+      costCenter?.reference ||
+      "";
+
+    const matchedPayments = paymentHistory.filter((payment) => {
+      const sameInvoiceId =
+        currentInvoice?.id &&
+        String(payment?.account_invoice_id || "") === String(currentInvoice.id);
+      const sameInvoiceNumber =
+        actualInvoiceNumber &&
+        String(payment?.invoice_number || "") === String(actualInvoiceNumber);
+      const sameAccount =
+        String(payment?.account_number || "") === String(costCenter?.accountNumber || "");
+      return sameAccount && (sameInvoiceId || sameInvoiceNumber);
+    });
+
+    const paidAmount =
+      matchedPayments.length > 0
+        ? matchedPayments.reduce((sum, payment) => sum + toNumber(payment?.amount), 0)
+        : toNumber(activeInvoice?.paid_amount ?? paymentData?.paid_amount);
+    const creditedAmount = toNumber(
+      paymentData?.credited_amount ??
+        paymentData?.credit_amount ??
+        activeInvoice?.credited_amount ??
+        activeInvoice?.credit_amount ??
+        costCenter?.credit_amount ??
+        costCenter?.credited_amount,
+    );
+    const totalInvoiced = toNumber(
+      activeInvoice?.total_amount ||
+        paymentData?.due_amount ||
+        paymentData?.total_amount ||
+        (toNumber(paymentData?.balance_due) + paidAmount + creditedAmount),
+    );
+    const balanceDue = Math.max(
+      0,
+      toNumber(activeInvoice?.balance_due ?? paymentData?.balance_due ?? totalInvoiced - paidAmount - creditedAmount),
+    );
+    const dueDateValue = activeInvoice?.due_date || paymentData?.due_date || null;
+    const dueDate = dueDateValue ? new Date(dueDateValue) : null;
+
+    const normalizedToday = new Date();
+    normalizedToday.setHours(0, 0, 0, 0);
+
+    let current = balanceDue;
+    let days30 = 0;
+    let days60 = 0;
+    let days90 = 0;
+    let days120Plus = 0;
+
+    if (balanceDue > 0 && dueDate && !Number.isNaN(dueDate.getTime())) {
+      dueDate.setHours(0, 0, 0, 0);
+      const daysOverdue = Math.floor((normalizedToday.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysOverdue > 0) {
+        current = 0;
+        if (daysOverdue <= 30) {
+          days30 = balanceDue;
+        } else if (daysOverdue <= 60) {
+          days60 = balanceDue;
+        } else if (daysOverdue <= 90) {
+          days90 = balanceDue;
+        } else {
+          days120Plus = balanceDue;
+        }
+      }
     }
 
     return {
-      current: 0,
-      days30: daysOverdue <= 30 ? balanceDue : 0,
-      days60: daysOverdue >= 31 && daysOverdue <= 60 ? balanceDue : 0,
-      days90: daysOverdue >= 61 && daysOverdue <= 90 ? balanceDue : 0,
-      days91Plus: daysOverdue > 90 ? balanceDue : 0,
-    };
-  }, [paymentData]);
-
-  // Due report data structure using payments table data
-  const dueReportData = {
-    company: {
-      name: "Soltrack (PTY) LTD",
-      regNo: "2018/095975/07",
-      vatNo: "4580161802",
-      tagline: "VEHICLE BUREAU SERVICE"
-    },
-    client: {
-      name: clientLegalName || "Client Name",
+      clientName,
+      clientAddress: clientAddress || "-",
+      companyRegistrationNumber:
+        costCenter?.invoiceData?.company_registration_number ||
+        bulkInvoice?.company_registration_number ||
+        currentInvoice?.company_registration_number ||
+        costCenter?.costCenterInfo?.registration_number ||
+        paymentData?.company_registration_number ||
+        "-",
+      statementNumber: "",
+      statementDate: formatDate(new Date().toISOString()),
       accountNumber: costCenter?.accountNumber || "N/A",
-      costCenter: costCenter?.accountName || "N/A",
-      vatNumber:
-        costCenter?.costCenterInfo?.vat_number ||
+      customerVatNumber:
         costCenter?.invoiceData?.customer_vat_number ||
-        "N/A"
-    },
-    statement: {
-      number: `STMT-${costCenter?.accountNumber || 'N/A'}`,
-      date: new Date().toLocaleDateString(),
-      type: "Debtor Statement"
-    },
-    // Transaction details (3-month view using payments_ overdue buckets)
-    transactions: [],
-    // Aging analysis using payments_ table data
-    aging: [
-      {
-        period: "120 Days",
-        amount: agingBuckets.days91Plus || 0,
-        status: "Overdue"
+        bulkInvoice?.customer_vat_number ||
+        currentInvoice?.customer_vat_number ||
+        costCenter?.costCenterInfo?.vat_number ||
+        paymentData?.customer_vat_number ||
+        "-",
+      rows: [
+        {
+          date: formatDate(
+            activeInvoice?.invoice_date ||
+              paymentData?.invoice_date ||
+              activeInvoice?.created_at ||
+              paymentData?.created_at ||
+              paymentData?.billing_month,
+          ),
+          client: clientName,
+          invoiceNumber: actualInvoiceNumber || "-",
+          totalInvoiced: formatCurrency(totalInvoiced),
+          paid: formatCurrency(paidAmount),
+          credited: formatCurrency(creditedAmount),
+          outstanding: formatCurrency(balanceDue),
+        },
+      ],
+      agingRows: [
+        formatCurrency(current),
+        formatCurrency(days30),
+        formatCurrency(days60),
+        formatCurrency(days90),
+        formatCurrency(days120Plus),
+      ],
+      itemRows: invoiceItems.map((item, index) => ({
+        id: `${item?.reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
+        reg: item?.reg || "-",
+        fleetNumber: item?.fleetNumber || item?.fleet_number || "-",
+        description: item?.description || item?.item_description || item?.itemCode || "Billed Item",
+        unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
+        vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
+        totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
+      })),
+      totals: {
+        totalInvoiced: formatCurrency(totalInvoiced),
+        paid: formatCurrency(paidAmount),
+        credited: formatCurrency(creditedAmount),
+        outstanding: formatCurrency(balanceDue),
       },
-      {
-        period: "90 Days",
-        amount: agingBuckets.days90 || 0,
-        status: "Overdue"
-      },
-      {
-        period: "60 Days",
-        amount: agingBuckets.days60 || 0,
-        status: "Overdue"
-      },
-      {
-        period: "30 Days",
-        amount: agingBuckets.days30 || 0,
-        status: "Current"
-      },
-      {
-        period: "Current",
-        amount: agingBuckets.current || 0,
-        status: "Outstanding"
-      }
-    ],
-    totals: {
-      totalOutstanding: paymentData?.balance_due || 0,
-      totalMonthly: paymentData?.due_amount || 0,
-      totalPaid: paymentData?.paid_amount || 0,
-      amountDue: paymentData?.balance_due || 0
-    }
-  };
+    };
+  }, [bulkInvoice, clientLegalName, costCenter, invoiceHistory, paymentData, paymentHistory]);
 
-  const shiftMonthLabel = (baseDate, offset) => {
-    const date = new Date(baseDate);
-    date.setMonth(date.getMonth() + offset);
-    return date.toLocaleDateString('en-GB');
-  };
-
-  const baseDate = paymentData?.billing_month || paymentData?.invoice_date || new Date().toISOString();
-  const currentDue = paymentData?.due_amount || 0;
-  const currentPaid = paymentData?.paid_amount || 0;
-  const currentBalance = paymentData?.balance_due || 0;
-
-  // Build 3-month view rows: current + 1/2/3 months overdue buckets
-  const overdue30 = agingBuckets.days30 || 0;
-  const overdue60 = agingBuckets.days60 || 0;
-  const overdue90 = (agingBuckets.days90 || 0) + (agingBuckets.days91Plus || 0);
-
-  dueReportData.transactions.push({
-    date: shiftMonthLabel(baseDate, 0),
-    client: clientLegalName || "Client Name",
-    invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
-    totalInvoiced: currentDue,
-    paid: currentPaid,
-    credited: 0,
-    outstanding: currentBalance
-  });
-
-  if (overdue30 > 0) {
-    dueReportData.transactions.push({
-      date: shiftMonthLabel(baseDate, -1),
-      client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
-      totalInvoiced: overdue30,
-      paid: 0,
-      credited: 0,
-      outstanding: overdue30
-    });
-  }
-
-  if (overdue60 > 0) {
-    dueReportData.transactions.push({
-      date: shiftMonthLabel(baseDate, -2),
-      client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
-      totalInvoiced: overdue60,
-      paid: 0,
-      credited: 0,
-      outstanding: overdue60
-    });
-  }
-
-  if (overdue90 > 0) {
-    dueReportData.transactions.push({
-      date: shiftMonthLabel(baseDate, -3),
-      client: clientLegalName || "Client Name",
-      invoiceNo: paymentData?.invoice_number || paymentData?.reference || costCenter?.accountNumber || 'N/A',
-      totalInvoiced: overdue90,
-      paid: 0,
-      credited: 0,
-      outstanding: overdue90
-    });
-  }
-
-  // Function to calculate overdue distribution across months
-  const calculateOverdueDistribution = () => {
-    const balanceDue = paymentData?.balance_due || 0;
-    if (balanceDue > 0) {
-      dueReportData.aging[0].amount = agingBuckets.days91Plus || 0;
-      dueReportData.aging[1].amount = agingBuckets.days90 || 0;
-      dueReportData.aging[2].amount = agingBuckets.days60 || 0;
-      dueReportData.aging[3].amount = agingBuckets.days30 || 0;
-      dueReportData.aging[4].amount = agingBuckets.current || 0;
-    }
-  };
-
-  // Calculate overdue distribution
-  calculateOverdueDistribution();
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR'
-    }).format(amount);
-  };
-
-  // Print Report function using browser print
   const printReport = () => {
-    // Create a new window with the content
-    const printWindow = window.open('', '_blank');
-    
-    // Create the print HTML with proper styling
-    const printHTML = `
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Due Report - ${costCenter?.accountNumber}</title>
-          <style>
-            @media print {
-              @page {
-                size: A4;
-                margin: 20mm;
-              }
-            }
-            
-            body {
-              font-family: Arial, sans-serif;
-              margin: 0;
-              padding: 20px;
-              background: white;
-            }
-            
-            .company-header {
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-start;
-              padding-bottom: 20px;
-              border-bottom: 2px solid #3b82f6;
-              margin-bottom: 30px;
-            }
-            
-            .company-info {
-              display: flex;
-              align-items: flex-start;
-              gap: 20px;
-            }
-            
-            .company-logo {
-              width: 120px;
-              height: 120px;
-            }
-            
-            .company-details h2 {
-              color: #3b82f6;
-              font-size: 24px;
-              margin: 0 0 10px 0;
-            }
-            
-            .company-details p {
-              margin: 5px 0;
-              color: #6b7280;
-            }
-            
-            .statement-header {
-              background: #f8fafc;
-              padding: 20px;
-              border-radius: 8px;
-              border: 1px solid #d1d5db;
-              margin-bottom: 20px;
-            }
-            
-            .statement-header h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .info-section {
-              background: #f8fafc;
-              padding: 20px;
-              border-radius: 8px;
-              border: 1px solid #d1d5db;
-              margin-bottom: 20px;
-            }
-            
-            .info-section h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .info-grid {
-              display: grid;
-              grid-template-columns: repeat(2, 1fr);
-              gap: 20px;
-            }
-            
-            .info-grid label {
-              font-weight: 600;
-              color: #374151;
-              font-size: 12px;
-              text-transform: uppercase;
-            }
-            
-            .info-grid p {
-              margin: 5px 0;
-              color: #111827;
-              font-weight: 600;
-            }
-            
-            .table-section h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .due-table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 30px;
-            }
-            
-            .due-table th {
-              background: #f3f4f6;
-              padding: 12px;
-              text-align: left;
-              border: 1px solid #d1d5db;
-              font-weight: 600;
-              font-size: 12px;
-              text-transform: uppercase;
-            }
-            
-            .due-table td {
-              padding: 12px;
-              border: 1px solid #d1d5db;
-              font-size: 12px;
-            }
-            
-            .due-table tr:nth-child(even) {
-              background: #f9fafb;
-            }
-            
-            .total-outstanding {
-              background: #fef3c7;
-              padding: 20px;
-              border: 2px solid #f59e0b;
-              border-radius: 8px;
-              margin-bottom: 30px;
-              text-align: center;
-            }
-            
-            .total-outstanding h3 {
-              margin: 0 0 15px 0;
-              color: #92400e;
-            }
-            
-            .total-outstanding p {
-              margin: 0;
-              font-size: 24px;
-              font-weight: bold;
-              color: #92400e;
-            }
-            
-            .aging-section {
-              background: #f8fafc;
-              padding: 20px;
-              border: 1px solid #d1d5db;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            
-            .aging-section h3 {
-              margin: 0 0 15px 0;
-              color: #374151;
-            }
-            
-            .aging-table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            
-            .aging-table th {
-              background: #f3f4f6;
-              padding: 12px;
-              text-align: center;
-              border: 1px solid #d1d5db;
-              font-weight: 600;
-              font-size: 12px;
-            }
-            
-            .aging-table td {
-              padding: 12px;
-              border: 1px solid #d1d5db;
-              font-size: 12px;
-              text-align: center;
-            }
-            
-            .summary-section {
-              background: #f8fafc;
-              padding: 30px;
-              border: 1px solid #d1d5db;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            
-            .summary-section h3 {
-              margin: 0 0 20px 0;
-              color: #374151;
-              text-align: center;
-            }
-            
-            .summary-grid {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 20px;
-            }
-            
-            .summary-box {
-              text-align: center;
-              padding: 20px;
-              border-radius: 8px;
-              color: white;
-            }
-            
-            .summary-box.red {
-              background: #ef4444;
-            }
-            
-            .summary-box.green {
-              background: #22c55e;
-            }
-            
-            .summary-box.blue {
-              background: #3b82f6;
-            }
-            
-            .summary-box.yellow {
-              background: #f59e0b;
-              color: #000;
-            }
-            
-            .summary-box label {
-              display: block;
-              margin-bottom: 10px;
-              font-size: 14px;
-              font-weight: 600;
-            }
-            
-            .summary-box p {
-              margin: 0;
-              font-size: 20px;
-              font-weight: bold;
-            }
-            
-            .notes-section {
-              background: #eff6ff;
-              padding: 20px;
-              border: 1px solid #93c5fd;
-              border-radius: 8px;
-              margin-bottom: 30px;
-            }
-            
-            .notes-section h3 {
-              margin: 0 0 10px 0;
-              color: #374151;
-            }
-            
-            .notes-section p {
-              margin: 0;
-              color: #1e40af;
-            }
-            
-            .footer {
-              display: grid;
-              grid-template-columns: repeat(4, 1fr);
-              gap: 20px;
-              padding-top: 30px;
-              border-top: 1px solid #d1d5db;
-              margin-top: 30px;
-            }
-            
-            .footer h4 {
-              margin: 0 0 10px 0;
-              color: #374151;
-              font-size: 14px;
-            }
-            
-            .footer p {
-              margin: 5px 0;
-              color: #6b7280;
-              font-size: 12px;
-            }
-            
-            @media print {
-              .download-btn {
-                display: none;
-              }
-            }
-          </style>
+          <title>Debtor Statement - ${escapeHtml(statementView.accountNumber)}</title>
         </head>
-        <body>
-          <div class="company-header">
-            <div class="company-info">
-              <img src="/soltrack_logo.png" alt="Soltrack Logo" class="company-logo" />
-              <div class="company-details">
-                <h2>${dueReportData.company.name}</h2>
-                <p>${dueReportData.company.tagline}</p>
-                <p>Reg No: ${dueReportData.company.regNo}</p>
-                <p>VAT No: ${dueReportData.company.vatNo}</p>
-              </div>
-            </div>
-            <div class="statement-header">
-              <h3>${dueReportData.statement.type.toUpperCase()}: ${dueReportData.statement.number}</h3>
-              <p>Date: ${dueReportData.statement.date}</p>
-            </div>
-          </div>
-          
-          <div class="info-section">
-            <h3>Account Header Section</h3>
-            <div class="info-grid">
-              <div>
-                <label>Account:</label>
-                <p>${dueReportData.client.accountNumber}</p>
-              </div>
-              <div>
-                <label>Your Reference:</label>
-                <p>${dueReportData.client.costCenter}</p>
-              </div>
-              <div>
-                <label>VAT %:</label>
-                <p>15%</p>
-              </div>
-              <div>
-                <label>Customer VAT Number:</label>
-                <p>${dueReportData.client.vatNumber}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="table-section">
-            <h3>Transaction Details Table</h3>
-            <table class="due-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Client</th>
-                  <th>Invoice No.</th>
-                  <th>Total Invoiced</th>
-                  <th>Paid</th>
-                  <th>Credited</th>
-                  <th>Outstanding</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${dueReportData.transactions.map((transaction, index) => `
-                  <tr>
-                    <td>${transaction.date}</td>
-                    <td>${transaction.client}</td>
-                    <td>${transaction.invoiceNo}</td>
-                    <td>${formatCurrency(transaction.totalInvoiced)}</td>
-                    <td>${formatCurrency(transaction.paid)}</td>
-                    <td>${formatCurrency(transaction.credited)}</td>
-                    <td>${formatCurrency(transaction.outstanding)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="total-outstanding">
-            <h3>Total Outstanding</h3>
-            <p>${formatCurrency(dueReportData.totals.totalOutstanding)}</p>
-          </div>
-          
-          <div class="aging-section">
-            <h3>Aging Analysis</h3>
-            <table class="aging-table">
-              <thead>
-                <tr>
-                  <th>120 Days</th>
-                  <th>90 Days</th>
-                  <th>60 Days</th>
-                  <th>30 Days</th>
-                  <th>Current</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  ${dueReportData.aging.map(item => `<td>${formatCurrency(item.amount)}</td>`).join('')}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="summary-section">
-            <h3>Payment Status Summary</h3>
-            <div class="summary-grid">
-              <div class="summary-box red">
-                <label>Amount Due</label>
-                <p>${formatCurrency(dueReportData.totals.amountDue)}</p>
-                <p class="font-medium text-sm" style="color: ${dueReportData.totals.amountDue > 0 ? '#dc2626' : '#16a34a'}">
-                  ${dueReportData.totals.amountDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
-                </p>
-              </div>
-              <div class="summary-box green">
-                <label>Total Paid</label>
-                <p>${formatCurrency(dueReportData.totals.totalPaid)}</p>
-                <p class="font-medium text-sm" style="color: ${dueReportData.totals.totalPaid > 0 ? '#16a34a' : '#dc2626'}">
-                  ${dueReportData.totals.totalPaid > 0 ? 'Paid' : 'Not Paid'}
-                </p>
-              </div>
-              <div class="summary-box blue">
-                <label>Monthly Amount</label>
-                <p>${formatCurrency(dueReportData.totals.totalMonthly)}</p>
-              </div>
-              <div class="summary-box yellow">
-                <label>Outstanding</label>
-                <p>${formatCurrency(dueReportData.totals.totalOutstanding)}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="notes-section">
-            <h3>Notes</h3>
-            <p>${dueReportData.totals.amountDue > 0 
-              ? `Amount due of ${formatCurrency(dueReportData.totals.amountDue)} requires immediate attention. Total paid: ${formatCurrency(dueReportData.totals.totalPaid)}.`
-              : 'All amounts have been paid in full. Thank you for your prompt payment.'}</p>
-          </div>
-          
-          <div class="footer">
-            <div>
-              <h4>Head Office:</h4>
-              <p>8 Viscount Road</p>
-              <p>Viscount office park, Block C unit 4 & 5</p>
-              <p>Bedfordview, 2008</p>
-            </div>
-            <div>
-              <h4>Postal Address:</h4>
-              <p>P.O Box 95603</p>
-              <p>Grant Park 2051</p>
-            </div>
-            <div>
-              <h4>Contact Details:</h4>
-              <p>Phone: 011 824 0066</p>
-              <p>Email: sales@soltrack.co.za</p>
-              <p>Website: www.soltrack.co.za</p>
-            </div>
-            <div>
-              <h4>Soltrack (PTY) LTD:</h4>
-              <p>Nedbank Northrand</p>
-              <p>Code - 146905</p>
-              <p>A/C No. - 1469109069</p>
-            </div>
-          </div>
-        </body>
+        <body>${StatementDocument({ statementView, showItemBreakdown })}</body>
       </html>
-    `;
-    
-    // Write the HTML to the new window
-    printWindow.document.write(printHTML);
+    `);
     printWindow.document.close();
-    
-    // Wait for content to load, then print
-    printWindow.onload = function() {
+    printWindow.onload = function onLoad() {
       printWindow.print();
-      // Close the window after printing
       setTimeout(() => {
         printWindow.close();
-      }, 1000);
+      }, 250);
     };
   };
 
   return (
-    <div className="w-full">
-      <div className="space-y-6 p-4">
-        {/* Company Header with Download Button */}
-        <div className="flex justify-between items-start pb-4 border-b">
-          <div className="flex items-start gap-4">
-            <Image
-              src="/soltrack_logo.png"
-              alt="Soltrack Logo"
-              width={192}
-              height={192}
-            />
-            <div>
-              <h2 className="font-bold text-blue-600 text-xl">{dueReportData.company.name}</h2>
-              <p className="text-gray-600 text-sm">{dueReportData.company.tagline}</p>
-              <p className="text-gray-500 text-xs">Reg No: {dueReportData.company.regNo}</p>
-              <p className="text-gray-500 text-xs">VAT No: {dueReportData.company.vatNo}</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="text-right">
-              <p className="font-semibold">{dueReportData.statement.type.toUpperCase()}: {dueReportData.statement.number}</p>
-              <p className="text-gray-600 text-sm">Date: {dueReportData.statement.date}</p>
-            </div>
-            <Button
-              onClick={printReport}
-              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-white"
-            >
-              <Download className="w-4 h-4" />
-              Print Report
-            </Button>
-          </div>
-        </div>
-
-        {/* Account Header Section */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Account Header Section</h3>
-          <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Account:</label>
-              <p className="font-semibold text-gray-900 text-sm">{dueReportData.client.accountNumber}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Your Reference:</label>
-              <p className="text-gray-900 text-sm">{dueReportData.client.costCenter}</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">VAT %:</label>
-              <p className="text-gray-900 text-sm">15%</p>
-            </div>
-            <div>
-              <label className="block font-medium text-gray-700 text-sm">Customer VAT Number:</label>
-              <p className="text-gray-900 text-sm">{dueReportData.client.vatNumber}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Transaction Details Table */}
-        <div>
-          <h3 className="mb-4 font-semibold text-gray-800">Transaction Details Table</h3>
-          <div className="overflow-x-auto">
-            <table className="border border-gray-300 w-full border-collapse">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Date</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Client</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-left">Invoice No.</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Total Invoiced</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Paid</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Credited</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-right">Outstanding</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dueReportData.transactions.map((transaction, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="p-3 border border-gray-300 text-sm">{transaction.date}</td>
-                    <td className="p-3 border border-gray-300 text-sm">{transaction.client}</td>
-                    <td className="p-3 border border-gray-300 text-sm">{transaction.invoiceNo}</td>
-                    <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(transaction.totalInvoiced)}</td>
-                    <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(transaction.paid)}</td>
-                    <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(transaction.credited)}</td>
-                    <td className="p-3 border border-gray-300 text-sm text-right">{formatCurrency(transaction.outstanding)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Total Outstanding */}
-        <div className="bg-yellow-100 p-6 border border-yellow-300 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Total Outstanding</h3>
-          <div className="text-center">
-            <p className="font-bold text-yellow-800 text-3xl">{formatCurrency(dueReportData.totals.totalOutstanding)}</p>
-          </div>
-        </div>
-
-        {/* Aging Analysis */}
-        <div>
-          <h3 className="mb-4 font-semibold text-gray-800">Aging Analysis</h3>
-          <div className="overflow-x-auto">
-            <table className="border border-gray-300 w-full border-collapse">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">120 Days</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">90 Days</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">60 Days</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">30 Days</th>
-                  <th className="p-3 border border-gray-300 font-medium text-sm text-center">Current</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="bg-white">
-                  <td className="p-3 border border-gray-300 text-sm text-center">{formatCurrency(dueReportData.aging[0].amount)}</td>
-                  <td className="p-3 border border-gray-300 text-sm text-center">{formatCurrency(dueReportData.aging[1].amount)}</td>
-                  <td className="p-3 border border-gray-300 text-sm text-center">{formatCurrency(dueReportData.aging[2].amount)}</td>
-                  <td className="p-3 border border-gray-300 text-sm text-center">{formatCurrency(dueReportData.aging[3].amount)}</td>
-                  <td className="p-3 border border-gray-300 text-sm text-center">{formatCurrency(dueReportData.aging[4].amount)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Payment Status Summary */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="mb-4 font-semibold text-gray-800">Payment Status Summary</h3>
-          <div className="gap-4 grid grid-cols-2 md:grid-cols-4">
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Amount Due</label>
-              <p className="font-bold text-red-600 text-xl">{formatCurrency(dueReportData.totals.amountDue)}</p>
-              <p className={`text-sm font-medium ${dueReportData.totals.amountDue > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {dueReportData.totals.amountDue > 0 ? 'Due / Not Paid' : 'Paid in Full'}
-              </p>
-            </div>
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Total Paid</label>
-              <p className="font-bold text-green-600 text-xl">{formatCurrency(dueReportData.totals.totalPaid)}</p>
-              <p className={`text-sm font-medium ${dueReportData.totals.totalPaid > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {dueReportData.totals.totalPaid > 0 ? 'Paid' : 'Not Paid'}
-              </p>
-            </div>
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Monthly Amount</label>
-              <p className="font-bold text-blue-600 text-xl">{formatCurrency(dueReportData.totals.totalMonthly)}</p>
-            </div>
-            <div className="text-center">
-              <label className="block mb-2 font-medium text-gray-700 text-sm">Outstanding</label>
-              <p className="font-bold text-yellow-600 text-xl">{formatCurrency(dueReportData.totals.totalOutstanding)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
-          <h3 className="mb-3 font-semibold text-gray-800">Notes</h3>
-          <p className="text-gray-700 text-sm">
-            {dueReportData.totals.amountDue > 0 
-              ? `Amount due of ${formatCurrency(dueReportData.totals.amountDue)} requires immediate attention. Total paid: ${formatCurrency(dueReportData.totals.totalPaid)}.`
-              : 'All amounts have been paid in full. Thank you for your prompt payment.'
-            }
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-4 pt-4 border-t text-gray-600 text-xs">
-          <div>
-            <h4 className="font-medium text-gray-800">Head Office:</h4>
-            <p>8 Viscount Road</p>
-            <p>Viscount office park, Block C unit 4 & 5</p>
-            <p>Bedfordview, 2008</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Postal Address:</h4>
-            <p>P.O Box 95603</p>
-            <p>Grant Park 2051</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Contact Details:</h4>
-            <p>Phone: 011 824 0066</p>
-            <p>Email: sales@soltrack.co.za</p>
-            <p>Website: www.soltrack.co.za</p>
-          </div>
-          <div>
-            <h4 className="font-medium text-gray-800">Soltrack (PTY) LTD:</h4>
-            <p>Nedbank Northrand</p>
-            <p>Code - 146905</p>
-            <p>A/C No. - 1469109069</p>
-          </div>
-        </div>
+    <div className="statement-page">
+      <style>{buildStatementStyles()}</style>
+      <div className="statement-actions">
+        <Button onClick={printReport} className="bg-red-600 hover:bg-red-700 text-white">
+          <Download className="mr-2 w-4 h-4" />
+          Print Statement
+        </Button>
       </div>
+      <div
+        dangerouslySetInnerHTML={{ __html: StatementDocument({ statementView, showItemBreakdown }) }}
+      />
     </div>
   );
 }

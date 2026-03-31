@@ -1,0 +1,68 @@
+alter table public.payments_
+  add column if not exists account_fusion text null,
+  add column if not exists account_solflo text null,
+  add column if not exists client_name text null,
+  add column if not exists client_contact text null,
+  add column if not exists phone text null,
+  add column if not exists email text null,
+  add column if not exists account_status text null,
+  add column if not exists payment_terms text null,
+  add column if not exists category text null,
+  add column if not exists postal_address text null,
+  add column if not exists city text null,
+  add column if not exists region text null,
+  add column if not exists country text null,
+  add column if not exists post_code text null,
+  add column if not exists solutions_rep text null,
+  add column if not exists last_payment_date timestamptz null,
+  add column if not exists last_payment numeric(12, 2) not null default 0,
+  add column if not exists avg_days_to_pay numeric(12, 2) not null default 0,
+  add column if not exists debtor_note text null,
+  add column if not exists credit_limit numeric(12, 2) not null default 0,
+  add column if not exists currency text not null default 'ZAR',
+  add column if not exists current_due numeric(12, 2) not null default 0,
+  add column if not exists overdue_120_plus_days numeric(12, 2) not null default 0,
+  add column if not exists outstanding_balance numeric(12, 2) not null default 0,
+  add column if not exists age_analysis_imported_at timestamptz null;
+
+create table if not exists public.age_analysis_imports (
+  id uuid not null default gen_random_uuid(),
+  batch_id uuid not null default gen_random_uuid(),
+  account_number text not null,
+  account_fusion text null,
+  account_solflo text null,
+  client text null,
+  contact text null,
+  phone text null,
+  email text null,
+  account_status text null,
+  payment_terms text null,
+  category text null,
+  postal_address text null,
+  city text null,
+  region text null,
+  country text null,
+  post_code text null,
+  solutions_rep text null,
+  last_payment_date timestamptz null,
+  last_payment numeric(12, 2) not null default 0,
+  avg_days_to_pay numeric(12, 2) not null default 0,
+  debtor_note text null,
+  credit_limit numeric(12, 2) not null default 0,
+  currency text not null default 'ZAR',
+  current_due numeric(12, 2) not null default 0,
+  overdue_30_days numeric(12, 2) not null default 0,
+  overdue_60_days numeric(12, 2) not null default 0,
+  overdue_90_days numeric(12, 2) not null default 0,
+  overdue_120_plus_days numeric(12, 2) not null default 0,
+  outstanding_balance numeric(12, 2) not null default 0,
+  raw_row jsonb not null default '{}'::jsonb,
+  imported_at timestamptz not null default now(),
+  constraint age_analysis_imports_pkey primary key (id)
+) tablespace pg_default;
+
+create index if not exists age_analysis_imports_batch_idx
+on public.age_analysis_imports using btree (batch_id) tablespace pg_default;
+
+create index if not exists age_analysis_imports_account_number_idx
+on public.age_analysis_imports using btree (account_number) tablespace pg_default;
