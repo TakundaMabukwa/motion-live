@@ -223,7 +223,7 @@ export async function GET(request: NextRequest) {
       latestPayments.forEach(payment => {
         summary.totalDueAmount += Number(payment.due_amount || 0);
         summary.totalPaidAmount += Number(payment.paid_amount || 0);
-        summary.totalBalanceDue += Number(payment.outstanding_balance ?? payment.balance_due || 0);
+        summary.totalBalanceDue += Number((payment.outstanding_balance ?? payment.balance_due) || 0);
         summary.totalOverdue30 += Number(payment.overdue_30_days || 0);
         summary.totalOverdue60 += Number(payment.overdue_60_days || 0);
         summary.totalOverdue90 += Number(payment.overdue_90_days || 0) + Number(payment.overdue_120_plus_days || 0);
@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
         one_month: Number(payment.due_amount || 0),
         '2nd_month': 0,
         '3rd_month': 0,
-        amount_due: Number(payment.outstanding_balance ?? payment.balance_due || 0),
+        amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
         credit_amount: Number(payment.credit_amount || 0),
         monthly_amount: Number(payment.due_amount || 0),
         payment_status: payment.payment_status,
