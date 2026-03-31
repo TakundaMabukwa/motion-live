@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const [
       { data: invoiceRows, error: invoiceError },
       { data: paymentsMirrorRows, error: paymentsMirrorError },
+      { data: latestAgingRows, error: latestAgingError },
       { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
       { data: vehiclesByAccount, error: vehiclesByAccountError },
       { data: costCenterRow, error: costCenterError },
@@ -69,12 +70,36 @@ export async function GET(request: NextRequest) {
           invoice_date,
           due_date,
           payment_status,
+          current_due,
           billing_month,
           last_updated,
-          credit_amount
+          credit_amount,
+          overdue_30_days,
+          overdue_60_days,
+          overdue_90_days,
+          overdue_120_plus_days,
+          outstanding_balance
         `)
         .eq('cost_code', accountNumber)
         .eq('billing_month', currentBillingMonth)
+        .order('last_updated', { ascending: false })
+        .limit(1),
+      supabase
+        .from('payments_')
+        .select(`
+          id,
+          cost_code,
+          current_due,
+          overdue_30_days,
+          overdue_60_days,
+          overdue_90_days,
+          overdue_120_plus_days,
+          outstanding_balance,
+          billing_month,
+          last_updated
+        `)
+        .eq('cost_code', accountNumber)
+        .order('billing_month', { ascending: false })
         .order('last_updated', { ascending: false })
         .limit(1),
       supabase
@@ -92,10 +117,11 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ]);
 
-    if (invoiceError || paymentsMirrorError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
+    if (invoiceError || paymentsMirrorError || latestAgingError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
       const message =
         invoiceError?.message ||
         paymentsMirrorError?.message ||
+        latestAgingError?.message ||
         vehiclesByNewAccountError?.message ||
         vehiclesByAccountError?.message ||
         costCenterError?.message ||
@@ -107,6 +133,7 @@ export async function GET(request: NextRequest) {
 
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
     const paymentsMirror = Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows[0] || null : null;
+    const latestAging = Array.isArray(latestAgingRows) ? latestAgingRows[0] || null : null;
 
     const dedupedVehicles = new Map<string, Record<string, unknown>>();
     [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
@@ -190,15 +217,35 @@ export async function GET(request: NextRequest) {
       balanceDue: payment.balance_due,
       dueDate: payment.due_date,
     });
+    const mirroredCurrentDue = Number(
+      paymentsMirror?.current_due ??
+        payment.balance_due ??
+        overdue.currentDue ??
+        0,
+    );
+    const agingSource = latestAging || paymentsMirror || null;
+    const mirroredOverdue30 = Number(agingSource?.overdue_30_days ?? overdue.overdue30Days ?? 0);
+    const mirroredOverdue60 = Number(agingSource?.overdue_60_days ?? overdue.overdue60Days ?? 0);
+    const mirroredOverdue90 = Number(agingSource?.overdue_90_days ?? overdue.overdue90Days ?? 0);
+    const mirroredOverdue120 = Number(paymentsMirror?.overdue_120_plus_days ?? overdue.overdue91PlusDays ?? 0);
+    const mirroredOverdue120FromAging = Number(
+      agingSource?.overdue_120_plus_days ?? mirroredOverdue120 ?? overdue.overdue91PlusDays ?? 0,
+    );
+    const mirroredOutstanding = Number(
+      agingSource?.outstanding_balance ??
+        (mirroredCurrentDue + mirroredOverdue30 + mirroredOverdue60 + mirroredOverdue90 + mirroredOverdue120FromAging),
+    );
 
     return NextResponse.json({
       payment: {
         ...payment,
-        overdue_30_days: overdue.overdue30Days,
-        overdue_60_days: overdue.overdue60Days,
-        overdue_90_days: overdue.overdue90Days + overdue.overdue91PlusDays,
-        overdue_91_plus_days: overdue.overdue91PlusDays,
-        current_due: overdue.currentDue,
+        overdue_30_days: mirroredOverdue30,
+        overdue_60_days: mirroredOverdue60,
+        overdue_90_days: mirroredOverdue90,
+        overdue_120_plus_days: mirroredOverdue120FromAging,
+        overdue_91_plus_days: mirroredOverdue120FromAging,
+        current_due: mirroredCurrentDue,
+        outstanding_balance: mirroredOutstanding,
       },
       message: 'Current billing record retrieved successfully',
     });

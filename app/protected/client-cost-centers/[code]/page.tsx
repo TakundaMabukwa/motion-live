@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import DueReportComponent from '@/components/inv/components/due-report';
+import DueReportComponent, { StatementDocument } from '@/components/inv/components/due-report';
 import InvoiceReportComponent from '@/components/inv/components/invoice-report';
 import { jsPDF } from 'jspdf';
 
@@ -41,10 +41,12 @@ export default function ClientCostCentersPage() {
   const [openInvoicesForPayment, setOpenInvoicesForPayment] = useState([]);
   const [loadingOpenInvoices, setLoadingOpenInvoices] = useState(false);
   const [selectedPaymentInvoiceId, setSelectedPaymentInvoiceId] = useState(null);
+  const [selectedPaymentTab, setSelectedPaymentTab] = useState('current');
   const [clientLegalName, setClientLegalName] = useState('');
   const [selectedCostCenters, setSelectedCostCenters] = useState([]);
   const [payAllReference, setPayAllReference] = useState('');
   const [bulkInvoiceSelections, setBulkInvoiceSelections] = useState({});
+  const [selectedBulkPaymentTab, setSelectedBulkPaymentTab] = useState('current');
   const [generatingReport, setGeneratingReport] = useState({});
   const [showDueReport, setShowDueReport] = useState(false);
   const [selectedCostCenterForReport, setSelectedCostCenterForReport] = useState(null);
@@ -186,17 +188,19 @@ export default function ClientCostCentersPage() {
       total_ex_vat: Number(payment.due_amount || 0),
       total_vat: 0,
       total_incl_vat: Number(payment.due_amount || 0),
-      one_month: Number(payment.due_amount || 0),
+      one_month: Number((payment.current_due ?? payment.due_amount) || 0),
       '2nd_month': 0,
       '3rd_month': 0,
-      amount_due: Number(payment.balance_due || 0),
+      amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
       monthly_amount: Number(payment.due_amount || 0),
       payment_status: payment.payment_status,
       billing_month: payment.billing_month,
       reference: payment.reference,
+      current_due: Number(payment.current_due || 0),
       overdue_30_days: Number(payment.overdue_30_days || 0),
       overdue_60_days: Number(payment.overdue_60_days || 0),
-      overdue_90_days: Number(payment.overdue_90_days || 0)
+      overdue_90_days: Number(payment.overdue_90_days || 0),
+      overdue_120_plus_days: Number(payment.overdue_120_plus_days || 0),
     }));
   };
 
@@ -205,19 +209,23 @@ export default function ClientCostCentersPage() {
       totalDueAmount: 0,
       totalPaidAmount: 0,
       totalBalanceDue: 0,
+      totalCurrentDue: 0,
       totalOverdue30: 0,
       totalOverdue60: 0,
       totalOverdue90: 0,
+      totalOverdue120Plus: 0,
       paymentCount: payments?.length || 0
     };
 
     (payments || []).forEach((payment) => {
       summary.totalDueAmount += Number(payment.due_amount || 0);
       summary.totalPaidAmount += Number(payment.paid_amount || 0);
-      summary.totalBalanceDue += Number(payment.balance_due || 0);
+      summary.totalBalanceDue += Number((payment.outstanding_balance ?? payment.balance_due) || 0);
+      summary.totalCurrentDue += Number(payment.current_due || 0);
       summary.totalOverdue30 += Number(payment.overdue_30_days || 0);
       summary.totalOverdue60 += Number(payment.overdue_60_days || 0);
       summary.totalOverdue90 += Number(payment.overdue_90_days || 0);
+      summary.totalOverdue120Plus += Number(payment.overdue_120_plus_days || 0);
     });
 
     return summary;
@@ -276,7 +284,11 @@ export default function ClientCostCentersPage() {
       vehicles,
       totalMonthlyAmount: summary?.totalDueAmount || 0,
       totalAmountDue: summary?.totalBalanceDue || 0,
-      totalOverdue: (summary?.totalOverdue30 || 0) + (summary?.totalOverdue60 || 0) + (summary?.totalOverdue90 || 0),
+        totalOverdue:
+          (summary?.totalOverdue30 || 0) +
+          (summary?.totalOverdue60 || 0) +
+          (summary?.totalOverdue90 || 0) +
+          (summary?.totalOverdue120Plus || 0),
       vehicleCount: vehicles.length,
       paymentsTotalAmount: summary?.totalPaidAmount || 0,
       paymentsAmountDue: summary?.totalBalanceDue || 0,
@@ -586,51 +598,46 @@ export default function ClientCostCentersPage() {
     }
 
     setIsGeneratingStatement(true);
+    const printWindow = window.open('', '_blank');
+
+    if (!printWindow) {
+      setIsGeneratingStatement(false);
+      toast({
+        variant: "destructive",
+        title: "Popup blocked",
+        description: "Please allow popups for this site and try again.",
+      });
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Preparing statement...</title>
+          <style>
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: Arial, sans-serif;
+              color: #1f2937;
+              background: #ffffff;
+            }
+          </style>
+        </head>
+        <body>Preparing statement...</body>
+      </html>
+    `);
+    printWindow.document.close();
+
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const rightX = pageWidth - 14;
-      const logoDataUrl = await loadLogoDataUrl();
       const includeItems = variant === 'items';
-
-      // Header
-      doc.addImage(logoDataUrl, 'PNG', 14, 12, 42, 22);
-      doc.setFontSize(10);
-      doc.text('Soltrack (PTY) LTD', rightX, 16, { align: 'right' });
-      doc.text('Reg No: 2018/095975/07', rightX, 22, { align: 'right' });
-      doc.text('VAT No.: 4580161802', rightX, 28, { align: 'right' });
-      doc.setLineWidth(0.2);
-      doc.line(14, 40, rightX, 40);
-
-      // Title
-      doc.setFontSize(12);
-      doc.text('Debtor Statement', pageWidth / 2, 48, { align: 'center' });
-
-      // Client block
       const clientLabel = clientLegalName || decodedCode || code;
-      doc.setFontSize(9);
-      doc.text(clientLabel || 'Client', 14, 60);
-      doc.text('Debtor Statement :', pageWidth / 2 + 10, 60);
-      doc.text('Date:', pageWidth / 2 + 10, 66);
-      doc.text(new Date().toLocaleDateString('en-GB'), rightX, 66, { align: 'right' });
-
-      // Account info header table
-      const tableTop = 80;
-      doc.rect(14, tableTop, rightX - 14, 12);
-      doc.line(14 + 40, tableTop, 14 + 40, tableTop + 12);
-      doc.line(14 + 90, tableTop, 14 + 90, tableTop + 12);
-      doc.line(14 + 120, tableTop, 14 + 120, tableTop + 12);
-      doc.setFontSize(8);
-      doc.text('Account', 16, tableTop + 8);
-      doc.text('Your Reference', 14 + 42, tableTop + 8);
-      doc.text('VAT %', 14 + 92, tableTop + 8);
-      doc.text('Customer Vat Number', 14 + 122, tableTop + 8);
-
-      const firstAccount = (decodedCode || code || '').split(',')[0]?.trim() || '';
-      doc.text(firstAccount || '-', 16, tableTop + 18);
-      doc.text('-', 14 + 42, tableTop + 18);
-      doc.text('15%', 14 + 92, tableTop + 18);
-      doc.text('-', 14 + 122, tableTop + 18);
+      const formatStatementDate = (value) =>
+        value ? new Date(value).toLocaleDateString('en-GB') : '-';
 
       const resolveStatementInvoice = async (row) => {
         const invoiceQuery = new URLSearchParams({
@@ -648,11 +655,14 @@ export default function ClientCostCentersPage() {
         }
 
         try {
-          const [bulkInvoiceResponse, invoiceResponse] = await Promise.all([
+          const [bulkInvoiceResponse, invoiceResponse, paymentResponse] = await Promise.all([
             fetch(
               `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
             ),
             fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`),
+            fetch(
+              `/api/payments/by-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
+            ),
           ]);
 
           let bulkInvoice = null;
@@ -667,8 +677,15 @@ export default function ClientCostCentersPage() {
             invoiceData = invoicePayload?.invoiceData || null;
           }
 
+          let paymentData = null;
+          if (paymentResponse.ok) {
+            const paymentPayload = await paymentResponse.json();
+            paymentData = paymentPayload?.payment || null;
+          }
+
           return {
             activeInvoice: bulkInvoice || invoiceData || null,
+            paymentData,
             items: Array.isArray(invoiceData?.invoiceItems)
               ? invoiceData.invoiceItems
               : Array.isArray(invoiceData?.invoice_items)
@@ -677,36 +694,60 @@ export default function ClientCostCentersPage() {
           };
         } catch (statementInvoiceError) {
           console.error('Error resolving statement invoice for', row.accountNumber, statementInvoiceError);
-          return { activeInvoice: null, items: [] };
+          return { activeInvoice: null, paymentData: null, items: [] };
         }
       };
 
-      let y = 104;
       const statementRows = costCentersWithPayments
-        .filter(cc => (cc.balanceDue || 0) > 0)
         .map(cc => ({
           date: cc.invoiceDate || cc.dueDate || cc.billingMonth || '',
           client: cc.accountName || clientLabel,
           invoiceNo: cc.reference || cc.accountNumber,
           totalInvoiced: cc.dueAmount || 0,
           paid: cc.paidAmount || 0,
-          credited: 0,
+          credited: cc.creditAmount || 0,
           outstanding: cc.balanceDue || 0,
           accountNumber: cc.accountNumber,
           sourceAccountNumber: cc.sourceAccountNumber,
           invoiceGroup: cc.invoiceGroup,
           billingMonth: cc.billingMonth,
-          items: []
+          items: [],
+          costCenter: cc,
         }));
 
+      const statementViews = [];
+      let sharedPartyDetails = null;
+
       for (const row of statementRows) {
-        const { activeInvoice, items } = await resolveStatementInvoice(row);
+        const { activeInvoice, paymentData, items } = await resolveStatementInvoice(row);
+        const structuredAddress = [
+          row.costCenter?.costCenterInfo?.physical_address_1,
+          row.costCenter?.costCenterInfo?.physical_address_2,
+          row.costCenter?.costCenterInfo?.physical_address_3,
+          row.costCenter?.costCenterInfo?.physical_area,
+          row.costCenter?.costCenterInfo?.physical_code,
+        ]
+          .filter(Boolean)
+          .join('\n');
+
         if (activeInvoice) {
           row.invoiceNo = activeInvoice.invoice_number || row.invoiceNo;
           row.totalInvoiced = Number(activeInvoice.total_amount ?? row.totalInvoiced ?? 0);
           row.paid = Number(activeInvoice.paid_amount ?? row.paid ?? 0);
-          row.outstanding = Number(activeInvoice.balance_due ?? row.outstanding ?? 0);
+          row.outstanding = Number(
+            paymentData?.outstanding_balance ??
+              activeInvoice.balance_due ??
+              row.outstanding ??
+              0,
+          );
           row.client = activeInvoice.company_name || row.client;
+          row.credited = Number(
+            paymentData?.credit_amount ??
+              activeInvoice?.credit_amount ??
+              row.costCenter?.creditAmount ??
+              row.credited ??
+              0,
+          );
           row.date =
             activeInvoice.invoice_date ||
             activeInvoice.created_at ||
@@ -715,165 +756,164 @@ export default function ClientCostCentersPage() {
         if (includeItems) {
           row.items = items;
         }
-      }
 
-      if (statementRows.length === 0) {
-        doc.text('No outstanding balances.', 16, y);
-        y += 10;
-      } else {
-        const ensurePageSpace = (requiredHeight) => {
-          if (y + requiredHeight > 236) {
-            doc.addPage();
-            y = 20;
-          }
+        const rowClientName =
+          activeInvoice?.company_name ||
+          paymentData?.company_name ||
+          row.client ||
+          clientLabel;
+        const rowClientAddress =
+          activeInvoice?.client_address ||
+          paymentData?.client_address ||
+          structuredAddress ||
+          '-';
+        const rowCompanyRegistrationNumber =
+          activeInvoice?.company_registration_number ||
+          paymentData?.company_registration_number ||
+          row.costCenter?.costCenterInfo?.registration_number ||
+          '-';
+        const rowCustomerVatNumber =
+          activeInvoice?.customer_vat_number ||
+          paymentData?.customer_vat_number ||
+          row.costCenter?.costCenterInfo?.vat_number ||
+          '-';
+
+        if (!sharedPartyDetails) {
+          sharedPartyDetails = {
+            clientName: rowClientName,
+            clientAddress: rowClientAddress,
+            companyRegistrationNumber: rowCompanyRegistrationNumber,
+            customerVatNumber: rowCustomerVatNumber,
+          };
+        }
+
+        const bucketSource = {
+          balanceDue: row.outstanding,
+          dueDate:
+            activeInvoice?.due_date ||
+            paymentData?.due_date ||
+            row.costCenter?.dueDate ||
+            row.date,
         };
+        const buckets = getAgingBuckets(bucketSource);
+        const currentDue = Number(paymentData?.current_due ?? buckets.current ?? 0);
+        const overdue30 = Number(paymentData?.overdue_30_days ?? buckets.days30 ?? 0);
+        const overdue60 = Number(paymentData?.overdue_60_days ?? buckets.days60 ?? 0);
+        const overdue90 = Number(paymentData?.overdue_90_days ?? buckets.days90 ?? 0);
+        const overdue120Plus = Number(
+          paymentData?.overdue_120_plus_days ??
+            paymentData?.overdue_91_plus_days ??
+            buckets.days91Plus ??
+            0,
+        );
 
-        const drawStatementRowHeader = () => {
-          doc.setFontSize(8);
-          doc.rect(14, y, rightX - 14, 8);
-          doc.text('Date', 16, y + 5);
-          doc.text('Client', 40, y + 5);
-          doc.text('Invoice No.', 92, y + 5);
-          doc.text('Total Invoiced', 122, y + 5);
-          doc.text('Paid', 150, y + 5);
-          doc.text('Credited', 165, y + 5);
-          doc.text('Outstanding', 182, y + 5);
-          y += 8;
-        };
-
-        statementRows.forEach(row => {
-          const estimatedHeight =
-            18 +
-            (includeItems && Array.isArray(row.items) && row.items.length > 0
-              ? 8 + row.items.length * 5
-              : 0);
-          ensurePageSpace(estimatedHeight);
-
-          doc.setFillColor(216, 216, 216);
-          doc.rect(14, y, rightX - 14, 7, 'FD');
-          doc.setFontSize(8);
-          doc.text(
-            `Cost Center: ${String(row.accountNumber || '-')} - ${String(row.client || '').slice(0, 70)}`,
-            16,
-            y + 4.5,
-          );
-          y += 9;
-
-          drawStatementRowHeader();
-
-          doc.rect(14, y, rightX - 14, 8);
-          doc.text(row.date ? new Date(row.date).toLocaleDateString('en-GB') : '-', 16, y + 5);
-          doc.text(String(row.client || '').slice(0, 28), 40, y + 5);
-          doc.text(String(row.invoiceNo || '').slice(0, 14), 92, y + 5);
-          doc.text(formatCurrency(row.totalInvoiced), 140, y + 5, { align: 'right' });
-          doc.text(formatCurrency(row.paid), 158, y + 5, { align: 'right' });
-          doc.text(formatCurrency(row.credited), 174, y + 5, { align: 'right' });
-          doc.text(formatCurrency(row.outstanding), rightX, y + 5, { align: 'right' });
-          y += 10;
-
-          if (includeItems && Array.isArray(row.items) && row.items.length > 0) {
-            ensurePageSpace(8 + row.items.length * 5);
-            doc.rect(18, y, rightX - 18, 7);
-            doc.text('Reg / Fleet', 20, y + 4.5);
-            doc.text('Billed Item', 60, y + 4.5);
-            doc.text('Total Incl', rightX - 4, y + 4.5, { align: 'right' });
-            y += 7;
-            doc.setFontSize(7);
-            row.items.forEach((item) => {
-              ensurePageSpace(6);
-              const itemDescription = String(item.description || item.item_code || 'Billed Item');
-              const itemReg = String(
-                item.reg ||
-                item.previous_reg ||
-                item.fleetNumber ||
-                item.fleet_number ||
-                '-',
-              );
-              const itemTotal = formatCurrency(
-                item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub ?? 0,
-              );
-              doc.text(String(itemReg).slice(0, 28), 20, y + 4);
-              doc.text(String(itemDescription).slice(0, 64), 60, y + 4);
-              doc.text(itemTotal, rightX - 4, y + 4, { align: 'right' });
-              y += 5;
-            });
-            doc.setFontSize(8);
-            y += 2;
-          }
+        statementViews.push({
+          clientName: sharedPartyDetails?.clientName || rowClientName,
+          clientAddress: sharedPartyDetails?.clientAddress || rowClientAddress,
+          companyRegistrationNumber:
+            sharedPartyDetails?.companyRegistrationNumber || rowCompanyRegistrationNumber,
+          statementNumber: '',
+          statementDate: formatStatementDate(
+            activeInvoice?.invoice_date ||
+              activeInvoice?.created_at ||
+              paymentData?.invoice_date ||
+              paymentData?.created_at ||
+              row.date ||
+              new Date().toISOString(),
+          ),
+          accountNumber: row.accountNumber || 'N/A',
+          customerVatNumber:
+            sharedPartyDetails?.customerVatNumber || rowCustomerVatNumber,
+          rows: [
+            {
+              date: formatStatementDate(row.date),
+              client: row.client || clientLabel,
+              invoiceNumber: row.invoiceNo || '-',
+              totalInvoiced: formatCurrency(row.totalInvoiced),
+              paid: formatCurrency(row.paid),
+              credited: formatCurrency(row.credited),
+              outstanding: formatCurrency(row.outstanding),
+            },
+          ],
+          agingRows: [
+            formatCurrency(currentDue),
+            formatCurrency(overdue30),
+            formatCurrency(overdue60),
+            formatCurrency(overdue90),
+            formatCurrency(overdue120Plus),
+          ],
+          itemRows: includeItems
+            ? row.items.map((item, index) => ({
+                id: `${item?.reg || 'row'}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
+                reg: item?.reg || '-',
+                fleetNumber: item?.fleetNumber || item?.fleet_number || '-',
+                description: item?.description || item?.item_description || item?.itemCode || 'Billed Item',
+                unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
+                vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
+                totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
+              }))
+            : [],
+          totals: {
+            totalInvoiced: formatCurrency(row.totalInvoiced),
+            paid: formatCurrency(row.paid),
+            credited: formatCurrency(row.credited),
+            outstanding: formatCurrency(row.outstanding),
+          },
         });
       }
 
-      const totalDue = statementRows.reduce((sum, row) => sum + row.outstanding, 0);
-      doc.text(`Total: ${formatCurrency(totalDue)}`, rightX, y + 4, { align: 'right' });
+      if (statementViews.length === 0) {
+        printWindow.close();
+        toast({
+          variant: "destructive",
+          title: "No data",
+          description: "No outstanding cost center statements available.",
+        });
+        return;
+      }
 
-      // Aging summary
-      const agingSummary = costCentersWithPayments.reduce(
-        (sum, cc) => {
-          const buckets = getAgingBuckets(cc);
-          sum.current += buckets.current;
-          sum.days30 += buckets.days30;
-          sum.days60 += buckets.days60;
-          sum.days90 += buckets.days90;
-          sum.days91Plus += buckets.days91Plus;
-          return sum;
-        },
-        { current: 0, days30: 0, days60: 0, days90: 0, days91Plus: 0 }
-      );
-      const overdue30 = agingSummary.days30;
-      const overdue60 = agingSummary.days60;
-      const overdue90 = agingSummary.days90;
-      const overdue120 = agingSummary.days91Plus;
-      const currentDue = agingSummary.current;
+      const printHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${includeItems ? 'Client All' : 'Client Statement'} - ${clientLabel}</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 24px;
+                background: #ffffff;
+              }
+              .statement-batch-page {
+                break-before: page;
+                page-break-before: always;
+              }
+              .statement-batch-page:first-child {
+                break-before: auto;
+                page-break-before: auto;
+              }
+            </style>
+          </head>
+          <body>
+            ${statementViews
+              .map(
+                (statementView, index) => `
+                  <div class="statement-batch-page">
+                    ${StatementDocument({ statementView, showItemBreakdown: includeItems })}
+                  </div>
+                `,
+              )
+              .join('')}
+          </body>
+        </html>
+      `;
 
-      const agingTop = y + 14;
-      doc.rect(14, agingTop, rightX - 14, 12);
-      const colWidth = (rightX - 14) / 5;
-      doc.line(14 + colWidth, agingTop, 14 + colWidth, agingTop + 12);
-      doc.line(14 + colWidth * 2, agingTop, 14 + colWidth * 2, agingTop + 12);
-      doc.line(14 + colWidth * 3, agingTop, 14 + colWidth * 3, agingTop + 12);
-      doc.line(14 + colWidth * 4, agingTop, 14 + colWidth * 4, agingTop + 12);
-      doc.setFontSize(8);
-      doc.text('120 Days', 14 + colWidth * 0.5, agingTop + 5, { align: 'center' });
-      doc.text('90 Days', 14 + colWidth * 1.5, agingTop + 5, { align: 'center' });
-      doc.text('60 Days', 14 + colWidth * 2.5, agingTop + 5, { align: 'center' });
-      doc.text('30 Days', 14 + colWidth * 3.5, agingTop + 5, { align: 'center' });
-      doc.text('Current', 14 + colWidth * 4.5, agingTop + 5, { align: 'center' });
-
-      doc.text(formatCurrency(overdue120), 14 + colWidth * 0.5, agingTop + 10, { align: 'center' });
-      doc.text(formatCurrency(overdue90), 14 + colWidth * 1.5, agingTop + 10, { align: 'center' });
-      doc.text(formatCurrency(overdue60), 14 + colWidth * 2.5, agingTop + 10, { align: 'center' });
-      doc.text(formatCurrency(overdue30), 14 + colWidth * 3.5, agingTop + 10, { align: 'center' });
-      doc.text(formatCurrency(currentDue), 14 + colWidth * 4.5, agingTop + 10, { align: 'center' });
-
-      // Footer
-      const footerTop = 250;
-      doc.line(14, footerTop, rightX, footerTop);
-      doc.setFontSize(7);
-      doc.text('Head Office :', 14, footerTop + 8);
-      doc.text('8 Viscount Road', 14, footerTop + 12);
-      doc.text('Viscount office park, Block C unit 4 & 5', 14, footerTop + 16);
-      doc.text('Bedfordview, 2008', 14, footerTop + 20);
-
-      doc.text('Postal Address :', 74, footerTop + 8);
-      doc.text('P.O Box 95603', 74, footerTop + 12);
-      doc.text('Grant Park 2051', 74, footerTop + 16);
-
-      doc.text('Contact Details :', 118, footerTop + 8);
-      doc.text('Phone: 011 824 0066', 118, footerTop + 12);
-      doc.text('Email: sales@soltrack.co.za', 118, footerTop + 16);
-      doc.text('Website: www.soltrack.co.za', 118, footerTop + 20);
-
-      doc.text('Soltrack (PTY) LTD', 170, footerTop + 8);
-      doc.text('Nedbank Northrand', 170, footerTop + 12);
-      doc.text('Code - 146905', 170, footerTop + 16);
-      doc.text('A/C No. - 1469109069', 170, footerTop + 20);
-
-      doc.save(
-        `${
-          includeItems ? 'Statement-With-Items' : 'Statement'
-        }-${clientLegalName || decodedCode || 'Client'}.pdf`,
-      );
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+      printWindow.onload = function onLoad() {
+        printWindow.print();
+      };
     } catch (error) {
+      printWindow.close();
       console.error('Error generating statement:', error);
       toast({
         variant: "destructive",
@@ -923,14 +963,16 @@ export default function ClientCostCentersPage() {
         accountInvoiceId: payment.account_invoice_id || null,
         dueAmount: payment.due_amount || 0,
         paidAmount: payment.paid_amount || 0,
-        balanceDue: payment.balance_due || 0,
+        balanceDue: (payment.outstanding_balance ?? payment.balance_due) || 0,
         creditAmount: Number(payment.credit_amount || 0),
         paymentStatus: payment.payment_status || 'pending',
         reference,
         billingMonth: payment.billing_month,
+        currentDue: payment.current_due || 0,
         overdue30Days: payment.overdue_30_days || 0,
         overdue60Days: payment.overdue_60_days || 0,
         overdue90Days: payment.overdue_90_days || 0,
+        overdue120PlusDays: payment.overdue_120_plus_days || 0,
         lastUpdated: payment.last_updated,
         invoiceDate: payment.invoice_date,
         dueDate: payment.due_date,
@@ -946,18 +988,20 @@ export default function ClientCostCentersPage() {
           total_ex_vat: Number(payment.due_amount || 0),
           total_vat: 0,
           total_incl_vat: Number(payment.due_amount || 0),
-          one_month: Number(payment.due_amount || 0),
+          one_month: Number((payment.current_due ?? payment.due_amount) || 0),
           '2nd_month': 0,
           '3rd_month': 0,
-          amount_due: Number(payment.balance_due || 0),
+          amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
           credit_amount: Number(payment.credit_amount || 0),
           monthly_amount: Number(payment.due_amount || 0),
           payment_status: payment.payment_status,
           billing_month: payment.billing_month,
           reference,
+          current_due: Number(payment.current_due || 0),
           overdue_30_days: Number(payment.overdue_30_days || 0),
           overdue_60_days: Number(payment.overdue_60_days || 0),
-          overdue_90_days: Number(payment.overdue_90_days || 0)
+          overdue_90_days: Number(payment.overdue_90_days || 0),
+          overdue_120_plus_days: Number(payment.overdue_120_plus_days || 0)
         }]
       };
       }) || [];
@@ -974,7 +1018,11 @@ export default function ClientCostCentersPage() {
         vehicles: costCentersFromPayments.flatMap(cc => cc.vehicles),
         totalMonthlyAmount: summary?.totalDueAmount || 0,
         totalAmountDue: summary?.totalBalanceDue || 0,
-        totalOverdue: (summary?.totalOverdue30 || 0) + (summary?.totalOverdue60 || 0) + (summary?.totalOverdue90 || 0),
+        totalOverdue:
+          (summary?.totalOverdue30 || 0) +
+          (summary?.totalOverdue60 || 0) +
+          (summary?.totalOverdue90 || 0) +
+          (summary?.totalOverdue120Plus || 0),
         vehicleCount: costCentersFromPayments.length,
         paymentsTotalAmount: summary?.totalPaidAmount || 0,
         paymentsAmountDue: summary?.totalBalanceDue || 0,
@@ -1047,7 +1095,15 @@ export default function ClientCostCentersPage() {
           vehicles: allVehicles,
           totalMonthlyAmount: allVehicles.reduce((sum, v) => sum + (v.monthly_amount || 0), 0),
           totalAmountDue: allVehicles.reduce((sum, v) => sum + (v.amount_due || 0), 0),
-          totalOverdue: allVehicles.reduce((sum, v) => sum + (v.overdue_30_days || 0) + (v.overdue_60_days || 0) + (v.overdue_90_days || 0), 0),
+          totalOverdue: allVehicles.reduce(
+            (sum, v) =>
+              sum +
+              (v.overdue_30_days || 0) +
+              (v.overdue_60_days || 0) +
+              (v.overdue_90_days || 0) +
+              (v.overdue_120_plus_days || 0),
+            0,
+          ),
           vehicleCount: allVehicles.length,
           paymentsTotalAmount: data.customers[0]?.paymentsTotalAmount || 0,
           paymentsAmountDue: data.customers[0]?.paymentsAmountDue || 0,
@@ -1113,7 +1169,15 @@ export default function ClientCostCentersPage() {
           vehicles: allVehicles,
           totalMonthlyAmount: allVehicles.reduce((sum, v) => sum + (v.monthly_amount || 0), 0),
           totalAmountDue: allVehicles.reduce((sum, v) => sum + (v.amount_due || 0), 0),
-          totalOverdue: allVehicles.reduce((sum, v) => sum + (v.overdue_30_days || 0) + (v.overdue_60_days || 0) + (v.overdue_90_days || 0), 0),
+          totalOverdue: allVehicles.reduce(
+            (sum, v) =>
+              sum +
+              (v.overdue_30_days || 0) +
+              (v.overdue_60_days || 0) +
+              (v.overdue_90_days || 0) +
+              (v.overdue_120_plus_days || 0),
+            0,
+          ),
           vehicleCount: allVehicles.length,
           paymentsTotalAmount: data.customers[0]?.paymentsTotalAmount || 0,
           paymentsAmountDue: data.customers[0]?.paymentsAmountDue || 0,
@@ -1259,11 +1323,19 @@ export default function ClientCostCentersPage() {
                 return {
                   ...costCenter,
                   amountDue: paymentData.payment.balance_due || 0,
-                  overdue: (paymentData.payment.overdue_30_days || 0) + (paymentData.payment.overdue_60_days || 0) + (paymentData.payment.overdue_90_days || 0),
+                  outstandingBalance:
+                    (paymentData.payment.outstanding_balance ?? paymentData.payment.balance_due) || 0,
+                  overdue:
+                    (paymentData.payment.overdue_30_days || 0) +
+                    (paymentData.payment.overdue_60_days || 0) +
+                    (paymentData.payment.overdue_90_days || 0) +
+                    (paymentData.payment.overdue_120_plus_days || 0),
                   totalPaid: paymentData.payment.paid_amount || 0,
                   creditAmount: paymentData.payment.credit_amount || costCenter.creditAmount || 0,
                   monthlyAmount: paymentData.payment.due_amount || 0,
-                  firstMonth: paymentData.payment.overdue_30_days || 0
+                  currentDue: paymentData.payment.current_due || 0,
+                  firstMonth: paymentData.payment.overdue_30_days || 0,
+                  overdue120PlusDays: paymentData.payment.overdue_120_plus_days || 0,
                 };
               }
             }
@@ -1316,22 +1388,91 @@ export default function ClientCostCentersPage() {
   const getOutstandingAmount = (costCenter) =>
     Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0);
 
+  const getOutstandingBucketAmount = (source) =>
+    Number(
+      (
+        Number(source?.overdue120PlusDays ?? source?.overdue_120_plus_days ?? 0) +
+        Number(source?.overdue90Days ?? source?.overdue_90_days ?? 0) +
+        Number(source?.overdue60Days ?? source?.overdue_60_days ?? 0) +
+        Number(source?.overdue30Days ?? source?.overdue_30_days ?? 0)
+      ).toFixed(2),
+    );
+
+  const buildOutstandingInvoiceSummary = (costCenter) => {
+    const overdue30 = Number(costCenter?.overdue30Days ?? costCenter?.overdue_30_days ?? 0);
+    const overdue60 = Number(costCenter?.overdue60Days ?? costCenter?.overdue_60_days ?? 0);
+    const overdue90 = Number(costCenter?.overdue90Days ?? costCenter?.overdue_90_days ?? 0);
+    const overdue120 = Number(costCenter?.overdue120PlusDays ?? costCenter?.overdue_120_plus_days ?? 0);
+    const outstandingAmount = getOutstandingBucketAmount(costCenter);
+
+    if (outstandingAmount <= 0) {
+      return null;
+    }
+
+    return {
+      id: `outstanding-${costCenter?.accountNumber || 'account'}`,
+      account_number: costCenter?.accountNumber || null,
+      billing_month: costCenter?.billingMonth || null,
+      invoice_number: 'Outstanding Balance',
+      invoice_date: costCenter?.invoiceDate || costCenter?.dueDate || costCenter?.billingMonth || null,
+      created_at: costCenter?.created_at || costCenter?.createdAt || null,
+      total_amount: outstandingAmount,
+      paid_amount: 0,
+      balance_due: outstandingAmount,
+      payment_status: 'pending',
+      isOutstandingSummary: true,
+      overdue_30_days: overdue30,
+      overdue_60_days: overdue60,
+      overdue_90_days: overdue90,
+      overdue_120_plus_days: overdue120,
+    };
+  };
+
+  const getInvoicePeriodTab = (invoice) => {
+    if (invoice?.isOutstandingSummary) {
+      return 'outstanding';
+    }
+    const billingMonth = String(invoice?.billing_month || '').trim();
+    if (invoice?.isDraft || billingMonth === currentBillingMonthKey) {
+      return 'current';
+    }
+    return 'outstanding';
+  };
+
+  const currentOpenInvoicesForPayment = useMemo(
+    () => openInvoicesForPayment.filter((invoice) => getInvoicePeriodTab(invoice) === 'current'),
+    [openInvoicesForPayment, currentBillingMonthKey],
+  );
+
+  const outstandingOpenInvoicesForPayment = useMemo(
+    () => openInvoicesForPayment.filter((invoice) => getInvoicePeriodTab(invoice) === 'outstanding'),
+    [openInvoicesForPayment, currentBillingMonthKey],
+  );
+
+  const visibleOpenInvoicesForPayment = useMemo(
+    () =>
+      selectedPaymentTab === 'outstanding'
+        ? outstandingOpenInvoicesForPayment
+        : currentOpenInvoicesForPayment,
+    [currentOpenInvoicesForPayment, outstandingOpenInvoicesForPayment, selectedPaymentTab],
+  );
+
   const selectedPaymentInvoice = useMemo(() => {
     if (!selectedPaymentInvoiceId) return null;
     return (
-      openInvoicesForPayment.find(
+      visibleOpenInvoicesForPayment.find(
         (invoice) => String(invoice?.id || '') === String(selectedPaymentInvoiceId),
       ) || null
     );
-  }, [openInvoicesForPayment, selectedPaymentInvoiceId]);
+  }, [visibleOpenInvoicesForPayment, selectedPaymentInvoiceId]);
 
   const totalOpenInvoiceBalance = useMemo(
     () =>
-      openInvoicesForPayment.reduce(
+      visibleOpenInvoicesForPayment.reduce(
         (sum, invoice) => sum + Number(invoice?.balance_due || 0),
         0,
       ),
-    [openInvoicesForPayment],
+    [visibleOpenInvoicesForPayment],
   );
 
   const getPaymentLimit = () => {
@@ -1345,6 +1486,31 @@ export default function ClientCostCentersPage() {
 
     return Number(paymentDetails?.amount || 0);
   };
+
+  useEffect(() => {
+    const activeInvoices =
+      selectedPaymentTab === 'outstanding'
+        ? outstandingOpenInvoicesForPayment
+        : currentOpenInvoicesForPayment;
+
+    if (activeInvoices.length === 0) {
+      setSelectedPaymentInvoiceId(null);
+      return;
+    }
+
+    const currentSelectionVisible = activeInvoices.some(
+      (invoice) => String(invoice?.id || '') === String(selectedPaymentInvoiceId || ''),
+    );
+
+    if (!currentSelectionVisible) {
+      setSelectedPaymentInvoiceId(activeInvoices[0]?.id || null);
+    }
+  }, [
+    currentOpenInvoicesForPayment,
+    outstandingOpenInvoicesForPayment,
+    selectedPaymentInvoiceId,
+    selectedPaymentTab,
+  ]);
 
   const fetchOpenInvoicesForCostCenter = async (costCenter) => {
     const accountNumber = String(costCenter?.accountNumber || '').trim();
@@ -1374,7 +1540,9 @@ export default function ClientCostCentersPage() {
       const payload = await historyResponse.json();
       const invoices = Array.isArray(payload?.invoices) ? payload.invoices : [];
       let openInvoices = invoices.filter(
-        (invoice) => Number(invoice?.balance_due || 0) > 0,
+        (invoice) =>
+          Number(invoice?.balance_due || 0) > 0 &&
+          String(invoice?.billing_month || '').trim() === currentBillingMonthKey,
       );
       if (bulkInvoiceResponse.ok) {
         const bulkPayload = await bulkInvoiceResponse.json();
@@ -1401,6 +1569,11 @@ export default function ClientCostCentersPage() {
           payment_status: costCenter?.paymentStatus || 'pending',
           isDraft: true,
         });
+      }
+
+      const outstandingSummary = buildOutstandingInvoiceSummary(costCenter);
+      if (outstandingSummary) {
+        openInvoices.push(outstandingSummary);
       }
 
       const preferredInvoiceId =
@@ -1520,7 +1693,9 @@ export default function ClientCostCentersPage() {
     const payload = await historyResponse.json();
     const invoices = Array.isArray(payload?.invoices) ? payload.invoices : [];
     let openInvoices = invoices.filter(
-      (invoice) => Number(invoice?.balance_due || 0) > 0,
+      (invoice) =>
+        Number(invoice?.balance_due || 0) > 0 &&
+        String(invoice?.billing_month || '').trim() === currentBillingMonthKey,
     );
     if (bulkInvoiceResponse.ok) {
       const bulkPayload = await bulkInvoiceResponse.json();
@@ -1532,6 +1707,11 @@ export default function ClientCostCentersPage() {
       Number(costCenter?.balanceDue ?? costCenter?.amountDue ?? 0) > 0
     ) {
       openInvoices.push(buildFallbackOpenInvoice(costCenter));
+    }
+
+    const outstandingSummary = buildOutstandingInvoiceSummary(costCenter);
+    if (outstandingSummary) {
+      openInvoices.push(outstandingSummary);
     }
 
     return openInvoices;
@@ -1641,13 +1821,18 @@ export default function ClientCostCentersPage() {
             return {
               accountNumber,
               accountInvoiceId:
-                isUuidLike(invoice.id) && !invoice?.isBulkInvoice ? invoice.id : null,
+                isUuidLike(invoice.id) &&
+                !invoice?.isBulkInvoice &&
+                !invoice?.isOutstandingSummary
+                  ? invoice.id
+                  : null,
               billingMonth: invoice.billing_month || null,
               invoiceNumber: invoice.invoice_number || null,
               maxAmount: Number(invoice.balance_due || 0),
               amount,
               paymentReference: String(allocation.paymentReference || '').trim(),
               selected: Boolean(allocation.selected),
+              paymentPeriodType: invoice?.isOutstandingSummary ? 'outstanding' : 'current',
             };
           })
           .filter((entry) => entry.selected && Number.isFinite(entry.amount) && entry.amount > 0);
@@ -1661,6 +1846,7 @@ export default function ClientCostCentersPage() {
   );
 
   const handlePayCostCenter = async (costCenter) => {
+    setSelectedPaymentTab('current');
     setPaymentDetails({
       type: 'costCenter',
       title: `Pay Cost Center: ${costCenter.accountName || costCenter.accountNumber}`,
@@ -1677,7 +1863,9 @@ export default function ClientCostCentersPage() {
   };
 
   const handlePayAllCostCenters = () => {
-    const outstandingCostCenters = costCentersWithPayments.filter(cc => cc.balanceDue > 0);
+    const outstandingCostCenters = costCentersWithPayments.filter(
+      (cc) => getOutstandingAmount(cc) > 0 || getOutstandingBucketAmount(cc) > 0,
+    );
     
     if (outstandingCostCenters.length === 0) {
       toast({
@@ -1695,6 +1883,7 @@ export default function ClientCostCentersPage() {
     })));
     setBulkInvoiceSelections({});
     setPayAllReference('');
+    setSelectedBulkPaymentTab('current');
     
     setShowPayAllModal(true);
   };
@@ -1747,6 +1936,7 @@ export default function ClientCostCentersPage() {
             billingMonth: allocation.billingMonth,
             amount: allocation.amount,
             paymentReference: allocation.paymentReference,
+            paymentPeriodType: allocation.paymentPeriodType || selectedBulkPaymentTab,
           })),
           paymentReference: payAllReference.trim() || null
         }),
@@ -2600,7 +2790,10 @@ export default function ClientCostCentersPage() {
             billingMonth: selectedBillingMonth,
             amount: amount,
             paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
-            paymentType: 'cost_center_payment'
+            paymentType: 'cost_center_payment',
+            paymentPeriodType: selectedPaymentInvoice?.isOutstandingSummary
+              ? 'outstanding'
+              : selectedPaymentTab,
           }),
         });
 
@@ -2725,6 +2918,7 @@ export default function ClientCostCentersPage() {
     setOpenInvoicesForPayment([]);
     setLoadingOpenInvoices(false);
     setSelectedPaymentInvoiceId(null);
+    setSelectedPaymentTab('current');
   };
 
   const closePayAllModal = () => {
@@ -2732,6 +2926,8 @@ export default function ClientCostCentersPage() {
     setSelectedCostCenters([]);
     setPayAllReference('');
     setProcessingPayment(false);
+    setBulkInvoiceSelections({});
+    setSelectedBulkPaymentTab('current');
   };
 
   // Effect to fetch payments data when cost centers change
@@ -3921,9 +4117,27 @@ export default function ClientCostCentersPage() {
 
               {paymentDetails.type === 'costCenter' && (
                 <div className="mb-6">
+                  <div className="flex gap-2 mb-3">
+                    <Button
+                      type="button"
+                      variant={selectedPaymentTab === 'current' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPaymentTab('current')}
+                    >
+                      Current
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={selectedPaymentTab === 'outstanding' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPaymentTab('outstanding')}
+                    >
+                      Outstanding
+                    </Button>
+                  </div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block font-medium text-gray-700 text-sm">
-                      Open Invoices
+                      {selectedPaymentTab === 'current' ? 'Current Invoices' : 'Outstanding Invoices'}
                     </label>
                     {loadingOpenInvoices && (
                       <span className="text-blue-600 text-xs">Loading...</span>
@@ -3932,8 +4146,8 @@ export default function ClientCostCentersPage() {
                   <div className="space-y-2 bg-gray-50 p-4 border border-gray-200 rounded-lg max-h-72 overflow-y-auto">
                     {loadingOpenInvoices ? (
                       <div className="text-gray-500 text-sm">Fetching unpaid invoices...</div>
-                    ) : openInvoicesForPayment.length > 0 ? (
-                      openInvoicesForPayment.map((invoice) => {
+                    ) : visibleOpenInvoicesForPayment.length > 0 ? (
+                      visibleOpenInvoicesForPayment.map((invoice) => {
                         const isSelected =
                           String(selectedPaymentInvoiceId || '') === String(invoice.id || '');
                         return (
@@ -3956,6 +4170,11 @@ export default function ClientCostCentersPage() {
                                       Draft
                                     </span>
                                   )}
+                                  {invoice.isOutstandingSummary && (
+                                    <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800">
+                                      Aged
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="mt-1 text-gray-500 text-xs">
                                   Billing Month: {invoice.billing_month || 'N/A'}
@@ -3966,6 +4185,11 @@ export default function ClientCostCentersPage() {
                                 <div className="text-gray-500 text-xs">
                                   Generated: {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
                                 </div>
+                                {invoice.isOutstandingSummary && (
+                                  <div className="mt-1 text-gray-500 text-xs">
+                                    30: {formatCurrency(invoice.overdue_30_days || 0)} | 60: {formatCurrency(invoice.overdue_60_days || 0)} | 90: {formatCurrency(invoice.overdue_90_days || 0)} | 120+: {formatCurrency(invoice.overdue_120_plus_days || 0)}
+                                  </div>
+                                )}
                               </div>
                               <div className="text-right">
                                 <div className="font-semibold text-gray-900 text-sm">
@@ -3984,7 +4208,9 @@ export default function ClientCostCentersPage() {
                       })
                     ) : (
                       <div className="text-gray-500 text-sm">
-                        No unpaid invoice rows were found for this cost center.
+                        {selectedPaymentTab === 'current'
+                          ? 'No current invoice rows were found for this cost center.'
+                          : 'No outstanding invoice rows were found for this cost center.'}
                       </div>
                     )}
                   </div>
@@ -4208,12 +4434,34 @@ export default function ClientCostCentersPage() {
                 <p className="text-gray-600 text-sm">Expand a cost center, pick the invoice, allocate the amount, and enter a reference for each allocation.</p>
               </div>
 
+              <div className="flex gap-2 mb-6">
+                <Button
+                  type="button"
+                  variant={selectedBulkPaymentTab === 'current' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedBulkPaymentTab('current')}
+                >
+                  Current
+                </Button>
+                <Button
+                  type="button"
+                  variant={selectedBulkPaymentTab === 'outstanding' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedBulkPaymentTab('outstanding')}
+                >
+                  Outstanding
+                </Button>
+              </div>
+
               {/* Cost Centers Selection */}
               <div className="mb-6">
                 <h5 className="mb-3 font-semibold text-gray-700">Select Cost Centers to Pay</h5>
                 <div className="space-y-2 p-4 border border-gray-200 rounded-lg max-h-[28rem] overflow-y-auto">
                   {selectedCostCenters.map((costCenter) => {
                     const bulkState = bulkInvoiceSelections[costCenter.accountNumber] || {};
+                    const visibleBulkInvoices = (Array.isArray(bulkState.invoices) ? bulkState.invoices : []).filter(
+                      (invoice) => getInvoicePeriodTab(invoice) === selectedBulkPaymentTab,
+                    );
                     return (
                       <div key={costCenter.accountNumber} className="border border-gray-200 rounded-lg">
                         <div className="flex items-center gap-3 hover:bg-gray-50 p-3">
@@ -4250,8 +4498,8 @@ export default function ClientCostCentersPage() {
                           <div className="space-y-3 bg-gray-50 px-3 pb-3">
                             {bulkState.loading ? (
                               <div className="px-2 py-3 text-gray-500 text-sm">Loading invoices...</div>
-                            ) : Array.isArray(bulkState.invoices) && bulkState.invoices.length > 0 ? (
-                              bulkState.invoices.map((invoice) => {
+                            ) : visibleBulkInvoices.length > 0 ? (
+                              visibleBulkInvoices.map((invoice) => {
                                 const allocation = bulkState.allocations?.[String(invoice.id)] || {};
                                 return (
                                   <div key={invoice.id} className="bg-white p-3 border border-gray-200 rounded-lg">
@@ -4279,6 +4527,11 @@ export default function ClientCostCentersPage() {
                                                   Draft
                                                 </span>
                                               )}
+                                              {invoice.isOutstandingSummary && (
+                                                <span className="ml-2 rounded bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800">
+                                                  Aged
+                                                </span>
+                                              )}
                                             </div>
                                             <div className="text-gray-500 text-xs">
                                               Billing Month: {invoice.billing_month || 'N/A'}
@@ -4289,6 +4542,11 @@ export default function ClientCostCentersPage() {
                                             <div className="text-gray-500 text-xs">
                                               Generated: {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString() : 'N/A'}
                                             </div>
+                                            {invoice.isOutstandingSummary && (
+                                              <div className="mt-1 text-gray-500 text-xs">
+                                                30: {formatCurrency(invoice.overdue_30_days || 0)} | 60: {formatCurrency(invoice.overdue_60_days || 0)} | 90: {formatCurrency(invoice.overdue_90_days || 0)} | 120+: {formatCurrency(invoice.overdue_120_plus_days || 0)}
+                                              </div>
+                                            )}
                                           </div>
                                           <div className="text-right">
                                             <div className="font-semibold text-gray-900 text-sm">
@@ -4349,7 +4607,9 @@ export default function ClientCostCentersPage() {
                               })
                             ) : (
                               <div className="px-2 py-3 text-gray-500 text-sm">
-                                No unpaid invoice rows were found for this cost center.
+                                {selectedBulkPaymentTab === 'current'
+                                  ? 'No current invoice rows were found for this cost center.'
+                                  : 'No outstanding invoice rows were found for this cost center.'}
                               </div>
                             )}
                           </div>

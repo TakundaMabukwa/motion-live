@@ -54,11 +54,40 @@ export async function GET(request: NextRequest) {
     const currentBillingMonthKey = currentBillingMonth.toISOString().slice(0, 10);
 
     const [
+      { data: paymentsMirrorRows, error: paymentsMirrorError },
       { data: invoices, error: invoicesError },
       { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
       { data: vehiclesByAccount, error: vehiclesByAccountError },
       { data: costCenters, error: costCentersError },
     ] = await Promise.all([
+      supabase
+        .from('payments_')
+        .select(`
+          id,
+          company,
+          cost_code,
+          account_invoice_id,
+          invoice_number,
+          reference,
+          due_amount,
+          paid_amount,
+          balance_due,
+          outstanding_balance,
+          credit_amount,
+          invoice_date,
+          due_date,
+          payment_status,
+          current_due,
+          overdue_30_days,
+          overdue_60_days,
+          overdue_90_days,
+          overdue_120_plus_days,
+          last_updated,
+          billing_month
+        `)
+        .in('cost_code', accountNumbers)
+        .eq('billing_month', currentBillingMonthKey)
+        .order('last_updated', { ascending: false }),
       supabase
         .from('account_invoices')
         .select(`
@@ -92,10 +121,11 @@ export async function GET(request: NextRequest) {
         .in('cost_code', accountNumbers),
     ]);
 
-    if (invoicesError || vehiclesByNewAccountError || vehiclesByAccountError || costCentersError) {
+    if (paymentsMirrorError || invoicesError || vehiclesByNewAccountError || vehiclesByAccountError || costCentersError) {
       return NextResponse.json(
         {
           error: `Database error: ${
+            paymentsMirrorError?.message ||
             invoicesError?.message ||
             vehiclesByNewAccountError?.message ||
             vehiclesByAccountError?.message ||
@@ -113,6 +143,15 @@ export async function GET(request: NextRequest) {
         return;
       }
       invoiceByCode.set(accountNumber, invoice);
+    });
+
+    const paymentsMirrorByCode = new Map<string, Record<string, unknown>>();
+    (paymentsMirrorRows || []).forEach((payment) => {
+      const accountNumber = String(payment?.cost_code || '').trim().toUpperCase();
+      if (!accountNumber || paymentsMirrorByCode.has(accountNumber)) {
+        return;
+      }
+      paymentsMirrorByCode.set(accountNumber, payment);
     });
 
     const vehicleMap = new Map<string, Record<string, unknown>>();
@@ -142,6 +181,7 @@ export async function GET(request: NextRequest) {
     });
 
     const rows = accountNumbers.map((accountNumber) => {
+      const mirroredPayment = paymentsMirrorByCode.get(accountNumber);
       const invoice = invoiceByCode.get(accountNumber);
       const draft = draftPaymentsByCode.get(accountNumber);
       const center = costCenterByCode.get(accountNumber);
@@ -151,6 +191,29 @@ export async function GET(request: NextRequest) {
         center?.legal_name ||
         center?.company ||
         accountNumber;
+
+      if (mirroredPayment) {
+        return {
+          ...mirroredPayment,
+          company: mirroredPayment.company || company,
+          cost_code: accountNumber,
+          due_amount: roundCurrency(mirroredPayment.due_amount),
+          paid_amount: roundCurrency(mirroredPayment.paid_amount),
+          balance_due: roundCurrency(
+            mirroredPayment.outstanding_balance ?? mirroredPayment.balance_due,
+          ),
+          outstanding_balance: roundCurrency(
+            mirroredPayment.outstanding_balance ?? mirroredPayment.balance_due,
+          ),
+          current_due: roundCurrency(mirroredPayment.current_due),
+          overdue_30_days: roundCurrency(mirroredPayment.overdue_30_days),
+          overdue_60_days: roundCurrency(mirroredPayment.overdue_60_days),
+          overdue_90_days: roundCurrency(mirroredPayment.overdue_90_days),
+          overdue_120_plus_days: roundCurrency(mirroredPayment.overdue_120_plus_days),
+          credit_amount: roundCurrency(mirroredPayment.credit_amount),
+          source: 'payments_mirror',
+        };
+      }
 
       if (invoice) {
         const financials = buildInvoiceFinancials({
@@ -175,6 +238,13 @@ export async function GET(request: NextRequest) {
           last_updated: invoice.created_at || new Date().toISOString(),
           billing_month: invoice.billing_month || currentBillingMonthKey,
           source: 'account_invoice',
+          current_due: 0,
+          overdue_30_days: 0,
+          overdue_60_days: 0,
+          overdue_90_days: 0,
+          overdue_120_plus_days: 0,
+          outstanding_balance: roundCurrency(financials.balanceDue),
+          credit_amount: 0,
         };
       }
 
@@ -186,6 +256,13 @@ export async function GET(request: NextRequest) {
           due_amount: roundCurrency(draft.due_amount),
           paid_amount: roundCurrency(draft.paid_amount),
           balance_due: roundCurrency(draft.balance_due),
+          outstanding_balance: roundCurrency(draft.balance_due),
+          current_due: roundCurrency(draft.current_due),
+          overdue_30_days: roundCurrency(draft.overdue_30_days),
+          overdue_60_days: roundCurrency(draft.overdue_60_days),
+          overdue_90_days: roundCurrency(draft.overdue_90_days),
+          overdue_120_plus_days: roundCurrency(draft.overdue_120_plus_days),
+          credit_amount: 0,
           billing_month: draft.billing_month || currentBillingMonthKey,
         };
       }
@@ -203,9 +280,13 @@ export async function GET(request: NextRequest) {
         invoice_date: null,
         due_date: null,
         payment_status: 'pending',
+        current_due: 0,
         overdue_30_days: 0,
         overdue_60_days: 0,
         overdue_90_days: 0,
+        overdue_120_plus_days: 0,
+        outstanding_balance: 0,
+        credit_amount: 0,
         last_updated: new Date().toISOString(),
         billing_month: currentBillingMonthKey,
         source: 'no_billing_data',
@@ -233,13 +314,19 @@ export async function GET(request: NextRequest) {
         balanceDue: row.balance_due,
         dueDate: row.due_date,
       });
+      const currentDue = roundCurrency(row.current_due ?? overdue.currentDue);
+      const overdue30 = roundCurrency(row.overdue_30_days ?? overdue.overdue30Days);
+      const overdue60 = roundCurrency(row.overdue_60_days ?? overdue.overdue60Days);
+      const overdue90 = roundCurrency(row.overdue_90_days ?? overdue.overdue90Days);
+      const overdue120 = roundCurrency(row.overdue_120_plus_days ?? overdue.overdue91PlusDays);
+      const outstandingBalance = roundCurrency(row.outstanding_balance ?? row.balance_due);
 
       summary.totalDueAmount += Number(row.due_amount || 0);
       summary.totalPaidAmount += Number(row.paid_amount || 0);
-      summary.totalBalanceDue += Number(row.balance_due || 0);
-      summary.totalOverdue30 += overdue.overdue30Days;
-      summary.totalOverdue60 += overdue.overdue60Days;
-      summary.totalOverdue90 += overdue.overdue90Days + overdue.overdue91PlusDays;
+      summary.totalBalanceDue += outstandingBalance;
+      summary.totalOverdue30 += overdue30;
+      summary.totalOverdue60 += overdue60;
+      summary.totalOverdue90 += overdue90 + overdue120;
 
       const status = String(row.payment_status || '').toLowerCase();
       if (Object.prototype.hasOwnProperty.call(summary.statusCounts, status)) {
@@ -248,11 +335,14 @@ export async function GET(request: NextRequest) {
 
       return {
         ...row,
-        overdue_30_days: overdue.overdue30Days,
-        overdue_60_days: overdue.overdue60Days,
-        overdue_90_days: overdue.overdue90Days + overdue.overdue91PlusDays,
-        overdue_91_plus_days: overdue.overdue91PlusDays,
-        current_due: overdue.currentDue,
+        balance_due: outstandingBalance,
+        outstanding_balance: outstandingBalance,
+        overdue_30_days: overdue30,
+        overdue_60_days: overdue60,
+        overdue_90_days: overdue90,
+        overdue_120_plus_days: overdue120,
+        overdue_91_plus_days: overdue120,
+        current_due: currentDue,
       };
     });
 

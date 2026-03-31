@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  applyOutstandingPaymentToBuckets,
   defaultDueDate,
   buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
+  getOutstandingBucketTotal,
   normalizeBillingMonth,
   resolveAccountInvoice,
   upsertPaymentsMirror,
@@ -197,6 +199,32 @@ const isUuidLike = (value: unknown) =>
     String(value || "").trim(),
   );
 
+const buildOutstandingInvoiceItems = (agingRow: Record<string, unknown>) => {
+  const rows = [
+    { description: "30 Days Outstanding", amount: Number(agingRow.overdue_30_days || 0) },
+    { description: "60 Days Outstanding", amount: Number(agingRow.overdue_60_days || 0) },
+    { description: "90 Days Outstanding", amount: Number(agingRow.overdue_90_days || 0) },
+    { description: "120+ Days Outstanding", amount: Number(agingRow.overdue_120_plus_days || 0) },
+  ].filter((item) => item.amount > 0);
+
+  return rows.map((item) => ({
+    item_code: "OUTSTANDING",
+    description: item.description,
+    comments: "Aged balance payment snapshot",
+    units: 1,
+    unit_price: item.amount.toFixed(2),
+    unit_price_without_vat: item.amount.toFixed(2),
+    amountExcludingVat: item.amount.toFixed(2),
+    total_excl_vat: item.amount.toFixed(2),
+    vat_amount: "0.00",
+    vatAmount: "0.00",
+    vat_percentage: "0",
+    total_incl_vat: item.amount.toFixed(2),
+    total_including_vat: item.amount.toFixed(2),
+    totalRentalSub: item.amount.toFixed(2),
+  }));
+};
+
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
@@ -209,7 +237,12 @@ export async function POST(request: NextRequest) {
       paymentMethod,
       notes,
       paymentType,
+      paymentPeriodType,
     } = requestBody;
+    const normalizedPaymentPeriodType =
+      String(paymentPeriodType || "").trim().toLowerCase() === "outstanding"
+        ? "outstanding"
+        : "current";
 
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
@@ -247,6 +280,64 @@ export async function POST(request: NextRequest) {
       billingMonth: normalizeBillingMonth(billingMonth),
     });
 
+    let outstandingAgingRow: Record<string, unknown> | null = null;
+
+    if (accountNumber && normalizedPaymentPeriodType === "outstanding") {
+      const normalizedAccountNumber = String(accountNumber).trim().toUpperCase();
+      const { data: agingRows, error: agingError } = await supabase
+        .from("payments_")
+        .select(
+          `
+            id,
+            cost_code,
+            company,
+            account_invoice_id,
+            invoice_number,
+            reference,
+            due_amount,
+            paid_amount,
+            balance_due,
+            current_due,
+            overdue_30_days,
+            overdue_60_days,
+            overdue_90_days,
+            overdue_120_plus_days,
+            outstanding_balance,
+            billing_month,
+            credit_amount,
+            payment_status,
+            last_updated
+          `,
+        )
+        .eq("cost_code", normalizedAccountNumber)
+        .order("billing_month", { ascending: false })
+        .order("last_updated", { ascending: false })
+        .limit(12);
+
+      if (agingError) {
+        return NextResponse.json(
+          { error: agingError.message || "Failed to load outstanding age analysis" },
+          { status: 500 },
+        );
+      }
+
+      outstandingAgingRow =
+        (agingRows || []).find((row) => getOutstandingBucketTotal(row) > 0) || null;
+
+      if (outstandingAgingRow) {
+        const outstandingBillingMonth =
+          normalizeBillingMonth(outstandingAgingRow.billing_month) ||
+          normalizeBillingMonth(billingMonth);
+
+        if (!invoice && outstandingBillingMonth) {
+          invoice = await resolveAccountInvoice(supabase, {
+            accountNumber: normalizedAccountNumber,
+            billingMonth: outstandingBillingMonth,
+          });
+        }
+      }
+    }
+
     if (!invoice && accountNumber) {
       const normalizedAccountNumber = String(accountNumber).trim().toUpperCase();
       const normalizedBillingMonth = normalizeBillingMonth(billingMonth) || (() => {
@@ -255,55 +346,24 @@ export async function POST(request: NextRequest) {
         return currentMonth.toISOString().slice(0, 10);
       })();
 
-      const [
-        { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
-        { data: vehiclesByAccount, error: vehiclesByAccountError },
-        { data: costCenterRow, error: costCenterError },
-      ] = await Promise.all([
-        supabase
-          .from("vehicles")
-          .select("*")
-          .eq("new_account_number", normalizedAccountNumber),
-        supabase
-          .from("vehicles")
-          .select("*")
-          .eq("account_number", normalizedAccountNumber),
-        supabase
-          .from("cost_centers")
-          .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code")
-          .eq("cost_code", normalizedAccountNumber)
-          .maybeSingle(),
-      ]);
+      const { data: costCenterRow, error: costCenterError } = await supabase
+        .from("cost_centers")
+        .select("company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code")
+        .eq("cost_code", normalizedAccountNumber)
+        .maybeSingle();
 
-      if (vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
-        const message =
-          vehiclesByNewAccountError?.message ||
-          vehiclesByAccountError?.message ||
-          costCenterError?.message ||
-          "Failed to prepare draft invoice";
-        return NextResponse.json({ error: message }, { status: 500 });
+      if (costCenterError) {
+        return NextResponse.json(
+          { error: costCenterError.message || "Failed to prepare payment invoice" },
+          { status: 500 },
+        );
       }
 
-      const vehicleMap = new Map<string, Record<string, unknown>>();
-      [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
-        const key =
-          String(vehicle?.id || "").trim() ||
-          String(vehicle?.reg || "").trim().toUpperCase() ||
-          JSON.stringify([
-            String(vehicle?.new_account_number || "").trim().toUpperCase(),
-            String(vehicle?.account_number || "").trim().toUpperCase(),
-            vehicle?.company || "",
-            vehicle?.total_rental || "",
-            vehicle?.total_sub || "",
-          ]);
-        if (!vehicleMap.has(key)) {
-          vehicleMap.set(key, vehicle);
-        }
-      });
-
-      const draft = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values())).get(normalizedAccountNumber);
-
-      if (draft && Number(draft.due_amount || 0) > 0) {
+      if (
+        normalizedPaymentPeriodType === "outstanding" &&
+        outstandingAgingRow &&
+        getOutstandingBucketTotal(outstandingAgingRow) > 0
+      ) {
         const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
           "allocate_document_number",
           {
@@ -323,32 +383,34 @@ export async function POST(request: NextRequest) {
         const companyName =
           costCenterRow?.legal_name ||
           costCenterRow?.company ||
-          draft.company ||
+          outstandingAgingRow.company ||
           normalizedAccountNumber;
         const clientAddress = buildAddress(costCenterRow);
-        const { invoiceItems, subtotal, vatAmount, totalAmount } =
-          buildDetailedInvoiceItems(Array.from(vehicleMap.values()), companyName);
+        const totalOutstanding = getOutstandingBucketTotal(outstandingAgingRow);
+        const invoiceItems = buildOutstandingInvoiceItems(outstandingAgingRow);
 
         const { data: insertedInvoice, error: insertError } = await supabase
           .from("account_invoices")
           .insert({
             account_number: normalizedAccountNumber,
-            billing_month: normalizedBillingMonth,
+            billing_month:
+              normalizeBillingMonth(outstandingAgingRow.billing_month) ||
+              normalizedBillingMonth,
             invoice_number: allocatedInvoiceNumber,
             company_name: companyName,
             client_address: clientAddress || null,
             customer_vat_number: costCenterRow?.vat_number || null,
             invoice_date: invoiceDate,
             due_date: defaultDueDate(invoiceDate),
-            subtotal: subtotal,
-            vat_amount: vatAmount,
+            subtotal: totalOutstanding,
+            vat_amount: 0,
             discount_amount: 0,
-            total_amount: totalAmount,
+            total_amount: totalOutstanding,
             paid_amount: 0,
-            balance_due: totalAmount,
+            balance_due: totalOutstanding,
             payment_status: "pending",
             line_items: invoiceItems,
-            notes: "Auto-created during payment from current vehicle billing draft with full vehicle detail",
+            notes: "Auto-created during payment from outstanding age analysis snapshot",
             created_by: user?.id || null,
           })
           .select("*")
@@ -360,9 +422,110 @@ export async function POST(request: NextRequest) {
             { status: 500 },
           );
         }
-
-        await upsertPaymentsMirror(supabase, insertedInvoice);
         invoice = insertedInvoice;
+      } else {
+        const [
+          { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
+          { data: vehiclesByAccount, error: vehiclesByAccountError },
+        ] = await Promise.all([
+          supabase
+            .from("vehicles")
+            .select("*")
+            .eq("new_account_number", normalizedAccountNumber),
+          supabase
+            .from("vehicles")
+            .select("*")
+            .eq("account_number", normalizedAccountNumber),
+        ]);
+
+        if (vehiclesByNewAccountError || vehiclesByAccountError) {
+          const message =
+            vehiclesByNewAccountError?.message ||
+            vehiclesByAccountError?.message ||
+            "Failed to prepare draft invoice";
+          return NextResponse.json({ error: message }, { status: 500 });
+        }
+
+        const vehicleMap = new Map<string, Record<string, unknown>>();
+        [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
+          const key =
+            String(vehicle?.id || "").trim() ||
+            String(vehicle?.reg || "").trim().toUpperCase() ||
+            JSON.stringify([
+              String(vehicle?.new_account_number || "").trim().toUpperCase(),
+              String(vehicle?.account_number || "").trim().toUpperCase(),
+              vehicle?.company || "",
+              vehicle?.total_rental || "",
+              vehicle?.total_sub || "",
+            ]);
+          if (!vehicleMap.has(key)) {
+            vehicleMap.set(key, vehicle);
+          }
+        });
+
+        const draft = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values())).get(normalizedAccountNumber);
+
+        if (draft && Number(draft.due_amount || 0) > 0) {
+          const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
+            "allocate_document_number",
+            {
+              sequence_name: "invoice",
+              prefix: "INV-",
+            },
+          );
+
+          if (numberError || !allocatedInvoiceNumber) {
+            return NextResponse.json(
+              { error: numberError?.message || "Failed to allocate invoice number" },
+              { status: 500 },
+            );
+          }
+
+          const invoiceDate = new Date().toISOString();
+          const companyName =
+            costCenterRow?.legal_name ||
+            costCenterRow?.company ||
+            draft.company ||
+            normalizedAccountNumber;
+          const clientAddress = buildAddress(costCenterRow);
+          const { invoiceItems, subtotal, vatAmount, totalAmount } =
+            buildDetailedInvoiceItems(Array.from(vehicleMap.values()), companyName);
+
+          const { data: insertedInvoice, error: insertError } = await supabase
+            .from("account_invoices")
+            .insert({
+              account_number: normalizedAccountNumber,
+              billing_month: normalizedBillingMonth,
+              invoice_number: allocatedInvoiceNumber,
+              company_name: companyName,
+              client_address: clientAddress || null,
+              customer_vat_number: costCenterRow?.vat_number || null,
+              invoice_date: invoiceDate,
+              due_date: defaultDueDate(invoiceDate),
+              subtotal: subtotal,
+              vat_amount: vatAmount,
+              discount_amount: 0,
+              total_amount: totalAmount,
+              paid_amount: 0,
+              balance_due: totalAmount,
+              payment_status: "pending",
+              line_items: invoiceItems,
+              notes: "Auto-created during payment from current vehicle billing draft with full vehicle detail",
+              created_by: user?.id || null,
+            })
+            .select("*")
+            .single();
+
+          if (insertError) {
+            return NextResponse.json(
+              { error: insertError.message || "Failed to create invoice snapshot for payment" },
+              { status: 500 },
+            );
+          }
+
+          await upsertPaymentsMirror(supabase, insertedInvoice);
+          invoice = insertedInvoice;
+        }
       }
     }
 
@@ -458,10 +621,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await upsertPaymentsMirror(supabase, {
-      ...updatedInvoice,
-      credit_amount: creditAmount,
-    });
+    if (normalizedPaymentPeriodType === "outstanding" && outstandingAgingRow) {
+      const agedAllocation = applyOutstandingPaymentToBuckets(outstandingAgingRow, numericAmount);
+      const currentCreditAmount = Number(outstandingAgingRow.credit_amount || 0);
+      const outstandingDueAmount = Math.max(
+        Number(outstandingAgingRow.due_amount || 0),
+        getOutstandingBucketTotal(outstandingAgingRow),
+      );
+      const nextPaidAmount = Math.min(
+        outstandingDueAmount,
+        Number(outstandingAgingRow.paid_amount || 0) + agedAllocation.appliedToOutstanding,
+      );
+
+      const { error: paymentsMirrorUpdateError } = await supabase
+        .from("payments_")
+        .update({
+          account_invoice_id: updatedInvoice.id,
+          invoice_number: updatedInvoice.invoice_number,
+          reference: updatedInvoice.invoice_number,
+          paid_amount: nextPaidAmount,
+          balance_due: agedAllocation.outstanding_balance,
+          current_due: agedAllocation.current_due,
+          overdue_30_days: agedAllocation.overdue_30_days,
+          overdue_60_days: agedAllocation.overdue_60_days,
+          overdue_90_days: agedAllocation.overdue_90_days,
+          overdue_120_plus_days: agedAllocation.overdue_120_plus_days,
+          outstanding_balance: agedAllocation.outstanding_balance,
+          credit_amount: Number(
+            (currentCreditAmount + Math.max(0, creditAmount)).toFixed(2),
+          ),
+          payment_status:
+            agedAllocation.outstanding_balance <= 0 && agedAllocation.current_due <= 0
+              ? "paid"
+              : nextPaidAmount > 0
+                ? "partial"
+                : "pending",
+          last_updated: new Date().toISOString(),
+        })
+        .eq("id", outstandingAgingRow.id);
+
+      if (paymentsMirrorUpdateError) {
+        return NextResponse.json(
+          { error: paymentsMirrorUpdateError.message || "Failed to update outstanding age analysis" },
+          { status: 500 },
+        );
+      }
+    } else {
+      await upsertPaymentsMirror(supabase, {
+        ...updatedInvoice,
+        credit_amount: creditAmount,
+      });
+    }
 
     return NextResponse.json({
       success: true,

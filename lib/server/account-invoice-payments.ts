@@ -16,6 +16,61 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+export const getOutstandingBucketTotal = (source?: Record<string, unknown> | null) =>
+  Number(
+    (
+      toNumber(source?.overdue_30_days) +
+      toNumber(source?.overdue_60_days) +
+      toNumber(source?.overdue_90_days) +
+      toNumber(source?.overdue_120_plus_days)
+    ).toFixed(2),
+  );
+
+export const applyOutstandingPaymentToBuckets = (
+  source: Record<string, unknown> | null | undefined,
+  paymentAmount: unknown,
+) => {
+  let remainingPayment = Math.max(0, toNumber(paymentAmount));
+  let overdue120 = Math.max(0, toNumber(source?.overdue_120_plus_days));
+  let overdue90 = Math.max(0, toNumber(source?.overdue_90_days));
+  let overdue60 = Math.max(0, toNumber(source?.overdue_60_days));
+  let overdue30 = Math.max(0, toNumber(source?.overdue_30_days));
+  const currentDue = Math.max(0, toNumber(source?.current_due));
+
+  const consume = (bucketValue: number) => {
+    if (remainingPayment <= 0 || bucketValue <= 0) {
+      return bucketValue;
+    }
+
+    const applied = Math.min(bucketValue, remainingPayment);
+    remainingPayment = Number((remainingPayment - applied).toFixed(2));
+    return Number((bucketValue - applied).toFixed(2));
+  };
+
+  overdue120 = consume(overdue120);
+  overdue90 = consume(overdue90);
+  overdue60 = consume(overdue60);
+  overdue30 = consume(overdue30);
+
+  const remainingOutstanding = Number(
+    (currentDue + overdue30 + overdue60 + overdue90 + overdue120).toFixed(2),
+  );
+  const appliedToOutstanding = Number(
+    (Math.max(0, toNumber(paymentAmount)) - remainingPayment).toFixed(2),
+  );
+
+  return {
+    current_due: currentDue,
+    overdue_30_days: overdue30,
+    overdue_60_days: overdue60,
+    overdue_90_days: overdue90,
+    overdue_120_plus_days: overdue120,
+    outstanding_balance: remainingOutstanding,
+    appliedToOutstanding,
+    creditAmount: Number(remainingPayment.toFixed(2)),
+  };
+};
+
 export const calculateOverdueBuckets = ({
   balanceDue,
   dueDate,
@@ -153,9 +208,12 @@ export const buildDraftPaymentsFromVehicles = (
       invoice_date: null;
       due_date: null;
       payment_status: string;
+      current_due: number;
       overdue_30_days: number;
       overdue_60_days: number;
       overdue_90_days: number;
+      overdue_120_plus_days: number;
+      outstanding_balance: number;
       last_updated: string;
       billing_month: string;
       source: string;
@@ -198,9 +256,12 @@ export const buildDraftPaymentsFromVehicles = (
       invoice_date: null,
       due_date: null,
       payment_status: 'pending',
+      current_due: dueAmount,
       overdue_30_days: 0,
       overdue_60_days: 0,
       overdue_90_days: 0,
+      overdue_120_plus_days: 0,
+      outstanding_balance: dueAmount,
       last_updated: new Date().toISOString(),
       billing_month: billingMonth,
       source: 'vehicles_draft',
@@ -254,9 +315,12 @@ export const upsertPaymentsMirror = async (
     payment_status: invoice.payment_status || "pending",
     invoice_date: invoice.invoice_date || new Date().toISOString().slice(0, 10),
     due_date: invoice.due_date || null,
+    current_due: overdueBuckets.currentDue,
     overdue_30_days: overdueBuckets.overdue30Days,
     overdue_60_days: overdueBuckets.overdue60Days,
-    overdue_90_days: overdueBuckets.overdue90Days + overdueBuckets.overdue91PlusDays,
+    overdue_90_days: overdueBuckets.overdue90Days,
+    overdue_120_plus_days: overdueBuckets.overdue91PlusDays,
+    outstanding_balance: toNumber(invoice.balance_due),
     billing_month: billingMonth,
     last_updated: new Date().toISOString(),
   };

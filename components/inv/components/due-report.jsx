@@ -50,7 +50,7 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const buildStatementStyles = () => `
+export const buildStatementStyles = () => `
   :root {
     --statement-text: #111111;
     --statement-border: #404040;
@@ -328,7 +328,7 @@ const buildStatementStyles = () => `
   }
 `;
 
-function StatementDocument({ statementView, showItemBreakdown = false }) {
+export function StatementDocument({ statementView, showItemBreakdown = false }) {
   const {
     clientName,
     clientAddress,
@@ -681,26 +681,39 @@ export default function DueReportComponent({
     const normalizedToday = new Date();
     normalizedToday.setHours(0, 0, 0, 0);
 
-    let current = balanceDue;
-    let days30 = 0;
-    let days60 = 0;
-    let days90 = 0;
-    let days120Plus = 0;
+    let current = toNumber(paymentData?.current_due);
+    let days30 = toNumber(paymentData?.overdue_30_days);
+    let days60 = toNumber(paymentData?.overdue_60_days);
+    let days90 = toNumber(paymentData?.overdue_90_days);
+    let days120Plus = toNumber(
+      paymentData?.overdue_120_plus_days ?? paymentData?.overdue_91_plus_days,
+    );
 
-    if (balanceDue > 0 && dueDate && !Number.isNaN(dueDate.getTime())) {
-      dueDate.setHours(0, 0, 0, 0);
-      const daysOverdue = Math.floor((normalizedToday.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    const hasMirroredAging =
+      current > 0 || days30 > 0 || days60 > 0 || days90 > 0 || days120Plus > 0 || balanceDue <= 0;
 
-      if (daysOverdue > 0) {
-        current = 0;
-        if (daysOverdue <= 30) {
-          days30 = balanceDue;
-        } else if (daysOverdue <= 60) {
-          days60 = balanceDue;
-        } else if (daysOverdue <= 90) {
-          days90 = balanceDue;
-        } else {
-          days120Plus = balanceDue;
+    if (!hasMirroredAging) {
+      current = balanceDue;
+      days30 = 0;
+      days60 = 0;
+      days90 = 0;
+      days120Plus = 0;
+
+      if (balanceDue > 0 && dueDate && !Number.isNaN(dueDate.getTime())) {
+        dueDate.setHours(0, 0, 0, 0);
+        const daysOverdue = Math.floor((normalizedToday.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysOverdue > 0) {
+          current = 0;
+          if (daysOverdue <= 30) {
+            days30 = balanceDue;
+          } else if (daysOverdue <= 60) {
+            days60 = balanceDue;
+          } else if (daysOverdue <= 90) {
+            days90 = balanceDue;
+          } else {
+            days120Plus = balanceDue;
+          }
         }
       }
     }

@@ -50,7 +50,87 @@ export async function PUT(request) {
       );
     }
 
-    return NextResponse.json(data[0]);
+    const updatedVehicle = data[0];
+    const reg = String(updatedVehicle?.reg || '').trim();
+    const fleetNumber = String(updatedVehicle?.fleet_number || '').trim();
+    const updatedUniqueId = updatedVehicle?.unique_id || unique_id || null;
+
+    let matchedVehicles = [];
+
+    if (updatedUniqueId) {
+      const { data: vehiclesByUniqueId, error: vehiclesByUniqueIdError } = await supabase
+        .from('vehicles')
+        .select('id, unique_id, reg, fleet_number')
+        .eq('unique_id', updatedUniqueId);
+
+      if (vehiclesByUniqueIdError) {
+        console.error('Error finding vehicles by unique_id:', vehiclesByUniqueIdError);
+        return NextResponse.json(
+          { error: 'Failed to update vehicle', details: vehiclesByUniqueIdError.message },
+          { status: 500 }
+        );
+      }
+
+      matchedVehicles = vehiclesByUniqueId || [];
+    }
+
+    if (matchedVehicles.length === 0 && (reg || fleetNumber)) {
+      let vehiclesQuery = supabase
+        .from('vehicles')
+        .select('id, unique_id, reg, fleet_number');
+
+      if (reg && fleetNumber) {
+        vehiclesQuery = vehiclesQuery.or(
+          `reg.eq.${reg.replace(/,/g, '\\,')},fleet_number.eq.${fleetNumber.replace(/,/g, '\\,')}`
+        );
+      } else if (reg) {
+        vehiclesQuery = vehiclesQuery.eq('reg', reg);
+      } else {
+        vehiclesQuery = vehiclesQuery.eq('fleet_number', fleetNumber);
+      }
+
+      const { data: vehiclesByIdentifier, error: vehiclesByIdentifierError } = await vehiclesQuery;
+
+      if (vehiclesByIdentifierError) {
+        console.error('Error finding vehicles by reg/fleet:', vehiclesByIdentifierError);
+        return NextResponse.json(
+          { error: 'Failed to update vehicle', details: vehiclesByIdentifierError.message },
+          { status: 500 }
+        );
+      }
+
+      matchedVehicles = vehiclesByIdentifier || [];
+    }
+
+    if (matchedVehicles.length > 0) {
+      const vehicleIds = matchedVehicles
+        .map((vehicle) => vehicle.id)
+        .filter((vehicleId) => vehicleId !== null && vehicleId !== undefined);
+
+      if (vehicleIds.length > 0) {
+        const mirroredUpdateData = {
+          ...updateData,
+          new_account_number: updatedVehicle?.new_account_number ?? updateData?.new_account_number,
+          account_number: updatedVehicle?.account_number ?? updateData?.account_number,
+          company: updatedVehicle?.company ?? updateData?.company,
+        };
+
+        const { error: vehiclesUpdateError } = await supabase
+          .from('vehicles')
+          .update(mirroredUpdateData)
+          .in('id', vehicleIds);
+
+        if (vehiclesUpdateError) {
+          console.error('Error updating vehicles table:', vehiclesUpdateError);
+          return NextResponse.json(
+            { error: 'Failed to mirror vehicle update', details: vehiclesUpdateError.message },
+            { status: 500 }
+          );
+        }
+      }
+    }
+
+    return NextResponse.json(updatedVehicle);
   } catch (error) {
     console.error('Error in vehicle update API:', error);
     const errMsg = error instanceof Error ? error.message : String(error);

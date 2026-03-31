@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildDraftPaymentsFromVehicles, calculateOverdueBuckets } from '@/lib/server/account-invoice-payments';
+import { buildDraftPaymentsFromVehicles } from '@/lib/server/account-invoice-payments';
 
 export async function GET(request: NextRequest) {
   try {
@@ -119,9 +119,12 @@ export async function GET(request: NextRequest) {
         invoice_date,
         due_date,
         payment_status,
+        current_due,
         overdue_30_days,
         overdue_60_days,
         overdue_90_days,
+        overdue_120_plus_days,
+        outstanding_balance,
         last_updated,
         billing_month
       `)
@@ -218,16 +221,12 @@ export async function GET(request: NextRequest) {
 
     if (latestPayments.length > 0) {
       latestPayments.forEach(payment => {
-        const overdue = calculateOverdueBuckets({
-          balanceDue: payment.balance_due,
-          dueDate: payment.due_date,
-        });
         summary.totalDueAmount += Number(payment.due_amount || 0);
         summary.totalPaidAmount += Number(payment.paid_amount || 0);
-        summary.totalBalanceDue += Number(payment.balance_due || 0);
-        summary.totalOverdue30 += overdue.overdue30Days;
-        summary.totalOverdue60 += overdue.overdue60Days;
-        summary.totalOverdue90 += overdue.overdue90Days + overdue.overdue91PlusDays;
+        summary.totalBalanceDue += Number(payment.outstanding_balance ?? payment.balance_due || 0);
+        summary.totalOverdue30 += Number(payment.overdue_30_days || 0);
+        summary.totalOverdue60 += Number(payment.overdue_60_days || 0);
+        summary.totalOverdue90 += Number(payment.overdue_90_days || 0) + Number(payment.overdue_120_plus_days || 0);
         
         // Count payment statuses
         const status = payment.payment_status?.toLowerCase();
@@ -239,10 +238,6 @@ export async function GET(request: NextRequest) {
 
     // Transform payments data into the expected format
     const vehicles = latestPayments.map(payment => {
-      const overdue = calculateOverdueBuckets({
-        balanceDue: payment.balance_due,
-        dueDate: payment.due_date,
-      });
       return {
         doc_no: payment.id,
         stock_code: payment.cost_code,
@@ -256,16 +251,18 @@ export async function GET(request: NextRequest) {
         one_month: Number(payment.due_amount || 0),
         '2nd_month': 0,
         '3rd_month': 0,
-        amount_due: Number(payment.balance_due || 0),
+        amount_due: Number(payment.outstanding_balance ?? payment.balance_due || 0),
         credit_amount: Number(payment.credit_amount || 0),
         monthly_amount: Number(payment.due_amount || 0),
         payment_status: payment.payment_status,
         billing_month: payment.billing_month,
         reference: payment.invoice_number || payment.reference,
-        overdue_30_days: overdue.overdue30Days,
-        overdue_60_days: overdue.overdue60Days,
-        overdue_90_days: overdue.overdue90Days + overdue.overdue91PlusDays,
-        overdue_91_plus_days: overdue.overdue91PlusDays
+        current_due: Number(payment.current_due || 0),
+        overdue_30_days: Number(payment.overdue_30_days || 0),
+        overdue_60_days: Number(payment.overdue_60_days || 0),
+        overdue_90_days: Number(payment.overdue_90_days || 0),
+        overdue_120_plus_days: Number(payment.overdue_120_plus_days || 0),
+        overdue_91_plus_days: Number(payment.overdue_120_plus_days || 0)
       };
     }) || [];
 
