@@ -570,6 +570,214 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
   `;
 }
 
+export function buildStatementView({
+  costCenter,
+  clientLegalName,
+  paymentData,
+  invoiceHistory = [],
+  paymentHistory = [],
+  bulkInvoice = null,
+}) {
+  const invoiceItems =
+    costCenter?.invoiceData?.invoiceItems ||
+    costCenter?.invoiceData?.invoice_items ||
+    [];
+
+  const currentInvoice =
+    invoiceHistory.find(
+      (invoice) =>
+        String(invoice?.billing_month || "") === String(paymentData?.billing_month || "") &&
+        String(invoice?.account_number || "") === String(costCenter?.accountNumber || ""),
+    ) || null;
+
+  const clientName =
+    costCenter?.invoiceData?.company_name ||
+    bulkInvoice?.company_name ||
+    currentInvoice?.company_name ||
+    costCenter?.accountName ||
+    paymentData?.company_name ||
+    clientLegalName ||
+    costCenter?.accountNumber ||
+    "Client Name";
+
+  const structuredAddress = [
+    costCenter?.costCenterInfo?.physical_address_1,
+    costCenter?.costCenterInfo?.physical_address_2,
+    costCenter?.costCenterInfo?.physical_address_3,
+    costCenter?.costCenterInfo?.physical_area,
+    costCenter?.costCenterInfo?.physical_code,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const clientAddress =
+    costCenter?.invoiceData?.client_address ||
+    bulkInvoice?.client_address ||
+    currentInvoice?.client_address ||
+    paymentData?.client_address ||
+    structuredAddress;
+
+  const activeInvoice =
+    bulkInvoice ||
+    currentInvoice ||
+    (costCenter?.invoiceData
+      ? {
+          invoice_number: costCenter.invoiceData.invoice_number,
+          invoice_date: costCenter.invoiceData.invoice_date,
+          created_at: costCenter.invoiceData.created_at,
+          total_amount: costCenter.invoiceData.total_amount,
+          balance_due: costCenter.invoiceData.balance_due,
+          paid_amount: costCenter.invoiceData.paid_amount,
+          due_date: costCenter.invoiceData.due_date,
+        }
+      : null);
+
+  const actualInvoiceNumber =
+    activeInvoice?.invoice_number ||
+    paymentData?.invoice_number ||
+    costCenter?.invoiceData?.invoice_number ||
+    costCenter?.reference ||
+    "";
+
+  const matchedPayments = paymentHistory.filter((payment) => {
+    const sameInvoiceId =
+      currentInvoice?.id &&
+      String(payment?.account_invoice_id || "") === String(currentInvoice.id);
+    const sameInvoiceNumber =
+      actualInvoiceNumber &&
+      String(payment?.invoice_number || "") === String(actualInvoiceNumber);
+    const sameAccount =
+      String(payment?.account_number || "") === String(costCenter?.accountNumber || "");
+    return sameAccount && (sameInvoiceId || sameInvoiceNumber);
+  });
+
+  const paidAmount =
+    matchedPayments.length > 0
+      ? matchedPayments.reduce((sum, payment) => sum + toNumber(payment?.amount), 0)
+      : toNumber(activeInvoice?.paid_amount ?? paymentData?.paid_amount);
+  const creditedAmount = toNumber(
+    paymentData?.credited_amount ??
+      paymentData?.credit_amount ??
+      activeInvoice?.credited_amount ??
+      activeInvoice?.credit_amount ??
+      costCenter?.credit_amount ??
+      costCenter?.credited_amount,
+  );
+  const totalInvoiced = toNumber(
+    activeInvoice?.total_amount ||
+      paymentData?.due_amount ||
+      paymentData?.total_amount ||
+      (toNumber(paymentData?.balance_due) + paidAmount + creditedAmount),
+  );
+  const balanceDue = Math.max(
+    0,
+    toNumber(activeInvoice?.balance_due ?? paymentData?.balance_due ?? totalInvoiced - paidAmount - creditedAmount),
+  );
+  const dueDateValue = activeInvoice?.due_date || paymentData?.due_date || null;
+  const dueDate = dueDateValue ? new Date(dueDateValue) : null;
+
+  const normalizedToday = new Date();
+  normalizedToday.setHours(0, 0, 0, 0);
+
+  let current = toNumber(paymentData?.current_due);
+  let days30 = toNumber(paymentData?.overdue_30_days);
+  let days60 = toNumber(paymentData?.overdue_60_days);
+  let days90 = toNumber(paymentData?.overdue_90_days);
+  let days120Plus = toNumber(
+    paymentData?.overdue_120_plus_days ?? paymentData?.overdue_91_plus_days,
+  );
+
+  const hasMirroredAging =
+    current > 0 || days30 > 0 || days60 > 0 || days90 > 0 || days120Plus > 0 || balanceDue <= 0;
+
+  if (!hasMirroredAging) {
+    current = balanceDue;
+    days30 = 0;
+    days60 = 0;
+    days90 = 0;
+    days120Plus = 0;
+
+    if (balanceDue > 0 && dueDate && !Number.isNaN(dueDate.getTime())) {
+      dueDate.setHours(0, 0, 0, 0);
+      const daysOverdue = Math.floor((normalizedToday.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysOverdue > 0) {
+        current = 0;
+        if (daysOverdue <= 30) {
+          days30 = balanceDue;
+        } else if (daysOverdue <= 60) {
+          days60 = balanceDue;
+        } else if (daysOverdue <= 90) {
+          days90 = balanceDue;
+        } else {
+          days120Plus = balanceDue;
+        }
+      }
+    }
+  }
+
+  return {
+    clientName,
+    clientAddress: clientAddress || "-",
+    companyRegistrationNumber:
+      costCenter?.invoiceData?.company_registration_number ||
+      bulkInvoice?.company_registration_number ||
+      currentInvoice?.company_registration_number ||
+      costCenter?.costCenterInfo?.registration_number ||
+      paymentData?.company_registration_number ||
+      "-",
+    statementNumber: "",
+    statementDate: formatDate(new Date().toISOString()),
+    accountNumber: costCenter?.accountNumber || "N/A",
+    customerVatNumber:
+      costCenter?.invoiceData?.customer_vat_number ||
+      bulkInvoice?.customer_vat_number ||
+      currentInvoice?.customer_vat_number ||
+      costCenter?.costCenterInfo?.vat_number ||
+      paymentData?.customer_vat_number ||
+      "-",
+    rows: [
+      {
+        date: formatDate(
+          activeInvoice?.invoice_date ||
+            paymentData?.invoice_date ||
+            activeInvoice?.created_at ||
+            paymentData?.created_at ||
+            paymentData?.billing_month,
+        ),
+        client: clientName,
+        invoiceNumber: actualInvoiceNumber || "-",
+        totalInvoiced: formatCurrency(totalInvoiced),
+        paid: formatCurrency(paidAmount),
+        credited: formatCurrency(creditedAmount),
+        outstanding: formatCurrency(balanceDue),
+      },
+    ],
+    agingRows: [
+      formatCurrency(current),
+      formatCurrency(days30),
+      formatCurrency(days60),
+      formatCurrency(days90),
+      formatCurrency(days120Plus),
+    ],
+    itemRows: invoiceItems.map((item, index) => ({
+      id: `${item?.reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
+      reg: item?.reg || "-",
+      fleetNumber: item?.fleetNumber || item?.fleet_number || "-",
+      description: item?.description || item?.item_description || item?.itemCode || "Billed Item",
+      unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
+      vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
+      totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
+    })),
+    totals: {
+      totalInvoiced: formatCurrency(totalInvoiced),
+      paid: formatCurrency(paidAmount),
+      credited: formatCurrency(creditedAmount),
+      outstanding: formatCurrency(balanceDue),
+    },
+  };
+}
+
 export default function DueReportComponent({
   costCenter,
   clientLegalName,
@@ -579,206 +787,18 @@ export default function DueReportComponent({
   bulkInvoice = null,
   showItemBreakdown = false,
 }) {
-  const statementView = useMemo(() => {
-    const invoiceItems =
-      costCenter?.invoiceData?.invoiceItems ||
-      costCenter?.invoiceData?.invoice_items ||
-      [];
-
-    const currentInvoice =
-      invoiceHistory.find(
-        (invoice) =>
-          String(invoice?.billing_month || "") === String(paymentData?.billing_month || "") &&
-          String(invoice?.account_number || "") === String(costCenter?.accountNumber || ""),
-      ) || null;
-
-    const clientName =
-      costCenter?.invoiceData?.company_name ||
-      bulkInvoice?.company_name ||
-      currentInvoice?.company_name ||
-      costCenter?.accountName ||
-      paymentData?.company_name ||
-      clientLegalName ||
-      costCenter?.accountNumber ||
-      "Client Name";
-
-    const structuredAddress = [
-      costCenter?.costCenterInfo?.physical_address_1,
-      costCenter?.costCenterInfo?.physical_address_2,
-      costCenter?.costCenterInfo?.physical_address_3,
-      costCenter?.costCenterInfo?.physical_area,
-      costCenter?.costCenterInfo?.physical_code,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const clientAddress =
-      costCenter?.invoiceData?.client_address ||
-      bulkInvoice?.client_address ||
-      currentInvoice?.client_address ||
-      paymentData?.client_address ||
-      structuredAddress;
-
-    const activeInvoice =
-      bulkInvoice ||
-      currentInvoice ||
-      (costCenter?.invoiceData
-        ? {
-            invoice_number: costCenter.invoiceData.invoice_number,
-            invoice_date: costCenter.invoiceData.invoice_date,
-            created_at: costCenter.invoiceData.created_at,
-            total_amount: costCenter.invoiceData.total_amount,
-            balance_due: costCenter.invoiceData.balance_due,
-            paid_amount: costCenter.invoiceData.paid_amount,
-            due_date: costCenter.invoiceData.due_date,
-          }
-        : null);
-
-    const actualInvoiceNumber =
-      activeInvoice?.invoice_number ||
-      paymentData?.invoice_number ||
-      costCenter?.invoiceData?.invoice_number ||
-      costCenter?.reference ||
-      "";
-
-    const matchedPayments = paymentHistory.filter((payment) => {
-      const sameInvoiceId =
-        currentInvoice?.id &&
-        String(payment?.account_invoice_id || "") === String(currentInvoice.id);
-      const sameInvoiceNumber =
-        actualInvoiceNumber &&
-        String(payment?.invoice_number || "") === String(actualInvoiceNumber);
-      const sameAccount =
-        String(payment?.account_number || "") === String(costCenter?.accountNumber || "");
-      return sameAccount && (sameInvoiceId || sameInvoiceNumber);
-    });
-
-    const paidAmount =
-      matchedPayments.length > 0
-        ? matchedPayments.reduce((sum, payment) => sum + toNumber(payment?.amount), 0)
-        : toNumber(activeInvoice?.paid_amount ?? paymentData?.paid_amount);
-    const creditedAmount = toNumber(
-      paymentData?.credited_amount ??
-        paymentData?.credit_amount ??
-        activeInvoice?.credited_amount ??
-        activeInvoice?.credit_amount ??
-        costCenter?.credit_amount ??
-        costCenter?.credited_amount,
-    );
-    const totalInvoiced = toNumber(
-      activeInvoice?.total_amount ||
-        paymentData?.due_amount ||
-        paymentData?.total_amount ||
-        (toNumber(paymentData?.balance_due) + paidAmount + creditedAmount),
-    );
-    const balanceDue = Math.max(
-      0,
-      toNumber(activeInvoice?.balance_due ?? paymentData?.balance_due ?? totalInvoiced - paidAmount - creditedAmount),
-    );
-    const dueDateValue = activeInvoice?.due_date || paymentData?.due_date || null;
-    const dueDate = dueDateValue ? new Date(dueDateValue) : null;
-
-    const normalizedToday = new Date();
-    normalizedToday.setHours(0, 0, 0, 0);
-
-    let current = toNumber(paymentData?.current_due);
-    let days30 = toNumber(paymentData?.overdue_30_days);
-    let days60 = toNumber(paymentData?.overdue_60_days);
-    let days90 = toNumber(paymentData?.overdue_90_days);
-    let days120Plus = toNumber(
-      paymentData?.overdue_120_plus_days ?? paymentData?.overdue_91_plus_days,
-    );
-
-    const hasMirroredAging =
-      current > 0 || days30 > 0 || days60 > 0 || days90 > 0 || days120Plus > 0 || balanceDue <= 0;
-
-    if (!hasMirroredAging) {
-      current = balanceDue;
-      days30 = 0;
-      days60 = 0;
-      days90 = 0;
-      days120Plus = 0;
-
-      if (balanceDue > 0 && dueDate && !Number.isNaN(dueDate.getTime())) {
-        dueDate.setHours(0, 0, 0, 0);
-        const daysOverdue = Math.floor((normalizedToday.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (daysOverdue > 0) {
-          current = 0;
-          if (daysOverdue <= 30) {
-            days30 = balanceDue;
-          } else if (daysOverdue <= 60) {
-            days60 = balanceDue;
-          } else if (daysOverdue <= 90) {
-            days90 = balanceDue;
-          } else {
-            days120Plus = balanceDue;
-          }
-        }
-      }
-    }
-
-    return {
-      clientName,
-      clientAddress: clientAddress || "-",
-      companyRegistrationNumber:
-        costCenter?.invoiceData?.company_registration_number ||
-        bulkInvoice?.company_registration_number ||
-        currentInvoice?.company_registration_number ||
-        costCenter?.costCenterInfo?.registration_number ||
-        paymentData?.company_registration_number ||
-        "-",
-      statementNumber: "",
-      statementDate: formatDate(new Date().toISOString()),
-      accountNumber: costCenter?.accountNumber || "N/A",
-      customerVatNumber:
-        costCenter?.invoiceData?.customer_vat_number ||
-        bulkInvoice?.customer_vat_number ||
-        currentInvoice?.customer_vat_number ||
-        costCenter?.costCenterInfo?.vat_number ||
-        paymentData?.customer_vat_number ||
-        "-",
-      rows: [
-        {
-          date: formatDate(
-            activeInvoice?.invoice_date ||
-              paymentData?.invoice_date ||
-              activeInvoice?.created_at ||
-              paymentData?.created_at ||
-              paymentData?.billing_month,
-          ),
-          client: clientName,
-          invoiceNumber: actualInvoiceNumber || "-",
-          totalInvoiced: formatCurrency(totalInvoiced),
-          paid: formatCurrency(paidAmount),
-          credited: formatCurrency(creditedAmount),
-          outstanding: formatCurrency(balanceDue),
-        },
-      ],
-      agingRows: [
-        formatCurrency(current),
-        formatCurrency(days30),
-        formatCurrency(days60),
-        formatCurrency(days90),
-        formatCurrency(days120Plus),
-      ],
-      itemRows: invoiceItems.map((item, index) => ({
-        id: `${item?.reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
-        reg: item?.reg || "-",
-        fleetNumber: item?.fleetNumber || item?.fleet_number || "-",
-        description: item?.description || item?.item_description || item?.itemCode || "Billed Item",
-        unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
-        vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
-        totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
-      })),
-      totals: {
-        totalInvoiced: formatCurrency(totalInvoiced),
-        paid: formatCurrency(paidAmount),
-        credited: formatCurrency(creditedAmount),
-        outstanding: formatCurrency(balanceDue),
-      },
-    };
-  }, [bulkInvoice, clientLegalName, costCenter, invoiceHistory, paymentData, paymentHistory]);
+  const statementView = useMemo(
+    () =>
+      buildStatementView({
+        costCenter,
+        clientLegalName,
+        paymentData,
+        invoiceHistory,
+        paymentHistory,
+        bulkInvoice,
+      }),
+    [bulkInvoice, clientLegalName, costCenter, invoiceHistory, paymentData, paymentHistory],
+  );
 
   const printReport = () => {
     const printWindow = window.open("", "_blank");

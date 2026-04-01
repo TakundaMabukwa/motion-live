@@ -24,6 +24,11 @@ export interface EmailData {
   html: string;
   senderName?: string;
   senderEmail?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType?: string;
+  }>;
 }
 
 export async function sendEmail(
@@ -46,8 +51,15 @@ export async function sendEmail(
           subject: emailData.subject,
           html: emailData.html,
           senderName: emailData.senderName || 'Solflo Team',
-          senderEmail: emailData.senderEmail || process.env.EMAIL_FROM || 'admin@solflo.co.za'
-        }
+          senderEmail: emailData.senderEmail || process.env.EMAIL_FROM || 'admin@solflo.co.za',
+        },
+        options: emailData.attachments
+          ? {
+              email: {
+                attachments: emailData.attachments,
+              },
+            }
+          : undefined,
       });
       
       results.push({

@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
+import { AccountsProvider } from "@/contexts/AccountsContext";
+import AccountsClientsSection from "@/components/accounts/AccountsClientsSection";
 import {
   Users,
   Search,
@@ -355,6 +357,13 @@ export default function AccountsDashboard() {
           </>
         );
 
+      case 'client-info':
+        return (
+          <AccountsProvider>
+            <AccountsClientsSection mode="client-info" />
+          </AccountsProvider>
+        );
+
       default:
         return <GlobalView />;
     }
@@ -406,6 +415,7 @@ export default function AccountsDashboard() {
           {[
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
+            { id: 'client-info', label: 'Client Info', icon: Users, type: 'tab' },
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
@@ -417,6 +427,7 @@ export default function AccountsDashboard() {
             const Icon = navItem.icon;
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
+                           (navItem.id === 'client-info' && activeTab === 'client-info') ||
                            (navItem.type === 'link' && pathname === navItem.href);
             
             if (navItem.type === 'tab') {

@@ -622,245 +622,123 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
   );
 }
 
-export default function InvoiceReportComponent({
-  costCenter,
+export function buildInvoiceView({
+  activeInvoiceData,
+  customerInfo,
   clientLegalName,
-  invoiceData,
-  onInvoiceGenerated,
+  costCenter,
+  editableNotes,
 }) {
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
-  const [isLoadingInvoiceMonth, setIsLoadingInvoiceMonth] = useState(false);
-  const [invoiceHistory, setInvoiceHistory] = useState([]);
-  const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("__current__");
-  const [activeInvoiceData, setActiveInvoiceData] = useState(invoiceData);
-  const [editableNotes, setEditableNotes] = useState(
-    String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ""),
-  );
-  const [customerInfo, setCustomerInfo] = useState(
-    costCenter?.costCenterInfo || null,
-  );
+  const items = Array.isArray(activeInvoiceData?.invoiceItems)
+    ? activeInvoiceData.invoiceItems
+    : Array.isArray(activeInvoiceData?.invoice_items)
+      ? activeInvoiceData.invoice_items
+      : [];
 
-  useEffect(() => {
-    setActiveInvoiceData(invoiceData);
-    setSelectedInvoiceMonth("__current__");
-  }, [invoiceData]);
-
-  useEffect(() => {
-    setEditableNotes(
-      String(
-        activeInvoiceData?.notes ??
-        activeInvoiceData?.note ??
-        activeInvoiceData?.quote_notes ??
-        "",
-      ),
+  const rows = items.map((item) => {
+    const exVat = toNumber(
+      item.unit_price_without_vat ??
+        item.amountExcludingVat ??
+        item.total_excl_vat ??
+        item.unit_price,
     );
-  }, [activeInvoiceData]);
-
-  useEffect(() => {
-    if (costCenter?.costCenterInfo) {
-      setCustomerInfo(costCenter.costCenterInfo);
-    }
-  }, [costCenter?.costCenterInfo]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadInvoiceHistory = async () => {
-      if (!costCenter?.accountNumber) {
-        if (active) setInvoiceHistory([]);
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch invoice history");
-        }
-
-        const result = await response.json();
-        if (active) {
-          setInvoiceHistory(Array.isArray(result?.invoices) ? result.invoices : []);
-        }
-      } catch (error) {
-        console.error("Error loading invoice history:", error);
-        if (active) {
-          setInvoiceHistory([]);
-        }
-      }
-    };
-
-    loadInvoiceHistory();
-
-    return () => {
-      active = false;
-    };
-  }, [costCenter?.accountNumber]);
-
-  useEffect(() => {
-    let active = true;
-
-    const loadCustomerInfo = async () => {
-      if (!costCenter?.accountNumber) return;
-
-      try {
-        const costCenterResponse = await fetch(
-          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(costCenter.accountNumber)}`,
-        );
-
-        if (costCenterResponse.ok) {
-          const costCenterResult = await costCenterResponse.json();
-          const matchedCostCenter = Array.isArray(costCenterResult?.costCenters)
-            ? costCenterResult.costCenters.find(
-                (item) =>
-                  String(item?.cost_code || "")
-                    .trim()
-                    .toUpperCase() === String(costCenter.accountNumber).trim().toUpperCase(),
-              ) || costCenterResult.costCenters[0]
-            : null;
-
-          if (active && matchedCostCenter) {
-            setCustomerInfo(matchedCostCenter);
-            return;
-          }
-        }
-        if (active) {
-          setCustomerInfo(null);
-        }
-      } catch (error) {
-        console.error("Error loading customer info for invoice:", error);
-      }
-    };
-
-    loadCustomerInfo();
-
-    return () => {
-      active = false;
-    };
-  }, [costCenter?.accountNumber]);
-
-  const logoUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/soltrack_logo.png`
-      : "/soltrack_logo.png";
-
-  const invoiceView = useMemo(() => {
-    const items = Array.isArray(activeInvoiceData?.invoiceItems)
-      ? activeInvoiceData.invoiceItems
-      : Array.isArray(activeInvoiceData?.invoice_items)
-        ? activeInvoiceData.invoice_items
-        : [];
-
-    const rows = items.map((item) => {
-      const exVat = toNumber(
-        item.unit_price_without_vat ??
-          item.amountExcludingVat ??
-          item.total_excl_vat ??
-          item.unit_price,
-      );
-      const vatAmountSource = toNumber(item.vat_amount ?? item.vatAmount);
-      const vatAmount = Number.isFinite(vatAmountSource) && vatAmountSource > 0
-        ? vatAmountSource
-        : exVat * VAT_RATE;
-      const totalInclSource = toNumber(
-        item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub,
-      );
-      const totalIncl =
-        Number.isFinite(totalInclSource) && totalInclSource > 0
-          ? totalInclSource
-          : exVat + vatAmount;
-
-      const regText = [item.reg, item.fleetNumber].filter(Boolean).join(" ").trim();
-
-      return {
-        previousReg: item.reg || "-",
-        newReg: item.fleetNumber || item.reg || "-",
-        itemCode: item.item_code || "-",
-        description: item.description || "-",
-        comments: item.category || item.company || "",
-        units: item.units || 1,
-        unitPrice: formatAmount(exVat),
-        vatAmount: formatAmount(vatAmount),
-        vatPercent: "15%",
-        totalIncl: formatAmount(totalIncl),
-        noteReg: regText,
-        exVat,
-        vat: vatAmount,
-        incl: totalIncl,
-      };
-    });
-
-    const rowTotals = rows.reduce(
-      (acc, row) => ({
-        totalExVat: acc.totalExVat + row.exVat,
-        totalVat: acc.totalVat + row.vat,
-        totalInclVat: acc.totalInclVat + row.incl,
-        discount: 0,
-      }),
-      { totalExVat: 0, totalVat: 0, totalInclVat: 0, discount: 0 }
+    const vatAmountSource = toNumber(item.vat_amount ?? item.vatAmount);
+    const vatAmount = Number.isFinite(vatAmountSource) && vatAmountSource > 0
+      ? vatAmountSource
+      : exVat * VAT_RATE;
+    const totalInclSource = toNumber(
+      item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub,
     );
-
-    const clientName =
-      customerInfo?.legal_name ||
-      customerInfo?.company ||
-      activeInvoiceData?.company_name ||
-      clientLegalName ||
-      costCenter?.accountName ||
-      "";
-    const clientAddress = buildClientAddress(
-      customerInfo,
-      activeInvoiceData?.client_address || activeInvoiceData?.company_address || "",
-    );
-    const invoiceNumber =
-      getRealInvoiceNumber(
-        activeInvoiceData?.invoice_number,
-        activeInvoiceData?.invoiceNumber,
-        activeInvoiceData?.invoice_no,
-      ) || "PENDING";
-    const companyRegistrationNumber =
-      customerInfo?.registration_number ||
-      activeInvoiceData?.company_registration_number ||
-      "";
-
-    const totals = {
-      totalExVat:
-        toNumber(activeInvoiceData?.subtotal) || rowTotals.totalExVat,
-      totalVat:
-        toNumber(activeInvoiceData?.vat_amount) || rowTotals.totalVat,
-      totalInclVat:
-        toNumber(activeInvoiceData?.total_amount) || rowTotals.totalInclVat,
-      discount: 0,
-    };
-
-    const noteText = String(
-      editableNotes ?? "",
-    ).trim();
+    const totalIncl =
+      Number.isFinite(totalInclSource) && totalInclSource > 0
+        ? totalInclSource
+        : exVat + vatAmount;
 
     return {
-      clientName,
-      clientAddress,
-      companyRegistrationNumber,
-      invoiceNumber,
-      invoiceDate: formatDate(activeInvoiceData?.invoice_date),
-      accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
-      customerVatNumber:
-        customerInfo?.vat_number ||
-        activeInvoiceData?.customer_vat_number ||
-        "",
-      notes: noteText,
-      rows,
-      totals,
+      previousReg: item.reg || "-",
+      newReg: item.fleetNumber || item.reg || "-",
+      itemCode: item.item_code || "-",
+      description: item.description || "-",
+      comments: item.category || item.company || "",
+      units: item.units || 1,
+      unitPrice: formatAmount(exVat),
+      vatAmount: formatAmount(vatAmount),
+      vatPercent: "15%",
+      totalIncl: formatAmount(totalIncl),
+      exVat,
+      vat: vatAmount,
+      incl: totalIncl,
     };
-  }, [activeInvoiceData, clientLegalName, costCenter, customerInfo, editableNotes]);
+  });
 
-  const getPrintableHtml = () => {
-    const rowMarkup =
-      invoiceView.rows
-        .map(
-          (row, index) => `
+  const rowTotals = rows.reduce(
+    (acc, row) => ({
+      totalExVat: acc.totalExVat + row.exVat,
+      totalVat: acc.totalVat + row.vat,
+      totalInclVat: acc.totalInclVat + row.incl,
+      discount: 0,
+    }),
+    { totalExVat: 0, totalVat: 0, totalInclVat: 0, discount: 0 }
+  );
+
+  const clientName =
+    customerInfo?.legal_name ||
+    customerInfo?.company ||
+    activeInvoiceData?.company_name ||
+    clientLegalName ||
+    costCenter?.accountName ||
+    "";
+  const clientAddress = buildClientAddress(
+    customerInfo,
+    activeInvoiceData?.client_address || activeInvoiceData?.company_address || "",
+  );
+  const invoiceNumber =
+    getRealInvoiceNumber(
+      activeInvoiceData?.invoice_number,
+      activeInvoiceData?.invoiceNumber,
+      activeInvoiceData?.invoice_no,
+    ) || "PENDING";
+  const companyRegistrationNumber =
+    customerInfo?.registration_number ||
+    activeInvoiceData?.company_registration_number ||
+    "";
+
+  const totals = {
+    totalExVat:
+      toNumber(activeInvoiceData?.subtotal) || rowTotals.totalExVat,
+    totalVat:
+      toNumber(activeInvoiceData?.vat_amount) || rowTotals.totalVat,
+    totalInclVat:
+      toNumber(activeInvoiceData?.total_amount) || rowTotals.totalInclVat,
+    discount: 0,
+  };
+
+  const noteText = String(
+    editableNotes ?? "",
+  ).trim();
+
+  return {
+    clientName,
+    clientAddress,
+    companyRegistrationNumber,
+    invoiceNumber,
+    invoiceDate: formatDate(activeInvoiceData?.invoice_date),
+    accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
+    customerVatNumber:
+      customerInfo?.vat_number ||
+      activeInvoiceData?.customer_vat_number ||
+      "",
+    notes: noteText,
+    rows,
+    totals,
+  };
+}
+
+export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
+  const rowMarkup =
+    invoiceView.rows
+      .map(
+        (row) => `
             <tr>
               <td>${escapeHtml(row.previousReg)}</td>
               <td>${escapeHtml(row.newReg)}</td>
@@ -873,11 +751,11 @@ export default function InvoiceReportComponent({
               <td class="col-center">${escapeHtml(row.vatPercent)}</td>
               <td class="col-right">${escapeHtml(row.totalIncl)}</td>
             </tr>
-          `
-        )
-        .join("") || `<tr><td colspan="10">No invoice rows available</td></tr>`;
+          `,
+      )
+      .join("") || `<tr><td colspan="10">No invoice rows available</td></tr>`;
 
-    return `
+  return `
       <!DOCTYPE html>
       <html>
         <head>
@@ -1021,7 +899,146 @@ export default function InvoiceReportComponent({
         </body>
       </html>
     `;
-  };
+}
+
+export default function InvoiceReportComponent({
+  costCenter,
+  clientLegalName,
+  invoiceData,
+  onInvoiceGenerated,
+}) {
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
+  const [isLoadingInvoiceMonth, setIsLoadingInvoiceMonth] = useState(false);
+  const [invoiceHistory, setInvoiceHistory] = useState([]);
+  const [selectedInvoiceMonth, setSelectedInvoiceMonth] = useState("__current__");
+  const [activeInvoiceData, setActiveInvoiceData] = useState(invoiceData);
+  const [editableNotes, setEditableNotes] = useState(
+    String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ""),
+  );
+  const [customerInfo, setCustomerInfo] = useState(
+    costCenter?.costCenterInfo || null,
+  );
+
+  useEffect(() => {
+    setActiveInvoiceData(invoiceData);
+    setSelectedInvoiceMonth("__current__");
+  }, [invoiceData]);
+
+  useEffect(() => {
+    setEditableNotes(
+      String(
+        activeInvoiceData?.notes ??
+        activeInvoiceData?.note ??
+        activeInvoiceData?.quote_notes ??
+        "",
+      ),
+    );
+  }, [activeInvoiceData]);
+
+  useEffect(() => {
+    if (costCenter?.costCenterInfo) {
+      setCustomerInfo(costCenter.costCenterInfo);
+    }
+  }, [costCenter?.costCenterInfo]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadInvoiceHistory = async () => {
+      if (!costCenter?.accountNumber) {
+        if (active) setInvoiceHistory([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch invoice history");
+        }
+
+        const result = await response.json();
+        if (active) {
+          setInvoiceHistory(Array.isArray(result?.invoices) ? result.invoices : []);
+        }
+      } catch (error) {
+        console.error("Error loading invoice history:", error);
+        if (active) {
+          setInvoiceHistory([]);
+        }
+      }
+    };
+
+    loadInvoiceHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [costCenter?.accountNumber]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCustomerInfo = async () => {
+      if (!costCenter?.accountNumber) return;
+
+      try {
+        const costCenterResponse = await fetch(
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(costCenter.accountNumber)}`,
+        );
+
+        if (costCenterResponse.ok) {
+          const costCenterResult = await costCenterResponse.json();
+          const matchedCostCenter = Array.isArray(costCenterResult?.costCenters)
+            ? costCenterResult.costCenters.find(
+                (item) =>
+                  String(item?.cost_code || "")
+                    .trim()
+                    .toUpperCase() === String(costCenter.accountNumber).trim().toUpperCase(),
+              ) || costCenterResult.costCenters[0]
+            : null;
+
+          if (active && matchedCostCenter) {
+            setCustomerInfo(matchedCostCenter);
+            return;
+          }
+        }
+        if (active) {
+          setCustomerInfo(null);
+        }
+      } catch (error) {
+        console.error("Error loading customer info for invoice:", error);
+      }
+    };
+
+    loadCustomerInfo();
+
+    return () => {
+      active = false;
+    };
+  }, [costCenter?.accountNumber]);
+
+  const logoUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/soltrack_logo.png`
+      : "/soltrack_logo.png";
+
+  const invoiceView = useMemo(
+    () =>
+      buildInvoiceView({
+        activeInvoiceData,
+        customerInfo,
+        clientLegalName,
+        costCenter,
+        editableNotes,
+      }),
+    [activeInvoiceData, clientLegalName, costCenter, customerInfo, editableNotes],
+  );
+
+  const getPrintableHtml = () => buildInvoicePrintableHtml({ logoUrl, invoiceView });
 
   const printReport = () => {
     const printWindow = window.open("", "_blank");

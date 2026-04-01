@@ -6,11 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import DueReportComponent, { StatementDocument } from '@/components/inv/components/due-report';
-import InvoiceReportComponent from '@/components/inv/components/invoice-report';
+import DueReportComponent, { StatementDocument, buildStatementView } from '@/components/inv/components/due-report';
+import InvoiceReportComponent, { buildInvoicePrintableHtml, buildInvoiceView } from '@/components/inv/components/invoice-report';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
+import { createClient } from '@/lib/supabase/client';
 
 
 export default function ClientCostCentersPage() {
@@ -22,7 +32,7 @@ export default function ClientCostCentersPage() {
     if (!code) return '';
     try {
       return decodeURIComponent(String(code));
-    } catch (error) {
+    } catch {
       return String(code);
     }
   }, [code]);
@@ -56,12 +66,52 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
+  const [reportDeliveryModal, setReportDeliveryModal] = useState({
+    open: false,
+    loading: false,
+    request: null,
+  });
+  const [emailPreviewModal, setEmailPreviewModal] = useState({
+    open: false,
+    loading: false,
+    subject: '',
+    html: '',
+    fileName: '',
+    contentType: '',
+    blob: null,
+  });
+  const [loggedInUserEmail, setLoggedInUserEmail] = useState('');
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
   const currentBillingMonthKey = useMemo(() => {
     const currentMonth = new Date();
     currentMonth.setDate(1);
     return currentMonth.toISOString().slice(0, 10);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadLoggedInUserEmail = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (active) {
+          setLoggedInUserEmail(user?.email || '');
+        }
+      } catch (error) {
+        console.error('Error loading logged-in user email:', error);
+      }
+    };
+
+    loadLoggedInUserEmail();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const isRealInvoiceNumber = (value) =>
@@ -1427,6 +1477,432 @@ export default function ClientCostCentersPage() {
       overdue_90_days: overdue90,
       overdue_120_plus_days: overdue120,
     };
+  };
+
+  const downloadBlob = (blob, fileName) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  const buildReportEmailHtml = ({
+    title,
+    clientName,
+    accountNumber,
+    formatLabel,
+    documentLabel,
+    attachmentName,
+  }) => `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${title}</title>
+      </head>
+      <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 0;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:28px 32px;color:#ffffff;">
+                    <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;">Solflo Reports</div>
+                    <div style="margin-top:10px;font-size:28px;font-weight:700;line-height:1.2;">${documentLabel}</div>
+                    <div style="margin-top:8px;font-size:15px;opacity:0.92;">Your requested ${formatLabel} document is attached and ready to use.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:32px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 12px;">
+                      <tr>
+                        <td style="width:180px;color:#6b7280;font-size:14px;">Client</td>
+                        <td style="font-size:15px;font-weight:600;color:#111827;">${clientName}</td>
+                      </tr>
+                      <tr>
+                        <td style="width:180px;color:#6b7280;font-size:14px;">Account Number</td>
+                        <td style="font-size:15px;font-weight:600;color:#111827;">${accountNumber}</td>
+                      </tr>
+                      <tr>
+                        <td style="width:180px;color:#6b7280;font-size:14px;">Document Format</td>
+                        <td style="font-size:15px;font-weight:600;color:#111827;">${formatLabel}</td>
+                      </tr>
+                      <tr>
+                        <td style="width:180px;color:#6b7280;font-size:14px;">Sent On</td>
+                        <td style="font-size:15px;font-weight:600;color:#111827;">${new Date().toLocaleString('en-ZA')}</td>
+                      </tr>
+                    </table>
+
+                    <div style="margin-top:24px;padding:18px 20px;border:1px solid #dbeafe;border-radius:14px;background:#eff6ff;color:#1e3a8a;font-size:14px;line-height:1.6;">
+                      The attachment is included with this email. Open the attached file to view, save, or forward the report.
+                    </div>
+
+                    <div style="margin-top:18px;border:1px solid #e5e7eb;border-radius:14px;background:#ffffff;overflow:hidden;">
+                      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#475569;">
+                        Attachment
+                      </div>
+                      <div style="padding:16px 18px;font-size:14px;color:#111827;font-weight:600;">
+                        ${attachmentName}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;line-height:1.6;">
+                    Solflo automated report delivery
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blobToBase64 = (blob) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = String(reader.result || '');
+        resolve(result.includes(',') ? result.split(',')[1] : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  const renderHtmlToPdfBlob = async (html) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-10000px';
+    wrapper.style.top = '0';
+    wrapper.style.width = '960px';
+    wrapper.style.background = '#ffffff';
+    wrapper.style.zIndex = '-1';
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      const images = Array.from(wrapper.querySelectorAll('img'));
+      await Promise.all(
+        images.map(
+          (image) =>
+            new Promise((resolve) => {
+              if (image.complete) {
+                resolve(true);
+                return;
+              }
+              image.onload = () => resolve(true);
+              image.onerror = () => resolve(true);
+            }),
+        ),
+      );
+
+      const canvas = await html2canvas(wrapper, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: wrapper.scrollWidth,
+        height: wrapper.scrollHeight,
+        windowWidth: wrapper.scrollWidth,
+        windowHeight: wrapper.scrollHeight,
+      });
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgData = canvas.toDataURL('image/png');
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      return pdf.output('blob');
+    } finally {
+      wrapper.remove();
+    }
+  };
+
+  const sendDocumentToMyEmail = async ({ subject, html, fileName, blob, contentType }) => {
+    const content = await blobToBase64(blob);
+    const response = await fetch('/api/send-document-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        subject,
+        html,
+        attachment: {
+          filename: fileName,
+          content,
+          contentType,
+        },
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Failed to send document email');
+    }
+
+    return result;
+  };
+
+  const fetchCostCenterInfo = async (accountNumber) => {
+    const response = await fetch(
+      `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`,
+    );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const result = await response.json();
+    if (!Array.isArray(result?.costCenters)) {
+      return null;
+    }
+
+    return (
+      result.costCenters.find(
+        (item) =>
+          String(item?.cost_code || '').trim().toUpperCase() ===
+          String(accountNumber || '').trim().toUpperCase(),
+      ) || result.costCenters[0] || null
+    );
+  };
+
+  const fetchStatementReportPayload = async (costCenter) => {
+    const query = new URLSearchParams({
+      accountNumber: costCenter.accountNumber,
+    });
+    if (costCenter.billingMonth) {
+      query.set('billingMonth', costCenter.billingMonth);
+    }
+
+    const response = await fetch(`/api/payments/by-account?${query.toString()}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch payment data');
+    }
+
+    const paymentDataResult = await response.json();
+    const payment = paymentDataResult.payment || {};
+    const [historyResponse, bulkInvoiceResponse] = await Promise.all([
+      fetch(`/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`),
+      fetch(
+        `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+          costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
+        }`,
+      ),
+    ]);
+
+    let invoiceHistory = [];
+    let paymentHistory = [];
+    let bulkInvoice = null;
+    if (historyResponse.ok) {
+      const historyData = await historyResponse.json();
+      invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
+      paymentHistory = Array.isArray(historyData?.payments) ? historyData.payments : [];
+    }
+    if (bulkInvoiceResponse.ok) {
+      const bulkInvoiceData = await bulkInvoiceResponse.json();
+      bulkInvoice = bulkInvoiceData?.invoice || null;
+    }
+
+    let invoiceData = null;
+    const invoiceQuery = new URLSearchParams({
+      accountNumber: costCenter.accountNumber,
+    });
+    if (costCenter.sourceAccountNumber) {
+      invoiceQuery.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+    }
+    if (costCenter.invoiceGroup) {
+      invoiceQuery.set('billingGroup', costCenter.invoiceGroup);
+    }
+    if (costCenter.billingMonth) {
+      invoiceQuery.set('billingMonth', costCenter.billingMonth);
+    }
+
+    const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
+    if (invoiceResponse.ok) {
+      const invoicePayload = await invoiceResponse.json();
+      invoiceData = invoicePayload?.invoiceData || null;
+    }
+
+    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+    const reportCostCenter = {
+      ...costCenter,
+      paymentData: payment,
+      invoiceData: invoiceData || costCenter.invoiceData || null,
+      invoiceHistory,
+      paymentHistory,
+      bulkInvoice,
+      costCenterInfo,
+    };
+    const statementView = buildStatementView({
+      costCenter: reportCostCenter,
+      clientLegalName,
+      paymentData: payment,
+      invoiceHistory,
+      paymentHistory,
+      bulkInvoice,
+    });
+
+    return { reportCostCenter, statementView };
+  };
+
+  const fetchInvoiceReportPayload = async (costCenter) => {
+    const query = new URLSearchParams({
+      accountNumber: costCenter.accountNumber,
+    });
+    if (costCenter.sourceAccountNumber) {
+      query.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+    }
+    if (costCenter.invoiceGroup) {
+      query.set('billingGroup', costCenter.invoiceGroup);
+    }
+    if (costCenter.billingMonth) {
+      query.set('billingMonth', costCenter.billingMonth);
+    }
+
+    const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch vehicle invoice data');
+    }
+
+    const data = await response.json();
+    const invoiceData = data?.invoiceData || null;
+    if (!invoiceData) {
+      throw new Error('No vehicle data found for this account');
+    }
+
+    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+    const reportCostCenter = {
+      ...costCenter,
+      invoiceData,
+      costCenterInfo,
+    };
+    const invoiceView = buildInvoiceView({
+      activeInvoiceData: invoiceData,
+      customerInfo: costCenterInfo,
+      clientLegalName,
+      costCenter: reportCostCenter,
+      editableNotes:
+        invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? '',
+    });
+
+    return { reportCostCenter, invoiceView };
+  };
+
+  const buildStatementWorkbook = (statementView, includeItems = false) => {
+    const rows = [
+      ['DEBTOR STATEMENT'],
+      [],
+      ['Client', statementView.clientName],
+      ['Account', statementView.accountNumber],
+      ['Statement Date', statementView.statementDate],
+      ['Company Reg', statementView.companyRegistrationNumber],
+      ['Customer VAT Number', statementView.customerVatNumber],
+      ['Address', statementView.clientAddress],
+      [],
+      ['Date', 'Client', 'Invoice Number', 'Total Invoiced', 'Paid', 'Credited', 'Outstanding'],
+      ...statementView.rows.map((row) => [
+        row.date,
+        row.client,
+        row.invoiceNumber,
+        row.totalInvoiced,
+        row.paid,
+        row.credited,
+        row.outstanding,
+      ]),
+      [],
+      ['AGE ANALYSIS'],
+      ['Current', '30 Days', '60 Days', '90 Days', '120+ Days'],
+      statementView.agingRows,
+      [],
+      ['Total Invoiced', statementView.totals.totalInvoiced],
+      ['Paid', statementView.totals.paid],
+      ['Credited', statementView.totals.credited],
+      ['Outstanding', statementView.totals.outstanding],
+    ];
+
+    if (includeItems && Array.isArray(statementView.itemRows) && statementView.itemRows.length > 0) {
+      rows.push(
+        [],
+        ['FULL ITEM BREAKDOWN'],
+        ['Vehicle Reg', 'Fleet No', 'Description', 'Unit Price', 'VAT', 'Total Incl'],
+        ...statementView.itemRows.map((row) => [
+          row.reg,
+          row.fleetNumber,
+          row.description,
+          row.unitPrice,
+          row.vatAmount,
+          row.totalIncl,
+        ]),
+      );
+    }
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Statement');
+    return XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  };
+
+  const buildInvoiceWorkbook = (invoiceView) => {
+    const rows = [
+      ['TAX INVOICE'],
+      [],
+      ['Client', invoiceView.clientName],
+      ['Account', invoiceView.accountNumber],
+      ['Invoice Number', invoiceView.invoiceNumber],
+      ['Invoice Date', invoiceView.invoiceDate],
+      ['Company Reg', invoiceView.companyRegistrationNumber],
+      ['Customer VAT Number', invoiceView.customerVatNumber],
+      ['Address', invoiceView.clientAddress],
+      [],
+      ['Previous Reg', 'New Reg', 'Item Code', 'Description', 'Comments', 'Units', 'Unit Price', 'Vat', 'Vat%', 'Total Incl'],
+      ...invoiceView.rows.map((row) => [
+        row.previousReg,
+        row.newReg,
+        row.itemCode,
+        row.description,
+        row.comments,
+        row.units,
+        row.unitPrice,
+        row.vatAmount,
+        row.vatPercent,
+        row.totalIncl,
+      ]),
+      [],
+      ['Notes', invoiceView.notes],
+      ['Total Ex. VAT', formatCurrency(invoiceView.totals.totalExVat)],
+      ['Discount', formatCurrency(invoiceView.totals.discount)],
+      ['VAT', formatCurrency(invoiceView.totals.totalVat)],
+      ['Total Incl. VAT', formatCurrency(invoiceView.totals.totalInclVat)],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoice');
+    return XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
   };
 
   const getInvoicePeriodTab = (invoice) => {
@@ -3307,6 +3783,269 @@ export default function ClientCostCentersPage() {
     }
   };
 
+  const openReportDeliveryOptions = (request) => {
+    setReportDeliveryModal({
+      open: true,
+      loading: false,
+      request,
+    });
+  };
+
+  const closeReportDeliveryOptions = () => {
+    setReportDeliveryModal({
+      open: false,
+      loading: false,
+      request: null,
+    });
+  };
+
+  const closeEmailPreview = () => {
+    setEmailPreviewModal({
+      open: false,
+      loading: false,
+      subject: '',
+      html: '',
+      fileName: '',
+      contentType: '',
+      blob: null,
+    });
+  };
+
+  const handleReportDelivery = async (format, destination = 'download') => {
+    const request = reportDeliveryModal.request;
+    if (!request) {
+      return;
+    }
+
+    setReportDeliveryModal((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const isInvoice = request.type === 'invoice';
+      const isItems = request.type === 'items';
+
+      if (format === 'pdf' && destination === 'preview') {
+        if (isInvoice) {
+          await handleShowInvoiceReport(request.costCenter);
+        } else {
+          await handleShowDueReport(request.costCenter, isItems ? 'items' : 'summary');
+        }
+        closeReportDeliveryOptions();
+        return;
+      }
+
+      if (isInvoice) {
+        const { reportCostCenter, invoiceView } = await fetchInvoiceReportPayload(request.costCenter);
+        const logoUrl =
+          typeof window !== 'undefined'
+            ? `${window.location.origin}/soltrack_logo.png`
+            : '/soltrack_logo.png';
+        const safeAccount = String(reportCostCenter.accountNumber || 'invoice').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+        if (format === 'excel') {
+          const workbookArray = buildInvoiceWorkbook(invoiceView);
+          const blob = new Blob([workbookArray], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          const fileName = `${safeAccount}_Invoice_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          downloadBlob(blob, fileName);
+          toast({
+            title: 'Excel Downloaded',
+            description: 'Invoice Excel has been generated.',
+          });
+        } else {
+          const html = buildInvoicePrintableHtml({ logoUrl, invoiceView });
+          const blob = await renderHtmlToPdfBlob(html);
+          const fileName = `${safeAccount}_Invoice_${new Date().toISOString().slice(0, 10)}.pdf`;
+          downloadBlob(blob, fileName);
+          toast({
+            title: 'PDF Downloaded',
+            description: 'Invoice PDF has been generated.',
+          });
+        }
+
+        closeReportDeliveryOptions();
+        return;
+      }
+
+      const { statementView } = await fetchStatementReportPayload(request.costCenter);
+      const safeAccount = String(request.costCenter?.accountNumber || 'statement').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (format === 'excel') {
+        const workbookArray = buildStatementWorkbook(statementView, isItems);
+        const blob = new Blob([workbookArray], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+        if (destination === 'email') {
+          await sendDocumentToMyEmail({
+            subject: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+            html: buildReportEmailHtml({
+              title: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+              clientName: statementView.clientName,
+              accountNumber: statementView.accountNumber,
+              formatLabel: 'Excel',
+              documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
+              attachmentName: fileName,
+            }),
+            fileName,
+            blob,
+            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          });
+          toast({
+            title: 'Excel Sent',
+            description: `Statement Excel sent to ${loggedInUserEmail || 'your login email'}.`,
+          });
+        } else {
+          downloadBlob(blob, fileName);
+          toast({
+            title: 'Excel Downloaded',
+            description: 'Statement Excel has been generated.',
+          });
+        }
+      } else {
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Debtor Statement - ${statementView.accountNumber}</title>
+            </head>
+            <body>${StatementDocument({ statementView, showItemBreakdown: isItems })}</body>
+          </html>
+        `;
+        const blob = await renderHtmlToPdfBlob(html);
+        const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+        if (destination === 'email') {
+          await sendDocumentToMyEmail({
+            subject: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+            html: buildReportEmailHtml({
+              title: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+              clientName: statementView.clientName,
+              accountNumber: statementView.accountNumber,
+              formatLabel: 'PDF',
+              documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
+              attachmentName: fileName,
+            }),
+            fileName,
+            blob,
+            contentType: 'application/pdf',
+          });
+          toast({
+            title: 'PDF Sent',
+            description: `Statement PDF sent to ${loggedInUserEmail || 'your login email'}.`,
+          });
+        } else {
+          downloadBlob(blob, fileName);
+          toast({
+            title: 'PDF Downloaded',
+            description: 'Statement PDF has been generated.',
+          });
+        }
+      }
+
+      closeReportDeliveryOptions();
+    } catch (error) {
+      console.error('Report delivery error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Report Export Failed',
+        description: error instanceof Error ? error.message : 'Failed to prepare report.',
+      });
+      setReportDeliveryModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handlePreviewReportEmail = async () => {
+    const request = reportDeliveryModal.request;
+    if (!request || request.type === 'invoice') {
+      return;
+    }
+
+    setReportDeliveryModal((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const isItems = request.type === 'items';
+      const { statementView } = await fetchStatementReportPayload(request.costCenter);
+      const safeAccount = String(request.costCenter?.accountNumber || 'statement').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const subject = `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`;
+      const html = buildReportEmailHtml({
+        title: subject,
+        clientName: statementView.clientName,
+        accountNumber: statementView.accountNumber,
+        formatLabel: 'PDF',
+        documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
+        attachmentName: `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      });
+      const documentHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Debtor Statement - ${statementView.accountNumber}</title>
+          </head>
+          <body>${StatementDocument({ statementView, showItemBreakdown: isItems })}</body>
+        </html>
+      `;
+      const blob = await renderHtmlToPdfBlob(documentHtml);
+      const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+      setEmailPreviewModal({
+        open: true,
+        loading: false,
+        subject,
+        html,
+        fileName,
+        contentType: 'application/pdf',
+        blob,
+      });
+    } catch (error) {
+      console.error('Email preview error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Email Preview Failed',
+        description: error instanceof Error ? error.message : 'Failed to prepare email preview.',
+      });
+    } finally {
+      setReportDeliveryModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleConfirmSendPreviewEmail = async () => {
+    if (!emailPreviewModal.blob) {
+      return;
+    }
+
+    setEmailPreviewModal((prev) => ({ ...prev, loading: true }));
+
+    try {
+      await sendDocumentToMyEmail({
+        subject: emailPreviewModal.subject,
+        html: emailPreviewModal.html,
+        fileName: emailPreviewModal.fileName,
+        blob: emailPreviewModal.blob,
+        contentType: emailPreviewModal.contentType,
+      });
+
+      toast({
+        title: 'PDF Sent',
+        description: `Statement PDF sent to ${loggedInUserEmail || 'your login email'}.`,
+      });
+
+      closeEmailPreview();
+      closeReportDeliveryOptions();
+    } catch (error) {
+      console.error('Preview email send error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Email Send Failed',
+        description: error instanceof Error ? error.message : 'Failed to send email.',
+      });
+      setEmailPreviewModal((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   // Handle Bulk Invoice Generation - Single Continuous PDF
   const handleBulkInvoice = async () => {
     try {
@@ -4060,7 +4799,7 @@ export default function ClientCostCentersPage() {
                           <Button
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => handleShowInvoiceReport(costCenter)}
+                            onClick={() => openReportDeliveryOptions({ type: 'invoice', costCenter })}
                             disabled={generatingReport[costCenter.accountNumber]}
                           >
                             {generatingReport[costCenter.accountNumber] ? (
@@ -4078,7 +4817,7 @@ export default function ClientCostCentersPage() {
                           <Button
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => handleShowDueReport(costCenter, 'summary')}
+                            onClick={() => openReportDeliveryOptions({ type: 'statement', costCenter })}
                             disabled={generatingReport[costCenter.accountNumber]}
                           >
                             {generatingReport[costCenter.accountNumber] ? (
@@ -4096,7 +4835,7 @@ export default function ClientCostCentersPage() {
                           <Button
                             size="sm"
                             className="bg-slate-700 hover:bg-slate-800 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => handleShowDueReport(costCenter, 'items')}
+                            onClick={() => openReportDeliveryOptions({ type: 'items', costCenter })}
                             disabled={generatingReport[costCenter.accountNumber]}
                           >
                             {generatingReport[costCenter.accountNumber] ? (
@@ -4742,6 +5481,140 @@ export default function ClientCostCentersPage() {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={reportDeliveryModal.open}
+        onOpenChange={(open) => {
+          if (!open && !reportDeliveryModal.loading) {
+            closeReportDeliveryOptions();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose Report Format</DialogTitle>
+            <DialogDescription>
+              Preview the document in PDF using the current layout, or download it as Excel in the same structure.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-slate-50 p-3 text-sm">
+              <div className="font-medium text-slate-900">
+                {reportDeliveryModal.request?.type === 'invoice'
+                  ? 'Invoice'
+                  : reportDeliveryModal.request?.type === 'items'
+                    ? 'Full Statement + Items'
+                    : 'Statement'}
+              </div>
+              <div className="mt-1 text-slate-600">
+                {reportDeliveryModal.request?.costCenter?.accountName ||
+                  reportDeliveryModal.request?.costCenter?.accountNumber ||
+                  'Selected cost center'}
+              </div>
+              <div className="text-slate-500">
+                {reportDeliveryModal.request?.costCenter?.accountNumber || ''}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button
+                onClick={() => handleReportDelivery('pdf', 'preview')}
+                disabled={reportDeliveryModal.loading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {reportDeliveryModal.request?.type === 'invoice' ? 'Open Invoice PDF' : 'Preview PDF'}
+              </Button>
+              <Button
+                onClick={() => handleReportDelivery('excel', 'download')}
+                disabled={reportDeliveryModal.loading}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                Download Excel
+              </Button>
+              {reportDeliveryModal.request?.type !== 'invoice' ? (
+                <Button
+                  variant="outline"
+                  onClick={handlePreviewReportEmail}
+                  disabled={reportDeliveryModal.loading || !loggedInUserEmail}
+                  className="sm:col-span-2"
+                >
+                  Email PDF
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={emailPreviewModal.open}
+        onOpenChange={(open) => {
+          if (!open && !emailPreviewModal.loading) {
+            closeEmailPreview();
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Email Preview</DialogTitle>
+            <DialogDescription>
+              This is the exact email body the user will receive, with the PDF attached. Confirm below to send it to {loggedInUserEmail || 'your login email'}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-slate-50 p-4">
+              <div className="grid gap-2 text-sm sm:grid-cols-[140px_minmax(0,1fr)]">
+                <div className="font-medium text-slate-500">To</div>
+                <div className="font-semibold text-slate-900">{loggedInUserEmail || '-'}</div>
+                <div className="font-medium text-slate-500">Subject</div>
+                <div className="font-semibold text-slate-900">{emailPreviewModal.subject}</div>
+                <div className="font-medium text-slate-500">Attachment</div>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-slate-900">{emailPreviewModal.fileName || '-'}</span>
+                  {emailPreviewModal.blob && emailPreviewModal.fileName ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadBlob(emailPreviewModal.blob, emailPreviewModal.fileName)}
+                    >
+                      Download Attachment
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="h-[60vh] overflow-hidden rounded-xl border bg-white shadow-inner">
+              <iframe
+                title="Email Preview"
+                srcDoc={emailPreviewModal.html}
+                className="h-full w-full border-0"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={closeEmailPreview}
+                disabled={emailPreviewModal.loading}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmSendPreviewEmail}
+                disabled={emailPreviewModal.loading}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {emailPreviewModal.loading ? 'Sending...' : 'Confirm And Send'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Statement Component */}
       {showDueReport && selectedCostCenterForReport && (
