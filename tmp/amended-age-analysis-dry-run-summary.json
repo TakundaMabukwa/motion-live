@@ -1,0 +1,36 @@
+{
+  "target_table": "public.payments_",
+  "source_workbook": "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "source_sheet": "Amended Debtors age anal",
+  "billingMonthFromWorkbook": "2026-04-01",
+  "exportDateFromWorkbook": "2026-04-02T09:24:12.102Z",
+  "workbookRowsWithAccountSolflo": 142,
+  "matchedWorkbookRows": 142,
+  "unmatchedWorkbookRows": 0,
+  "updateTargets": 383,
+  "insertTargets": 0,
+  "fieldUpdateCounts": {
+    "account_fusion": 241,
+    "account_solflo": 241,
+    "client_name": 71,
+    "currency": 0,
+    "current_due": 161,
+    "overdue_30_days": 191,
+    "overdue_60_days": 34,
+    "overdue_90_days": 19,
+    "overdue_120_plus_days": 47,
+    "outstanding_balance": 171,
+    "last_payment": 237,
+    "account_status": 239,
+    "payment_terms": 233
+  },
+  "totalsFromWorkbook": {
+    "current_due": 2648620.3899999987,
+    "overdue_30_days": 1339698.36,
+    "overdue_60_days": 340886.92,
+    "overdue_90_days": 21144.829999999994,
+    "overdue_120_plus_days": 70632.35999999997,
+    "outstanding_balance": 4420982.8599999985
+  },
+  "sampleUnmatched": []
+}

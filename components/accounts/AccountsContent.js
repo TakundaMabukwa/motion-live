@@ -996,6 +996,7 @@ export default function AccountsContent({ activeSection }) {
           ? {
               job_status: "Invoiced",
               status: "completed",
+              invoiced_by: metadata?.invoice_created_by_user_id || null,
             }
           : {}),
       };
@@ -1959,6 +1960,9 @@ export default function AccountsContent({ activeSection }) {
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Total
                     </TableHead>
+                    <TableHead className="h-10 px-3 text-xs">
+                      Invoiced By
+                    </TableHead>
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Actions
                     </TableHead>
@@ -1999,6 +2003,15 @@ export default function AccountsContent({ activeSection }) {
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right font-semibold text-gray-900">
                         {formatCurrency(getJobTotal(job))}
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-gray-700">
+                        {job.invoiced_by ? (
+                          <span className="text-sm text-gray-900 break-all">
+                            {job.invoiced_by_email || "Unknown user"}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">Not invoiced</span>
+                        )}
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right">
                         <div className="flex justify-end gap-2 flex-wrap">

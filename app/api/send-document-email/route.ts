@@ -17,36 +17,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const subject = String(body?.subject || '').trim();
-    const html = String(body?.html || '').trim();
-    const attachment = body?.attachment;
+    const formData = await request.formData();
+    const recipientEmail = String(formData.get('recipientEmail') || '').trim();
+    const subject = String(formData.get('subject') || '').trim();
+    const html = String(formData.get('html') || '').trim();
+    const senderName = String(formData.get('senderName') || 'Solflo Delivery').trim();
+    const attachment = formData.get('attachment');
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!subject || !html || !attachment?.filename || !attachment?.content) {
+    if (
+      !subject ||
+      !html ||
+      !(attachment instanceof File) ||
+      !attachment.name
+    ) {
       return NextResponse.json(
-        { error: 'Missing required fields: subject, html, attachment.filename, attachment.content' },
+        { error: 'Missing required fields: subject, html, attachment file' },
         { status: 400 },
       );
     }
 
+    if (!recipientEmail || !emailPattern.test(recipientEmail)) {
+      return NextResponse.json(
+        { error: 'A valid recipientEmail is required' },
+        { status: 400 },
+      );
+    }
+
+    const attachmentBuffer = Buffer.from(await attachment.arrayBuffer());
+    const attachmentContent = attachmentBuffer.toString('base64');
+
     const result = await sendEmail(
       [
         {
-          id: user.id,
-          email: user.email,
+          id: recipientEmail === user.email ? user.id : `${user.id}:${recipientEmail}`,
+          email: recipientEmail,
         },
       ],
       {
         subject,
         html,
-        senderName: 'Solflo Reports',
+        senderName,
         senderEmail: process.env.EMAIL_FROM,
         attachments: [
           {
-            filename: String(attachment.filename),
-            content: String(attachment.content),
-            contentType: attachment.contentType
-              ? String(attachment.contentType)
+            filename: attachment.name,
+            content: attachmentContent,
+            contentType: attachment.type
+              ? String(attachment.type)
               : undefined,
           },
         ],
@@ -62,7 +80,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      email: user.email,
+      email: recipientEmail,
+      provider: 'NotificationAPI',
       totalSent: result.totalSent || 0,
     });
   } catch (error) {

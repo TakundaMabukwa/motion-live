@@ -4,6 +4,7 @@ import {
   buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
   calculateOverdueBuckets,
+  getOperationalBillingMonthKey,
 } from '@/lib/server/account-invoice-payments';
 
 const roundCurrency = (value: unknown) => Number(Number(value || 0).toFixed(2));
@@ -49,9 +50,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    const currentBillingMonth = new Date();
-    currentBillingMonth.setDate(1);
-    const currentBillingMonthKey = currentBillingMonth.toISOString().slice(0, 10);
+    const currentBillingMonthKey = getOperationalBillingMonthKey();
 
     const [
       { data: paymentsMirrorRows, error: paymentsMirrorError },

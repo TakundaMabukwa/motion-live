@@ -518,20 +518,20 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
           <table class="statement-totals-table">
             <tbody>
               <tr>
-                <td class="label">Total Invoiced</td>
-                <td class="value">${escapeHtml(totals.totalInvoiced)}</td>
+                <td class="label">Current Month Invoice</td>
+                <td class="value">${escapeHtml(totals.currentInvoice || totals.totalInvoiced)}</td>
               </tr>
               <tr>
-                <td class="label">Paid</td>
-                <td class="value">${escapeHtml(totals.paid)}</td>
+                <td class="label">Payments Received</td>
+                <td class="value">${escapeHtml(totals.paymentsReceived || totals.paid)}</td>
               </tr>
               <tr>
                 <td class="label">Credited</td>
                 <td class="value">${escapeHtml(totals.credited)}</td>
               </tr>
               <tr class="grand-total">
-                <td class="label">Outstanding</td>
-                <td class="value">${escapeHtml(totals.outstanding)}</td>
+                <td class="label">Outstanding Balance</td>
+                <td class="value">${escapeHtml(totals.amountDue || totals.outstanding)}</td>
               </tr>
             </tbody>
           </table>
@@ -651,12 +651,18 @@ export function buildStatementView({
     return sameAccount && (sameInvoiceId || sameInvoiceNumber);
   });
 
-  const paidAmount =
-    matchedPayments.length > 0
-      ? matchedPayments.reduce((sum, payment) => sum + toNumber(payment?.amount), 0)
-      : toNumber(activeInvoice?.paid_amount ?? paymentData?.paid_amount);
+  const matchedPaidAmount = matchedPayments.reduce(
+    (sum, payment) => sum + toNumber(payment?.amount),
+    0,
+  );
+  const monthlyPaidAmount = Math.max(
+    matchedPaidAmount,
+    toNumber(paymentData?.paid_amount),
+    toNumber(activeInvoice?.paid_amount),
+  );
   const creditedAmount = toNumber(
-    paymentData?.credited_amount ??
+    paymentData?.credit_amount ??
+      paymentData?.credited_amount ??
       paymentData?.credit_amount ??
       activeInvoice?.credited_amount ??
       activeInvoice?.credit_amount ??
@@ -667,14 +673,30 @@ export function buildStatementView({
     activeInvoice?.total_amount ||
       paymentData?.due_amount ||
       paymentData?.total_amount ||
-      (toNumber(paymentData?.balance_due) + paidAmount + creditedAmount),
+      (toNumber(paymentData?.balance_due) + monthlyPaidAmount + creditedAmount),
   );
   const balanceDue = Math.max(
     0,
-    toNumber(activeInvoice?.balance_due ?? paymentData?.balance_due ?? totalInvoiced - paidAmount - creditedAmount),
+    toNumber(
+      paymentData?.outstanding_balance ??
+        activeInvoice?.balance_due ??
+        paymentData?.balance_due ??
+        totalInvoiced - monthlyPaidAmount - creditedAmount,
+    ),
   );
   const dueDateValue = activeInvoice?.due_date || paymentData?.due_date || null;
   const dueDate = dueDateValue ? new Date(dueDateValue) : null;
+  const statementPaidAmount = toNumber(paymentData?.statement_paid_amount ?? monthlyPaidAmount);
+  const statementCreditedAmount = toNumber(
+    paymentData?.statement_credit_amount ?? creditedAmount,
+  );
+  const statementTotalInvoiced = Math.max(
+    totalInvoiced,
+    toNumber(
+      paymentData?.statement_total_invoiced ??
+        balanceDue + statementPaidAmount + statementCreditedAmount,
+    ),
+  );
 
   const normalizedToday = new Date();
   normalizedToday.setHours(0, 0, 0, 0);
@@ -716,6 +738,38 @@ export function buildStatementView({
     }
   }
 
+  const fallbackRow = {
+    date: formatDate(
+      activeInvoice?.invoice_date ||
+        paymentData?.invoice_date ||
+        activeInvoice?.created_at ||
+        paymentData?.created_at ||
+        paymentData?.billing_month,
+    ),
+    client: clientName,
+    invoiceNumber: actualInvoiceNumber || "-",
+    totalInvoiced: formatCurrency(statementTotalInvoiced),
+    paid: formatCurrency(statementPaidAmount),
+    credited: formatCurrency(statementCreditedAmount),
+    outstanding: formatCurrency(balanceDue),
+    totalInvoicedValue: statementTotalInvoiced,
+    paidValue: statementPaidAmount,
+    creditedValue: statementCreditedAmount,
+    outstandingValue: balanceDue,
+  };
+
+  const rowsForStatement = [fallbackRow];
+  const totalsFromRows = rowsForStatement.reduce(
+    (summary, row) => ({
+      totalInvoiced: summary.totalInvoiced + toNumber(row.totalInvoicedValue),
+      paid: summary.paid + toNumber(row.paidValue),
+      credited: summary.credited + toNumber(row.creditedValue),
+      outstanding: summary.outstanding + toNumber(row.outstandingValue),
+    }),
+    { totalInvoiced: 0, paid: 0, credited: 0, outstanding: 0 },
+  );
+  const totalCredited = Math.max(totalsFromRows.credited, creditedAmount);
+
   return {
     clientName,
     clientAddress: clientAddress || "-",
@@ -736,23 +790,18 @@ export function buildStatementView({
       costCenter?.costCenterInfo?.vat_number ||
       paymentData?.customer_vat_number ||
       "-",
-    rows: [
-      {
-        date: formatDate(
-          activeInvoice?.invoice_date ||
-            paymentData?.invoice_date ||
-            activeInvoice?.created_at ||
-            paymentData?.created_at ||
-            paymentData?.billing_month,
-        ),
-        client: clientName,
-        invoiceNumber: actualInvoiceNumber || "-",
-        totalInvoiced: formatCurrency(totalInvoiced),
-        paid: formatCurrency(paidAmount),
-        credited: formatCurrency(creditedAmount),
-        outstanding: formatCurrency(balanceDue),
-      },
-    ],
+    rows: rowsForStatement.map((row, index) => ({
+      date: row.date,
+      client: row.client,
+      invoiceNumber: row.invoiceNumber,
+      totalInvoiced: row.totalInvoiced,
+      paid: row.paid,
+      credited:
+        totalCredited > 0 && index === rowsForStatement.length - 1
+          ? formatCurrency(totalCredited)
+          : row.credited,
+      outstanding: row.outstanding,
+    })),
     agingRows: [
       formatCurrency(current),
       formatCurrency(days30),
@@ -770,10 +819,15 @@ export function buildStatementView({
       totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
     })),
     totals: {
-      totalInvoiced: formatCurrency(totalInvoiced),
-      paid: formatCurrency(paidAmount),
-      credited: formatCurrency(creditedAmount),
-      outstanding: formatCurrency(balanceDue),
+      currentInvoice: formatCurrency(currentInvoiceTotal),
+      paymentsReceived: formatCurrency(statementPaidAmount),
+      totalInvoiced: formatCurrency(totalsFromRows.totalInvoiced),
+      paid: formatCurrency(totalsFromRows.paid),
+      credited: formatCurrency(totalCredited),
+      amountDue: formatCurrency(balanceDue),
+      outstanding: formatCurrency(
+        Math.max(balanceDue, totalsFromRows.outstanding),
+      ),
     },
   };
 }

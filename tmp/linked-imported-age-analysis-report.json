@@ -1,0 +1,70 @@
+{
+  "mode": "apply",
+  "accounts": 142,
+  "openingInvoicesUpserted": 142,
+  "importedPaymentsDeleted": 26,
+  "importedPaymentsInserted": 78,
+  "paymentsMirrorLinked": 142,
+  "sample": [
+    {
+      "cost_code": "AFHU-0001",
+      "openingInvoiceNumber": "OPEN-AFHU0001-202602",
+      "appliedPayments": 0,
+      "appliedAmount": 0
+    },
+    {
+      "cost_code": "ADRI-0001",
+      "openingInvoiceNumber": "OPEN-ADRI0001-202602",
+      "appliedPayments": 0,
+      "appliedAmount": 0
+    },
+    {
+      "cost_code": "AERZ-0001",
+      "openingInvoiceNumber": "OPEN-AERZ0001-202602",
+      "appliedPayments": 1,
+      "appliedAmount": 11807.1
+    },
+    {
+      "cost_code": "AIPE-0001",
+      "openingInvoiceNumber": "OPEN-AIPE0001-202602",
+      "appliedPayments": 1,
+      "appliedAmount": 641.7
+    },
+    {
+      "cost_code": "AJSC-0001",
+      "openingInvoiceNumber": "OPEN-AJSC0001-202602",
+      "appliedPayments": 0,
+      "appliedAmount": 0
+    },
+    {
+      "cost_code": "ALBE-0001",
+      "openingInvoiceNumber": "OPEN-ALBE0001-202602",
+      "appliedPayments": 1,
+      "appliedAmount": 321.32
+    },
+    {
+      "cost_code": "ALL--0001",
+      "openingInvoiceNumber": "OPEN-ALL0001-202602",
+      "appliedPayments": 1,
+      "appliedAmount": 11962.51
+    },
+    {
+      "cost_code": "ALST-0001",
+      "openingInvoiceNumber": "OPEN-ALST0001-202602",
+      "appliedPayments": 1,
+      "appliedAmount": 73466.6
+    },
+    {
+      "cost_code": "ANKR-0001",
+      "openingInvoiceNumber": "OPEN-ANKR0001-202602",
+      "appliedPayments": 0,
+      "appliedAmount": 0
+    },
+    {
+      "cost_code": "ASKA-0001",
+      "openingInvoiceNumber": "OPEN-ASKA0001-202602",
+      "appliedPayments": 0,
+      "appliedAmount": 0
+    }
+  ]
+}

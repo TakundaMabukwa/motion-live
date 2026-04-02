@@ -11,6 +11,15 @@ export const normalizeBillingMonth = (value: unknown) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+export const getOperationalBillingMonthKey = (date = new Date()) => {
+  const operationalDate = new Date(date);
+  if (operationalDate.getDate() <= 7) {
+    operationalDate.setMonth(operationalDate.getMonth() - 1);
+  }
+  operationalDate.setDate(1);
+  return `${operationalDate.getFullYear()}-${String(operationalDate.getMonth() + 1).padStart(2, "0")}-01`;
+};
+
 const toNumber = (value: unknown) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -321,6 +330,7 @@ export const upsertPaymentsMirror = async (
     overdue_90_days: overdueBuckets.overdue90Days,
     overdue_120_plus_days: overdueBuckets.overdue91PlusDays,
     outstanding_balance: toNumber(invoice.balance_due),
+    amount_due: toNumber(invoice.balance_due),
     billing_month: billingMonth,
     last_updated: new Date().toISOString(),
   };

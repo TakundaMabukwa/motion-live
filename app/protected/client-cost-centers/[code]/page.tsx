@@ -22,6 +22,15 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
+const getOperationalBillingMonthKey = () => {
+  const operationalDate = new Date();
+  if (operationalDate.getDate() <= 7) {
+    operationalDate.setMonth(operationalDate.getMonth() - 1);
+  }
+  operationalDate.setDate(1);
+  return `${operationalDate.getFullYear()}-${String(operationalDate.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
 
 export default function ClientCostCentersPage() {
   const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
@@ -74,19 +83,23 @@ export default function ClientCostCentersPage() {
   const [emailPreviewModal, setEmailPreviewModal] = useState({
     open: false,
     loading: false,
+    recipientEmail: '',
     subject: '',
+    bodyText: '',
     html: '',
     fileName: '',
     contentType: '',
     blob: null,
+    format: 'pdf',
+    documentLabel: '',
+    clientName: '',
+    accountNumber: '',
   });
   const [loggedInUserEmail, setLoggedInUserEmail] = useState('');
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
   const currentBillingMonthKey = useMemo(() => {
-    const currentMonth = new Date();
-    currentMonth.setDate(1);
-    return currentMonth.toISOString().slice(0, 10);
+    return getOperationalBillingMonthKey();
   }, []);
 
   useEffect(() => {
@@ -706,7 +719,7 @@ export default function ClientCostCentersPage() {
         }
 
         try {
-          const [bulkInvoiceResponse, invoiceResponse, paymentResponse] = await Promise.all([
+          const [bulkInvoiceResponse, invoiceResponse, paymentResponse, historyResponse] = await Promise.all([
             fetch(
               `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
             ),
@@ -714,6 +727,7 @@ export default function ClientCostCentersPage() {
             fetch(
               `/api/payments/by-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
             ),
+            fetch(`/api/invoices/account/history?accountNumber=${encodeURIComponent(row.accountNumber)}`),
           ]);
 
           let bulkInvoice = null;
@@ -734,9 +748,19 @@ export default function ClientCostCentersPage() {
             paymentData = paymentPayload?.payment || null;
           }
 
+          let invoiceHistory = [];
+          let paymentHistory = [];
+          if (historyResponse.ok) {
+            const historyPayload = await historyResponse.json();
+            invoiceHistory = Array.isArray(historyPayload?.invoices) ? historyPayload.invoices : [];
+            paymentHistory = Array.isArray(historyPayload?.payments) ? historyPayload.payments : [];
+          }
+
           return {
             activeInvoice: bulkInvoice || invoiceData || null,
             paymentData,
+            invoiceHistory,
+            paymentHistory,
             items: Array.isArray(invoiceData?.invoiceItems)
               ? invoiceData.invoiceItems
               : Array.isArray(invoiceData?.invoice_items)
@@ -745,7 +769,7 @@ export default function ClientCostCentersPage() {
           };
         } catch (statementInvoiceError) {
           console.error('Error resolving statement invoice for', row.accountNumber, statementInvoiceError);
-          return { activeInvoice: null, paymentData: null, items: [] };
+          return { activeInvoice: null, paymentData: null, invoiceHistory: [], paymentHistory: [], items: [] };
         }
       };
 
@@ -770,7 +794,7 @@ export default function ClientCostCentersPage() {
       let sharedPartyDetails = null;
 
       for (const row of statementRows) {
-        const { activeInvoice, paymentData, items } = await resolveStatementInvoice(row);
+        const { activeInvoice, paymentData, invoiceHistory, paymentHistory: accountPaymentHistory, items } = await resolveStatementInvoice(row);
         const structuredAddress = [
           row.costCenter?.costCenterInfo?.physical_address_1,
           row.costCenter?.costCenterInfo?.physical_address_2,
@@ -783,8 +807,13 @@ export default function ClientCostCentersPage() {
 
         if (activeInvoice) {
           row.invoiceNo = activeInvoice.invoice_number || row.invoiceNo;
-          row.totalInvoiced = Number(activeInvoice.total_amount ?? row.totalInvoiced ?? 0);
-          row.paid = Number(activeInvoice.paid_amount ?? row.paid ?? 0);
+          row.totalInvoiced = Number(
+            activeInvoice.total_amount ??
+              paymentData?.due_amount ??
+              row.totalInvoiced ??
+              0,
+          );
+          row.paid = statementPaidAmount;
           row.outstanding = Number(
             paymentData?.outstanding_balance ??
               activeInvoice.balance_due ??
@@ -858,6 +887,45 @@ export default function ClientCostCentersPage() {
             0,
         );
 
+        const statementPaidAmount = Number(paymentData?.statement_paid_amount ?? paymentData?.paid_amount ?? row.paid ?? 0);
+        const statementCreditedAmount = Number(paymentData?.statement_credit_amount ?? paymentData?.credit_amount ?? row.credited ?? 0);
+        const statementOutstandingAmount = Number(paymentData?.outstanding_balance ?? row.outstanding ?? 0);
+        const statementTotalInvoicedAmount = Math.max(
+          Number(paymentData?.statement_total_invoiced ?? 0),
+          Number(row.totalInvoiced || 0),
+          statementOutstandingAmount + statementPaidAmount + statementCreditedAmount,
+        );
+
+        const statementRowsForAccount = [
+          {
+            date: formatStatementDate(row.date),
+            client: rowClientName,
+            invoiceNumber: row.invoiceNo || '-',
+            totalInvoiced: formatCurrency(statementTotalInvoicedAmount),
+            paid: formatCurrency(statementPaidAmount),
+            credited: formatCurrency(statementCreditedAmount),
+            outstanding: formatCurrency(statementOutstandingAmount),
+            totalValue: statementTotalInvoicedAmount,
+            paidValue: statementPaidAmount,
+            creditedValue: statementCreditedAmount,
+            outstandingValue: statementOutstandingAmount,
+          },
+        ];
+
+        const totalsFromRows = statementRowsForAccount.reduce(
+          (summary, statementRow) => ({
+            totalInvoiced: summary.totalInvoiced + Number(statementRow.totalValue || 0),
+            paid: summary.paid + Number(statementRow.paidValue || 0),
+            credited: summary.credited + Number(statementRow.creditedValue || 0),
+            outstanding: summary.outstanding + Number(statementRow.outstandingValue || 0),
+          }),
+          { totalInvoiced: 0, paid: 0, credited: 0, outstanding: 0 },
+        );
+        const totalCredited = Math.max(
+          totalsFromRows.credited,
+          Number(paymentData?.credit_amount || row.credited || 0),
+        );
+
         statementViews.push({
           clientName: sharedPartyDetails?.clientName || rowClientName,
           clientAddress: sharedPartyDetails?.clientAddress || rowClientAddress,
@@ -875,17 +943,18 @@ export default function ClientCostCentersPage() {
           accountNumber: row.accountNumber || 'N/A',
           customerVatNumber:
             sharedPartyDetails?.customerVatNumber || rowCustomerVatNumber,
-          rows: [
-            {
-              date: formatStatementDate(row.date),
-              client: row.client || clientLabel,
-              invoiceNumber: row.invoiceNo || '-',
-              totalInvoiced: formatCurrency(row.totalInvoiced),
-              paid: formatCurrency(row.paid),
-              credited: formatCurrency(row.credited),
-              outstanding: formatCurrency(row.outstanding),
-            },
-          ],
+          rows: statementRowsForAccount.map((statementRow, index) => ({
+            date: statementRow.date,
+            client: statementRow.client,
+            invoiceNumber: statementRow.invoiceNumber,
+            totalInvoiced: statementRow.totalInvoiced,
+            paid: statementRow.paid,
+            credited:
+              totalCredited > 0 && index === statementRowsForAccount.length - 1
+                ? formatCurrency(totalCredited)
+                : statementRow.credited,
+            outstanding: statementRow.outstanding,
+          })),
           agingRows: [
             formatCurrency(currentDue),
             formatCurrency(overdue30),
@@ -905,10 +974,15 @@ export default function ClientCostCentersPage() {
               }))
             : [],
           totals: {
-            totalInvoiced: formatCurrency(row.totalInvoiced),
-            paid: formatCurrency(row.paid),
-            credited: formatCurrency(row.credited),
-            outstanding: formatCurrency(row.outstanding),
+            currentInvoice: formatCurrency(Number(row.totalInvoiced || 0)),
+            paymentsReceived: formatCurrency(statementPaidAmount),
+            totalInvoiced: formatCurrency(totalsFromRows.totalInvoiced),
+            paid: formatCurrency(totalsFromRows.paid),
+            credited: formatCurrency(totalCredited),
+            amountDue: formatCurrency(statementOutstandingAmount),
+            outstanding: formatCurrency(
+              Math.max(statementOutstandingAmount, totalsFromRows.outstanding),
+            ),
           },
         });
       }
@@ -1490,6 +1564,14 @@ export default function ClientCostCentersPage() {
     URL.revokeObjectURL(objectUrl);
   };
 
+  const escapeHtml = (value) =>
+    String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+
   const buildReportEmailHtml = ({
     title,
     clientName,
@@ -1497,6 +1579,7 @@ export default function ClientCostCentersPage() {
     formatLabel,
     documentLabel,
     attachmentName,
+    bodyText,
   }) => `
     <!DOCTYPE html>
     <html>
@@ -1519,7 +1602,10 @@ export default function ClientCostCentersPage() {
                 </tr>
                 <tr>
                   <td style="padding:32px;">
+                    <div style="font-size:15px;line-height:1.7;color:#111827;white-space:pre-line;">${escapeHtml(bodyText || `Please find the attached ${documentLabel.toLowerCase()} for ${clientName}.`)}</div>
+
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 12px;">
+                      <tr><td colspan="2" style="height:10px;"></td></tr>
                       <tr>
                         <td style="width:180px;color:#6b7280;font-size:14px;">Client</td>
                         <td style="font-size:15px;font-weight:600;color:#111827;">${clientName}</td>
@@ -1641,22 +1727,22 @@ export default function ClientCostCentersPage() {
     }
   };
 
-  const sendDocumentToMyEmail = async ({ subject, html, fileName, blob, contentType }) => {
-    const content = await blobToBase64(blob);
+  const sendDocumentToMyEmail = async ({ recipientEmail, subject, html, fileName, blob, contentType }) => {
+    const formData = new FormData();
+    formData.append('recipientEmail', recipientEmail || '');
+    formData.append('subject', subject || '');
+    formData.append('html', html || '');
+    formData.append('senderName', 'Solflo Delivery');
+    formData.append(
+      'attachment',
+      new File([blob], fileName, {
+        type: contentType || 'application/octet-stream',
+      }),
+    );
+
     const response = await fetch('/api/send-document-email', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        subject,
-        html,
-        attachment: {
-          filename: fileName,
-          content,
-          contentType,
-        },
-      }),
+      body: formData,
     });
 
     const result = await response.json();
@@ -3803,11 +3889,35 @@ export default function ClientCostCentersPage() {
     setEmailPreviewModal({
       open: false,
       loading: false,
+      recipientEmail: '',
       subject: '',
+      bodyText: '',
       html: '',
       fileName: '',
       contentType: '',
       blob: null,
+      format: 'pdf',
+      documentLabel: '',
+      clientName: '',
+      accountNumber: '',
+    });
+  };
+
+  const updateEmailPreviewDraft = (updates = {}) => {
+    setEmailPreviewModal((prev) => {
+      const next = { ...prev, ...updates };
+      return {
+        ...next,
+        html: buildReportEmailHtml({
+          title: next.subject,
+          clientName: next.clientName,
+          accountNumber: next.accountNumber,
+          formatLabel: String(next.format || 'pdf').toUpperCase(),
+          documentLabel: next.documentLabel,
+          attachmentName: next.fileName,
+          bodyText: next.bodyText,
+        }),
+      };
     });
   };
 
@@ -3847,23 +3957,83 @@ export default function ClientCostCentersPage() {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           });
           const fileName = `${safeAccount}_Invoice_${new Date().toISOString().slice(0, 10)}.xlsx`;
-          downloadBlob(blob, fileName);
-          toast({
-            title: 'Excel Downloaded',
-            description: 'Invoice Excel has been generated.',
-          });
+          if (destination === 'email') {
+            closeReportDeliveryOptions();
+            const subject = `Invoice ${safeAccount}`;
+            const bodyText = `Hi,\n\nPlease find the attached invoice for ${invoiceView.clientName || safeAccount}.\n\nKind regards`;
+            setEmailPreviewModal({
+              open: true,
+              loading: false,
+              recipientEmail: loggedInUserEmail || '',
+              subject,
+              bodyText,
+              html: buildReportEmailHtml({
+                title: subject,
+                clientName: invoiceView.clientName,
+                accountNumber: invoiceView.accountNumber,
+                formatLabel: 'EXCEL',
+                documentLabel: 'Invoice',
+                attachmentName: fileName,
+                bodyText,
+              }),
+              fileName,
+              contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              blob,
+              format: 'excel',
+              documentLabel: 'Invoice',
+              clientName: invoiceView.clientName,
+              accountNumber: invoiceView.accountNumber,
+            });
+          } else {
+            downloadBlob(blob, fileName);
+            toast({
+              title: 'Excel Downloaded',
+              description: 'Invoice Excel has been generated.',
+            });
+          }
         } else {
           const html = buildInvoicePrintableHtml({ logoUrl, invoiceView });
           const blob = await renderHtmlToPdfBlob(html);
           const fileName = `${safeAccount}_Invoice_${new Date().toISOString().slice(0, 10)}.pdf`;
-          downloadBlob(blob, fileName);
-          toast({
-            title: 'PDF Downloaded',
-            description: 'Invoice PDF has been generated.',
-          });
+          if (destination === 'email') {
+            closeReportDeliveryOptions();
+            const subject = `Invoice ${safeAccount}`;
+            const bodyText = `Hi,\n\nPlease find the attached invoice for ${invoiceView.clientName || safeAccount}.\n\nKind regards`;
+            setEmailPreviewModal({
+              open: true,
+              loading: false,
+              recipientEmail: loggedInUserEmail || '',
+              subject,
+              bodyText,
+              html: buildReportEmailHtml({
+                title: subject,
+                clientName: invoiceView.clientName,
+                accountNumber: invoiceView.accountNumber,
+                formatLabel: 'PDF',
+                documentLabel: 'Invoice',
+                attachmentName: fileName,
+                bodyText,
+              }),
+              fileName,
+              contentType: 'application/pdf',
+              blob,
+              format: 'pdf',
+              documentLabel: 'Invoice',
+              clientName: invoiceView.clientName,
+              accountNumber: invoiceView.accountNumber,
+            });
+          } else {
+            downloadBlob(blob, fileName);
+            toast({
+              title: 'PDF Downloaded',
+              description: 'Invoice PDF has been generated.',
+            });
+          }
         }
 
-        closeReportDeliveryOptions();
+        if (destination !== 'email') {
+          closeReportDeliveryOptions();
+        }
         return;
       }
 
@@ -3878,23 +4048,32 @@ export default function ClientCostCentersPage() {
         const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
         if (destination === 'email') {
-          await sendDocumentToMyEmail({
-            subject: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+          closeReportDeliveryOptions();
+          const documentLabel = isItems ? 'Full Statement + Items' : 'Debtor Statement';
+          const subject = `${documentLabel} ${safeAccount}`;
+          const bodyText = `Hi,\n\nPlease find the attached ${documentLabel.toLowerCase()} for ${statementView.clientName || safeAccount}.\n\nKind regards`;
+          setEmailPreviewModal({
+            open: true,
+            loading: false,
+            recipientEmail: loggedInUserEmail || '',
+            subject,
+            bodyText,
             html: buildReportEmailHtml({
-              title: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+              title: subject,
               clientName: statementView.clientName,
               accountNumber: statementView.accountNumber,
-              formatLabel: 'Excel',
-              documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
+              formatLabel: 'EXCEL',
+              documentLabel,
               attachmentName: fileName,
+              bodyText,
             }),
             fileName,
-            blob,
             contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          });
-          toast({
-            title: 'Excel Sent',
-            description: `Statement Excel sent to ${loggedInUserEmail || 'your login email'}.`,
+            blob,
+            format: 'excel',
+            documentLabel,
+            clientName: statementView.clientName,
+            accountNumber: statementView.accountNumber,
           });
         } else {
           downloadBlob(blob, fileName);
@@ -3918,23 +4097,32 @@ export default function ClientCostCentersPage() {
         const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
         if (destination === 'email') {
-          await sendDocumentToMyEmail({
-            subject: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+          closeReportDeliveryOptions();
+          const documentLabel = isItems ? 'Full Statement + Items' : 'Debtor Statement';
+          const subject = `${documentLabel} ${safeAccount}`;
+          const bodyText = `Hi,\n\nPlease find the attached ${documentLabel.toLowerCase()} for ${statementView.clientName || safeAccount}.\n\nKind regards`;
+          setEmailPreviewModal({
+            open: true,
+            loading: false,
+            recipientEmail: loggedInUserEmail || '',
+            subject,
+            bodyText,
             html: buildReportEmailHtml({
-              title: `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`,
+              title: subject,
               clientName: statementView.clientName,
               accountNumber: statementView.accountNumber,
               formatLabel: 'PDF',
-              documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
+              documentLabel,
               attachmentName: fileName,
+              bodyText,
             }),
             fileName,
-            blob,
             contentType: 'application/pdf',
-          });
-          toast({
-            title: 'PDF Sent',
-            description: `Statement PDF sent to ${loggedInUserEmail || 'your login email'}.`,
+            blob,
+            format: 'pdf',
+            documentLabel,
+            clientName: statementView.clientName,
+            accountNumber: statementView.accountNumber,
           });
         } else {
           downloadBlob(blob, fileName);
@@ -3945,7 +4133,9 @@ export default function ClientCostCentersPage() {
         }
       }
 
-      closeReportDeliveryOptions();
+      if (destination !== 'email') {
+        closeReportDeliveryOptions();
+      }
     } catch (error) {
       console.error('Report delivery error:', error);
       toast({
@@ -3953,61 +4143,6 @@ export default function ClientCostCentersPage() {
         title: 'Report Export Failed',
         description: error instanceof Error ? error.message : 'Failed to prepare report.',
       });
-      setReportDeliveryModal((prev) => ({ ...prev, loading: false }));
-    }
-  };
-
-  const handlePreviewReportEmail = async () => {
-    const request = reportDeliveryModal.request;
-    if (!request || request.type === 'invoice') {
-      return;
-    }
-
-    setReportDeliveryModal((prev) => ({ ...prev, loading: true }));
-
-    try {
-      const isItems = request.type === 'items';
-      const { statementView } = await fetchStatementReportPayload(request.costCenter);
-      const safeAccount = String(request.costCenter?.accountNumber || 'statement').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const subject = `${isItems ? 'Full Statement + Items' : 'Debtor Statement'} ${safeAccount}`;
-      const html = buildReportEmailHtml({
-        title: subject,
-        clientName: statementView.clientName,
-        accountNumber: statementView.accountNumber,
-        formatLabel: 'PDF',
-        documentLabel: isItems ? 'Full Statement + Items' : 'Debtor Statement',
-        attachmentName: `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`,
-      });
-      const documentHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>Debtor Statement - ${statementView.accountNumber}</title>
-          </head>
-          <body>${StatementDocument({ statementView, showItemBreakdown: isItems })}</body>
-        </html>
-      `;
-      const blob = await renderHtmlToPdfBlob(documentHtml);
-      const fileName = `${safeAccount}_${isItems ? 'Full_Statement_Items' : 'Statement'}_${new Date().toISOString().slice(0, 10)}.pdf`;
-
-      setEmailPreviewModal({
-        open: true,
-        loading: false,
-        subject,
-        html,
-        fileName,
-        contentType: 'application/pdf',
-        blob,
-      });
-    } catch (error) {
-      console.error('Email preview error:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Email Preview Failed',
-        description: error instanceof Error ? error.message : 'Failed to prepare email preview.',
-      });
-    } finally {
       setReportDeliveryModal((prev) => ({ ...prev, loading: false }));
     }
   };
@@ -4021,6 +4156,7 @@ export default function ClientCostCentersPage() {
 
     try {
       await sendDocumentToMyEmail({
+        recipientEmail: emailPreviewModal.recipientEmail,
         subject: emailPreviewModal.subject,
         html: emailPreviewModal.html,
         fileName: emailPreviewModal.fileName,
@@ -4029,8 +4165,8 @@ export default function ClientCostCentersPage() {
       });
 
       toast({
-        title: 'PDF Sent',
-        description: `Statement PDF sent to ${loggedInUserEmail || 'your login email'}.`,
+        title: 'Email Sent',
+        description: `${emailPreviewModal.documentLabel || 'Document'} sent to ${emailPreviewModal.recipientEmail || 'the selected email'}.`,
       });
 
       closeEmailPreview();
@@ -5494,7 +5630,7 @@ export default function ClientCostCentersPage() {
           <DialogHeader>
             <DialogTitle>Choose Report Format</DialogTitle>
             <DialogDescription>
-              Preview the document in PDF using the current layout, or download it as Excel in the same structure.
+              Preview the document in PDF using the current layout, download it as Excel, or send the chosen file format by email.
             </DialogDescription>
           </DialogHeader>
 
@@ -5532,16 +5668,20 @@ export default function ClientCostCentersPage() {
               >
                 Download Excel
               </Button>
-              {reportDeliveryModal.request?.type !== 'invoice' ? (
-                <Button
-                  variant="outline"
-                  onClick={handlePreviewReportEmail}
-                  disabled={reportDeliveryModal.loading || !loggedInUserEmail}
-                  className="sm:col-span-2"
-                >
-                  Email PDF
-                </Button>
-              ) : null}
+              <Button
+                variant="outline"
+                onClick={() => handleReportDelivery('pdf', 'email')}
+                disabled={reportDeliveryModal.loading}
+              >
+                Email PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleReportDelivery('excel', 'email')}
+                disabled={reportDeliveryModal.loading}
+              >
+                Email Excel
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -5559,7 +5699,7 @@ export default function ClientCostCentersPage() {
           <DialogHeader>
             <DialogTitle>Email Preview</DialogTitle>
             <DialogDescription>
-              This is the exact email body the user will receive, with the PDF attached. Confirm below to send it to {loggedInUserEmail || 'your login email'}.
+              Edit the recipient, subject, and message below. The chosen file will be attached exactly as sent.
             </DialogDescription>
           </DialogHeader>
 
@@ -5567,9 +5707,24 @@ export default function ClientCostCentersPage() {
             <div className="rounded-lg border bg-slate-50 p-4">
               <div className="grid gap-2 text-sm sm:grid-cols-[140px_minmax(0,1fr)]">
                 <div className="font-medium text-slate-500">To</div>
-                <div className="font-semibold text-slate-900">{loggedInUserEmail || '-'}</div>
+                <Input
+                  type="email"
+                  value={emailPreviewModal.recipientEmail}
+                  onChange={(event) =>
+                    setEmailPreviewModal((prev) => ({
+                      ...prev,
+                      recipientEmail: event.target.value,
+                    }))
+                  }
+                  disabled={emailPreviewModal.loading}
+                  placeholder="name@example.com"
+                />
                 <div className="font-medium text-slate-500">Subject</div>
-                <div className="font-semibold text-slate-900">{emailPreviewModal.subject}</div>
+                <Input
+                  value={emailPreviewModal.subject}
+                  onChange={(event) => updateEmailPreviewDraft({ subject: event.target.value })}
+                  disabled={emailPreviewModal.loading}
+                />
                 <div className="font-medium text-slate-500">Attachment</div>
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-slate-900">{emailPreviewModal.fileName || '-'}</span>
@@ -5585,6 +5740,17 @@ export default function ClientCostCentersPage() {
                   ) : null}
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-slate-700">Email Body</div>
+              <textarea
+                value={emailPreviewModal.bodyText}
+                onChange={(event) => updateEmailPreviewDraft({ bodyText: event.target.value })}
+                disabled={emailPreviewModal.loading}
+                className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                placeholder="Enter the email message..."
+              />
             </div>
 
             <div className="h-[60vh] overflow-hidden rounded-xl border bg-white shadow-inner">

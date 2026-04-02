@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
@@ -16,17 +16,22 @@ export default function EditJobPage() {
   const [job, setJob] = useState(null);
   const [customer, setCustomer] = useState(null);
   const [accountInfo, setAccountInfo] = useState(null);
-  const [preparingReturnedJob, setPreparingReturnedJob] = useState(false);
+  const [acknowledgingNote, setAcknowledgingNote] = useState(false);
 
-  const extractAndClearFcMoveNote = (notes) => {
+  const extractFcMoveNote = (notes) => {
     const normalized = String(notes || "");
     if (!/\[Move note to FC\]/i.test(normalized)) {
-      return normalized.trim();
+      return "";
     }
 
-    return normalized
-      .split(/\[Move note to FC\]/gi)[0]
-      .trim();
+    const sections = normalized
+      .split(/\[Move note to FC\]/gi)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (sections.length === 0) return "";
+
+    return sections[sections.length - 1].split(/\n{2,}/)[0].trim();
   };
 
   const goBackOrJobs = () => {
@@ -43,6 +48,54 @@ export default function EditJobPage() {
     router.push("/protected/fc?tab=clients");
   };
 
+  const handleJobSaved = () => {
+    if (job?.new_account_number) {
+      router.push(`/protected/fc/accounts/${job.new_account_number}?tab=jobs`);
+      router.refresh();
+      return;
+    }
+
+    router.push("/protected/fc?tab=clients");
+    router.refresh();
+  };
+
+  const handleAcknowledgeNote = async () => {
+    if (!job?.id || job?.fc_note_acknowledged) return;
+
+    try {
+      setAcknowledgingNote(true);
+
+      const response = await fetch(`/api/job-cards/${job.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fc_note_acknowledged: true,
+          status: "pending",
+          job_status: "created",
+          role: "fc",
+          move_to: "fc",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to acknowledge FC note");
+      }
+
+      const updatedJob = await response.json();
+      setJob(updatedJob);
+      toast.success("FC note acknowledged");
+    } catch (error) {
+      toast.error("Failed to acknowledge note", {
+        description: error?.message || "Please try again.",
+      });
+    } finally {
+      setAcknowledgingNote(false);
+    }
+  };
+
   useEffect(() => {
     const loadJob = async () => {
       try {
@@ -53,32 +106,7 @@ export default function EditJobPage() {
         }
 
         const loadedJob = await response.json();
-        let resolvedJob = loadedJob;
-
-        if (/\[Move note to FC\]/i.test(String(loadedJob?.completion_notes || ""))) {
-          setPreparingReturnedJob(true);
-
-          const acknowledgeResponse = await fetch(`/api/job-cards/${jobId}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              completion_notes: extractAndClearFcMoveNote(loadedJob.completion_notes) || null,
-              status: "pending",
-              job_status: "created",
-              role: "fc",
-              move_to: "fc",
-            }),
-          });
-
-          if (acknowledgeResponse.ok) {
-            resolvedJob = await acknowledgeResponse.json();
-          }
-
-          setPreparingReturnedJob(false);
-        }
-
+        const resolvedJob = loadedJob;
         setJob(resolvedJob);
 
         const customerData = {
@@ -123,14 +151,6 @@ export default function EditJobPage() {
     );
   }
 
-  if (preparingReturnedJob) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
-
   if (!job) {
     return (
       <div className="p-6">
@@ -147,11 +167,42 @@ export default function EditJobPage() {
 
   return (
     <div className="p-4 h-screen">
-      <div className="mb-3 max-w-[1400px] mx-auto">
-        <Button variant="outline" onClick={goBackOrJobs}>
-          <ArrowLeft className="mr-2 w-4 h-4" />
-          Back to Jobs
-        </Button>
+      <div className="mb-3 space-y-3 max-w-[1400px] mx-auto">
+        <div className="flex justify-between items-center">
+          <Button variant="outline" onClick={goBackOrJobs}>
+            <ArrowLeft className="mr-2 w-4 h-4" />
+            Back to Jobs
+          </Button>
+          {extractFcMoveNote(job?.completion_notes) ? (
+            <Button
+              onClick={handleAcknowledgeNote}
+              disabled={acknowledgingNote || job?.fc_note_acknowledged}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {acknowledgingNote ? (
+                <RefreshCw className="mr-2 w-4 h-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-2 w-4 h-4" />
+              )}
+              {job?.fc_note_acknowledged ? "Note Acknowledged" : "Acknowledge Note"}
+            </Button>
+          ) : null}
+        </div>
+        {extractFcMoveNote(job?.completion_notes) ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <p className="font-semibold text-amber-900 text-sm">Note from Ria</p>
+                <p className="mt-1 text-amber-800 text-sm whitespace-pre-wrap">
+                  {extractFcMoveNote(job?.completion_notes)}
+                </p>
+              </div>
+              <span className="text-xs font-medium text-amber-700">
+                {job?.fc_note_acknowledged ? "Acknowledged" : "Pending acknowledgement"}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="max-w-[1400px] mx-auto h-[calc(100vh-90px)]">
@@ -164,7 +215,7 @@ export default function EditJobPage() {
           quoteId={jobId}
           saveTarget="job"
           embedded
-          onQuoteCreated={goBackOrJobs}
+          onQuoteCreated={handleJobSaved}
         />
       </div>
     </div>

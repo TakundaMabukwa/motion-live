@@ -1,0 +1,21 @@
+{
+  "target_age_analysis_table": "public.payments_",
+  "workbook": "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "sheet": "March Receipts",
+  "receipt_rows_found": 81,
+  "matched_receipt_rows": 81,
+  "unmatched_receipt_rows": 0,
+  "total_receipt_amount": 1990513.78,
+  "total_applied_against_age_analysis": 853160.23,
+  "total_projected_credit": 1137353.55,
+  "rows_using_sheet_allocation": 78,
+  "rows_using_system_fallback": 3,
+  "rows_needing_outstanding_snapshot_invoice": 6,
+  "notes": [
+    "Matched by ACCOUNT SOLFLO -> payments_.cost_code.",
+    "Projected target row is the latest payments_ row per cost code.",
+    "If sheet allocation columns are blank, fallback is oldest-first: 120+, 90, 60, 30, current.",
+    "For a full audit trail, receipt imports should also create payment ledger rows, preferably against an outstanding snapshot invoice when no suitable invoice exists."
+  ],
+  "sample_unmatched": []
+}

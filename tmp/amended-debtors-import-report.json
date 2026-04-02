@@ -1,0 +1,18 @@
+{
+  "workbook": "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "openingSheet": "Amended Debtors age anal",
+  "receiptsSheet": "March Receipts",
+  "openingBillingMonth": "2026-02-01",
+  "currentBillingMonth": "2026-03-01",
+  "workbookAccountCount": 142,
+  "receiptCount": 81,
+  "updatedOpeningRows": 142,
+  "insertedOpeningRows": 0,
+  "updatedCurrentRows": 120,
+  "insertedCurrentRows": 22,
+  "totalReceiptsApplied": 1954253.74,
+  "totalReceiptCredits": 36260.04,
+  "totalCurrentDueAfterImport": 1489387.65,
+  "totalOutstandingAfterImport": 3950523.88,
+  "mode": "apply"
+}

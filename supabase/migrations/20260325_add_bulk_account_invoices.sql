@@ -54,6 +54,7 @@ begin
   if allocated_value is null then
     raise exception 'Bulk document sequence % does not exist', sequence_name;
   end if;
+  ACCOUNT SOLFLO
 
   return prefix || allocated_value::text;
 end;

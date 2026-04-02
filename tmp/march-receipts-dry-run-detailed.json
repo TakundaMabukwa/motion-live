@@ -1,0 +1,3080 @@
+[
+  {
+    "account_solflo": "AERZ-0001",
+    "client_name": "AERZEN AIRGAS (PTY) LTD",
+    "payment_date": "2026-03-26",
+    "payment_amount": 11807.1,
+    "allocation_mode": "sheet",
+    "target_payments_id": "519524da-f2b0-4688-9dba-ceb0e67c0ec6",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 11806.88,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11806.88,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 11807.1,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.22
+    },
+    "applied_amount": 11806.88,
+    "unapplied_credit": 0.22,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "AIPE-0001",
+    "client_name": "AIRPORT PETS",
+    "payment_date": "2026-03-31",
+    "payment_amount": 641.7,
+    "allocation_mode": "sheet",
+    "target_payments_id": "01388c50-05fd-43a1-8c92-1561b9d36fff",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 641.7,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 641.7,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 641.7,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 641.7,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ALBE-0001",
+    "client_name": "ALBERT BENNETT",
+    "payment_date": "2026-03-31",
+    "payment_amount": 321.32,
+    "allocation_mode": "sheet",
+    "target_payments_id": "d39d06ee-fe57-4a36-b01f-1ff448fb8111",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 321.32,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 321.32,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 321.32,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 321.32,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ALL--0001",
+    "client_name": "ALL-DANQUAH CC",
+    "payment_date": "2026-03-14",
+    "payment_amount": 11962.51,
+    "allocation_mode": "sheet",
+    "target_payments_id": "7148b6ea-7021-486d-8fd0-a2064e12435e",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 11881.87,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11881.87,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 11962.51,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 11881.87,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11881.87,
+      "credit_amount": 11962.51
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 11962.51,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ALST-0001",
+    "client_name": "ALLIED STEELRODE (PTY) LTD",
+    "payment_date": "2026-03-02",
+    "payment_amount": 73466.6,
+    "allocation_mode": "sheet",
+    "target_payments_id": "6296023b-129b-4cb5-b3ca-0c55ab84a7f1",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 33216.6,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 33216.6,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 73466.6,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 33216.6,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 33216.6,
+      "credit_amount": 73466.6
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 73466.6,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ATVX-0001",
+    "client_name": "AUMA SOUTH AFRICA (PTY)LTD",
+    "payment_date": "2026-03-27",
+    "payment_amount": 26226.81,
+    "allocation_mode": "sheet",
+    "target_payments_id": "e98f2c76-b298-46ff-8bbc-3a26c4dc3a51",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 204.7,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 204.7,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 26226.81,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 26022.11
+    },
+    "applied_amount": 204.7,
+    "unapplied_credit": 26022.11,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "AVVA-0001",
+    "client_name": "AVIS VAN RENTAL EASTERN & NORTHERN GAUTENG -",
+    "payment_date": "2026-03-16",
+    "payment_amount": 37641.76,
+    "allocation_mode": "sheet",
+    "target_payments_id": "0a68e940-2094-452f-8e75-f5f152c093cb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 139075.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 139075.25,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 200000,
+      "days_30": 37641.76,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": -101433.49
+    },
+    "applied_amount": 139075.25,
+    "unapplied_credit": -101433.49,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "AVVA-0001",
+    "client_name": "AVIS VAN RENTAL EASTERN & NORTHERN GAUTENG -",
+    "payment_date": "2026-03-16",
+    "payment_amount": 200000,
+    "allocation_mode": "system_oldest_first",
+    "target_payments_id": "0a68e940-2094-452f-8e75-f5f152c093cb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 139075.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 139075.25,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 60924.75
+    },
+    "applied_amount": 139075.25,
+    "unapplied_credit": 60924.75,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "BACA-0001",
+    "client_name": "BARLINE CATERING & HOSPITALITY CC",
+    "payment_date": "2026-03-31",
+    "payment_amount": 2390.26,
+    "allocation_mode": "sheet",
+    "target_payments_id": "c4db6074-0e4d-4e1a-b337-1e1426477e51",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2390.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2390.25,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 2390.26,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.01
+    },
+    "applied_amount": 2390.25,
+    "unapplied_credit": 0.01,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "BLUE-0001",
+    "client_name": "BLUE SKIES FRESH PRODUCE SA (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1940.51,
+    "allocation_mode": "sheet",
+    "target_payments_id": "c39d6d6e-4679-4d45-9976-afd24af257bb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1711.2,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1711.2,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1940.51,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 229.31
+    },
+    "applied_amount": 1711.2,
+    "unapplied_credit": 229.31,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "BLUE-0001",
+    "client_name": "BRIAN MEADOWS",
+    "payment_date": "2026-03-31",
+    "payment_amount": 734.3,
+    "allocation_mode": "sheet",
+    "target_payments_id": "c39d6d6e-4679-4d45-9976-afd24af257bb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1711.2,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1711.2,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 734.3,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 976.9,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 976.9,
+      "credit_amount": 0
+    },
+    "applied_amount": 734.3,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "BUBE-0001",
+    "client_name": "BUZZ BEZUIDENHOUT",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1949.08,
+    "allocation_mode": "sheet",
+    "target_payments_id": "8644ebfd-d8a8-47c3-9001-5fa4b55d0785",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1949.07,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1949.07,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1949.08,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.01
+    },
+    "applied_amount": 1949.07,
+    "unapplied_credit": 0.01,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "CARG-0001",
+    "client_name": "CARGO CRANKSHAFT REBUILDERS (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 354.66,
+    "allocation_mode": "sheet",
+    "target_payments_id": "27dff931-9f29-4dba-90a8-3ec69d2ba48f",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 354.66,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 354.66,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 354.66,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 354.66,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "CONC-0001",
+    "client_name": "CONCISE PERFORMANCE FUELS",
+    "payment_date": "2026-03-07",
+    "payment_amount": 13511,
+    "allocation_mode": "sheet",
+    "target_payments_id": "41ac32d6-6685-4eb3-b49e-c49fd923d412",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 14242.85,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 14242.85,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 13511,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 14242.85,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 14242.85,
+      "credit_amount": 13511
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 13511,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "COUN-0001",
+    "client_name": "COUNTRYWIDE GEARBOX REPAIRS CC",
+    "payment_date": "2026-03-06",
+    "payment_amount": 3438.5,
+    "allocation_mode": "sheet",
+    "target_payments_id": "1b46196a-5101-41e6-898a-a1f5c41b31eb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 3094.65,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3094.65,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 3438.5,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 343.85
+    },
+    "applied_amount": 3094.65,
+    "unapplied_credit": 343.85,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "CRIS-0001",
+    "client_name": "CRISTOPHER FRITZ",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1442.1,
+    "allocation_mode": "sheet",
+    "target_payments_id": "83890d6b-0e38-4acc-bc7e-0bd64e22e3e4",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 317.4,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 317.4,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1442.1,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 1124.7
+    },
+    "applied_amount": 317.4,
+    "unapplied_credit": 1124.7,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "DACO-0001",
+    "client_name": "DCC TECHNOLOGIES (PTY) LTD",
+    "payment_date": "2026-03-02",
+    "payment_amount": 1293.75,
+    "allocation_mode": "sheet",
+    "target_payments_id": "819aae2c-6c9e-43f4-baf2-7be466f9d3a0",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 6204.12,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 6204.12,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 1293.75,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 6204.12,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 6204.12,
+      "credit_amount": 1293.75
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 1293.75,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "DELA-0001",
+    "client_name": "DELABRA TRADING CC",
+    "payment_date": "2026-03-31",
+    "payment_amount": 6944.85,
+    "allocation_mode": "sheet",
+    "target_payments_id": "8c88c4a5-892a-4db3-841a-73c7d7b120a9",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 6035.2,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 6035.2,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 6944.85,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 909.65
+    },
+    "applied_amount": 6035.2,
+    "unapplied_credit": 909.65,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "E.CO-0001",
+    "client_name": "E.P.S COURIER SERVICES (PTY) LTD - (HOLDING ACC - D",
+    "payment_date": "2026-03-31",
+    "payment_amount": 211548.25,
+    "allocation_mode": "sheet",
+    "target_payments_id": "9092941e-e7b5-47af-809f-571113059cfb",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 213871.25,
+      "overdue_30_days": 369520.3,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 369520.3,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 55899.20000000001,
+      "days_60": 0,
+      "days_90": 155649.05,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 213871.25,
+      "overdue_30_days": 313621.1,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 527492.35,
+      "credit_amount": 155649.05
+    },
+    "applied_amount": 55899.2,
+    "unapplied_credit": 155649.05,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "EDGE-0019",
+    "client_name": "EDGE - TELEMATICS",
+    "payment_date": "2026-03-10",
+    "payment_amount": 134623.64,
+    "allocation_mode": "sheet",
+    "target_payments_id": "e2e74059-0160-4872-946c-61aa6abb28c0",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 80.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 80.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 134623.64,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 80.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 80.5,
+      "credit_amount": 134623.64
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 134623.64,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ELIZ-0001",
+    "client_name": "ELIZABETH JOUBERT",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1069.79,
+    "allocation_mode": "sheet",
+    "target_payments_id": "182daa78-e63a-4a2c-a655-c6386091b3f9",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 910.97,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 910.97,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1069.79,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 158.82
+    },
+    "applied_amount": 910.97,
+    "unapplied_credit": 158.82,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ENER-0001",
+    "client_name": "ENERGYEASE (PTY) LTD",
+    "payment_date": "2026-03-20",
+    "payment_amount": 65519,
+    "allocation_mode": "sheet",
+    "target_payments_id": "3d2d3898-0818-463e-88d5-3fe8dddf867f",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 24206.35,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 24206.35,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 65519,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 41312.65
+    },
+    "applied_amount": 24206.35,
+    "unapplied_credit": 41312.65,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "EUXX-0001",
+    "client_name": "EURO STEEL",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1303.37,
+    "allocation_mode": "sheet",
+    "target_payments_id": "2afb5ed8-eacf-40ad-ad44-4444e2a6e3f2",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1303.28,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1303.28,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1303.37,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.09
+    },
+    "applied_amount": 1303.28,
+    "unapplied_credit": 0.09,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "FIRS-0001",
+    "client_name": "FIRST GLOVE RECLAMATION cc",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1300.37,
+    "allocation_mode": "sheet",
+    "target_payments_id": "fcc31231-418b-4284-bc94-bf4967e5a903",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 995.72,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 995.72,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1300.37,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 304.65
+    },
+    "applied_amount": 995.72,
+    "unapplied_credit": 304.65,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "FRSU-0001",
+    "client_name": "FREIGHT SURVEILLANCE INTERNATIONAL",
+    "payment_date": "2026-03-06",
+    "payment_amount": 168267.56,
+    "allocation_mode": "sheet",
+    "target_payments_id": "0b07ceb0-4a2c-48f9-9c41-45e3d01006e8",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 161832.77,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 161832.77,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 168267.56,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 161832.77,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 161832.77,
+      "credit_amount": 168267.56
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 168267.56,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "FUEL-0001",
+    "client_name": "FUEL SPEC (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 10832.23,
+    "allocation_mode": "sheet",
+    "target_payments_id": "876ecaae-b2ba-4780-ad93-f44524ed7b04",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 10832.23,
+      "overdue_30_days": 10832.23,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 10832.23,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 10832.23,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 10832.23,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 10832.23,
+      "credit_amount": 0
+    },
+    "applied_amount": 10832.23,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "GASH-0001",
+    "client_name": "GARY SHANDLER",
+    "payment_date": "2026-03-31",
+    "payment_amount": 358.11,
+    "allocation_mode": "sheet",
+    "target_payments_id": "a0825206-656c-4dc5-86eb-f121ad53bbb0",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 358.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 358.1,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 358.11,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.01
+    },
+    "applied_amount": 358.1,
+    "unapplied_credit": 0.01,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "GOEA-0001",
+    "client_name": "GOOD EARTH GROUP (PTY) LTD",
+    "payment_date": "2026-03-06",
+    "payment_amount": 1207.5,
+    "allocation_mode": "sheet",
+    "target_payments_id": "4885d3ac-e407-4959-bc56-c65d8718a888",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 71558.62,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 71558.62,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 1207.5,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 71558.62,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 71558.62,
+      "credit_amount": 1207.5
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 1207.5,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "HICO-0001",
+    "client_name": "HITACHI CONSTRUCTION MACHINERY SOUTHERN AFRICA CO (PTY) LTD",
+    "payment_date": "2026-03-27",
+    "payment_amount": 210027.61,
+    "allocation_mode": "sheet",
+    "target_payments_id": "0bc5fba8-6e44-4226-b804-af6ac851ed80",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 396.75,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 396.75,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 210027.61,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 209630.86
+    },
+    "applied_amount": 396.75,
+    "unapplied_credit": 209630.86,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "ICON-0001",
+    "client_name": "ICONIC VENTURES (PTY) LTD",
+    "payment_date": "2026-03-12",
+    "payment_amount": 15000,
+    "allocation_mode": "sheet",
+    "target_payments_id": "52dfef6d-7070-450d-9f91-856e1627b183",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 11280.35,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11280.35,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 15000
+    },
+    "projected_after": {
+      "current_due": 11280.35,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11280.35,
+      "credit_amount": 15000
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 15000,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "INTE-0001",
+    "client_name": "INTERSPARES PTY LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 8083.26,
+    "allocation_mode": "sheet",
+    "target_payments_id": "5f67c0aa-1893-475a-8925-892bd2826cd1",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 8083.26,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 8083.26,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 8083.26,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 8083.26,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "JCAG-0001",
+    "client_name": "JCCM AGRI TRADING PTY LTD",
+    "payment_date": "2026-03-03",
+    "payment_amount": 4635.06,
+    "allocation_mode": "sheet",
+    "target_payments_id": "6bd112c6-cd4e-4e4d-a4e7-1c31a4d17708",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 3437.84,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3437.84,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 4635.06,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 3437.84,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3437.84,
+      "credit_amount": 4635.06
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 4635.06,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "JCJX-0001",
+    "client_name": "JCJ FUEL SERVICES PTY LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1730.75,
+    "allocation_mode": "sheet",
+    "target_payments_id": "37a8185f-fb9f-45fd-a20c-e4bd4af10428",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1730.75,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1730.75,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1730.75,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 1730.75,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "JLCO-0001",
+    "client_name": "JL COETZER",
+    "payment_date": "2026-03-03",
+    "payment_amount": 19251.92,
+    "allocation_mode": "sheet",
+    "target_payments_id": "fcc47cbf-4577-4674-879b-2418044bca5a",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 19251.92,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 19251.92,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 19251.92,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 19251.92,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 19251.92,
+      "credit_amount": 19251.92
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 19251.92,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KANO-0001",
+    "client_name": "KARIN NOTHNAGEL",
+    "payment_date": "2026-03-05",
+    "payment_amount": 637.31,
+    "allocation_mode": "sheet",
+    "target_payments_id": "f4f1260e-3ed2-479a-a84c-01785b1c0fbd",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 637.31,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 637.31,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 637.31,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 637.31,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KARG-0001",
+    "client_name": "KARGO LOGISTICS (PTY) LTD - (HOLDING COMPANY)",
+    "payment_date": "2026-03-04",
+    "payment_amount": 11083.7,
+    "allocation_mode": "sheet",
+    "target_payments_id": "776f0701-7854-47c0-85f7-6945ebe3faa9",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 8940.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 8940.1,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 11083.7,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 8940.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 8940.1,
+      "credit_amount": 11083.7
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 11083.7,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KARG-0006",
+    "client_name": "KARGO LONG DISTANCE PTY LTD",
+    "payment_date": "2026-03-04",
+    "payment_amount": 18247.05,
+    "allocation_mode": "sheet",
+    "target_payments_id": "28c7d01f-d190-4a27-80e1-562c60400b21",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 18247.05,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 18247.05,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 18247.05,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 18247.05,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 18247.05,
+      "credit_amount": 18247.05
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 18247.05,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KARG-0008",
+    "client_name": "KARGO NATIONAL PTY LTD - (HOLDING COMPANY)",
+    "payment_date": "2026-03-04",
+    "payment_amount": 6082.02,
+    "allocation_mode": "sheet",
+    "target_payments_id": "2339b7f1-aaab-49bd-a430-00e0a2ef8297",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 12722.45,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 12722.45,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 36860.79000000001,
+      "days_60": 5738.17,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 12722.45,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 12722.45,
+      "credit_amount": 6082.02
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 6082.02,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KARG-0008",
+    "client_name": "KARGO NATIONAL PTY LTD - (HOLDING COMPANY)",
+    "payment_date": "2026-03-04",
+    "payment_amount": 36516.94,
+    "allocation_mode": "system_oldest_first",
+    "target_payments_id": "2339b7f1-aaab-49bd-a430-00e0a2ef8297",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 12722.45,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 12722.45,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 23794.49
+    },
+    "applied_amount": 12722.45,
+    "unapplied_credit": 23794.49,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KELO-0001",
+    "client_name": "KENBERT LOGISTICS",
+    "payment_date": "2026-03-07",
+    "payment_amount": 2725.96,
+    "allocation_mode": "sheet",
+    "target_payments_id": "a4444a73-d25c-4f78-9c24-59c06a3fd49e",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2536.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2536.25,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 2725.96,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 2536.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2536.25,
+      "credit_amount": 2725.96
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 2725.96,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "KERI-0001",
+    "client_name": "KERIZZMA STEEL PTY LTD",
+    "payment_date": "2026-03-03",
+    "payment_amount": 28723.53,
+    "allocation_mode": "sheet",
+    "target_payments_id": "8c19cd69-d156-4dee-9242-f8cffba49fbf",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 27247.6,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 27247.6,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 28723.53,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 27247.6,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 27247.6,
+      "credit_amount": 28723.53
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 28723.53,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "L.(L-0001",
+    "client_name": "L.E.C.E",
+    "payment_date": "2026-03-07",
+    "payment_amount": 2561.11,
+    "allocation_mode": "sheet",
+    "target_payments_id": "f29f4ea1-769e-490f-947a-5dee9adbac54",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2561.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2561.1,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 2561.11,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 2561.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2561.1,
+      "credit_amount": 2561.11
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 2561.11,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "LECO-0001",
+    "client_name": "LEBONE 11 COLLEGE OF THE ROYAL BAFOKENG",
+    "payment_date": "2026-03-03",
+    "payment_amount": 10102.22,
+    "allocation_mode": "sheet",
+    "target_payments_id": "4049c112-7c55-4c24-8ee3-092ff6074bd3",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 3574.12,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3574.12,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 10102.22,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 6528.1
+    },
+    "applied_amount": 3574.12,
+    "unapplied_credit": 6528.1,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "LIMU-0001",
+    "client_name": "LINKTEL CC TA MULTICOMM",
+    "payment_date": "2026-03-31",
+    "payment_amount": 646.31,
+    "allocation_mode": "sheet",
+    "target_payments_id": "b549b32d-60a9-4d33-bc8d-fe336fd89d9e",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 646.31,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 646.31,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 646.31,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 646.31,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "LIZE-0001",
+    "client_name": "LIZELLE NORTJE",
+    "payment_date": "2026-03-31",
+    "payment_amount": 358.59,
+    "allocation_mode": "sheet",
+    "target_payments_id": "30389c4c-9cf5-43be-8b6e-61289a40f6f5",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 358.6,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 358.6,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 358.59,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0.01,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0.01,
+      "credit_amount": 0
+    },
+    "applied_amount": 358.59,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "LTSX-0001",
+    "client_name": "LTS BULK TRANSPORT",
+    "payment_date": "2026-03-30",
+    "payment_amount": 17493.34,
+    "allocation_mode": "sheet",
+    "target_payments_id": "8d3ef5cd-845c-4771-afed-ea13b971d0fe",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 17504.78,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 17504.78,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 17493.34,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 11.44,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11.44,
+      "credit_amount": 0
+    },
+    "applied_amount": 17493.34,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MACR-0001",
+    "client_name": "MAIBAZE CRANE & TRUCK HIRE",
+    "payment_date": "2026-03-31",
+    "payment_amount": 65469.06,
+    "allocation_mode": "sheet",
+    "target_payments_id": "bd202c26-ba6f-46b5-a06e-77cf8f46db34",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 64703.8,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 64703.8,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 65469.06,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 765.26
+    },
+    "applied_amount": 64703.8,
+    "unapplied_credit": 765.26,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MACS-0004",
+    "client_name": "MACSTEEL EXPRESS KLERKDORP (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 3908.2,
+    "allocation_mode": "sheet",
+    "target_payments_id": "770cf6d0-009b-455b-82a2-59c62bc089b2",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 1212.64,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 1212.64,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 3908.2,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 2695.56
+    },
+    "applied_amount": 1212.64,
+    "unapplied_credit": 2695.56,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MACS-0006",
+    "client_name": "MACSTEEL EXPRESS PTY LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 10682.05,
+    "allocation_mode": "sheet",
+    "target_payments_id": "ae90abbc-4f6d-4200-af99-539195a234c2",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 3908.19,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3908.19,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 10682.05,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 6773.86
+    },
+    "applied_amount": 3908.19,
+    "unapplied_credit": 6773.86,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MACS-0007",
+    "client_name": "MACSTEEL EXPRESS NELSPRUIT (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 2870.02,
+    "allocation_mode": "sheet",
+    "target_payments_id": "fc2efe1b-d77f-486d-836f-8ed987e497b1",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2870.02,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2870.02,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 2870.02,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 2870.02,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MACS-0010",
+    "client_name": "MACSTEEL EXPRESS WELKOM (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 4012.77,
+    "allocation_mode": "sheet",
+    "target_payments_id": "aa3fb0ae-a507-4351-92ee-c7fdc70ced89",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 4676.09,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4676.09,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 4012.77,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 663.32,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 663.32,
+      "credit_amount": 0
+    },
+    "applied_amount": 4012.77,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MAYS-0001",
+    "client_name": "MAYSENE LOGISTICS  (Pty) Ltd",
+    "payment_date": "2026-03-05",
+    "payment_amount": 30000,
+    "allocation_mode": "sheet",
+    "target_payments_id": "d8144d85-b2fc-4b04-8f73-4f908f1c54f9",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 17174.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 17174.1,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 30000,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 17174.1,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 17174.1,
+      "credit_amount": 30000
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 30000,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "META-0001",
+    "client_name": "NN METALS (PTY) LTD",
+    "payment_date": "2026-03-03",
+    "payment_amount": 76939.83,
+    "allocation_mode": "system_oldest_first",
+    "target_payments_id": "40595fc5-cbb9-4bad-b3e4-848e3ce947e6",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 77526.58,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 77526.58,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 586.75,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 586.75,
+      "credit_amount": 0
+    },
+    "applied_amount": 76939.83,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "META-0001",
+    "client_name": "NN METALS (PTY) LTD",
+    "payment_date": "2026-03-16",
+    "payment_amount": 1437.51,
+    "allocation_mode": "sheet",
+    "target_payments_id": "40595fc5-cbb9-4bad-b3e4-848e3ce947e6",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 77526.58,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 77526.58,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 76939.83,
+      "days_30": 1437.51,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 586.75,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 586.75,
+      "credit_amount": -75502.32
+    },
+    "applied_amount": 76939.83,
+    "unapplied_credit": -75502.32,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MIJA-0001",
+    "client_name": "MIX TELEMATICS ENTERPRISE SA (PTY) LTD",
+    "payment_date": "2026-03-14",
+    "payment_amount": 3117.65,
+    "allocation_mode": "sheet",
+    "target_payments_id": "55ae4d19-81f6-459d-8bf2-3886b9133870",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 742.42,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 742.42,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 3117.65,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 742.42,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 742.42,
+      "credit_amount": 3117.65
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 3117.65,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MIJA-0001",
+    "client_name": "Mike Jankelowitz",
+    "payment_date": "2026-03-31",
+    "payment_amount": 742.72,
+    "allocation_mode": "sheet",
+    "target_payments_id": "55ae4d19-81f6-459d-8bf2-3886b9133870",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 742.42,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 742.42,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 742.72,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.3
+    },
+    "applied_amount": 742.42,
+    "unapplied_credit": 0.3,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MNFU-0001",
+    "client_name": "MNANDI FUEL (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 20861,
+    "allocation_mode": "sheet",
+    "target_payments_id": "0a60c772-57f4-4fd1-9fe3-b6ca10b6502c",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 17278.75,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 17278.75,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 20861,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 3582.25
+    },
+    "applied_amount": 17278.75,
+    "unapplied_credit": 3582.25,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MPUM-0001",
+    "client_name": "NEVILLE BROWNLIE",
+    "payment_date": "2026-03-02",
+    "payment_amount": 113.85,
+    "allocation_mode": "sheet",
+    "target_payments_id": "30978e2e-f76c-4a3d-b6dc-e7e22a1438c5",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 13627.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 13627.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 113.85,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 13627.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 13627.5,
+      "credit_amount": 113.85
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 113.85,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MPUM-0001",
+    "client_name": "MPUMA WEST TRADING",
+    "payment_date": "2026-03-04",
+    "payment_amount": 13627.5,
+    "allocation_mode": "sheet",
+    "target_payments_id": "30978e2e-f76c-4a3d-b6dc-e7e22a1438c5",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 13627.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 13627.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 13627.5,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 13627.5,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "MPUM-0001",
+    "client_name": "NAMA KHOI LOCAL MUNICIPALITY",
+    "payment_date": "2026-03-31",
+    "payment_amount": 2458.7,
+    "allocation_mode": "sheet",
+    "target_payments_id": "30978e2e-f76c-4a3d-b6dc-e7e22a1438c5",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 13627.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 13627.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 2458.7,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 11168.8,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 11168.8,
+      "credit_amount": 0
+    },
+    "applied_amount": 2458.7,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "NIGE-0001",
+    "client_name": "NIGEL CLIFFORD PROVIS",
+    "payment_date": "2026-03-31",
+    "payment_amount": 338.25,
+    "allocation_mode": "sheet",
+    "target_payments_id": "f474209c-fcf2-4922-a20b-0ab0e6c67d15",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 338.25,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 338.25,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 338.25,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0
+    },
+    "applied_amount": 338.25,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "NNLO-0001",
+    "client_name": "NNS LOGISTICS (PTY) LTD",
+    "payment_date": "2026-03-13",
+    "payment_amount": 14934.9,
+    "allocation_mode": "sheet",
+    "target_payments_id": "eb552d26-f588-4a3b-992e-3160351f6610",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 14934.9,
+      "overdue_30_days": 14934.9,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 14934.9,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 14934.9,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 14934.9,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 14934.9,
+      "credit_amount": 0
+    },
+    "applied_amount": 14934.9,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "NOVU-0001",
+    "client_name": "ONYX DISTRIBUTORS CC",
+    "payment_date": "2026-03-04",
+    "payment_amount": 583.03,
+    "allocation_mode": "sheet",
+    "target_payments_id": "6ff1f560-78dd-452f-a84b-5901978445fb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 1,
+    "before": {
+      "current_due": 4803.32,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4803.32,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 583.03,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 4220.29,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4220.29,
+      "credit_amount": 0
+    },
+    "applied_amount": 583.03,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "NOVU-0001",
+    "client_name": "NOVUS PRINT (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1682.26,
+    "allocation_mode": "sheet",
+    "target_payments_id": "6ff1f560-78dd-452f-a84b-5901978445fb",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 1,
+    "before": {
+      "current_due": 4803.32,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4803.32,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1682.26,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 3121.06,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 3121.06,
+      "credit_amount": 0
+    },
+    "applied_amount": 1682.26,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "PI(M-0001",
+    "client_name": "PIMSTEIN (MICHAEL) FAMILY TRUST",
+    "payment_date": "2026-03-26",
+    "payment_amount": 2817.5,
+    "allocation_mode": "sheet",
+    "target_payments_id": "c0bd7142-709d-4086-b160-2ea6d2f1ba1d",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2817.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2817.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 2817.5,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 2817.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2817.5,
+      "credit_amount": 2817.5
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 2817.5,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "PRCR-0001",
+    "client_name": "TT NO BORDERS LOGISTICS (PTY) Ltd",
+    "payment_date": "2026-03-31",
+    "payment_amount": 101242.55,
+    "allocation_mode": "sheet",
+    "target_payments_id": "5eba7321-3d2d-45a2-9198-ade924c4fca2",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 28023.2,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 28023.2,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 101242.55,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 73219.35
+    },
+    "applied_amount": 28023.2,
+    "unapplied_credit": 73219.35,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "REPA-0001",
+    "client_name": "REEL PAPERS (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 5559.8,
+    "allocation_mode": "sheet",
+    "target_payments_id": "edb07ffd-cc2c-4c92-b4ea-1bd260b9be0f",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 5203.7,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 5203.7,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 5559.8,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 356.1
+    },
+    "applied_amount": 5203.7,
+    "unapplied_credit": 356.1,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "RICO-0001",
+    "client_name": "RIGHT CORRUGATED CONTAINERS",
+    "payment_date": "2026-03-06",
+    "payment_amount": 10860.68,
+    "allocation_mode": "sheet",
+    "target_payments_id": "32103127-5fee-48fc-a565-686c273bdcba",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 10860.68,
+      "overdue_30_days": 21721.36,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 21721.36,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 10860.68,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 10860.68,
+      "overdue_30_days": 10860.68,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 21721.36,
+      "credit_amount": 0
+    },
+    "applied_amount": 10860.68,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "ROIN-0001",
+    "client_name": "DA ROCHA INTERIORS",
+    "payment_date": "2026-03-31",
+    "payment_amount": 2005.36,
+    "allocation_mode": "sheet",
+    "target_payments_id": "f8a71ed6-abc6-4aaf-a666-94215041b984",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 2005.35,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2005.35,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 2005.36,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 0.01
+    },
+    "applied_amount": 2005.35,
+    "unapplied_credit": 0.01,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "SEVE-0001",
+    "client_name": "SEVEN DAYS TRADING 125 (Pty) Ltd",
+    "payment_date": "2026-03-27",
+    "payment_amount": 5017,
+    "allocation_mode": "sheet",
+    "target_payments_id": "4308bbe4-ad1b-48aa-9fa0-578e27fa82af",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 70753.63,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 70753.63,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 5017,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 65736.63,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 65736.63,
+      "credit_amount": 0
+    },
+    "applied_amount": 5017,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "SGMO-0003",
+    "client_name": "SG MOBILITY - DIV OF SUPER GROUP TRADING",
+    "payment_date": "2026-03-02",
+    "payment_amount": 23990.9,
+    "allocation_mode": "sheet",
+    "target_payments_id": "b03c50de-c052-406b-b2f2-99e03aef2996",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 26116.12,
+      "overdue_30_days": 50107.04,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0.02,
+      "outstanding_balance": 50107.04,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 23990.9,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 26116.12,
+      "overdue_30_days": 26116.14,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0.02,
+      "outstanding_balance": 52232.28,
+      "credit_amount": 0
+    },
+    "applied_amount": 23990.9,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "SPAR-0002",
+    "client_name": "THE SPAR GROUP (HOLDING ACCOUNT)",
+    "payment_date": "2026-03-06",
+    "payment_amount": 654.76,
+    "allocation_mode": "sheet",
+    "target_payments_id": "ebacb15c-dbf8-4a09-9c2d-e623e6146b26",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 7202.36,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 7202.36,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 654.76,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 7202.36,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 7202.36,
+      "credit_amount": 654.76
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 654.76,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "STEE-0001",
+    "client_name": "STEEL GRAIN LOGISTICS (PTY) LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 19464.05,
+    "allocation_mode": "sheet",
+    "target_payments_id": "af17fd98-07d9-4cb3-9e44-c77b0a7a1c9a",
+    "target_billing_month": "2026-02-01",
+    "existing_invoice_count": 0,
+    "before": {
+      "current_due": 16364.48,
+      "overdue_30_days": 64542.98,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": -402.56,
+      "outstanding_balance": 64542.98,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 19464.05,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 64542.98,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": -402.56,
+      "outstanding_balance": 64140.42,
+      "credit_amount": 3099.57
+    },
+    "applied_amount": 16364.48,
+    "unapplied_credit": 3099.57,
+    "needs_outstanding_snapshot_invoice": true
+  },
+  {
+    "account_solflo": "TACI-0001",
+    "client_name": "TACIT LOGISTICS PTY LTD",
+    "payment_date": "2026-03-07",
+    "payment_amount": 5828.2,
+    "allocation_mode": "sheet",
+    "target_payments_id": "d0d3b8e7-1a6e-4acb-abe4-6f069e08d649",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 5717.7,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 5717.7,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 5828.2,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 5717.7,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 5717.7,
+      "credit_amount": 5828.2
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 5828.2,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "TRIA-0001",
+    "client_name": "TRIANGLE SERVICES VAAL (PTY) LTD",
+    "payment_date": "2026-03-10",
+    "payment_amount": 23840.65,
+    "allocation_mode": "sheet",
+    "target_payments_id": "a5da8d77-fd34-4341-9c2d-6a43ba86b7a0",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 26172.85,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 26172.85,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 23840.65,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 2332.2,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 2332.2,
+      "credit_amount": 0
+    },
+    "applied_amount": 23840.65,
+    "unapplied_credit": 0,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "TURN-0001",
+    "client_name": "TURNOVER TRADING 72 CC - TA ITUMELENG",
+    "payment_date": "2026-03-31",
+    "payment_amount": 7664.75,
+    "allocation_mode": "sheet",
+    "target_payments_id": "daed96e6-61ce-463d-8c38-24bf569e0410",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 6898.32,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 6898.32,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 7664.75,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 766.43
+    },
+    "applied_amount": 6898.32,
+    "unapplied_credit": 766.43,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "TYRE-0001",
+    "client_name": "TYRELL SMITH",
+    "payment_date": "2026-03-07",
+    "payment_amount": 589.95,
+    "allocation_mode": "sheet",
+    "target_payments_id": "340ac961-18bc-47da-8666-080f75c64364",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 90.85,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 90.85,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 589.95,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 90.85,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 90.85,
+      "credit_amount": 589.95
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 589.95,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "U-JH-0001",
+    "client_name": "U-RENT JHB",
+    "payment_date": "2026-03-05",
+    "payment_amount": 893.55,
+    "allocation_mode": "sheet",
+    "target_payments_id": "c5b7d9aa-5c3e-4968-8042-8a793b92c006",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 893.55,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 893.55,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 0,
+      "days_60": 893.55,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 893.55,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 893.55,
+      "credit_amount": 893.55
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 893.55,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "VDMB-0001",
+    "client_name": "VDM BUSINESS ENTERPRISE CC",
+    "payment_date": "2026-03-31",
+    "payment_amount": 1478.53,
+    "allocation_mode": "sheet",
+    "target_payments_id": "2717ce5b-5f8c-4d86-8638-a350ac8f0007",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 862.5,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 862.5,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 1478.53,
+      "days_30": 0,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 0,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 0,
+      "credit_amount": 616.03
+    },
+    "applied_amount": 862.5,
+    "unapplied_credit": 616.03,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "WACA-0001",
+    "client_name": "WATERFORD - (HOLDING ACC ONLY)",
+    "payment_date": "2026-03-10",
+    "payment_amount": 134422.33,
+    "allocation_mode": "sheet",
+    "target_payments_id": "284566e4-e390-47cc-8a16-329651a3340f",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 117646.86,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 117646.86,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 134422.33,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 117646.86,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 117646.86,
+      "credit_amount": 134422.33
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 134422.33,
+    "needs_outstanding_snapshot_invoice": false
+  },
+  {
+    "account_solflo": "WEFI-0001",
+    "client_name": "WEFIN CAR RENTALS PTY LTD",
+    "payment_date": "2026-03-31",
+    "payment_amount": 4400.61,
+    "allocation_mode": "sheet",
+    "target_payments_id": "55770334-6a70-40ed-a4ec-f24de3f1b35b",
+    "target_billing_month": "2026-04-01",
+    "existing_invoice_count": 2,
+    "before": {
+      "current_due": 4066.64,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4066.64,
+      "credit_amount": 0
+    },
+    "sheet_allocation": {
+      "current": 0,
+      "days_30": 4400.61,
+      "days_60": 0,
+      "days_90": 0,
+      "days_120_plus": 0
+    },
+    "projected_after": {
+      "current_due": 4066.64,
+      "overdue_30_days": 0,
+      "overdue_60_days": 0,
+      "overdue_90_days": 0,
+      "overdue_120_plus_days": 0,
+      "outstanding_balance": 4066.64,
+      "credit_amount": 4400.61
+    },
+    "applied_amount": 0,
+    "unapplied_credit": 4400.61,
+    "needs_outstanding_snapshot_invoice": false
+  }
+]

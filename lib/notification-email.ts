@@ -3,14 +3,18 @@ import notificationapi from 'notificationapi-node-server-sdk';
 let isInitialized = false;
 
 function ensureInitialized() {
+  const clientId = process.env.NOTIFICATIONAPI_CLIENT_ID;
+  const clientSecret = process.env.NOTIFICATIONAPI_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'NotificationAPI is not configured. Missing NOTIFICATIONAPI_CLIENT_ID or NOTIFICATIONAPI_CLIENT_SECRET.',
+    );
+  }
+
   if (!isInitialized) {
-    const clientId = process.env.NOTIFICATIONAPI_CLIENT_ID;
-    const clientSecret = process.env.NOTIFICATIONAPI_CLIENT_SECRET;
-    
-    if (clientId && clientSecret) {
-      notificationapi.init(clientId, clientSecret);
-      isInitialized = true;
-    }
+    notificationapi.init(clientId, clientSecret);
+    isInitialized = true;
   }
 }
 

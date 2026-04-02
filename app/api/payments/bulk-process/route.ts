@@ -623,6 +623,7 @@ export async function POST(request: NextRequest) {
               reference: updatedInvoice.invoice_number,
               paid_amount: nextPaidAmount,
               balance_due: agedAllocation.outstanding_balance,
+              amount_due: agedAllocation.outstanding_balance,
               current_due: agedAllocation.current_due,
               overdue_30_days: agedAllocation.overdue_30_days,
               overdue_60_days: agedAllocation.overdue_60_days,

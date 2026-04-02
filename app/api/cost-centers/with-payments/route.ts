@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getOperationalBillingMonthKey } from '@/lib/server/account-invoice-payments';
 import { NextResponse } from 'next/server';
 import { buildDraftPaymentsFromVehicles } from '@/lib/server/account-invoice-payments';
 
@@ -17,9 +18,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = await createClient();
-    const currentBillingMonth = new Date();
-    currentBillingMonth.setDate(1);
-    const currentBillingMonthKey = currentBillingMonth.toISOString().slice(0, 10);
+    const currentBillingMonthKey = getOperationalBillingMonthKey();
 
     const { data: costCenters, error: centersError } = await supabase
       .from('cost_centers')

@@ -4,8 +4,14 @@ import {
   buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
   calculateOverdueBuckets,
+  getOperationalBillingMonthKey,
   normalizeBillingMonth,
 } from '@/lib/server/account-invoice-payments';
+
+const toNumeric = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,11 +26,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const currentBillingMonth = billingMonth || (() => {
-      const date = new Date();
-      date.setDate(1);
-      return date.toISOString().slice(0, 10);
-    })();
+    const currentBillingMonth = billingMonth || getOperationalBillingMonthKey();
 
     const supabase = await createClient();
 
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
       { data: invoiceRows, error: invoiceError },
       { data: paymentsMirrorRows, error: paymentsMirrorError },
       { data: latestAgingRows, error: latestAgingError },
+      { data: priorAgingRows, error: priorAgingError },
       { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
       { data: vehiclesByAccount, error: vehiclesByAccountError },
       { data: costCenterRow, error: costCenterError },
@@ -103,6 +106,19 @@ export async function GET(request: NextRequest) {
         .order('last_updated', { ascending: false })
         .limit(1),
       supabase
+        .from('payments_')
+        .select(`
+          cost_code,
+          paid_amount,
+          credit_amount,
+          billing_month,
+          last_updated
+        `)
+        .eq('cost_code', accountNumber)
+        .lt('billing_month', currentBillingMonth)
+        .order('billing_month', { ascending: false })
+        .order('last_updated', { ascending: false }),
+      supabase
         .from('vehicles')
         .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
         .eq('new_account_number', accountNumber),
@@ -117,11 +133,12 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ]);
 
-    if (invoiceError || paymentsMirrorError || latestAgingError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
+    if (invoiceError || paymentsMirrorError || latestAgingError || priorAgingError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
       const message =
         invoiceError?.message ||
         paymentsMirrorError?.message ||
         latestAgingError?.message ||
+        priorAgingError?.message ||
         vehiclesByNewAccountError?.message ||
         vehiclesByAccountError?.message ||
         costCenterError?.message ||
@@ -134,6 +151,7 @@ export async function GET(request: NextRequest) {
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
     const paymentsMirror = Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows[0] || null : null;
     const latestAging = Array.isArray(latestAgingRows) ? latestAgingRows[0] || null : null;
+    const priorAgingRowsList = Array.isArray(priorAgingRows) ? priorAgingRows : [];
 
     const dedupedVehicles = new Map<string, Record<string, unknown>>();
     [...(vehiclesByNewAccount || []), ...(vehiclesByAccount || [])].forEach((vehicle) => {
@@ -235,10 +253,21 @@ export async function GET(request: NextRequest) {
       agingSource?.outstanding_balance ??
         (mirroredCurrentDue + mirroredOverdue30 + mirroredOverdue60 + mirroredOverdue90 + mirroredOverdue120FromAging),
     );
+    const statementPaidAmount = Number(
+      priorAgingRowsList.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0) +
+        toNumeric(paymentsMirror?.paid_amount ?? payment?.paid_amount),
+    );
+    const statementCreditAmount = Number(
+      paymentsMirror?.credit_amount ?? payment?.credit_amount ?? 0,
+    );
+    const statementTotalInvoiced = Number(
+      mirroredOutstanding + statementPaidAmount + statementCreditAmount,
+    );
 
     return NextResponse.json({
       payment: {
         ...payment,
+        paid_amount: Number(payment?.paid_amount ?? 0),
         overdue_30_days: mirroredOverdue30,
         overdue_60_days: mirroredOverdue60,
         overdue_90_days: mirroredOverdue90,
@@ -246,6 +275,9 @@ export async function GET(request: NextRequest) {
         overdue_91_plus_days: mirroredOverdue120FromAging,
         current_due: mirroredCurrentDue,
         outstanding_balance: mirroredOutstanding,
+        statement_paid_amount: statementPaidAmount,
+        statement_total_invoiced: statementTotalInvoiced,
+        statement_credit_amount: statementCreditAmount,
       },
       message: 'Current billing record retrieved successfully',
     });

@@ -1,0 +1,9 @@
+{
+  "mode": "apply",
+  "importedInvoicesFound": 142,
+  "importedPaymentsFound": 78,
+  "paymentsRowsLinkedFound": 142,
+  "importedInvoicesDeleted": 142,
+  "importedPaymentsDeleted": 78,
+  "paymentsRowsUnlinked": 142
+}

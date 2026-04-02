@@ -30,7 +30,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function CustomerJobCards({ accountNumber }) {
+export default function CustomerJobCards({
+  accountNumber,
+  notesOnly = false,
+  title,
+  emptyTitle,
+  emptyDescription,
+}) {
   const router = useRouter();
   const [jobCards, setJobCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -199,59 +205,11 @@ export default function CustomerJobCards({ accountNumber }) {
     return notes;
   };
 
-  const clearFcMoveNote = (notes) => {
-    const normalized = String(notes || '');
-    if (!/\[Move note to FC\]/i.test(normalized)) {
-      return normalized.trim();
-    }
-
-    const cleaned = normalized
-      .split(/\[Move note to FC\]/gi)[0]
-      .trim();
-
-    return cleaned;
-  };
-
   const hasFcMoveNote = (job) => Boolean(getFcMoveNote(job));
+  const isFcNoteAcknowledged = (job) => Boolean(job?.fc_note_acknowledged);
 
   const handleEditJob = async (job) => {
     try {
-      if (hasFcMoveNote(job)) {
-        const response = await fetch(`/api/job-cards/${job.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            completion_notes: clearFcMoveNote(job.completion_notes) || null,
-            status: 'pending',
-            job_status: 'created',
-            role: 'fc',
-            move_to: 'fc',
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to acknowledge FC note');
-        }
-
-        setJobCards((current) =>
-          current.map((currentJob) =>
-            currentJob.id === job.id
-              ? {
-                  ...currentJob,
-                  completion_notes: clearFcMoveNote(currentJob.completion_notes) || null,
-                  status: 'pending',
-                  job_status: 'created',
-                  role: 'fc',
-                  move_to: 'fc',
-                }
-              : currentJob,
-          ),
-        );
-      }
-
       router.push(`/protected/fc/jobs/${job.id}/edit`);
     } catch (error) {
       console.error('Error preparing returned FC job for edit:', error);
@@ -271,7 +229,11 @@ export default function CustomerJobCards({ accountNumber }) {
     });
   };
 
-  const filteredJobCards = jobCards.filter(job => {
+  const fcNoteJobs = jobCards.filter((job) => hasFcMoveNote(job) && !isFcNoteAcknowledged(job));
+
+  const searchBaseJobs = notesOnly ? fcNoteJobs : jobCards;
+
+  const filteredJobCards = searchBaseJobs.filter(job => {
     // Handle status filter
     if (searchTerm.startsWith('status:')) {
       const status = searchTerm.substring(7); // Remove 'status:' prefix
@@ -294,13 +256,43 @@ export default function CustomerJobCards({ accountNumber }) {
     return true;
   });
 
+  const effectiveTitle = title || (
+    notesOnly
+      ? (accountNumber ? `Jobs from Ria for ${accountNumber}` : 'Jobs from Ria')
+      : (accountNumber ? `Job Cards for ${accountNumber}` : 'All Job Cards')
+  );
+
+  const effectiveEmptyTitle = emptyTitle || (
+    notesOnly ? 'No jobs from Ria found' : 'No job cards found'
+  );
+
+  const effectiveEmptyDescription = emptyDescription || (
+    notesOnly
+      ? (
+          accountNumber
+            ? (searchTerm
+                ? `No note-returned jobs for ${accountNumber} match your search criteria.`
+                : `No jobs with FC notes were returned for ${accountNumber} yet.`)
+            : (searchTerm
+                ? 'No note-returned jobs match your search criteria.'
+                : 'No jobs with FC notes were returned yet.')
+        )
+      : (
+          accountNumber
+            ? (searchTerm
+                ? `No job cards for ${accountNumber} match your search criteria.`
+                : `No job cards have been created for ${accountNumber} yet.`)
+            : (searchTerm
+                ? 'No job cards match your search criteria.'
+                : 'No job cards have been created yet.')
+        )
+  );
+
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-                  <h2 className="font-bold text-2xl">
-          All Job Cards
-        </h2>
+          <h2 className="font-bold text-2xl">{effectiveTitle}</h2>
           <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
             <RefreshCw className={`mr-2 w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing...' : 'Refresh'}
@@ -317,9 +309,7 @@ export default function CustomerJobCards({ accountNumber }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="font-bold text-2xl">
-          {accountNumber ? `Job Cards for ${accountNumber}` : 'All Job Cards'}
-        </h2>
+        <h2 className="font-bold text-2xl">{effectiveTitle}</h2>
         <div className="flex gap-2">
           <Button onClick={handleRefresh} variant="outline" size="sm" disabled={refreshing}>
             <RefreshCw className={`mr-2 w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -334,8 +324,8 @@ export default function CustomerJobCards({ accountNumber }) {
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
             placeholder={accountNumber ? 
-              `Search jobs for ${accountNumber} by job number, customer, quote, reg, type, or address...` : 
-              "Search all jobs by job number, customer, quote, reg, type, or address..."
+              `Search jobs for ${accountNumber} by job number, customer, quote, reg, type, address, or note...` : 
+              "Search all jobs by job number, customer, quote, reg, type, address, or note..."
             }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -366,8 +356,8 @@ export default function CustomerJobCards({ accountNumber }) {
       <div className="flex justify-between items-center text-gray-600 text-sm">
         <span>
           {accountNumber ? 
-            `Showing ${filteredJobCards.length} of ${jobCards.length} job cards for ${accountNumber}` :
-            `Showing ${filteredJobCards.length} of ${jobCards.length} job cards`
+            `Showing ${filteredJobCards.length} of ${searchBaseJobs.length} ${notesOnly ? 'jobs with FC notes' : 'job cards'} for ${accountNumber}` :
+            `Showing ${filteredJobCards.length} of ${searchBaseJobs.length} ${notesOnly ? 'jobs with FC notes' : 'job cards'}`
           }
           {searchTerm && !searchTerm.startsWith('status:') && (
             <span className="ml-2">filtered by "{searchTerm}"</span>
@@ -382,21 +372,14 @@ export default function CustomerJobCards({ accountNumber }) {
       {filteredJobCards.length === 0 ? (
         <div className="py-12 text-center">
           <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-          <h3 className="mb-2 font-medium text-gray-900 text-lg">No job cards found</h3>
-          <p className="text-gray-500">
-            {accountNumber ? 
-              (searchTerm ? `No job cards for ${accountNumber} match your search criteria.` : 
-               `No job cards have been created for ${accountNumber} yet.`) :
-              (searchTerm ? 'No job cards match your search criteria.' : 
-               'No job cards have been created yet.')
-            }
-          </p>
+          <h3 className="mb-2 font-medium text-gray-900 text-lg">{effectiveEmptyTitle}</h3>
+          <p className="text-gray-500">{effectiveEmptyDescription}</p>
         </div>
       ) : (
         <Card>
           <CardHeader>
             <CardTitle>
-              {accountNumber ? `Job Cards for Account ${accountNumber}` : 'All Job Cards'}
+              {effectiveTitle}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -410,6 +393,7 @@ export default function CustomerJobCards({ accountNumber }) {
                     <TableHead>Job Type</TableHead>
                     <TableHead>Vehicle Reg</TableHead>
                     <TableHead>Note</TableHead>
+                    <TableHead>Acknowledged</TableHead>
                     <TableHead>Created Date</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -440,6 +424,21 @@ export default function CustomerJobCards({ accountNumber }) {
                           >
                             {getFcMoveNote(job)}
                           </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">N/A</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {hasFcMoveNote(job) ? (
+                          <Badge
+                            className={
+                              isFcNoteAcknowledged(job)
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }
+                          >
+                            {isFcNoteAcknowledged(job) ? 'Acknowledged' : 'Pending'}
+                          </Badge>
                         ) : (
                           <span className="text-gray-400 text-sm">N/A</span>
                         )}

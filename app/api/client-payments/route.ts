@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildDraftPaymentsFromVehicles } from '@/lib/server/account-invoice-payments';
+import { buildDraftPaymentsFromVehicles, getOperationalBillingMonthKey } from '@/lib/server/account-invoice-payments';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,9 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    const currentBillingMonth = new Date();
-    currentBillingMonth.setDate(1);
-    const currentBillingMonthKey = currentBillingMonth.toISOString().slice(0, 10);
+    const currentBillingMonthKey = getOperationalBillingMonthKey();
 
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();

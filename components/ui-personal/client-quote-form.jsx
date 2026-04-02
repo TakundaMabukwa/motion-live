@@ -46,6 +46,7 @@ export default function ClientQuoteForm({
   saveTarget = "quote", // "quote" | "job"
   embedded = false,
 }) {
+  const isJobEditMode = mode === "edit" && saveTarget === "job";
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -976,7 +977,6 @@ export default function ClientQuoteForm({
       };
 
       const isEditMode = mode === "edit" && !!quoteId;
-      const isJobEditMode = isEditMode && saveTarget === "job";
 
       const updatePayload = {
         job_type: formData.jobType,
@@ -1149,10 +1149,15 @@ export default function ClientQuoteForm({
       console.error('Error submitting quote:', error);
       
       // Show error toast
-      toast.error(mode === "edit" ? 'Failed to update quote' : 'Failed to create quote', {
+      toast.error(
+        mode === "edit"
+          ? (isJobEditMode ? 'Failed to update job card' : 'Failed to update quote')
+          : 'Failed to create quote',
+        {
         description: error.message || 'Please try again.',
         duration: 5000,
-      });
+        },
+      );
       
       setSubmitError(error.message);
     } finally {
@@ -2109,8 +2114,16 @@ export default function ClientQuoteForm({
         {/* Header */}
         <div className="flex flex-shrink-0 justify-between items-center p-6 border-b">
           <div>
-            <h2 className="font-bold text-2xl">{mode === "edit" ? "Edit Client Quotation" : "Client Quotation"}</h2>
-            <p className="text-gray-600">{mode === "edit" ? "Update quotation details" : `Create quotation for ${customer?.trading_name || customer?.company}`}</p>
+            <h2 className="font-bold text-2xl">
+              {mode === "edit"
+                ? (isJobEditMode ? "Edit Job Card" : "Edit Client Quotation")
+                : "Client Quotation"}
+            </h2>
+            <p className="text-gray-600">
+              {mode === "edit"
+                ? (isJobEditMode ? "Update job card details" : "Update quotation details")
+                : `Create quotation for ${customer?.trading_name || customer?.company}`}
+            </p>
           </div>
           <Button
             variant="outline"
@@ -2188,12 +2201,16 @@ export default function ClientQuoteForm({
                 {isSubmitting ? (
                   <>
                     <div className="mr-2 border-white border-b-2 rounded-full w-4 h-4 animate-spin"></div>
-                    {mode === "edit" ? "Saving Quote..." : "Creating Quote..."}
+                    {mode === "edit"
+                      ? (isJobEditMode ? "Saving Job..." : "Saving Quote...")
+                      : "Creating Quote..."}
                   </>
                 ) : (
                   <>
                     <FileText className="mr-2 w-4 h-4" />
-                    {mode === "edit" ? "Save Quote" : "Create Quote"}
+                    {mode === "edit"
+                      ? (isJobEditMode ? "Save Job" : "Save Quote")
+                      : "Create Quote"}
                   </>
                 )}
               </Button>

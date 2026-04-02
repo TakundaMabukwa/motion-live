@@ -25,9 +25,12 @@ export async function GET(request: NextRequest) {
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
+    const requestedLimit = parseInt(searchParams.get('limit') || '20');
     const search = searchParams.get('search') || '';
     const fetchAll = searchParams.get('fetchAll') === 'true';
-    const limit = 20;
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 200)
+      : 20;
     const offset = (page - 1) * limit;
 
     console.log('API: Query parameters', { page, search, fetchAll, limit, offset });
@@ -90,6 +93,7 @@ export async function GET(request: NextRequest) {
     // Transform the data and fetch vehicle amounts for each group
     const transformedCompanyGroups = await Promise.all(
       (companyGroups || []).map(async (group) => {
+        try {
         // Extract prefix from all_new_account_numbers (e.g., "KARG" from "KARG-0014, KARG-0005")
         let prefix = '';
         let vehicleAmounts = {
@@ -214,6 +218,35 @@ export async function GET(request: NextRequest) {
           prefix,
           ...vehicleAmounts
         };
+        } catch (groupTransformError) {
+          console.error('API: Error transforming company group:', {
+            groupId: group?.id,
+            companyGroup: group?.company_group,
+            error: groupTransformError instanceof Error ? groupTransformError.message : groupTransformError,
+          });
+
+          return {
+            id: group?.id || null,
+            company_group: group?.company_group || '',
+            legal_names: group?.legal_names || '',
+            all_account_numbers: group?.all_account_numbers || '',
+            all_new_account_numbers: group?.all_new_account_numbers || '',
+            created_at: group?.created_at || null,
+            account_count:
+              typeof group?.all_account_numbers === 'string' && group.all_account_numbers.length > 0
+                ? group.all_account_numbers.split(',').length
+                : 0,
+            legal_names_list:
+              typeof group?.legal_names === 'string' && group.legal_names.length > 0
+                ? group.legal_names.split(',').map((name) => name.trim())
+                : [],
+            prefix: '',
+            totalMonthlyAmount: 0,
+            totalAmountDue: 0,
+            vehicleCount: 0,
+            uniqueClientCount: 0,
+          };
+        }
       })
     );
 
@@ -236,12 +269,17 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('API: Unexpected error:', error);
-    console.error('API: Error stack:', error.stack);
+    if (error instanceof Error && error.stack) {
+      console.error('API: Error stack:', error.stack);
+    }
     return NextResponse.json(
       { 
         error: 'Internal server error', 
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack:
+          process.env.NODE_ENV === 'development' && error instanceof Error
+            ? error.stack
+            : undefined
       },
       { status: 500 }
     );

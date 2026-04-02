@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
-import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,6 @@ import {
   Plus,
   Loader2,
   Building2,
-  Eye,
   Globe,
   Building,
   FileText,
@@ -31,16 +29,16 @@ import {
   Mail,
   MapPin,
   RefreshCw,
+  MessageSquareText,
 } from "lucide-react";
+import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
 
 export default function AccountsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
   const { 
     companyGroups, 
     contactInfo, 
-    paymentData,
     loading, 
     loadingContacts, 
     totalCount, 
@@ -364,6 +362,16 @@ export default function AccountsDashboard() {
           </AccountsProvider>
         );
 
+      case 'from-ria':
+        return (
+          <CustomerJobCards
+            notesOnly
+            title="From Ria"
+            emptyTitle="No jobs from Ria"
+            emptyDescription="Jobs moved from inventory to FC with notes will appear here."
+          />
+        );
+
       default:
         return <GlobalView />;
     }
@@ -416,6 +424,7 @@ export default function AccountsDashboard() {
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'client-info', label: 'Client Info', icon: Users, type: 'tab' },
+            { id: 'from-ria', label: 'From Ria', icon: MessageSquareText, type: 'tab' },
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
@@ -428,6 +437,7 @@ export default function AccountsDashboard() {
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
                            (navItem.id === 'client-info' && activeTab === 'client-info') ||
+                           (navItem.id === 'from-ria' && activeTab === 'from-ria') ||
                            (navItem.type === 'link' && pathname === navItem.href);
             
             if (navItem.type === 'tab') {

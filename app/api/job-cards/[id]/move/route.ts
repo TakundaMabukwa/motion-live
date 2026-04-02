@@ -39,8 +39,8 @@ export async function POST(
       );
     }
 
-    // These destinations all display jobs inside their completed/review tabs,
-    // so route them as completed jobs instead of "moved_to_*" records.
+    // Inventory and Accounts display these inside their completed/review tabs.
+    // FC jobs, however, should return as active work for editing and follow-up.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
       let nextCompletionNotes: string | null | undefined;
 
@@ -58,15 +58,27 @@ export async function POST(
           : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
       }
 
-      const completionPayload = {
-        role: targetRole,
-        move_to: targetRole,
-        status: "completed",
-        job_status: "Completed",
-        completion_date: new Date().toISOString(),
-        end_time: new Date().toISOString(),
-        ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
-      };
+      const completionPayload =
+        targetRole === "fc"
+          ? {
+              role: "fc",
+              move_to: "fc",
+              status: "pending",
+              job_status: "created",
+              completion_date: null,
+              end_time: null,
+              fc_note_acknowledged: false,
+              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+            }
+          : {
+              role: targetRole,
+              move_to: targetRole,
+              status: "completed",
+              job_status: "Completed",
+              completion_date: new Date().toISOString(),
+              end_time: new Date().toISOString(),
+              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+            };
 
       const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;
       const patchResponse = await fetch(patchUrl, {
@@ -84,7 +96,10 @@ export async function POST(
       if (!patchResponse.ok) {
         return NextResponse.json(
           {
-            error: `Failed to complete and move job to ${targetRole.toUpperCase()}`,
+            error:
+              targetRole === "fc"
+                ? "Failed to move job to FC"
+                : `Failed to complete and move job to ${targetRole.toUpperCase()}`,
             details: patchBody?.error || patchBody?.details || "Unknown error",
           },
           { status: patchResponse.status },
@@ -93,7 +108,10 @@ export async function POST(
 
       return NextResponse.json({
         success: true,
-        message: `Job moved to ${targetRole.toUpperCase()} and marked as completed`,
+        message:
+          targetRole === "fc"
+            ? "Job moved to FC"
+            : `Job moved to ${targetRole.toUpperCase()} and marked as completed`,
         job: patchBody,
       });
     }

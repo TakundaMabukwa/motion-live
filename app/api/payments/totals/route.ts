@@ -11,11 +11,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch ALL payment records from payments_ table - no filtering
-    // Focus on due_amount and paid_amount columns
     const { data: payments, error } = await supabase
       .from('payments_')
-      .select('cost_code, due_amount, paid_amount, company, reference');
+      .select(`
+        cost_code,
+        due_amount,
+        paid_amount,
+        balance_due,
+        outstanding_balance,
+        overdue_30_days,
+        overdue_60_days,
+        overdue_90_days,
+        overdue_120_plus_days
+      `);
 
     if (error) {
       console.error('Error fetching payment records:', error);
@@ -24,49 +32,56 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('Payments totals API - payments data found:', payments?.length || 0, 'records');
-    console.log('Payments totals API - sample payment data:', payments?.slice(0, 2));
-    
     if (!payments || payments.length === 0) {
-      console.log('No payment records found in payments_ table');
       return NextResponse.json({
         success: true,
         totals: {
           totalDueAmount: 0,
           totalPaidAmount: 0,
           totalBalanceDue: 0,
+          totalOverdueAmount: 0,
           totalAccounts: 0
         },
         message: 'No payment records found in payments_ table'
       });
     }
 
-    // Calculate totals - focusing ONLY on due_amount and paid_amount
-    const totals = payments?.reduce((acc, payment) => {
-      const dueAmount = parseFloat(payment.due_amount) || 0;
-      const paidAmount = parseFloat(payment.paid_amount) || 0;
+    const toNumber = (value: unknown) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : 0;
+    };
 
-      console.log(`Payment ${payment.cost_code}: due_amount=${dueAmount}, paid_amount=${paidAmount}`);
+    const totals = payments?.reduce((acc, payment) => {
+      const dueAmount = toNumber(payment.due_amount);
+      const paidAmount = toNumber(payment.paid_amount);
+      const outstandingBalance =
+        payment.outstanding_balance ?? payment.balance_due ?? Math.max(0, dueAmount - paidAmount);
+      const overdueAmount =
+        toNumber(payment.overdue_30_days) +
+        toNumber(payment.overdue_60_days) +
+        toNumber(payment.overdue_90_days) +
+        toNumber(payment.overdue_120_plus_days);
 
       return {
         totalDueAmount: acc.totalDueAmount + dueAmount,
         totalPaidAmount: acc.totalPaidAmount + paidAmount,
-        totalBalanceDue: acc.totalBalanceDue + (dueAmount - paidAmount), // Calculate balance as due - paid
+        totalBalanceDue: acc.totalBalanceDue + toNumber(outstandingBalance),
+        totalOverdueAmount: acc.totalOverdueAmount + overdueAmount,
         totalAccounts: acc.totalAccounts + 1
       };
     }, {
       totalDueAmount: 0,
       totalPaidAmount: 0,
       totalBalanceDue: 0,
+      totalOverdueAmount: 0,
       totalAccounts: 0
     }) || {
       totalDueAmount: 0,
       totalPaidAmount: 0,
       totalBalanceDue: 0,
+      totalOverdueAmount: 0,
       totalAccounts: 0
     };
-
-    console.log('Payments totals API - calculated totals:', totals);
 
     return NextResponse.json({
       success: true,
