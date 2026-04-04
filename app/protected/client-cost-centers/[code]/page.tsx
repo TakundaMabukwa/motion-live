@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -32,6 +32,17 @@ const getOperationalBillingMonthKey = () => {
 };
 
 
+const formatBillingMonthInput = (value) => {
+  const raw = String(value || '').trim();
+  return raw ? raw.slice(0, 7) : '';
+};
+
+const normalizeBillingMonthValue = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
+};
+
 export default function ClientCostCentersPage() {
   const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
   const params = useParams();
@@ -49,7 +60,6 @@ export default function ClientCostCentersPage() {
   const [loading, setLoading] = useState(true);
   const [clientData, setClientData] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showVehicleSearchDrawer, setShowVehicleSearchDrawer] = useState(false);
   const [filteredCostCenters, setFilteredCostCenters] = useState([]);
   const [costCentersWithPayments, setCostCentersWithPayments] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -79,6 +89,7 @@ export default function ClientCostCentersPage() {
     open: false,
     loading: false,
     request: null,
+    selectedBillingMonth: '',
   });
   const [emailPreviewModal, setEmailPreviewModal] = useState({
     open: false,
@@ -2800,7 +2811,7 @@ export default function ClientCostCentersPage() {
             <div class="client-info">
               <h3>Client Information</h3>
               <div class="client-grid">
-                <div>
+                <div className="min-w-0 flex-1">
                   <label>Client Name:</label>
                   <p>${clientLegalName}</p>
                 </div>
@@ -3874,6 +3885,7 @@ export default function ClientCostCentersPage() {
       open: true,
       loading: false,
       request,
+      selectedBillingMonth: String(request?.costCenter?.billingMonth || currentBillingMonthKey || '').trim(),
     });
   };
 
@@ -3882,6 +3894,7 @@ export default function ClientCostCentersPage() {
       open: false,
       loading: false,
       request: null,
+      selectedBillingMonth: '',
     });
   };
 
@@ -3922,6 +3935,7 @@ export default function ClientCostCentersPage() {
   };
 
   const handleReportDelivery = async (format, destination = 'download') => {
+    if (destination === 'email') destination = 'download';
     const request = reportDeliveryModal.request;
     if (!request) {
       return;
@@ -3932,19 +3946,24 @@ export default function ClientCostCentersPage() {
     try {
       const isInvoice = request.type === 'invoice';
       const isItems = request.type === 'items';
+      const selectedBillingMonth = normalizeBillingMonthValue(reportDeliveryModal.selectedBillingMonth) || request.costCenter?.billingMonth || currentBillingMonthKey;
+      const requestCostCenter = {
+        ...request.costCenter,
+        billingMonth: selectedBillingMonth,
+      };
 
       if (format === 'pdf' && destination === 'preview') {
         if (isInvoice) {
-          await handleShowInvoiceReport(request.costCenter);
+          await handleShowInvoiceReport(requestCostCenter);
         } else {
-          await handleShowDueReport(request.costCenter, isItems ? 'items' : 'summary');
+          await handleShowDueReport(requestCostCenter, isItems ? 'items' : 'summary');
         }
         closeReportDeliveryOptions();
         return;
       }
 
       if (isInvoice) {
-        const { reportCostCenter, invoiceView } = await fetchInvoiceReportPayload(request.costCenter);
+        const { reportCostCenter, invoiceView } = await fetchInvoiceReportPayload(requestCostCenter);
         const logoUrl =
           typeof window !== 'undefined'
             ? `${window.location.origin}/soltrack_logo.png`
@@ -4395,15 +4414,19 @@ export default function ClientCostCentersPage() {
         {/* Header */}
         <div className="bg-white border-gray-200 border-b">
           <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center">
-                <Button variant="outline" onClick={() => router.push('/protected/accounts?section=clients')} className="mr-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <Button
+                variant="outline"
+                onClick={() => router.push('/protected/accounts?section=clients')}
+                className="shrink-0"
+              >
                   <ArrowLeft className="mr-2 w-4 h-4" />
                   Back to Clients
                 </Button>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="font-semibold text-gray-900 text-2xl leading-tight">Client Cost Centers</h1>
                     {(clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api') && (
                       <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
                         Payments Table Focus
@@ -4415,35 +4438,17 @@ export default function ClientCostCentersPage() {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
+                  <p className="truncate text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
                   {clientData?.searchDetails && (
-                    <p className="mt-1 text-gray-400 text-xs">
-                      Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
+                    <p className="mt-1 text-gray-400 text-xs break-words">
+                      Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers Ã¢â‚¬Â¢ 
                       Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
                     </p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => handleDownloadStatement('summary')}
-                  size="sm"
-                  variant="outline"
-                  disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-                >
-                  {isGeneratingStatement ? 'Preparing...' : 'Client Statement'}
-                </Button>
-                <Button
-                  onClick={() => handleDownloadStatement('items')}
-                  size="sm"
-                  variant="outline"
-                  disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-                >
-                  {isGeneratingStatement ? 'Preparing...' : 'Client All'}
-                </Button>
-              </div>
             </div>
-          </div>
+        </div>
         </div>
 
         <div className="mx-auto p-6 max-w-7xl container">
@@ -4468,15 +4473,19 @@ export default function ClientCostCentersPage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-gray-200 border-b">
         <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Button variant="outline" onClick={() => router.push('/protected/accounts?section=clients')} className="mr-4">
+          <div className="flex items-start gap-3 py-3">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/protected/accounts?section=clients')}
+                className="shrink-0"
+              >
                 <ArrowLeft className="mr-2 w-4 h-4" />
                 Back to Clients
               </Button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="font-semibold text-gray-900 text-xl">Client Cost Centers</h1>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-semibold text-gray-900 text-xl leading-tight">Client Cost Centers</h1>
                   {(clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api') && (
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
                       Payments Table Focus
@@ -4488,132 +4497,21 @@ export default function ClientCostCentersPage() {
                     </Badge>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
-                <p className="mt-1 text-gray-400 text-xs">
-                  Current billing month: {displayBillingMonth}
-                </p>
+                <p className="truncate text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
+                <p className="mt-1 text-gray-400 text-xs break-words">Current billing month: {displayBillingMonth}</p>
                 {clientData?.searchDetails && (
-                  <p className="mt-1 text-gray-400 text-xs">
-                    Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers • 
+                  <p className="mt-1 text-gray-400 text-xs break-words leading-relaxed">
+                    Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers {' | '}
                     Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
                   </p>
                 )}
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={() => handleDownloadStatement('summary')}
-                size="sm"
-                variant="outline"
-                disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-              >
-                {isGeneratingStatement ? 'Preparing...' : 'Client Statement'}
-              </Button>
-              <Button
-                onClick={() => handleDownloadStatement('items')}
-                size="sm"
-                variant="outline"
-                disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-              >
-                {isGeneratingStatement ? 'Preparing...' : 'Client All'}
-              </Button>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto p-6 max-w-7xl container">
-        <div className="left-0 z-30 fixed top-32 flex items-start">
-          <button
-            type="button"
-            onClick={() => setShowVehicleSearchDrawer((prev) => !prev)}
-            className="flex items-center gap-2 rounded-r-xl border border-slate-800 bg-slate-900 px-4 py-4 text-white shadow-lg transition hover:bg-slate-800"
-            aria-expanded={showVehicleSearchDrawer}
-            aria-controls="client-cost-center-search-drawer"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-black text-white">
-              <Search className="h-5 w-5" />
-            </div>
-            <span className="font-semibold text-lg">Vehicle Search</span>
-            {showVehicleSearchDrawer ? (
-              <ChevronLeft className="h-5 w-5" />
-            ) : (
-              <ChevronRight className="h-5 w-5" />
-            )}
-          </button>
-
-          {showVehicleSearchDrawer && (
-            <Card
-              id="client-cost-center-search-drawer"
-              className="ml-3 max-h-[70vh] w-[360px] overflow-hidden border-slate-200 bg-white/95 shadow-2xl backdrop-blur"
-            >
-              <CardContent className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-900 text-sm">
-                      Vehicle Search
-                    </p>
-                    <p className="text-slate-500 text-xs">
-                      Search cost centers by company, account number, stock code, or description.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowVehicleSearchDrawer(false)}
-                    className="h-8 px-2 text-slate-500 hover:text-slate-800"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="flex items-center gap-3">
-                    <Search className="w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Search cost centers by company name, account number, stock code, or description..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="flex-1 border-gray-300 bg-white focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Showing</span>
-                    <span className="font-semibold text-slate-900">
-                      {filteredCostCenters.length} / {costCentersWithPayments.length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {filteredCostCenters.slice(0, 8).map((costCenter) => (
-                    <div
-                      key={costCenter.accountNumber}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2"
-                    >
-                      <p className="font-medium text-slate-900 text-sm">
-                        {costCenter.accountName || costCenter.company || costCenter.accountNumber}
-                      </p>
-                      <p className="text-slate-500 text-xs">
-                        {costCenter.accountNumber} • {formatCurrency(getOutstandingAmount(costCenter))}
-                      </p>
-                    </div>
-                  ))}
-                  {filteredCostCenters.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-slate-500 text-sm">
-                      No matching cost centers found.
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
         {/* Summary Cards */}
         <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 mb-8">
           <Card className="bg-white shadow-lg hover:shadow-xl border-2 border-red-100 transition-all duration-200">
@@ -4777,42 +4675,6 @@ export default function ClientCostCentersPage() {
                   >
                     <CreditCard className="mr-2 w-4 h-4" />
                     Pay All
-                  </Button>
-                  <Button
-                    onClick={() => handleDownloadStatement('summary')}
-                    size="sm"
-                    disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-                    className="bg-slate-700 hover:bg-slate-800 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingStatement ? (
-                      <>
-                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 w-4 h-4" />
-                        Client Statement
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleDownloadStatement('items')}
-                    size="sm"
-                    disabled={isGeneratingStatement || costCentersWithPayments.length === 0}
-                    className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingStatement ? (
-                      <>
-                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
-                        Preparing...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 w-4 h-4" />
-                        Client All
-                      </>
-                    )}
                   </Button>
                   <Button
                     onClick={() => handleBulkInvoice()}
@@ -5059,7 +4921,7 @@ export default function ClientCostCentersPage() {
                       <span className="font-semibold">21st of each month</span>
                     </div>
                     <div className="mt-2 font-medium text-blue-700 text-center">
-                      💡 After 21st, unpaid amounts are added to overdue
+                      Ã°Å¸â€™Â¡ After 21st, unpaid amounts are added to overdue
                     </div>
                   </div>
                 </div>
@@ -5653,6 +5515,27 @@ export default function ClientCostCentersPage() {
               </div>
             </div>
 
+            {reportDeliveryModal.request?.type !== 'invoice' && (
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Statement month</label>
+                <Input
+                  type="month"
+                  value={formatBillingMonthInput(reportDeliveryModal.selectedBillingMonth)}
+                  onChange={(event) =>
+                    setReportDeliveryModal((prev) => ({
+                      ...prev,
+                      selectedBillingMonth: normalizeBillingMonthValue(event.target.value),
+                    }))
+                  }
+                  disabled={reportDeliveryModal.loading}
+                  max={formatBillingMonthInput(currentBillingMonthKey)}
+                />
+                <p className="text-slate-500 text-xs">
+                  Pick the month you want the statement to reflect. The statement will fetch the values for that billing month.
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Button
                 onClick={() => handleReportDelivery('pdf', 'preview')}
@@ -5667,20 +5550,6 @@ export default function ClientCostCentersPage() {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 Download Excel
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleReportDelivery('pdf', 'email')}
-                disabled={reportDeliveryModal.loading}
-              >
-                Email PDF
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleReportDelivery('excel', 'email')}
-                disabled={reportDeliveryModal.loading}
-              >
-                Email Excel
               </Button>
             </div>
           </div>

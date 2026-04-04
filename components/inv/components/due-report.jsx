@@ -819,7 +819,7 @@ export function buildStatementView({
       totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
     })),
     totals: {
-      currentInvoice: formatCurrency(currentInvoiceTotal),
+      currentInvoice: formatCurrency(totalInvoiced),
       paymentsReceived: formatCurrency(statementPaidAmount),
       totalInvoiced: formatCurrency(totalsFromRows.totalInvoiced),
       paid: formatCurrency(totalsFromRows.paid),
@@ -891,3 +891,4 @@ export default function DueReportComponent({
     </div>
   );
 }
+
