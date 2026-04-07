@@ -299,17 +299,34 @@ export async function GET(request: NextRequest) {
       toNumeric(agingSource?.overdue_60_days) +
       toNumeric(agingSource?.overdue_90_days) +
       toNumeric(agingSource?.overdue_120_plus_days);
-    const mirroredOutstanding = Number(
-      agingSource?.outstanding_balance ??
-        (mirroredCurrentDue + overdue.overdue30Days + overdue.overdue60Days + overdue.overdue90Days + overdue.overdue91PlusDays),
-    );
+    const priorAgingRow = priorAgingRowsList[0] as Record<string, unknown> | undefined;
+    const normalizedPriorAging = priorAgingRow ? normalizeAgingBuckets(priorAgingRow) : null;
+    const priorOutstandingTotal = normalizedPriorAging
+      ? normalizedPriorAging.current_due +
+        normalizedPriorAging.overdue_30_days +
+        normalizedPriorAging.overdue_60_days +
+        normalizedPriorAging.overdue_90_days +
+        normalizedPriorAging.overdue_120_plus_days
+      : 0;
     const shouldRollForwardPriorAging =
       currentRowOverdueTotal <= 0.01 &&
-      mirroredOutstanding > mirroredCurrentDue + 0.01 &&
-      priorAgingRowsList.length > 0;
+      priorAgingRowsList.length > 0 &&
+      priorOutstandingTotal > 0.01;
     const reconstructedAging = shouldRollForwardPriorAging
-      ? rollForwardPriorAging(priorAgingRowsList[0] as Record<string, unknown>)
+      ? rollForwardPriorAging(priorAgingRow || null)
       : null;
+    const reconstructedOutstanding = reconstructedAging
+      ? mirroredCurrentDue +
+        toNumeric(reconstructedAging.overdue_30_days) +
+        toNumeric(reconstructedAging.overdue_60_days) +
+        toNumeric(reconstructedAging.overdue_90_days) +
+        toNumeric(reconstructedAging.overdue_120_plus_days)
+      : null;
+    const mirroredOutstanding = Number(
+      reconstructedOutstanding ??
+        agingSource?.outstanding_balance ??
+        (mirroredCurrentDue + overdue.overdue30Days + overdue.overdue60Days + overdue.overdue90Days + overdue.overdue91PlusDays),
+    );
     const mirroredOverdue30 = Number(
       reconstructedAging?.overdue_30_days ?? agingSource?.overdue_30_days ?? overdue.overdue30Days ?? 0,
     );
