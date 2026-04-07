@@ -13,7 +13,28 @@ export async function PUT(request) {
     }
 
     const supabase = await createClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     const { id, unique_id, ...updateData } = vehicleData;
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'amount_locked')) {
+      if (authError || !user) {
+        return NextResponse.json(
+          { error: 'Unauthorized', details: 'You must be signed in to lock an amount' },
+          { status: 401 }
+        );
+      }
+
+      if (updateData.amount_locked) {
+        updateData.amount_locked_by = user.id;
+        updateData.amount_locked_at = new Date().toISOString();
+      } else {
+        updateData.amount_locked_by = null;
+        updateData.amount_locked_at = null;
+      }
+    }
 
     // Allow UI to submit cost_code; map it to the vehicles_duplicate field new_account_number.
     if (Object.prototype.hasOwnProperty.call(updateData, 'cost_code')) {
@@ -102,19 +123,22 @@ export async function PUT(request) {
       matchedVehicles = vehiclesByIdentifier || [];
     }
 
+    const mirroredUpdateData = {
+      ...updateData,
+      unique_id: updatedVehicle?.unique_id ?? unique_id ?? null,
+      new_account_number: updatedVehicle?.new_account_number ?? updateData?.new_account_number ?? null,
+      account_number: updatedVehicle?.account_number ?? updateData?.account_number ?? null,
+      company: updatedVehicle?.company ?? updateData?.company ?? null,
+      reg: updatedVehicle?.reg ?? updateData?.reg ?? null,
+      fleet_number: updatedVehicle?.fleet_number ?? updateData?.fleet_number ?? null,
+    };
+
     if (matchedVehicles.length > 0) {
       const vehicleIds = matchedVehicles
         .map((vehicle) => vehicle.id)
         .filter((vehicleId) => vehicleId !== null && vehicleId !== undefined);
 
       if (vehicleIds.length > 0) {
-        const mirroredUpdateData = {
-          ...updateData,
-          new_account_number: updatedVehicle?.new_account_number ?? updateData?.new_account_number,
-          account_number: updatedVehicle?.account_number ?? updateData?.account_number,
-          company: updatedVehicle?.company ?? updateData?.company,
-        };
-
         const { error: vehiclesUpdateError } = await supabase
           .from('vehicles')
           .update(mirroredUpdateData)
@@ -127,6 +151,26 @@ export async function PUT(request) {
             { status: 500 }
           );
         }
+      }
+    } else {
+      const insertPayload = Object.fromEntries(
+        Object.entries(updatedVehicle || {}).filter(([, value]) => value !== undefined)
+      );
+
+      if (!insertPayload.account_number && insertPayload.new_account_number) {
+        insertPayload.account_number = insertPayload.new_account_number;
+      }
+
+      const { error: vehiclesInsertError } = await supabase
+        .from('vehicles')
+        .insert(insertPayload);
+
+      if (vehiclesInsertError) {
+        console.error('Error inserting missing vehicle into vehicles table:', vehiclesInsertError);
+        return NextResponse.json(
+          { error: 'Failed to mirror vehicle insert', details: vehiclesInsertError.message },
+          { status: 500 }
+        );
       }
     }
 

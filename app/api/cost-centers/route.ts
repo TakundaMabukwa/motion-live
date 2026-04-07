@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+﻿import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 function buildClientPrefix(companyName = "") {
@@ -16,6 +16,49 @@ function extractMatchingCodes(allCodes = "", prefix = "") {
     .split(",")
     .map((code) => code.trim().toUpperCase())
     .filter((code) => code.startsWith(`${prefix}-`));
+}
+
+async function attachLockedByEmails(supabase, rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+
+  const userIds = [
+    ...new Set(
+      rows
+        .map((row) => row?.total_amount_locked_by)
+        .filter((value) => typeof value === "string" && value.trim().length > 0),
+    ),
+  ];
+
+  if (userIds.length === 0) {
+    return rows.map((row) => ({
+      ...row,
+      total_amount_locked_by_email: null,
+    }));
+  }
+
+  const { data: userRows, error } = await supabase
+    .from("users")
+    .select("id, email")
+    .in("id", userIds);
+
+  if (error) {
+    console.error("Error fetching lock owner emails:", error);
+    return rows.map((row) => ({
+      ...row,
+      total_amount_locked_by_email: null,
+    }));
+  }
+
+  const emailMap = Object.fromEntries(
+    (userRows || []).map((user) => [user.id, user.email || null]),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    total_amount_locked_by_email: row?.total_amount_locked_by
+      ? emailMap[row.total_amount_locked_by] || null
+      : null,
+  }));
 }
 
 export async function GET(request) {
@@ -37,7 +80,7 @@ export async function GET(request) {
     if (all === "1") {
       const { data, error } = await supabase
         .from("cost_centers")
-        .select("id, created_at, company, cost_code, validated")
+        .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
         .order("cost_code", { ascending: true });
 
       if (error) {
@@ -48,7 +91,7 @@ export async function GET(request) {
         );
       }
 
-      return NextResponse.json(data || []);
+      return NextResponse.json(await attachLockedByEmails(supabase, data || []));
     }
 
     // Prefix mode: fetch all cost centers for a client prefix like EDGE-
@@ -60,7 +103,7 @@ export async function GET(request) {
 
       const { data, error } = await supabase
         .from("cost_centers")
-        .select("id, created_at, company, cost_code, validated")
+        .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
         .ilike("cost_code", `${cleanPrefix}-%`)
         .order("cost_code", { ascending: true });
 
@@ -72,7 +115,7 @@ export async function GET(request) {
         );
       }
 
-      return NextResponse.json(data || []);
+      return NextResponse.json(await attachLockedByEmails(supabase, data || []));
     }
 
     // Parse comma-separated account numbers
@@ -85,7 +128,7 @@ export async function GET(request) {
     // Fetch from cost_centers table where cost_code matches any account number
     const { data, error } = await supabase
       .from("cost_centers")
-      .select("id, created_at, company, cost_code, validated")
+      .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
       .in("cost_code", accountArray)
       .order("cost_code", { ascending: true });
 
@@ -107,13 +150,19 @@ export async function GET(request) {
         // Try to fetch validated status from cost_centers table
         const { data: ccData } = await supabase
           .from("cost_centers")
-          .select("cost_code, validated")
+          .select("cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
           .in("cost_code", uniqueCostCodes);
 
         const validatedMap = {};
         if (ccData) {
           ccData.forEach((cc) => {
-            validatedMap[cc.cost_code] = cc.validated || false;
+            validatedMap[cc.cost_code] = {
+              validated: cc.validated || false,
+              total_amount_locked: cc.total_amount_locked || false,
+              total_amount_locked_value: cc.total_amount_locked_value || null,
+              total_amount_locked_by: cc.total_amount_locked_by || null,
+              total_amount_locked_at: cc.total_amount_locked_at || null,
+            };
           });
         }
 
@@ -122,10 +171,14 @@ export async function GET(request) {
           company: "",
           id: null,
           created_at: null,
-          validated: validatedMap[code] || false,
+          validated: validatedMap[code]?.validated || false,
+          total_amount_locked: validatedMap[code]?.total_amount_locked || false,
+          total_amount_locked_value: validatedMap[code]?.total_amount_locked_value || null,
+          total_amount_locked_by: validatedMap[code]?.total_amount_locked_by || null,
+          total_amount_locked_at: validatedMap[code]?.total_amount_locked_at || null,
         }));
         console.log("Cost codes from customers_grouped:", costCodes);
-        return NextResponse.json(costCodes);
+        return NextResponse.json(await attachLockedByEmails(supabase, costCodes));
       }
     }
 
@@ -137,7 +190,7 @@ export async function GET(request) {
       );
     }
 
-    return NextResponse.json(data || []);
+    return NextResponse.json(await attachLockedByEmails(supabase, data || []));
   } catch (e) {
     return NextResponse.json(
       { error: "Unexpected error", details: e.message },
@@ -281,7 +334,7 @@ export async function POST(request) {
           validated: false,
         },
       ])
-      .select("id, created_at, company, cost_code, validated")
+      .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
       .single();
 
     if (insertError) {
@@ -326,3 +379,4 @@ export async function POST(request) {
     );
   }
 }
+

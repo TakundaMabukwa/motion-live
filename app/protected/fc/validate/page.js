@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -165,9 +165,30 @@ function ValidateCustomerContent() {
   };
 
   const handleContinue = () => {
-    if (!customerGroup) return;
-    const accountNumbers = customerGroup.all_new_account_numbers;
-    router.push(`/protected/fc/validate/cost-centers/${encodeURIComponent(accountNumbers)}`);
+    const rawAccountNumbers = [
+      customerGroup?.all_new_account_numbers,
+      customerData?.all_new_account_numbers,
+      searchParams?.get('account'),
+      customerData?.new_account_number,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+
+    const normalizedAccountNumbers = Array.from(
+      new Set(
+        rawAccountNumbers
+          .split(',')
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+
+    if (normalizedAccountNumbers.length === 0) {
+      toast.error('No cost centers found for this customer yet');
+      return;
+    }
+
+    router.push(
+      `/protected/fc/validate/cost-centers/${encodeURIComponent(normalizedAccountNumbers.join(','))}`,
+    );
   };
 
   if (loading) {
@@ -200,10 +221,16 @@ function ValidateCustomerContent() {
 
   return (
     <div className="p-6 space-y-6">
-      <DashboardHeader 
-        title={isInitialDataEntry ? "Customer Data Collection" : "Customer Data Validation"}
-        subtitle={customerGroup ? (customerGroup.legal_names || customerGroup.company_group) : 'Loading customer information...'}
-      />
+      <div className="flex items-start justify-between gap-4">
+        <DashboardHeader 
+          title={isInitialDataEntry ? "Customer Data Collection" : "Customer Data Validation"}
+          subtitle={customerGroup ? (customerGroup.legal_names || customerGroup.company_group) : 'Loading customer information...'}
+        />
+        <Button variant="outline" onClick={() => router.back()} className="shrink-0">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+      </div>
 
       {/* Validation Status Card */}
       <Card>
@@ -434,12 +461,7 @@ function ValidateCustomerContent() {
         </Card>
       </form>
       {/* Action Footer */}
-      <div className="flex items-center justify-between pt-6 border-t">
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        
+      <div className="flex items-center justify-end pt-6 border-t">
         <div className="flex gap-3">
           <Button
             variant="outline"
@@ -468,3 +490,4 @@ export default function ValidateCustomerPage() {
     </Suspense>
   );
 }
+

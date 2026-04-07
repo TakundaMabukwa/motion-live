@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getOperationalBillingMonthKey } from '@/lib/server/account-invoice-payments';
 
 export const dynamic = 'force-dynamic';
+
+const getBillingInvoiceDate = (billingMonth: unknown) => {
+  if (!billingMonth) {
+    return new Date().toISOString();
+  }
+
+  const normalized = String(billingMonth).slice(0, 7) + '-01T00:00:00';
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay).toISOString();
+};
 
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
@@ -100,9 +119,7 @@ export async function GET(request: NextRequest) {
     }
 
     const origin = new URL(request.url).origin;
-    const billingMonth = new Date();
-    billingMonth.setDate(1);
-    const billingMonthKey = billingMonth.toISOString().slice(0, 10);
+    const billingMonthKey = getOperationalBillingMonthKey();
     const invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }> = [];
     const costCenterByAccount = new Map<string, Record<string, unknown>>();
 
@@ -156,7 +173,7 @@ export async function GET(request: NextRequest) {
         const costCenter = costCenterByAccount.get(accountNumber);
 
         const draftResponse = await fetch(
-          `${origin}/api/vehicles/invoice?accountNumber=${encodeURIComponent(accountNumber)}`,
+          `${origin}/api/vehicles/invoice?accountNumber=${encodeURIComponent(accountNumber)}&billingMonth=${encodeURIComponent(billingMonthKey)}`,
           {
             headers,
             cache: 'no-store',
@@ -190,7 +207,7 @@ export async function GET(request: NextRequest) {
               ...existingInvoice,
               company_name: fallbackCompanyName,
               invoice_number: existingInvoice?.invoice_number || '',
-              invoice_date: existingInvoice?.invoice_date || new Date().toISOString(),
+              invoice_date: existingInvoice?.invoice_date || getBillingInvoiceDate(existingInvoice?.billing_month || billingMonthKey),
               billing_month: existingInvoice?.billing_month || billingMonthKey,
               client_address: fallbackClientAddress,
               customer_vat_number: fallbackCustomerVatNumber,
@@ -240,7 +257,7 @@ export async function GET(request: NextRequest) {
               ...existingInvoice,
               company_name: fallbackCompanyName,
               invoice_number: existingInvoice?.invoice_number || '',
-              invoice_date: existingInvoice?.invoice_date || new Date().toISOString(),
+              invoice_date: existingInvoice?.invoice_date || getBillingInvoiceDate(existingInvoice?.billing_month || billingMonthKey),
               billing_month: existingInvoice?.billing_month || billingMonthKey,
               client_address: fallbackClientAddress,
               customer_vat_number: fallbackCustomerVatNumber,
@@ -315,7 +332,7 @@ export async function GET(request: NextRequest) {
               costCenter?.vat_number ||
               draftInvoiceData?.customer_vat_number ||
               null,
-            invoiceDate: draftInvoiceData?.invoice_date || new Date().toISOString(),
+            invoiceDate: draftInvoiceData?.invoice_date || getBillingInvoiceDate(draftInvoiceData?.billing_month || billingMonthKey),
             subtotal: draftInvoiceData?.subtotal || 0,
             vatAmount: draftInvoiceData?.vat_amount || 0,
             discountAmount: 0,

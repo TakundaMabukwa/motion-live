@@ -50,7 +50,11 @@ const formatTotalAmount = (amount) => `R ${formatAmount(amount)}`;
 
 const formatDate = (value) => {
   if (!value) {
-    return new Date().toLocaleDateString("en-GB");
+    return new Date().toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
   }
 
   const parsed = new Date(value);
@@ -58,7 +62,29 @@ const formatDate = (value) => {
     return value;
   }
 
-  return parsed.toLocaleDateString("en-GB");
+  return parsed.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const getBillingInvoiceDate = (billingMonth) => {
+  if (!billingMonth) {
+    return new Date().toISOString();
+  }
+
+  const normalized = `${String(billingMonth).slice(0, 7)}-01T00:00:00`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay).toISOString();
 };
 
 const getRealInvoiceNumber = (...values) => {
@@ -875,7 +901,7 @@ export function buildInvoiceView({
     clientAddress,
     companyRegistrationNumber,
     invoiceNumber,
-    invoiceDate: formatDate(activeInvoiceData?.invoice_date),
+    invoiceDate: formatDate(activeInvoiceData?.invoice_date || getBillingInvoiceDate(activeInvoiceData?.billing_month || costCenter?.billingMonth)),
     accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
     customerVatNumber:
       customerInfo?.vat_number ||
@@ -1258,7 +1284,7 @@ export default function InvoiceReportComponent({
           companyRegistrationNumber: invoiceView.companyRegistrationNumber,
           clientAddress: invoiceView.clientAddress,
           customerVatNumber: invoiceView.customerVatNumber,
-          invoiceDate: new Date().toISOString(),
+          invoiceDate: getBillingInvoiceDate(costCenter.billingMonth || activeInvoiceData?.billing_month),
           subtotal: invoiceView.totals.totalExVat,
           vatAmount: invoiceView.totals.totalVat,
           discountAmount: invoiceView.totals.discount,

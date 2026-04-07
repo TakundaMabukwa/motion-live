@@ -12,6 +12,24 @@ const hasRealInvoiceNumber = (value: unknown) => {
   return Boolean(normalized) && normalized !== "PENDING";
 };
 
+const getBillingInvoiceDate = (billingMonth: unknown) => {
+  if (!billingMonth) {
+    return new Date().toISOString();
+  }
+
+  const normalized = String(billingMonth).slice(0, 7) + '-01T00:00:00';
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay).toISOString();
+};
+
 const syncBulkInvoiceToAccountInvoices = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   {
@@ -46,7 +64,7 @@ const syncBulkInvoiceToAccountInvoices = async (
   }
 
   const existingInvoice = Array.isArray(existingRows) ? existingRows[0] || null : null;
-  const invoiceDate = String(bulkInvoice?.invoice_date || new Date().toISOString());
+  const invoiceDate = String(bulkInvoice?.invoice_date || getBillingInvoiceDate(billingMonth));
   const dueDate = existingInvoice?.due_date || defaultDueDate(invoiceDate);
   const existingPaidAmount = Number(existingInvoice?.paid_amount || 0);
   const financials = buildInvoiceFinancials({
@@ -171,7 +189,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
-    const invoiceDate = body?.invoiceDate || new Date().toISOString();
+    const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
 
     if (!accountNumber) {
       return NextResponse.json(

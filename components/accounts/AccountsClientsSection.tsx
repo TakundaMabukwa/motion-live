@@ -82,10 +82,22 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const formatTotalAmount = (amount: number) => `R ${formatAmount(amount)}`;
 
   const formatDate = (value: unknown) => {
-    if (!value) return new Date().toLocaleDateString('en-GB');
+    if (!value) return new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const date = new Date(String(value));
-    if (Number.isNaN(date.getTime())) return new Date().toLocaleDateString('en-GB');
-    return date.toLocaleDateString('en-GB');
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const getBillingInvoiceDate = (billingMonth: unknown) => {
+    if (!billingMonth) return new Date().toISOString();
+    const normalized = String(billingMonth).slice(0, 7) + '-01T00:00:00';
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+    const year = parsed.getFullYear();
+    const month = parsed.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const invoiceDay = Math.min(30, lastDay);
+    return new Date(year, month, invoiceDay).toISOString();
   };
 
   const buildInvoiceStyles = () => `
@@ -727,7 +739,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                     <div class="invoice-meta-label">TAX INVOICE :</div>
                     <div class="invoice-meta-value">${escapeHtml(invoiceData?.invoice_number || 'PENDING')}</div>
                     <div class="invoice-meta-label">Date:</div>
-                    <div class="invoice-meta-value">${escapeHtml(formatDate(invoiceData?.invoice_date))}</div>
+                    <div class="invoice-meta-value">${escapeHtml(formatDate(invoiceData?.invoice_date || getBillingInvoiceDate(invoiceData?.billing_month)))}</div>
                   </div>
                 </div>
                 <table class="invoice-summary-table">

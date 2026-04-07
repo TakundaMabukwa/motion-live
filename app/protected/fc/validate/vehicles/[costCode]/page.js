@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useState,
@@ -27,6 +27,7 @@ import {
   Trash2,
   Check,
   Search,
+  Lock,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import {
@@ -217,9 +218,9 @@ export default function ValidateVehiclesPage() {
   const [newVehicleData, setNewVehicleData] = useState(initialTotalValues);
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
+  const [lockingCostCenterTotal, setLockingCostCenterTotal] = useState(false);
   const [addItemState, setAddItemState] = useState({});
   const [vehicleSearch, setVehicleSearch] = useState("");
-  const [vehicleSearchPanelOpen, setVehicleSearchPanelOpen] = useState(false);
   const [costCenterOptions, setCostCenterOptions] = useState([]);
   const [targetCostCenterByVehicle, setTargetCostCenterByVehicle] = useState(
     {},
@@ -236,6 +237,9 @@ export default function ValidateVehiclesPage() {
     "unique_id",
     "new_account_number",
     "vehicle_validated",
+    "amount_locked",
+    "amount_locked_by",
+    "amount_locked_at",
   ];
   const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour"];
   const billingFields = [
@@ -333,13 +337,15 @@ export default function ValidateVehiclesPage() {
     });
   }, [vehicles, deferredVehicleSearch]);
 
-  useEffect(() => {
-    if (vehicleSearchPanelOpen) {
-      requestAnimationFrame(() => {
-        searchInputRef.current?.focus();
-      });
-    }
-  }, [vehicleSearchPanelOpen]);
+  const filteredVehiclesGrandTotal = useMemo(
+    () =>
+      filteredVehicles.reduce((sum, vehicle) => {
+        const amount = Number.parseFloat(String(vehicle?.total_rental_sub ?? '').trim());
+        return sum + (Number.isFinite(amount) ? amount : 0);
+      }, 0),
+    [filteredVehicles],
+  );
+
 
   const matchingCostCenters = useMemo(() => {
     const deduped = new Map();
@@ -350,6 +356,12 @@ export default function ValidateVehiclesPage() {
         deduped.set(code, {
           cost_code: code,
           company: option?.company || "",
+          validated: option?.validated || false,
+          total_amount_locked: option?.total_amount_locked || false,
+          total_amount_locked_value: option?.total_amount_locked_value ?? null,
+          total_amount_locked_by: option?.total_amount_locked_by || null,
+          total_amount_locked_by_email: option?.total_amount_locked_by_email || null,
+          total_amount_locked_at: option?.total_amount_locked_at || null,
         });
       }
     }
@@ -393,13 +405,14 @@ export default function ValidateVehiclesPage() {
     return scored.slice(0, 60).map((entry) => entry.item);
   }, [matchingCostCenters, deferredCostCenterSearch]);
 
-  const currentCostCenterName = useMemo(() => {
-    if (!costCode) return "";
-    const matched = matchingCostCenters.find(
-      (item) => item.cost_code === costCode,
+  const currentCostCenter = useMemo(() => {
+    if (!costCode) return null;
+    return (
+      matchingCostCenters.find((item) => item.cost_code === costCode) || null
     );
-    return matched?.company || costCode;
   }, [matchingCostCenters, costCode]);
+
+  const currentCostCenterName = currentCostCenter?.company || costCode || "";
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -773,6 +786,51 @@ export default function ValidateVehiclesPage() {
       toast.error("Failed to update vehicle: " + error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const lockCostCenterTotal = async () => {
+    if (!costCode) {
+      toast.error("No cost center provided");
+      return;
+    }
+
+    if (currentCostCenter?.total_amount_locked) {
+      toast.info("This cost center total is already locked");
+      return;
+    }
+
+    try {
+      setLockingCostCenterTotal(true);
+      const response = await fetch("/api/cost-centers/validate", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cost_code: costCode,
+          validated: Boolean(currentCostCenter?.validated),
+          total_amount_locked: true,
+          total_amount_locked_value: Number(filteredVehiclesGrandTotal.toFixed(2)),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result?.details || result?.error || "Failed to lock total amount",
+        );
+      }
+
+      setCostCenterOptions((prev) =>
+        prev.map((option) =>
+          option.cost_code === costCode ? { ...option, ...result } : option,
+        ),
+      );
+      toast.success("Cost center total locked successfully");
+    } catch (error) {
+      toast.error("Failed to lock total amount: " + error.message);
+    } finally {
+      setLockingCostCenterTotal(false);
     }
   };
 
@@ -1235,62 +1293,39 @@ export default function ValidateVehiclesPage() {
         </Card>
       )}
 
-      <div className="left-0 z-30 fixed top-32 flex items-start">
-        <button
-          type="button"
-          onClick={() => setVehicleSearchPanelOpen((prev) => !prev)}
-          className="flex items-center gap-2 rounded-r-xl border border-slate-800 bg-slate-900 px-4 py-4 text-white shadow-lg transition hover:bg-slate-800"
-          aria-expanded={vehicleSearchPanelOpen}
-          aria-controls="vehicle-search-bookmark-panel"
-        >
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-black text-white">
-            <Search className="h-5 w-5" />
-          </div>
-          <span className="font-semibold text-lg">Vehicle Search</span>
-          {vehicleSearchPanelOpen ? (
-            <ChevronLeft className="h-5 w-5" />
-          ) : (
-            <ChevronRight className="h-5 w-5" />
-          )}
-        </button>
-
-        {vehicleSearchPanelOpen && (
-          <Card
-            id="vehicle-search-bookmark-panel"
-            className="ml-3 w-[360px] border-slate-200 bg-white/95 shadow-2xl backdrop-blur"
-          >
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">
-                    Search by Reg or Fleet Number
-                  </Label>
-                  <Input
-                    id="vehicleSearch"
-                    ref={searchInputRef}
-                    value={vehicleSearch}
-                    onChange={(e) => setVehicleSearch(e.target.value)}
-                    placeholder="Type registration or fleet number..."
-                    className="mt-1 h-9 text-sm"
-                  />
-                </div>
-                <div className="min-w-[90px] pt-5 text-right text-sm text-gray-500">
-                  <div>
-                    <span className="font-semibold text-gray-700">
-                      {filteredVehicles.length}
-                    </span>{" "}
-                    /{" "}
-                    <span className="font-semibold text-gray-700">
-                      {vehicles.length}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-400">showing</div>
-                </div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <Label htmlFor="vehicleSearch" className="text-xs text-gray-500">
+                Search by Reg or Fleet Number
+              </Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  id="vehicleSearch"
+                  value={vehicleSearch}
+                  onChange={(e) => setVehicleSearch(e.target.value)}
+                  placeholder="Type registration or fleet number..."
+                  className="h-10 pl-9 text-sm"
+                />
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            </div>
+            <div className="min-w-[90px] pt-6 text-right text-sm text-gray-500">
+              <div>
+                <span className="font-semibold text-gray-700">
+                  {filteredVehicles.length}
+                </span>{" "}
+                /{" "}
+                <span className="font-semibold text-gray-700">
+                  {vehicles.length}
+                </span>
+              </div>
+              <div className="text-xs text-gray-400">showing</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {vehicles.length === 0 ? (
         <Card>
@@ -1381,14 +1416,6 @@ export default function ValidateVehiclesPage() {
                                       : "No billed items"}
                                   </p>
                                 )}
-                              </div>
-                              <div className="w-[12%] min-w-[120px] text-left">
-                                <Label className="text-xs text-gray-500">
-                                  Total Value
-                                </Label>
-                                <p className="text-lg font-bold mt-1 truncate">
-                                  {formatCurrency(vehicle.total_rental_sub)}
-                                </p>
                               </div>
                             </div>
                           </div>
@@ -1504,8 +1531,71 @@ export default function ValidateVehiclesPage() {
               })()}
             </Collapsible>
           ))}
+          <Card className="border-slate-200 bg-white shadow-sm">
+            <CardContent className="px-6 py-5">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                    Grand Total
+                  </p>
+                  <p className="mt-1 text-3xl font-bold text-slate-900">
+                    {formatCurrency(filteredVehiclesGrandTotal)}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Total total_rental_sub for the currently visible vehicles.
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-3 md:items-end">
+                  {currentCostCenter?.total_amount_locked && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                      <div className="font-semibold">Total locked</div>
+                      <div className="mt-1 text-base font-semibold text-blue-950">
+                        {currentCostCenter?.total_amount_locked_value != null
+                          ? formatCurrency(currentCostCenter.total_amount_locked_value)
+                          : formatCurrency(filteredVehiclesGrandTotal)}
+                      </div>
+                      <div className="mt-2 space-y-1 text-xs text-blue-700">
+                        <div>
+                          <span className="font-semibold">Locked By:</span>{" "}
+                          {currentCostCenter?.total_amount_locked_by_email || currentCostCenter?.total_amount_locked_by || "Current user"}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Locked At:</span>{" "}
+                          {currentCostCenter?.total_amount_locked_at
+                            ? new Date(currentCostCenter.total_amount_locked_at).toLocaleString("en-ZA")
+                            : "Pending"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    onClick={lockCostCenterTotal}
+                    disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
+                    variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
+                    className="min-w-[170px]"
+                  >
+                    {lockingCostCenterTotal ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : currentCostCenter?.total_amount_locked ? (
+                      <Check className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Lock className="mr-2 h-4 w-4" />
+                    )}
+                    {currentCostCenter?.total_amount_locked
+                      ? "Total Locked"
+                      : "Lock Total"}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
   );
 }
+
+
+
+
+
