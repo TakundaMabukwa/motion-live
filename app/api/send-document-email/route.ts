@@ -19,9 +19,10 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const recipientEmail = String(formData.get('recipientEmail') || '').trim();
+    const recipientEmailsRaw = String(formData.get('recipientEmails') || recipientEmail).trim();
     const subject = String(formData.get('subject') || '').trim();
     const html = String(formData.get('html') || '').trim();
-    const senderName = String(formData.get('senderName') || 'Solflo Delivery').trim();
+    const senderName = String(formData.get('senderName') || 'Solflo').trim();
     const attachment = formData.get('attachment');
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,9 +38,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!recipientEmail || !emailPattern.test(recipientEmail)) {
+    const recipientEmails = recipientEmailsRaw
+      .split(/[;,]/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (
+      recipientEmails.length === 0 ||
+      recipientEmails.some((email) => !emailPattern.test(email))
+    ) {
       return NextResponse.json(
-        { error: 'A valid recipientEmail is required' },
+        { error: 'At least one valid recipient email is required' },
         { status: 400 },
       );
     }
@@ -48,12 +57,10 @@ export async function POST(request: NextRequest) {
     const attachmentContent = attachmentBuffer.toString('base64');
 
     const result = await sendEmail(
-      [
-        {
-          id: recipientEmail === user.email ? user.id : `${user.id}:${recipientEmail}`,
-          email: recipientEmail,
-        },
-      ],
+      recipientEmails.map((email) => ({
+        id: email === user.email ? user.id : `${user.id}:${email}`,
+        email,
+      })),
       {
         subject,
         html,
@@ -80,8 +87,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      email: recipientEmail,
-      provider: 'NotificationAPI',
+      email: recipientEmails.join(', '),
+      provider: 'Pingram',
       totalSent: result.totalSent || 0,
     });
   } catch (error) {

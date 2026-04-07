@@ -1,21 +1,23 @@
-import notificationapi from 'notificationapi-node-server-sdk';
+import { Pingram } from 'pingram';
 
-let isInitialized = false;
+let pingramClient: Pingram | null = null;
 
-function ensureInitialized() {
-  const clientId = process.env.NOTIFICATIONAPI_CLIENT_ID;
-  const clientSecret = process.env.NOTIFICATIONAPI_CLIENT_SECRET;
+function getPingramClient() {
+  const apiKey = process.env.PINGRAM_API_KEY;
+  const baseUrl = process.env.PINGRAM_BASE_URL || 'https://api.pingram.io';
 
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'NotificationAPI is not configured. Missing NOTIFICATIONAPI_CLIENT_ID or NOTIFICATIONAPI_CLIENT_SECRET.',
-    );
+  if (!apiKey) {
+    throw new Error('Pingram is not configured. Missing PINGRAM_API_KEY.');
   }
 
-  if (!isInitialized) {
-    notificationapi.init(clientId, clientSecret);
-    isInitialized = true;
+  if (!pingramClient) {
+    pingramClient = new Pingram({
+      apiKey,
+      baseUrl,
+    });
   }
+
+  return pingramClient;
 }
 
 export interface EmailRecipient {
@@ -37,19 +39,19 @@ export interface EmailData {
 
 export async function sendEmail(
   recipients: EmailRecipient[],
-  emailData: EmailData
+  emailData: EmailData,
 ) {
-  ensureInitialized();
-  
+  const pingram = getPingramClient();
+
   try {
     const results = [];
-    
+
     for (const recipient of recipients) {
-      const result = await notificationapi.send({
-        type: 'email_notification',
+      const result = await pingram.send({
+        type: 'accounts',
         to: {
           id: recipient.id,
-          email: recipient.email
+          email: recipient.email,
         },
         email: {
           subject: emailData.subject,
@@ -57,7 +59,7 @@ export async function sendEmail(
           senderName: emailData.senderName || 'Solflo Team',
           senderEmail: emailData.senderEmail || process.env.EMAIL_FROM || 'admin@solflo.co.za',
         },
-        options: emailData.attachments
+        options: emailData.attachments?.length
           ? {
               email: {
                 attachments: emailData.attachments,
@@ -65,28 +67,27 @@ export async function sendEmail(
             }
           : undefined,
       });
-      
+
       results.push({
         recipient: recipient.email,
         success: true,
-        result
+        result,
       });
     }
-    
+
     return {
       success: true,
       results,
-      totalSent: results.length
+      totalSent: results.length,
     };
   } catch (error) {
-    console.error('Error sending email via NotificationAPI:', error);
+    console.error('Error sending email via Pingram:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
-
 export async function sendQuotationEmail(quotationData: {
   quoteNumber: string;
   jobNumber: string;

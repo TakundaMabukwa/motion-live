@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Mail } from "lucide-react";
+import { toast } from "sonner";
 
 const COMPANY_INFO = {
   name: "Soltrack (PTY) LTD",
@@ -49,6 +52,114 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+
+const buildStatementEmailHtml = ({
+  subject,
+  clientName,
+  accountNumber,
+  attachmentName,
+  bodyText,
+}) => `
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>${escapeHtml(subject)}</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 0;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+              <tr>
+                <td style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:28px 32px;color:#ffffff;">
+                  <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;">Solflo</div>
+                  <div style="margin-top:10px;font-size:28px;font-weight:700;line-height:1.2;">Statement Ready</div>
+                  <div style="margin-top:8px;font-size:15px;opacity:0.92;">Your debtor statement PDF is attached and ready to use.</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:28px 32px;">
+                  <div style="font-size:16px;line-height:1.7;color:#111827;white-space:pre-line;">${escapeHtml(bodyText || "Hi,\n\nPlease see attached the statement.\n\nKind regards")}</div>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;border-collapse:collapse;">
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Client</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(clientName || "-")}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Account</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(accountNumber || "-")}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Attachment</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(attachmentName || "-")}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>
+`;
+
+const renderStatementHtmlToPdfBlob = async (html) => {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = "794px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.zIndex = "-1";
+  wrapper.innerHTML = html;
+  document.body.appendChild(wrapper);
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const images = Array.from(wrapper.querySelectorAll("img"));
+    await Promise.all(images.map((image) => new Promise((resolve) => { if (image.complete) { resolve(true); return; } image.onload = () => resolve(true); image.onerror = () => resolve(true); })));
+    const canvas = await html2canvas(wrapper, { scale: 1, useCORS: true, backgroundColor: "#ffffff", width: wrapper.scrollWidth, height: wrapper.scrollHeight, windowWidth: wrapper.scrollWidth, windowHeight: wrapper.scrollHeight });
+    const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4", compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.72);
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+      heightLeft -= pageHeight;
+    }
+    return pdf.output("blob");
+  } finally {
+    wrapper.remove();
+  }
+};
+
+const sendStatementDocumentEmail = async ({ recipientEmail, recipientEmails, subject, html, fileName, blob }) => {
+  const formData = new FormData();
+  formData.append("recipientEmail", recipientEmail || "");
+  formData.append("recipientEmails", recipientEmails || recipientEmail || "");
+  formData.append("subject", subject || "");
+  formData.append("html", html || "");
+  formData.append("senderName", "Solflo");
+  formData.append("attachment", new File([blob], fileName, { type: "application/pdf" }));
+  const response = await fetch("/api/send-document-email", { method: "POST", body: formData });
+  const result = await response.json();
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.error || "Failed to send statement email");
+  }
+  return result;
+};
 
 export const buildStatementStyles = () => `
   :root {
@@ -841,6 +952,8 @@ export default function DueReportComponent({
   bulkInvoice = null,
   showItemBreakdown = false,
 }) {
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
   const statementView = useMemo(
     () =>
       buildStatementView({
@@ -854,19 +967,21 @@ export default function DueReportComponent({
     [bulkInvoice, clientLegalName, costCenter, invoiceHistory, paymentData, paymentHistory],
   );
 
+  const getPrintableHtml = () => `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Debtor Statement - ${escapeHtml(statementView.accountNumber)}</title>
+      </head>
+      <body>${StatementDocument({ statementView, showItemBreakdown })}</body>
+    </html>
+  `;
+
   const printReport = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Debtor Statement - ${escapeHtml(statementView.accountNumber)}</title>
-        </head>
-        <body>${StatementDocument({ statementView, showItemBreakdown })}</body>
-      </html>
-    `);
+    printWindow.document.write(getPrintableHtml());
     printWindow.document.close();
     printWindow.onload = function onLoad() {
       printWindow.print();
@@ -876,10 +991,76 @@ export default function DueReportComponent({
     };
   };
 
+  const emailStatement = async () => {
+    setIsSendingEmail(true);
+
+    try {
+      const defaultRecipient = String(costCenter?.costCenterInfo?.email || costCenter?.email || paymentData?.email || "").trim();
+      const recipientInput = window.prompt(
+        "Enter recipient email address(es), separated by commas:",
+        defaultRecipient,
+      );
+
+      if (recipientInput === null) {
+        return;
+      }
+
+      const recipientEmails = recipientInput
+        .split(/[;,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const allRecipientEmails = Array.from(
+        new Set(
+          [...recipientEmails, defaultRecipient]
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      );
+
+      if (allRecipientEmails.length === 0) {
+        toast.error("Please enter at least one recipient email address");
+        return;
+      }
+
+      const html = getPrintableHtml();
+      const blob = await renderStatementHtmlToPdfBlob(html);
+      const safeAccount = String(statementView.accountNumber || "account").trim().replace(/[^A-Za-z0-9_-]+/g, "_");
+      const fileName = `${safeAccount}_Statement.pdf`;
+      const subject = `Debtor Statement ${statementView.accountNumber || safeAccount}`;
+      const bodyText = `Hi,\n\nPlease see attached the statement for ${statementView.clientName || safeAccount}.\n\nKind regards`;
+
+      await sendStatementDocumentEmail({
+        recipientEmail: allRecipientEmails[0],
+        recipientEmails: allRecipientEmails.join(', '),
+        subject,
+        html: buildStatementEmailHtml({
+          subject,
+          clientName: statementView.clientName,
+          accountNumber: statementView.accountNumber,
+          attachmentName: fileName,
+          bodyText,
+        }),
+        fileName,
+        blob,
+      });
+
+      toast.success(`Statement sent successfully to ${allRecipientEmails.join(", ")}!`);
+    } catch (error) {
+      console.error("Error sending statement email:", error);
+      toast.error(`Failed to send statement email: ${error?.message || "Unknown error"}`);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <div className="statement-page">
       <style>{buildStatementStyles()}</style>
       <div className="statement-actions">
+        <Button onClick={emailStatement} disabled={isSendingEmail} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Mail className="mr-2 w-4 h-4" />
+          {isSendingEmail ? "Sending..." : "Email Statement"}
+        </Button>
         <Button onClick={printReport} className="bg-red-600 hover:bg-red-700 text-white">
           <Download className="mr-2 w-4 h-4" />
           Print Statement

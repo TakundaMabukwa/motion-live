@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { Button } from "@/components/ui/button";
 import { Download, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -96,6 +98,66 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const buildInvoiceEmailHtml = ({
+  subject,
+  clientName,
+  accountNumber,
+  attachmentName,
+  bodyText,
+}) => `
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>${escapeHtml(subject)}</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f4f6;padding:24px 0;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:720px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,0.08);">
+              <tr>
+                <td style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:28px 32px;color:#ffffff;">
+                  <div style="font-size:13px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.9;">Solflo</div>
+                  <div style="margin-top:10px;font-size:28px;font-weight:700;line-height:1.2;">Invoice Ready</div>
+                  <div style="margin-top:8px;font-size:15px;opacity:0.92;">Your invoice PDF is attached and ready to use.</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:28px 32px;">
+                  <div style="font-size:16px;line-height:1.7;color:#111827;white-space:pre-line;">${escapeHtml(bodyText || "Hi,\n\nPlease find the attached invoice.\n\nKind regards")}</div>
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;border-collapse:collapse;">
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Client</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(clientName || "-")}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Account</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(accountNumber || "-")}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Attachment</td>
+                      <td style="padding:12px 0;border-top:1px solid #e5e7eb;font-size:15px;color:#111827;" align="right">${escapeHtml(attachmentName || "-")}</td>
+                    </tr>
+                  </table>
+                  <div style="margin-top:24px;padding:18px 20px;border:1px solid #dcfce7;border-radius:14px;background:#f0fdf4;color:#166534;font-size:14px;line-height:1.6;">
+                    The invoice PDF is attached to this email. Open the attachment to view, save, or forward it.
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;line-height:1.6;">
+                  Solflo automated invoice delivery
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>
+`;
 const buildInvoiceStyles = () => `
   :root {
     --invoice-text: #111111;
@@ -432,6 +494,97 @@ const buildInvoiceStyles = () => `
   }
 `;
 
+const renderHtmlToPdfBlob = async (html) => {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-10000px";
+  wrapper.style.top = "0";
+  wrapper.style.width = "794px";
+  wrapper.style.background = "#ffffff";
+  wrapper.style.zIndex = "-1";
+  wrapper.innerHTML = html;
+  document.body.appendChild(wrapper);
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const images = Array.from(wrapper.querySelectorAll("img"));
+    await Promise.all(
+      images.map(
+        (image) =>
+          new Promise((resolve) => {
+            if (image.complete) {
+              resolve(true);
+              return;
+            }
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(true);
+          }),
+      ),
+    );
+
+    const canvas = await html2canvas(wrapper, {
+      scale: 1,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      width: wrapper.scrollWidth,
+      height: wrapper.scrollHeight,
+      windowWidth: wrapper.scrollWidth,
+      windowHeight: wrapper.scrollHeight,
+    });
+
+    const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4", compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.72);
+
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
+      heightLeft -= pageHeight;
+    }
+
+    return pdf.output("blob");
+  } finally {
+    wrapper.remove();
+  }
+};
+
+const sendDocumentEmail = async ({ recipientEmail, recipientEmails, subject, html, fileName, blob, contentType }) => {
+  const formData = new FormData();
+  formData.append("recipientEmail", recipientEmail || "");
+  formData.append("recipientEmails", recipientEmails || recipientEmail || "");
+  formData.append("subject", subject || "");
+  formData.append("html", html || "");
+  formData.append("senderName", "Solflo");
+  formData.append(
+    "attachment",
+    new File([blob], fileName, {
+      type: contentType || "application/octet-stream",
+    }),
+  );
+
+  const response = await fetch("/api/send-document-email", {
+    method: "POST",
+    body: formData,
+  });
+
+  const result = await response.json();
+  if (!response.ok || !result?.success) {
+    throw new Error(result?.error || "Failed to send invoice email");
+  }
+
+  return result;
+};
 function InvoiceDocument({ logoUrl, invoiceView }) {
   const {
     clientName,
@@ -1214,61 +1367,65 @@ export default function InvoiceReportComponent({
         }
       }
 
-      if (!customer?.email) {
-        toast.error("No email address found for this customer");
+      const defaultRecipient = String(customer?.email || "").trim();
+      const recipientInput = window.prompt(
+        "Enter recipient email address(es), separated by commas:",
+        defaultRecipient,
+      );
+
+      if (recipientInput === null) {
         return;
       }
 
-      const invoiceEmailData = {
-        invoiceNumber: invoiceView.invoiceNumber,
-        clientName: invoiceView.clientName,
-        clientEmail: customer.email,
-        clientPhone: customer.cell_no || customer.switchboard || "",
-        clientAddress: [
-          customer.physical_address_1,
-          customer.physical_address_2,
-          customer.physical_address_3,
-          customer.physical_area,
-          customer.physical_province,
-          customer.physical_code,
-        ]
-          .filter(Boolean)
-          .join(", "),
-        invoiceDate: invoiceView.invoiceDate,
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        totalAmount: invoiceView.totals.totalInclVat,
-        vatAmount: invoiceView.totals.totalVat,
-        subtotal: invoiceView.totals.totalExVat,
-        items:
-          invoiceView.rows.map((row) => ({
-            description: row.description,
-            quantity: row.units,
-            unitPrice: parseFormattedAmount(row.unitPrice),
-            total: parseFormattedAmount(row.totalIncl),
-            vehicleRegistration: row.previousReg,
-          })) || [],
-        paymentTerms: "30 days",
-        notes: invoiceView.notes,
-      };
+      const recipientEmails = recipientInput
+        .split(/[;,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      const allRecipientEmails = Array.from(
+        new Set(
+          [...recipientEmails, String(customer?.email || "").trim()]
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      );
 
-      const emailResponse = await fetch("/api/send-invoice-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(invoiceEmailData),
-      });
-
-      const emailResult = await emailResponse.json();
-
-      if (!emailResult.success) {
-        throw new Error(emailResult.error || "Failed to send invoice email");
+      if (allRecipientEmails.length === 0) {
+        toast.error("Please enter at least one recipient email address");
+        return;
       }
 
-      toast.success(`Invoice sent successfully to ${customer.email}!`);
+      const printableHtml = getPrintableHtml();
+      const blob = await renderHtmlToPdfBlob(printableHtml);
+      const safeAccount = String(costCenter.accountNumber || "account")
+        .trim()
+        .replace(/[^A-Za-z0-9_-]+/g, "_");
+      const safeInvoiceNumber = String(invoiceView.invoiceNumber || "PENDING")
+        .trim()
+        .replace(/[^A-Za-z0-9_-]+/g, "_");
+      const fileName = `${safeAccount}_${safeInvoiceNumber}_Invoice.pdf`;
+      const subject = `Invoice ${invoiceView.invoiceNumber || safeAccount}`;
+      const bodyText = `Hi,\n\nPlease see attached the invoice for ${invoiceView.clientName || safeAccount}.\n\nKind regards`;
+
+      await sendDocumentEmail({
+        recipientEmail: allRecipientEmails[0],
+        recipientEmails: allRecipientEmails.join(', '),
+        subject,
+        html: buildInvoiceEmailHtml({
+          subject,
+          clientName: invoiceView.clientName,
+          accountNumber: invoiceView.accountNumber,
+          attachmentName: fileName,
+          bodyText,
+        }),
+        fileName,
+        blob,
+        contentType: "application/pdf",
+      });
+
+      toast.success(`Invoice sent successfully to ${allRecipientEmails.join(", ")}!`);
     } catch (error) {
       console.error("Error sending invoice email:", error);
-      toast.error(`Failed to send invoice email: ${error.message}`);
+      toast.error(`Failed to send invoice email: ${error?.message || "Unknown error"}`);
     } finally {
       setIsSendingEmail(false);
     }
