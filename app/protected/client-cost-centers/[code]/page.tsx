@@ -43,6 +43,48 @@ const normalizeBillingMonthValue = (value) => {
   return /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
 };
 
+const normalizeStoredBulkInvoiceForPreview = (invoice) => {
+  if (!invoice) return null;
+  const lineItems = Array.isArray(invoice?.line_items) ? invoice.line_items : [];
+  return {
+    ...invoice,
+    invoice_items: lineItems,
+    invoiceItems: lineItems,
+  };
+};
+
+const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice) => {
+  const normalizedStored = normalizeStoredBulkInvoiceForPreview(storedBulkInvoice);
+  if (!normalizedStored) {
+    return liveInvoiceData || null;
+  }
+
+  if (normalizedStored.invoice_locked) {
+    return {
+      ...(liveInvoiceData || {}),
+      ...normalizedStored,
+      invoice_items: normalizedStored.invoice_items,
+      invoiceItems: normalizedStored.invoiceItems,
+    };
+  }
+
+  return {
+    ...(liveInvoiceData || {}),
+    id: normalizedStored.id || liveInvoiceData?.id,
+    invoice_number: normalizedStored.invoice_number || liveInvoiceData?.invoice_number,
+    invoice_date: normalizedStored.invoice_date || liveInvoiceData?.invoice_date,
+    billing_month: normalizedStored.billing_month || liveInvoiceData?.billing_month,
+    notes: normalizedStored.notes ?? liveInvoiceData?.notes ?? liveInvoiceData?.note ?? null,
+    customer_vat_number: normalizedStored.customer_vat_number || liveInvoiceData?.customer_vat_number || null,
+    company_registration_number: normalizedStored.company_registration_number || liveInvoiceData?.company_registration_number || null,
+    client_address: normalizedStored.client_address || liveInvoiceData?.client_address || null,
+    invoice_locked: Boolean(normalizedStored.invoice_locked),
+    invoice_locked_by: normalizedStored.invoice_locked_by || null,
+    invoice_locked_at: normalizedStored.invoice_locked_at || null,
+    invoice_locked_by_email: normalizedStored.invoice_locked_by_email || null,
+  };
+};
+
 export default function ClientCostCentersPage() {
   const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
   const params = useParams();
@@ -83,6 +125,7 @@ export default function ClientCostCentersPage() {
   const [selectedStatementVariant, setSelectedStatementVariant] = useState('summary');
   const [showInvoiceReport, setShowInvoiceReport] = useState(false);
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
+  const [isLockingInvoice, setIsLockingInvoice] = useState(false);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const [reportDeliveryModal, setReportDeliveryModal] = useState({
@@ -1880,13 +1923,26 @@ export default function ClientCostCentersPage() {
       query.set('billingMonth', costCenter.billingMonth);
     }
 
-    const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch vehicle invoice data');
+    const [bulkInvoiceResponse, invoiceResponse] = await Promise.all([
+      fetch(`/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+        costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
+      }`),
+      fetch(`/api/vehicles/invoice?${query.toString()}`),
+    ]);
+
+    let bulkInvoice = null;
+    if (bulkInvoiceResponse.ok) {
+      const bulkInvoicePayload = await bulkInvoiceResponse.json();
+      bulkInvoice = bulkInvoicePayload?.invoice || null;
     }
 
-    const data = await response.json();
-    const invoiceData = data?.invoiceData || null;
+    let liveInvoiceData = null;
+    if (invoiceResponse.ok) {
+      const data = await invoiceResponse.json();
+      liveInvoiceData = data?.invoiceData || null;
+    }
+
+    const invoiceData = mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice);
     if (!invoiceData) {
       throw new Error('No vehicle data found for this account');
     }
@@ -1895,6 +1951,7 @@ export default function ClientCostCentersPage() {
     const reportCostCenter = {
       ...costCenter,
       invoiceData,
+      bulkInvoice,
       costCenterInfo,
     };
     const invoiceView = buildInvoiceView({
@@ -1908,7 +1965,6 @@ export default function ClientCostCentersPage() {
 
     return { reportCostCenter, invoiceView };
   };
-
   const buildStatementWorkbook = (statementView, includeItems = false) => {
     const rows = [
       ['DEBTOR STATEMENT'],
@@ -3832,51 +3888,82 @@ export default function ClientCostCentersPage() {
   const handleShowInvoiceReport = async (costCenter) => {
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
-      
-      // Fetch vehicle invoice data from vehicles table
-      const query = new URLSearchParams({
-        accountNumber: costCenter.accountNumber,
-      });
-      if (costCenter.sourceAccountNumber) {
-        query.set('sourceAccountNumber', costCenter.sourceAccountNumber);
-      }
-      if (costCenter.invoiceGroup) {
-        query.set('billingGroup', costCenter.invoiceGroup);
-      }
-      if (costCenter.billingMonth) {
-        query.set("billingMonth", costCenter.billingMonth);
-      }
-      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch vehicle invoice data');
-      }
-      
-      const data = await response.json();
-      const invoiceData = data.invoiceData;
-      
-      if (!invoiceData) {
-        toast({
-          title: "No Data",
-          description: "No vehicle data found for this account.",
-        });
-        return;
-      }
-      
-      setSelectedCostCenterForInvoice({
-        ...costCenter,
-        invoiceData: invoiceData
-      });
+      const { reportCostCenter } = await fetchInvoiceReportPayload(costCenter);
+      setSelectedCostCenterForInvoice(reportCostCenter);
       setShowInvoiceReport(true);
-      
     } catch (error) {
       console.error('Error fetching payment invoice data:', error);
       toast({
         variant: "destructive",
         title: "Invoice Report Failed",
-        description: "Failed to fetch vehicle invoice data. Please try again.",
+        description: error?.message || "Failed to fetch vehicle invoice data. Please try again.",
       });
     } finally {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: false }));
+    }
+  };
+
+  const handleLockInvoiceReport = async () => {
+    if (!selectedCostCenterForInvoice?.accountNumber) {
+      return;
+    }
+
+    const billingMonth = String(
+      selectedCostCenterForInvoice?.billingMonth ||
+        selectedCostCenterForInvoice?.invoiceData?.billing_month ||
+        currentBillingMonthKey ||
+        '',
+    ).trim();
+
+    if (!billingMonth) {
+      toast({
+        variant: 'destructive',
+        title: 'Invoice Lock Failed',
+        description: 'Billing month is required before locking this invoice.',
+      });
+      return;
+    }
+
+    setIsLockingInvoice(true);
+    try {
+      const response = await fetch('/api/invoices/bulk-account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNumber: selectedCostCenterForInvoice.accountNumber,
+          billingMonth,
+          invoiceLocked: true,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.invoice) {
+        throw new Error(result?.error || 'Failed to lock invoice');
+      }
+
+      const lockedInvoice = normalizeStoredBulkInvoiceForPreview(result.invoice);
+      setSelectedCostCenterForInvoice((prev) =>
+        prev
+          ? {
+              ...prev,
+              bulkInvoice: lockedInvoice,
+              invoiceData: mergeLiveInvoiceWithStoredBulkInvoice(prev.invoiceData || null, lockedInvoice),
+            }
+          : prev,
+      );
+
+      toast({
+        title: 'Invoice Locked',
+        description: `Invoice ${result.invoice?.invoice_number || ''} is now locked for ${billingMonth.slice(0, 7)}.`,
+      });
+    } catch (error) {
+      console.error('Error locking invoice:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Invoice Lock Failed',
+        description: error?.message || 'Failed to lock invoice.',
+      });
+    } finally {
+      setIsLockingInvoice(false);
     }
   };
 
@@ -5696,9 +5783,19 @@ export default function ClientCostCentersPage() {
           <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-6xl max-h-[95vh]">
             {/* Modal Header */}
             <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
-              <h3 className="font-semibold text-gray-900 text-xl">
-                Invoice - {selectedCostCenterForInvoice.accountName || selectedCostCenterForInvoice.company || clientLegalName || selectedCostCenterForInvoice.accountNumber}
-              </h3>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-xl">
+                  Invoice - {selectedCostCenterForInvoice.accountName || selectedCostCenterForInvoice.company || clientLegalName || selectedCostCenterForInvoice.accountNumber}
+                </h3>
+                {selectedCostCenterForInvoice?.invoiceData?.invoice_locked && (
+                  <p className="mt-1 text-sm text-blue-700">
+                    Locked for {String(selectedCostCenterForInvoice?.invoiceData?.billing_month || selectedCostCenterForInvoice?.billingMonth || '').slice(0, 7)}
+                    {selectedCostCenterForInvoice?.invoiceData?.invoice_locked_by_email
+                      ? ` by ${selectedCostCenterForInvoice.invoiceData.invoice_locked_by_email}`
+                      : ''}
+                  </p>
+                )}
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -5718,6 +5815,19 @@ export default function ClientCostCentersPage() {
                 costCenter={selectedCostCenterForInvoice}
                 clientLegalName={clientLegalName}
                 invoiceData={selectedCostCenterForInvoice.invoiceData}
+                extraActions={(
+                  <Button
+                    onClick={handleLockInvoiceReport}
+                    disabled={isLockingInvoice || Boolean(selectedCostCenterForInvoice?.invoiceData?.invoice_locked)}
+                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
+                  >
+                    {isLockingInvoice
+                      ? 'Locking...'
+                      : selectedCostCenterForInvoice?.invoiceData?.invoice_locked
+                        ? 'Invoice Locked'
+                        : 'Lock Invoice'}
+                  </Button>
+                )}
                 onInvoiceGenerated={(invoice) => {
                   setSelectedCostCenterForInvoice((prev) =>
                     prev
@@ -5725,6 +5835,7 @@ export default function ClientCostCentersPage() {
                           ...prev,
                           accountInvoiceId: invoice.id,
                           reference: invoice.invoice_number,
+                          bulkInvoice: normalizeStoredBulkInvoiceForPreview(invoice),
                           invoiceData: {
                             ...(prev.invoiceData || {}),
                             id: invoice.id,
@@ -5741,6 +5852,10 @@ export default function ClientCostCentersPage() {
                             paid_amount: invoice.paid_amount,
                             balance_due: invoice.balance_due,
                             payment_status: invoice.payment_status,
+                            invoice_locked: invoice.invoice_locked,
+                            invoice_locked_by: invoice.invoice_locked_by,
+                            invoice_locked_at: invoice.invoice_locked_at,
+                            invoice_locked_by_email: invoice.invoice_locked_by_email,
                             invoice_items: invoice.line_items,
                             invoiceItems: invoice.line_items,
                           },

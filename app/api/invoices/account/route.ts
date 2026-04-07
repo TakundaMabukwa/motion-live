@@ -7,6 +7,24 @@ import {
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
 
+const getBillingInvoiceDate = (billingMonth: unknown) => {
+  if (!billingMonth) {
+    return new Date().toISOString();
+  }
+
+  const normalized = String(billingMonth).slice(0, 7) + '-01T00:00:00';
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay).toISOString();
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -48,7 +66,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ invoice: Array.isArray(data) ? data[0] || null : null });
+    const invoice = Array.isArray(data) ? data[0] || null : null;
+    const normalizedInvoice = invoice
+      ? {
+          ...invoice,
+          invoice_date: getBillingInvoiceDate(invoice.billing_month),
+        }
+      : null;
+
+    return NextResponse.json({ invoice: normalizedInvoice });
   } catch (error) {
     console.error("Unexpected error in account invoice GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -70,7 +96,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
-    const invoiceDate = body?.invoiceDate || new Date().toISOString();
+    const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
     const dueDate = body?.dueDate || defaultDueDate(invoiceDate);
 
     if (!accountNumber) {

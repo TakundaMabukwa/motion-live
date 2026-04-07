@@ -96,6 +96,48 @@ const getRealInvoiceNumber = (...values) => {
   }
   return "";
 };
+const normalizeStoredBulkInvoiceForView = (invoice) => {
+  if (!invoice) return null;
+  const lineItems = Array.isArray(invoice?.line_items) ? invoice.line_items : [];
+  return {
+    ...invoice,
+    invoice_items: lineItems,
+    invoiceItems: lineItems,
+  };
+};
+
+const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice) => {
+  const normalizedStored = normalizeStoredBulkInvoiceForView(storedBulkInvoice);
+  if (!normalizedStored) {
+    return liveInvoiceData || null;
+  }
+
+  if (normalizedStored.invoice_locked) {
+    return {
+      ...(liveInvoiceData || {}),
+      ...normalizedStored,
+      invoice_items: normalizedStored.invoice_items,
+      invoiceItems: normalizedStored.invoiceItems,
+    };
+  }
+
+  return {
+    ...(liveInvoiceData || {}),
+    id: normalizedStored.id || liveInvoiceData?.id,
+    invoice_number: normalizedStored.invoice_number || liveInvoiceData?.invoice_number,
+    invoice_date: normalizedStored.invoice_date || liveInvoiceData?.invoice_date,
+    billing_month: normalizedStored.billing_month || liveInvoiceData?.billing_month,
+    notes: normalizedStored.notes ?? liveInvoiceData?.notes ?? liveInvoiceData?.note ?? null,
+    customer_vat_number: normalizedStored.customer_vat_number || liveInvoiceData?.customer_vat_number || null,
+    company_registration_number: normalizedStored.company_registration_number || liveInvoiceData?.company_registration_number || null,
+    client_address: normalizedStored.client_address || liveInvoiceData?.client_address || null,
+    invoice_locked: Boolean(normalizedStored.invoice_locked),
+    invoice_locked_by: normalizedStored.invoice_locked_by || null,
+    invoice_locked_at: normalizedStored.invoice_locked_at || null,
+    invoice_locked_by_email: normalizedStored.invoice_locked_by_email || null,
+  };
+};
+
 
 const buildClientAddress = (customerInfo, fallbackAddress = "") => {
   const addressParts = [
@@ -1284,7 +1326,7 @@ export default function InvoiceReportComponent({
         company: row.comments,
       }));
 
-      const response = await fetch("/api/invoices/account", {
+      const response = await fetch("/api/invoices/bulk-account", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1354,14 +1396,36 @@ export default function InvoiceReportComponent({
         accountNumber: costCenter.accountNumber,
         billingMonth: value,
       });
-      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-      const result = await response.json();
-
-      if (!response.ok || !result?.invoiceData) {
-        throw new Error(result?.error || "Failed to load invoice");
+      if (costCenter?.sourceAccountNumber) {
+        query.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+      }
+      if (costCenter?.invoiceGroup) {
+        query.set('billingGroup', costCenter.invoiceGroup);
       }
 
-      setActiveInvoiceData(result.invoiceData);
+      const [storedResponse, liveResponse] = await Promise.all([
+        fetch(`/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(value)}`),
+        fetch(`/api/vehicles/invoice?${query.toString()}`),
+      ]);
+
+      let storedInvoice = null;
+      if (storedResponse.ok) {
+        const storedResult = await storedResponse.json();
+        storedInvoice = storedResult?.invoice || null;
+      }
+
+      let liveInvoiceData = null;
+      if (liveResponse.ok) {
+        const result = await liveResponse.json();
+        liveInvoiceData = result?.invoiceData || null;
+      }
+
+      const nextInvoiceData = mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, storedInvoice);
+      if (!nextInvoiceData) {
+        throw new Error('Failed to load invoice');
+      }
+
+      setActiveInvoiceData(nextInvoiceData);
     } catch (error) {
       toast.error(error?.message || "Failed to load invoice");
       setSelectedInvoiceMonth("__current__");

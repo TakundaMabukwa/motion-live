@@ -1,0 +1,7194 @@
+[
+  {
+    "accountNumber": "ACTE-0001",
+    "companyName": "EDGE - ACTIVE TELEMATICS",
+    "invoiceNumber": "INV200454",
+    "stored": {
+      "subtotal": 14899.5,
+      "vat": 2234.91,
+      "total": 17134.44
+    },
+    "lineItems": {
+      "count": 222,
+      "subtotal": 0,
+      "vat": 2234.91,
+      "total": 17134.44
+    },
+    "delta": {
+      "subtotal": 14899.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.984121+00:00",
+      "updatedAt": "2026-04-07T09:04:45.008435+00:00"
+    }
+  },
+  {
+    "accountNumber": "ADRI-0001",
+    "companyName": "ADRIAAN GERHARD LOUW 1132",
+    "invoiceNumber": "INV200449",
+    "stored": {
+      "subtotal": 112,
+      "vat": 16.8,
+      "total": 128.8
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 16.8,
+      "total": 128.8
+    },
+    "delta": {
+      "subtotal": 112,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.022242+00:00",
+      "updatedAt": "2026-04-07T09:04:42.943036+00:00"
+    }
+  },
+  {
+    "accountNumber": "AERZ-0001",
+    "companyName": "AERZEN AIRGAS (PTY) LTD",
+    "invoiceNumber": "INV200428",
+    "stored": {
+      "subtotal": 10266.88,
+      "vat": 1540,
+      "total": 11806.88
+    },
+    "lineItems": {
+      "count": 16,
+      "subtotal": 0,
+      "vat": 1540,
+      "total": 11806.88
+    },
+    "delta": {
+      "subtotal": 10266.88,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.937375+00:00",
+      "updatedAt": "2026-04-07T09:04:35.55818+00:00"
+    }
+  },
+  {
+    "accountNumber": "AFHU-0001",
+    "companyName": "A.F. HUGO",
+    "invoiceNumber": "INV200418",
+    "stored": {
+      "subtotal": 727.52,
+      "vat": 109.12,
+      "total": 836.64
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 109.12,
+      "total": 836.64
+    },
+    "delta": {
+      "subtotal": 727.52,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.102891+00:00",
+      "updatedAt": "2026-04-07T09:04:32.729794+00:00"
+    }
+  },
+  {
+    "accountNumber": "AIPE-0001",
+    "companyName": "AIRPORT PETS",
+    "invoiceNumber": "INV200432",
+    "stored": {
+      "subtotal": 558,
+      "vat": 83.7,
+      "total": 641.7
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 83.7,
+      "total": 641.7
+    },
+    "delta": {
+      "subtotal": 558,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.506124+00:00",
+      "updatedAt": "2026-04-07T09:04:37.83265+00:00"
+    }
+  },
+  {
+    "accountNumber": "AJSC-0001",
+    "companyName": "AJ SCHROEDER",
+    "invoiceNumber": "INV200446",
+    "stored": {
+      "subtotal": 222.18,
+      "vat": 33.33,
+      "total": 255.51
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 33.33,
+      "total": 255.51
+    },
+    "delta": {
+      "subtotal": 222.18,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.625747+00:00",
+      "updatedAt": "2026-04-07T09:04:40.563419+00:00"
+    }
+  },
+  {
+    "accountNumber": "ALBE-0001",
+    "companyName": "ALBERT BENNETT",
+    "invoiceNumber": "INV200464",
+    "stored": {
+      "subtotal": 279.41,
+      "vat": 41.91,
+      "total": 321.32
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 41.91,
+      "total": 321.32
+    },
+    "delta": {
+      "subtotal": 279.41,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.51521+00:00",
+      "updatedAt": "2026-04-07T09:04:50.571522+00:00"
+    }
+  },
+  {
+    "accountNumber": "ALL--0001",
+    "companyName": "ALL-DANQUAH CC",
+    "invoiceNumber": "INV200429",
+    "stored": {
+      "subtotal": 10332.08,
+      "vat": 1549.79,
+      "total": 11881.87
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 1549.79,
+      "total": 11881.87
+    },
+    "delta": {
+      "subtotal": 10332.08,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:11.062243+00:00",
+      "updatedAt": "2026-04-07T09:04:35.527762+00:00"
+    }
+  },
+  {
+    "accountNumber": "ALST-0001",
+    "companyName": "STEELRODE",
+    "invoiceNumber": "INV200278",
+    "stored": {
+      "subtotal": 28884,
+      "vat": 4332.6,
+      "total": 33216.6
+    },
+    "lineItems": {
+      "count": 97,
+      "subtotal": 0,
+      "vat": 4332.6,
+      "total": 33216.6
+    },
+    "delta": {
+      "subtotal": 28884,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:09.036252+00:00",
+      "updatedAt": "2026-04-07T09:03:23.67381+00:00"
+    }
+  },
+  {
+    "accountNumber": "AMAN-0001",
+    "companyName": "AMANDA NOORTMAN",
+    "invoiceNumber": "INV200404",
+    "stored": {
+      "subtotal": 148.31,
+      "vat": 22.25,
+      "total": 170.56
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 22.25,
+      "total": 170.56
+    },
+    "delta": {
+      "subtotal": 148.31,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.556779+00:00",
+      "updatedAt": "2026-04-07T09:04:17.486715+00:00"
+    }
+  },
+  {
+    "accountNumber": "ANGE-0001",
+    "companyName": "ANGELO KATER",
+    "invoiceNumber": "INV200474",
+    "stored": {
+      "subtotal": 25806,
+      "vat": 3870.9,
+      "total": 29676.9
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 3870.9,
+      "total": 29676.9
+    },
+    "delta": {
+      "subtotal": 25806,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T13:12:09.168997+00:00",
+      "updatedAt": "2026-04-07T09:04:53.891729+00:00"
+    }
+  },
+  {
+    "accountNumber": "ANNE-0001",
+    "companyName": "HANNES V D WALT",
+    "invoiceNumber": "INV200463",
+    "stored": {
+      "subtotal": 200.3,
+      "vat": 30.05,
+      "total": 230.35
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 30.05,
+      "total": 230.35
+    },
+    "delta": {
+      "subtotal": 200.3,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.512169+00:00",
+      "updatedAt": "2026-04-07T09:04:50.633694+00:00"
+    }
+  },
+  {
+    "accountNumber": "ARIE-0001",
+    "companyName": "MARIETJIE VAN ROOYEN",
+    "invoiceNumber": "INV200337",
+    "stored": {
+      "subtotal": 69,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "delta": {
+      "subtotal": 69,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.845594+00:00",
+      "updatedAt": "2026-04-07T09:03:52.49699+00:00"
+    }
+  },
+  {
+    "accountNumber": "ATVX-0001",
+    "companyName": "ATV cc",
+    "invoiceNumber": "INV200289",
+    "stored": {
+      "subtotal": 178,
+      "vat": 26.7,
+      "total": 204.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 26.7,
+      "total": 204.7
+    },
+    "delta": {
+      "subtotal": 178,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:17.598133+00:00",
+      "updatedAt": "2026-04-07T09:03:37.200331+00:00"
+    }
+  },
+  {
+    "accountNumber": "AUMA-0001",
+    "companyName": "AUMA SOUTH AFRICA PTY LTD",
+    "invoiceNumber": "INV200256",
+    "stored": {
+      "subtotal": 22805.82,
+      "vat": 3420.99,
+      "total": 26226.81
+    },
+    "lineItems": {
+      "count": 34,
+      "subtotal": 0,
+      "vat": 3420.99,
+      "total": 26226.81
+    },
+    "delta": {
+      "subtotal": 22805.82,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.35621+00:00",
+      "updatedAt": "2026-04-07T09:03:13.631081+00:00"
+    }
+  },
+  {
+    "accountNumber": "AVVA-0001",
+    "companyName": "PRETTY THREE (PTY) LTD",
+    "invoiceNumber": "INV200280",
+    "stored": {
+      "subtotal": 120935,
+      "vat": 18140.25,
+      "total": 139075.25
+    },
+    "lineItems": {
+      "count": 392,
+      "subtotal": 0,
+      "vat": 18140.25,
+      "total": 139075.25
+    },
+    "delta": {
+      "subtotal": 120935,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:10.267987+00:00",
+      "updatedAt": "2026-04-07T09:03:30.12963+00:00"
+    }
+  },
+  {
+    "accountNumber": "BACA-0001",
+    "companyName": "BARLINE CATERING & HOSPITALITY CC",
+    "invoiceNumber": "INV200423",
+    "stored": {
+      "subtotal": 2078.49,
+      "vat": 311.76,
+      "total": 2390.25
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 311.76,
+      "total": 2390.25
+    },
+    "delta": {
+      "subtotal": 2078.49,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.834848+00:00",
+      "updatedAt": "2026-04-07T09:04:35.354259+00:00"
+    }
+  },
+  {
+    "accountNumber": "BLUE-0001",
+    "companyName": "BLUE SKIES FRESH PRODUCE SA (PTY) LTD",
+    "invoiceNumber": "INV200383",
+    "stored": {
+      "subtotal": 1488,
+      "vat": 223.2,
+      "total": 1711.2
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 223.2,
+      "total": 1711.2
+    },
+    "delta": {
+      "subtotal": 1488,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.613104+00:00",
+      "updatedAt": "2026-04-07T09:04:08.647734+00:00"
+    }
+  },
+  {
+    "accountNumber": "BUBE-0001",
+    "companyName": "BUZZ BEZUIDENHOUT",
+    "invoiceNumber": "INV200444",
+    "stored": {
+      "subtotal": 1694.85,
+      "vat": 254.22,
+      "total": 1949.07
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 254.22,
+      "total": 1949.07
+    },
+    "delta": {
+      "subtotal": 1694.85,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.415427+00:00",
+      "updatedAt": "2026-04-07T09:04:40.564427+00:00"
+    }
+  },
+  {
+    "accountNumber": "CARG-0001",
+    "companyName": "CARGO CRANKSHAFT REBUILDERS (PTY) LTD",
+    "invoiceNumber": "INV200441",
+    "stored": {
+      "subtotal": 308.4,
+      "vat": 46.26,
+      "total": 354.66
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 46.26,
+      "total": 354.66
+    },
+    "delta": {
+      "subtotal": 308.4,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.248683+00:00",
+      "updatedAt": "2026-04-07T09:04:40.498195+00:00"
+    }
+  },
+  {
+    "accountNumber": "CARI-0001",
+    "companyName": "CARINA VAN ZYL",
+    "invoiceNumber": "INV200251",
+    "stored": {
+      "subtotal": 425,
+      "vat": 63.75,
+      "total": 488.75
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 63.75,
+      "total": 488.75
+    },
+    "delta": {
+      "subtotal": 425,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:58.990587+00:00",
+      "updatedAt": "2026-04-07T09:03:13.231379+00:00"
+    }
+  },
+  {
+    "accountNumber": "CHAR-0001",
+    "companyName": "CHARL SHAW",
+    "invoiceNumber": "INV200297",
+    "stored": {
+      "subtotal": 841.32,
+      "vat": 126.2,
+      "total": 967.52
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 126.2,
+      "total": 967.52
+    },
+    "delta": {
+      "subtotal": 841.32,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.231369+00:00",
+      "updatedAt": "2026-04-07T09:03:39.835723+00:00"
+    }
+  },
+  {
+    "accountNumber": "CJVA-0001",
+    "companyName": "CJP VAN VUUREN",
+    "invoiceNumber": "INV200380",
+    "stored": {
+      "subtotal": 88.74,
+      "vat": 13.31,
+      "total": 102.05
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 13.31,
+      "total": 102.05
+    },
+    "delta": {
+      "subtotal": 88.74,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.585511+00:00",
+      "updatedAt": "2026-04-07T09:04:08.649257+00:00"
+    }
+  },
+  {
+    "accountNumber": "CONC-0001",
+    "companyName": "CONCISE PERFORMANCE FUELS",
+    "invoiceNumber": "INV200268",
+    "stored": {
+      "subtotal": 12385.1,
+      "vat": 1857.75,
+      "total": 14242.85
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 1857.75,
+      "total": 14242.85
+    },
+    "delta": {
+      "subtotal": 12385.1,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.093944+00:00",
+      "updatedAt": "2026-04-07T09:03:18.577489+00:00"
+    }
+  },
+  {
+    "accountNumber": "COUN-0001",
+    "companyName": "COUNTRYWIDE GEARBOX REPAIRS CC",
+    "invoiceNumber": "INV200413",
+    "stored": {
+      "subtotal": 2691,
+      "vat": 403.65,
+      "total": 3094.65
+    },
+    "lineItems": {
+      "count": 9,
+      "subtotal": 0,
+      "vat": 403.65,
+      "total": 3094.65
+    },
+    "delta": {
+      "subtotal": 2691,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.617105+00:00",
+      "updatedAt": "2026-04-07T09:04:25.690584+00:00"
+    }
+  },
+  {
+    "accountNumber": "CRIS-0001",
+    "companyName": "CRISTOPHER FRITZ",
+    "invoiceNumber": "INV200422",
+    "stored": {
+      "subtotal": 276,
+      "vat": 41.4,
+      "total": 317.4
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 41.4,
+      "total": 317.4
+    },
+    "delta": {
+      "subtotal": 276,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.216562+00:00",
+      "updatedAt": "2026-04-07T09:04:32.625552+00:00"
+    }
+  },
+  {
+    "accountNumber": "DACO-0001",
+    "companyName": "DCS",
+    "invoiceNumber": "INV200384",
+    "stored": {
+      "subtotal": 5394.9,
+      "vat": 809.22,
+      "total": 6204.12
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 809.22,
+      "total": 6204.12
+    },
+    "delta": {
+      "subtotal": 5394.9,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.743649+00:00",
+      "updatedAt": "2026-04-07T09:04:08.938904+00:00"
+    }
+  },
+  {
+    "accountNumber": "DAMY-0001",
+    "companyName": "DARRYL MYBURGH",
+    "invoiceNumber": "INV200443",
+    "stored": {
+      "subtotal": 594.16,
+      "vat": 89.12,
+      "total": 683.28
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 89.12,
+      "total": 683.28
+    },
+    "delta": {
+      "subtotal": 594.16,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.282021+00:00",
+      "updatedAt": "2026-04-07T09:04:40.610166+00:00"
+    }
+  },
+  {
+    "accountNumber": "DELA-0001",
+    "companyName": "DELABRA TRADING CC",
+    "invoiceNumber": "INV200247",
+    "stored": {
+      "subtotal": 5248,
+      "vat": 787.2,
+      "total": 6035.2
+    },
+    "lineItems": {
+      "count": 47,
+      "subtotal": 0,
+      "vat": 787.2,
+      "total": 6035.2
+    },
+    "delta": {
+      "subtotal": 5248,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:54.989617+00:00",
+      "updatedAt": "2026-04-07T09:03:09.508072+00:00"
+    }
+  },
+  {
+    "accountNumber": "DILL-0001",
+    "companyName": "DILLAN HOUSTON",
+    "invoiceNumber": "INV200450",
+    "stored": {
+      "subtotal": 550.15,
+      "vat": 82.52,
+      "total": 632.67
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 82.52,
+      "total": 632.67
+    },
+    "delta": {
+      "subtotal": 550.15,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.080451+00:00",
+      "updatedAt": "2026-04-07T09:04:43.000426+00:00"
+    }
+  },
+  {
+    "accountNumber": "DONB-0001",
+    "companyName": "JACKIE  JENKIN",
+    "invoiceNumber": "INV200379",
+    "stored": {
+      "subtotal": 553,
+      "vat": 82.95,
+      "total": 635.95
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 82.95,
+      "total": 635.95
+    },
+    "delta": {
+      "subtotal": 553,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.536159+00:00",
+      "updatedAt": "2026-04-07T09:04:08.709203+00:00"
+    }
+  },
+  {
+    "accountNumber": "DUPL-0001",
+    "companyName": "DU PLESSIS SAND",
+    "invoiceNumber": "INV200391",
+    "stored": {
+      "subtotal": 5895.2,
+      "vat": 884.4,
+      "total": 6779.6
+    },
+    "lineItems": {
+      "count": 40,
+      "subtotal": 0,
+      "vat": 884.4,
+      "total": 6779.6
+    },
+    "delta": {
+      "subtotal": 5895.2,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.787097+00:00",
+      "updatedAt": "2026-04-07T09:04:11.58065+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0002",
+    "companyName": "EDGE - BERNARD VELDMAN",
+    "invoiceNumber": "INV200323",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.95264+00:00",
+      "updatedAt": "2026-04-07T09:03:47.601216+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0003",
+    "companyName": "EDGE - LAWULA GROUP",
+    "invoiceNumber": "INV200347",
+    "stored": {
+      "subtotal": 490,
+      "vat": 73.5,
+      "total": 563.5
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 73.5,
+      "total": 563.5
+    },
+    "delta": {
+      "subtotal": 490,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.580854+00:00",
+      "updatedAt": "2026-04-07T09:03:56.03946+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0004",
+    "companyName": "EDGE - GAUTENG COACHES",
+    "invoiceNumber": "INV200272",
+    "stored": {
+      "subtotal": 3920,
+      "vat": 588,
+      "total": 4508
+    },
+    "lineItems": {
+      "count": 56,
+      "subtotal": 0,
+      "vat": 588,
+      "total": 4508
+    },
+    "delta": {
+      "subtotal": 3920,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.620794+00:00",
+      "updatedAt": "2026-04-07T09:03:18.908395+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0005",
+    "companyName": "EDGE - MEGABUS - JOHANNESBURG",
+    "invoiceNumber": "INV200357",
+    "stored": {
+      "subtotal": 3860.5,
+      "vat": 579.07,
+      "total": 4439.58
+    },
+    "lineItems": {
+      "count": 54,
+      "subtotal": 0,
+      "vat": 579.07,
+      "total": 4439.58
+    },
+    "delta": {
+      "subtotal": 3860.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.491368+00:00",
+      "updatedAt": "2026-04-07T09:03:58.652835+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0006",
+    "companyName": "EDGE - PINEGOLD LOGISTICS",
+    "invoiceNumber": "INV200365",
+    "stored": {
+      "subtotal": 770,
+      "vat": 115.5,
+      "total": 885.5
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 115.5,
+      "total": 885.5
+    },
+    "delta": {
+      "subtotal": 770,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.567581+00:00",
+      "updatedAt": "2026-04-07T09:04:01.303352+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0007",
+    "companyName": "EDGE - MYCITI",
+    "invoiceNumber": "INV200416",
+    "stored": {
+      "subtotal": 150.5,
+      "vat": 22.57,
+      "total": 173.08
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 22.57,
+      "total": 173.08
+    },
+    "delta": {
+      "subtotal": 150.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.070695+00:00",
+      "updatedAt": "2026-04-07T09:04:32.588473+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0008",
+    "companyName": "EDGE - VDV",
+    "invoiceNumber": "INV200343",
+    "stored": {
+      "subtotal": 13702.75,
+      "vat": 2055.33,
+      "total": 15758.24
+    },
+    "lineItems": {
+      "count": 190,
+      "subtotal": 0,
+      "vat": 2055.33,
+      "total": 15758.24
+    },
+    "delta": {
+      "subtotal": 13702.75,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:36.991635+00:00",
+      "updatedAt": "2026-04-07T09:03:53.606096+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0009",
+    "companyName": "EDGE - MEGABUS - VIRGINIA",
+    "invoiceNumber": "INV200360",
+    "stored": {
+      "subtotal": 700,
+      "vat": 105,
+      "total": 805
+    },
+    "lineItems": {
+      "count": 9,
+      "subtotal": 0,
+      "vat": 105,
+      "total": 805
+    },
+    "delta": {
+      "subtotal": 700,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.244835+00:00",
+      "updatedAt": "2026-04-07T09:04:01.097942+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0010",
+    "companyName": "EDGE - CAPE MOTO ASSIST",
+    "invoiceNumber": "INV200349",
+    "stored": {
+      "subtotal": 140,
+      "vat": 21,
+      "total": 161
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 21,
+      "total": 161
+    },
+    "delta": {
+      "subtotal": 140,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.656138+00:00",
+      "updatedAt": "2026-04-07T09:03:55.946014+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0011",
+    "companyName": "EDGE - COLOURTONE ARIES",
+    "invoiceNumber": "INV200345",
+    "stored": {
+      "subtotal": 198,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "delta": {
+      "subtotal": 198,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.548762+00:00",
+      "updatedAt": "2026-04-07T09:03:55.95074+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0012",
+    "companyName": "EDGE - GP BOTHMA",
+    "invoiceNumber": "INV200340",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.894643+00:00",
+      "updatedAt": "2026-04-07T09:03:52.612636+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0014",
+    "companyName": "EDGE - KIRK WILLIAMS",
+    "invoiceNumber": "INV200265",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:04.891061+00:00",
+      "updatedAt": "2026-04-07T09:03:18.507718+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0015",
+    "companyName": "EDGE - LONINIX",
+    "invoiceNumber": "INV200350",
+    "stored": {
+      "subtotal": 188,
+      "vat": 28.2,
+      "total": 216.2
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 28.2,
+      "total": 216.2
+    },
+    "delta": {
+      "subtotal": 188,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.644236+00:00",
+      "updatedAt": "2026-04-07T09:03:55.928672+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0017",
+    "companyName": "EDGE - MEGABUS WORCESTER",
+    "invoiceNumber": "INV200282",
+    "stored": {
+      "subtotal": 210,
+      "vat": 31.5,
+      "total": 241.5
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 31.5,
+      "total": 241.5
+    },
+    "delta": {
+      "subtotal": 210,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.035974+00:00",
+      "updatedAt": "2026-04-07T09:03:33.283661+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0018",
+    "companyName": "EDGE -  SAFESTOP",
+    "invoiceNumber": "INV200266",
+    "stored": {
+      "subtotal": 495,
+      "vat": 74.25,
+      "total": 569.25
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 74.25,
+      "total": 569.25
+    },
+    "delta": {
+      "subtotal": 495,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:04.978342+00:00",
+      "updatedAt": "2026-04-07T09:03:18.495354+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0019",
+    "companyName": "EDGE - TELEMATICS",
+    "invoiceNumber": "INV200409",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.300542+00:00",
+      "updatedAt": "2026-04-07T09:04:24.277496+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0020",
+    "companyName": "EDGE - S-SYSTEMS",
+    "invoiceNumber": "INV200312",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.281754+00:00",
+      "updatedAt": "2026-04-07T09:03:45.253916+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0021",
+    "companyName": "EDGE - SALES AND TECHNICAL",
+    "invoiceNumber": "INV200325",
+    "stored": {
+      "subtotal": 350,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "delta": {
+      "subtotal": 350,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.98773+00:00",
+      "updatedAt": "2026-04-07T09:03:47.574179+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0022",
+    "companyName": "EDGE - PETRO HUNTER",
+    "invoiceNumber": "INV200458",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.451804+00:00",
+      "updatedAt": "2026-04-07T09:04:47.88661+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0023",
+    "companyName": "EDGE - RITE DIESEL",
+    "invoiceNumber": "INV200320",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.878357+00:00",
+      "updatedAt": "2026-04-07T09:03:47.571645+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0024",
+    "companyName": "EDGE - MIKE JESSEMAN",
+    "invoiceNumber": "INV200322",
+    "stored": {
+      "subtotal": 210,
+      "vat": 31.5,
+      "total": 241.5
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 31.5,
+      "total": 241.5
+    },
+    "delta": {
+      "subtotal": 210,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.899126+00:00",
+      "updatedAt": "2026-04-07T09:03:47.633402+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0025",
+    "companyName": "EDGE - MELTING ROCK",
+    "invoiceNumber": "INV200324",
+    "stored": {
+      "subtotal": 420,
+      "vat": 63,
+      "total": 483
+    },
+    "lineItems": {
+      "count": 6,
+      "subtotal": 0,
+      "vat": 63,
+      "total": 483
+    },
+    "delta": {
+      "subtotal": 420,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.985362+00:00",
+      "updatedAt": "2026-04-07T09:03:47.616039+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0026",
+    "companyName": "EDGE - HANNES SWART",
+    "invoiceNumber": "INV200331",
+    "stored": {
+      "subtotal": 297,
+      "vat": 44.55,
+      "total": 341.55
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 44.55,
+      "total": 341.55
+    },
+    "delta": {
+      "subtotal": 297,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.689018+00:00",
+      "updatedAt": "2026-04-07T09:03:49.875065+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0027",
+    "companyName": "EDGE - LEON BOSHOFF ",
+    "invoiceNumber": "INV200298",
+    "stored": {
+      "subtotal": 770,
+      "vat": 115.5,
+      "total": 885.5
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 115.5,
+      "total": 885.5
+    },
+    "delta": {
+      "subtotal": 770,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.276373+00:00",
+      "updatedAt": "2026-04-07T09:03:40.035352+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0028",
+    "companyName": "EDGE - LANGVERWACHT LANDSCAPING",
+    "invoiceNumber": "INV200351",
+    "stored": {
+      "subtotal": 560,
+      "vat": 84,
+      "total": 644
+    },
+    "lineItems": {
+      "count": 8,
+      "subtotal": 0,
+      "vat": 84,
+      "total": 644
+    },
+    "delta": {
+      "subtotal": 560,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.681801+00:00",
+      "updatedAt": "2026-04-07T09:03:56.024218+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0029",
+    "companyName": "EDGE - MERIDIAN SHUTTLE SERVICE",
+    "invoiceNumber": "INV200420",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.139949+00:00",
+      "updatedAt": "2026-04-07T09:04:32.633988+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0030",
+    "companyName": "EDGE-VULANI MABUNDA",
+    "invoiceNumber": "INV200415",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.052596+00:00",
+      "updatedAt": "2026-04-07T09:04:32.562182+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0031",
+    "companyName": "EDGE - LOCHNER TRANSPORT",
+    "invoiceNumber": "INV200346",
+    "stored": {
+      "subtotal": 140,
+      "vat": 21,
+      "total": 161
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 21,
+      "total": 161
+    },
+    "delta": {
+      "subtotal": 140,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.560965+00:00",
+      "updatedAt": "2026-04-07T09:03:56.05579+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0032",
+    "companyName": "EDGE - LANCEWOOD",
+    "invoiceNumber": "INV200352",
+    "stored": {
+      "subtotal": 490,
+      "vat": 73.5,
+      "total": 563.5
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 73.5,
+      "total": 563.5
+    },
+    "delta": {
+      "subtotal": 490,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.088472+00:00",
+      "updatedAt": "2026-04-07T09:03:58.385519+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0034",
+    "companyName": "EDGE - MEGABUS - GAUTENG",
+    "invoiceNumber": "INV200294",
+    "stored": {
+      "subtotal": 1050,
+      "vat": 157.5,
+      "total": 1207.5
+    },
+    "lineItems": {
+      "count": 14,
+      "subtotal": 0,
+      "vat": 157.5,
+      "total": 1207.5
+    },
+    "delta": {
+      "subtotal": 1050,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:18.095288+00:00",
+      "updatedAt": "2026-04-07T09:03:37.255001+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0035",
+    "companyName": "EDGE - MEGABUS - NORTHERN CAPE",
+    "invoiceNumber": "INV200341",
+    "stored": {
+      "subtotal": 1830.5,
+      "vat": 274.57,
+      "total": 2105.08
+    },
+    "lineItems": {
+      "count": 26,
+      "subtotal": 0,
+      "vat": 274.57,
+      "total": 2105.08
+    },
+    "delta": {
+      "subtotal": 1830.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.925926+00:00",
+      "updatedAt": "2026-04-07T09:03:52.645968+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0036",
+    "companyName": "EDGE - UTHETHA TELECOMMS",
+    "invoiceNumber": "INV200419",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.141142+00:00",
+      "updatedAt": "2026-04-07T09:04:32.725078+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0037",
+    "companyName": "EDGE -  BARNEY",
+    "invoiceNumber": "INV200460",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.454788+00:00",
+      "updatedAt": "2026-04-07T09:04:47.805143+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0038",
+    "companyName": "EDGE - BC CARRIERS",
+    "invoiceNumber": "INV200355",
+    "stored": {
+      "subtotal": 198,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "delta": {
+      "subtotal": 198,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.191003+00:00",
+      "updatedAt": "2026-04-07T09:03:58.27013+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0039",
+    "companyName": "EDGE - MEGABUS DURBAN ",
+    "invoiceNumber": "INV200353",
+    "stored": {
+      "subtotal": 350,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "delta": {
+      "subtotal": 350,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.112929+00:00",
+      "updatedAt": "2026-04-07T09:03:58.27937+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0040",
+    "companyName": "EDGE - PROPERGATION MANAGEMENT",
+    "invoiceNumber": "INV200359",
+    "stored": {
+      "subtotal": 350,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 52.5,
+      "total": 402.5
+    },
+    "delta": {
+      "subtotal": 350,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.227252+00:00",
+      "updatedAt": "2026-04-07T09:04:01.272825+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0041",
+    "companyName": "EDGE - MEGABUS - SECUNDA",
+    "invoiceNumber": "INV200364",
+    "stored": {
+      "subtotal": 1400,
+      "vat": 210,
+      "total": 1610
+    },
+    "lineItems": {
+      "count": 20,
+      "subtotal": 0,
+      "vat": 210,
+      "total": 1610
+    },
+    "delta": {
+      "subtotal": 1400,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.553676+00:00",
+      "updatedAt": "2026-04-07T09:04:01.277984+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0042",
+    "companyName": "EDGE - KULCA CLUB",
+    "invoiceNumber": "INV200356",
+    "stored": {
+      "subtotal": 70,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.5,
+      "total": 80.5
+    },
+    "delta": {
+      "subtotal": 70,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.206664+00:00",
+      "updatedAt": "2026-04-07T09:03:58.266485+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0043",
+    "companyName": "EDGE -  JVZ CONSTRUCTION",
+    "invoiceNumber": "INV200457",
+    "stored": {
+      "subtotal": 140,
+      "vat": 21,
+      "total": 161
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 21,
+      "total": 161
+    },
+    "delta": {
+      "subtotal": 140,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.395597+00:00",
+      "updatedAt": "2026-04-07T09:04:47.858984+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0044",
+    "companyName": "EDGE - WASIM MOOSA",
+    "invoiceNumber": "INV200412",
+    "stored": {
+      "subtotal": 198,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "delta": {
+      "subtotal": 198,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.356342+00:00",
+      "updatedAt": "2026-04-07T09:04:23.096141+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0045",
+    "companyName": "EDGE - DORINGRIVER TRUST",
+    "invoiceNumber": "INV200455",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.343828+00:00",
+      "updatedAt": "2026-04-07T09:04:47.867994+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0046",
+    "companyName": "EDGE - UD TRUCKS DEMO",
+    "invoiceNumber": "INV200459",
+    "stored": {
+      "subtotal": 99,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 14.85,
+      "total": 113.85
+    },
+    "delta": {
+      "subtotal": 99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.403211+00:00",
+      "updatedAt": "2026-04-07T09:04:47.847683+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0047",
+    "companyName": "EDGE - FUZION TRANSPORT",
+    "invoiceNumber": "INV200461",
+    "stored": {
+      "subtotal": 3762.5,
+      "vat": 564.35,
+      "total": 4326.9
+    },
+    "lineItems": {
+      "count": 53,
+      "subtotal": 0,
+      "vat": 564.35,
+      "total": 4326.9
+    },
+    "delta": {
+      "subtotal": 3762.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.82859+00:00",
+      "updatedAt": "2026-04-07T09:04:48.331575+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0048",
+    "companyName": "EDGE - MEGABUS CAPE TOWN",
+    "invoiceNumber": "INV200466",
+    "stored": {
+      "subtotal": 1820,
+      "vat": 273,
+      "total": 2093
+    },
+    "lineItems": {
+      "count": 26,
+      "subtotal": 0,
+      "vat": 273,
+      "total": 2093
+    },
+    "delta": {
+      "subtotal": 1820,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.801475+00:00",
+      "updatedAt": "2026-04-07T09:04:50.921471+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0049",
+    "companyName": "EDGE - BAPOTRANS",
+    "invoiceNumber": "INV200465",
+    "stored": {
+      "subtotal": 1690.5,
+      "vat": 253.57,
+      "total": 1944.08
+    },
+    "lineItems": {
+      "count": 24,
+      "subtotal": 0,
+      "vat": 253.57,
+      "total": 1944.08
+    },
+    "delta": {
+      "subtotal": 1690.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.713741+00:00",
+      "updatedAt": "2026-04-07T09:04:50.851655+00:00"
+    }
+  },
+  {
+    "accountNumber": "EDGE-0050",
+    "companyName": "EDGE - MB TRANSPORT",
+    "invoiceNumber": "INV200467",
+    "stored": {
+      "subtotal": 1200.5,
+      "vat": 180.07,
+      "total": 1380.58
+    },
+    "lineItems": {
+      "count": 17,
+      "subtotal": 0,
+      "vat": 180.07,
+      "total": 1380.58
+    },
+    "delta": {
+      "subtotal": 1200.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.812454+00:00",
+      "updatedAt": "2026-04-07T09:04:50.846877+00:00"
+    }
+  },
+  {
+    "accountNumber": "ELIZ-0001",
+    "companyName": "ELIZABETH JOUBERT",
+    "invoiceNumber": "INV200253",
+    "stored": {
+      "subtotal": 792.15,
+      "vat": 118.82,
+      "total": 910.97
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 118.82,
+      "total": 910.97
+    },
+    "delta": {
+      "subtotal": 792.15,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.045389+00:00",
+      "updatedAt": "2026-04-07T09:03:13.19647+00:00"
+    }
+  },
+  {
+    "accountNumber": "ENER-0001",
+    "companyName": "Energyrite",
+    "invoiceNumber": "INV200302",
+    "stored": {
+      "subtotal": 21049,
+      "vat": 3157.35,
+      "total": 24206.35
+    },
+    "lineItems": {
+      "count": 105,
+      "subtotal": 0,
+      "vat": 3157.35,
+      "total": 24206.35
+    },
+    "delta": {
+      "subtotal": 21049,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.858295+00:00",
+      "updatedAt": "2026-04-07T09:03:40.556309+00:00"
+    }
+  },
+  {
+    "accountNumber": "EPSC-0001",
+    "companyName": "ROCHELLE ",
+    "invoiceNumber": "INV200249",
+    "stored": {
+      "subtotal": 222317.47,
+      "vat": 33347.63,
+      "total": 255665.1
+    },
+    "lineItems": {
+      "count": 285,
+      "subtotal": 0,
+      "vat": 33347.63,
+      "total": 255665.1
+    },
+    "delta": {
+      "subtotal": 222317.47,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:56.185554+00:00",
+      "updatedAt": "2026-04-07T09:03:10.49812+00:00"
+    }
+  },
+  {
+    "accountNumber": "EPSC-0002",
+    "companyName": "ROCHELLE ",
+    "invoiceNumber": "INV200378",
+    "stored": {
+      "subtotal": 3840,
+      "vat": 576,
+      "total": 4416
+    },
+    "lineItems": {
+      "count": 48,
+      "subtotal": 0,
+      "vat": 576,
+      "total": 4416
+    },
+    "delta": {
+      "subtotal": 3840,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:51.128138+00:00",
+      "updatedAt": "2026-04-07T09:04:06.297452+00:00"
+    }
+  },
+  {
+    "accountNumber": "ETRU-0001",
+    "companyName": "PETRUS VAN WYK ",
+    "invoiceNumber": "INV200431",
+    "stored": {
+      "subtotal": 303.8,
+      "vat": 45.58,
+      "total": 349.38
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 45.58,
+      "total": 349.38
+    },
+    "delta": {
+      "subtotal": 303.8,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.47982+00:00",
+      "updatedAt": "2026-04-07T09:04:37.870224+00:00"
+    }
+  },
+  {
+    "accountNumber": "EUXX-0001",
+    "companyName": "EUROSTEEL MIDDLEBURG - ACCOUNT CLOSED",
+    "invoiceNumber": "INV200348",
+    "stored": {
+      "subtotal": 1133.29,
+      "vat": 169.99,
+      "total": 1303.28
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 169.99,
+      "total": 1303.28
+    },
+    "delta": {
+      "subtotal": 1133.29,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.594251+00:00",
+      "updatedAt": "2026-04-07T09:03:55.966172+00:00"
+    }
+  },
+  {
+    "accountNumber": "FIRS-0001",
+    "companyName": "FIRST GLOVE RECLAMATION cc",
+    "invoiceNumber": "INV200386",
+    "stored": {
+      "subtotal": 865.84,
+      "vat": 129.88,
+      "total": 995.72
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 129.88,
+      "total": 995.72
+    },
+    "delta": {
+      "subtotal": 865.84,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.353773+00:00",
+      "updatedAt": "2026-04-07T09:04:11.187503+00:00"
+    }
+  },
+  {
+    "accountNumber": "FRAM-0001",
+    "companyName": "FRAMEWORK COMMERCIAL PROPTERTY",
+    "invoiceNumber": "INV200354",
+    "stored": {
+      "subtotal": 2619,
+      "vat": 392.85,
+      "total": 3011.85
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 392.85,
+      "total": 3011.85
+    },
+    "delta": {
+      "subtotal": 2619,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.15071+00:00",
+      "updatedAt": "2026-04-07T09:03:58.258963+00:00"
+    }
+  },
+  {
+    "accountNumber": "FRSU-0001",
+    "companyName": "FREIGHT SURVEILLANCE INTERNATIONAL",
+    "invoiceNumber": "INV200250",
+    "stored": {
+      "subtotal": 140724.29,
+      "vat": 21108.48,
+      "total": 161832.77
+    },
+    "lineItems": {
+      "count": 348,
+      "subtotal": 0,
+      "vat": 21108.48,
+      "total": 161832.77
+    },
+    "delta": {
+      "subtotal": 140724.29,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:56.300782+00:00",
+      "updatedAt": "2026-04-07T09:03:10.826117+00:00"
+    }
+  },
+  {
+    "accountNumber": "FUSP-0001",
+    "companyName": "FUEL SPEC (PTY) LTD",
+    "invoiceNumber": "INV200430",
+    "stored": {
+      "subtotal": 9717.37,
+      "vat": 1457.6,
+      "total": 11174.97
+    },
+    "lineItems": {
+      "count": 12,
+      "subtotal": 0,
+      "vat": 1457.6,
+      "total": 11174.97
+    },
+    "delta": {
+      "subtotal": 9717.37,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:11.056067+00:00",
+      "updatedAt": "2026-04-07T09:04:35.491899+00:00"
+    }
+  },
+  {
+    "accountNumber": "GAMU-0001",
+    "companyName": "GABI MURPHY",
+    "invoiceNumber": "INV200246",
+    "stored": {
+      "subtotal": 109.71,
+      "vat": 16.46,
+      "total": 126.17
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 16.46,
+      "total": 126.17
+    },
+    "delta": {
+      "subtotal": 109.71,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:54.671067+00:00",
+      "updatedAt": "2026-04-07T09:03:09.106643+00:00"
+    }
+  },
+  {
+    "accountNumber": "GASH-0001",
+    "companyName": "GARY SHANDLER",
+    "invoiceNumber": "INV200245",
+    "stored": {
+      "subtotal": 311.4,
+      "vat": 46.7,
+      "total": 358.1
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 46.7,
+      "total": 358.1
+    },
+    "delta": {
+      "subtotal": 311.4,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:54.671201+00:00",
+      "updatedAt": "2026-04-07T09:03:09.169796+00:00"
+    }
+  },
+  {
+    "accountNumber": "GERR-0001",
+    "companyName": "GERRIT PIETER REPSOLD",
+    "invoiceNumber": "INV200452",
+    "stored": {
+      "subtotal": 69,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "delta": {
+      "subtotal": 69,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.167351+00:00",
+      "updatedAt": "2026-04-07T09:04:42.906868+00:00"
+    }
+  },
+  {
+    "accountNumber": "GOEA-0001",
+    "companyName": "GOOD EARTH GROUP (PTY) LTD",
+    "invoiceNumber": "INV200358",
+    "stored": {
+      "subtotal": 62224.95,
+      "vat": 9333.67,
+      "total": 71558.62
+    },
+    "lineItems": {
+      "count": 77,
+      "subtotal": 0,
+      "vat": 9333.67,
+      "total": 71558.62
+    },
+    "delta": {
+      "subtotal": 62224.95,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:42.655646+00:00",
+      "updatedAt": "2026-04-07T09:03:58.840124+00:00"
+    }
+  },
+  {
+    "accountNumber": "GRAV-0001",
+    "companyName": "GRAVMAX AFRICA (PTY) LTD (GRAV001)",
+    "invoiceNumber": "INV200388",
+    "stored": {
+      "subtotal": 1750,
+      "vat": 262.5,
+      "total": 2012.5
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 262.5,
+      "total": 2012.5
+    },
+    "delta": {
+      "subtotal": 1750,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.640227+00:00",
+      "updatedAt": "2026-04-07T09:04:11.205559+00:00"
+    }
+  },
+  {
+    "accountNumber": "HANN-0001",
+    "companyName": "HANNES VAN NIEKERK",
+    "invoiceNumber": "INV200447",
+    "stored": {
+      "subtotal": 82.16,
+      "vat": 12.32,
+      "total": 94.48
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 12.32,
+      "total": 94.48
+    },
+    "delta": {
+      "subtotal": 82.16,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:18.969462+00:00",
+      "updatedAt": "2026-04-07T09:04:42.874336+00:00"
+    }
+  },
+  {
+    "accountNumber": "HICO-0001",
+    "companyName": " HITACHI CONSTRUCTION MACHINERY SOUTH AFRICA (HIT001)",
+    "invoiceNumber": "INV200475",
+    "stored": {
+      "subtotal": 345,
+      "vat": 51.75,
+      "total": 396.75
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 51.75,
+      "total": 396.75
+    },
+    "delta": {
+      "subtotal": 345,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-02T08:30:15.394993+00:00",
+      "updatedAt": "2026-04-07T09:04:53.877548+00:00"
+    }
+  },
+  {
+    "accountNumber": "HIMA-0001",
+    "companyName": "HILTON MARK DESIGN CC",
+    "invoiceNumber": "INV200442",
+    "stored": {
+      "subtotal": 120.96,
+      "vat": 18.14,
+      "total": 139.1
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 18.14,
+      "total": 139.1
+    },
+    "delta": {
+      "subtotal": 120.96,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.290433+00:00",
+      "updatedAt": "2026-04-07T09:04:40.607017+00:00"
+    }
+  },
+  {
+    "accountNumber": "HITA-0001",
+    "companyName": "HITACHI CONSTRUCTION MACHINERY SOUTH AFRICA (HIT001)",
+    "invoiceNumber": "INV200288",
+    "stored": {
+      "subtotal": 176315.7,
+      "vat": 26446.76,
+      "total": 202762.46
+    },
+    "lineItems": {
+      "count": 239,
+      "subtotal": 0,
+      "vat": 26446.76,
+      "total": 202762.46
+    },
+    "delta": {
+      "subtotal": 176315.7,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:14.652205+00:00",
+      "updatedAt": "2026-04-07T09:03:34.349557+00:00"
+    }
+  },
+  {
+    "accountNumber": "ICON-0001",
+    "companyName": "ICONIC VENTURES (PTY) LTD",
+    "invoiceNumber": "INV200377",
+    "stored": {
+      "subtotal": 9809,
+      "vat": 1471.35,
+      "total": 11280.35
+    },
+    "lineItems": {
+      "count": 16,
+      "subtotal": 0,
+      "vat": 1471.35,
+      "total": 11280.35
+    },
+    "delta": {
+      "subtotal": 9809,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:51.01175+00:00",
+      "updatedAt": "2026-04-07T09:04:06.078439+00:00"
+    }
+  },
+  {
+    "accountNumber": "INAN-0001",
+    "companyName": "INANI INGREDRENTS (PTY) LTD",
+    "invoiceNumber": "INV200425",
+    "stored": {
+      "subtotal": 2346,
+      "vat": 351.9,
+      "total": 2697.9
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 351.9,
+      "total": 2697.9
+    },
+    "delta": {
+      "subtotal": 2346,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.856242+00:00",
+      "updatedAt": "2026-04-07T09:04:35.252184+00:00"
+    }
+  },
+  {
+    "accountNumber": "INTE-0001",
+    "companyName": "INTERSPARES PTY LTD",
+    "invoiceNumber": "INV200437",
+    "stored": {
+      "subtotal": 7028.92,
+      "vat": 1054.34,
+      "total": 8083.26
+    },
+    "lineItems": {
+      "count": 13,
+      "subtotal": 0,
+      "vat": 1054.34,
+      "total": 8083.26
+    },
+    "delta": {
+      "subtotal": 7028.92,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.660774+00:00",
+      "updatedAt": "2026-04-07T09:04:38.101919+00:00"
+    }
+  },
+  {
+    "accountNumber": "INYE-0001",
+    "companyName": "INTANDO YESINTU TRADING",
+    "invoiceNumber": "INV200382",
+    "stored": {
+      "subtotal": 4080.9,
+      "vat": 612.14,
+      "total": 4693.04
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 612.14,
+      "total": 4693.04
+    },
+    "delta": {
+      "subtotal": 4080.9,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.598653+00:00",
+      "updatedAt": "2026-04-07T09:04:08.690842+00:00"
+    }
+  },
+  {
+    "accountNumber": "JACO-0001",
+    "companyName": "JACOBUS CASPER  NEL",
+    "invoiceNumber": "INV200435",
+    "stored": {
+      "subtotal": 123.95,
+      "vat": 18.59,
+      "total": 142.54
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 18.59,
+      "total": 142.54
+    },
+    "delta": {
+      "subtotal": 123.95,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.525624+00:00",
+      "updatedAt": "2026-04-07T09:04:37.907276+00:00"
+    }
+  },
+  {
+    "accountNumber": "JCAG-0001",
+    "companyName": "JCCM AGRI TRADING PTY LTD",
+    "invoiceNumber": "INV200374",
+    "stored": {
+      "subtotal": 2989.43,
+      "vat": 448.41,
+      "total": 3437.84
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 448.41,
+      "total": 3437.84
+    },
+    "delta": {
+      "subtotal": 2989.43,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.814876+00:00",
+      "updatedAt": "2026-04-07T09:04:05.981958+00:00"
+    }
+  },
+  {
+    "accountNumber": "JCJX-0001",
+    "companyName": "JL Coetzer",
+    "invoiceNumber": "INV200424",
+    "stored": {
+      "subtotal": 1505,
+      "vat": 225.75,
+      "total": 1730.75
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 225.75,
+      "total": 1730.75
+    },
+    "delta": {
+      "subtotal": 1505,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.839034+00:00",
+      "updatedAt": "2026-04-07T09:04:35.264751+00:00"
+    }
+  },
+  {
+    "accountNumber": "JLCO-0001",
+    "companyName": "JL COETZER",
+    "invoiceNumber": "INV200262",
+    "stored": {
+      "subtotal": 16740.8,
+      "vat": 2511.12,
+      "total": 19251.92
+    },
+    "lineItems": {
+      "count": 8,
+      "subtotal": 0,
+      "vat": 2511.12,
+      "total": 19251.92
+    },
+    "delta": {
+      "subtotal": 16740.8,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:02.206467+00:00",
+      "updatedAt": "2026-04-07T09:03:15.885743+00:00"
+    }
+  },
+  {
+    "accountNumber": "JOHA-0001",
+    "companyName": "JOHANNES JUSTUS PITOUT",
+    "invoiceNumber": "INV200410",
+    "stored": {
+      "subtotal": 113.85,
+      "vat": 17.08,
+      "total": 130.93
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 17.08,
+      "total": 130.93
+    },
+    "delta": {
+      "subtotal": 113.85,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.316507+00:00",
+      "updatedAt": "2026-04-07T09:04:24.059839+00:00"
+    }
+  },
+  {
+    "accountNumber": "JOLO-0001",
+    "companyName": "JOHANN LOUBSER",
+    "invoiceNumber": "INV200366",
+    "stored": {
+      "subtotal": 503.38,
+      "vat": 75.5,
+      "total": 578.88
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 75.5,
+      "total": 578.88
+    },
+    "delta": {
+      "subtotal": 503.38,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:48.045654+00:00",
+      "updatedAt": "2026-04-07T09:04:03.559947+00:00"
+    }
+  },
+  {
+    "accountNumber": "JOSH-0001",
+    "companyName": "JORDAN SHANDLER",
+    "invoiceNumber": "INV200426",
+    "stored": {
+      "subtotal": 100.93,
+      "vat": 15.14,
+      "total": 116.07
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 15.14,
+      "total": 116.07
+    },
+    "delta": {
+      "subtotal": 100.93,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.883962+00:00",
+      "updatedAt": "2026-04-07T09:04:35.306685+00:00"
+    }
+  },
+  {
+    "accountNumber": "KANO-0001",
+    "companyName": "KARIN NOTHNAGEL",
+    "invoiceNumber": "INV200368",
+    "stored": {
+      "subtotal": 554.18,
+      "vat": 83.13,
+      "total": 637.31
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 83.13,
+      "total": 637.31
+    },
+    "delta": {
+      "subtotal": 554.18,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:48.130941+00:00",
+      "updatedAt": "2026-04-07T09:04:03.509992+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0001",
+    "companyName": "KARGO LOGISTICS (JHB)",
+    "invoiceNumber": "INV200385",
+    "stored": {
+      "subtotal": 7774,
+      "vat": 1166.1,
+      "total": 8940.1
+    },
+    "lineItems": {
+      "count": 26,
+      "subtotal": 0,
+      "vat": 1166.1,
+      "total": 8940.1
+    },
+    "delta": {
+      "subtotal": 7774,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.804655+00:00",
+      "updatedAt": "2026-04-07T09:04:08.875443+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0002",
+    "companyName": "KARGO NATIONAL (BLOEM)",
+    "invoiceNumber": "INV200381",
+    "stored": {
+      "subtotal": 1794,
+      "vat": 269.1,
+      "total": 2063.1
+    },
+    "lineItems": {
+      "count": 6,
+      "subtotal": 0,
+      "vat": 269.1,
+      "total": 2063.1
+    },
+    "delta": {
+      "subtotal": 1794,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:53.586599+00:00",
+      "updatedAt": "2026-04-07T09:04:08.678931+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0003",
+    "companyName": "KARGO LOGISTICS (DBN)",
+    "invoiceNumber": "INV200387",
+    "stored": {
+      "subtotal": 4485,
+      "vat": 672.75,
+      "total": 5157.75
+    },
+    "lineItems": {
+      "count": 15,
+      "subtotal": 0,
+      "vat": 672.75,
+      "total": 5157.75
+    },
+    "delta": {
+      "subtotal": 4485,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.359123+00:00",
+      "updatedAt": "2026-04-07T09:04:11.322695+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0004",
+    "companyName": "KARGO NATIONAL EAST LONDON",
+    "invoiceNumber": "INV200389",
+    "stored": {
+      "subtotal": 2093,
+      "vat": 313.95,
+      "total": 2406.95
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 313.95,
+      "total": 2406.95
+    },
+    "delta": {
+      "subtotal": 2093,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.762475+00:00",
+      "updatedAt": "2026-04-07T09:04:11.119046+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0005",
+    "companyName": "KARGO NATIONAL PORT ELIZABETH",
+    "invoiceNumber": "INV200395",
+    "stored": {
+      "subtotal": 2093,
+      "vat": 313.95,
+      "total": 2406.95
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 313.95,
+      "total": 2406.95
+    },
+    "delta": {
+      "subtotal": 2093,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.304238+00:00",
+      "updatedAt": "2026-04-07T09:04:14.030042+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0006",
+    "companyName": "KARGO LONG DISTANCE PTY LTD",
+    "invoiceNumber": "INV200399",
+    "stored": {
+      "subtotal": 15867,
+      "vat": 2380.05,
+      "total": 18247.05
+    },
+    "lineItems": {
+      "count": 43,
+      "subtotal": 0,
+      "vat": 2380.05,
+      "total": 18247.05
+    },
+    "delta": {
+      "subtotal": 15867,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.660469+00:00",
+      "updatedAt": "2026-04-07T09:04:14.410908+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0007",
+    "companyName": "KARGO NELSPRUIT ",
+    "invoiceNumber": "INV200393",
+    "stored": {
+      "subtotal": 1495,
+      "vat": 224.25,
+      "total": 1719.25
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 224.25,
+      "total": 1719.25
+    },
+    "delta": {
+      "subtotal": 1495,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.286477+00:00",
+      "updatedAt": "2026-04-07T09:04:13.962817+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0008",
+    "companyName": "KARGO NATIONAL PTY LTD - (HOLDING COMPANY)",
+    "invoiceNumber": "INV200392",
+    "stored": {
+      "subtotal": 11063,
+      "vat": 1659.45,
+      "total": 12722.45
+    },
+    "lineItems": {
+      "count": 37,
+      "subtotal": 0,
+      "vat": 1659.45,
+      "total": 12722.45
+    },
+    "delta": {
+      "subtotal": 11063,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.912455+00:00",
+      "updatedAt": "2026-04-07T09:04:11.721093+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0009",
+    "companyName": "KARGO NATIONAL (KIMB)",
+    "invoiceNumber": "INV200421",
+    "stored": {
+      "subtotal": 897,
+      "vat": 134.55,
+      "total": 1031.55
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 134.55,
+      "total": 1031.55
+    },
+    "delta": {
+      "subtotal": 897,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.164716+00:00",
+      "updatedAt": "2026-04-07T09:04:32.731761+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0010",
+    "companyName": "KARGO NATIONAL (GEORGE)",
+    "invoiceNumber": "INV200408",
+    "stored": {
+      "subtotal": 897,
+      "vat": 134.55,
+      "total": 1031.55
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 134.55,
+      "total": 1031.55
+    },
+    "delta": {
+      "subtotal": 897,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.241272+00:00",
+      "updatedAt": "2026-04-07T09:04:23.389665+00:00"
+    }
+  },
+  {
+    "accountNumber": "KARG-0011",
+    "companyName": "KARGO NATIONAL (CPT)",
+    "invoiceNumber": "INV200411",
+    "stored": {
+      "subtotal": 2691,
+      "vat": 403.65,
+      "total": 3094.65
+    },
+    "lineItems": {
+      "count": 9,
+      "subtotal": 0,
+      "vat": 403.65,
+      "total": 3094.65
+    },
+    "delta": {
+      "subtotal": 2691,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.333912+00:00",
+      "updatedAt": "2026-04-07T09:04:25.697562+00:00"
+    }
+  },
+  {
+    "accountNumber": "KEAD-0001",
+    "companyName": "KEYLAND ADMINISTRATION CC",
+    "invoiceNumber": "INV200363",
+    "stored": {
+      "subtotal": 329.21,
+      "vat": 49.38,
+      "total": 378.59
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 49.38,
+      "total": 378.59
+    },
+    "delta": {
+      "subtotal": 329.21,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.361414+00:00",
+      "updatedAt": "2026-04-07T09:04:01.218238+00:00"
+    }
+  },
+  {
+    "accountNumber": "KELO-0001",
+    "companyName": "KENBERT LOGISTICS",
+    "invoiceNumber": "INV200370",
+    "stored": {
+      "subtotal": 2205.45,
+      "vat": 330.8,
+      "total": 2536.25
+    },
+    "lineItems": {
+      "count": 14,
+      "subtotal": 0,
+      "vat": 330.8,
+      "total": 2536.25
+    },
+    "delta": {
+      "subtotal": 2205.45,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:48.269078+00:00",
+      "updatedAt": "2026-04-07T09:04:03.687161+00:00"
+    }
+  },
+  {
+    "accountNumber": "KERI-0001",
+    "companyName": "KERIZZMA STEEL PTY LTD",
+    "invoiceNumber": "INV200376",
+    "stored": {
+      "subtotal": 23693.52,
+      "vat": 3554.08,
+      "total": 27247.6
+    },
+    "lineItems": {
+      "count": 22,
+      "subtotal": 0,
+      "vat": 3554.08,
+      "total": 27247.6
+    },
+    "delta": {
+      "subtotal": 23693.52,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.98978+00:00",
+      "updatedAt": "2026-04-07T09:04:06.147199+00:00"
+    }
+  },
+  {
+    "accountNumber": "KIMA-0001",
+    "companyName": "KIM ALLAN",
+    "invoiceNumber": "INV200290",
+    "stored": {
+      "subtotal": 398,
+      "vat": 59.7,
+      "total": 457.7
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 59.7,
+      "total": 457.7
+    },
+    "delta": {
+      "subtotal": 398,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:17.677407+00:00",
+      "updatedAt": "2026-04-07T09:03:37.094523+00:00"
+    }
+  },
+  {
+    "accountNumber": "KLAV-0001",
+    "companyName": "KLAVER PLANT HIRE",
+    "invoiceNumber": "INV200438",
+    "stored": {
+      "subtotal": 6380,
+      "vat": 957,
+      "total": 7337
+    },
+    "lineItems": {
+      "count": 29,
+      "subtotal": 0,
+      "vat": 957,
+      "total": 7337
+    },
+    "delta": {
+      "subtotal": 6380,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.728266+00:00",
+      "updatedAt": "2026-04-07T09:04:38.206083+00:00"
+    }
+  },
+  {
+    "accountNumber": "L.(L-0001",
+    "companyName": "LIMPOPO EARTHMOVING CONSTRUCTION EQUIPMENT (PTY) LTD",
+    "invoiceNumber": "INV200396",
+    "stored": {
+      "subtotal": 2227.05,
+      "vat": 334.05,
+      "total": 2561.1
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 334.05,
+      "total": 2561.1
+    },
+    "delta": {
+      "subtotal": 2227.05,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.380573+00:00",
+      "updatedAt": "2026-04-07T09:04:14.023509+00:00"
+    }
+  },
+  {
+    "accountNumber": "LECO-0001",
+    "companyName": "LEBONE 11 COLLEGE OF THE ROYAL BAFOKENG",
+    "invoiceNumber": "INV200281",
+    "stored": {
+      "subtotal": 3107.92,
+      "vat": 466.2,
+      "total": 3574.12
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 466.2,
+      "total": 3574.12
+    },
+    "delta": {
+      "subtotal": 3107.92,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.011273+00:00",
+      "updatedAt": "2026-04-07T09:03:33.302222+00:00"
+    }
+  },
+  {
+    "accountNumber": "LIMU-0001",
+    "companyName": "LINKTEL CC TA MULTICOMM",
+    "invoiceNumber": "INV200405",
+    "stored": {
+      "subtotal": 562.01,
+      "vat": 84.3,
+      "total": 646.31
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 84.3,
+      "total": 646.31
+    },
+    "delta": {
+      "subtotal": 562.01,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.579207+00:00",
+      "updatedAt": "2026-04-07T09:04:17.52161+00:00"
+    }
+  },
+  {
+    "accountNumber": "LIZE-0001",
+    "companyName": "LIZELLE NORTJE ",
+    "invoiceNumber": "INV200403",
+    "stored": {
+      "subtotal": 311.82,
+      "vat": 46.78,
+      "total": 358.6
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 46.78,
+      "total": 358.6
+    },
+    "delta": {
+      "subtotal": 311.82,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.550719+00:00",
+      "updatedAt": "2026-04-07T09:04:17.543389+00:00"
+    }
+  },
+  {
+    "accountNumber": "LOPA-0001",
+    "companyName": "SA LOADBODIE PARTS (PTY) LTD",
+    "invoiceNumber": "INV200434",
+    "stored": {
+      "subtotal": 766.43,
+      "vat": 114.97,
+      "total": 881.4
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 114.97,
+      "total": 881.4
+    },
+    "delta": {
+      "subtotal": 766.43,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.509251+00:00",
+      "updatedAt": "2026-04-07T09:04:37.836745+00:00"
+    }
+  },
+  {
+    "accountNumber": "LTSX-0001",
+    "companyName": "LTS BULK TRANSPORT",
+    "invoiceNumber": "INV200292",
+    "stored": {
+      "subtotal": 15221.6,
+      "vat": 2283.18,
+      "total": 17504.78
+    },
+    "lineItems": {
+      "count": 22,
+      "subtotal": 0,
+      "vat": 2283.18,
+      "total": 17504.78
+    },
+    "delta": {
+      "subtotal": 15221.6,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:17.777373+00:00",
+      "updatedAt": "2026-04-07T09:03:37.228749+00:00"
+    }
+  },
+  {
+    "accountNumber": "LTSX-0002",
+    "companyName": "LTS CC",
+    "invoiceNumber": "INV200261",
+    "stored": {
+      "subtotal": 5978.19,
+      "vat": 896.7,
+      "total": 6874.89
+    },
+    "lineItems": {
+      "count": 9,
+      "subtotal": 0,
+      "vat": 896.7,
+      "total": 6874.89
+    },
+    "delta": {
+      "subtotal": 5978.19,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:02.01563+00:00",
+      "updatedAt": "2026-04-07T09:03:15.867031+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACR-0001",
+    "companyName": "MAIBAZE CRANE & TRUCK HIRE",
+    "invoiceNumber": "INV200248",
+    "stored": {
+      "subtotal": 56264.11,
+      "vat": 8439.68,
+      "total": 64703.8
+    },
+    "lineItems": {
+      "count": 122,
+      "subtotal": 0,
+      "vat": 8439.68,
+      "total": 64703.8
+    },
+    "delta": {
+      "subtotal": 56264.11,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:55.559273+00:00",
+      "updatedAt": "2026-04-07T09:03:09.94105+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0001",
+    "companyName": "HARVEY ROOFING PRODUCTS",
+    "invoiceNumber": "INV200304",
+    "stored": {
+      "subtotal": 2168.67,
+      "vat": 325.3,
+      "total": 2493.97
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 325.3,
+      "total": 2493.97
+    },
+    "delta": {
+      "subtotal": 2168.67,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.48571+00:00",
+      "updatedAt": "2026-04-07T09:03:42.843764+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0002",
+    "companyName": "ROOFING GAUTENG - 2351",
+    "invoiceNumber": "INV200286",
+    "stored": {
+      "subtotal": 7256.96,
+      "vat": 1088.54,
+      "total": 8345.5
+    },
+    "lineItems": {
+      "count": 14,
+      "subtotal": 0,
+      "vat": 1088.54,
+      "total": 8345.5
+    },
+    "delta": {
+      "subtotal": 7256.96,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.461362+00:00",
+      "updatedAt": "2026-04-07T09:03:33.585221+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0003",
+    "companyName": "MACSTEEL COIL PROCESSING",
+    "invoiceNumber": "INV200319",
+    "stored": {
+      "subtotal": 18440.99,
+      "vat": 2766.13,
+      "total": 21207.12
+    },
+    "lineItems": {
+      "count": 30,
+      "subtotal": 0,
+      "vat": 2766.13,
+      "total": 21207.12
+    },
+    "delta": {
+      "subtotal": 18440.99,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.45538+00:00",
+      "updatedAt": "2026-04-07T09:03:45.389291+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0004",
+    "companyName": "MACSTEEL EXPORTS",
+    "invoiceNumber": "INV200318",
+    "stored": {
+      "subtotal": 1054.47,
+      "vat": 158.17,
+      "total": 1212.64
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 158.17,
+      "total": 1212.64
+    },
+    "delta": {
+      "subtotal": 1054.47,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.412933+00:00",
+      "updatedAt": "2026-04-07T09:03:45.174977+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0005",
+    "companyName": "MACSTEEL EXPRESS ISANDO",
+    "invoiceNumber": "INV200308",
+    "stored": {
+      "subtotal": 2670.96,
+      "vat": 400.64,
+      "total": 3071.6
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 400.64,
+      "total": 3071.6
+    },
+    "delta": {
+      "subtotal": 2670.96,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.57736+00:00",
+      "updatedAt": "2026-04-07T09:03:42.89413+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0006",
+    "companyName": "MACSTEEL EXPRESS PTY LTD",
+    "invoiceNumber": "INV200267",
+    "stored": {
+      "subtotal": 3398.43,
+      "vat": 509.76,
+      "total": 3908.19
+    },
+    "lineItems": {
+      "count": 6,
+      "subtotal": 0,
+      "vat": 509.76,
+      "total": 3908.19
+    },
+    "delta": {
+      "subtotal": 3398.43,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.052786+00:00",
+      "updatedAt": "2026-04-07T09:03:18.512689+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0007",
+    "companyName": "MACSTEEL EXPRESS NELSPRUIT (PTY) LTD",
+    "invoiceNumber": "INV200317",
+    "stored": {
+      "subtotal": 2495.67,
+      "vat": 374.35,
+      "total": 2870.02
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 374.35,
+      "total": 2870.02
+    },
+    "delta": {
+      "subtotal": 2495.67,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.409909+00:00",
+      "updatedAt": "2026-04-07T09:03:45.189842+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0008",
+    "companyName": "MACSTEEL EXPRESS PRETORIA",
+    "invoiceNumber": "INV200314",
+    "stored": {
+      "subtotal": 2703.31,
+      "vat": 405.49,
+      "total": 3108.8
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 405.49,
+      "total": 3108.8
+    },
+    "delta": {
+      "subtotal": 2703.31,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.39375+00:00",
+      "updatedAt": "2026-04-07T09:03:45.185534+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0009",
+    "companyName": "MACSTEEL EXPRESS VEREENIGING",
+    "invoiceNumber": "INV200316",
+    "stored": {
+      "subtotal": 1957.23,
+      "vat": 293.58,
+      "total": 2250.81
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 293.58,
+      "total": 2250.81
+    },
+    "delta": {
+      "subtotal": 1957.23,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.397316+00:00",
+      "updatedAt": "2026-04-07T09:03:45.201354+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0010",
+    "companyName": "MACSTEEL EXPRESS WELKOM (PTY) LTD",
+    "invoiceNumber": "INV200315",
+    "stored": {
+      "subtotal": 4066.17,
+      "vat": 609.92,
+      "total": 4676.09
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 609.92,
+      "total": 4676.09
+    },
+    "delta": {
+      "subtotal": 4066.17,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.373858+00:00",
+      "updatedAt": "2026-04-07T09:03:45.247251+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0011",
+    "companyName": "MACSTEEL EXPRESS WEST RAND",
+    "invoiceNumber": "INV200321",
+    "stored": {
+      "subtotal": 1957.23,
+      "vat": 293.58,
+      "total": 2250.81
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 293.58,
+      "total": 2250.81
+    },
+    "delta": {
+      "subtotal": 1957.23,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:29.871313+00:00",
+      "updatedAt": "2026-04-07T09:03:47.56305+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0012",
+    "companyName": "MACSTEEL FLUID CONTROL - CT",
+    "invoiceNumber": "INV200327",
+    "stored": {
+      "subtotal": 6396.49,
+      "vat": 959.46,
+      "total": 7355.95
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 959.46,
+      "total": 7355.95
+    },
+    "delta": {
+      "subtotal": 6396.49,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:30.165053+00:00",
+      "updatedAt": "2026-04-07T09:03:47.734006+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0013",
+    "companyName": "MACSTEEL FLUID CONTROL - DURBAN",
+    "invoiceNumber": "INV200274",
+    "stored": {
+      "subtotal": 4945.35,
+      "vat": 741.8,
+      "total": 5687.15
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 741.8,
+      "total": 5687.15
+    },
+    "delta": {
+      "subtotal": 4945.35,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:08.244902+00:00",
+      "updatedAt": "2026-04-07T09:03:22.726432+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0014",
+    "companyName": "MACSTEEL FLUID CONTROL - JHB",
+    "invoiceNumber": "INV200271",
+    "stored": {
+      "subtotal": 20975.75,
+      "vat": 3146.36,
+      "total": 24122.11
+    },
+    "lineItems": {
+      "count": 46,
+      "subtotal": 0,
+      "vat": 3146.36,
+      "total": 24122.11
+    },
+    "delta": {
+      "subtotal": 20975.75,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.41532+00:00",
+      "updatedAt": "2026-04-07T09:03:19.031101+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0015",
+    "companyName": "MACSTEEL FLUID CONTROL - RICHARDSBAY - DIV OF MSCSA (PTY) LTD",
+    "invoiceNumber": "INV200332",
+    "stored": {
+      "subtotal": 1827.93,
+      "vat": 274.19,
+      "total": 2102.12
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 274.19,
+      "total": 2102.12
+    },
+    "delta": {
+      "subtotal": 1827.93,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.807975+00:00",
+      "updatedAt": "2026-04-07T09:03:49.900203+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0016",
+    "companyName": "MACSTEEL FLUID CONTROL SECUNDA",
+    "invoiceNumber": "INV200329",
+    "stored": {
+      "subtotal": 1054.47,
+      "vat": 158.17,
+      "total": 1212.64
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 158.17,
+      "total": 1212.64
+    },
+    "delta": {
+      "subtotal": 1054.47,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.655715+00:00",
+      "updatedAt": "2026-04-07T09:03:49.890822+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0018",
+    "companyName": "MACSTEEL SERVICE CENTRE",
+    "invoiceNumber": "INV200334",
+    "stored": {
+      "subtotal": 7889.06,
+      "vat": 1183.37,
+      "total": 9072.43
+    },
+    "lineItems": {
+      "count": 17,
+      "subtotal": 0,
+      "vat": 1183.37,
+      "total": 9072.43
+    },
+    "delta": {
+      "subtotal": 7889.06,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.897098+00:00",
+      "updatedAt": "2026-04-07T09:03:50.083799+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0019",
+    "companyName": "MACSTEEL SPECIAL STEELS",
+    "invoiceNumber": "INV200269",
+    "stored": {
+      "subtotal": 11360.35,
+      "vat": 1704.04,
+      "total": 13064.39
+    },
+    "lineItems": {
+      "count": 19,
+      "subtotal": 0,
+      "vat": 1704.04,
+      "total": 13064.39
+    },
+    "delta": {
+      "subtotal": 11360.35,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.29523+00:00",
+      "updatedAt": "2026-04-07T09:03:18.723901+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0020",
+    "companyName": "MACSTEEL SPECIAL STEELS - KZN",
+    "invoiceNumber": "INV200328",
+    "stored": {
+      "subtotal": 3909.49,
+      "vat": 586.42,
+      "total": 4495.91
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 586.42,
+      "total": 4495.91
+    },
+    "delta": {
+      "subtotal": 3909.49,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.657944+00:00",
+      "updatedAt": "2026-04-07T09:03:49.958475+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0021",
+    "companyName": "VRN DURBAN",
+    "invoiceNumber": "INV200277",
+    "stored": {
+      "subtotal": 7432.25,
+      "vat": 1114.83,
+      "total": 8547.08
+    },
+    "lineItems": {
+      "count": 13,
+      "subtotal": 0,
+      "vat": 1114.83,
+      "total": 8547.08
+    },
+    "delta": {
+      "subtotal": 7432.25,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:08.351711+00:00",
+      "updatedAt": "2026-04-07T09:03:22.688005+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0022",
+    "companyName": "MACSTEEL SPECIAL STEELS",
+    "invoiceNumber": "INV200333",
+    "stored": {
+      "subtotal": 8767.11,
+      "vat": 1315.06,
+      "total": 10082.17
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 1315.06,
+      "total": 10082.17
+    },
+    "delta": {
+      "subtotal": 8767.11,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.850525+00:00",
+      "updatedAt": "2026-04-07T09:03:50.082092+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0023",
+    "companyName": "MACSTEEL TRADING BLOEMFONTEIN",
+    "invoiceNumber": "INV200276",
+    "stored": {
+      "subtotal": 13445.83,
+      "vat": 2016.86,
+      "total": 15462.69
+    },
+    "lineItems": {
+      "count": 21,
+      "subtotal": 0,
+      "vat": 2016.86,
+      "total": 15462.69
+    },
+    "delta": {
+      "subtotal": 13445.83,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:08.3344+00:00",
+      "updatedAt": "2026-04-07T09:03:22.980716+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0024",
+    "companyName": "MACSTEEL TRADING CAPE TOWN",
+    "invoiceNumber": "INV200293",
+    "stored": {
+      "subtotal": 20708.71,
+      "vat": 3106.28,
+      "total": 23814.99
+    },
+    "lineItems": {
+      "count": 33,
+      "subtotal": 0,
+      "vat": 3106.28,
+      "total": 23814.99
+    },
+    "delta": {
+      "subtotal": 20708.71,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:17.93778+00:00",
+      "updatedAt": "2026-04-07T09:03:37.496878+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0025",
+    "companyName": "MACSTEEL TRADING DURBAN  - DIV OF MSCSA (PTY) LTD",
+    "invoiceNumber": "INV200335",
+    "stored": {
+      "subtotal": 26575.43,
+      "vat": 3986.28,
+      "total": 30561.71
+    },
+    "lineItems": {
+      "count": 43,
+      "subtotal": 0,
+      "vat": 3986.28,
+      "total": 30561.71
+    },
+    "delta": {
+      "subtotal": 26575.43,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:33.083126+00:00",
+      "updatedAt": "2026-04-07T09:03:50.308331+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0026",
+    "companyName": "MACSTEEL TRADING GERMISTON",
+    "invoiceNumber": "INV200303",
+    "stored": {
+      "subtotal": 55546.45,
+      "vat": 8331.9,
+      "total": 63878.35
+    },
+    "lineItems": {
+      "count": 89,
+      "subtotal": 0,
+      "vat": 8331.9,
+      "total": 63878.35
+    },
+    "delta": {
+      "subtotal": 55546.45,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:22.025125+00:00",
+      "updatedAt": "2026-04-07T09:03:40.486862+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0027",
+    "companyName": "MACSTEEL TUBE & PIPE PTY LTD",
+    "invoiceNumber": "INV200300",
+    "stored": {
+      "subtotal": 15904.83,
+      "vat": 2385.7,
+      "total": 18290.53
+    },
+    "lineItems": {
+      "count": 25,
+      "subtotal": 0,
+      "vat": 2385.7,
+      "total": 18290.53
+    },
+    "delta": {
+      "subtotal": 15904.83,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.30622+00:00",
+      "updatedAt": "2026-04-07T09:03:40.229238+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0029",
+    "companyName": "MACSTEEL TRADING PHALABORWA",
+    "invoiceNumber": "INV200338",
+    "stored": {
+      "subtotal": 4190.5,
+      "vat": 628.57,
+      "total": 4819.07
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 628.57,
+      "total": 4819.07
+    },
+    "delta": {
+      "subtotal": 4190.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.866932+00:00",
+      "updatedAt": "2026-04-07T09:03:52.490333+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0030",
+    "companyName": "MACSTEEL TRADING PORT ELIZABETH",
+    "invoiceNumber": "INV200301",
+    "stored": {
+      "subtotal": 7515.56,
+      "vat": 1127.32,
+      "total": 8642.88
+    },
+    "lineItems": {
+      "count": 12,
+      "subtotal": 0,
+      "vat": 1127.32,
+      "total": 8642.88
+    },
+    "delta": {
+      "subtotal": 7515.56,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.740437+00:00",
+      "updatedAt": "2026-04-07T09:03:40.210831+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0031",
+    "companyName": "VRN GAUTENG",
+    "invoiceNumber": "INV200299",
+    "stored": {
+      "subtotal": 12631.23,
+      "vat": 1894.67,
+      "total": 14525.9
+    },
+    "lineItems": {
+      "count": 22,
+      "subtotal": 0,
+      "vat": 1894.67,
+      "total": 14525.9
+    },
+    "delta": {
+      "subtotal": 12631.23,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.299258+00:00",
+      "updatedAt": "2026-04-07T09:03:40.005627+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0032",
+    "companyName": "VRN KATHU",
+    "invoiceNumber": "INV200336",
+    "stored": {
+      "subtotal": 5866.72,
+      "vat": 880,
+      "total": 6746.72
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 880,
+      "total": 6746.72
+    },
+    "delta": {
+      "subtotal": 5866.72,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.787412+00:00",
+      "updatedAt": "2026-04-07T09:03:52.520191+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0033",
+    "companyName": "VRN KLERKSDORP",
+    "invoiceNumber": "INV200326",
+    "stored": {
+      "subtotal": 6096.77,
+      "vat": 914.51,
+      "total": 7011.28
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 914.51,
+      "total": 7011.28
+    },
+    "delta": {
+      "subtotal": 6096.77,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:30.080676+00:00",
+      "updatedAt": "2026-04-07T09:03:47.71866+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0034",
+    "companyName": "VRN PORT ELIZABETH",
+    "invoiceNumber": "INV200339",
+    "stored": {
+      "subtotal": 1800.55,
+      "vat": 270.08,
+      "total": 2070.63
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 270.08,
+      "total": 2070.63
+    },
+    "delta": {
+      "subtotal": 1800.55,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:35.880332+00:00",
+      "updatedAt": "2026-04-07T09:03:52.535233+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0035",
+    "companyName": "VRN RUSTENBURG",
+    "invoiceNumber": "INV200311",
+    "stored": {
+      "subtotal": 6561.84,
+      "vat": 984.27,
+      "total": 7546.11
+    },
+    "lineItems": {
+      "count": 12,
+      "subtotal": 0,
+      "vat": 984.27,
+      "total": 7546.11
+    },
+    "delta": {
+      "subtotal": 6561.84,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.792335+00:00",
+      "updatedAt": "2026-04-07T09:03:43.030852+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0036",
+    "companyName": "VRN SPRINGBOK",
+    "invoiceNumber": "INV200306",
+    "stored": {
+      "subtotal": 2389.95,
+      "vat": 358.49,
+      "total": 2748.44
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 358.49,
+      "total": 2748.44
+    },
+    "delta": {
+      "subtotal": 2389.95,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.549473+00:00",
+      "updatedAt": "2026-04-07T09:03:42.839908+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0037",
+    "companyName": "VRN STEEL - C.T. (PTY) LTD",
+    "invoiceNumber": "INV200310",
+    "stored": {
+      "subtotal": 6377.78,
+      "vat": 956.66,
+      "total": 7334.44
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 956.66,
+      "total": 7334.44
+    },
+    "delta": {
+      "subtotal": 6377.78,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.764385+00:00",
+      "updatedAt": "2026-04-07T09:03:42.960216+00:00"
+    }
+  },
+  {
+    "accountNumber": "MACS-0038",
+    "companyName": "VRN WITBANK",
+    "invoiceNumber": "INV200309",
+    "stored": {
+      "subtotal": 5429.03,
+      "vat": 814.35,
+      "total": 6243.38
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 814.35,
+      "total": 6243.38
+    },
+    "delta": {
+      "subtotal": 5429.03,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.716965+00:00",
+      "updatedAt": "2026-04-07T09:03:43.014011+00:00"
+    }
+  },
+  {
+    "accountNumber": "MAGO-0001",
+    "companyName": "MARCUS GOLDRING",
+    "invoiceNumber": "INV200367",
+    "stored": {
+      "subtotal": 177.46,
+      "vat": 26.62,
+      "total": 204.08
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 26.62,
+      "total": 204.08
+    },
+    "delta": {
+      "subtotal": 177.46,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:48.053976+00:00",
+      "updatedAt": "2026-04-07T09:04:03.497242+00:00"
+    }
+  },
+  {
+    "accountNumber": "MAIB-0001",
+    "companyName": "MAIBAZE CRANE & TRUCK HIRE",
+    "invoiceNumber": "INV200400",
+    "stored": {
+      "subtotal": 50727.11,
+      "vat": 7609.04,
+      "total": 58336.15
+    },
+    "lineItems": {
+      "count": 122,
+      "subtotal": 0,
+      "vat": 7609.04,
+      "total": 58336.15
+    },
+    "delta": {
+      "subtotal": 50727.11,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:00.041056+00:00",
+      "updatedAt": "2026-04-07T09:04:15.050745+00:00"
+    }
+  },
+  {
+    "accountNumber": "MARI-0001",
+    "companyName": "MARIUS VAN ZYL",
+    "invoiceNumber": "INV200330",
+    "stored": {
+      "subtotal": 272.67,
+      "vat": 40.9,
+      "total": 313.57
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 40.9,
+      "total": 313.57
+    },
+    "delta": {
+      "subtotal": 272.67,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:32.669346+00:00",
+      "updatedAt": "2026-04-07T09:03:49.884418+00:00"
+    }
+  },
+  {
+    "accountNumber": "MASS-0001",
+    "companyName": "MASS PETROLEUM (PTY) LTD",
+    "invoiceNumber": "INV200287",
+    "stored": {
+      "subtotal": 5626.08,
+      "vat": 844.08,
+      "total": 6470.16
+    },
+    "lineItems": {
+      "count": 49,
+      "subtotal": 0,
+      "vat": 844.08,
+      "total": 6470.16
+    },
+    "delta": {
+      "subtotal": 5626.08,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.602171+00:00",
+      "updatedAt": "2026-04-07T09:03:33.865527+00:00"
+    }
+  },
+  {
+    "accountNumber": "MAVA-0001",
+    "companyName": "MANIE VD SCHYFF",
+    "invoiceNumber": "INV200462",
+    "stored": {
+      "subtotal": 152.33,
+      "vat": 22.85,
+      "total": 175.18
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 22.85,
+      "total": 175.18
+    },
+    "delta": {
+      "subtotal": 152.33,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.499011+00:00",
+      "updatedAt": "2026-04-07T09:04:50.576284+00:00"
+    }
+  },
+  {
+    "accountNumber": "MAVE-0001",
+    "companyName": "MAGDA VENTER",
+    "invoiceNumber": "INV200373",
+    "stored": {
+      "subtotal": 890.64,
+      "vat": 133.58,
+      "total": 1024.22
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 133.58,
+      "total": 1024.22
+    },
+    "delta": {
+      "subtotal": 890.64,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.822365+00:00",
+      "updatedAt": "2026-04-07T09:04:06.015716+00:00"
+    }
+  },
+  {
+    "accountNumber": "MAYS-0001",
+    "companyName": "Maysene",
+    "invoiceNumber": "INV200291",
+    "stored": {
+      "subtotal": 14934,
+      "vat": 2240.1,
+      "total": 17174.1
+    },
+    "lineItems": {
+      "count": 16,
+      "subtotal": 0,
+      "vat": 2240.1,
+      "total": 17174.1
+    },
+    "delta": {
+      "subtotal": 14934,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:18.053968+00:00",
+      "updatedAt": "2026-04-07T09:03:37.231476+00:00"
+    }
+  },
+  {
+    "accountNumber": "MELA-0001",
+    "companyName": "MELANI DE JAGER",
+    "invoiceNumber": "INV200313",
+    "stored": {
+      "subtotal": 132.76,
+      "vat": 19.91,
+      "total": 152.67
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 19.91,
+      "total": 152.67
+    },
+    "delta": {
+      "subtotal": 132.76,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:27.276646+00:00",
+      "updatedAt": "2026-04-07T09:03:45.161579+00:00"
+    }
+  },
+  {
+    "accountNumber": "META-0001",
+    "companyName": "NN METALS (PTY) LTD",
+    "invoiceNumber": "INV200260",
+    "stored": {
+      "subtotal": 67414.4,
+      "vat": 10112.18,
+      "total": 77526.58
+    },
+    "lineItems": {
+      "count": 54,
+      "subtotal": 0,
+      "vat": 10112.18,
+      "total": 77526.58
+    },
+    "delta": {
+      "subtotal": 67414.4,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:02.023696+00:00",
+      "updatedAt": "2026-04-07T09:03:16.22055+00:00"
+    }
+  },
+  {
+    "accountNumber": "MFAN-0001",
+    "companyName": "MFANIMPELA STEPHEN NTSHANGASE",
+    "invoiceNumber": "INV200445",
+    "stored": {
+      "subtotal": 124.71,
+      "vat": 18.71,
+      "total": 143.42
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 18.71,
+      "total": 143.42
+    },
+    "delta": {
+      "subtotal": 124.71,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.610765+00:00",
+      "updatedAt": "2026-04-07T09:04:40.622874+00:00"
+    }
+  },
+  {
+    "accountNumber": "MIJA-0001",
+    "companyName": "Mike Jankelowitz",
+    "invoiceNumber": "INV200284",
+    "stored": {
+      "subtotal": 645.58,
+      "vat": 96.84,
+      "total": 742.42
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 96.84,
+      "total": 742.42
+    },
+    "delta": {
+      "subtotal": 645.58,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.143012+00:00",
+      "updatedAt": "2026-04-07T09:03:33.24264+00:00"
+    }
+  },
+  {
+    "accountNumber": "MNFU-0001",
+    "companyName": "MNANDI FUEL (PTY) LTD",
+    "invoiceNumber": "INV200344",
+    "stored": {
+      "subtotal": 15025,
+      "vat": 2253.75,
+      "total": 17278.75
+    },
+    "lineItems": {
+      "count": 6,
+      "subtotal": 0,
+      "vat": 2253.75,
+      "total": 17278.75
+    },
+    "delta": {
+      "subtotal": 15025,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:39.537512+00:00",
+      "updatedAt": "2026-04-07T09:03:55.960657+00:00"
+    }
+  },
+  {
+    "accountNumber": "MPUM-0001",
+    "companyName": "MPUMA WEST TRADING",
+    "invoiceNumber": "INV200270",
+    "stored": {
+      "subtotal": 11850,
+      "vat": 1777.5,
+      "total": 13627.5
+    },
+    "lineItems": {
+      "count": 75,
+      "subtotal": 0,
+      "vat": 1777.5,
+      "total": 13627.5
+    },
+    "delta": {
+      "subtotal": 11850,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:05.42041+00:00",
+      "updatedAt": "2026-04-07T09:03:18.952772+00:00"
+    }
+  },
+  {
+    "accountNumber": "NERE-0001",
+    "companyName": "NEREN THAVER",
+    "invoiceNumber": "INV200259",
+    "stored": {
+      "subtotal": 1439.62,
+      "vat": 215.94,
+      "total": 1655.56
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 215.94,
+      "total": 1655.56
+    },
+    "delta": {
+      "subtotal": 1439.62,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:01.986923+00:00",
+      "updatedAt": "2026-04-07T09:03:15.827341+00:00"
+    }
+  },
+  {
+    "accountNumber": "NIGE-0001",
+    "companyName": "NIGEL CLIFFORD PROVIS",
+    "invoiceNumber": "INV200468",
+    "stored": {
+      "subtotal": 294.13,
+      "vat": 44.12,
+      "total": 338.25
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 44.12,
+      "total": 338.25
+    },
+    "delta": {
+      "subtotal": 294.13,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:26.826811+00:00",
+      "updatedAt": "2026-04-07T09:04:50.697235+00:00"
+    }
+  },
+  {
+    "accountNumber": "NNSL-0001",
+    "companyName": "NNS LOGISTICS (PTY) LTD",
+    "invoiceNumber": "INV200342",
+    "stored": {
+      "subtotal": 14014.68,
+      "vat": 2102.24,
+      "total": 16116.92
+    },
+    "lineItems": {
+      "count": 28,
+      "subtotal": 0,
+      "vat": 2102.24,
+      "total": 16116.92
+    },
+    "delta": {
+      "subtotal": 14014.68,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:36.064984+00:00",
+      "updatedAt": "2026-04-07T09:03:52.685175+00:00"
+    }
+  },
+  {
+    "accountNumber": "NOVU-0001",
+    "companyName": "NOVUS PRINT (PTY) LTD",
+    "invoiceNumber": "INV200473",
+    "stored": {
+      "subtotal": 4176.8,
+      "vat": 626.52,
+      "total": 4803.32
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 626.52,
+      "total": 4803.32
+    },
+    "delta": {
+      "subtotal": 4176.8,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T13:12:03.912497+00:00",
+      "updatedAt": "2026-04-07T09:04:47.798256+00:00"
+    }
+  },
+  {
+    "accountNumber": "PETE-0001",
+    "companyName": "PETERBILL TRANSPORT (PTY) LTD",
+    "invoiceNumber": "INV200263",
+    "stored": {
+      "subtotal": 51946.88,
+      "vat": 7792.17,
+      "total": 59739.05
+    },
+    "lineItems": {
+      "count": 65,
+      "subtotal": 0,
+      "vat": 7792.17,
+      "total": 59739.05
+    },
+    "delta": {
+      "subtotal": 51946.88,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:02.336009+00:00",
+      "updatedAt": "2026-04-07T09:03:16.157697+00:00"
+    }
+  },
+  {
+    "accountNumber": "PHFO-0001",
+    "companyName": "PHILLIP FOURIE",
+    "invoiceNumber": "INV200407",
+    "stored": {
+      "subtotal": 594.16,
+      "vat": 89.12,
+      "total": 683.28
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 89.12,
+      "total": 683.28
+    },
+    "delta": {
+      "subtotal": 594.16,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.852994+00:00",
+      "updatedAt": "2026-04-07T09:04:17.570361+00:00"
+    }
+  },
+  {
+    "accountNumber": "PI(M-0001",
+    "companyName": "PIMSTEIN (MICHAEL) FAMILY TRUST",
+    "invoiceNumber": "INV200244",
+    "stored": {
+      "subtotal": 2450,
+      "vat": 367.5,
+      "total": 2817.5
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 367.5,
+      "total": 2817.5
+    },
+    "delta": {
+      "subtotal": 2450,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:54.612885+00:00",
+      "updatedAt": "2026-04-07T09:03:09.067495+00:00"
+    }
+  },
+  {
+    "accountNumber": "PILL-0001",
+    "companyName": "PILLAR MAINTENANCE PTY LTD",
+    "invoiceNumber": "INV200258",
+    "stored": {
+      "subtotal": 816,
+      "vat": 122.4,
+      "total": 938.4
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 122.4,
+      "total": 938.4
+    },
+    "delta": {
+      "subtotal": 816,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:01.950027+00:00",
+      "updatedAt": "2026-04-07T09:03:15.882494+00:00"
+    }
+  },
+  {
+    "accountNumber": "POLY-0001",
+    "companyName": "POLYWHIZ TRADING (PTY) LTD",
+    "invoiceNumber": "INV200394",
+    "stored": {
+      "subtotal": 201.86,
+      "vat": 30.28,
+      "total": 232.14
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 30.28,
+      "total": 232.14
+    },
+    "delta": {
+      "subtotal": 201.86,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.304035+00:00",
+      "updatedAt": "2026-04-07T09:04:14.130232+00:00"
+    }
+  },
+  {
+    "accountNumber": "PRCR-0001",
+    "companyName": "TT NO BORDERS LOGISTICS (PTY) Ltd",
+    "invoiceNumber": "INV200264",
+    "stored": {
+      "subtotal": 24368,
+      "vat": 3655.2,
+      "total": 28023.2
+    },
+    "lineItems": {
+      "count": 34,
+      "subtotal": 0,
+      "vat": 3655.2,
+      "total": 28023.2
+    },
+    "delta": {
+      "subtotal": 24368,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:02.373122+00:00",
+      "updatedAt": "2026-04-07T09:03:16.136008+00:00"
+    }
+  },
+  {
+    "accountNumber": "REPA-0001",
+    "companyName": "REEL PAPERS (PTY) LTD",
+    "invoiceNumber": "INV200451",
+    "stored": {
+      "subtotal": 4524.96,
+      "vat": 678.74,
+      "total": 5203.7
+    },
+    "lineItems": {
+      "count": 12,
+      "subtotal": 0,
+      "vat": 678.74,
+      "total": 5203.7
+    },
+    "delta": {
+      "subtotal": 4524.96,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.174204+00:00",
+      "updatedAt": "2026-04-07T09:04:43.354043+00:00"
+    }
+  },
+  {
+    "accountNumber": "RIGH-0001",
+    "companyName": "RIGHT CORRUGATED CONTAINERS",
+    "invoiceNumber": "INV200398",
+    "stored": {
+      "subtotal": 8213.7,
+      "vat": 1232.02,
+      "total": 9445.72
+    },
+    "lineItems": {
+      "count": 14,
+      "subtotal": 0,
+      "vat": 1232.02,
+      "total": 9445.72
+    },
+    "delta": {
+      "subtotal": 8213.7,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.594745+00:00",
+      "updatedAt": "2026-04-07T09:04:14.137003+00:00"
+    }
+  },
+  {
+    "accountNumber": "ROIN-0001",
+    "companyName": "DA ROCHA INTERIORS",
+    "invoiceNumber": "INV200448",
+    "stored": {
+      "subtotal": 1743.79,
+      "vat": 261.56,
+      "total": 2005.35
+    },
+    "lineItems": {
+      "count": 5,
+      "subtotal": 0,
+      "vat": 261.56,
+      "total": 2005.35
+    },
+    "delta": {
+      "subtotal": 1743.79,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.000684+00:00",
+      "updatedAt": "2026-04-07T09:04:42.874358+00:00"
+    }
+  },
+  {
+    "accountNumber": "RONH-0001",
+    "companyName": "RON HINDE",
+    "invoiceNumber": "INV200440",
+    "stored": {
+      "subtotal": 141.72,
+      "vat": 21.26,
+      "total": 162.98
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 21.26,
+      "total": 162.98
+    },
+    "delta": {
+      "subtotal": 141.72,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.241374+00:00",
+      "updatedAt": "2026-04-07T09:04:40.645145+00:00"
+    }
+  },
+  {
+    "accountNumber": "SAWA-0001",
+    "companyName": "SA WATER",
+    "invoiceNumber": "INV200427",
+    "stored": {
+      "subtotal": 259,
+      "vat": 38.85,
+      "total": 297.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 38.85,
+      "total": 297.85
+    },
+    "delta": {
+      "subtotal": 259,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:10.878325+00:00",
+      "updatedAt": "2026-04-07T09:04:35.295503+00:00"
+    }
+  },
+  {
+    "accountNumber": "SEVE-0001",
+    "companyName": "FAITHWHEELS",
+    "invoiceNumber": "INV200279",
+    "stored": {
+      "subtotal": 61524.66,
+      "vat": 9228.97,
+      "total": 70753.63
+    },
+    "lineItems": {
+      "count": 138,
+      "subtotal": 0,
+      "vat": 9228.97,
+      "total": 70753.63
+    },
+    "delta": {
+      "subtotal": 61524.66,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:09.335917+00:00",
+      "updatedAt": "2026-04-07T09:03:26.929949+00:00"
+    }
+  },
+  {
+    "accountNumber": "SGMO-0001",
+    "companyName": "SG MOBILITY",
+    "invoiceNumber": "INV200401",
+    "stored": {
+      "subtotal": 3006.02,
+      "vat": 450.9,
+      "total": 3456.92
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 450.9,
+      "total": 3456.92
+    },
+    "delta": {
+      "subtotal": 3006.02,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.541665+00:00",
+      "updatedAt": "2026-04-07T09:04:17.45197+00:00"
+    }
+  },
+  {
+    "accountNumber": "SGMO-0008",
+    "companyName": "SANDVIK - (SG MOBILITY)",
+    "invoiceNumber": "INV200406",
+    "stored": {
+      "subtotal": 7367.32,
+      "vat": 1105.08,
+      "total": 8472.4
+    },
+    "lineItems": {
+      "count": 12,
+      "subtotal": 0,
+      "vat": 1105.08,
+      "total": 8472.4
+    },
+    "delta": {
+      "subtotal": 7367.32,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.816202+00:00",
+      "updatedAt": "2026-04-07T09:04:17.614758+00:00"
+    }
+  },
+  {
+    "accountNumber": "SGMO-0021",
+    "companyName": "SG MOBILITY",
+    "invoiceNumber": "INV200402",
+    "stored": {
+      "subtotal": 4888.07,
+      "vat": 733.2,
+      "total": 5621.27
+    },
+    "lineItems": {
+      "count": 7,
+      "subtotal": 0,
+      "vat": 733.2,
+      "total": 5621.27
+    },
+    "delta": {
+      "subtotal": 4888.07,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:02.557289+00:00",
+      "updatedAt": "2026-04-07T09:04:17.490468+00:00"
+    }
+  },
+  {
+    "accountNumber": "SHEE-0001",
+    "companyName": "SHEENA HEIKEL",
+    "invoiceNumber": "INV200417",
+    "stored": {
+      "subtotal": 164.09,
+      "vat": 24.61,
+      "total": 188.7
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 24.61,
+      "total": 188.7
+    },
+    "delta": {
+      "subtotal": 164.09,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:08.073298+00:00",
+      "updatedAt": "2026-04-07T09:04:32.509553+00:00"
+    }
+  },
+  {
+    "accountNumber": "SILV-0001",
+    "companyName": "SILVERFERN ANGITU (PTY) LTD",
+    "invoiceNumber": "INV200439",
+    "stored": {
+      "subtotal": 3092.89,
+      "vat": 463.94,
+      "total": 3556.83
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 463.94,
+      "total": 3556.83
+    },
+    "delta": {
+      "subtotal": 3092.89,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:16.237641+00:00",
+      "updatedAt": "2026-04-07T09:04:40.619365+00:00"
+    }
+  },
+  {
+    "accountNumber": "SOLA-0001",
+    "companyName": "SOLPROPS",
+    "invoiceNumber": "INV200456",
+    "stored": {
+      "subtotal": 895,
+      "vat": 134.25,
+      "total": 1029.25
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 134.25,
+      "total": 1029.25
+    },
+    "delta": {
+      "subtotal": 895,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:23.367336+00:00",
+      "updatedAt": "2026-04-07T09:04:47.798906+00:00"
+    }
+  },
+  {
+    "accountNumber": "SPAR-0001",
+    "companyName": "SPAR SOUTH RAND",
+    "invoiceNumber": "INV200275",
+    "stored": {
+      "subtotal": 12961.91,
+      "vat": 1944.21,
+      "total": 14906.12
+    },
+    "lineItems": {
+      "count": 23,
+      "subtotal": 0,
+      "vat": 1944.21,
+      "total": 14906.12
+    },
+    "delta": {
+      "subtotal": 12961.91,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:08.293978+00:00",
+      "updatedAt": "2026-04-07T09:03:22.985093+00:00"
+    }
+  },
+  {
+    "accountNumber": "SPAR-0002",
+    "companyName": "THE SPAR GROUP Ltd",
+    "invoiceNumber": "INV200375",
+    "stored": {
+      "subtotal": 6262.96,
+      "vat": 939.4,
+      "total": 7202.36
+    },
+    "lineItems": {
+      "count": 11,
+      "subtotal": 0,
+      "vat": 939.4,
+      "total": 7202.36
+    },
+    "delta": {
+      "subtotal": 6262.96,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.942331+00:00",
+      "updatedAt": "2026-04-07T09:04:06.113067+00:00"
+    }
+  },
+  {
+    "accountNumber": "SRS-0001",
+    "companyName": "SRS",
+    "invoiceNumber": "INV200414",
+    "stored": {
+      "subtotal": 2233,
+      "vat": 334.95,
+      "total": 2567.95
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 334.95,
+      "total": 2567.95
+    },
+    "delta": {
+      "subtotal": 2233,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:05.717665+00:00",
+      "updatedAt": "2026-04-07T09:04:27.332526+00:00"
+    }
+  },
+  {
+    "accountNumber": "STGR-0001",
+    "companyName": "STEEL GRAIN LOGISTICS (PTY) LTD",
+    "invoiceNumber": "INV200436",
+    "stored": {
+      "subtotal": 9601.44,
+      "vat": 1440.22,
+      "total": 11041.66
+    },
+    "lineItems": {
+      "count": 22,
+      "subtotal": 0,
+      "vat": 1440.22,
+      "total": 11041.66
+    },
+    "delta": {
+      "subtotal": 9601.44,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.669755+00:00",
+      "updatedAt": "2026-04-07T09:04:38.250872+00:00"
+    }
+  },
+  {
+    "accountNumber": "STRU-0001",
+    "companyName": "STRUCMAC",
+    "invoiceNumber": "INV200285",
+    "stored": {
+      "subtotal": 29413,
+      "vat": 4411.85,
+      "total": 33824.9
+    },
+    "lineItems": {
+      "count": 44,
+      "subtotal": 0,
+      "vat": 4411.85,
+      "total": 33824.9
+    },
+    "delta": {
+      "subtotal": 29413,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.458552+00:00",
+      "updatedAt": "2026-04-07T09:03:33.67126+00:00"
+    }
+  },
+  {
+    "accountNumber": "SUNI-0001",
+    "companyName": "SUNIGEN HOLDINGS (PTY) LTD",
+    "invoiceNumber": "INV200397",
+    "stored": {
+      "subtotal": 178,
+      "vat": 26.7,
+      "total": 204.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 26.7,
+      "total": 204.7
+    },
+    "delta": {
+      "subtotal": 178,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:59.376497+00:00",
+      "updatedAt": "2026-04-07T09:04:14.079132+00:00"
+    }
+  },
+  {
+    "accountNumber": "TACI-0001",
+    "companyName": "TACIT LOGISTICS PTY LTD",
+    "invoiceNumber": "INV200295",
+    "stored": {
+      "subtotal": 4971.88,
+      "vat": 745.82,
+      "total": 5717.7
+    },
+    "lineItems": {
+      "count": 15,
+      "subtotal": 0,
+      "vat": 745.82,
+      "total": 5717.7
+    },
+    "delta": {
+      "subtotal": 4971.88,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:18.518298+00:00",
+      "updatedAt": "2026-04-07T09:03:37.238709+00:00"
+    }
+  },
+  {
+    "accountNumber": "TAFO-0001",
+    "companyName": "TALISMAN FOUNDATION",
+    "invoiceNumber": "INV200369",
+    "stored": {
+      "subtotal": 198,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "lineItems": {
+      "count": 2,
+      "subtotal": 0,
+      "vat": 29.7,
+      "total": 227.7
+    },
+    "delta": {
+      "subtotal": 198,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:48.144626+00:00",
+      "updatedAt": "2026-04-07T09:04:03.515237+00:00"
+    }
+  },
+  {
+    "accountNumber": "TLOG-0001",
+    "companyName": "TT LOGISTICS SOLUTIONS",
+    "invoiceNumber": "INV200470",
+    "stored": {
+      "subtotal": 24813,
+      "vat": 3721.95,
+      "total": 28534.95
+    },
+    "lineItems": {
+      "count": 27,
+      "subtotal": 0,
+      "vat": 3721.95,
+      "total": 28534.95
+    },
+    "delta": {
+      "subtotal": 24813,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:29.742577+00:00",
+      "updatedAt": "2026-04-07T09:04:54.330714+00:00"
+    }
+  },
+  {
+    "accountNumber": "TRIA-0001",
+    "companyName": "TRIANGLE SERVICES VAAL (PTY) LTD",
+    "invoiceNumber": "INV200257",
+    "stored": {
+      "subtotal": 22759,
+      "vat": 3413.85,
+      "total": 26172.85
+    },
+    "lineItems": {
+      "count": 51,
+      "subtotal": 0,
+      "vat": 3413.85,
+      "total": 26172.85
+    },
+    "delta": {
+      "subtotal": 22759,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.387223+00:00",
+      "updatedAt": "2026-04-07T09:03:13.563128+00:00"
+    }
+  },
+  {
+    "accountNumber": "TSHI-0001",
+    "companyName": "TSHIFHIWA THERONE NEMAPAKONI",
+    "invoiceNumber": "INV200252",
+    "stored": {
+      "subtotal": 536,
+      "vat": 80.4,
+      "total": 616.4
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 80.4,
+      "total": 616.4
+    },
+    "delta": {
+      "subtotal": 536,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.029461+00:00",
+      "updatedAt": "2026-04-07T09:03:13.189817+00:00"
+    }
+  },
+  {
+    "accountNumber": "TTEX-0001",
+    "companyName": "TT EXPRESS",
+    "invoiceNumber": "INV200472",
+    "stored": {
+      "subtotal": 35841,
+      "vat": 5376.15,
+      "total": 41217.15
+    },
+    "lineItems": {
+      "count": 39,
+      "subtotal": 0,
+      "vat": 5376.15,
+      "total": 41217.15
+    },
+    "delta": {
+      "subtotal": 35841,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:29.816977+00:00",
+      "updatedAt": "2026-04-07T09:04:54.456344+00:00"
+    }
+  },
+  {
+    "accountNumber": "TTFM-0001",
+    "companyName": "TT FMCG SOLUTIONS",
+    "invoiceNumber": "INV200469",
+    "stored": {
+      "subtotal": 27570,
+      "vat": 4135.5,
+      "total": 31705.5
+    },
+    "lineItems": {
+      "count": 30,
+      "subtotal": 0,
+      "vat": 4135.5,
+      "total": 31705.5
+    },
+    "delta": {
+      "subtotal": 27570,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:29.428169+00:00",
+      "updatedAt": "2026-04-07T09:04:54.388984+00:00"
+    }
+  },
+  {
+    "accountNumber": "TTLI-0001",
+    "companyName": "TT LINEHAUL",
+    "invoiceNumber": "INV200471",
+    "stored": {
+      "subtotal": 28489,
+      "vat": 4273.35,
+      "total": 32762.35
+    },
+    "lineItems": {
+      "count": 31,
+      "subtotal": 0,
+      "vat": 4273.35,
+      "total": 32762.35
+    },
+    "delta": {
+      "subtotal": 28489,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:29.756879+00:00",
+      "updatedAt": "2026-04-07T09:04:54.272892+00:00"
+    }
+  },
+  {
+    "accountNumber": "TURN-0001",
+    "companyName": "TURNOVER TRADING 72 CC",
+    "invoiceNumber": "INV200433",
+    "stored": {
+      "subtotal": 5998.5,
+      "vat": 899.73,
+      "total": 6898.32
+    },
+    "lineItems": {
+      "count": 9,
+      "subtotal": 0,
+      "vat": 899.73,
+      "total": 6898.32
+    },
+    "delta": {
+      "subtotal": 5998.5,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:13.516377+00:00",
+      "updatedAt": "2026-04-07T09:04:37.886687+00:00"
+    }
+  },
+  {
+    "accountNumber": "TYRE-0001",
+    "companyName": "TYREL HENDRIKZ",
+    "invoiceNumber": "INV200305",
+    "stored": {
+      "subtotal": 79,
+      "vat": 11.85,
+      "total": 90.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 11.85,
+      "total": 90.85
+    },
+    "delta": {
+      "subtotal": 79,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.505448+00:00",
+      "updatedAt": "2026-04-07T09:03:42.8423+00:00"
+    }
+  },
+  {
+    "accountNumber": "TYSO-0001",
+    "companyName": "TYRE SOLUTIONS - GOODYEAR JHB",
+    "invoiceNumber": "INV200296",
+    "stored": {
+      "subtotal": 2776.04,
+      "vat": 416.4,
+      "total": 3192.44
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 416.4,
+      "total": 3192.44
+    },
+    "delta": {
+      "subtotal": 2776.04,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:21.198533+00:00",
+      "updatedAt": "2026-04-07T09:03:39.917044+00:00"
+    }
+  },
+  {
+    "accountNumber": "U-JH-0001",
+    "companyName": "U-RENT JHB - ACC CLOSED",
+    "invoiceNumber": "INV200273",
+    "stored": {
+      "subtotal": 777,
+      "vat": 116.55,
+      "total": 893.55
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 116.55,
+      "total": 893.55
+    },
+    "delta": {
+      "subtotal": 777,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:08.081307+00:00",
+      "updatedAt": "2026-04-07T09:03:22.479054+00:00"
+    }
+  },
+  {
+    "accountNumber": "VDMB-0001",
+    "companyName": "VDM BUSINESS ENTERPRISE CC",
+    "invoiceNumber": "INV200453",
+    "stored": {
+      "subtotal": 750,
+      "vat": 112.5,
+      "total": 862.5
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 112.5,
+      "total": 862.5
+    },
+    "delta": {
+      "subtotal": 750,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:01:19.194546+00:00",
+      "updatedAt": "2026-04-07T09:04:43.054627+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0001",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200283",
+    "stored": {
+      "subtotal": 102301.55,
+      "vat": 15345.31,
+      "total": 117646.86
+    },
+    "lineItems": {
+      "count": 31,
+      "subtotal": 0,
+      "vat": 15345.31,
+      "total": 117646.86
+    },
+    "delta": {
+      "subtotal": 102301.55,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:13.102553+00:00",
+      "updatedAt": "2026-04-07T09:03:33.592394+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0002",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200361",
+    "stored": {
+      "subtotal": 1386.86,
+      "vat": 208.03,
+      "total": 1594.89
+    },
+    "lineItems": {
+      "count": 4,
+      "subtotal": 0,
+      "vat": 208.03,
+      "total": 1594.89
+    },
+    "delta": {
+      "subtotal": 1386.86,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.248845+00:00",
+      "updatedAt": "2026-04-07T09:04:01.139561+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0003",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200362",
+    "stored": {
+      "subtotal": 14058.24,
+      "vat": 2108.76,
+      "total": 16167
+    },
+    "lineItems": {
+      "count": 6,
+      "subtotal": 0,
+      "vat": 2108.76,
+      "total": 16167
+    },
+    "delta": {
+      "subtotal": 14058.24,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:45.310495+00:00",
+      "updatedAt": "2026-04-07T09:04:01.166848+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0004",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200255",
+    "stored": {
+      "subtotal": 15063.22,
+      "vat": 2259.43,
+      "total": 17322.65
+    },
+    "lineItems": {
+      "count": 50,
+      "subtotal": 0,
+      "vat": 2259.43,
+      "total": 17322.65
+    },
+    "delta": {
+      "subtotal": 15063.22,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.322868+00:00",
+      "updatedAt": "2026-04-07T09:03:13.626608+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0005",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200371",
+    "stored": {
+      "subtotal": 4036.05,
+      "vat": 605.4,
+      "total": 4641.45
+    },
+    "lineItems": {
+      "count": 3,
+      "subtotal": 0,
+      "vat": 605.4,
+      "total": 4641.45
+    },
+    "delta": {
+      "subtotal": 4036.05,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.757763+00:00",
+      "updatedAt": "2026-04-07T09:04:05.9837+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0006",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200307",
+    "stored": {
+      "subtotal": 299,
+      "vat": 44.85,
+      "total": 343.85
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 44.85,
+      "total": 343.85
+    },
+    "delta": {
+      "subtotal": 299,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:24.584092+00:00",
+      "updatedAt": "2026-04-07T09:03:42.888206+00:00"
+    }
+  },
+  {
+    "accountNumber": "WACA-0007",
+    "companyName": "WATERFORD CARRIERS",
+    "invoiceNumber": "INV200372",
+    "stored": {
+      "subtotal": 1203.28,
+      "vat": 180.49,
+      "total": 1383.77
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 180.49,
+      "total": 1383.77
+    },
+    "delta": {
+      "subtotal": 1203.28,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:50.804323+00:00",
+      "updatedAt": "2026-04-07T09:04:06.045356+00:00"
+    }
+  },
+  {
+    "accountNumber": "WAYN-0001",
+    "companyName": "WAYNE VAN ZYL",
+    "invoiceNumber": "INV200390",
+    "stored": {
+      "subtotal": 69,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "lineItems": {
+      "count": 1,
+      "subtotal": 0,
+      "vat": 10.35,
+      "total": 79.35
+    },
+    "delta": {
+      "subtotal": 69,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T11:00:56.746265+00:00",
+      "updatedAt": "2026-04-07T09:04:11.192863+00:00"
+    }
+  },
+  {
+    "accountNumber": "WEFI-0001",
+    "companyName": "WEFIN CAR RENTALS PTY LTD",
+    "invoiceNumber": "INV200254",
+    "stored": {
+      "subtotal": 3536.19,
+      "vat": 530.38,
+      "total": 4066.64
+    },
+    "lineItems": {
+      "count": 10,
+      "subtotal": 0,
+      "vat": 530.38,
+      "total": 4066.64
+    },
+    "delta": {
+      "subtotal": 3536.19,
+      "vat": 0,
+      "total": 0
+    },
+    "flags": {
+      "exactStoredMatches": false,
+      "subtotalMatches": false,
+      "vatMatches": true,
+      "totalMatches": true
+    },
+    "timestamps": {
+      "createdAt": "2026-04-01T10:59:59.166947+00:00",
+      "updatedAt": "2026-04-07T09:03:13.365033+00:00"
+    }
+  }
+]

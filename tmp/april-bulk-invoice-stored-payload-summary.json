@@ -1,0 +1,513 @@
+{
+  "billingMonth": "2026-04-01",
+  "invoiceCount": 232,
+  "exactStoredMatches": 0,
+  "subtotalMatches": 0,
+  "vatMatches": 232,
+  "totalMatches": 232,
+  "mismatches": 232,
+  "overPoint01": 232,
+  "over1": 232,
+  "biggestMismatches": [
+    {
+      "accountNumber": "EPSC-0001",
+      "invoiceNumber": "INV200249",
+      "stored": {
+        "subtotal": 222317.47,
+        "vat": 33347.63,
+        "total": 255665.1
+      },
+      "lineItems": {
+        "count": 285,
+        "subtotal": 0,
+        "vat": 33347.63,
+        "total": 255665.1
+      },
+      "delta": {
+        "subtotal": 222317.47,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "HITA-0001",
+      "invoiceNumber": "INV200288",
+      "stored": {
+        "subtotal": 176315.7,
+        "vat": 26446.76,
+        "total": 202762.46
+      },
+      "lineItems": {
+        "count": 239,
+        "subtotal": 0,
+        "vat": 26446.76,
+        "total": 202762.46
+      },
+      "delta": {
+        "subtotal": 176315.7,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "FRSU-0001",
+      "invoiceNumber": "INV200250",
+      "stored": {
+        "subtotal": 140724.29,
+        "vat": 21108.48,
+        "total": 161832.77
+      },
+      "lineItems": {
+        "count": 348,
+        "subtotal": 0,
+        "vat": 21108.48,
+        "total": 161832.77
+      },
+      "delta": {
+        "subtotal": 140724.29,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "AVVA-0001",
+      "invoiceNumber": "INV200280",
+      "stored": {
+        "subtotal": 120935,
+        "vat": 18140.25,
+        "total": 139075.25
+      },
+      "lineItems": {
+        "count": 392,
+        "subtotal": 0,
+        "vat": 18140.25,
+        "total": 139075.25
+      },
+      "delta": {
+        "subtotal": 120935,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "WACA-0001",
+      "invoiceNumber": "INV200283",
+      "stored": {
+        "subtotal": 102301.55,
+        "vat": 15345.31,
+        "total": 117646.86
+      },
+      "lineItems": {
+        "count": 31,
+        "subtotal": 0,
+        "vat": 15345.31,
+        "total": 117646.86
+      },
+      "delta": {
+        "subtotal": 102301.55,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "META-0001",
+      "invoiceNumber": "INV200260",
+      "stored": {
+        "subtotal": 67414.4,
+        "vat": 10112.18,
+        "total": 77526.58
+      },
+      "lineItems": {
+        "count": 54,
+        "subtotal": 0,
+        "vat": 10112.18,
+        "total": 77526.58
+      },
+      "delta": {
+        "subtotal": 67414.4,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "GOEA-0001",
+      "invoiceNumber": "INV200358",
+      "stored": {
+        "subtotal": 62224.95,
+        "vat": 9333.67,
+        "total": 71558.62
+      },
+      "lineItems": {
+        "count": 77,
+        "subtotal": 0,
+        "vat": 9333.67,
+        "total": 71558.62
+      },
+      "delta": {
+        "subtotal": 62224.95,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "SEVE-0001",
+      "invoiceNumber": "INV200279",
+      "stored": {
+        "subtotal": 61524.66,
+        "vat": 9228.97,
+        "total": 70753.63
+      },
+      "lineItems": {
+        "count": 138,
+        "subtotal": 0,
+        "vat": 9228.97,
+        "total": 70753.63
+      },
+      "delta": {
+        "subtotal": 61524.66,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "MACR-0001",
+      "invoiceNumber": "INV200248",
+      "stored": {
+        "subtotal": 56264.11,
+        "vat": 8439.68,
+        "total": 64703.8
+      },
+      "lineItems": {
+        "count": 122,
+        "subtotal": 0,
+        "vat": 8439.68,
+        "total": 64703.8
+      },
+      "delta": {
+        "subtotal": 56264.11,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "MACS-0026",
+      "invoiceNumber": "INV200303",
+      "stored": {
+        "subtotal": 55546.45,
+        "vat": 8331.9,
+        "total": 63878.35
+      },
+      "lineItems": {
+        "count": 89,
+        "subtotal": 0,
+        "vat": 8331.9,
+        "total": 63878.35
+      },
+      "delta": {
+        "subtotal": 55546.45,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "PETE-0001",
+      "invoiceNumber": "INV200263",
+      "stored": {
+        "subtotal": 51946.88,
+        "vat": 7792.17,
+        "total": 59739.05
+      },
+      "lineItems": {
+        "count": 65,
+        "subtotal": 0,
+        "vat": 7792.17,
+        "total": 59739.05
+      },
+      "delta": {
+        "subtotal": 51946.88,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "MAIB-0001",
+      "invoiceNumber": "INV200400",
+      "stored": {
+        "subtotal": 50727.11,
+        "vat": 7609.04,
+        "total": 58336.15
+      },
+      "lineItems": {
+        "count": 122,
+        "subtotal": 0,
+        "vat": 7609.04,
+        "total": 58336.15
+      },
+      "delta": {
+        "subtotal": 50727.11,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "TTEX-0001",
+      "invoiceNumber": "INV200472",
+      "stored": {
+        "subtotal": 35841,
+        "vat": 5376.15,
+        "total": 41217.15
+      },
+      "lineItems": {
+        "count": 39,
+        "subtotal": 0,
+        "vat": 5376.15,
+        "total": 41217.15
+      },
+      "delta": {
+        "subtotal": 35841,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "STRU-0001",
+      "invoiceNumber": "INV200285",
+      "stored": {
+        "subtotal": 29413,
+        "vat": 4411.85,
+        "total": 33824.9
+      },
+      "lineItems": {
+        "count": 44,
+        "subtotal": 0,
+        "vat": 4411.85,
+        "total": 33824.9
+      },
+      "delta": {
+        "subtotal": 29413,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "ALST-0001",
+      "invoiceNumber": "INV200278",
+      "stored": {
+        "subtotal": 28884,
+        "vat": 4332.6,
+        "total": 33216.6
+      },
+      "lineItems": {
+        "count": 97,
+        "subtotal": 0,
+        "vat": 4332.6,
+        "total": 33216.6
+      },
+      "delta": {
+        "subtotal": 28884,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "TTLI-0001",
+      "invoiceNumber": "INV200471",
+      "stored": {
+        "subtotal": 28489,
+        "vat": 4273.35,
+        "total": 32762.35
+      },
+      "lineItems": {
+        "count": 31,
+        "subtotal": 0,
+        "vat": 4273.35,
+        "total": 32762.35
+      },
+      "delta": {
+        "subtotal": 28489,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "TTFM-0001",
+      "invoiceNumber": "INV200469",
+      "stored": {
+        "subtotal": 27570,
+        "vat": 4135.5,
+        "total": 31705.5
+      },
+      "lineItems": {
+        "count": 30,
+        "subtotal": 0,
+        "vat": 4135.5,
+        "total": 31705.5
+      },
+      "delta": {
+        "subtotal": 27570,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "MACS-0025",
+      "invoiceNumber": "INV200335",
+      "stored": {
+        "subtotal": 26575.43,
+        "vat": 3986.28,
+        "total": 30561.71
+      },
+      "lineItems": {
+        "count": 43,
+        "subtotal": 0,
+        "vat": 3986.28,
+        "total": 30561.71
+      },
+      "delta": {
+        "subtotal": 26575.43,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "ANGE-0001",
+      "invoiceNumber": "INV200474",
+      "stored": {
+        "subtotal": 25806,
+        "vat": 3870.9,
+        "total": 29676.9
+      },
+      "lineItems": {
+        "count": 2,
+        "subtotal": 0,
+        "vat": 3870.9,
+        "total": 29676.9
+      },
+      "delta": {
+        "subtotal": 25806,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "TLOG-0001",
+      "invoiceNumber": "INV200470",
+      "stored": {
+        "subtotal": 24813,
+        "vat": 3721.95,
+        "total": 28534.95
+      },
+      "lineItems": {
+        "count": 27,
+        "subtotal": 0,
+        "vat": 3721.95,
+        "total": 28534.95
+      },
+      "delta": {
+        "subtotal": 24813,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "PRCR-0001",
+      "invoiceNumber": "INV200264",
+      "stored": {
+        "subtotal": 24368,
+        "vat": 3655.2,
+        "total": 28023.2
+      },
+      "lineItems": {
+        "count": 34,
+        "subtotal": 0,
+        "vat": 3655.2,
+        "total": 28023.2
+      },
+      "delta": {
+        "subtotal": 24368,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "KERI-0001",
+      "invoiceNumber": "INV200376",
+      "stored": {
+        "subtotal": 23693.52,
+        "vat": 3554.08,
+        "total": 27247.6
+      },
+      "lineItems": {
+        "count": 22,
+        "subtotal": 0,
+        "vat": 3554.08,
+        "total": 27247.6
+      },
+      "delta": {
+        "subtotal": 23693.52,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "AUMA-0001",
+      "invoiceNumber": "INV200256",
+      "stored": {
+        "subtotal": 22805.82,
+        "vat": 3420.99,
+        "total": 26226.81
+      },
+      "lineItems": {
+        "count": 34,
+        "subtotal": 0,
+        "vat": 3420.99,
+        "total": 26226.81
+      },
+      "delta": {
+        "subtotal": 22805.82,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "TRIA-0001",
+      "invoiceNumber": "INV200257",
+      "stored": {
+        "subtotal": 22759,
+        "vat": 3413.85,
+        "total": 26172.85
+      },
+      "lineItems": {
+        "count": 51,
+        "subtotal": 0,
+        "vat": 3413.85,
+        "total": 26172.85
+      },
+      "delta": {
+        "subtotal": 22759,
+        "vat": 0,
+        "total": 0
+      }
+    },
+    {
+      "accountNumber": "ENER-0001",
+      "invoiceNumber": "INV200302",
+      "stored": {
+        "subtotal": 21049,
+        "vat": 3157.35,
+        "total": 24206.35
+      },
+      "lineItems": {
+        "count": 105,
+        "subtotal": 0,
+        "vat": 3157.35,
+        "total": 24206.35
+      },
+      "delta": {
+        "subtotal": 21049,
+        "vat": 0,
+        "total": 0
+      }
+    }
+  ]
+}

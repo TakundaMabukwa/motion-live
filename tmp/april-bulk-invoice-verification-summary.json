@@ -1,0 +1,271 @@
+{
+  "billingMonth": "2026-04-01",
+  "invoiceCount": 232,
+  "exactMatches": 10,
+  "subtotalMatches": 10,
+  "totalMatches": 10,
+  "mismatches": 222,
+  "materialMismatchesOver1": 222,
+  "largeMismatchesOver100": 209,
+  "veryLargeMismatchesOver1000": 136,
+  "missingVehicleGroups": 175,
+  "bands": {
+    "withinPoint01": 10,
+    "within1": 0,
+    "within100": 13,
+    "over100": 209,
+    "over1000": 136
+  },
+  "biggestMismatches": [
+    {
+      "accountNumber": "EPSC-0001",
+      "companyName": "ROCHELLE ",
+      "invoiceNumber": "INV200249",
+      "storedTotal": 255665.1,
+      "rawTotal": 19035.95,
+      "delta": 236629.15,
+      "vehicleCount": 81,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "HITA-0001",
+      "companyName": "HITACHI CONSTRUCTION MACHINERY SOUTH AFRICA (HIT001)",
+      "invoiceNumber": "INV200288",
+      "storedTotal": 202762.46,
+      "rawTotal": 5975.92,
+      "delta": 196786.54,
+      "vehicleCount": 7,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "WACA-0001",
+      "companyName": "WATERFORD CARRIERS",
+      "invoiceNumber": "INV200283",
+      "storedTotal": 117646.86,
+      "rawTotal": 3795.06,
+      "delta": 113851.8,
+      "vehicleCount": 1,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "META-0001",
+      "companyName": "NN METALS (PTY) LTD",
+      "invoiceNumber": "INV200260",
+      "storedTotal": 77526.58,
+      "rawTotal": 4855.58,
+      "delta": 72671,
+      "vehicleCount": 3,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "GOEA-0001",
+      "companyName": "GOOD EARTH GROUP (PTY) LTD",
+      "invoiceNumber": "INV200358",
+      "storedTotal": 71558.62,
+      "rawTotal": 0,
+      "delta": 71558.62,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "SEVE-0001",
+      "companyName": "FAITHWHEELS",
+      "invoiceNumber": "INV200279",
+      "storedTotal": 70753.63,
+      "rawTotal": 2975.83,
+      "delta": 67777.8,
+      "vehicleCount": 4,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACR-0001",
+      "companyName": "MAIBAZE CRANE & TRUCK HIRE",
+      "invoiceNumber": "INV200248",
+      "storedTotal": 64703.8,
+      "rawTotal": 1998.37,
+      "delta": 62705.43,
+      "vehicleCount": 3,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0026",
+      "companyName": "MACSTEEL TRADING GERMISTON",
+      "invoiceNumber": "INV200303",
+      "storedTotal": 63878.35,
+      "rawTotal": 2303.7,
+      "delta": 61574.65,
+      "vehicleCount": 3,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "PETE-0001",
+      "companyName": "PETERBILL TRANSPORT (PTY) LTD",
+      "invoiceNumber": "INV200263",
+      "storedTotal": 59739.05,
+      "rawTotal": 856.8,
+      "delta": 58882.25,
+      "vehicleCount": 1,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MAIB-0001",
+      "companyName": "MAIBAZE CRANE & TRUCK HIRE",
+      "invoiceNumber": "INV200400",
+      "storedTotal": 58336.15,
+      "rawTotal": 0,
+      "delta": 58336.15,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTEX-0001",
+      "companyName": "TT EXPRESS",
+      "invoiceNumber": "INV200472",
+      "storedTotal": 41217.15,
+      "rawTotal": 0,
+      "delta": 41217.15,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTLI-0001",
+      "companyName": "TT LINEHAUL",
+      "invoiceNumber": "INV200471",
+      "storedTotal": 32762.35,
+      "rawTotal": 0,
+      "delta": 32762.35,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTFM-0001",
+      "companyName": "TT FMCG SOLUTIONS",
+      "invoiceNumber": "INV200469",
+      "storedTotal": 31705.5,
+      "rawTotal": 0,
+      "delta": 31705.5,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "MACS-0025",
+      "companyName": "MACSTEEL TRADING DURBAN  - DIV OF MSCSA (PTY) LTD",
+      "invoiceNumber": "INV200335",
+      "storedTotal": 30561.71,
+      "rawTotal": 0,
+      "delta": 30561.71,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "ANGE-0001",
+      "companyName": "ANGELO KATER",
+      "invoiceNumber": "INV200474",
+      "storedTotal": 29676.9,
+      "rawTotal": 0,
+      "delta": 29676.9,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TLOG-0001",
+      "companyName": "TT LOGISTICS SOLUTIONS",
+      "invoiceNumber": "INV200470",
+      "storedTotal": 28534.95,
+      "rawTotal": 0,
+      "delta": 28534.95,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "STRU-0001",
+      "companyName": "STRUCMAC",
+      "invoiceNumber": "INV200285",
+      "storedTotal": 33824.9,
+      "rawTotal": 5310.82,
+      "delta": 28514.08,
+      "vehicleCount": 5,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "KERI-0001",
+      "companyName": "KERIZZMA STEEL PTY LTD",
+      "invoiceNumber": "INV200376",
+      "storedTotal": 27247.6,
+      "rawTotal": 0,
+      "delta": 27247.6,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "ALST-0001",
+      "companyName": "STEELRODE",
+      "invoiceNumber": "INV200278",
+      "storedTotal": 33216.6,
+      "rawTotal": 8252.4,
+      "delta": 24964.2,
+      "vehicleCount": 15,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "ENER-0001",
+      "companyName": "Energyrite",
+      "invoiceNumber": "INV200302",
+      "storedTotal": 24206.35,
+      "rawTotal": 230,
+      "delta": 23976.35,
+      "vehicleCount": 1,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "AUMA-0001",
+      "companyName": "AUMA SOUTH AFRICA PTY LTD",
+      "invoiceNumber": "INV200256",
+      "storedTotal": 26226.81,
+      "rawTotal": 2664.81,
+      "delta": 23562,
+      "vehicleCount": 4,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0014",
+      "companyName": "MACSTEEL FLUID CONTROL - JHB",
+      "invoiceNumber": "INV200271",
+      "storedTotal": 24122.11,
+      "rawTotal": 1069.66,
+      "delta": 23052.45,
+      "vehicleCount": 2,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0003",
+      "companyName": "MACSTEEL COIL PROCESSING",
+      "invoiceNumber": "INV200319",
+      "storedTotal": 21207.12,
+      "rawTotal": 0,
+      "delta": 21207.12,
+      "vehicleCount": 0,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "AVVA-0001",
+      "companyName": "PRETTY THREE (PTY) LTD",
+      "invoiceNumber": "INV200280",
+      "storedTotal": 139075.25,
+      "rawTotal": 119188.3,
+      "delta": 19886.95,
+      "vehicleCount": 314,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0024",
+      "companyName": "MACSTEEL TRADING CAPE TOWN",
+      "invoiceNumber": "INV200293",
+      "storedTotal": 23814.99,
+      "rawTotal": 5375.31,
+      "delta": 18439.68,
+      "vehicleCount": 7,
+      "missingVehicleGroup": false
+    }
+  ]
+}

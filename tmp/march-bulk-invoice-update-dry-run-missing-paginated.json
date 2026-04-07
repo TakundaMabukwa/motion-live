@@ -1,0 +1,32 @@
+[
+  {
+    "accountNumber": "ACE AUTO SCRAPYARD CC",
+    "companyName": "ACE AUTO SCRAPYARD CC",
+    "invoiceNumber": "INV200217",
+    "vehicleCount": 0,
+    "missingVehicleGroup": true,
+    "storedTotal": 4440.95,
+    "recomputedTotal": 0,
+    "totalDelta": -4440.95
+  },
+  {
+    "accountNumber": "AVIS-0001",
+    "companyName": "AVIS-0001",
+    "invoiceNumber": "INV200232",
+    "vehicleCount": 0,
+    "missingVehicleGroup": true,
+    "storedTotal": 2116,
+    "recomputedTotal": 0,
+    "totalDelta": -2116
+  },
+  {
+    "accountNumber": "FRSI-0001",
+    "companyName": "FRSI-0001",
+    "invoiceNumber": "INV200235",
+    "vehicleCount": 0,
+    "missingVehicleGroup": true,
+    "storedTotal": 1122.8,
+    "recomputedTotal": 0,
+    "totalDelta": -1122.8
+  }
+]

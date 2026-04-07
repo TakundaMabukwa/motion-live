@@ -30,6 +30,38 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   return new Date(year, month, invoiceDay).toISOString();
 };
 
+const enrichBulkInvoiceWithLockMeta = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoice: Record<string, unknown> | null,
+) => {
+  if (!invoice) {
+    return null;
+  }
+
+  const lockedBy = String(invoice?.invoice_locked_by || '').trim();
+  const normalizedInvoiceDate = getBillingInvoiceDate(invoice?.billing_month);
+
+  if (!lockedBy) {
+    return {
+      ...invoice,
+      invoice_date: normalizedInvoiceDate,
+      invoice_locked_by_email: null,
+    };
+  }
+
+  const { data: lockedUser } = await supabase
+    .from('users')
+    .select('email')
+    .eq('id', lockedBy)
+    .maybeSingle();
+
+  return {
+    ...invoice,
+    invoice_date: normalizedInvoiceDate,
+    invoice_locked_by_email: lockedUser?.email || null,
+  };
+};
+
 const syncBulkInvoiceToAccountInvoices = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   {
@@ -170,7 +202,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ invoice: Array.isArray(data) ? data[0] || null : null });
+    const invoice = await enrichBulkInvoiceWithLockMeta(
+      supabase,
+      Array.isArray(data) ? data[0] || null : null,
+    );
+
+    return NextResponse.json({ invoice });
   } catch (error) {
     console.error("Unexpected error in bulk account invoice GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -224,6 +261,11 @@ export async function POST(request: NextRequest) {
     const existingInvoice = Array.isArray(existingInvoices)
       ? existingInvoices[0] || null
       : null;
+
+    if (existingInvoice?.invoice_locked) {
+      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, existingInvoice);
+      return NextResponse.json({ invoice: lockedInvoice, reused: true, locked: true });
+    }
 
     const payload = {
       account_number: accountNumber,
@@ -298,7 +340,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      return NextResponse.json({ invoice: updatedInvoice, reused: true });
+      const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, updatedInvoice);
+      return NextResponse.json({ invoice: enrichedInvoice, reused: true });
     }
 
     const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
@@ -351,7 +394,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ invoice: insertedInvoice, reused: false });
+    const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, insertedInvoice);
+    return NextResponse.json({ invoice: enrichedInvoice, reused: false });
   } catch (error) {
     console.error("Unexpected error in bulk account invoice POST:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -378,6 +422,8 @@ export async function PATCH(request: NextRequest) {
     const companyName = body?.companyName === undefined ? null : String(body.companyName || "").trim();
     const companyRegistrationNumber =
       body?.companyRegistrationNumber === undefined ? null : String(body.companyRegistrationNumber || "").trim();
+    const invoiceLocked =
+      body?.invoiceLocked === undefined ? undefined : Boolean(body.invoiceLocked);
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -397,7 +443,8 @@ export async function PATCH(request: NextRequest) {
       invoiceNumber === null &&
       customerVatNumber === null &&
       companyName === null &&
-      companyRegistrationNumber === null
+      companyRegistrationNumber === null &&
+      invoiceLocked === undefined
     ) {
       return NextResponse.json(
         { error: "At least one editable field is required" },
@@ -405,7 +452,36 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updatePayload: Record<string, string> = {};
+    const { data: currentInvoice, error: currentInvoiceError } = await supabase
+      .from("bulk_account_invoices")
+      .select("*")
+      .eq("account_number", accountNumber)
+      .eq("billing_month", billingMonth)
+      .maybeSingle();
+
+    if (currentInvoiceError) {
+      return NextResponse.json(
+        { error: currentInvoiceError.message || "Failed to fetch bulk invoice" },
+        { status: 500 },
+      );
+    }
+
+    if (!currentInvoice) {
+      return NextResponse.json(
+        { error: "Bulk invoice not found" },
+        { status: 404 },
+      );
+    }
+
+    if (currentInvoice.invoice_locked && invoiceLocked === undefined) {
+      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, currentInvoice);
+      return NextResponse.json(
+        { error: "Invoice is locked", invoice: lockedInvoice, locked: true },
+        { status: 409 },
+      );
+    }
+
+    const updatePayload: Record<string, string | boolean | null> = {};
     if (invoiceNumber !== null) {
       if (!invoiceNumber) {
         return NextResponse.json(
@@ -424,6 +500,11 @@ export async function PATCH(request: NextRequest) {
     if (companyRegistrationNumber !== null) {
       updatePayload.company_registration_number = companyRegistrationNumber;
     }
+    if (invoiceLocked !== undefined) {
+      updatePayload.invoice_locked = invoiceLocked;
+      updatePayload.invoice_locked_by = invoiceLocked ? user.id : null;
+      updatePayload.invoice_locked_at = invoiceLocked ? new Date().toISOString() : null;
+    }
 
     const { data: updatedInvoice, error: updateError } = await supabase
       .from("bulk_account_invoices")
@@ -431,8 +512,7 @@ export async function PATCH(request: NextRequest) {
         ...updatePayload,
         updated_at: new Date().toISOString(),
       })
-      .eq("account_number", accountNumber)
-      .eq("billing_month", billingMonth)
+      .eq("id", currentInvoice.id)
       .select("*")
       .single();
 
@@ -461,7 +541,8 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ invoice: updatedInvoice });
+    const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, updatedInvoice);
+    return NextResponse.json({ invoice: enrichedInvoice });
   } catch (error) {
     console.error("Unexpected error in bulk account invoice PATCH:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

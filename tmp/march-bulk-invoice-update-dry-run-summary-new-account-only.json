@@ -1,0 +1,194 @@
+{
+  "billingMonth": "2026-03-01",
+  "matchRule": "bulk_account_invoices.account_number -> vehicles.new_account_number",
+  "invoiceCount": 248,
+  "unchanged": 10,
+  "wouldUpdate": 238,
+  "missingVehicleGroups": 188,
+  "materialUpdatesOver1": 238,
+  "totalStored": 2848038.09,
+  "totalRecomputed": 467560.17,
+  "totalDelta": -2380477.92,
+  "biggestChanges": [
+    {
+      "accountNumber": "EPSC-0001",
+      "invoiceNumber": "INV200000",
+      "vehicleCount": 81,
+      "storedTotal": 255665.1,
+      "recomputedTotal": 19035.95,
+      "totalDelta": -236629.15,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "HITA-0001",
+      "invoiceNumber": "INV200051",
+      "vehicleCount": 7,
+      "storedTotal": 202762.46,
+      "recomputedTotal": 5975.92,
+      "totalDelta": -196786.54,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "TEST-0002",
+      "invoiceNumber": "INV200044",
+      "vehicleCount": 6,
+      "storedTotal": 135276.8,
+      "recomputedTotal": 6341.1,
+      "totalDelta": -128935.7,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "WACA-0001",
+      "invoiceNumber": "INV200042",
+      "vehicleCount": 1,
+      "storedTotal": 117646.86,
+      "recomputedTotal": 3795.06,
+      "totalDelta": -113851.8,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "META-0001",
+      "invoiceNumber": "INV200013",
+      "vehicleCount": 3,
+      "storedTotal": 77526.58,
+      "recomputedTotal": 4855.58,
+      "totalDelta": -72671,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "GOEA-0001",
+      "invoiceNumber": "INV200126",
+      "vehicleCount": 0,
+      "storedTotal": 71558.62,
+      "recomputedTotal": 0,
+      "totalDelta": -71558.62,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "SEVE-0001",
+      "invoiceNumber": "INV200035",
+      "vehicleCount": 4,
+      "storedTotal": 70753.63,
+      "recomputedTotal": 2975.83,
+      "totalDelta": -67777.8,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACR-0001",
+      "invoiceNumber": "INV200003",
+      "vehicleCount": 3,
+      "storedTotal": 64703.8,
+      "recomputedTotal": 1998.37,
+      "totalDelta": -62705.43,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0026",
+      "invoiceNumber": "INV200058",
+      "vehicleCount": 3,
+      "storedTotal": 63878.35,
+      "recomputedTotal": 2303.7,
+      "totalDelta": -61574.65,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "PETE-0001",
+      "invoiceNumber": "INV200012",
+      "vehicleCount": 1,
+      "storedTotal": 59739.05,
+      "recomputedTotal": 856.8,
+      "totalDelta": -58882.25,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MAIB-0001",
+      "invoiceNumber": "INV200160",
+      "vehicleCount": 0,
+      "storedTotal": 58336.15,
+      "recomputedTotal": 0,
+      "totalDelta": -58336.15,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTEX-0001",
+      "invoiceNumber": "INV200477",
+      "vehicleCount": 0,
+      "storedTotal": 41217.15,
+      "recomputedTotal": 0,
+      "totalDelta": -41217.15,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTGR-0002",
+      "invoiceNumber": "INV200212",
+      "vehicleCount": 0,
+      "storedTotal": 39103.45,
+      "recomputedTotal": 0,
+      "totalDelta": -39103.45,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TT%20L-0001",
+      "invoiceNumber": "INV200190",
+      "vehicleCount": 0,
+      "storedTotal": 33819.2,
+      "recomputedTotal": 0,
+      "totalDelta": -33819.2,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTLI-0001",
+      "invoiceNumber": "INV200243",
+      "vehicleCount": 0,
+      "storedTotal": 32762.35,
+      "recomputedTotal": 0,
+      "totalDelta": -32762.35,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTFM-0001",
+      "invoiceNumber": "INV200479",
+      "vehicleCount": 0,
+      "storedTotal": 31705.5,
+      "recomputedTotal": 0,
+      "totalDelta": -31705.5,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "TTGR-0001",
+      "invoiceNumber": "INV200019",
+      "vehicleCount": 2,
+      "storedTotal": 33819.2,
+      "recomputedTotal": 2113.7,
+      "totalDelta": -31705.5,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "MACS-0025",
+      "invoiceNumber": "INV200096",
+      "vehicleCount": 0,
+      "storedTotal": 30561.71,
+      "recomputedTotal": 0,
+      "totalDelta": -30561.71,
+      "missingVehicleGroup": true
+    },
+    {
+      "accountNumber": "STRU-0001",
+      "invoiceNumber": "INV200038",
+      "vehicleCount": 5,
+      "storedTotal": 33824.9,
+      "recomputedTotal": 5310.82,
+      "totalDelta": -28514.08,
+      "missingVehicleGroup": false
+    },
+    {
+      "accountNumber": "TLOG-0001",
+      "invoiceNumber": "INV200478",
+      "vehicleCount": 0,
+      "storedTotal": 27478.1,
+      "recomputedTotal": 0,
+      "totalDelta": -27478.1,
+      "missingVehicleGroup": true
+    }
+  ]
+}

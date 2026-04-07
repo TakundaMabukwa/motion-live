@@ -1,0 +1,58 @@
+{
+  "billingMonth": "2026-03-01",
+  "invoiceCount": 248,
+  "vehicleRowsFetched": 5564,
+  "missingVehicleGroups": 3,
+  "samplePresent": [
+    {
+      "accountNumber": "EPSC-0001",
+      "companyName": "ROCHELLE ",
+      "invoiceNumber": "INV200000",
+      "vehicleCount": 282,
+      "missingVehicleGroup": false,
+      "storedTotal": 255665.1,
+      "recomputedTotal": 162087.64,
+      "totalDelta": -93577.46
+    },
+    {
+      "accountNumber": "GOEA-0001",
+      "companyName": "GOOD EARTH GROUP (PTY) LTD",
+      "invoiceNumber": "INV200126",
+      "vehicleCount": 77,
+      "missingVehicleGroup": false,
+      "storedTotal": 71558.62,
+      "recomputedTotal": 71558.69,
+      "totalDelta": 0.07
+    },
+    {
+      "accountNumber": "MACS-0001",
+      "companyName": "HARVEY ROOFING PRODUCTS",
+      "invoiceNumber": "INV200061",
+      "vehicleCount": 5,
+      "missingVehicleGroup": false,
+      "storedTotal": 2493.97,
+      "recomputedTotal": 2493.97,
+      "totalDelta": 0
+    },
+    {
+      "accountNumber": "MAYS-0001",
+      "companyName": "Maysene",
+      "invoiceNumber": "INV200056",
+      "vehicleCount": 13,
+      "missingVehicleGroup": false,
+      "storedTotal": 17174.1,
+      "recomputedTotal": 16698,
+      "totalDelta": -476.1
+    },
+    {
+      "accountNumber": "MNFU-0001",
+      "companyName": "MNANDI FUEL (PTY) LTD",
+      "invoiceNumber": "INV200106",
+      "vehicleCount": 6,
+      "missingVehicleGroup": false,
+      "storedTotal": 17278.75,
+      "recomputedTotal": 17278.75,
+      "totalDelta": 0
+    }
+  ]
+}

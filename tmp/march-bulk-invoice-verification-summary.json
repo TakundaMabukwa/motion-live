@@ -1,0 +1,811 @@
+{
+  "billingMonth": "2026-03-01",
+  "invoiceCount": 248,
+  "exactMatches": 159,
+  "subtotalMatches": 219,
+  "totalMatches": 159,
+  "mismatches": 89,
+  "mismatchedAccounts": [
+    {
+      "accountNumber": "ACE AUTO SCRAPYARD CC",
+      "invoiceNumber": "INV200217",
+      "delta": {
+        "subtotal": 3861.7,
+        "vat": 579.25,
+        "total": 4440.95
+      }
+    },
+    {
+      "accountNumber": "ACTE-0001",
+      "invoiceNumber": "INV200236",
+      "delta": {
+        "subtotal": -211.5,
+        "vat": -31.74,
+        "total": -243.21
+      }
+    },
+    {
+      "accountNumber": "AERZ-0001",
+      "invoiceNumber": "INV200198",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.03,
+        "total": -0.03
+      }
+    },
+    {
+      "accountNumber": "AFHU-0001",
+      "invoiceNumber": "INV200189",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "ALL--0001",
+      "invoiceNumber": "INV200196",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "ALST-0001",
+      "invoiceNumber": "INV200034",
+      "delta": {
+        "subtotal": -40250,
+        "vat": -6037.5,
+        "total": -46287.5
+      }
+    },
+    {
+      "accountNumber": "AUMA-0001",
+      "invoiceNumber": "INV200010",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.12,
+        "total": 0.12
+      }
+    },
+    {
+      "accountNumber": "AVIS-0001",
+      "invoiceNumber": "INV200232",
+      "delta": {
+        "subtotal": 1840,
+        "vat": 276,
+        "total": 2116
+      }
+    },
+    {
+      "accountNumber": "BACA-0001",
+      "invoiceNumber": "INV200193",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "BUBE-0001",
+      "invoiceNumber": "INV200199",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "CONC-0001",
+      "invoiceNumber": "INV200031",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "DACO-0001",
+      "invoiceNumber": "INV200151",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "DUPL-0001",
+      "invoiceNumber": "INV200158",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.12,
+        "total": 0.12
+      }
+    },
+    {
+      "accountNumber": "EDGE-0001",
+      "invoiceNumber": "INV200111",
+      "delta": {
+        "subtotal": 1529.5,
+        "vat": 229.33,
+        "total": 1759.02
+      }
+    },
+    {
+      "accountNumber": "EDGE-0005",
+      "invoiceNumber": "INV200125",
+      "delta": {
+        "subtotal": 80.5,
+        "vat": 12.07,
+        "total": 92.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0007",
+      "invoiceNumber": "INV200177",
+      "delta": {
+        "subtotal": 80.5,
+        "vat": 12.07,
+        "total": 92.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0008",
+      "invoiceNumber": "INV200104",
+      "delta": {
+        "subtotal": 1592.75,
+        "vat": 238.83,
+        "total": 1831.74
+      }
+    },
+    {
+      "accountNumber": "EDGE-0013",
+      "invoiceNumber": "INV200238",
+      "delta": {
+        "subtotal": 1046.5,
+        "vat": 156.91,
+        "total": 1203.54
+      }
+    },
+    {
+      "accountNumber": "EDGE-0016",
+      "invoiceNumber": "INV200112",
+      "delta": {
+        "subtotal": -80.5,
+        "vat": -12.08,
+        "total": -92.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0033",
+      "invoiceNumber": "INV200239",
+      "delta": {
+        "subtotal": 4105.5,
+        "vat": 615.57,
+        "total": 4721.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0035",
+      "invoiceNumber": "INV200092",
+      "delta": {
+        "subtotal": 80.5,
+        "vat": 12.07,
+        "total": 92.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0047",
+      "invoiceNumber": "INV200231",
+      "delta": {
+        "subtotal": 402.5,
+        "vat": 60.35,
+        "total": 462.9
+      }
+    },
+    {
+      "accountNumber": "EDGE-0049",
+      "invoiceNumber": "INV200234",
+      "delta": {
+        "subtotal": 80.5,
+        "vat": 12.07,
+        "total": 92.58
+      }
+    },
+    {
+      "accountNumber": "EDGE-0050",
+      "invoiceNumber": "INV200237",
+      "delta": {
+        "subtotal": 80.5,
+        "vat": 12.07,
+        "total": 92.58
+      }
+    },
+    {
+      "accountNumber": "EPSC-0001",
+      "invoiceNumber": "INV200000",
+      "delta": {
+        "subtotal": 81371.7,
+        "vat": 12205.76,
+        "total": 93577.46
+      }
+    },
+    {
+      "accountNumber": "ETRU-0001",
+      "invoiceNumber": "INV200216",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "FRSI-0001",
+      "invoiceNumber": "INV200235",
+      "delta": {
+        "subtotal": 976.35,
+        "vat": 146.45,
+        "total": 1122.8
+      }
+    },
+    {
+      "accountNumber": "FRSU-0001",
+      "invoiceNumber": "INV200059",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.16,
+        "total": -0.16
+      }
+    },
+    {
+      "accountNumber": "FUSP-0001",
+      "invoiceNumber": "INV200194",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "GASH-0001",
+      "invoiceNumber": "INV200006",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "GOEA-0001",
+      "invoiceNumber": "INV200126",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.07,
+        "total": -0.07
+      }
+    },
+    {
+      "accountNumber": "HICO-0001",
+      "invoiceNumber": "INV200227",
+      "delta": {
+        "subtotal": 345,
+        "vat": 51.75,
+        "total": 396.75
+      }
+    },
+    {
+      "accountNumber": "HITA-0001",
+      "invoiceNumber": "INV200051",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.6,
+        "total": -0.6
+      }
+    },
+    {
+      "accountNumber": "INTE-0001",
+      "invoiceNumber": "INV200205",
+      "delta": {
+        "subtotal": -3860.55,
+        "vat": -579.08,
+        "total": -4439.63
+      }
+    },
+    {
+      "accountNumber": "JOLO-0001",
+      "invoiceNumber": "INV200131",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "KELO-0001",
+      "invoiceNumber": "INV200133",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "KERI-0001",
+      "invoiceNumber": "INV200145",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.05,
+        "total": 0.05
+      }
+    },
+    {
+      "accountNumber": "L.(L-0001",
+      "invoiceNumber": "INV200166",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "LECO-0001",
+      "invoiceNumber": "INV200040",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "LIZE-0001",
+      "invoiceNumber": "INV200163",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "LOPA-0001",
+      "invoiceNumber": "INV200192",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "LTSX-0001",
+      "invoiceNumber": "INV200048",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.06,
+        "total": -0.06
+      }
+    },
+    {
+      "accountNumber": "LTSX-0002",
+      "invoiceNumber": "INV200014",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.03,
+        "total": -0.03
+      }
+    },
+    {
+      "accountNumber": "MACR-0001",
+      "invoiceNumber": "INV200003",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.06,
+        "total": 0.07
+      }
+    },
+    {
+      "accountNumber": "MACS-0003",
+      "invoiceNumber": "INV200071",
+      "delta": {
+        "subtotal": 684.25,
+        "vat": 102.62,
+        "total": 786.87
+      }
+    },
+    {
+      "accountNumber": "MACS-0008",
+      "invoiceNumber": "INV200078",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0010",
+      "invoiceNumber": "INV200075",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0012",
+      "invoiceNumber": "INV200079",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0018",
+      "invoiceNumber": "INV200094",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0019",
+      "invoiceNumber": "INV200032",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0021",
+      "invoiceNumber": "INV200024",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0022",
+      "invoiceNumber": "INV200093",
+      "delta": {
+        "subtotal": -1099.21,
+        "vat": -164.89,
+        "total": -1264.1
+      }
+    },
+    {
+      "accountNumber": "MACS-0023",
+      "invoiceNumber": "INV200039",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0024",
+      "invoiceNumber": "INV200055",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.03,
+        "total": -0.03
+      }
+    },
+    {
+      "accountNumber": "MACS-0025",
+      "invoiceNumber": "INV200096",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.03,
+        "total": -0.03
+      }
+    },
+    {
+      "accountNumber": "MACS-0026",
+      "invoiceNumber": "INV200058",
+      "delta": {
+        "subtotal": 1368.5,
+        "vat": 205.21,
+        "total": 1573.71
+      }
+    },
+    {
+      "accountNumber": "MACS-0027",
+      "invoiceNumber": "INV200063",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "MACS-0030",
+      "invoiceNumber": "INV200064",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0031",
+      "invoiceNumber": "INV200054",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0032",
+      "invoiceNumber": "INV200101",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0033",
+      "invoiceNumber": "INV200080",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0035",
+      "invoiceNumber": "INV200070",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MACS-0037",
+      "invoiceNumber": "INV200072",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "MAIB-0001",
+      "invoiceNumber": "INV200160",
+      "delta": {
+        "subtotal": -6272.56,
+        "vat": -940.91,
+        "total": -7213.47
+      }
+    },
+    {
+      "accountNumber": "MASS-0001",
+      "invoiceNumber": "INV200043",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.17,
+        "total": 0.17
+      }
+    },
+    {
+      "accountNumber": "MAVE-0001",
+      "invoiceNumber": "INV200135",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "MAYS-0001",
+      "invoiceNumber": "INV200056",
+      "delta": {
+        "subtotal": 414,
+        "vat": 62.1,
+        "total": 476.1
+      }
+    },
+    {
+      "accountNumber": "META-0001",
+      "invoiceNumber": "INV200013",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.02,
+        "total": 0.02
+      }
+    },
+    {
+      "accountNumber": "NNSL-0001",
+      "invoiceNumber": "INV200103",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.04,
+        "total": 0.04
+      }
+    },
+    {
+      "accountNumber": "PETE-0001",
+      "invoiceNumber": "INV200012",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.14,
+        "total": 0.14
+      }
+    },
+    {
+      "accountNumber": "RIGH-0001",
+      "invoiceNumber": "INV200157",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.04,
+        "total": -0.04
+      }
+    },
+    {
+      "accountNumber": "ROIN-0001",
+      "invoiceNumber": "INV200218",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "SEVE-0001",
+      "invoiceNumber": "INV200035",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.27,
+        "total": 0.27
+      }
+    },
+    {
+      "accountNumber": "SGMO-0008",
+      "invoiceNumber": "INV200168",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.02,
+        "total": -0.02
+      }
+    },
+    {
+      "accountNumber": "SGMO-0021",
+      "invoiceNumber": "INV200161",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "SILV-0001",
+      "invoiceNumber": "INV200209",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.01,
+        "total": 0.01
+      }
+    },
+    {
+      "accountNumber": "SPAR-0001",
+      "invoiceNumber": "INV200037",
+      "delta": {
+        "subtotal": -478.17,
+        "vat": -71.8,
+        "total": -549.97
+      }
+    },
+    {
+      "accountNumber": "SPAR-0002",
+      "invoiceNumber": "INV200144",
+      "delta": {
+        "subtotal": -5859.25,
+        "vat": -878.93,
+        "total": -6738.18
+      }
+    },
+    {
+      "accountNumber": "STRU-0001",
+      "invoiceNumber": "INV200038",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.1,
+        "total": -0.05
+      }
+    },
+    {
+      "accountNumber": "TACI-0001",
+      "invoiceNumber": "INV200049",
+      "delta": {
+        "subtotal": -16024.1,
+        "vat": -2403.58,
+        "total": -18427.68
+      }
+    },
+    {
+      "accountNumber": "TLOG-0001",
+      "invoiceNumber": "INV200478",
+      "delta": {
+        "subtotal": -1838,
+        "vat": -275.7,
+        "total": -2113.7
+      }
+    },
+    {
+      "accountNumber": "TTLI-0001",
+      "invoiceNumber": "INV200243",
+      "delta": {
+        "subtotal": -919,
+        "vat": -137.85,
+        "total": -1056.85
+      }
+    },
+    {
+      "accountNumber": "TURN-0001",
+      "invoiceNumber": "INV200195",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.05,
+        "total": 0.04
+      }
+    },
+    {
+      "accountNumber": "TYSO-0001",
+      "invoiceNumber": "INV200062",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "WACA-0001",
+      "invoiceNumber": "INV200042",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.08,
+        "total": 0.08
+      }
+    },
+    {
+      "accountNumber": "WACA-0003",
+      "invoiceNumber": "INV200123",
+      "delta": {
+        "subtotal": 0,
+        "vat": 0.02,
+        "total": 0.02
+      }
+    },
+    {
+      "accountNumber": "WACA-0004",
+      "invoiceNumber": "INV200028",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.05,
+        "total": -0.05
+      }
+    },
+    {
+      "accountNumber": "WACA-0005",
+      "invoiceNumber": "INV200139",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.01,
+        "total": -0.01
+      }
+    },
+    {
+      "accountNumber": "WEFI-0001",
+      "invoiceNumber": "INV200005",
+      "delta": {
+        "subtotal": 0,
+        "vat": -0.05,
+        "total": 0.02
+      }
+    }
+  ]
+}
