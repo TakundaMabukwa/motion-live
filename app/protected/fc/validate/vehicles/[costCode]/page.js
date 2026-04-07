@@ -1493,18 +1493,28 @@ export default function ValidateVehiclesPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            {vehicle.vehicle_validated && (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                                <Check className="h-3 w-3" />
-                                Done
-                              </span>
-                            )}
-                            {expandedVehicles[vehicle.id] ? (
-                              <ChevronUp className="h-5 w-5" />
-                            ) : (
-                              <ChevronDown className="h-5 w-5" />
-                            )}
+                          <div className="flex shrink-0 items-center gap-4">
+                            <div className="text-right">
+                              <Label className="text-xs text-gray-500">
+                                Total Value
+                              </Label>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {formatCurrency(Number(vehicle?.total_rental_sub || 0))}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {vehicle.vehicle_validated && (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                                  <Check className="h-3 w-3" />
+                                  Done
+                                </span>
+                              )}
+                              {expandedVehicles[vehicle.id] ? (
+                                <ChevronUp className="h-5 w-5" />
+                              ) : (
+                                <ChevronDown className="h-5 w-5" />
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
