@@ -154,10 +154,13 @@ export async function GET(request: NextRequest) {
       .from("bulk_account_invoices")
       .select("*")
       .eq("account_number", accountNumber)
+      .order("billing_month", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(1);
 
-    query = billingMonth ? query.eq("billing_month", billingMonth) : query.is("billing_month", null);
+    if (billingMonth) {
+      query = query.eq("billing_month", billingMonth);
+    }
 
     const { data, error } = await query;
     if (error) {

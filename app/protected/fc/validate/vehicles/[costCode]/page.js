@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import InvoiceReportComponent from "@/components/inv/components/invoice-report";
 import {
   Loader2,
   ArrowLeft,
@@ -28,6 +29,8 @@ import {
   Check,
   Search,
   Lock,
+  FileText,
+  X,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import {
@@ -219,6 +222,10 @@ export default function ValidateVehiclesPage() {
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
   const [lockingCostCenterTotal, setLockingCostCenterTotal] = useState(false);
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [isLoadingInvoicePreview, setIsLoadingInvoicePreview] = useState(false);
+  const [invoicePreviewCostCenter, setInvoicePreviewCostCenter] = useState(null);
+  const invoicePreviewCacheRef = useRef(new Map());
   const [addItemState, setAddItemState] = useState({});
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [costCenterOptions, setCostCenterOptions] = useState([]);
@@ -413,6 +420,7 @@ export default function ValidateVehiclesPage() {
   }, [matchingCostCenters, costCode]);
 
   const currentCostCenterName = currentCostCenter?.company || costCode || "";
+  const invoicePreviewTitle = currentCostCenterName || costCode || "";
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -786,6 +794,72 @@ export default function ValidateVehiclesPage() {
       toast.error("Failed to update vehicle: " + error.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleShowInvoicePreview = async () => {
+    if (!costCode) {
+      toast.error("No cost center provided");
+      return;
+    }
+
+    const billingMonth = String(currentCostCenter?.billing_month || "").trim();
+    const cacheKey = [String(costCode).trim().toUpperCase(), billingMonth || "current"].join("::");
+    const cachedPreview = invoicePreviewCacheRef.current.get(cacheKey);
+
+    if (cachedPreview) {
+      setInvoicePreviewCostCenter(cachedPreview);
+      setShowInvoicePreview(true);
+      return;
+    }
+
+    try {
+      setIsLoadingInvoicePreview(true);
+      const query = new URLSearchParams({
+        accountNumber: costCode,
+      });
+      if (billingMonth) {
+        query.set("billingMonth", billingMonth);
+      }
+
+      const response = await fetch(`/api/invoices/bulk-account?${query.toString()}`, {
+        cache: "no-store",
+      });
+      const result = await response.json();
+      const storedInvoice = result?.invoice || null;
+
+      if (!response.ok || !storedInvoice) {
+        throw new Error(result?.error || "No stored invoice found for this client");
+      }
+
+      const previewTitle = currentCostCenterName || costCode;
+      const lineItems = Array.isArray(storedInvoice?.line_items)
+        ? storedInvoice.line_items
+        : [];
+
+      const previewPayload = {
+        accountNumber: costCode,
+        accountName: previewTitle,
+        company: previewTitle,
+        billingMonth:
+          String(storedInvoice?.billing_month || billingMonth).trim() || null,
+        costCenterInfo: currentCostCenter || null,
+        invoiceData: {
+          ...storedInvoice,
+          invoiceItems: lineItems,
+          invoice_items: lineItems,
+          company_name: storedInvoice?.company_name || previewTitle,
+        },
+      };
+
+      invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
+      setInvoicePreviewCostCenter(previewPayload);
+      setShowInvoicePreview(true);
+    } catch (error) {
+      console.error("Invoice preview error:", error);
+      toast.error(error?.message || "Failed to load invoice preview");
+    } finally {
+      setIsLoadingInvoicePreview(false);
     }
   };
 
@@ -1546,6 +1620,19 @@ export default function ValidateVehiclesPage() {
                   </p>
                 </div>
                 <div className="flex flex-col items-start gap-3 md:items-end">
+                  <Button
+                    onClick={handleShowInvoicePreview}
+                    disabled={isLoadingInvoicePreview}
+                    variant="outline"
+                    className="min-w-[170px]"
+                  >
+                    {isLoadingInvoicePreview ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="mr-2 h-4 w-4" />
+                    )}
+                    {isLoadingInvoicePreview ? "Loading Invoice..." : "View Invoice"}
+                  </Button>
                   {currentCostCenter?.total_amount_locked && (
                     <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                       <div className="font-semibold">Total locked</div>
@@ -1589,6 +1676,60 @@ export default function ValidateVehiclesPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+      {showInvoicePreview && invoicePreviewCostCenter && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[95vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-200 p-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Invoice Preview - {invoicePreviewTitle}
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  FC view-only invoice preview for {costCode}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowInvoicePreview(false);
+                    setInvoicePreviewCostCenter(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <InvoiceReportComponent
+                costCenter={invoicePreviewCostCenter}
+                clientLegalName={invoicePreviewTitle}
+                invoiceData={invoicePreviewCostCenter.invoiceData}
+                viewOnly
+                extraActions={
+                  <Button
+                    onClick={lockCostCenterTotal}
+                    disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
+                    variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
+                    className="flex items-center gap-2"
+                  >
+                    {lockingCostCenterTotal ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : currentCostCenter?.total_amount_locked ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Lock className="h-4 w-4" />
+                    )}
+                    {currentCostCenter?.total_amount_locked ? "Total Locked" : "Lock Total"}
+                  </Button>
+                }
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

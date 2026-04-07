@@ -71,6 +71,9 @@ const fetchAllCostCenters = async (supabase: Awaited<ReturnType<typeof createCli
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const requestedAccountNumber = String(request.nextUrl.searchParams.get('accountNumber') || '')
+      .trim()
+      .toUpperCase();
 
     const allVehicles: Array<Record<string, unknown>> = [];
     const pageSize = 1000;
@@ -99,7 +102,7 @@ export async function GET(request: NextRequest) {
       from += pageSize;
     }
 
-    const accountNumbers = Array.from(
+    const discoveredAccountNumbers = Array.from(
       new Set(
         allVehicles
           .map((row) =>
@@ -110,6 +113,10 @@ export async function GET(request: NextRequest) {
           .filter(Boolean),
       ),
     );
+
+    const accountNumbers = requestedAccountNumber
+      ? discoveredAccountNumbers.filter((accountNumber) => accountNumber === requestedAccountNumber)
+      : discoveredAccountNumbers;
 
     if (accountNumbers.length === 0) {
       return NextResponse.json({

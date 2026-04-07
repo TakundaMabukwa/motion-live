@@ -1085,6 +1085,8 @@ export default function InvoiceReportComponent({
   clientLegalName,
   invoiceData,
   onInvoiceGenerated,
+  viewOnly = false,
+  extraActions = null,
 }) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
@@ -1122,6 +1124,11 @@ export default function InvoiceReportComponent({
   }, [costCenter?.costCenterInfo]);
 
   useEffect(() => {
+    if (viewOnly) {
+      setInvoiceHistory([]);
+      return undefined;
+    }
+
     let active = true;
 
     const loadInvoiceHistory = async () => {
@@ -1156,9 +1163,14 @@ export default function InvoiceReportComponent({
     return () => {
       active = false;
     };
-  }, [costCenter?.accountNumber]);
+  }, [costCenter?.accountNumber, viewOnly]);
 
   useEffect(() => {
+    if (viewOnly && costCenter?.costCenterInfo) {
+      setCustomerInfo(costCenter.costCenterInfo);
+      return undefined;
+    }
+
     let active = true;
 
     const loadCustomerInfo = async () => {
@@ -1198,7 +1210,7 @@ export default function InvoiceReportComponent({
     return () => {
       active = false;
     };
-  }, [costCenter?.accountNumber]);
+  }, [costCenter?.accountNumber, viewOnly]);
 
   const logoUrl =
     typeof window !== "undefined"
@@ -1477,7 +1489,7 @@ export default function InvoiceReportComponent({
             );
           })}
         </select>
-        {invoiceView.invoiceNumber === "PENDING" && (
+        {!viewOnly && invoiceView.invoiceNumber === "PENDING" && (
           <Button
             onClick={generateInvoice}
             disabled={isGeneratingInvoice}
@@ -1497,23 +1509,26 @@ export default function InvoiceReportComponent({
           <Download className="w-4 h-4" />
           Print / Save PDF
         </Button>
-        <Button
-          onClick={emailPDF}
-          disabled={isSendingEmail}
-          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-        >
-          {isSendingEmail ? (
-            <>
-              <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin" />
-              Sending...
-            </>
-          ) : (
-            <>
-              <Mail className="w-4 h-4" />
-              Email PDF
-            </>
-          )}
-        </Button>
+        {extraActions}
+        {!viewOnly && (
+          <Button
+            onClick={emailPDF}
+            disabled={isSendingEmail}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+          >
+            {isSendingEmail ? (
+              <>
+                <div className="border-white border-b-2 rounded-full w-4 h-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" />
+                Email PDF
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       <div className="mb-4">
@@ -1524,6 +1539,7 @@ export default function InvoiceReportComponent({
           value={editableNotes}
           onChange={(event) => setEditableNotes(event.target.value)}
           rows={4}
+          readOnly={viewOnly}
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
           placeholder="Add invoice notes for this month..."
         />
