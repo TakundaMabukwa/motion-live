@@ -210,7 +210,8 @@ export default function CustomerJobCards({
 
   const handleEditJob = async (job) => {
     try {
-      router.push(`/protected/fc/jobs/${job.id}/edit`);
+      const sourceQuery = notesOnly ? '?source=from-ria' : '';
+      router.push(`/protected/fc/jobs/${job.id}/edit${sourceQuery}`);
     } catch (error) {
       console.error('Error preparing returned FC job for edit:', error);
       toast.error(error.message || 'Failed to open job for edit');

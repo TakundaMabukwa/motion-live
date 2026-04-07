@@ -61,8 +61,8 @@ const formatDate = (value) => {
 
 const getRealInvoiceNumber = (...values) => {
   for (const value of values) {
-    const normalized = String(value || "").trim().toUpperCase();
-    if (/^(SOL|INV)-\d+$/.test(normalized)) {
+    const normalized = String(value || "").trim();
+    if (normalized && normalized.toUpperCase() !== "PENDING") {
       return normalized;
     }
   }

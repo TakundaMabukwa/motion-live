@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,7 +10,9 @@ import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 export default function EditJobPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const jobId = params.id;
+  const source = String(searchParams.get("source") || "").trim();
 
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState(null);
@@ -35,6 +37,11 @@ export default function EditJobPage() {
   };
 
   const goBackOrJobs = () => {
+    if (source === "from-ria") {
+      router.push("/protected/fc?tab=from-ria");
+      return;
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
@@ -49,6 +56,12 @@ export default function EditJobPage() {
   };
 
   const handleJobSaved = () => {
+    if (source === "from-ria") {
+      router.push("/protected/fc?tab=from-ria");
+      router.refresh();
+      return;
+    }
+
     if (job?.new_account_number) {
       router.push(`/protected/fc/accounts/${job.new_account_number}?tab=jobs`);
       router.refresh();
