@@ -87,6 +87,8 @@ const getBillingInvoiceDate = (billingMonth) => {
   return new Date(year, month, invoiceDay).toISOString();
 };
 
+const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
+
 const getRealInvoiceNumber = (...values) => {
   for (const value of values) {
     const normalized = String(value || "").trim();
@@ -902,13 +904,24 @@ export function buildInvoiceView({
     { totalExVat: 0, totalVat: 0, totalInclVat: 0, discount: 0 }
   );
 
-  const clientName =
-    customerInfo?.legal_name ||
-    customerInfo?.company ||
-    activeInvoiceData?.company_name ||
-    clientLegalName ||
-    costCenter?.accountName ||
-    "";
+  const isEpsVirtualInvoice =
+    String(costCenter?.sourceAccountNumber || activeInvoiceData?.source_account_number || '')
+      .trim()
+      .toUpperCase() === 'EPSC-0001';
+
+  const clientName = isEpsVirtualInvoice
+    ? costCenter?.accountName ||
+      customerInfo?.legal_name ||
+      customerInfo?.company ||
+      activeInvoiceData?.company_name ||
+      clientLegalName ||
+      ""
+    : customerInfo?.legal_name ||
+      customerInfo?.company ||
+      activeInvoiceData?.company_name ||
+      clientLegalName ||
+      costCenter?.accountName ||
+      "";
   const clientAddress = buildClientAddress(
     customerInfo,
     activeInvoiceData?.client_address || activeInvoiceData?.company_address || "",
@@ -1613,3 +1626,4 @@ export default function InvoiceReportComponent({
     </div>
   );
 }
+
