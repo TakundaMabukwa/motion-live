@@ -1,0 +1,1992 @@
+{
+  "summary": {
+    "vehicleCount": 282,
+    "matchedCount": 216,
+    "unmatchedCount": 66,
+    "templates": {
+      "EPS002 | SKY TRAILER UNIT only": {
+        "count": 64,
+        "total": 18688
+      },
+      "EPS003 | BEAME only": {
+        "count": 55,
+        "total": 4400
+      },
+      "EPS002 | SKY standard": {
+        "count": 73,
+        "total": 63875
+      },
+      "EPS004 | PRIVATE": {
+        "count": 24,
+        "total": 13776
+      }
+    },
+    "unmatchedTotals": 40206.77
+  },
+  "matchedSample": [
+    {
+      "reg": "KK81KNGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81PRGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "KK81JBGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "KK81KFGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "KF91YVGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KF91YPGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81MBGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "JJ02ZYGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81LHGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "JZ09KSGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KF91YKGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JR30SZGP",
+      "fleet_number": null,
+      "total_rental_sub": 875,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 875
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY standard",
+        "expectedTotal": 875
+      }
+    },
+    {
+      "reg": "KK81JSGP",
+      "fleet_number": "TRAILER ",
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81KYGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "KF04VXGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JV26PXGP",
+      "fleet_number": null,
+      "total_rental_sub": 875,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 875
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY standard",
+        "expectedTotal": 875
+      }
+    },
+    {
+      "reg": "KF92CDGP",
+      "fleet_number": "TRAILER ",
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KD96BKGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33NKGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": " KF92CJGP",
+      "fleet_number": "TRAILER UNIT ",
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81KGGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KF04VLGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JZ19CGGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "HZ67RFGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81MJGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33HHGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "HY87GSGP",
+      "fleet_number": null,
+      "total_rental_sub": 875,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 875
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY standard",
+        "expectedTotal": 875
+      }
+    },
+    {
+      "reg": "KK81KDGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KD95YFGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33MTGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33PNGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33PYGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JP33RDGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JZ09MVGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "JZ19BTGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "FH76LVGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": {
+        "group": "EPS002",
+        "template": "SKY TRAILER UNIT only",
+        "expectedTotal": 292
+      }
+    },
+    {
+      "reg": "KK81KJGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "JZ19CBGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "CJ79CZGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    },
+    {
+      "reg": "YVK695GP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": {
+        "group": "EPS003",
+        "template": "BEAME only",
+        "expectedTotal": 80
+      }
+    }
+  ],
+  "unmatched": [
+    {
+      "reg": "JJ03XLGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81JYGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03WXGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81LMGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81KSGP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": null
+    },
+    {
+      "reg": "JZ40JBGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "ZVN083GP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": null
+    },
+    {
+      "reg": "ZRV693GP",
+      "fleet_number": null,
+      "total_rental_sub": 80,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 80
+      },
+      "match": null
+    },
+    {
+      "reg": "JR30PTGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03NKGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JZ09KXGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03MNGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81PZGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81MZGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81MWGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81MLGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81JWGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81HMGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81JHGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ02ZBGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03RKGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03TGGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "CL39JVGP",
+      "fleet_number": null,
+      "total_rental_sub": 301.07,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 301.07
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03VLGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "DL89TGGP",
+      "fleet_number": null,
+      "total_rental_sub": 301.7,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 301.7
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03XCGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JZ09LKGP",
+      "fleet_number": null,
+      "total_rental_sub": 372,
+      "breakdown": {
+        "beame": 80,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 292,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 372
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33HVGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "FF63MKGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "HS30YYGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33HZGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33JCGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "HY87GKGP",
+      "fleet_number": null,
+      "total_rental_sub": 1170,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 295,
+        "total": 1170
+      },
+      "match": null
+    },
+    {
+      "reg": "HY74WRGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JF74XGGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JF74XHGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JF74YJGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JK68DFGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JL64ZGGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "HW67VSGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "HY87GLGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JF74YHGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JL65CPGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JL65HNGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33JWGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81PNGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JY54WJGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JY54XJGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JY54XRGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "CH031435",
+      "fleet_number": null,
+      "total_rental_sub": 574,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 195,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 574
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33KNGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81NFGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81PLGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JP33FPGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "JJ03PNGP",
+      "fleet_number": null,
+      "total_rental_sub": 292,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 292
+      },
+      "match": null
+    },
+    {
+      "reg": "HW22SFGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JL65BBGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 500,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "JV26ZJGP M",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "KK81SMGP",
+      "fleet_number": null,
+      "total_rental_sub": 1375,
+      "breakdown": {
+        "beame": 80,
+        "camera": 295,
+        "consultancy": 195,
+        "controlroom": 299,
+        "canbus": 6,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 500,
+        "total": 1375
+      },
+      "match": null
+    },
+    {
+      "reg": "NEW INSTALL - MW90MWGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "DATA UPLOAD - KY69YNGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "DATA UPLOAD - JF74YJGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "DATA UPLOAD - JF74XHGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "DATA UPLOAD - MK88RHGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "DATA UPLOAD - HW67VCGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    },
+    {
+      "reg": "RE-INSTALLATION - MW42TCGP",
+      "fleet_number": null,
+      "total_rental_sub": 0,
+      "breakdown": {
+        "beame": 0,
+        "camera": 0,
+        "consultancy": 0,
+        "controlroom": 0,
+        "canbus": 0,
+        "trailer": 0,
+        "routing": 0,
+        "dashboard": 0,
+        "total": 0
+      },
+      "match": null
+    }
+  ]
+}

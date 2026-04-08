@@ -25,28 +25,6 @@ const TOTAL_BILLING_COLUMNS = new Set([
   'total_sub',
 ]);
 
-const SERVICE_ONLY_COLUMNS = new Set([
-  'consultancy',
-  'roaming',
-  'maintenance',
-  'after_hours',
-  'controlroom',
-  'software',
-  'eps_software_development',
-  'maysene_software_development',
-  'waterford_software_development',
-  'klaver_software_development',
-  'advatrans_software_development',
-  'tt_linehaul_software_development',
-  'tt_express_software_development',
-  'tt_fmcg_software_development',
-  'rapid_freight_software_development',
-  'remco_freight_software_development',
-  'vt_logistics_software_development',
-  'epilite_software_development',
-  'additional_data',
-]);
-
 const formatColumnLabel = (value: string) =>
   value
     .replace(/^_+/, '')
@@ -173,11 +151,6 @@ const BILLING_COLUMN_LABELS: Record<string, string> = {
   driver_app: 'Driver App',
 };
 
-const KNOWN_BILLABLE_COLUMNS = new Set([
-  ...Object.keys(BILLING_COLUMN_LABELS),
-  ...Array.from(TOTAL_BILLING_COLUMNS),
-]);
-
 const normalizeBillingLabel = (value: string) =>
   BILLING_COLUMN_LABELS[value] ||
   formatColumnLabel(value)
@@ -280,33 +253,28 @@ const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
 
 const EPS_GROUPS = [
   {
-    code: 'EPS001',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( SERVICES)',
-    bucket: 'services',
-  },
-  {
-    code: '117997',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( SKY)',
+    code: 'EPS002',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( SKY )',
     bucket: 'sky',
   },
   {
-    code: '118080',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( BEAME)',
+    code: 'EPS003',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( BEAME )',
     bucket: 'beame',
   },
   {
-    code: '118257',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( PVT)',
+    code: 'EPS004',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( PRIVATE )',
     bucket: 'pvt',
   },
   {
-    code: '118300',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING & OPTIMIZATION)',
+    code: 'ROUTING',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING )',
     bucket: 'routing',
   },
   {
-    code: '118299',
-    name: 'EPS COURIER SERVICES (PTY)LTD ( DASHBOARD)',
+    code: 'DASHBOARD',
+    name: 'EPS COURIER SERVICES (PTY)LTD ( DASHBOARD )',
     bucket: 'dashboard',
   },
 ] as const;
@@ -320,6 +288,40 @@ const EPS_GROUP_BY_BUCKET = new Map(
 );
 
 const EPS_PVT_TOTAL = 574;
+const EPS_BEAME_TOTAL = 80;
+
+const EPS_BEAME_COLUMNS = new Set([
+  'beame_1_rental',
+  'beame_1_sub',
+  'beame_2_rental',
+  'beame_2_sub',
+  'beame_3_rental',
+  'beame_3_sub',
+  'beame_4_rental',
+  'beame_4_sub',
+  'beame_5_rental',
+  'beame_5_sub',
+]);
+
+const EPS_CAMERA_COLUMNS = new Set([
+  '_4ch_mdvr_rental',
+  '_4ch_mdvr_sub',
+  '_5ch_mdvr_rental',
+  '_5ch_mdvr_sub',
+  '_8ch_mdvr_rental',
+  '_8ch_mdvr_sub',
+  'a2_dash_cam_rental',
+  'a2_dash_cam_sub',
+  'a3_dash_cam_ai_rental',
+  'vw502_dual_lens_camera_rental',
+  'vw303_driver_facing_camera_rental',
+  'vw502f_road_facing_camera_rental',
+  'vw306_dvr_road_facing_for_4ch_8ch_rental',
+  'vw306m_a2_dash_cam_rental',
+  'dms01_driver_facing_rental',
+  'adas_02_road_facing_rental',
+  'vw100ip_driver_facing_rental',
+]);
 
 const isSameAmount = (left: number, right: number) => Math.abs(left - right) < 0.001;
 
@@ -331,76 +333,88 @@ const getVehicleDisplay = (vehicle: Record<string, any>) => {
   return vehicle.reg || vehicle.fleet_number || '';
 };
 
-const getEpsBucketForColumn = (
-  column: string,
-  amount: number,
-) => {
-  if (!column) return null;
-
-  if (isSameAmount(amount, EPS_PVT_TOTAL)) {
-    return 'pvt';
-  }
-
-  if (/^beame_\d+_(rental|sub)$/i.test(column)) {
-    return 'beame';
-  }
-
-  if (column === 'eps_software_development') {
-    return isSameAmount(amount, 99) ? 'routing' : 'dashboard';
-  }
-
-  if (
-    /^(sky|skylink|skyspy)/i.test(column) ||
-    ['sky_idata_rental', 'sky_ican_rental', 'sky_on_batt_sub'].includes(column)
-  ) {
-    return 'sky';
-  }
-
-  if (['driver_app', 'software', 'additional_data'].includes(column)) {
-    return 'routing';
-  }
-
-  if (
-    [
-      'controlroom',
-      'consultancy',
-      'maintenance',
-      'after_hours',
-      '_4ch_mdvr_rental',
-      '_4ch_mdvr_sub',
-      '_5ch_mdvr_rental',
-      '_5ch_mdvr_sub',
-      '_8ch_mdvr_rental',
-      '_8ch_mdvr_sub',
-      'mtx_mc202x_rental',
-      'mtx_mc202x_sub',
-    ].includes(column)
-  ) {
-    return 'services';
-  }
-
-  return null;
-};
-
 const getEpsCategoryLabel = (groupCode: string) => {
   const group = EPS_GROUP_BY_CODE.get(groupCode);
   return group?.name || groupCode;
 };
 
-const getEpsLineDescription = (
-  column: string,
-  bucket: string,
-  amount: number,
+const EPS_BREAKDOWN_ORDER = ['beame', 'camera', 'consultancy', 'controlroom', 'canbus', 'trailer'] as const;
+
+const getEpsBreakdownAmounts = (vehicle: Record<string, any>) => ({
+  beame: EPS_BEAME_COLUMNS.size
+    ? Array.from(EPS_BEAME_COLUMNS).reduce((sum, column) => sum + toAmount(vehicle[column]), 0)
+    : 0,
+  camera: EPS_CAMERA_COLUMNS.size
+    ? Array.from(EPS_CAMERA_COLUMNS).reduce((sum, column) => sum + toAmount(vehicle[column]), 0)
+    : 0,
+  consultancy: toAmount(vehicle.consultancy),
+  controlroom: toAmount(vehicle.controlroom),
+  canbus: toAmount(vehicle.sky_ican_rental),
+  trailer: toAmount(vehicle.skylink_trailer_unit_rental) + toAmount(vehicle.skylink_trailer_sub),
+  routing: toAmount(vehicle.software) + toAmount(vehicle.driver_app) + toAmount(vehicle.additional_data),
+  dashboard: toAmount(vehicle.eps_software_development),
+});
+
+const getEpsPrimaryBucket = (
+  totalRentalSub: number,
+  breakdown: ReturnType<typeof getEpsBreakdownAmounts>,
 ) => {
-  if (bucket === 'sky' && isSameAmount(amount, 292)) {
-    return 'Trailer';
+  const hasMainBreakdown =
+    breakdown.beame > 0 ||
+    breakdown.camera > 0 ||
+    breakdown.consultancy > 0 ||
+    breakdown.controlroom > 0 ||
+    breakdown.canbus > 0 ||
+    breakdown.trailer > 0;
+
+  if (
+    isSameAmount(totalRentalSub, EPS_BEAME_TOTAL) &&
+    breakdown.beame > 0 &&
+    breakdown.camera === 0 &&
+    breakdown.consultancy === 0 &&
+    breakdown.controlroom === 0 &&
+    breakdown.canbus === 0 &&
+    breakdown.trailer === 0
+  ) {
+    return 'beame';
   }
 
-  if (bucket === 'sky' && isSameAmount(amount, 292)) {
-    return 'Trailer';
+  if (
+    isSameAmount(totalRentalSub, EPS_PVT_TOTAL) &&
+    breakdown.beame > 0 &&
+    breakdown.consultancy > 0 &&
+    breakdown.controlroom > 0 &&
+    breakdown.camera === 0 &&
+    breakdown.canbus === 0 &&
+    breakdown.trailer === 0
+  ) {
+    return 'pvt';
   }
 
-  return normalizeBillingLabel(column);
+  if (hasMainBreakdown) {
+    return 'sky';
+  }
+
+  return null;
+};
+
+const getEpsDescriptionForCategory = (category: string) => {
+  switch (category) {
+    case 'beame':
+      return 'BEAME';
+    case 'camera':
+      return 'CAMERA';
+    case 'consultancy':
+      return 'CONSULTANCY';
+    case 'controlroom':
+      return 'CONTROLROOM';
+    case 'canbus':
+      return 'CANBUS';
+    case 'trailer':
+      return 'SKY TRAILER UNIT';
+    default:
+      return category.toUpperCase();
+  }
 };
 
 const buildEpsInvoiceData = (
@@ -410,60 +424,71 @@ const buildEpsInvoiceData = (
   const itemsByCode = new Map<string, any[]>(
     EPS_GROUPS.map((group) => [group.code, []]),
   );
-  const vehicleKeysByCode = new Map<string, Set<string>>(
-    EPS_GROUPS.map((group) => [group.code, new Set()]),
-  );
 
   vehicles.forEach((vehicle) => {
     const regFleetDisplay = getVehicleDisplay(vehicle);
     const totalRentalSub = toAmount(vehicle.total_rental_sub);
-    const vehicleKey = String(vehicle.reg || vehicle.fleet_number || vehicle.id || regFleetDisplay || Math.random());
+    const breakdown = getEpsBreakdownAmounts(vehicle);
+    const primaryBucket = getEpsPrimaryBucket(totalRentalSub, breakdown);
 
-    if (isSameAmount(totalRentalSub, EPS_PVT_TOTAL)) {
-      const pvtGroup = EPS_GROUP_BY_BUCKET.get('pvt');
-      if (pvtGroup) {
+    if (primaryBucket) {
+      const primaryGroup = EPS_GROUP_BY_BUCKET.get(primaryBucket);
+      if (primaryGroup) {
+        EPS_BREAKDOWN_ORDER.forEach((category) => {
+          const amount = breakdown[category];
+          if (amount <= 0) return;
+
+          if (primaryBucket === 'beame' && category !== 'beame') return;
+          if (primaryBucket === 'pvt' && !['beame', 'consultancy', 'controlroom'].includes(category)) return;
+
+          pushInvoiceItem(
+            itemsByCode.get(primaryGroup.code) || [],
+            vehicle,
+            companyName,
+            regFleetDisplay,
+            primaryGroup.code,
+            getEpsDescriptionForCategory(category),
+            vehicle.company || companyName,
+            amount,
+            getEpsCategoryLabel(primaryGroup.code),
+          );
+        });
+      }
+    }
+
+    if (breakdown.routing > 0) {
+      const routingGroup = EPS_GROUP_BY_BUCKET.get('routing');
+      if (routingGroup) {
         pushInvoiceItem(
-          itemsByCode.get(pvtGroup.code) || [],
+          itemsByCode.get(routingGroup.code) || [],
           vehicle,
           companyName,
           regFleetDisplay,
-          pvtGroup.code,
-          pvtGroup.name,
+          routingGroup.code,
+          'SERVICES',
           vehicle.company || companyName,
-          totalRentalSub,
+          breakdown.routing,
+          getEpsCategoryLabel(routingGroup.code),
         );
-        vehicleKeysByCode.get(pvtGroup.code)?.add(vehicleKey);
       }
-      return;
     }
 
-    Object.keys(vehicle).forEach((key) => {
-      if (
-        KNOWN_BILLABLE_COLUMNS.has(key) &&
-        !TOTAL_BILLING_COLUMNS.has(key) &&
-        toAmount(vehicle[key]) > 0
-      ) {
-        const amount = toAmount(vehicle[key]);
-        const bucket = getEpsBucketForColumn(key, amount);
-        if (!bucket) return;
-        const group = EPS_GROUP_BY_BUCKET.get(bucket);
-        if (!group) return;
-
-      pushInvoiceItem(
-        itemsByCode.get(group.code) || [],
-        vehicle,
-        companyName,
-        regFleetDisplay,
-        group.code,
-        getEpsLineDescription(key, bucket, amount),
-        vehicle.company || companyName,
-        amount,
-        getEpsCategoryLabel(group.code),
-      );
-
-      vehicleKeysByCode.get(group.code)?.add(`${vehicleKey}:${key}`);
+    if (breakdown.dashboard > 0) {
+      const dashboardGroup = EPS_GROUP_BY_BUCKET.get('dashboard');
+      if (dashboardGroup) {
+        pushInvoiceItem(
+          itemsByCode.get(dashboardGroup.code) || [],
+          vehicle,
+          companyName,
+          regFleetDisplay,
+          dashboardGroup.code,
+          'SERVICES',
+          vehicle.company || companyName,
+          breakdown.dashboard,
+          getEpsCategoryLabel(dashboardGroup.code),
+        );
+      }
     }
-    });
   });
 
   const vehicleCountByCode = new Map<string, Set<string>>(

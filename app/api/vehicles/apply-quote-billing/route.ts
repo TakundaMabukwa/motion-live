@@ -529,20 +529,6 @@ const pickFamilySlotForBilling = (
   return null;
 };
 
-const getItemAmount = (item: any) => {
-  const candidates = [
-    item?.subscription_price,
-    item?.rental_price,
-    item?.cash_price,
-    item?.total_price,
-  ];
-  for (const value of candidates) {
-    const num = Number(value);
-    if (Number.isFinite(num) && num > 0) return num;
-  }
-  return 0;
-};
-
 const getChargeAmount = (item: any, key: string) => {
   const value = Number(item?.[key]);
   return Number.isFinite(value) && value > 0 ? value : 0;
@@ -782,11 +768,10 @@ const pickBillingColumn = (
   options: {
     preferSub: boolean;
     preferRental: boolean;
-    allowFallbackTotals?: boolean;
     mode: "install" | "deinstall";
   },
 ) => {
-  const { preferSub, preferRental, allowFallbackTotals = false, mode } = options;
+  const { preferSub, preferRental, mode } = options;
 
   const matchedByValue = findFieldByExistingValue(vehicle, item);
   if (matchedByValue) {
@@ -820,13 +805,6 @@ const pickBillingColumn = (
     if (familyColumn) return familyColumn;
   }
 
-  if (allowFallbackTotals && preferSub && BILLABLE_SET.has("total_sub")) {
-    return "total_sub";
-  }
-
-  if (allowFallbackTotals && preferRental && BILLABLE_SET.has("total_rental")) {
-    return "total_rental";
-  }
 
   return null;
 };
@@ -966,7 +944,6 @@ export async function POST(request: NextRequest) {
           const column = pickBillingColumn(item, vehicleState, columnUpdates, {
             preferSub: spec.preferSub,
             preferRental: spec.preferRental,
-            allowFallbackTotals: true,
             mode: jobType,
           });
 
