@@ -22,6 +22,20 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   return new Date(year, month, invoiceDay).toISOString();
 };
 
+const resolveInvoiceDate = (billingMonth: unknown, existingInvoiceDate: unknown) => {
+  const billingMonthKey = String(billingMonth || '').trim();
+  if (billingMonthKey.startsWith('2026-03')) {
+    return getBillingInvoiceDate(billingMonthKey);
+  }
+
+  const rawExistingInvoiceDate = String(existingInvoiceDate || '').trim();
+  if (rawExistingInvoiceDate) {
+    return rawExistingInvoiceDate;
+  }
+
+  return getBillingInvoiceDate(billingMonthKey);
+};
+
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
     source?.physical_address_1,
@@ -35,7 +49,25 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
     .filter(Boolean)
     .join('\n');
 
-const fetchAllCostCenters = async (supabase: Awaited<ReturnType<typeof createClient>>) => {
+const fetchCostCenters = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  accountNumbers: string[] | null,
+) => {
+  if (accountNumbers && accountNumbers.length > 0) {
+    const { data, error } = await supabase
+      .from('cost_centers')
+      .select(
+        'cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code',
+      )
+      .in('cost_code', accountNumbers);
+
+    if (error) {
+      throw error;
+    }
+
+    return Array.isArray(data) ? data : [];
+  }
+
   const allCostCenters: Array<Record<string, unknown>> = [];
   const pageSize = 1000;
   let from = 0;
@@ -74,49 +106,59 @@ export async function GET(request: NextRequest) {
     const requestedAccountNumber = String(request.nextUrl.searchParams.get('accountNumber') || '')
       .trim()
       .toUpperCase();
+    const requestedAccountList = String(request.nextUrl.searchParams.get('all_new_account_numbers') || '')
+      .split(',')
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+    const requestedBillingMonth = String(request.nextUrl.searchParams.get('billingMonth') || '')
+      .trim();
 
-    const allVehicles: Array<Record<string, unknown>> = [];
-    const pageSize = 1000;
-    let from = 0;
+    let accountNumbers: string[] = [];
 
-    while (true) {
-      const { data: vehicles, error: vehiclesError } = await supabase
-        .from('vehicles')
-        .select('new_account_number, account_number')
-        .range(from, from + pageSize - 1);
+    if (requestedAccountList.length > 0) {
+      accountNumbers = Array.from(new Set(requestedAccountList));
+    } else if (requestedAccountNumber) {
+      accountNumbers = [requestedAccountNumber];
+    } else {
+      const allVehicles: Array<Record<string, unknown>> = [];
+      const pageSize = 1000;
+      let from = 0;
 
-      if (vehiclesError) {
-        throw vehiclesError;
+      while (true) {
+        const { data: vehicles, error: vehiclesError } = await supabase
+          .from('vehicles')
+          .select('new_account_number, account_number')
+          .range(from, from + pageSize - 1);
+
+        if (vehiclesError) {
+          throw vehiclesError;
+        }
+
+        if (!vehicles || vehicles.length === 0) {
+          break;
+        }
+
+        allVehicles.push(...vehicles);
+
+        if (vehicles.length < pageSize) {
+          break;
+        }
+
+        from += pageSize;
       }
 
-      if (!vehicles || vehicles.length === 0) {
-        break;
-      }
-
-      allVehicles.push(...vehicles);
-
-      if (vehicles.length < pageSize) {
-        break;
-      }
-
-      from += pageSize;
+      accountNumbers = Array.from(
+        new Set(
+          allVehicles
+            .map((row) =>
+              String(row?.new_account_number || row?.account_number || '')
+                .trim()
+                .toUpperCase(),
+            )
+            .filter(Boolean),
+        ),
+      );
     }
-
-    const discoveredAccountNumbers = Array.from(
-      new Set(
-        allVehicles
-          .map((row) =>
-            String(row?.new_account_number || row?.account_number || '')
-              .trim()
-              .toUpperCase(),
-          )
-          .filter(Boolean),
-      ),
-    );
-
-    const accountNumbers = requestedAccountNumber
-      ? discoveredAccountNumbers.filter((accountNumber) => accountNumber === requestedAccountNumber)
-      : discoveredAccountNumbers;
 
     if (accountNumbers.length === 0) {
       return NextResponse.json({
@@ -126,11 +168,11 @@ export async function GET(request: NextRequest) {
     }
 
     const origin = new URL(request.url).origin;
-    const billingMonthKey = getOperationalBillingMonthKey();
+    const billingMonthKey = requestedBillingMonth || getOperationalBillingMonthKey();
     const invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }> = [];
     const costCenterByAccount = new Map<string, Record<string, unknown>>();
 
-    const costCenters = await fetchAllCostCenters(supabase);
+    const costCenters = await fetchCostCenters(supabase, accountNumbers);
 
     for (const row of costCenters || []) {
       const key = String(row?.cost_code || '').trim().toUpperCase();
@@ -214,7 +256,7 @@ export async function GET(request: NextRequest) {
               ...existingInvoice,
               company_name: fallbackCompanyName,
               invoice_number: existingInvoice?.invoice_number || '',
-              invoice_date: existingInvoice?.invoice_date || getBillingInvoiceDate(existingInvoice?.billing_month || billingMonthKey),
+              invoice_date: resolveInvoiceDate(existingInvoice?.billing_month || billingMonthKey, existingInvoice?.invoice_date),
               billing_month: existingInvoice?.billing_month || billingMonthKey,
               client_address: fallbackClientAddress,
               customer_vat_number: fallbackCustomerVatNumber,
@@ -264,7 +306,7 @@ export async function GET(request: NextRequest) {
               ...existingInvoice,
               company_name: fallbackCompanyName,
               invoice_number: existingInvoice?.invoice_number || '',
-              invoice_date: existingInvoice?.invoice_date || getBillingInvoiceDate(existingInvoice?.billing_month || billingMonthKey),
+              invoice_date: resolveInvoiceDate(existingInvoice?.billing_month || billingMonthKey, existingInvoice?.invoice_date),
               billing_month: existingInvoice?.billing_month || billingMonthKey,
               client_address: fallbackClientAddress,
               customer_vat_number: fallbackCustomerVatNumber,
@@ -339,7 +381,10 @@ export async function GET(request: NextRequest) {
               costCenter?.vat_number ||
               draftInvoiceData?.customer_vat_number ||
               null,
-            invoiceDate: draftInvoiceData?.invoice_date || getBillingInvoiceDate(draftInvoiceData?.billing_month || billingMonthKey),
+            invoiceDate: resolveInvoiceDate(
+              draftInvoiceData?.billing_month || billingMonthKey,
+              draftInvoiceData?.invoice_date,
+            ),
             subtotal: draftInvoiceData?.subtotal || 0,
             vatAmount: draftInvoiceData?.vat_amount || 0,
             discountAmount: 0,
@@ -387,7 +432,10 @@ export async function GET(request: NextRequest) {
             ...draftInvoiceData,
             company_name: companyName,
             invoice_number: persistedInvoice?.invoice_number || draftInvoiceData?.invoice_number || '',
-            invoice_date: persistedInvoice?.invoice_date || draftInvoiceData?.invoice_date,
+            invoice_date: resolveInvoiceDate(
+              persistedInvoice?.billing_month || draftInvoiceData?.billing_month || billingMonthKey,
+              persistedInvoice?.invoice_date || draftInvoiceData?.invoice_date,
+            ),
             billing_month: persistedInvoice?.billing_month || draftInvoiceData?.billing_month || billingMonthKey,
             client_address: clientAddress,
             customer_vat_number: customerVatNumber,
@@ -431,3 +479,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

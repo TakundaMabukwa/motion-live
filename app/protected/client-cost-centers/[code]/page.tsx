@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, Search, DollarSign, Car, AlertTriangle, CreditCard, Users, X, Calendar, FileText, ChevronDown, ChevronRight, ChevronLeft, Lock } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import DueReportComponent, { StatementDocument, buildStatementView } from '@/components/inv/components/due-report';
 import InvoiceReportComponent, { buildInvoicePrintableHtml, buildInvoiceView } from '@/components/inv/components/invoice-report';
@@ -43,6 +43,9 @@ const normalizeBillingMonthValue = (value) => {
   return /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
 };
 
+const BULK_INVOICE_ALL_BILLING_MONTH = '2026-03-01';
+const BULK_INVOICE_ALL_DATE = '2026-03-30T00:00:00.000Z';
+
 const normalizeStoredBulkInvoiceForPreview = (invoice) => {
   if (!invoice) return null;
   const lineItems = Array.isArray(invoice?.line_items) ? invoice.line_items : [];
@@ -50,6 +53,21 @@ const normalizeStoredBulkInvoiceForPreview = (invoice) => {
     ...invoice,
     invoice_items: lineItems,
     invoiceItems: lineItems,
+  };
+};
+
+const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
+  if (!invoiceData) return null;
+
+  const billingMonth = String(invoiceData?.billing_month || '').trim();
+  if (!billingMonth.startsWith('2026-03')) {
+    return invoiceData;
+  }
+
+  return {
+    ...invoiceData,
+    billing_month: BULK_INVOICE_ALL_BILLING_MONTH,
+    invoice_date: BULK_INVOICE_ALL_DATE,
   };
 };
 
@@ -127,6 +145,7 @@ export default function ClientCostCentersPage() {
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isLockingInvoice, setIsLockingInvoice] = useState(false);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
+  const [isLockingBulkInvoices, setIsLockingBulkInvoices] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const [reportDeliveryModal, setReportDeliveryModal] = useState({
     open: false,
@@ -4288,199 +4307,264 @@ export default function ClientCostCentersPage() {
     }
   };
 
-  // Handle Bulk Invoice Generation - Single Continuous PDF
+  // Handle Invoice All - usual invoice layout, split per cost center
   const handleBulkInvoice = async () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        variant: 'destructive',
+        title: 'Popup blocked',
+        description: 'Please allow popups to generate Invoice All.',
+      });
+      return;
+    }
+
     try {
       setIsGeneratingBulkInvoice(true);
-      
-      // Get all cost centers that have data
-      const costCentersToInvoice = costCentersWithPayments.filter(cc => cc.accountNumber);
-      
+
+      const costCentersToInvoice = costCentersWithPayments.filter((cc) => cc.accountNumber);
+      const targetBillingMonth = BULK_INVOICE_ALL_BILLING_MONTH;
+
       if (costCentersToInvoice.length === 0) {
+        printWindow.close();
         toast({
-          title: "No Cost Centers",
-          description: "No cost centers found to generate invoices for.",
+          title: 'No Cost Centers',
+          description: 'No cost centers found to generate invoices for.',
         });
         return;
       }
 
-      console.log(`Generating bulk invoice for ${costCentersToInvoice.length} cost centers`);
-      
-      // Initialize a single PDF document for all invoices
-      const doc = new jsPDF('landscape');
-      const invoiceResults = [];
+      const logoUrl = `${window.location.origin}/soltrack_logo.png`;
+      const invoicePages = [];
+      let sharedStyle = '';
       let successCount = 0;
       let errorCount = 0;
-      let isFirstInvoice = true;
+
+      const query = new URLSearchParams({
+        all_new_account_numbers: costCentersToInvoice.map((cc) => cc.accountNumber).join(','),
+        billingMonth: targetBillingMonth,
+      });
+
+      const response = await fetch(`/api/vehicles/bulk-client-invoices-pdf-data?${query.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to prepare Invoice All data');
+      }
+
+      const result = await response.json();
+      const invoiceMap = new Map(
+        (Array.isArray(result?.invoices) ? result.invoices : []).map((entry) => [
+          String(entry?.accountNumber || '').trim().toUpperCase(),
+          normalizeBatchInvoiceAllInvoiceData(entry?.invoiceData || null),
+        ]),
+      );
 
       for (const costCenter of costCentersToInvoice) {
         try {
-          console.log(`Processing invoice for cost center: ${costCenter.accountNumber} - ${costCenter.accountName || costCenter.company || 'Unknown'}`);
-          
-          // Add a new page for each cost center (except the first one)
-          if (!isFirstInvoice) {
-            doc.addPage();
-          }
-          isFirstInvoice = false;
-          
-          // Fetch vehicle invoice data for this cost center
-          const query = new URLSearchParams({
-            accountNumber: costCenter.accountNumber,
-          });
-          if (costCenter.billingMonth) {
-            query.set('billingMonth', costCenter.billingMonth);
-          }
-          const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch data for ${costCenter.accountNumber}`);
-          }
-          
-          const data = await response.json();
-          const invoiceData = data.invoiceData;
-          
-          if (!invoiceData || !invoiceData.invoiceItems || invoiceData.invoiceItems.length === 0) {
-            console.log(`No invoice data found for ${costCenter.accountNumber}`);
-            invoiceResults.push({
-              costCenter: costCenter.accountNumber,
-              companyName: costCenter.accountName || costCenter.company || 'Unknown',
-              status: 'no_data',
-              message: 'No vehicle data found'
-            });
-            errorCount++;
+          const invoiceData = invoiceMap.get(String(costCenter.accountNumber || '').trim().toUpperCase());
+          const invoiceItems = invoiceData?.invoiceItems || invoiceData?.invoice_items || [];
+
+          if (!invoiceData || !Array.isArray(invoiceItems) || invoiceItems.length === 0) {
+            errorCount += 1;
             continue;
           }
 
-          // Generate invoice for this cost center on current page
-          // Header
-          doc.setFontSize(20);
-          doc.text('Soltrack (PTY) LTD', 20, 20);
-          doc.setFontSize(12);
-          doc.text('VEHICLE BUREAU SERVICE', 20, 30);
-          doc.text(`Reg No: 2018/095975/07`, 20, 40);
-          doc.text(`VAT No: 4580161802`, 20, 50);
-          
-          // Invoice Title with Cost Center Info
-          doc.setFontSize(16);
-          doc.text(`INVOICE - ${costCenter.accountNumber}`, 20, 70);
-          doc.setFontSize(12);
-          doc.text(`Cost Center: ${costCenter.accountName || costCenter.company || 'Unknown'}`, 20, 80);
-          doc.setFontSize(10);
-          doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 90);
-          doc.text(`Client: ${clientLegalName}`, 20, 100);
-          
-          // Table headers
-          const headers = ['Vehicle Reg', 'Fleet No', 'Description', 'Company', 'Units', 'Unit Price', 'Vat Amount', 'Vat%', 'Total Incl'];
-          const startY = 120;
-          let currentY = startY;
-          
-          // Column widths for landscape mode
-          const colWidths = [30, 25, 50, 30, 15, 25, 20, 15, 25];
-          
-          // Draw table headers
-          doc.setFillColor(240, 240, 240);
-          doc.rect(20, currentY - 5, 280, 8, 'F');
-          doc.setFontSize(8);
-          
-          let xPos = 20;
-          headers.forEach((header, index) => {
-            doc.text(header, xPos + 2, currentY);
-            xPos += colWidths[index];
+          const invoiceView = buildInvoiceView({
+            activeInvoiceData: invoiceData,
+            customerInfo: costCenter.costCenterInfo || null,
+            clientLegalName,
+            costCenter: {
+              ...costCenter,
+              billingMonth: targetBillingMonth,
+              invoiceDate: BULK_INVOICE_ALL_DATE,
+            },
+            editableNotes: String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ''),
           });
-          
-          currentY += 10;
-          
-          // Add invoice data rows
-          let totalAmount = 0;
-          invoiceData.invoiceItems.forEach((item, index) => {
-            // Check if we need a new page within this invoice (if it's too long)
-            if (currentY > 180) {
-              doc.addPage();
-              currentY = 20;
-            }
-            
-            const rowData = [
-              item.reg || '',
-              item.fleetNumber || '',
-              item.description || '',
-              item.company || '',
-              '1', // Units
-              item.unit_price_without_vat ? `R ${parseFloat(item.unit_price_without_vat).toFixed(2)}` : 'R 0.00',
-              item.vat_amount ? `R ${parseFloat(item.vat_amount).toFixed(2)}` : 'R 0.00',
-              '15%', // VAT percentage
-              item.total_including_vat ? `R ${parseFloat(item.total_including_vat).toFixed(2)}` : 'R 0.00'
-            ];
-            
-            xPos = 20;
-            rowData.forEach((cell, cellIndex) => {
-              doc.text(cell, xPos + 2, currentY);
-              xPos += colWidths[cellIndex];
-            });
-            
-            totalAmount += parseFloat(item.total_including_vat || 0);
-            currentY += 8;
-          });
-          
-          // Add totals
-          currentY += 10;
-          doc.setFontSize(10);
-          doc.text(`Total Amount: R ${totalAmount.toFixed(2)}`, 20, currentY);
-          
-          const companyName = costCenter.accountName || costCenter.company || 'Unknown';
-          invoiceResults.push({
-            costCenter: costCenter.accountNumber,
-            companyName: companyName,
-            status: 'success',
-            message: `Invoice generated successfully`,
-            totalAmount: totalAmount
-          });
-          
-          successCount++;
-          
-          // Small delay to prevent overwhelming the browser
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
+
+          const printableHtml = buildInvoicePrintableHtml({ logoUrl, invoiceView });
+          if (!sharedStyle) {
+            const styleMatch = printableHtml.match(/<style>([\s\S]*?)<\/style>/i);
+            sharedStyle = styleMatch ? styleMatch[1] : '';
+          }
+          const bodyMatch = printableHtml.match(/<body>([\s\S]*?)<\/body>/i);
+          invoicePages.push(`
+              <div class="invoice-batch-page">
+                ${bodyMatch ? bodyMatch[1] : printableHtml}
+              </div>
+            `);
+          successCount += 1;
         } catch (error) {
           console.error(`Error generating invoice for ${costCenter.accountNumber}:`, error);
-          invoiceResults.push({
-            costCenter: costCenter.accountNumber,
-            companyName: costCenter.accountName || costCenter.company || 'Unknown',
-            status: 'error',
-            message: error.message
-          });
-          errorCount++;
+          errorCount += 1;
         }
       }
-      
-      // Save the single combined PDF
-      const mainClientName = clientData?.customers?.[0]?.legal_name || clientData?.customers?.[0]?.company || 'Client';
-      const bulkFileName = `Bulk_Invoice_${mainClientName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(bulkFileName);
-      
-      // Show summary toast
-      if (successCount > 0) {
+
+      if (invoicePages.length === 0) {
+        printWindow.close();
         toast({
-          title: "Bulk Invoice Generated",
-          description: `Successfully generated combined invoice with ${successCount} cost centers. ${errorCount} failed.`,
+          variant: 'destructive',
+          title: 'Invoice All Failed',
+          description: 'No invoices were generated successfully.',
         });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Bulk Invoice Generation Failed",
-          description: "No invoices were generated successfully.",
-        });
+        return;
       }
-      
-      console.log('Bulk invoice generation results:', invoiceResults);
-      
-    } catch (error) {
-      console.error('Error in bulk invoice generation:', error);
+
+      const clientLabel = clientLegalName || decodedCode || code || 'Client';
+      const printHTML = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Invoice All - ${clientLabel}</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 24px;
+                background: #ffffff;
+              }
+              .invoice-batch-page {
+                break-before: page;
+                page-break-before: always;
+              }
+              .invoice-batch-page:first-child {
+                break-before: auto;
+                page-break-before: auto;
+              }
+              ${sharedStyle}
+            </style>
+          </head>
+          <body>
+            ${invoicePages.join('')}
+          </body>
+        </html>
+      `;
+
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+      printWindow.onload = function onLoad() {
+        printWindow.print();
+      };
+
       toast({
-        variant: "destructive",
-        title: "Bulk Invoice Error",
-        description: "Failed to generate bulk invoices. Please try again.",
+        title: 'Invoice All Ready',
+        description: `Prepared ${successCount} March cost center invoice(s). ${errorCount} skipped.`,
+      });
+    } catch (error) {
+      printWindow.close();
+      console.error('Error in Invoice All generation:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Invoice All Error',
+        description: 'Failed to generate Invoice All. Please try again.',
       });
     } finally {
       setIsGeneratingBulkInvoice(false);
+    }
+  };
+
+  const handleLockAllInvoices = async () => {
+    const costCentersToLock = costCentersWithPayments.filter((cc) => cc.accountNumber);
+    if (costCentersToLock.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Cost Centers',
+        description: 'No cost centers found to lock.',
+      });
+      return;
+    }
+
+    setIsLockingBulkInvoices(true);
+    try {
+      const targetBillingMonth = BULK_INVOICE_ALL_BILLING_MONTH;
+      const lockResults = await Promise.all(
+        costCentersToLock.map(async (costCenter) => {
+          const response = await fetch('/api/invoices/bulk-account', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountNumber: costCenter.accountNumber,
+              billingMonth: targetBillingMonth,
+              invoiceLocked: true,
+            }),
+          });
+
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result?.invoice) {
+            return null;
+          }
+
+          return normalizeStoredBulkInvoiceForPreview({
+            ...result.invoice,
+            billing_month: result.invoice.billing_month || targetBillingMonth,
+            invoice_date: BULK_INVOICE_ALL_DATE,
+          });
+        }),
+      );
+
+      const lockedInvoices = lockResults.filter(Boolean);
+      if (lockedInvoices.length === 0) {
+        throw new Error('No March invoices were locked.');
+      }
+
+      const lockedByAccount = new Map(
+        lockedInvoices.map((invoice) => [String(invoice.account_number || '').trim().toUpperCase(), invoice]),
+      );
+
+      setCostCentersWithPayments((prev) =>
+        prev.map((item) => {
+          const lockedInvoice = lockedByAccount.get(String(item.accountNumber || '').trim().toUpperCase());
+          if (!lockedInvoice) {
+            return item;
+          }
+
+          return {
+            ...item,
+            accountInvoiceId: lockedInvoice.id || item.accountInvoiceId,
+            reference: lockedInvoice.invoice_number || item.reference,
+            billingMonth: lockedInvoice.billing_month || targetBillingMonth,
+            invoiceDate: BULK_INVOICE_ALL_DATE,
+            dueDate: lockedInvoice.due_date || item.dueDate,
+          };
+        }),
+      );
+
+      setSelectedCostCenterForInvoice((prev) => {
+        if (!prev?.accountNumber) {
+          return prev;
+        }
+
+        const lockedInvoice = lockedByAccount.get(String(prev.accountNumber || '').trim().toUpperCase());
+        if (!lockedInvoice) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          billingMonth: lockedInvoice.billing_month || targetBillingMonth,
+          bulkInvoice: lockedInvoice,
+          invoiceData: mergeLiveInvoiceWithStoredBulkInvoice(
+            {
+              ...(prev.invoiceData || {}),
+              billing_month: lockedInvoice.billing_month || targetBillingMonth,
+              invoice_date: BULK_INVOICE_ALL_DATE,
+            },
+            lockedInvoice,
+          ),
+        };
+      });
+
+      toast({
+        title: 'Invoices Locked',
+        description: `Locked ${lockedInvoices.length} March invoice(s).`,
+      });
+    } catch (error) {
+      console.error('Error locking March invoices:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Lock All Error',
+        description: error?.message || 'Failed to lock March invoices. Please try again.',
+      });
+    } finally {
+      setIsLockingBulkInvoices(false);
     }
   };
 
@@ -4528,7 +4612,7 @@ export default function ClientCostCentersPage() {
                   <p className="truncate text-gray-500 text-sm">{clientLegalName || decodedCode || code}</p>
                   {clientData?.searchDetails && (
                     <p className="mt-1 text-gray-400 text-xs break-words">
-                      Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers Ã¢â‚¬Â¢ 
+                      Searched {clientData.searchDetails.searchedAccountNumbers?.length || 0} account numbers â€¢ 
                       Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
                     </p>
                   )}
@@ -4764,6 +4848,24 @@ export default function ClientCostCentersPage() {
                     Pay All
                   </Button>
                   <Button
+                    onClick={() => handleLockAllInvoices()}
+                    size="sm"
+                    disabled={isLockingBulkInvoices}
+                    className="bg-gray-900 hover:bg-black disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    {isLockingBulkInvoices ? (
+                      <>
+                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
+                        Locking...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="mr-2 w-4 h-4" />
+                        Lock All
+                      </>
+                    )}
+                  </Button>
+                  <Button
                     onClick={() => handleBulkInvoice()}
                     size="sm"
                     disabled={isGeneratingBulkInvoice}
@@ -4777,7 +4879,7 @@ export default function ClientCostCentersPage() {
                     ) : (
                       <>
                         <FileText className="mr-2 w-4 h-4" />
-                        Bulk Invoice
+                        Invoice All
                       </>
                     )}
                   </Button>
@@ -5008,7 +5110,7 @@ export default function ClientCostCentersPage() {
                       <span className="font-semibold">21st of each month</span>
                     </div>
                     <div className="mt-2 font-medium text-blue-700 text-center">
-                      Ã°Å¸â€™Â¡ After 21st, unpaid amounts are added to overdue
+                      ðŸ’¡ After 21st, unpaid amounts are added to overdue
                     </div>
                   </div>
                 </div>
@@ -5889,3 +5991,5 @@ export default function ClientCostCentersPage() {
     </div>
   );
 }
+
+
