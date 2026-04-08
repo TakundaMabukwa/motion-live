@@ -1929,8 +1929,10 @@ export default function ClientCostCentersPage() {
   };
 
   const fetchInvoiceReportPayload = async (costCenter) => {
+    const targetBillingMonth = BULK_INVOICE_ALL_BILLING_MONTH;
     const query = new URLSearchParams({
       accountNumber: costCenter.accountNumber,
+      billingMonth: targetBillingMonth,
     });
     if (costCenter.sourceAccountNumber) {
       query.set('sourceAccountNumber', costCenter.sourceAccountNumber);
@@ -1938,14 +1940,9 @@ export default function ClientCostCentersPage() {
     if (costCenter.invoiceGroup) {
       query.set('billingGroup', costCenter.invoiceGroup);
     }
-    if (costCenter.billingMonth) {
-      query.set('billingMonth', costCenter.billingMonth);
-    }
 
     const [bulkInvoiceResponse, invoiceResponse] = await Promise.all([
-      fetch(`/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
-        costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
-      }`),
+      fetch(`/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(targetBillingMonth)}`),
       fetch(`/api/vehicles/invoice?${query.toString()}`),
     ]);
 
@@ -1961,16 +1958,28 @@ export default function ClientCostCentersPage() {
       liveInvoiceData = data?.invoiceData || null;
     }
 
-    const invoiceData = mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice);
+    const invoiceData = normalizeBatchInvoiceAllInvoiceData(
+      mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice),
+    );
     if (!invoiceData) {
       throw new Error('No vehicle data found for this account');
     }
 
+    const normalizedBulkInvoice = bulkInvoice
+      ? normalizeStoredBulkInvoiceForPreview({
+          ...bulkInvoice,
+          billing_month: targetBillingMonth,
+          invoice_date: BULK_INVOICE_ALL_DATE,
+        })
+      : null;
+
     const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
     const reportCostCenter = {
       ...costCenter,
+      billingMonth: targetBillingMonth,
+      invoiceDate: BULK_INVOICE_ALL_DATE,
       invoiceData,
-      bulkInvoice,
+      bulkInvoice: normalizedBulkInvoice,
       costCenterInfo,
     };
     const invoiceView = buildInvoiceView({
