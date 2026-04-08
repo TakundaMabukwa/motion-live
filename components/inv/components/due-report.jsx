@@ -45,6 +45,30 @@ const formatDate = (value) => {
   return parsed.toLocaleDateString("en-GB");
 };
 
+const formatStatementTransactionDate = (value, fallbackDay = null) => {
+  const parsed = value ? new Date(value) : new Date();
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value || 'N/A');
+  }
+
+  if (fallbackDay) {
+    parsed.setDate(fallbackDay);
+  }
+
+  return parsed.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+  });
+};
+const sortTransactionDatesAsc = (left, right) => {
+  const leftTime = new Date(left).getTime();
+  const rightTime = new Date(right).getTime();
+  const safeLeft = Number.isFinite(leftTime) ? leftTime : 0;
+  const safeRight = Number.isFinite(rightTime) ? rightTime : 0;
+  return safeLeft - safeRight;
+};
+
+
 const escapeHtml = (value) =>
   String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -449,14 +473,20 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
     accountNumber,
     customerVatNumber,
     rows,
-    agingRows,
     itemRows,
     totals,
   } = statementView;
 
   return `
     <div class="statement-page">
-      <style>${buildStatementStyles()}</style>
+      <style>
+        ${buildStatementStyles()}
+        .statement-intro {
+          margin: 8px 0 18px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+      </style>
       <div class="statement-sheet">
         <div class="statement-top">
           <div>
@@ -511,24 +541,26 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
           </tbody>
         </table>
 
+        <div class="statement-intro">Statement :</div>
+
         <table class="statement-table">
           <colgroup>
-            <col style="width: 14%" />
+            <col style="width: 9%" />
+            <col style="width: 20%" />
             <col style="width: 22%" />
-            <col style="width: 18%" />
             <col style="width: 12%" />
-            <col style="width: 10%" />
-            <col style="width: 10%" />
-            <col style="width: 14%" />
+            <col style="width: 12%" />
+            <col style="width: 12%" />
+            <col style="width: 13%" />
           </colgroup>
           <thead>
             <tr>
               <th>Date</th>
               <th>Client</th>
-              <th>Invoice Number</th>
-              <th class="col-right">Total Invoiced</th>
-              <th class="col-right">Paid</th>
-              <th class="col-right">Credited</th>
+              <th>Description</th>
+              <th class="col-right">Amount</th>
+              <th class="col-right">Debit</th>
+              <th class="col-right">Credit</th>
               <th class="col-right">Outstanding</th>
             </tr>
           </thead>
@@ -539,10 +571,10 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
                   <tr>
                     <td>${escapeHtml(row.date)}</td>
                     <td>${escapeHtml(row.client)}</td>
-                    <td>${escapeHtml(row.invoiceNumber)}</td>
-                    <td class="col-right">${escapeHtml(row.totalInvoiced)}</td>
-                    <td class="col-right">${escapeHtml(row.paid)}</td>
-                    <td class="col-right">${escapeHtml(row.credited)}</td>
+                    <td>${escapeHtml(row.description)}</td>
+                    <td class="col-right">${escapeHtml(row.amount)}</td>
+                    <td class="col-right">${escapeHtml(row.debit)}</td>
+                    <td class="col-right">${escapeHtml(row.credit)}</td>
                     <td class="col-right">${escapeHtml(row.outstanding)}</td>
                   </tr>
                 `,
@@ -554,7 +586,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
         ${
           showItemBreakdown && itemRows.length > 0
             ? `
-              <div class="statement-section-title">Full Item Breakdown Making Up Statement Total</div>
+              <div class="statement-section-title">Item Breakdown</div>
               <table class="statement-table">
                 <colgroup>
                   <col style="width: 16%" />
@@ -595,87 +627,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             : ""
         }
 
-        <div class="statement-section-title">Age Analysis</div>
-        <table class="statement-aging-table">
-          <colgroup>
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Current</th>
-              <th>30 Days</th>
-              <th>60 Days</th>
-              <th>90 Days</th>
-              <th>120+ Days</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              ${agingRows.map((value) => `<td>${escapeHtml(value)}</td>`).join("")}
-            </tr>
-          </tbody>
-        </table>
 
-        <div class="statement-notes-totals">
-          <div class="statement-notes">
-            <strong>Notes:</strong>
-            This debtor statement reflects the full outstanding amount currently linked to this cost center. Age analysis is shown below using the current invoice balance position.
-          </div>
-
-          <table class="statement-totals-table">
-            <tbody>
-              <tr>
-                <td class="label">Current Month Invoice</td>
-                <td class="value">${escapeHtml(totals.currentInvoice || totals.totalInvoiced)}</td>
-              </tr>
-              <tr>
-                <td class="label">Payments Received</td>
-                <td class="value">${escapeHtml(totals.paymentsReceived || totals.paid)}</td>
-              </tr>
-              <tr>
-                <td class="label">Credited</td>
-                <td class="value">${escapeHtml(totals.credited)}</td>
-              </tr>
-              <tr class="grand-total">
-                <td class="label">Outstanding Balance</td>
-                <td class="value">${escapeHtml(totals.amountDue || totals.outstanding)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <table class="statement-footer-table">
-          <colgroup>
-            <col style="width: 35%" />
-            <col style="width: 19%" />
-            <col style="width: 26%" />
-            <col style="width: 20%" />
-          </colgroup>
-          <tbody>
-            <tr>
-              <td>
-                <strong>Head Office:</strong>
-                ${COMPANY_INFO.headOffice.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-              </td>
-              <td>
-                <strong>Postal Address:</strong>
-                ${COMPANY_INFO.postal.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-              </td>
-              <td>
-                <strong>Contact Details</strong>
-                ${COMPANY_INFO.contact.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-              </td>
-              <td>
-                <strong>${escapeHtml(COMPANY_INFO.name)}</strong>
-                ${COMPANY_INFO.banking.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   `;
@@ -849,37 +801,157 @@ export function buildStatementView({
     }
   }
 
-  const fallbackRow = {
-    date: formatDate(
-      activeInvoice?.invoice_date ||
-        paymentData?.invoice_date ||
-        activeInvoice?.created_at ||
-        paymentData?.created_at ||
-        paymentData?.billing_month,
-    ),
-    client: clientName,
-    invoiceNumber: actualInvoiceNumber || "-",
-    totalInvoiced: formatCurrency(statementTotalInvoiced),
-    paid: formatCurrency(statementPaidAmount),
-    credited: formatCurrency(statementCreditedAmount),
-    outstanding: formatCurrency(balanceDue),
-    totalInvoicedValue: statementTotalInvoiced,
-    paidValue: statementPaidAmount,
-    creditedValue: statementCreditedAmount,
-    outstandingValue: balanceDue,
-  };
+  const statementMonthSource =
+    paymentData?.billing_month ||
+    activeInvoice?.billing_month ||
+    bulkInvoice?.billing_month ||
+    activeInvoice?.invoice_date ||
+    paymentData?.invoice_date ||
+    new Date().toISOString();
 
-  const rowsForStatement = [fallbackRow];
+  const openingBalance = Math.max(
+    0,
+    balanceDue - totalInvoiced + statementPaidAmount + statementCreditedAmount,
+  );
+
+  const paymentDateSource =
+    paymentData?.last_payment_date ||
+    paymentData?.last_payment ||
+    paymentData?.payment_date ||
+    statementMonthSource;
+
+  const invoiceDateSource =
+    activeInvoice?.invoice_date ||
+    paymentData?.invoice_date ||
+    activeInvoice?.created_at ||
+    paymentData?.created_at ||
+    statementMonthSource;
+
+  const matchedStatementPayments = paymentHistory
+    .filter((payment) => String(payment?.account_number || '') === String(costCenter?.accountNumber || ''))
+    .map((payment) => ({
+      id: payment?.id,
+      date: payment?.payment_date || payment?.created_at || paymentDateSource,
+      description: payment?.payment_reference || payment?.payment_method || 'payment',
+      amount: toNumber(payment?.amount),
+    }))
+    .filter((payment) => payment.amount > 0)
+    .sort((left, right) => sortTransactionDatesAsc(left.date, right.date));
+
+  const ledgerPaidAmount = matchedStatementPayments.reduce(
+    (sum, payment) => sum + toNumber(payment.amount),
+    0,
+  );
+
+  const rowsForStatement = [];
+  let runningOutstanding = 0;
+
+  if (openingBalance > 0) {
+    runningOutstanding += openingBalance;
+    rowsForStatement.push({
+      date: formatStatementTransactionDate(statementMonthSource, 1),
+      client: clientName,
+      description: 'Opening Balance',
+      amount: formatCurrency(openingBalance),
+      debit: formatCurrency(openingBalance),
+      credit: '-',
+      outstanding: formatCurrency(runningOutstanding),
+      amountValue: openingBalance,
+      debitValue: openingBalance,
+      creditValue: 0,
+      outstandingValue: runningOutstanding,
+    });
+  }
+
+  if (matchedStatementPayments.length > 0) {
+    matchedStatementPayments.forEach((payment) => {
+      runningOutstanding = Math.max(0, runningOutstanding - payment.amount);
+      rowsForStatement.push({
+        date: formatStatementTransactionDate(payment.date),
+        client: clientName,
+        description: String(payment.description || 'payment').toLowerCase().includes('payment') ? 'payment' : 'payment',
+        amount: formatCurrency(payment.amount),
+        debit: '-',
+        credit: formatCurrency(payment.amount),
+        outstanding: formatCurrency(runningOutstanding),
+        amountValue: payment.amount,
+        debitValue: 0,
+        creditValue: payment.amount,
+        outstandingValue: runningOutstanding,
+      });
+    });
+  } else if (statementPaidAmount > 0) {
+    runningOutstanding = Math.max(0, runningOutstanding - statementPaidAmount);
+    rowsForStatement.push({
+      date: formatStatementTransactionDate(paymentDateSource),
+      client: clientName,
+      description: 'payment',
+      amount: formatCurrency(statementPaidAmount),
+      debit: '-',
+      credit: formatCurrency(statementPaidAmount),
+      outstanding: formatCurrency(runningOutstanding),
+      amountValue: statementPaidAmount,
+      debitValue: 0,
+      creditValue: statementPaidAmount,
+      outstandingValue: runningOutstanding,
+    });
+  }
+
+  const remainingCreditedAmount = Math.max(
+    0,
+    statementCreditedAmount - Math.max(0, statementPaidAmount - ledgerPaidAmount),
+  );
+
+  if (remainingCreditedAmount > 0) {
+    runningOutstanding = Math.max(0, runningOutstanding - remainingCreditedAmount);
+    rowsForStatement.push({
+      date: formatStatementTransactionDate(paymentDateSource),
+      client: clientName,
+      description: 'credit',
+      amount: formatCurrency(remainingCreditedAmount),
+      debit: '-',
+      credit: formatCurrency(remainingCreditedAmount),
+      outstanding: formatCurrency(runningOutstanding),
+      amountValue: remainingCreditedAmount,
+      debitValue: 0,
+      creditValue: remainingCreditedAmount,
+      outstandingValue: runningOutstanding,
+    });
+  }
+
+  runningOutstanding += totalInvoiced;
+  rowsForStatement.push({
+    date: formatStatementTransactionDate(invoiceDateSource),
+    client: clientName,
+    description: actualInvoiceNumber || 'invoice',
+    amount: formatCurrency(totalInvoiced),
+    debit: formatCurrency(totalInvoiced),
+    credit: '-',
+    outstanding: formatCurrency(runningOutstanding),
+    amountValue: totalInvoiced,
+    debitValue: totalInvoiced,
+    creditValue: 0,
+    outstandingValue: runningOutstanding,
+  });
+
   const totalsFromRows = rowsForStatement.reduce(
     (summary, row) => ({
-      totalInvoiced: summary.totalInvoiced + toNumber(row.totalInvoicedValue),
-      paid: summary.paid + toNumber(row.paidValue),
-      credited: summary.credited + toNumber(row.creditedValue),
-      outstanding: summary.outstanding + toNumber(row.outstandingValue),
+      totalInvoiced: summary.totalInvoiced + toNumber(row.debitValue),
+      paid:
+        summary.paid +
+        (String(row.description || '').toLowerCase() === 'payment'
+          ? toNumber(row.creditValue)
+          : 0),
+      credited:
+        summary.credited +
+        (String(row.description || '').toLowerCase() === 'credit'
+          ? toNumber(row.creditValue)
+          : 0),
+      outstanding: toNumber(row.outstandingValue),
     }),
     { totalInvoiced: 0, paid: 0, credited: 0, outstanding: 0 },
   );
-  const totalCredited = Math.max(totalsFromRows.credited, creditedAmount);
+  const totalCredited = Math.max(totalsFromRows.credited, statementCreditedAmount, creditedAmount);
 
   return {
     clientName,
@@ -901,25 +973,15 @@ export function buildStatementView({
       costCenter?.costCenterInfo?.vat_number ||
       paymentData?.customer_vat_number ||
       "-",
-    rows: rowsForStatement.map((row, index) => ({
+    rows: rowsForStatement.map((row) => ({
       date: row.date,
       client: row.client,
-      invoiceNumber: row.invoiceNumber,
-      totalInvoiced: row.totalInvoiced,
-      paid: row.paid,
-      credited:
-        totalCredited > 0 && index === rowsForStatement.length - 1
-          ? formatCurrency(totalCredited)
-          : row.credited,
+      description: row.description,
+      amount: row.amount,
+      debit: row.debit,
+      credit: row.credit,
       outstanding: row.outstanding,
     })),
-    agingRows: [
-      formatCurrency(current),
-      formatCurrency(days30),
-      formatCurrency(days60),
-      formatCurrency(days90),
-      formatCurrency(days120Plus),
-    ],
     itemRows: invoiceItems.map((item, index) => ({
       id: `${item?.reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
       reg: item?.reg || "-",
@@ -1072,4 +1134,8 @@ export default function DueReportComponent({
     </div>
   );
 }
+
+
+
+
 

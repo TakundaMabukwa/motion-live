@@ -1,0 +1,14 @@
+{
+  "workbook": "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "sheet": "March Receipts",
+  "billing_month_applied_to": "2026-02-01",
+  "workbook_path": "C:\\Users\\mabuk\\Desktop\\Dashboards\\motion-live\\tmp\\Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "mode": "apply",
+  "receipt_row_count": 81,
+  "distinct_accounts": 73,
+  "workbook_total_amount": 1990513.78,
+  "workbook_total_allocations": 1990513.78,
+  "db_row_count": 81,
+  "db_total_amount": 1990513.78,
+  "db_matches_workbook": true
+}

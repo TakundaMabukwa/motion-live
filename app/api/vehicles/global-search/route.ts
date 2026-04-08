@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 const SEARCH_SELECT =
   "id, reg, fleet_number, company, new_account_number, account_number, make, model, year, branch";
 
+const JOB_SEARCH_SELECT =
+  "id, job_number, customer_name, new_account_number, vehicle_registration, vehicle_make, vehicle_model, job_type, status, job_status, priority, role, created_at, due_date, completion_date";
+
 const normalizeIdentifier = (value: string | null | undefined) =>
   String(value || "")
     .trim()
@@ -22,6 +25,22 @@ const dedupeVehicles = (vehicles: Array<Record<string, unknown>>) => {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     results.push(vehicle);
+  }
+
+  return results;
+};
+
+const dedupeJobCards = (jobCards: Array<Record<string, unknown>>) => {
+  const seen = new Set<string>();
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const jobCard of jobCards) {
+    const id = String(jobCard.id || "").trim();
+    const jobNumber = normalizeIdentifier(String(jobCard.job_number || ""));
+    const key = id || jobNumber;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    results.push(jobCard);
   }
 
   return results;
@@ -47,7 +66,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (rawSearch.length < 2) {
-      return NextResponse.json({ vehicles: [] });
+      return NextResponse.json({ vehicles: [], job_cards: [] });
     }
 
     const escapedSearch = rawSearch.replace(/[%_]/g, "").trim();
@@ -64,33 +83,57 @@ export async function GET(request: NextRequest) {
     const prefixMatchesPromise = supabase
       .from("vehicles")
       .select(SEARCH_SELECT)
-      .or(
-        `reg.ilike.${escapedSearch}%,fleet_number.ilike.${escapedSearch}%`,
-      )
+      .or(`reg.ilike.${escapedSearch}%,fleet_number.ilike.${escapedSearch}%`)
       .limit(limit);
 
     const containsMatchesPromise = supabase
       .from("vehicles")
       .select(SEARCH_SELECT)
-      .or(
-        `reg.ilike.%${escapedSearch}%,fleet_number.ilike.%${escapedSearch}%`,
-      )
+      .or(`reg.ilike.%${escapedSearch}%,fleet_number.ilike.%${escapedSearch}%`)
       .limit(limit);
 
-    const [exactMatches, prefixMatches, containsMatches] = await Promise.all([
+    const exactJobMatchesPromise = supabase
+      .from("job_cards")
+      .select(JOB_SEARCH_SELECT)
+      .or(`job_number.eq.${escapedSearch},job_number.eq.${normalizedSearch}`)
+      .limit(limit);
+
+    const prefixJobMatchesPromise = supabase
+      .from("job_cards")
+      .select(JOB_SEARCH_SELECT)
+      .ilike("job_number", `${escapedSearch}%`)
+      .limit(limit);
+
+    const [
+      exactMatches,
+      prefixMatches,
+      containsMatches,
+      exactJobMatches,
+      prefixJobMatches,
+    ] = await Promise.all([
       exactMatchesPromise,
       prefixMatchesPromise,
       containsMatchesPromise,
+      exactJobMatchesPromise,
+      prefixJobMatchesPromise,
     ]);
 
-    if (exactMatches.error || prefixMatches.error || containsMatches.error) {
+    if (
+      exactMatches.error ||
+      prefixMatches.error ||
+      containsMatches.error ||
+      exactJobMatches.error ||
+      prefixJobMatches.error
+    ) {
       console.error("Vehicle global search error:", {
         exact: exactMatches.error,
         prefix: prefixMatches.error,
         contains: containsMatches.error,
+        exactJob: exactJobMatches.error,
+        prefixJob: prefixJobMatches.error,
       });
       return NextResponse.json(
-        { error: "Failed to search vehicles" },
+        { error: "Failed to search vehicles and job cards" },
         { status: 500 },
       );
     }
@@ -101,7 +144,12 @@ export async function GET(request: NextRequest) {
       ...(containsMatches.data || []),
     ]).slice(0, limit);
 
-    return NextResponse.json({ vehicles });
+    const jobCards = dedupeJobCards([
+      ...(exactJobMatches.data || []),
+      ...(prefixJobMatches.data || []),
+    ]).slice(0, limit);
+
+    return NextResponse.json({ vehicles, job_cards: jobCards });
   } catch (error) {
     console.error("Vehicle global search route error:", error);
     return NextResponse.json(
