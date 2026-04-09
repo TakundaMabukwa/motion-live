@@ -321,6 +321,7 @@ export default function AccountsContent({ activeSection }) {
 
   const handleInvoiceClient = async (job) => {
     setSelectedJobForInvoice(job);
+    setGeneratedInvoice(null);
     setStoredInvoiceRecord(null);
     setSelectedCostCenterInfo(null);
     // Pre-fill form with available job data
@@ -1192,12 +1193,10 @@ export default function AccountsContent({ activeSection }) {
 
     const invoiceNumber =
       storedInvoiceRecord?.invoice_number ||
-      selectedJobForInvoice?.billing_statuses?.invoice?.invoice_number ||
       generatedInvoice?.invoiceNumber ||
       "PENDING";
     const invoiceDate =
       storedInvoiceRecord?.invoice_date ||
-      selectedJobForInvoice?.billing_statuses?.invoice?.invoice_date ||
       generatedInvoice?.generatedAt ||
       new Date().toISOString();
 
@@ -2738,7 +2737,6 @@ export default function AccountsContent({ activeSection }) {
                       ? invoiceVehicles.join(", ")
                       : "N/A";
                   const invoiceNumber =
-                    selectedJobForInvoice.quotation_number ||
                     generatedInvoice?.invoiceNumber ||
                     "INV-PENDING";
                   const invoiceDate =
