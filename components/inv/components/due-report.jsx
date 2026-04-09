@@ -45,6 +45,18 @@ const formatDate = (value) => {
   return parsed.toLocaleDateString("en-GB");
 };
 
+const formatMonthYear = (value) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+  return parsed.toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
 const formatStatementTransactionDate = (value, fallbackDay = null) => {
   const parsed = value ? new Date(value) : new Date();
   if (Number.isNaN(parsed.getTime())) {
@@ -243,11 +255,18 @@ export const buildStatementStyles = () => `
     object-fit: contain;
   }
 
-  .statement-company {
-    text-align: center;
-    font-size: 16px;
-    line-height: 1.3;
-  }
+.statement-company {
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.statement-meta {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding-top: 52px;
+}
 
   .statement-company strong {
     display: block;
@@ -468,8 +487,6 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
     clientName,
     clientAddress,
     companyRegistrationNumber,
-    statementNumber,
-    statementDate,
     accountNumber,
     customerVatNumber,
     rows,
@@ -507,13 +524,11 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
           <div class="statement-client-block">
             <div class="statement-client-name">${escapeHtml(clientName)}</div>
             <div class="statement-client-address"><strong>Company Reg:</strong> ${escapeHtml(companyRegistrationNumber || "-")}</div>
-            <div class="statement-client-address">${escapeHtml(clientAddress)}</div>
+            <div class="statement-client-address"><strong>Postal Address:</strong> ${escapeHtml(clientAddress || "-")}</div>
           </div>
           <div class="statement-meta">
             <div class="statement-meta-label">DEBTOR STATEMENT :</div>
-            <div class="statement-meta-value">${escapeHtml(statementNumber)}</div>
-            <div class="statement-meta-label">Date:</div>
-            <div class="statement-meta-value">${escapeHtml(statementDate)}</div>
+            <div class="statement-meta-value">${escapeHtml(statementView.statementPeriod || "-")}</div>
           </div>
         </div>
 
@@ -628,8 +643,6 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             : ""
         }
 
-
-        <div class="statement-section-title">Age Analysis</div>
         <table class="statement-aging-table">
           <colgroup>
             <col style="width: 20%" />
@@ -722,22 +735,11 @@ export function buildStatementView({
     costCenter?.accountNumber ||
     "Client Name";
 
-  const structuredAddress = [
-    costCenter?.costCenterInfo?.physical_address_1,
-    costCenter?.costCenterInfo?.physical_address_2,
-    costCenter?.costCenterInfo?.physical_address_3,
-    costCenter?.costCenterInfo?.physical_area,
-    costCenter?.costCenterInfo?.physical_code,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const structuredAddress = String(
+    costCenter?.costCenterInfo?.physical_area || "",
+  ).trim();
 
-  const clientAddress =
-    costCenter?.invoiceData?.client_address ||
-    bulkInvoice?.client_address ||
-    currentInvoice?.client_address ||
-    paymentData?.client_address ||
-    structuredAddress;
+  const clientAddress = structuredAddress;
 
   const activeInvoice =
     bulkInvoice ||
@@ -1024,6 +1026,7 @@ export function buildStatementView({
       "-",
     statementNumber: "",
     statementDate: formatDate(new Date().toISOString()),
+    statementPeriod: formatMonthYear(statementMonthSource),
     accountNumber: costCenter?.accountNumber || "N/A",
     customerVatNumber:
       costCenter?.invoiceData?.customer_vat_number ||
