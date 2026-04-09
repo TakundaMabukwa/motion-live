@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const allNewAccountNumbers = searchParams.get('all_new_account_numbers');
+    const requestedBillingMonth = searchParams.get('billingMonth');
 
     if (!allNewAccountNumbers) {
       return NextResponse.json(
@@ -50,11 +51,15 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    const currentBillingMonthKey = getOperationalBillingMonthKey();
+    const currentBillingMonthKey =
+      requestedBillingMonth && /^\d{4}-\d{2}(?:-\d{2})?$/.test(requestedBillingMonth)
+        ? `${requestedBillingMonth.slice(0, 7)}-01`
+        : getOperationalBillingMonthKey();
 
     const [
       { data: paymentsMirrorRows, error: paymentsMirrorError },
       { data: invoices, error: invoicesError },
+      { data: bulkInvoices, error: bulkInvoicesError },
       { data: vehiclesByNewAccount, error: vehiclesByNewAccountError },
       { data: vehiclesByAccount, error: vehiclesByAccountError },
       { data: costCenters, error: costCentersError },
@@ -107,6 +112,22 @@ export async function GET(request: NextRequest) {
         .eq('billing_month', currentBillingMonthKey)
         .order('created_at', { ascending: false }),
       supabase
+        .from('bulk_account_invoices')
+        .select(`
+          id,
+          account_number,
+          invoice_number,
+          invoice_date,
+          total_amount,
+          billing_month,
+          created_at,
+          invoice_locked
+        `)
+        .in('account_number', accountNumbers)
+        .eq('billing_month', currentBillingMonthKey)
+        .eq('invoice_locked', true)
+        .order('created_at', { ascending: false }),
+      supabase
         .from('vehicles')
         .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
         .in('new_account_number', accountNumbers),
@@ -120,12 +141,13 @@ export async function GET(request: NextRequest) {
         .in('cost_code', accountNumbers),
     ]);
 
-    if (paymentsMirrorError || invoicesError || vehiclesByNewAccountError || vehiclesByAccountError || costCentersError) {
+    if (paymentsMirrorError || invoicesError || bulkInvoicesError || vehiclesByNewAccountError || vehiclesByAccountError || costCentersError) {
       return NextResponse.json(
         {
           error: `Database error: ${
             paymentsMirrorError?.message ||
             invoicesError?.message ||
+            bulkInvoicesError?.message ||
             vehiclesByNewAccountError?.message ||
             vehiclesByAccountError?.message ||
             costCentersError?.message
@@ -142,6 +164,15 @@ export async function GET(request: NextRequest) {
         return;
       }
       invoiceByCode.set(accountNumber, invoice);
+    });
+
+    const lockedBulkInvoiceByCode = new Map<string, Record<string, unknown>>();
+    (bulkInvoices || []).forEach((invoice) => {
+      const accountNumber = String(invoice?.account_number || '').trim().toUpperCase();
+      if (!accountNumber || lockedBulkInvoiceByCode.has(accountNumber)) {
+        return;
+      }
+      lockedBulkInvoiceByCode.set(accountNumber, invoice);
     });
 
     const paymentsMirrorByCode = new Map<string, Record<string, unknown>>();
@@ -182,14 +213,49 @@ export async function GET(request: NextRequest) {
     const rows = accountNumbers.map((accountNumber) => {
       const mirroredPayment = paymentsMirrorByCode.get(accountNumber);
       const invoice = invoiceByCode.get(accountNumber);
+      const lockedBulkInvoice = lockedBulkInvoiceByCode.get(accountNumber);
       const draft = draftPaymentsByCode.get(accountNumber);
       const center = costCenterByCode.get(accountNumber);
       const company =
-        invoice?.company_name ||
-        draft?.company ||
         center?.legal_name ||
         center?.company ||
+        invoice?.company_name ||
+        draft?.company ||
         accountNumber;
+
+      if (lockedBulkInvoice) {
+        const financials = buildInvoiceFinancials({
+          totalAmount: lockedBulkInvoice.total_amount,
+          paidAmount: 0,
+          dueDate: lockedBulkInvoice.invoice_date,
+        });
+
+        return {
+          id: lockedBulkInvoice.id,
+          company,
+          cost_code: accountNumber,
+          account_invoice_id: lockedBulkInvoice.id,
+          invoice_number: lockedBulkInvoice.invoice_number || null,
+          reference: lockedBulkInvoice.invoice_number || '',
+          due_amount: roundCurrency(financials.totalAmount),
+          paid_amount: 0,
+          balance_due: roundCurrency(financials.totalAmount),
+          invoice_date: lockedBulkInvoice.invoice_date || null,
+          due_date: null,
+          payment_status: 'pending',
+          last_updated: lockedBulkInvoice.created_at || new Date().toISOString(),
+          billing_month: lockedBulkInvoice.billing_month || currentBillingMonthKey,
+          source: 'locked_bulk_invoice',
+          current_due: 0,
+          overdue_30_days: 0,
+          overdue_60_days: 0,
+          overdue_90_days: 0,
+          overdue_120_plus_days: 0,
+          outstanding_balance: roundCurrency(financials.totalAmount),
+          credit_amount: 0,
+          invoice_locked: true,
+        };
+      }
 
       if (mirroredPayment) {
         return {

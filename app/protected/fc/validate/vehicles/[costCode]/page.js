@@ -39,6 +39,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+const FC_BILLING_MONTH = "2026-03-01";
+
 const AddItemSearch = memo(function AddItemSearch({
   vehicleFieldsToAdd,
   billingFieldsToAdd,
@@ -432,8 +434,9 @@ export default function ValidateVehiclesPage() {
         }
 
         console.log("Fetching vehicles for cost code:", costCode);
+        const billingMonth = String(currentCostCenter?.billing_month || FC_BILLING_MONTH).trim();
         const response = await fetch(
-          `/api/vehicles/get?cost_code=${encodeURIComponent(costCode)}`,
+          `/api/vehicles/get?cost_code=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(billingMonth)}`,
         );
         console.log("Vehicles response status:", response.status);
 
@@ -455,7 +458,7 @@ export default function ValidateVehiclesPage() {
     };
 
     fetchVehicles();
-  }, [costCode]);
+  }, [costCode, currentCostCenter?.billing_month]);
 
   useEffect(() => {
     const fetchCostCenters = async () => {
@@ -803,7 +806,7 @@ export default function ValidateVehiclesPage() {
       return;
     }
 
-    const billingMonth = String(currentCostCenter?.billing_month || "").trim();
+    const billingMonth = String(currentCostCenter?.billing_month || FC_BILLING_MONTH).trim();
     const cacheKey = [String(costCode).trim().toUpperCase(), billingMonth || "current"].join("::");
     const cachedPreview = invoicePreviewCacheRef.current.get(cacheKey);
 
@@ -828,28 +831,76 @@ export default function ValidateVehiclesPage() {
       const result = await response.json();
       const storedInvoice = result?.invoice || null;
 
-      if (!response.ok || !storedInvoice) {
-        throw new Error(result?.error || "No stored invoice found for this client");
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to load stored invoice data");
       }
 
       const previewTitle = currentCostCenterName || costCode;
-      const lineItems = Array.isArray(storedInvoice?.line_items)
-        ? storedInvoice.line_items
-        : [];
+      const shouldUseStoredInvoice = Boolean(storedInvoice?.invoice_locked);
+      let invoiceData = null;
+
+      if (shouldUseStoredInvoice && storedInvoice) {
+        const lineItems = Array.isArray(storedInvoice?.line_items)
+          ? storedInvoice.line_items
+          : [];
+
+        invoiceData = {
+          ...storedInvoice,
+          invoiceItems: lineItems,
+          invoice_items: lineItems,
+          company_name: storedInvoice?.company_name || previewTitle,
+        };
+      } else {
+        const liveResponse = await fetch(
+          `/api/vehicles/invoice?accountNumber=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(
+            billingMonth,
+          )}`,
+          { cache: "no-store" },
+        );
+        const liveResult = await liveResponse.json();
+        const liveInvoice = liveResult?.invoiceData || null;
+
+        if (!liveResponse.ok || !liveInvoice) {
+          throw new Error(liveResult?.error || "Failed to build live invoice preview");
+        }
+
+        const liveLineItems = Array.isArray(
+          liveInvoice?.invoiceItems || liveInvoice?.invoice_items,
+        )
+          ? liveInvoice.invoiceItems || liveInvoice.invoice_items
+          : [];
+
+        invoiceData = {
+          ...liveInvoice,
+          invoice_number:
+            storedInvoice?.invoice_number || liveInvoice?.invoice_number || "PENDING",
+          invoice_date:
+            storedInvoice?.invoice_date || liveInvoice?.invoice_date || `${billingMonth}T00:00:00.000Z`,
+          notes: storedInvoice?.notes || liveInvoice?.notes || null,
+          invoice_locked: Boolean(storedInvoice?.invoice_locked),
+          invoice_locked_at: storedInvoice?.invoice_locked_at || null,
+          invoice_locked_by: storedInvoice?.invoice_locked_by || null,
+          invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
+          billing_month:
+            String(storedInvoice?.billing_month || liveInvoice?.billing_month || billingMonth).trim() ||
+            null,
+          company_name:
+            storedInvoice?.company_name ||
+            liveInvoice?.company_name ||
+            previewTitle,
+          invoiceItems: liveLineItems,
+          invoice_items: liveLineItems,
+        };
+      }
 
       const previewPayload = {
         accountNumber: costCode,
         accountName: previewTitle,
         company: previewTitle,
         billingMonth:
-          String(storedInvoice?.billing_month || billingMonth).trim() || null,
+          String(invoiceData?.billing_month || billingMonth).trim() || null,
         costCenterInfo: currentCostCenter || null,
-        invoiceData: {
-          ...storedInvoice,
-          invoiceItems: lineItems,
-          invoice_items: lineItems,
-          company_name: storedInvoice?.company_name || previewTitle,
-        },
+        invoiceData,
       };
 
       invoicePreviewCacheRef.current.set(cacheKey, previewPayload);

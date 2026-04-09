@@ -22,16 +22,6 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 
-const getOperationalBillingMonthKey = () => {
-  const operationalDate = new Date();
-  if (operationalDate.getDate() <= 7) {
-    operationalDate.setMonth(operationalDate.getMonth() - 1);
-  }
-  operationalDate.setDate(1);
-  return `${operationalDate.getFullYear()}-${String(operationalDate.getMonth() + 1).padStart(2, '0')}-01`;
-};
-
-
 const formatBillingMonthInput = (value) => {
   const raw = String(value || '').trim();
   return raw ? raw.slice(0, 7) : '';
@@ -45,6 +35,8 @@ const normalizeBillingMonthValue = (value) => {
 
 const BULK_INVOICE_ALL_BILLING_MONTH = '2026-03-01';
 const BULK_INVOICE_ALL_DATE = '2026-03-30T00:00:00.000Z';
+const ACCOUNTS_INVOICE_BILLING_MONTH = '2026-03-01';
+const ACCOUNTS_INVOICE_DATE = '2026-03-30T00:00:00.000Z';
 
 const normalizeStoredBulkInvoiceForPreview = (invoice) => {
   if (!invoice) return null;
@@ -55,6 +47,17 @@ const normalizeStoredBulkInvoiceForPreview = (invoice) => {
     invoiceItems: lineItems,
   };
 };
+
+const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
+  ...storedInvoice,
+  account_number: storedInvoice?.account_number || liveInvoiceData?.account_number || null,
+  source_account_number:
+    storedInvoice?.source_account_number || liveInvoiceData?.source_account_number || null,
+  billing_group: storedInvoice?.billing_group || liveInvoiceData?.billing_group || null,
+  company_name: storedInvoice?.company_name || liveInvoiceData?.company_name || null,
+  invoice_items: storedInvoice?.invoice_items || [],
+  invoiceItems: storedInvoice?.invoiceItems || [],
+});
 
 const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
   if (!invoiceData) return null;
@@ -78,12 +81,7 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
   }
 
   if (normalizedStored.invoice_locked) {
-    return {
-      ...(liveInvoiceData || {}),
-      ...normalizedStored,
-      invoice_items: normalizedStored.invoice_items,
-      invoiceItems: normalizedStored.invoiceItems,
-    };
+    return buildLockedInvoiceSnapshot(normalizedStored, liveInvoiceData || null);
   }
 
   return {
@@ -172,7 +170,7 @@ export default function ClientCostCentersPage() {
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
   const currentBillingMonthKey = useMemo(() => {
-    return getOperationalBillingMonthKey();
+    return ACCOUNTS_INVOICE_BILLING_MONTH;
   }, []);
 
   useEffect(() => {
@@ -450,7 +448,9 @@ export default function ClientCostCentersPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/billing/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}`);
+      const response = await fetch(
+        `/api/billing/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}&billingMonth=${encodeURIComponent(ACCOUNTS_INVOICE_BILLING_MONTH)}`,
+      );
       if (!response.ok) {
         return false;
       }
@@ -676,13 +676,11 @@ export default function ClientCostCentersPage() {
   }, [costCentersWithPayments]);
 
   const displayBillingMonth = useMemo(() => {
-    const selectedMonth =
-      costCentersWithPayments.find((item) => item?.billingMonth)?.billingMonth ||
-      currentBillingMonthKey;
+    const selectedMonth = ACCOUNTS_INVOICE_BILLING_MONTH;
     const date = new Date(selectedMonth);
     if (Number.isNaN(date.getTime())) return selectedMonth;
     return date.toLocaleDateString('en-ZA', { year: 'numeric', month: 'long' });
-  }, [costCentersWithPayments, currentBillingMonthKey]);
+  }, []);
 
   // Handle amount input changes - allow decimals and better formatting
   const handleAmountChange = (e) => {
@@ -2218,8 +2216,7 @@ export default function ClientCostCentersPage() {
           invoice_number: costCenter?.reference || 'Current Billing Record',
           invoice_date:
             costCenter?.invoiceDate ||
-            costCenter?.billingMonth ||
-            currentBillingMonthKey,
+            ACCOUNTS_INVOICE_DATE,
           created_at: costCenter?.created_at || costCenter?.createdAt || null,
           total_amount: Number(costCenter?.amountDue || costCenter?.balanceDue || 0),
           paid_amount: Number(costCenter?.paidAmount || costCenter?.totalPaid || 0),
@@ -2259,8 +2256,7 @@ export default function ClientCostCentersPage() {
     invoice_number: costCenter?.reference || 'Current Billing Record',
     invoice_date:
       costCenter?.invoiceDate ||
-      costCenter?.billingMonth ||
-      currentBillingMonthKey,
+      ACCOUNTS_INVOICE_DATE,
     created_at: costCenter?.created_at || costCenter?.createdAt || null,
     total_amount: Number(costCenter?.amountDue || costCenter?.balanceDue || 0),
     paid_amount: Number(costCenter?.paidAmount || costCenter?.totalPaid || 0),
@@ -2284,7 +2280,7 @@ export default function ClientCostCentersPage() {
       account_number: invoice.account_number || null,
       billing_month: invoice.billing_month || currentBillingMonthKey,
       invoice_number: invoice.invoice_number || 'Bulk Invoice',
-      invoice_date: invoice.invoice_date || invoice.billing_month || currentBillingMonthKey,
+      invoice_date: invoice.invoice_date || ACCOUNTS_INVOICE_DATE,
       created_at: invoice.created_at || null,
       total_amount: Number(invoice.total_amount || 0),
       paid_amount: Number(invoice.paid_amount || 0),
@@ -4942,6 +4938,8 @@ export default function ClientCostCentersPage() {
                           <p className="text-gray-500 text-xs">
                             {costCenter.amountSource === 'vehicles_draft'
                               ? 'Current vehicle billing draft'
+                              : costCenter.amountSource === 'locked_bulk_invoice'
+                                ? 'Locked March invoice total'
                               : costCenter.amountSource === 'account_invoice'
                                 ? 'Generated invoice total'
                                 : costCenter.amountSource === 'no_billing_data'

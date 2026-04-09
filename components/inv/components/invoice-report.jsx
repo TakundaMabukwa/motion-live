@@ -108,6 +108,17 @@ const normalizeStoredBulkInvoiceForView = (invoice) => {
   };
 };
 
+const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
+  ...storedInvoice,
+  account_number: storedInvoice?.account_number || liveInvoiceData?.account_number || null,
+  source_account_number:
+    storedInvoice?.source_account_number || liveInvoiceData?.source_account_number || null,
+  billing_group: storedInvoice?.billing_group || liveInvoiceData?.billing_group || null,
+  company_name: storedInvoice?.company_name || liveInvoiceData?.company_name || null,
+  invoice_items: storedInvoice?.invoice_items || [],
+  invoiceItems: storedInvoice?.invoiceItems || [],
+});
+
 const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice) => {
   const normalizedStored = normalizeStoredBulkInvoiceForView(storedBulkInvoice);
   if (!normalizedStored) {
@@ -115,12 +126,7 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
   }
 
   if (normalizedStored.invoice_locked) {
-    return {
-      ...(liveInvoiceData || {}),
-      ...normalizedStored,
-      invoice_items: normalizedStored.invoice_items,
-      invoiceItems: normalizedStored.invoiceItems,
-    };
+    return buildLockedInvoiceSnapshot(normalizedStored, liveInvoiceData || null);
   }
 
   return {
@@ -845,6 +851,60 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
   );
 }
 
+const normalizeInvoiceLine = (item) => {
+  const units = Math.max(1, toNumber(item.units ?? item.quantity) || 1);
+  const explicitUnitPrice = toNumber(
+    item.unit_price_without_vat ??
+      item.unit_price_ex_vat ??
+      item.unit_price,
+  );
+  const explicitLineExVat = toNumber(
+    item.total_excl_vat ??
+      item.subtotal ??
+      item.amountExcludingVat,
+  );
+  const exVatPerUnit =
+    explicitUnitPrice > 0
+      ? explicitUnitPrice
+      : explicitLineExVat > 0
+        ? explicitLineExVat / units
+        : 0;
+  const exVatLineTotal =
+    explicitLineExVat > 0 ? explicitLineExVat : exVatPerUnit * units;
+
+  const explicitVatAmount = toNumber(
+    item.vat_amount ?? item.vatAmount ?? item.total_vat,
+  );
+  const vatLineTotal =
+    explicitVatAmount > 0 ? explicitVatAmount : exVatLineTotal * VAT_RATE;
+
+  const explicitTotalIncl = toNumber(
+    item.total_including_vat ??
+      item.total_incl_vat ??
+      item.total_incl ??
+      item.totalIncl ??
+      item.totalRentalSub,
+  );
+  const totalInclLine =
+    explicitTotalIncl > 0 ? explicitTotalIncl : exVatLineTotal + vatLineTotal;
+
+  return {
+    previousReg: item.reg || item.previous_reg || "-",
+    newReg: item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-",
+    itemCode: item.item_code || "-",
+    description: item.description || "-",
+    comments: item.category || item.comments || item.company || "",
+    units,
+    unitPrice: formatAmount(exVatPerUnit),
+    vatAmount: formatAmount(vatLineTotal),
+    vatPercent: item.vat_percent || "15%",
+    totalIncl: formatAmount(totalInclLine),
+    exVat: exVatLineTotal,
+    vat: vatLineTotal,
+    incl: totalInclLine,
+  };
+};
+
 export function buildInvoiceView({
   activeInvoiceData,
   customerInfo,
@@ -858,41 +918,7 @@ export function buildInvoiceView({
       ? activeInvoiceData.invoice_items
       : [];
 
-  const rows = items.map((item) => {
-    const exVat = toNumber(
-      item.unit_price_without_vat ??
-        item.amountExcludingVat ??
-        item.total_excl_vat ??
-        item.unit_price,
-    );
-    const vatAmountSource = toNumber(item.vat_amount ?? item.vatAmount);
-    const vatAmount = Number.isFinite(vatAmountSource) && vatAmountSource > 0
-      ? vatAmountSource
-      : exVat * VAT_RATE;
-    const totalInclSource = toNumber(
-      item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub,
-    );
-    const totalIncl =
-      Number.isFinite(totalInclSource) && totalInclSource > 0
-        ? totalInclSource
-        : exVat + vatAmount;
-
-    return {
-      previousReg: item.reg || "-",
-      newReg: item.fleetNumber || item.reg || "-",
-      itemCode: item.item_code || "-",
-      description: item.description || "-",
-      comments: item.category || item.company || "",
-      units: item.units || 1,
-      unitPrice: formatAmount(exVat),
-      vatAmount: formatAmount(vatAmount),
-      vatPercent: "15%",
-      totalIncl: formatAmount(totalIncl),
-      exVat,
-      vat: vatAmount,
-      incl: totalIncl,
-    };
-  });
+  const rows = items.map(normalizeInvoiceLine);
 
   const rowTotals = rows.reduce(
     (acc, row) => ({
@@ -938,12 +964,9 @@ export function buildInvoiceView({
     "";
 
   const totals = {
-    totalExVat:
-      toNumber(activeInvoiceData?.subtotal) || rowTotals.totalExVat,
-    totalVat:
-      toNumber(activeInvoiceData?.vat_amount) || rowTotals.totalVat,
-    totalInclVat:
-      toNumber(activeInvoiceData?.total_amount) || rowTotals.totalInclVat,
+    totalExVat: rowTotals.totalExVat,
+    totalVat: rowTotals.totalVat,
+    totalInclVat: rowTotals.totalInclVat,
     discount: 0,
   };
 
@@ -1626,4 +1649,3 @@ export default function InvoiceReportComponent({
     </div>
   );
 }
-

@@ -214,6 +214,67 @@ const pushInvoiceItem = (
   return totalInclVat;
 };
 
+const calculateInvoiceFinancials = (items: any[]) =>
+  items.reduce(
+    (acc, item) => {
+      const units = Math.max(
+        1,
+        parseFloat(String(item.units ?? item.quantity ?? 1)) || 1,
+      );
+      const explicitUnitExVat =
+        parseFloat(
+          String(
+            item.unit_price_without_vat ??
+              item.unit_price_ex_vat ??
+              item.unit_price ??
+              0,
+          ),
+        ) || 0;
+      const explicitLineExVat =
+        parseFloat(
+          String(
+            item.total_excl_vat ??
+              item.subtotal ??
+              item.amountExcludingVat ??
+              0,
+          ),
+        ) || 0;
+      const exVatLineTotal =
+        explicitLineExVat > 0 ? explicitLineExVat : explicitUnitExVat * units;
+
+      const explicitVat =
+        parseFloat(
+          String(
+            item.vat_amount ??
+              item.vatAmount ??
+              item.total_vat ??
+              0,
+          ),
+        ) || 0;
+      const vatLineTotal = explicitVat > 0 ? explicitVat : exVatLineTotal * 0.15;
+
+      const explicitIncl =
+        parseFloat(
+          String(
+            item.total_including_vat ??
+              item.total_incl_vat ??
+              item.total_incl ??
+              item.totalIncl ??
+              item.totalRentalSub ??
+              0,
+          ),
+        ) || 0;
+      const totalInclLine =
+        explicitIncl > 0 ? explicitIncl : exVatLineTotal + vatLineTotal;
+
+      acc.subtotal += exVatLineTotal;
+      acc.vatAmount += vatLineTotal;
+      acc.totalAmount += totalInclLine;
+      return acc;
+    },
+    { subtotal: 0, vatAmount: 0, totalAmount: 0 },
+  );
+
 const resolveInvoiceItemCode = (
   labels: string[],
   monthlyRental: number,
@@ -331,6 +392,15 @@ const getVehicleDisplay = (vehicle: Record<string, any>) => {
   }
 
   return vehicle.reg || vehicle.fleet_number || '';
+};
+
+const getBillingCutoff = (billingMonth: string | null) => {
+  const normalized = String(billingMonth || '').trim();
+  if (!normalized.startsWith('2026-03')) {
+    return null;
+  }
+
+  return '2026-03-30T23:59:59.999Z';
 };
 
 const getEpsCategoryLabel = (groupCode: string) => {
@@ -612,10 +682,17 @@ export async function GET(request: NextRequest) {
     const costCenter = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
 
     // Fetch all vehicle fields
-    const { data: vehicles, error } = await supabase
+    let vehiclesQuery = supabase
       .from('vehicles')
       .select('*')
       .or(`account_number.eq.${sourceAccountNumber},new_account_number.eq.${sourceAccountNumber}`);
+
+    const billingCutoff = getBillingCutoff(billingMonth);
+    if (billingCutoff) {
+      vehiclesQuery = vehiclesQuery.lte('created_at', billingCutoff);
+    }
+
+    const { data: vehicles, error } = await vehiclesQuery;
 
     if (error) throw error;
     if ((!vehicles || vehicles.length === 0) && !storedInvoice) {
@@ -647,7 +724,6 @@ export async function GET(request: NextRequest) {
 
     // Build invoice items
     const invoiceItems: any[] = [];
-    let totalAmount = 0;
 
     const BILLABLE_COLUMNS = new Set([
       'skylink_trailer_unit_rental',
@@ -873,7 +949,7 @@ export async function GET(request: NextRequest) {
 
         const itemCode = resolveInvoiceItemCode(uniqueLabels, monthlyRental, monthlySub);
 
-        totalAmount += pushInvoiceItem(
+        pushInvoiceItem(
           invoiceItems,
           vehicle,
           companyName,
@@ -895,45 +971,29 @@ export async function GET(request: NextRequest) {
       storedLineItems.length > 0 && !hasLegacyStoredLineItems(storedLineItems);
     const resolvedLineItems = useStoredLineItems ? storedLineItems : invoiceItems;
 
+    const lineItemFinancials = calculateInvoiceFinancials(resolvedLineItems);
+    const storedSubtotal = parseFloat(String(storedInvoice?.subtotal ?? ''));
+    const storedVat = parseFloat(String(storedInvoice?.vat_amount ?? ''));
+    const storedTotal = parseFloat(String(storedInvoice?.total_amount ?? ''));
+    const storedMatchesLineItems =
+      Math.abs((Number.isFinite(storedSubtotal) ? storedSubtotal : 0) - lineItemFinancials.subtotal) < 0.01 &&
+      Math.abs((Number.isFinite(storedVat) ? storedVat : 0) - lineItemFinancials.vatAmount) < 0.01 &&
+      Math.abs((Number.isFinite(storedTotal) ? storedTotal : 0) - lineItemFinancials.totalAmount) < 0.01;
+
     const resolvedSubtotal =
-      (useStoredLineItems ? storedInvoice?.subtotal : null) ??
-      resolvedLineItems.reduce(
-        (sum, item) =>
-          sum +
-          (parseFloat(
-            String(
-              item.amountExcludingVat ??
-              item.total_excl_vat ??
-              item.unit_price_without_vat ??
-              item.unit_price ??
-              0,
-            ),
-          ) || 0),
-        0,
-      );
+      useStoredLineItems && Number.isFinite(storedSubtotal) && storedMatchesLineItems
+        ? storedSubtotal
+        : lineItemFinancials.subtotal;
 
     const resolvedVat =
-      (useStoredLineItems ? storedInvoice?.vat_amount : null) ??
-      resolvedLineItems.reduce(
-        (sum, item) => sum + (parseFloat(String(item.vat_amount ?? item.vatAmount ?? 0)) || 0),
-        0,
-      );
+      useStoredLineItems && Number.isFinite(storedVat) && storedMatchesLineItems
+        ? storedVat
+        : lineItemFinancials.vatAmount;
 
     const resolvedTotal =
-      (useStoredLineItems ? storedInvoice?.total_amount : null) ??
-      resolvedLineItems.reduce(
-        (sum, item) =>
-          sum +
-          (parseFloat(
-            String(
-              item.total_including_vat ??
-              item.total_incl_vat ??
-              item.totalRentalSub ??
-              0,
-            ),
-          ) || 0),
-        0,
-      );
+      useStoredLineItems && Number.isFinite(storedTotal) && storedMatchesLineItems
+        ? storedTotal
+        : lineItemFinancials.totalAmount;
 
     const invoiceData = {
       company_name: companyName,
