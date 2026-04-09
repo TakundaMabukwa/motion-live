@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { Users, Loader2 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Toast from '@radix-ui/react-toast';
-import MasterSidebar from '@/components/shared/MasterSidebar';
 
 type ApiUser = {
     id: string;
@@ -19,12 +18,6 @@ type ApiUser = {
 };
 
 export default function MasterDashboard() {
-    const [invoiceStats, setInvoiceStats] = useState({
-        totalInvoices: 0,
-        unapprovedInvoicesCount: 0,
-        loading: true
-    });
-
     const [users, setUsers] = useState<ApiUser[] | null>(null);
     const [usersLoading, setUsersLoading] = useState<boolean>(false);
     const [usersError, setUsersError] = useState<string | null>(null);
@@ -67,33 +60,6 @@ export default function MasterDashboard() {
         return () => { mounted = false; };
     }, []);
 
-    // Fetch invoice statistics from API
-    const fetchInvoiceStats = async () => {
-        try {
-            setInvoiceStats(prev => ({ ...prev, loading: true }));
-            
-            // Fetch total invoices
-            const totalResponse = await fetch('/api/invoices');
-            const totalData = await totalResponse.json();
-            
-            // Fetch pending invoices
-            const pendingResponse = await fetch('/api/invoices?status=pending');
-            const pendingData = await pendingResponse.json();
-            
-            setInvoiceStats({
-                totalInvoices: totalData.count || 0,
-                unapprovedInvoicesCount: pendingData.count || 0,
-                loading: false
-            });
-        } catch (error) {
-            console.error('Error fetching invoice stats:', error);
-            setInvoiceStats(prev => ({ ...prev, loading: false }));
-        }
-    };
-
-    useEffect(() => {
-        fetchInvoiceStats();
-    }, []);
 
     return (
         <>

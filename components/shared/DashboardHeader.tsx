@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { LucideIcon } from 'lucide-react';
 
@@ -10,13 +11,15 @@ interface DashboardHeaderProps {
     onClick: () => void;
     icon?: LucideIcon;
   };
+  actionContent?: ReactNode;
 }
 
 export default function DashboardHeader({ 
   title, 
   subtitle, 
   icon: Icon,
-  actionButton 
+  actionButton,
+  actionContent
 }: DashboardHeaderProps) {
   return (
     <div className="flex justify-between items-center mb-6">
@@ -31,7 +34,7 @@ export default function DashboardHeader({
           </p>
         )}
       </div>
-      {actionButton && (
+      {actionContent || (actionButton && (
         <Button 
           className="space-x-2 bg-blue-600 hover:bg-blue-700 px-6 h-11"
           onClick={actionButton.onClick}
@@ -39,7 +42,7 @@ export default function DashboardHeader({
           {actionButton.icon && <actionButton.icon className="w-4 h-4" />}
           <span>{actionButton.label}</span>
         </Button>
-      )}
+      ))}
     </div>
   );
 } 

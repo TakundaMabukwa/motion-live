@@ -32,6 +32,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
+import CreateCalibrationJobModal from '@/components/master/CreateCalibrationJobModal';
 
 export default function AccountsDashboard() {
   const router = useRouter();
@@ -384,12 +385,16 @@ export default function AccountsDashboard() {
           title="Field Coordinator Dashboard"
           subtitle="Manage clients and view global overview"
           icon={Globe}
-          actionButton={
-            activeTab === 'companies' ? {
-              label: "New Account",
-              onClick: handleNewAccount,
-              icon: Plus
-            } : undefined
+          actionContent={
+            <div className="flex items-center gap-3">
+              <CreateCalibrationJobModal />
+              {activeTab === 'companies' ? (
+                <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Account
+                </Button>
+              ) : null}
+            </div>
           }
         />
         <div className="flex items-center justify-center h-64">
@@ -408,12 +413,16 @@ export default function AccountsDashboard() {
         title="Field Coordinator Dashboard"
         subtitle="Manage companies and view global overview"
         icon={Globe}
-        actionButton={
-          activeTab === 'companies' ? {
-            label: "New Account",
-            onClick: handleNewAccount,
-            icon: Plus
-          } : undefined
+        actionContent={
+          <div className="flex items-center gap-3">
+            <CreateCalibrationJobModal />
+            {activeTab === 'companies' ? (
+              <Button onClick={handleNewAccount} className="bg-blue-600 hover:bg-blue-700">
+                <Plus className="mr-2 h-4 w-4" />
+                New Account
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

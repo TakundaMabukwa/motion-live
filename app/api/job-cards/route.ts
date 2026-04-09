@@ -1,18 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ensureExternalClientSetup } from '@/lib/server/ensure-external-client';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 function generateSolJobNumber(): string {
   const n = Math.floor(100000 + Math.random() * 900000);
   return `SOL-${n}`;
 }
 
+function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createServiceClient(supabaseUrl, serviceRoleKey);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
-    // Re-enable authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -23,18 +37,12 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
     const accountNumber = searchParams.get('account_number');
 
-    // Get job cards data with optional filtering
-    let query = supabase
-      .from('job_cards')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase.from('job_cards').select('*').order('created_at', { ascending: false });
 
-    // Filter by account number if provided
     if (accountNumber) {
       query = query.eq('new_account_number', accountNumber);
     }
 
-    // Apply pagination
     query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;
@@ -44,11 +52,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch job cards' }, { status: 500 });
     }
 
-    // Get total count for pagination
-    let countQuery = supabase
-      .from('job_cards')
-      .select('*', { count: 'exact', head: true });
-    
+    let countQuery = supabase.from('job_cards').select('*', { count: 'exact', head: true });
+
     if (accountNumber) {
       countQuery = countQuery.eq('new_account_number', accountNumber);
     }
@@ -60,9 +65,8 @@ export async function GET(request: NextRequest) {
       count: count || 0,
       page,
       limit,
-      total_pages: Math.ceil((count || 0) / limit)
+      total_pages: Math.ceil((count || 0) / limit),
     });
-
   } catch (error) {
     console.error('Error in job cards GET:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -72,28 +76,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
-    // Temporarily disable authentication for testing
-    // const { data: { user }, error: authError } = await supabase.auth.getUser();
-    // if (authError || !user) {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // }
-
     const body = await request.json();
-    const normalizedQuoteType = String(body.quoteType || body.quote_type || '')
-      .trim()
-      .toLowerCase();
+
+    const normalizedQuoteType = String(body.quoteType || body.quote_type || '').trim().toLowerCase();
+    const normalizedJobType = String(body.jobType || body.job_type || 'install').trim().toLowerCase();
+    const isCalibrationJob = normalizedJobType === 'calibration';
     const isExternalQuote = !body.repair && normalizedQuoteType === 'external';
 
-    let resolvedNewAccountNumber =
-      body.newAccountNumber || body.new_account_number || null;
+    let resolvedNewAccountNumber = body.newAccountNumber || body.new_account_number || null;
 
     if (isExternalQuote) {
       const externalClientSetup = await ensureExternalClientSetup(supabase, body);
       resolvedNewAccountNumber = externalClientSetup.costCode;
     }
-    
-    // Generate unique identifiers
+
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substr(2, 9);
     const quotationNumber = `QUOTE-${timestamp}-${randomSuffix}`;
@@ -109,22 +105,25 @@ export async function POST(request: NextRequest) {
       if (!existing) break;
       jobNumber = generateSolJobNumber();
     }
-    
-    // Prepare job card data - handle both quotation and repair jobs
+
+    const effectiveRepairFlag = Boolean(body.repair || isCalibrationJob);
+    const storesQuotationFields = !effectiveRepairFlag || isCalibrationJob;
+    const calibrationDescription = isCalibrationJob && resolvedNewAccountNumber
+      ? `Calibration job for ${body.customerName || body.customer_name || resolvedNewAccountNumber} (${resolvedNewAccountNumber})`
+      : '';
+
     const jobCardData = {
-      // Job details
       job_type: body.jobType || body.job_type || 'install',
-      repair: body.repair || false,
-      job_description: body.jobDescription || body.job_description || '',
+      repair: effectiveRepairFlag,
+      job_description: body.jobDescription || body.job_description || calibrationDescription,
       priority: body.priority || 'medium',
       status: body.status || 'draft',
       job_status: body.job_status || 'created',
       role: body.role || null,
       move_to: body.move_to || null,
-      
-      // Customer information
+
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
-      new_account_number: resolvedNewAccountNumber, // Include ensured new_account_number field
+      new_account_number: resolvedNewAccountNumber,
       customer_name: body.customerName || body.customer_name || '',
       customer_email: body.customerEmail || body.customer_email || '',
       customer_phone: body.customerPhone || body.customer_phone || '',
@@ -133,8 +132,7 @@ export async function POST(request: NextRequest) {
       decommission_date: body.decommissionDate || body.decommission_date || null,
       annuity_end_date: body.annuityEndDate || body.annuity_end_date || null,
       due_date: body.dueDate || body.due_date || null,
-      
-      // Vehicle information
+
       vehicle_id: body.vehicleId || body.vehicle_id || null,
       vehicle_registration: body.vehicleRegistration || body.vehicle_registration || '',
       vehicle_make: body.vehicleMake || body.vehicle_make || '',
@@ -142,64 +140,53 @@ export async function POST(request: NextRequest) {
       vehicle_year: body.vehicleYear || body.vehicle_year || null,
       vin_numer: body.vinNumber || body.vin_numer || '',
       odormeter: body.odormeter || body.odormeter || '',
-      
-      // Location information
+
       job_location: body.jobLocation || body.job_location || '',
       latitude: body.latitude || null,
       longitude: body.longitude || null,
-      
-      // Quotation details (only for quotation jobs)
-      quotation_number: body.repair ? 'REPAIR-JOB' : (body.quotationNumber || quotationNumber),
-      quote_date: body.repair ? null : (body.quoteDate || new Date().toISOString()),
-      quote_expiry_date: body.repair ? null : (body.quoteExpiryDate || null),
-      quote_status: body.repair ? null : (body.quoteStatus || 'draft'),
-      
-      // Purchase and job type for quotation
-      purchase_type: body.repair ? null : (body.purchaseType || 'purchase'),
-      quotation_job_type: body.repair ? null : (body.quotationJobType || 'install'),
-      
-      // Quotation pricing breakdown (only for quotation jobs)
-      quotation_products: body.repair ? null : (body.quotationProducts || []),
-      quotation_subtotal: body.repair ? null : (body.quotationSubtotal || 0),
-      quotation_vat_amount: body.repair ? null : (body.quotationVatAmount || 0),
-      quotation_total_amount: body.repair ? null : (body.quotationTotalAmount || 0),
-      
-      // Quotation email details (only for quotation jobs)
-      quote_email_subject: body.repair ? null : (body.quoteEmailSubject || ''),
-      quote_email_body: body.repair ? null : (body.quoteEmailBody || ''),
-      quote_email_footer: body.repair ? null : (body.quoteEmailFooter || ''),
-      quote_notes: body.repair ? null : (body.quoteNotes || ''),
-      
-      // Quotation type (only for quotation jobs)
-      quote_type: body.repair ? null : (body.quoteType || 'external'),
-      
-      // Additional fields
+
+      quotation_number: isCalibrationJob
+        ? 'CALIBRATION-JOB'
+        : effectiveRepairFlag
+          ? 'REPAIR-JOB'
+          : body.quotationNumber || quotationNumber,
+      quote_date: storesQuotationFields ? body.quoteDate || new Date().toISOString() : null,
+      quote_expiry_date: storesQuotationFields ? body.quoteExpiryDate || null : null,
+      quote_status: storesQuotationFields ? body.quoteStatus || 'draft' : null,
+
+      purchase_type: storesQuotationFields ? body.purchaseType || 'purchase' : null,
+      quotation_job_type: storesQuotationFields ? body.quotationJobType || 'install' : null,
+
+      quotation_products: storesQuotationFields ? body.quotationProducts || [] : null,
+      quotation_subtotal: storesQuotationFields ? body.quotationSubtotal || 0 : null,
+      quotation_vat_amount: storesQuotationFields ? body.quotationVatAmount || 0 : null,
+      quotation_total_amount: storesQuotationFields ? body.quotationTotalAmount || 0 : null,
+
+      quote_email_subject: storesQuotationFields ? body.quoteEmailSubject || '' : null,
+      quote_email_body: storesQuotationFields ? body.quoteEmailBody || '' : null,
+      quote_email_footer: storesQuotationFields ? body.quoteEmailFooter || '' : null,
+      quote_notes: storesQuotationFields ? body.quoteNotes || '' : null,
+      quote_type: storesQuotationFields ? body.quoteType || 'external' : null,
+
       special_instructions: body.specialInstructions || body.special_instructions || '',
-      
-      // Technician information (for repair jobs)
+
       assigned_technician_id: body.assigned_technician_id || null,
       technician_name: body.technician_name || null,
       technician_phone: body.technician_phone || null,
-      
-      // Job timing (for repair jobs)
+
       job_date: body.job_date || new Date().toISOString(),
       start_time: body.start_time || null,
       completion_date: body.completion_date || null,
       end_time: body.end_time || null,
-      
-      // Photos (for repair jobs)
+
       before_photos: body.before_photos || null,
       after_photos: body.after_photos || null,
-      
-      // Metadata
+
       created_by: body.created_by || '00000000-0000-0000-0000-000000000000',
       updated_by: body.updated_by || '00000000-0000-0000-0000-000000000000',
-      
-      // Set job_number explicitly to avoid trigger conflicts
-      job_number: body.repair ? (body.job_number || jobNumber) : jobNumber
+      job_number: effectiveRepairFlag ? body.job_number || jobNumber : jobNumber,
     };
 
-    // Insert the job card
     const { data, error } = await supabase
       .from('job_cards')
       .insert([jobCardData])
@@ -208,23 +195,64 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error inserting job card:', error);
-      return NextResponse.json({ 
-        error: 'Failed to create job card',
-        details: error.message 
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'Failed to create job card',
+          details: error.message,
+        },
+        { status: 500 },
+      );
     }
 
-    return NextResponse.json({ 
+    let calibrationVehicleCount = 0;
+
+    if (isCalibrationJob && resolvedNewAccountNumber) {
+      const adminSupabase = createAdminClient() || supabase;
+
+      const [vehiclesResult, duplicateVehiclesResult] = await Promise.all([
+        adminSupabase
+          .from('vehicles')
+          .update({ calibration: true })
+          .eq('new_account_number', resolvedNewAccountNumber)
+          .select('id', { count: 'exact' }),
+        adminSupabase
+          .from('vehicles_duplicate')
+          .update({ calibration: true })
+          .eq('new_account_number', resolvedNewAccountNumber)
+          .select('id', { count: 'exact' }),
+      ]);
+
+      const calibrationError = vehiclesResult.error || duplicateVehiclesResult.error;
+
+      if (calibrationError) {
+        await supabase.from('job_cards').delete().eq('id', data.id);
+        console.error('Error updating calibration flags:', calibrationError);
+        return NextResponse.json(
+          {
+            error: 'Failed to update calibration vehicles',
+            details: calibrationError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      calibrationVehicleCount = Number(vehiclesResult.count || 0);
+    }
+
+    return NextResponse.json({
       success: true,
       message: 'Job card created successfully',
-      data: data 
+      data,
+      calibrationVehicleCount,
     });
-
   } catch (error) {
     console.error('Error in job cards POST:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 },
+    );
   }
-} 
+}
