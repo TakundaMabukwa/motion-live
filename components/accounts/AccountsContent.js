@@ -441,6 +441,7 @@ export default function AccountsContent({ activeSection }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          refreshInvoiceNumber: true,
           jobCardId: selectedJobForInvoice.id,
           jobNumber: selectedJobForInvoice.job_number,
           quotationNumber: selectedJobForInvoice.quotation_number,

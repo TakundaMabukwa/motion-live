@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      refreshInvoiceNumber,
       jobCardId,
       jobNumber,
       quotationNumber,
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to check existing invoice' }, { status: 500 });
     }
 
-    if (existingInvoice) {
+    if (existingInvoice && !refreshInvoiceNumber) {
       return NextResponse.json({ invoice: existingInvoice, reused: true });
     }
 
@@ -129,6 +130,25 @@ export async function POST(request: NextRequest) {
       line_items: Array.isArray(lineItems) ? lineItems : [],
       created_by: user.id,
     };
+
+    if (existingInvoice && refreshInvoiceNumber) {
+      const { data: updatedInvoice, error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          ...payload,
+          created_by: existingInvoice.created_by || user.id,
+        })
+        .eq('id', existingInvoice.id)
+        .select('*')
+        .single();
+
+      if (updateError) {
+        console.error('Error updating invoice:', updateError);
+        return NextResponse.json({ error: 'Failed to refresh invoice' }, { status: 500 });
+      }
+
+      return NextResponse.json({ invoice: updatedInvoice, reused: false, refreshed: true });
+    }
 
     const { data: insertedInvoice, error: insertError } = await supabase
       .from('invoices')
