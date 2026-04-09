@@ -508,12 +508,24 @@ const buildEpsInvoiceData = (
     if (primaryBucket) {
       const primaryGroup = EPS_GROUP_BY_BUCKET.get(primaryBucket);
       if (primaryGroup) {
-        EPS_BREAKDOWN_ORDER.forEach((category) => {
+        const includedCategories = EPS_BREAKDOWN_ORDER.filter((category) => {
           const amount = breakdown[category];
-          if (amount <= 0) return;
+          if (amount <= 0) return false;
+          if (primaryBucket === 'beame' && category !== 'beame') return false;
+          if (primaryBucket === 'pvt' && !['beame', 'consultancy', 'controlroom'].includes(category)) {
+            return false;
+          }
+          return true;
+        });
 
-          if (primaryBucket === 'beame' && category !== 'beame') return;
-          if (primaryBucket === 'pvt' && !['beame', 'consultancy', 'controlroom'].includes(category)) return;
+        if (includedCategories.length > 0) {
+          const combinedAmount = includedCategories.reduce(
+            (sum, category) => sum + breakdown[category],
+            0,
+          );
+          const combinedDescription = includedCategories
+            .map((category) => getEpsDescriptionForCategory(category))
+            .join(', ');
 
           pushInvoiceItem(
             itemsByCode.get(primaryGroup.code) || [],
@@ -521,12 +533,12 @@ const buildEpsInvoiceData = (
             companyName,
             regFleetDisplay,
             primaryGroup.code,
-            getEpsDescriptionForCategory(category),
+            combinedDescription,
             vehicle.company || companyName,
-            amount,
+            combinedAmount,
             getEpsCategoryLabel(primaryGroup.code),
           );
-        });
+        }
       }
     }
 
