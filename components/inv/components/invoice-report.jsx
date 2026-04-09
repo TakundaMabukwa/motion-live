@@ -875,9 +875,6 @@ const normalizeInvoiceLine = (item) => {
   const explicitVatAmount = toNumber(
     item.vat_amount ?? item.vatAmount ?? item.total_vat,
   );
-  const vatLineTotal =
-    explicitVatAmount > 0 ? explicitVatAmount : exVatLineTotal * VAT_RATE;
-
   const explicitTotalIncl = toNumber(
     item.total_including_vat ??
       item.total_incl_vat ??
@@ -885,8 +882,14 @@ const normalizeInvoiceLine = (item) => {
       item.totalIncl ??
       item.totalRentalSub,
   );
-  const totalInclLine =
-    explicitTotalIncl > 0 ? explicitTotalIncl : exVatLineTotal + vatLineTotal;
+  const vatLineTotal =
+    explicitVatAmount > 0
+      ? explicitVatAmount
+      : explicitTotalIncl > 0 && exVatLineTotal > 0
+        ? Math.max(0, explicitTotalIncl - exVatLineTotal)
+        : exVatLineTotal * VAT_RATE;
+
+  const totalInclLine = exVatLineTotal + vatLineTotal;
 
   return {
     previousReg: item.reg || item.previous_reg || "-",
@@ -966,7 +969,7 @@ export function buildInvoiceView({
   const totals = {
     totalExVat: rowTotals.totalExVat,
     totalVat: rowTotals.totalVat,
-    totalInclVat: rowTotals.totalInclVat,
+    totalInclVat: rowTotals.totalExVat + rowTotals.totalVat,
     discount: 0,
   };
 

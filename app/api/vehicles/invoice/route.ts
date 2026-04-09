@@ -251,7 +251,6 @@ const calculateInvoiceFinancials = (items: any[]) =>
               0,
           ),
         ) || 0;
-      const vatLineTotal = explicitVat > 0 ? explicitVat : exVatLineTotal * 0.15;
 
       const explicitIncl =
         parseFloat(
@@ -264,8 +263,13 @@ const calculateInvoiceFinancials = (items: any[]) =>
               0,
           ),
         ) || 0;
-      const totalInclLine =
-        explicitIncl > 0 ? explicitIncl : exVatLineTotal + vatLineTotal;
+      const vatLineTotal =
+        explicitVat > 0
+          ? explicitVat
+          : explicitIncl > 0 && exVatLineTotal > 0
+            ? Math.max(0, explicitIncl - exVatLineTotal)
+            : exVatLineTotal * 0.15;
+      const totalInclLine = exVatLineTotal + vatLineTotal;
 
       acc.subtotal += exVatLineTotal;
       acc.vatAmount += vatLineTotal;
@@ -967,8 +971,11 @@ export async function GET(request: NextRequest) {
       Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
         ? storedInvoice.line_items
         : [];
+    const isLockedInvoice = Boolean(storedInvoice?.invoice_locked);
     const useStoredLineItems =
-      storedLineItems.length > 0 && !hasLegacyStoredLineItems(storedLineItems);
+      isLockedInvoice &&
+      storedLineItems.length > 0 &&
+      !hasLegacyStoredLineItems(storedLineItems);
     const resolvedLineItems = useStoredLineItems ? storedLineItems : invoiceItems;
 
     const lineItemFinancials = calculateInvoiceFinancials(resolvedLineItems);
@@ -1012,6 +1019,10 @@ export async function GET(request: NextRequest) {
       total_amount: resolvedTotal,
       subtotal: resolvedSubtotal,
       vat_amount: resolvedVat,
+      invoice_locked: isLockedInvoice,
+      invoice_locked_by: storedInvoice?.invoice_locked_by || null,
+      invoice_locked_at: storedInvoice?.invoice_locked_at || null,
+      invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
       group_summaries: groupSummaries,
     };
 
