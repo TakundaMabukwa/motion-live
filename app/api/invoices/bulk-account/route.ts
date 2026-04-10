@@ -12,6 +12,10 @@ const hasRealInvoiceNumber = (value: unknown) => {
   return Boolean(normalized) && normalized !== "PENDING";
 };
 
+const ALLOWED_LOCKED_REBUILD_EMAILS = new Set([
+  'mabukwatakunda@gmail.com',
+]);
+
 const getBillingInvoiceDate = (billingMonth: unknown) => {
   if (!billingMonth) {
     return new Date().toISOString();
@@ -230,6 +234,8 @@ export async function POST(request: NextRequest) {
     const accountNumber = String(body?.accountNumber || "").trim();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
+    const allowLockedRebuild = Boolean(body?.allowLockedRebuild);
+    const canOverrideLockedInvoice = allowLockedRebuild && ALLOWED_LOCKED_REBUILD_EMAILS.has(String(user.email || '').trim().toLowerCase());
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -262,7 +268,7 @@ export async function POST(request: NextRequest) {
       ? existingInvoices[0] || null
       : null;
 
-    if (existingInvoice?.invoice_locked) {
+    if (existingInvoice?.invoice_locked && !canOverrideLockedInvoice) {
       const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, existingInvoice);
       return NextResponse.json({ invoice: lockedInvoice, reused: true, locked: true });
     }

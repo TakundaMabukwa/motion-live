@@ -852,6 +852,9 @@ export default function ClientQuoteForm({
           + deInstallationGross
           + subscriptionGross) * quantity;
 
+        const resolvedVehiclePlate =
+          formData.vehicle_registration || product.vehiclePlate || null;
+
         return {
           id: product.id,
           name: product.name,
@@ -882,7 +885,7 @@ export default function ClientQuoteForm({
             ? (product.annuityEndDate || null)
             : null,
           vehicle_id: product.vehicleId,
-          vehicle_plate: product.vehiclePlate,
+          vehicle_plate: resolvedVehiclePlate,
         };
       };
 

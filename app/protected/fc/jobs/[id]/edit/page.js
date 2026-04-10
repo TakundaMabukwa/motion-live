@@ -113,7 +113,9 @@ export default function EditJobPage() {
     const loadJob = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/job-cards/${jobId}`);
+        const response = await fetch(`/api/job-cards/${jobId}`, {
+          cache: "no-store",
+        });
         if (!response.ok) {
           throw new Error("Failed to fetch job");
         }

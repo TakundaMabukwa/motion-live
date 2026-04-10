@@ -55,7 +55,7 @@ export default function CustomerJobCards({
       }
       
       console.log('Fetching job cards for account:', accountNumber || 'all accounts');
-      const response = await fetch(url);
+      const response = await fetch(url, { cache: 'no-store' });
       console.log('Response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
@@ -90,7 +90,9 @@ export default function CustomerJobCards({
     const destinationLabel =
       destination === 'inv'
         ? 'Inventory Assign Parts'
-        : 'Admin Awaiting Technician';
+        : destination === 'accounts'
+          ? 'Accounts'
+          : 'Admin Awaiting Technician';
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
@@ -104,15 +106,21 @@ export default function CustomerJobCards({
               completion_date: null,
               end_time: null,
             }
-          : {
-              role: 'admin',
-              move_to: 'admin',
-              status: 'admin_created',
-              job_status: 'created',
-              assigned_technician_id: null,
-              technician_name: null,
-              technician_phone: null,
-            };
+          : destination === 'accounts'
+            ? {
+                role: 'accounts',
+                move_to: 'accounts',
+                updated_by: 'fc',
+              }
+            : {
+                role: 'admin',
+                move_to: 'admin',
+                status: 'admin_created',
+                job_status: 'created',
+                assigned_technician_id: null,
+                technician_name: null,
+                technician_phone: null,
+              };
 
       const response = await fetch(`/api/job-cards/${job.id}`, {
         method: 'PATCH',
@@ -463,6 +471,7 @@ export default function CustomerJobCards({
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="inv">Inventory</SelectItem>
+                              <SelectItem value="accounts">Accounts</SelectItem>
                               <SelectItem value="admin">Admin</SelectItem>
                             </SelectContent>
                           </Select>

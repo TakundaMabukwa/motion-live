@@ -315,6 +315,7 @@ const resolveInvoiceItemCode = (
 };
 
 const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
+const EPS_ADDITIONAL_SOURCE_ACCOUNTS = ['EPSC-0008'];
 
 const EPS_GROUPS = [
   {
@@ -698,10 +699,20 @@ export async function GET(request: NextRequest) {
     const costCenter = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
 
     // Fetch all vehicle fields
+    const sourceAccountsForVehicles =
+      sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT
+        ? [sourceAccountNumber, ...EPS_ADDITIONAL_SOURCE_ACCOUNTS]
+        : [sourceAccountNumber];
+
+    const vehicleAccountFilters = sourceAccountsForVehicles.flatMap((value) => [
+      `account_number.eq.${value}`,
+      `new_account_number.eq.${value}`,
+    ]);
+
     let vehiclesQuery = supabase
       .from('vehicles')
       .select('*')
-      .or(`account_number.eq.${sourceAccountNumber},new_account_number.eq.${sourceAccountNumber}`);
+      .or(vehicleAccountFilters.join(','));
 
     const billingCutoff = getBillingCutoff(billingMonth);
     if (billingCutoff) {

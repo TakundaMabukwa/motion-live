@@ -159,6 +159,7 @@ export default function ClientCostCentersPage() {
   const [showInvoiceReport, setShowInvoiceReport] = useState(false);
   const [selectedCostCenterForInvoice, setSelectedCostCenterForInvoice] = useState(null);
   const [isLockingInvoice, setIsLockingInvoice] = useState(false);
+  const [isRebuildingInvoiceFromVehicles, setIsRebuildingInvoiceFromVehicles] = useState(false);
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isLockingBulkInvoices, setIsLockingBulkInvoices] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
@@ -186,6 +187,8 @@ export default function ClientCostCentersPage() {
   const [loggedInUserEmail, setLoggedInUserEmail] = useState('');
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
+  const canAdminRebuildInvoice =
+    String(loggedInUserEmail || '').trim().toLowerCase() === 'mabukwatakunda@gmail.com';
   const currentBillingMonthKey = useMemo(() => {
     return ACCOUNTS_INVOICE_BILLING_MONTH;
   }, []);
@@ -4214,6 +4217,149 @@ export default function ClientCostCentersPage() {
     }
   };
 
+  const handleRebuildInvoiceFromVehicles = async () => {
+    if (!selectedCostCenterForInvoice?.accountNumber) {
+      return;
+    }
+
+    if (selectedCostCenterForInvoice?.invoiceData?.invoice_locked && !canAdminRebuildInvoice) {
+      toast({
+        variant: 'destructive',
+        title: 'Invoice Rebuild Blocked',
+        description: 'Locked invoices must keep the stored invoice snapshot.',
+      });
+      return;
+    }
+
+    setIsRebuildingInvoiceFromVehicles(true);
+    try {
+      const billingMonth = String(
+        selectedCostCenterForInvoice?.billingMonth ||
+          selectedCostCenterForInvoice?.invoiceData?.billing_month ||
+          BULK_INVOICE_ALL_BILLING_MONTH,
+      ).trim() || BULK_INVOICE_ALL_BILLING_MONTH;
+
+      const invoiceQuery = new URLSearchParams({
+        accountNumber: selectedCostCenterForInvoice.accountNumber,
+        billingMonth,
+      });
+
+      if (selectedCostCenterForInvoice.sourceAccountNumber) {
+        invoiceQuery.set('sourceAccountNumber', selectedCostCenterForInvoice.sourceAccountNumber);
+      }
+      if (selectedCostCenterForInvoice.invoiceGroup) {
+        invoiceQuery.set('billingGroup', selectedCostCenterForInvoice.invoiceGroup);
+      }
+
+      const response = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`, {
+        cache: 'no-store',
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.invoiceData) {
+        throw new Error(payload?.error || 'Failed to rebuild invoice from vehicles');
+      }
+
+      const rebuiltInvoiceData = normalizeBatchInvoiceAllInvoiceData(payload.invoiceData);
+
+      const persistResponse = await fetch('/api/invoices/bulk-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNumber: selectedCostCenterForInvoice.accountNumber,
+          billingMonth,
+          invoiceDate:
+            rebuiltInvoiceData?.invoice_date ||
+            selectedCostCenterForInvoice?.invoiceDate ||
+            BULK_INVOICE_ALL_DATE,
+          companyName: rebuiltInvoiceData?.company_name || null,
+          companyRegistrationNumber: rebuiltInvoiceData?.company_registration_number || null,
+          clientAddress: rebuiltInvoiceData?.client_address || null,
+          customerVatNumber: rebuiltInvoiceData?.customer_vat_number || null,
+          subtotal: Number(rebuiltInvoiceData?.subtotal || 0),
+          vatAmount: Number(rebuiltInvoiceData?.vat_amount || 0),
+          discountAmount: Number(rebuiltInvoiceData?.discount_amount || 0),
+          totalAmount: Number(rebuiltInvoiceData?.total_amount || 0),
+          lineItems: Array.isArray(rebuiltInvoiceData?.invoiceItems)
+            ? rebuiltInvoiceData.invoiceItems
+            : Array.isArray(rebuiltInvoiceData?.invoice_items)
+              ? rebuiltInvoiceData.invoice_items
+              : [],
+          notes: rebuiltInvoiceData?.notes || '',
+          allowLockedRebuild: canAdminRebuildInvoice,
+        }),
+      });
+
+      const persistPayload = await persistResponse.json().catch(() => ({}));
+      if (!persistResponse.ok || !persistPayload?.invoice) {
+        throw new Error(persistPayload?.error || 'Failed to save rebuilt invoice');
+      }
+
+      const persistedInvoice = normalizeStoredBulkInvoiceForPreview(persistPayload.invoice);
+      const mergedInvoiceData = normalizeBatchInvoiceAllInvoiceData(
+        mergeLiveInvoiceWithStoredBulkInvoice(rebuiltInvoiceData, persistedInvoice),
+      );
+
+      setSelectedCostCenterForInvoice((prev) =>
+        prev
+          ? {
+              ...prev,
+              billingMonth,
+              invoiceDate: mergedInvoiceData?.invoice_date || prev.invoiceDate,
+              bulkInvoice: persistedInvoice,
+              invoiceData: mergedInvoiceData,
+            }
+          : prev,
+      );
+
+      setCostCentersWithPayments((prev) =>
+        prev.map((item) =>
+          item.accountNumber === selectedCostCenterForInvoice.accountNumber
+            ? {
+                ...item,
+                dueAmount: Number(
+                  mergedInvoiceData?.total_amount ??
+                    mergedInvoiceData?.subtotal ??
+                    item.dueAmount ??
+                    0,
+                ),
+                balanceDue: Number(
+                  mergedInvoiceData?.total_amount ??
+                    mergedInvoiceData?.subtotal ??
+                    item.balanceDue ??
+                    0,
+                ),
+                paidAmount: Number(item.paidAmount || 0),
+                paymentStatus: 'pending',
+                billingMonth,
+                invoiceDate: mergedInvoiceData?.invoice_date || item.invoiceDate,
+                reference:
+                  persistedInvoice?.invoice_number ||
+                  item.reference,
+                accountInvoiceId:
+                  persistedInvoice?.id ||
+                  item.accountInvoiceId,
+              }
+            : item,
+        ),
+      );
+
+      toast({
+        title: 'Invoice Rebuilt',
+        description: 'This invoice was rebuilt from vehicles and saved back to the stored invoice rows.',
+      });
+    } catch (error) {
+      console.error('Error rebuilding invoice from vehicles:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Invoice Rebuild Failed',
+        description: error?.message || 'Failed to rebuild invoice from vehicles.',
+      });
+    } finally {
+      setIsRebuildingInvoiceFromVehicles(false);
+    }
+  };
+
   const openReportDeliveryOptions = (request) => {
     setReportDeliveryModal({
       open: true,
@@ -6306,17 +6452,31 @@ export default function ClientCostCentersPage() {
                 clientLegalName={clientLegalName}
                 invoiceData={selectedCostCenterForInvoice.invoiceData}
                 extraActions={(
-                  <Button
-                    onClick={handleLockInvoiceReport}
-                    disabled={isLockingInvoice || Boolean(selectedCostCenterForInvoice?.invoiceData?.invoice_locked)}
-                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
-                  >
-                    {isLockingInvoice
-                      ? 'Locking...'
-                      : selectedCostCenterForInvoice?.invoiceData?.invoice_locked
-                        ? 'Invoice Locked'
-                        : 'Lock Invoice'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {canAdminRebuildInvoice && (
+                      <Button
+                        onClick={handleRebuildInvoiceFromVehicles}
+                        disabled={isRebuildingInvoiceFromVehicles}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        {isRebuildingInvoiceFromVehicles
+                          ? 'Rebuilding...'
+                          : 'Rebuild From Vehicles'}
+                      </Button>
+                    )}
+                    <Button
+                      onClick={handleLockInvoiceReport}
+                      disabled={isLockingInvoice || Boolean(selectedCostCenterForInvoice?.invoiceData?.invoice_locked)}
+                      className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
+                    >
+                      {isLockingInvoice
+                        ? 'Locking...'
+                        : selectedCostCenterForInvoice?.invoiceData?.invoice_locked
+                          ? 'Invoice Locked'
+                          : 'Lock Invoice'}
+                    </Button>
+                  </div>
                 )}
                 onInvoiceGenerated={(invoice) => {
                   setSelectedCostCenterForInvoice((prev) =>
