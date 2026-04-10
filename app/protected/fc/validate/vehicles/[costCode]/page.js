@@ -9,6 +9,7 @@ import {
   useDeferredValue,
 } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -227,6 +228,8 @@ export default function ValidateVehiclesPage() {
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [isLoadingInvoicePreview, setIsLoadingInvoicePreview] = useState(false);
   const [invoicePreviewCostCenter, setInvoicePreviewCostCenter] = useState(null);
+  const [loggedInUserEmail, setLoggedInUserEmail] = useState("");
+  const [isRebuildingInvoice, setIsRebuildingInvoice] = useState(false);
   const invoicePreviewCacheRef = useRef(new Map());
   const [addItemState, setAddItemState] = useState({});
   const [vehicleSearch, setVehicleSearch] = useState("");
@@ -239,6 +242,9 @@ export default function ValidateVehiclesPage() {
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
+  const canAdminRebuildInvoice =
+    String(loggedInUserEmail || "").trim().toLowerCase() ===
+    "mabukwatakunda@gmail.com";
 
   const excludeKeys = [
     "id",
@@ -423,6 +429,22 @@ export default function ValidateVehiclesPage() {
 
   const currentCostCenterName = currentCostCenter?.company || costCode || "";
   const invoicePreviewTitle = currentCostCenterName || costCode || "";
+
+  useEffect(() => {
+    const loadLoggedInUserEmail = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        setLoggedInUserEmail(String(user?.email || "").trim().toLowerCase());
+      } catch (error) {
+        console.error("Error loading logged-in user email:", error);
+      }
+    };
+
+    loadLoggedInUserEmail();
+  }, []);
 
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -1005,6 +1027,130 @@ export default function ValidateVehiclesPage() {
       toast.error(error?.message || "Failed to load invoice preview");
     } finally {
       setIsLoadingInvoicePreview(false);
+    }
+  };
+
+  const handleRebuildInvoiceFromVehicles = async () => {
+    if (!invoicePreviewCostCenter?.accountNumber) {
+      toast.error("No invoice selected");
+      return;
+    }
+
+    if (
+      invoicePreviewCostCenter?.invoiceData?.invoice_locked &&
+      !canAdminRebuildInvoice
+    ) {
+      toast.error("Locked invoices must keep the stored invoice snapshot.");
+      return;
+    }
+
+    try {
+      setIsRebuildingInvoice(true);
+      const billingMonth =
+        String(
+          invoicePreviewCostCenter?.billingMonth ||
+            invoicePreviewCostCenter?.invoiceData?.billing_month ||
+            currentCostCenter?.billing_month ||
+            FC_BILLING_MONTH,
+        ).trim() || FC_BILLING_MONTH;
+
+      const invoiceQuery = new URLSearchParams({
+        accountNumber: invoicePreviewCostCenter.accountNumber,
+        billingMonth,
+      });
+
+      const liveResponse = await fetch(
+        `/api/vehicles/invoice?${invoiceQuery.toString()}`,
+        { cache: "no-store" },
+      );
+      const liveResult = await liveResponse.json().catch(() => ({}));
+      const liveInvoice = liveResult?.invoiceData || null;
+
+      if (!liveResponse.ok || !liveInvoice) {
+        throw new Error(
+          liveResult?.error || "Failed to rebuild invoice from vehicles",
+        );
+      }
+
+      const liveLineItems = Array.isArray(
+        liveInvoice?.invoiceItems || liveInvoice?.invoice_items,
+      )
+        ? liveInvoice.invoiceItems || liveInvoice.invoice_items
+        : [];
+
+      const persistResponse = await fetch("/api/invoices/bulk-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          accountNumber: invoicePreviewCostCenter.accountNumber,
+          billingMonth,
+          companyName:
+            liveInvoice?.company_name ||
+            invoicePreviewCostCenter?.accountName ||
+            currentCostCenterName,
+          companyRegistrationNumber:
+            liveInvoice?.company_registration_number || null,
+          clientAddress: liveInvoice?.client_address || null,
+          customerVatNumber: liveInvoice?.customer_vat_number || null,
+          invoiceDate:
+            liveInvoice?.invoice_date || `${billingMonth}T00:00:00.000Z`,
+          subtotal: Number(liveInvoice?.subtotal || 0),
+          vatAmount: Number(liveInvoice?.vat_amount || 0),
+          discountAmount: Number(liveInvoice?.discount_amount || 0),
+          totalAmount: Number(liveInvoice?.total_amount || 0),
+          lineItems: liveLineItems,
+          notes: liveInvoice?.notes || "",
+          allowLockedRebuild: canAdminRebuildInvoice,
+        }),
+      });
+
+      const persistResult = await persistResponse.json().catch(() => ({}));
+      const persistedInvoice = persistResult?.invoice || null;
+
+      if (!persistResponse.ok || !persistedInvoice) {
+        throw new Error(
+          persistResult?.error || "Failed to save rebuilt invoice",
+        );
+      }
+
+      const persistedLineItems = Array.isArray(persistedInvoice?.line_items)
+        ? persistedInvoice.line_items
+        : liveLineItems;
+
+      const rebuiltPreviewPayload = {
+        ...invoicePreviewCostCenter,
+        billingMonth:
+          String(
+            persistedInvoice?.billing_month ||
+              liveInvoice?.billing_month ||
+              billingMonth,
+          ).trim() || billingMonth,
+        invoiceData: {
+          ...liveInvoice,
+          ...persistedInvoice,
+          invoiceItems: persistedLineItems,
+          invoice_items: persistedLineItems,
+          company_name:
+            persistedInvoice?.company_name ||
+            liveInvoice?.company_name ||
+            invoicePreviewTitle,
+        },
+      };
+
+      const cacheKey = [
+        String(invoicePreviewCostCenter.accountNumber).trim().toUpperCase(),
+        rebuiltPreviewPayload.billingMonth || "current",
+      ].join("::");
+      invoicePreviewCacheRef.current.set(cacheKey, rebuiltPreviewPayload);
+      setInvoicePreviewCostCenter(rebuiltPreviewPayload);
+      toast.success("Invoice rebuilt from vehicles");
+    } catch (error) {
+      console.error("Invoice rebuild error:", error);
+      toast.error(error?.message || "Failed to rebuild invoice");
+    } finally {
+      setIsRebuildingInvoice(false);
     }
   };
 
@@ -1866,21 +2012,38 @@ export default function ValidateVehiclesPage() {
                 invoiceData={invoicePreviewCostCenter.invoiceData}
                 viewOnly
                 extraActions={
-                  <Button
-                    onClick={lockCostCenterTotal}
-                    disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
-                    variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
-                    className="flex items-center gap-2"
-                  >
-                    {lockingCostCenterTotal ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : currentCostCenter?.total_amount_locked ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Lock className="h-4 w-4" />
+                  <div className="flex items-center gap-2">
+                    {canAdminRebuildInvoice && (
+                      <Button
+                        onClick={handleRebuildInvoiceFromVehicles}
+                        disabled={isRebuildingInvoice}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        {isRebuildingInvoice ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4" />
+                        )}
+                        Rebuild From Vehicles
+                      </Button>
                     )}
-                    {currentCostCenter?.total_amount_locked ? "Total Locked" : "Lock Total"}
-                  </Button>
+                    <Button
+                      onClick={lockCostCenterTotal}
+                      disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
+                      variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
+                      className="flex items-center gap-2"
+                    >
+                      {lockingCostCenterTotal ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : currentCostCenter?.total_amount_locked ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Lock className="h-4 w-4" />
+                      )}
+                      {currentCostCenter?.total_amount_locked ? "Total Locked" : "Lock Total"}
+                    </Button>
+                  </div>
                 }
               />
             </div>
