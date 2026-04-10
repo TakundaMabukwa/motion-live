@@ -256,9 +256,11 @@ export const buildStatementStyles = () => `
   }
 
 .statement-company {
-  text-align: center;
+  justify-self: end;
+  text-align: left;
   font-size: 16px;
   line-height: 1.3;
+  min-width: 240px;
 }
 
 .statement-meta {
@@ -439,12 +441,21 @@ export const buildStatementStyles = () => `
     font-size: 16px;
   }
 
-  .statement-section-title {
-    margin: 20px 0 8px;
-    font-size: 14px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
+.statement-section-title {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.statement-insert-total {
+  margin: 10px 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: right;
+  line-height: 1.2;
+}
 
   .statement-footer-table td {
     height: 132px;
@@ -535,9 +546,9 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
         <table class="statement-summary-table">
           <colgroup>
             <col style="width: 12.5%" />
-            <col style="width: 40.5%" />
+            <col style="width: 34.5%" />
             <col style="width: 14%" />
-            <col style="width: 33%" />
+            <col style="width: 39%" />
           </colgroup>
           <thead>
             <tr>
@@ -556,8 +567,6 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             </tr>
           </tbody>
         </table>
-
-        <div class="statement-intro">Statement :</div>
 
         <table class="statement-table">
           <colgroup>
@@ -643,6 +652,8 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             : ""
         }
 
+        <div class="statement-insert-total">Total Owed : ${escapeHtml(totals.outstanding)}</div>
+
         <table class="statement-aging-table">
           <colgroup>
             <col style="width: 20%" />
@@ -726,6 +737,7 @@ export function buildStatementView({
     ) || null;
 
   const clientName =
+    costCenter?.costCenterInfo?.company ||
     costCenter?.invoiceData?.company_name ||
     bulkInvoice?.company_name ||
     currentInvoice?.company_name ||
@@ -1013,6 +1025,8 @@ export function buildStatementView({
     { totalInvoiced: 0, paid: 0, credited: 0, outstanding: 0 },
   );
   const totalCredited = Math.max(totalsFromRows.credited, statementCreditedAmount, creditedAmount);
+  const statementOutstandingTotal =
+    rowsForStatement.length > 0 ? toNumber(totalsFromRows.outstanding) : toNumber(balanceDue);
 
   return {
     clientName,
@@ -1059,10 +1073,8 @@ export function buildStatementView({
       totalInvoiced: formatCurrency(totalsFromRows.totalInvoiced),
       paid: formatCurrency(totalsFromRows.paid),
       credited: formatCurrency(totalCredited),
-      amountDue: formatCurrency(balanceDue),
-      outstanding: formatCurrency(
-        Math.max(balanceDue, totalsFromRows.outstanding),
-      ),
+      amountDue: formatCurrency(statementOutstandingTotal),
+      outstanding: formatCurrency(statementOutstandingTotal),
     },
     aging: {
       current: formatCurrency(current),
