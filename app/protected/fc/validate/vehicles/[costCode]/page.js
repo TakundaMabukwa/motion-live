@@ -914,6 +914,20 @@ export default function ValidateVehiclesPage() {
           invoice_items: liveLineItems,
         };
 
+        const previewPayload = {
+          accountNumber: costCode,
+          accountName: previewTitle,
+          company: previewTitle,
+          billingMonth:
+            String(invoiceData?.billing_month || billingMonth).trim() || null,
+          costCenterInfo: currentCostCenter || null,
+          invoiceData,
+        };
+
+        invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
+        setInvoicePreviewCostCenter(previewPayload);
+        setShowInvoicePreview(true);
+
         try {
           const persistResponse = await fetch("/api/invoices/bulk-account", {
             method: "POST",
@@ -993,6 +1007,17 @@ export default function ValidateVehiclesPage() {
                   ? persistedInvoice.line_items
                   : liveLineItems,
               };
+
+              const persistedPreviewPayload = {
+                ...previewPayload,
+                billingMonth:
+                  String(
+                    invoiceData?.billing_month || billingMonth,
+                  ).trim() || null,
+                invoiceData,
+              };
+              invoicePreviewCacheRef.current.set(cacheKey, persistedPreviewPayload);
+              setInvoicePreviewCostCenter(persistedPreviewPayload);
             }
           } else {
             const persistResult = await persistResponse.json().catch(() => ({}));
@@ -1009,19 +1034,21 @@ export default function ValidateVehiclesPage() {
         }
       }
 
-      const previewPayload = {
-        accountNumber: costCode,
-        accountName: previewTitle,
-        company: previewTitle,
-        billingMonth:
-          String(invoiceData?.billing_month || billingMonth).trim() || null,
-        costCenterInfo: currentCostCenter || null,
-        invoiceData,
-      };
+      if (shouldUseStoredInvoice || !showInvoicePreview) {
+        const previewPayload = {
+          accountNumber: costCode,
+          accountName: previewTitle,
+          company: previewTitle,
+          billingMonth:
+            String(invoiceData?.billing_month || billingMonth).trim() || null,
+          costCenterInfo: currentCostCenter || null,
+          invoiceData,
+        };
 
-      invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
-      setInvoicePreviewCostCenter(previewPayload);
-      setShowInvoicePreview(true);
+        invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
+        setInvoicePreviewCostCenter(previewPayload);
+        setShowInvoicePreview(true);
+      }
     } catch (error) {
       console.error("Invoice preview error:", error);
       toast.error(error?.message || "Failed to load invoice preview");

@@ -680,6 +680,12 @@ export async function GET(request: NextRequest) {
     const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
     const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
     const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
+    const shouldUseEpsGrouping =
+      String(accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT &&
+      sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT;
+    const isEpsCostCenterRequest =
+      String(accountNumber || '').trim().toUpperCase().startsWith('EPSC-') ||
+      String(sourceAccountNumber || '').trim().toUpperCase().startsWith('EPSC-');
 
     if (!accountNumber) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
@@ -720,7 +726,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch all vehicle fields
     const sourceAccountsForVehicles =
-      sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT
+      shouldUseEpsGrouping
         ? [sourceAccountNumber, ...EPS_ADDITIONAL_SOURCE_ACCOUNTS]
         : [sourceAccountNumber];
 
@@ -734,7 +740,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .or(vehicleAccountFilters.join(','));
 
-    const billingCutoff = getBillingCutoff(billingMonth);
+    const billingCutoff = isEpsCostCenterRequest ? null : getBillingCutoff(billingMonth);
     if (billingCutoff) {
       vehiclesQuery = vehiclesQuery.lte('created_at', billingCutoff);
     }
@@ -897,7 +903,7 @@ export async function GET(request: NextRequest) {
 
     let groupSummaries: any[] = [];
 
-    if (sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT) {
+    if (shouldUseEpsGrouping) {
       const epsCostCenterCodes = Object.values(EPS_GROUP_COST_CENTER_CODES);
       const { data: epsCostCenterRows, error: epsCostCentersError } = await supabase
         .from('cost_centers')
