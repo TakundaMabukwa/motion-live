@@ -316,30 +316,42 @@ const resolveInvoiceItemCode = (
 
 const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
 const EPS_ADDITIONAL_SOURCE_ACCOUNTS = ['EPSC-0008'];
+const EPS_GROUP_COST_CENTER_CODES: Record<string, string> = {
+  sky: 'EPSC-0001',
+  beame: 'EPSC-0002',
+  pvt: 'EPSC-0008',
+  routing: 'EPSC-0007',
+  dashboard: 'EPSC-0006',
+};
 
 const EPS_GROUPS = [
   {
     code: 'EPS002',
+    accountCode: 'EPS002',
     name: 'EPS COURIER SERVICES (PTY)LTD ( SKY )',
     bucket: 'sky',
   },
   {
     code: 'EPS003',
+    accountCode: 'EPS003',
     name: 'EPS COURIER SERVICES (PTY)LTD ( BEAME )',
     bucket: 'beame',
   },
   {
     code: 'EPS004',
+    accountCode: 'EPSC-0008',
     name: 'EPS COURIER SERVICES (PTY)LTD ( PRIVATE )',
     bucket: 'pvt',
   },
   {
     code: 'ROUTING',
+    accountCode: 'EPSC-0007',
     name: 'EPS COURIER SERVICES (PTY)LTD ( ROUTING )',
     bucket: 'routing',
   },
   {
     code: 'DASHBOARD',
+    accountCode: 'DASHBOARD',
     name: 'EPS COURIER SERVICES (PTY)LTD ( DASHBOARD )',
     bucket: 'dashboard',
   },
@@ -495,6 +507,7 @@ const getEpsDescriptionForCategory = (category: string) => {
 const buildEpsInvoiceData = (
   vehicles: Record<string, any>[],
   companyName: string,
+  epsCostCentersByCode: Map<string, Record<string, any>> = new Map(),
 ) => {
   const itemsByCode = new Map<string, any[]>(
     EPS_GROUPS.map((group) => [group.code, []]),
@@ -626,10 +639,17 @@ const buildEpsInvoiceData = (
       0,
     );
 
+    const mappedCostCode = EPS_GROUP_COST_CENTER_CODES[group.bucket] || group.code;
+    const mappedCostCenter = epsCostCentersByCode.get(mappedCostCode) || null;
+
     return {
       groupCode: group.code,
-      accountNumber: group.code,
-      accountName: group.name,
+      accountNumber: mappedCostCenter?.cost_code || group.accountCode || group.code,
+      accountName:
+        mappedCostCenter?.company ||
+        mappedCostCenter?.legal_name ||
+        companyName ||
+        mappedCostCode,
       subtotal,
       vatAmount,
       totalAmount,
@@ -710,7 +730,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     let vehiclesQuery = supabase
-      .from('vehicles')
+      .from('vehicles_duplicate')
       .select('*')
       .or(vehicleAccountFilters.join(','));
 
@@ -878,7 +898,22 @@ export async function GET(request: NextRequest) {
     let groupSummaries: any[] = [];
 
     if (sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT) {
-      const epsData = buildEpsInvoiceData(vehicles || [], companyName);
+      const epsCostCenterCodes = Object.values(EPS_GROUP_COST_CENTER_CODES);
+      const { data: epsCostCenterRows, error: epsCostCentersError } = await supabase
+        .from('cost_centers')
+        .select('*')
+        .in('cost_code', epsCostCenterCodes);
+
+      if (epsCostCentersError) {
+        console.error('Error fetching EPS grouped cost centers:', epsCostCentersError);
+        throw epsCostCentersError;
+      }
+
+      const epsCostCentersByCode = new Map(
+        (epsCostCenterRows || []).map((row) => [String(row?.cost_code || '').trim().toUpperCase(), row]),
+      );
+
+      const epsData = buildEpsInvoiceData(vehicles || [], companyName, epsCostCentersByCode);
       groupSummaries = epsData.groupSummaries;
 
       if (includeGroupSummaries || billingGroup) {
@@ -929,7 +964,7 @@ export async function GET(request: NextRequest) {
 
       if (billingGroup && EPS_GROUP_BY_CODE.has(billingGroup)) {
         const selectedGroupSummary = groupSummaries.find(
-          (group) => group.accountNumber === billingGroup,
+          (group) => group.groupCode === billingGroup || group.accountNumber === billingGroup,
         );
         if (selectedGroupSummary) {
           invoiceItems.push(...selectedGroupSummary.invoiceItems);
@@ -1049,7 +1084,26 @@ export async function GET(request: NextRequest) {
       group_summaries: groupSummaries,
     };
 
-    if (storedInvoice?.id) {
+    if (storedInvoice?.id && !isLockedInvoice) {
+      const { error: syncInvoiceError } = await supabase
+        .from('account_invoices')
+        .update({
+          company_name: companyName || null,
+          client_address: clientAddress || null,
+          customer_vat_number: customerVatNumber || null,
+          company_registration_number: companyRegistrationNumber || null,
+          line_items: resolvedLineItems,
+          subtotal: resolvedSubtotal,
+          vat_amount: resolvedVat,
+          total_amount: resolvedTotal,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', storedInvoice.id);
+
+      if (syncInvoiceError) {
+        console.error('Error syncing unlocked account invoice from vehicles_duplicate:', syncInvoiceError);
+      }
+    } else if (storedInvoice?.id) {
       const currentCompanyName = normalizeTextValue(storedInvoice.company_name);
       const currentClientAddress = normalizeTextValue(storedInvoice.client_address);
       const currentVatNumber = normalizeTextValue(storedInvoice.customer_vat_number);

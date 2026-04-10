@@ -891,6 +891,100 @@ export default function ValidateVehiclesPage() {
           invoiceItems: liveLineItems,
           invoice_items: liveLineItems,
         };
+
+        try {
+          const persistResponse = await fetch("/api/invoices/bulk-account", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              accountNumber: costCode,
+              billingMonth:
+                String(
+                  liveInvoice?.billing_month ||
+                    storedInvoice?.billing_month ||
+                    billingMonth,
+                ).trim() || null,
+              companyName:
+                liveInvoice?.company_name ||
+                storedInvoice?.company_name ||
+                previewTitle,
+              companyRegistrationNumber:
+                liveInvoice?.company_registration_number ||
+                storedInvoice?.company_registration_number ||
+                null,
+              clientAddress:
+                liveInvoice?.client_address ||
+                storedInvoice?.client_address ||
+                null,
+              customerVatNumber:
+                liveInvoice?.customer_vat_number ||
+                storedInvoice?.customer_vat_number ||
+                null,
+              invoiceDate:
+                liveInvoice?.invoice_date ||
+                storedInvoice?.invoice_date ||
+                `${billingMonth}T00:00:00.000Z`,
+              subtotal: Number(liveInvoice?.subtotal || 0),
+              vatAmount: Number(liveInvoice?.vat_amount || 0),
+              discountAmount: Number(liveInvoice?.discount_amount || 0),
+              totalAmount: Number(liveInvoice?.total_amount || 0),
+              lineItems: liveLineItems,
+              notes: storedInvoice?.notes || liveInvoice?.notes || null,
+            }),
+          });
+
+          if (persistResponse.ok) {
+            const persistResult = await persistResponse.json();
+            const persistedInvoice = persistResult?.invoice || null;
+
+            if (persistedInvoice) {
+              invoiceData = {
+                ...invoiceData,
+                ...persistedInvoice,
+                invoice_number:
+                  persistedInvoice?.invoice_number ||
+                  invoiceData?.invoice_number ||
+                  "PENDING",
+                invoice_date:
+                  persistedInvoice?.invoice_date ||
+                  invoiceData?.invoice_date ||
+                  `${billingMonth}T00:00:00.000Z`,
+                invoice_locked: Boolean(persistedInvoice?.invoice_locked),
+                invoice_locked_at:
+                  persistedInvoice?.invoice_locked_at ||
+                  invoiceData?.invoice_locked_at ||
+                  null,
+                invoice_locked_by:
+                  persistedInvoice?.invoice_locked_by ||
+                  invoiceData?.invoice_locked_by ||
+                  null,
+                invoice_locked_by_email:
+                  persistedInvoice?.invoice_locked_by_email ||
+                  invoiceData?.invoice_locked_by_email ||
+                  null,
+                invoiceItems: Array.isArray(persistedInvoice?.line_items)
+                  ? persistedInvoice.line_items
+                  : liveLineItems,
+                invoice_items: Array.isArray(persistedInvoice?.line_items)
+                  ? persistedInvoice.line_items
+                  : liveLineItems,
+              };
+            }
+          } else {
+            const persistResult = await persistResponse.json().catch(() => ({}));
+            console.warn(
+              "Failed to persist live invoice preview for FC validate page:",
+              persistResult?.error || persistResponse.statusText,
+            );
+          }
+        } catch (persistError) {
+          console.warn(
+            "Failed to persist live invoice preview for FC validate page:",
+            persistError,
+          );
+        }
       }
 
       const previewPayload = {
