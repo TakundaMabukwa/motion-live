@@ -758,8 +758,8 @@ export async function GET(request: NextRequest) {
     }
 
     const companyName =
-      costCenter?.legal_name ||
       costCenter?.company ||
+      costCenter?.legal_name ||
       storedInvoice?.company_name ||
       '';
     const clientAddress =
@@ -1024,7 +1024,7 @@ export async function GET(request: NextRequest) {
           regFleetDisplay,
           itemCode,
           uniqueLabels.join(', '),
-          vehicle.company || companyName,
+          companyName,
           totalExVat,
         );
       }

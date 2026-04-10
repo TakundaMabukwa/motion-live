@@ -937,8 +937,15 @@ export function buildInvoiceView({
     String(costCenter?.sourceAccountNumber || activeInvoiceData?.source_account_number || '')
       .trim()
       .toUpperCase() === 'EPSC-0001';
+  const isEpsCostCenterInvoice =
+    String(costCenter?.accountNumber || activeInvoiceData?.account_number || '')
+      .trim()
+      .toUpperCase()
+      .startsWith('EPSC-');
 
-  const clientName = isEpsVirtualInvoice
+  const clientName = isEpsCostCenterInvoice
+    ? customerInfo?.company || ''
+    : isEpsVirtualInvoice
     ? costCenter?.accountName ||
       customerInfo?.legal_name ||
       customerInfo?.company ||

@@ -67,6 +67,12 @@ const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
   invoiceItems: storedInvoice?.invoiceItems || [],
 });
 
+const isEpsCostCenterInvoice = (invoiceLike) => {
+  const accountNumber = String(invoiceLike?.account_number || '').trim().toUpperCase();
+  const sourceAccountNumber = String(invoiceLike?.source_account_number || '').trim().toUpperCase();
+  return accountNumber.startsWith('EPSC-') || sourceAccountNumber.startsWith('EPSC-');
+};
+
 const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
   if (!invoiceData) return null;
 
@@ -88,7 +94,7 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
     return liveInvoiceData || null;
   }
 
-  if (normalizedStored.invoice_locked) {
+  if (normalizedStored.invoice_locked && !isEpsCostCenterInvoice(normalizedStored) && !isEpsCostCenterInvoice(liveInvoiceData)) {
     return buildLockedInvoiceSnapshot(normalizedStored, liveInvoiceData || null);
   }
 
@@ -110,7 +116,6 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
 };
 
 export default function ClientCostCentersPage() {
-  const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
   const params = useParams();
   const router = useRouter();
   const { code } = params;
@@ -221,93 +226,6 @@ export default function ClientCostCentersPage() {
   const isRealInvoiceNumber = (value) =>
     /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
 
-  const isEpsSpecialClientView = useMemo(() => {
-    return String(decodedCode || '')
-      .split(',')
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean)
-      .includes(EPS_SPECIAL_SOURCE_ACCOUNT);
-  }, [decodedCode]);
-
-  const expandSpecialCostCenters = async (costCenters) => {
-    if (!Array.isArray(costCenters) || costCenters.length === 0) {
-      return costCenters;
-    }
-
-    const specialCenter = costCenters.find(
-      (center) => String(center?.accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT,
-    );
-
-    if (!specialCenter) {
-      return costCenters;
-    }
-
-    try {
-      const query = new URLSearchParams({
-        accountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
-        sourceAccountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
-        includeGroupSummaries: 'true',
-      });
-
-      if (specialCenter.billingMonth) {
-        query.set('billingMonth', specialCenter.billingMonth);
-      }
-
-      const response = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-      if (!response.ok) {
-        return costCenters;
-      }
-
-      const payload = await response.json();
-      const groupSummaries = Array.isArray(payload?.groupSummaries) ? payload.groupSummaries : [];
-
-      if (groupSummaries.length === 0) {
-        return costCenters;
-      }
-
-      const groupedCenters = groupSummaries.map((group) => ({
-        ...specialCenter,
-        accountNumber: group.accountNumber,
-        sourceAccountNumber: EPS_SPECIAL_SOURCE_ACCOUNT,
-        invoiceGroup: group.groupCode,
-        accountName: group.accountName,
-        dueAmount: Number(group.totalAmount || 0),
-        paidAmount: Number(group.paidAmount || 0),
-        balanceDue: Number(group.balanceDue ?? group.totalAmount ?? 0),
-        paymentStatus: group.paymentStatus || 'pending',
-        accountInvoiceId: group.accountInvoiceId || null,
-        reference: isRealInvoiceNumber(group.reference) ? group.reference : '',
-        billingMonth: group.billingMonth || specialCenter.billingMonth,
-        vehicleCount: Number(group.vehicleCount || 0),
-        vehicles: Array.isArray(group.invoiceItems) ? group.invoiceItems : [],
-      }));
-
-      if (isEpsSpecialClientView) {
-        return groupedCenters;
-      }
-
-      const insertIndex = costCenters.findIndex(
-        (center) => String(center?.accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT,
-      );
-      const remainingCenters = costCenters.filter(
-        (center) => String(center?.accountNumber || '').trim().toUpperCase() !== EPS_SPECIAL_SOURCE_ACCOUNT,
-      );
-
-      if (insertIndex < 0) {
-        return [...remainingCenters, ...groupedCenters];
-      }
-
-      return [
-        ...remainingCenters.slice(0, insertIndex),
-        ...groupedCenters,
-        ...remainingCenters.slice(insertIndex),
-      ];
-    } catch (error) {
-      console.error('Error expanding EPS grouped cost centers:', error);
-      return costCenters;
-    }
-  };
-
   const buildCostCenterInfoMap = async (accountNumbers) => {
     if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
       return new Map();
@@ -332,31 +250,37 @@ export default function ClientCostCentersPage() {
     );
   };
 
-  const mapPaymentsToVehicles = (payments, fallbackCompany) => {
-    return (payments || []).map((payment) => ({
-      doc_no: payment.id,
-      stock_code: payment.cost_code,
-      stock_description: `${payment.company || fallbackCompany || 'N/A'} - ${payment.cost_code}`,
-      account_number: payment.cost_code,
-      account_invoice_id: payment.account_invoice_id || null,
-      company: payment.company || fallbackCompany,
-      total_ex_vat: Number(payment.due_amount || 0),
-      total_vat: 0,
-      total_incl_vat: Number(payment.due_amount || 0),
-      one_month: Number((payment.current_due ?? payment.due_amount) || 0),
-      '2nd_month': 0,
-      '3rd_month': 0,
-      amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
-      monthly_amount: Number(payment.due_amount || 0),
-      payment_status: payment.payment_status,
-      billing_month: payment.billing_month,
-      reference: payment.reference,
-      current_due: Number(payment.current_due || 0),
-      overdue_30_days: Number(payment.overdue_30_days || 0),
-      overdue_60_days: Number(payment.overdue_60_days || 0),
-      overdue_90_days: Number(payment.overdue_90_days || 0),
-      overdue_120_plus_days: Number(payment.overdue_120_plus_days || 0),
-    }));
+  const mapPaymentsToVehicles = (payments, fallbackCompany, costCenterInfoMap = new Map()) => {
+    return (payments || []).map((payment) => {
+      const matchedCostCenter =
+        costCenterInfoMap.get(String(payment?.cost_code || '').trim().toUpperCase()) || null;
+      const resolvedCompany = String(matchedCostCenter?.company || '').trim();
+
+      return {
+        doc_no: payment.id,
+        stock_code: payment.cost_code,
+        stock_description: `${resolvedCompany || 'N/A'} - ${payment.cost_code}`,
+        account_number: payment.cost_code,
+        account_invoice_id: payment.account_invoice_id || null,
+        company: resolvedCompany,
+        total_ex_vat: Number(payment.due_amount || 0),
+        total_vat: 0,
+        total_incl_vat: Number(payment.due_amount || 0),
+        one_month: Number((payment.current_due ?? payment.due_amount) || 0),
+        '2nd_month': 0,
+        '3rd_month': 0,
+        amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
+        monthly_amount: Number(payment.due_amount || 0),
+        payment_status: payment.payment_status,
+        billing_month: payment.billing_month,
+        reference: payment.reference,
+        current_due: Number(payment.current_due || 0),
+        overdue_30_days: Number(payment.overdue_30_days || 0),
+        overdue_60_days: Number(payment.overdue_60_days || 0),
+        overdue_90_days: Number(payment.overdue_90_days || 0),
+        overdue_120_plus_days: Number(payment.overdue_120_plus_days || 0),
+      };
+    });
   };
 
   const buildSummaryFromPayments = (payments) => {
@@ -426,14 +350,21 @@ export default function ClientCostCentersPage() {
   };
 
   const loadFromPaymentsData = ({ clientInfo, payments, summary, searchDetails, searchMethod, costCenterInfoMap = new Map() }) => {
-    const vehicles = mapPaymentsToVehicles(payments, clientInfo.companyGroup || code);
-    setClientLegalName(clientInfo.companyGroup || code);
+    const vehicles = mapPaymentsToVehicles(
+      payments,
+      clientInfo.companyGroup || code,
+      costCenterInfoMap,
+    );
+    const firstNamedCenter = Array.from(costCenterInfoMap.values()).find(
+      (center) => center?.company,
+    );
+    setClientLegalName(String(firstNamedCenter?.company || '').trim());
 
     setClientData({
       code: code,
       customers: [{
-        company: clientInfo.companyGroup,
-        legal_name: clientInfo.legalNames?.[0] || clientInfo.companyGroup,
+        company: String(firstNamedCenter?.company || '').trim(),
+        legal_name: String(firstNamedCenter?.company || '').trim(),
         vehicles
       }],
       vehicles,
@@ -3818,11 +3749,11 @@ export default function ClientCostCentersPage() {
       const costCenters = groupByCostCenter(filteredCostCenters);
       console.log('Grouped cost centers:', costCenters.length);
       if (clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api' || clientData?.searchMethod === 'cost_centers_with_payments') {
-        expandSpecialCostCenters(costCenters).then(setCostCentersWithPayments);
+        setCostCentersWithPayments(costCenters);
       } else {
         fetchPaymentsForCostCenters(costCenters).then(result => {
           console.log('Final cost centers with payments:', result.length);
-          expandSpecialCostCenters(result).then(setCostCentersWithPayments);
+          setCostCentersWithPayments(result);
         });
       }
     } else {
