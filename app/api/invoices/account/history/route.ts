@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
     const [
       { data: invoices, error: invoicesError },
       { data: payments, error: paymentsError },
+      { data: agingRows, error: agingError },
       importedPayments,
     ] = await Promise.all([
       supabase
@@ -81,11 +82,19 @@ export async function GET(request: NextRequest) {
         .eq("account_number", accountNumber)
         .order("payment_date", { ascending: false })
         .order("created_at", { ascending: false }),
+      supabase
+        .from("payments_")
+        .select(
+          "id, cost_code, billing_month, due_amount, paid_amount, balance_due, amount_due, current_due, overdue_30_days, overdue_60_days, overdue_90_days, overdue_120_plus_days, outstanding_balance, credit_amount, payment_status, invoice_number, invoice_date, last_updated",
+        )
+        .eq("cost_code", accountNumber)
+        .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("last_updated", { ascending: false }),
       loadImportedReceiptPayments(supabase, accountNumber),
     ]);
 
-    if (invoicesError || paymentsError) {
-      const error = invoicesError || paymentsError;
+    if (invoicesError || paymentsError || agingError) {
+      const error = invoicesError || paymentsError || agingError;
       console.error("Failed to fetch account invoice/payment history:", error);
       return NextResponse.json(
         { error: error.message || "Failed to fetch account invoice history" },
@@ -109,9 +118,52 @@ export async function GET(request: NextRequest) {
           return rightTime - leftTime;
         });
 
+    const agingPeriods = (Array.isArray(agingRows) ? agingRows : [])
+      .map((row) => {
+        const currentDue = Number(row?.current_due || 0);
+        const overdue30 = Number(row?.overdue_30_days || 0);
+        const overdue60 = Number(row?.overdue_60_days || 0);
+        const overdue90 = Number(row?.overdue_90_days || 0);
+        const overdue120 = Number(row?.overdue_120_plus_days || 0);
+        const outstanding =
+          Number(row?.outstanding_balance ?? row?.balance_due ?? row?.amount_due ?? 0) ||
+          currentDue + overdue30 + overdue60 + overdue90 + overdue120;
+
+        return {
+          id: row?.id || null,
+          account_number: accountNumber,
+          billing_month: row?.billing_month || null,
+          invoice_number: row?.invoice_number || null,
+          invoice_date: row?.invoice_date || null,
+          due_amount: Number(row?.due_amount || 0),
+          paid_amount: Number(row?.paid_amount || 0),
+          balance_due: Number((row?.balance_due ?? row?.amount_due ?? outstanding) || 0),
+          outstanding_balance: Number(outstanding || 0),
+          current_due: currentDue,
+          overdue_30_days: overdue30,
+          overdue_60_days: overdue60,
+          overdue_90_days: overdue90,
+          overdue_120_plus_days: overdue120,
+          credit_amount: Number(row?.credit_amount || 0),
+          payment_status: row?.payment_status || null,
+          last_updated: row?.last_updated || null,
+        };
+      })
+      .filter((row) => {
+        const outstanding = Number(row.outstanding_balance || 0);
+        const bucketTotal =
+          Number(row.current_due || 0) +
+          Number(row.overdue_30_days || 0) +
+          Number(row.overdue_60_days || 0) +
+          Number(row.overdue_90_days || 0) +
+          Number(row.overdue_120_plus_days || 0);
+        return outstanding > 0 || bucketTotal > 0;
+      });
+
     return NextResponse.json({
       invoices: invoices || [],
       payments: mergedPayments,
+      agingPeriods,
     });
   } catch (error) {
     console.error("Unexpected error in account invoice history GET:", error);

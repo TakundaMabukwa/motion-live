@@ -549,6 +549,7 @@ export async function POST(request: NextRequest) {
             payment_method: paymentMethod ? String(paymentMethod).trim() : null,
             notes: notes ? String(notes).trim() : null,
             created_by: user?.id || null,
+            created_by_email: user?.email || null,
           })
           .select("*")
           .single();

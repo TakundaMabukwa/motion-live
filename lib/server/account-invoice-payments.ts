@@ -80,6 +80,103 @@ export const applyOutstandingPaymentToBuckets = (
   };
 };
 
+export const applyCreditToPeriodBuckets = (
+  source: Record<string, unknown> | null | undefined,
+  creditAmount: unknown,
+) => {
+  let remainingCredit = Math.max(0, toNumber(creditAmount));
+  let currentDue = Math.max(0, toNumber(source?.current_due));
+  let overdue30 = Math.max(0, toNumber(source?.overdue_30_days));
+  let overdue60 = Math.max(0, toNumber(source?.overdue_60_days));
+  let overdue90 = Math.max(0, toNumber(source?.overdue_90_days));
+  let overdue120 = Math.max(0, toNumber(source?.overdue_120_plus_days));
+
+  const consume = (bucketValue: number) => {
+    if (remainingCredit <= 0 || bucketValue <= 0) {
+      return bucketValue;
+    }
+
+    const applied = Math.min(bucketValue, remainingCredit);
+    remainingCredit = Number((remainingCredit - applied).toFixed(2));
+    return Number((bucketValue - applied).toFixed(2));
+  };
+
+  currentDue = consume(currentDue);
+  overdue30 = consume(overdue30);
+  overdue60 = consume(overdue60);
+  overdue90 = consume(overdue90);
+  overdue120 = consume(overdue120);
+
+  const remainingOutstanding = Number(
+    (currentDue + overdue30 + overdue60 + overdue90 + overdue120).toFixed(2),
+  );
+  const appliedToPeriod = Number(
+    (Math.max(0, toNumber(creditAmount)) - remainingCredit).toFixed(2),
+  );
+
+  return {
+    current_due: currentDue,
+    overdue_30_days: overdue30,
+    overdue_60_days: overdue60,
+    overdue_90_days: overdue90,
+    overdue_120_plus_days: overdue120,
+    outstanding_balance: remainingOutstanding,
+    appliedToPeriod,
+    remainingCredit: Number(remainingCredit.toFixed(2)),
+  };
+};
+
+export const applyCreditToSpecificBucket = (
+  source: Record<string, unknown> | null | undefined,
+  creditAmount: unknown,
+  bucketKey: string,
+) => {
+  const normalizedBucketKey = String(bucketKey || "").trim();
+  const supportedBucketKeys = new Set([
+    "current_due",
+    "overdue_30_days",
+    "overdue_60_days",
+    "overdue_90_days",
+    "overdue_120_plus_days",
+  ]);
+
+  if (!supportedBucketKeys.has(normalizedBucketKey)) {
+    return applyCreditToPeriodBuckets(source, creditAmount);
+  }
+
+  const buckets = {
+    current_due: Math.max(0, toNumber(source?.current_due)),
+    overdue_30_days: Math.max(0, toNumber(source?.overdue_30_days)),
+    overdue_60_days: Math.max(0, toNumber(source?.overdue_60_days)),
+    overdue_90_days: Math.max(0, toNumber(source?.overdue_90_days)),
+    overdue_120_plus_days: Math.max(0, toNumber(source?.overdue_120_plus_days)),
+  };
+
+  const requestedCredit = Math.max(0, toNumber(creditAmount));
+  const availableInBucket = buckets[normalizedBucketKey as keyof typeof buckets];
+  const appliedToPeriod = Number(Math.min(requestedCredit, availableInBucket).toFixed(2));
+  buckets[normalizedBucketKey as keyof typeof buckets] = Number(
+    (availableInBucket - appliedToPeriod).toFixed(2),
+  );
+
+  const remainingOutstanding = Number(
+    (
+      buckets.current_due +
+      buckets.overdue_30_days +
+      buckets.overdue_60_days +
+      buckets.overdue_90_days +
+      buckets.overdue_120_plus_days
+    ).toFixed(2),
+  );
+
+  return {
+    ...buckets,
+    outstanding_balance: remainingOutstanding,
+    appliedToPeriod,
+    remainingCredit: Number((requestedCredit - appliedToPeriod).toFixed(2)),
+  };
+};
+
 export const calculateOverdueBuckets = ({
   balanceDue,
   dueDate,

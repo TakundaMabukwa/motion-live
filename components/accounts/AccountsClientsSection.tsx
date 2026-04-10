@@ -33,7 +33,6 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   } = useAccounts();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingAllInvoicesExcel, setIsGeneratingAllInvoicesExcel] = useState(false);
   const [isGeneratingAllInvoicesPdf, setIsGeneratingAllInvoicesPdf] = useState(false);
@@ -374,29 +373,36 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     }
   }, [mode, editableCostCenters.length]);
 
-  // Debounced search effect
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchTerm !== debouncedSearchTerm) {
-        setDebouncedSearchTerm(searchTerm);
-        fetchCompanyGroups(searchTerm);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm, fetchCompanyGroups, debouncedSearchTerm]);
-
   const filteredCompanyGroups = useMemo(() => {
-    return [...companyGroups].sort((a, b) => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const locallyFilteredGroups =
+      normalizedSearch.length === 0
+        ? companyGroups
+        : companyGroups.filter((group) => {
+            const haystacks = [
+              group.company_group,
+              group.legal_names,
+              group.all_account_numbers,
+              group.all_new_account_numbers,
+              Array.isArray(group.legal_names_list) ? group.legal_names_list.join(' ') : '',
+              group.prefix,
+            ];
+
+            return haystacks.some((value) =>
+              String(value || '').toLowerCase().includes(normalizedSearch),
+            );
+          });
+
+    return [...locallyFilteredGroups].sort((a, b) => {
       const left = String(a.company_group || a.legal_names || '').trim().toLowerCase();
       const right = String(b.company_group || b.legal_names || '').trim().toLowerCase();
       return left.localeCompare(right);
     });
-  }, [companyGroups]);
+  }, [companyGroups, searchTerm]);
 
   const handleRefresh = async () => {
     try {
-      await fetchCompanyGroups(searchTerm);
+      await fetchCompanyGroups('');
       toast.success('Data refreshed successfully');
     } catch (error) {
       console.error('Error refreshing data:', error);

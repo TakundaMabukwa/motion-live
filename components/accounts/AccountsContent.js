@@ -104,6 +104,7 @@ export default function AccountsContent({ activeSection }) {
   const router = useRouter();
   const VAT_RATE = 0.15;
   const BILLING_STATUS_KEYS = ["invoice"];
+  const COMPLETED_JOB_INVOICE_DATE = "2026-03-30T00:00:00.000Z";
 
   // Check if payment is due (after 21st of month)
   const isPaymentDue = () => {
@@ -456,7 +457,7 @@ export default function AccountsContent({ activeSection }) {
           clientAddress:
             invoiceFormData.clientAddress ||
             selectedJobForInvoice.customer_address,
-          invoiceDate: new Date().toISOString(),
+          invoiceDate: COMPLETED_JOB_INVOICE_DATE,
           dueDate: invoiceFormData.dueDate,
           paymentTerms: invoiceFormData.paymentTerms,
           notes:
@@ -488,7 +489,7 @@ export default function AccountsContent({ activeSection }) {
         jobNumber: selectedJobForInvoice.job_number,
         clientInfo: invoiceFormData,
         jobDetails: selectedJobForInvoice,
-        generatedAt: invoiceRecord.invoice_date || new Date().toISOString(),
+        generatedAt: invoiceRecord.invoice_date || COMPLETED_JOB_INVOICE_DATE,
         pdfUrl: invoiceRecord.pdf_url || `#invoice-${invoiceNumber}`,
         invoiceId: invoiceRecord.id,
       };
@@ -1198,7 +1199,7 @@ export default function AccountsContent({ activeSection }) {
     const invoiceDate =
       storedInvoiceRecord?.invoice_date ||
       generatedInvoice?.generatedAt ||
-      new Date().toISOString();
+      COMPLETED_JOB_INVOICE_DATE;
 
     const rows =
       Array.isArray(storedInvoiceRecord?.line_items) &&
@@ -2740,7 +2741,7 @@ export default function AccountsContent({ activeSection }) {
                     generatedInvoice?.invoiceNumber ||
                     "INV-PENDING";
                   const invoiceDate =
-                    generatedInvoice?.generatedAt || new Date().toISOString();
+                    generatedInvoice?.generatedAt || COMPLETED_JOB_INVOICE_DATE;
                   return (
                     <div
                       id="invoice-preview"

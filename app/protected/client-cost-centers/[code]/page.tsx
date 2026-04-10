@@ -33,6 +33,14 @@ const normalizeBillingMonthValue = (value) => {
   return /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
 };
 
+const formatBillingMonthLabel = (value) => {
+  const normalized = normalizeBillingMonthValue(value);
+  if (!normalized) return 'Unknown period';
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return normalized;
+  return parsed.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+};
+
 const BULK_INVOICE_ALL_BILLING_MONTH = '2026-03-01';
 const BULK_INVOICE_ALL_DATE = '2026-03-30T00:00:00.000Z';
 const ACCOUNTS_INVOICE_BILLING_MONTH = '2026-03-01';
@@ -122,12 +130,21 @@ export default function ClientCostCentersPage() {
   const [costCentersWithPayments, setCostCentersWithPayments] = useState([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPayAllModal, setShowPayAllModal] = useState(false);
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState(null);
+  const [creditNoteDetails, setCreditNoteDetails] = useState(null);
   const [enteredAmount, setEnteredAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
+  const [creditNoteBillingMonth, setCreditNoteBillingMonth] = useState(ACCOUNTS_INVOICE_BILLING_MONTH);
+  const [creditNoteAmount, setCreditNoteAmount] = useState('');
+  const [creditNoteReference, setCreditNoteReference] = useState('');
+  const [creditNoteComment, setCreditNoteComment] = useState('');
+  const [creditNotePeriods, setCreditNotePeriods] = useState([]);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [processingCreditNote, setProcessingCreditNote] = useState(false);
   const [openInvoicesForPayment, setOpenInvoicesForPayment] = useState([]);
   const [loadingOpenInvoices, setLoadingOpenInvoices] = useState(false);
+  const [loadingCreditNotePeriods, setLoadingCreditNotePeriods] = useState(false);
   const [selectedPaymentInvoiceId, setSelectedPaymentInvoiceId] = useState(null);
   const [selectedPaymentTab, setSelectedPaymentTab] = useState('current');
   const [clientLegalName, setClientLegalName] = useState('');
@@ -2514,6 +2531,212 @@ export default function ClientCostCentersPage() {
     setSelectedPaymentInvoiceId(null);
     setShowPaymentModal(true);
     await fetchOpenInvoicesForCostCenter(costCenter);
+  };
+
+  const closeCreditNoteModal = () => {
+    setShowCreditNoteModal(false);
+    setCreditNoteDetails(null);
+    setCreditNoteBillingMonth(ACCOUNTS_INVOICE_BILLING_MONTH);
+    setCreditNoteAmount('');
+    setCreditNoteReference('');
+    setCreditNoteComment('');
+    setCreditNotePeriods([]);
+    setLoadingCreditNotePeriods(false);
+  };
+
+  const openCreditNoteModal = async (costCenter) => {
+    const accountNumber = String(costCenter?.accountNumber || '').trim();
+    if (!accountNumber) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing account',
+        description: 'No account number was found for this cost center.',
+      });
+      return;
+    }
+
+    setCreditNoteDetails(costCenter);
+    setCreditNoteBillingMonth(ACCOUNTS_INVOICE_BILLING_MONTH);
+    setCreditNoteAmount('');
+    setCreditNoteReference('');
+    setCreditNoteComment('');
+    setCreditNotePeriods([]);
+    setShowCreditNoteModal(true);
+    setLoadingCreditNotePeriods(true);
+
+    try {
+      const selectedCostCenterOutstanding = Number(
+        costCenter?.dueAmount ??
+          costCenter?.amountDue ??
+          costCenter?.balanceDue ??
+          0,
+      );
+      const response = await fetch(
+        `/api/invoices/account/history?accountNumber=${encodeURIComponent(accountNumber)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to load billing periods');
+      }
+
+      const payload = await response.json();
+      const agingPeriods = Array.isArray(payload?.agingPeriods) ? payload.agingPeriods : [];
+      const periodsByMonth = new Map(
+        agingPeriods
+          .map((period) => [normalizeBillingMonthValue(period?.billing_month), period])
+          .filter(([billingMonth]) => Boolean(billingMonth)),
+      );
+
+      const marchSnapshot = periodsByMonth.get(
+        normalizeBillingMonthValue(ACCOUNTS_INVOICE_BILLING_MONTH),
+      );
+
+      const getDirectMonthAmount = (billingMonth, fallbackValue = 0) => {
+        const period = periodsByMonth.get(normalizeBillingMonthValue(billingMonth));
+        return Number(
+          period?.current_due ??
+            period?.due_amount ??
+            period?.balance_due ??
+            fallbackValue ??
+            0,
+        );
+      };
+
+      const periodRows = [
+        {
+          billingMonth: ACCOUNTS_INVOICE_BILLING_MONTH,
+          label: formatBillingMonthLabel(ACCOUNTS_INVOICE_BILLING_MONTH),
+          periodAmount: Number(
+            selectedCostCenterOutstanding ||
+              marchSnapshot?.due_amount ||
+              marchSnapshot?.balance_due ||
+              marchSnapshot?.current_due ||
+              0,
+          ),
+        },
+        {
+          billingMonth: '2026-02-01',
+          label: formatBillingMonthLabel('2026-02-01'),
+          periodAmount: getDirectMonthAmount('2026-02-01', marchSnapshot?.overdue_30_days || 0),
+        },
+        {
+          billingMonth: '2026-01-01',
+          label: formatBillingMonthLabel('2026-01-01'),
+          periodAmount: getDirectMonthAmount('2026-01-01', marchSnapshot?.overdue_60_days || 0),
+        },
+        {
+          billingMonth: '2025-12-01',
+          label: formatBillingMonthLabel('2025-12-01'),
+          periodAmount: getDirectMonthAmount('2025-12-01', marchSnapshot?.overdue_90_days || 0),
+        },
+      ];
+
+      const normalizedPeriods = periodRows.map((period) => ({
+        ...period,
+        balanceDue: Number(period.periodAmount || 0),
+        outstandingBalance: Number(period.periodAmount || 0),
+        invoiceNumber:
+          periodsByMonth.get(normalizeBillingMonthValue(period.billingMonth))?.invoice_number ||
+          marchSnapshot?.invoice_number ||
+          null,
+        currentDue: Number(marchSnapshot?.current_due || 0),
+        overdue30Days: Number(marchSnapshot?.overdue_30_days || 0),
+        overdue60Days: Number(marchSnapshot?.overdue_60_days || 0),
+        overdue90Days: Number(marchSnapshot?.overdue_90_days || 0),
+        overdue120PlusDays: Number(marchSnapshot?.overdue_120_plus_days || 0),
+      }));
+
+      const defaultBillingMonth =
+        normalizedPeriods.find(
+          (period) =>
+            normalizeBillingMonthValue(period?.billingMonth) ===
+            normalizeBillingMonthValue(ACCOUNTS_INVOICE_BILLING_MONTH),
+        )?.billingMonth ||
+        normalizedPeriods[0]?.billingMonth ||
+        ACCOUNTS_INVOICE_BILLING_MONTH;
+
+      setCreditNotePeriods(normalizedPeriods);
+      setCreditNoteBillingMonth(defaultBillingMonth);
+    } catch (error) {
+      console.error('Error loading credit note periods:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Unable to load periods',
+        description: error?.message || 'Failed to load billing periods for credit note.',
+      });
+    } finally {
+      setLoadingCreditNotePeriods(false);
+    }
+  };
+
+  const selectedCreditNotePeriod = useMemo(
+    () =>
+      creditNotePeriods.find(
+        (period) =>
+          normalizeBillingMonthValue(period?.billingMonth) ===
+          normalizeBillingMonthValue(creditNoteBillingMonth),
+      ) || null,
+    [creditNoteBillingMonth, creditNotePeriods],
+  );
+
+  const handleConfirmCreditNote = async () => {
+    if (!creditNoteDetails?.accountNumber) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing account',
+        description: 'No cost center is selected for this credit note.',
+      });
+      return;
+    }
+
+    const numericAmount = Number(String(creditNoteAmount || '').replace(/,/g, ''));
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid amount',
+        description: 'Enter a credit note amount greater than 0.',
+      });
+      return;
+    }
+
+    setProcessingCreditNote(true);
+    try {
+      const response = await fetch('/api/credit-notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accountNumber: creditNoteDetails.accountNumber,
+          billingMonth: creditNoteBillingMonth,
+          amount: numericAmount,
+          reference: creditNoteReference,
+          comment: creditNoteComment,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || 'Failed to apply credit note');
+      }
+
+      toast({
+        title: 'Credit note applied',
+        description: `${result?.creditNote?.credit_note_number || 'Credit note'} applied to ${creditNoteDetails.accountNumber} for ${formatBillingMonthLabel(creditNoteBillingMonth)}.`,
+      });
+
+      closeCreditNoteModal();
+      await fetchPaymentsByAccountsList();
+    } catch (error) {
+      console.error('Error applying credit note:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Credit note failed',
+        description: error?.message || 'Failed to apply credit note.',
+      });
+    } finally {
+      setProcessingCreditNote(false);
+    }
   };
 
   const handlePayAllCostCenters = () => {
@@ -4979,14 +5202,25 @@ export default function ClientCostCentersPage() {
                         </>
                       )}
                       <td className="p-4 text-center">
-                        <Button
-                          onClick={() => handlePayCostCenter(costCenter)}
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200"
-                        >
-                          <CreditCard className="mr-2 w-4 h-4" />
-                          Pay
-                        </Button>
+                        <div className="flex flex-col items-center gap-2">
+                          <Button
+                            onClick={() => handlePayCostCenter(costCenter)}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200"
+                          >
+                            <CreditCard className="mr-2 w-4 h-4" />
+                            Pay
+                          </Button>
+                          <Button
+                            onClick={() => openCreditNoteModal(costCenter)}
+                            size="sm"
+                            variant="outline"
+                            className="px-4 py-2 rounded-lg"
+                          >
+                            <FileText className="mr-2 w-4 h-4" />
+                            Credit Note
+                          </Button>
+                        </div>
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex flex-col gap-2">
@@ -5054,6 +5288,153 @@ export default function ClientCostCentersPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Credit Note Modal */}
+      {showCreditNoteModal && creditNoteDetails && (
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
+          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-2xl max-h-[90vh]">
+            <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
+              <h3 className="font-semibold text-gray-900 text-lg">
+                Credit Note: {creditNoteDetails.accountName || creditNoteDetails.accountNumber}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeCreditNoteModal}
+                disabled={processingCreditNote}
+                className="disabled:opacity-50 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-5 p-6 overflow-y-auto">
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-slate-50 p-4 border rounded-lg text-sm">
+                <div>
+                  <div className="text-slate-500">Account</div>
+                  <div className="font-medium text-slate-900">{creditNoteDetails.accountNumber}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Client</div>
+                  <div className="font-medium text-slate-900">{creditNoteDetails.accountName || '-'}</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Age Analysis Period</label>
+                <div className="text-slate-500 text-sm">
+                  As at 31 March 2026
+                </div>
+                <div className="gap-3 grid grid-cols-1 md:grid-cols-2">
+                  {creditNotePeriods.map((period) => {
+                    const isSelected =
+                      normalizeBillingMonthValue(period?.billingMonth) ===
+                      normalizeBillingMonthValue(creditNoteBillingMonth);
+
+                    return (
+                      <button
+                        key={String(period?.billingMonth || period?.label || '')}
+                        type="button"
+                        onClick={() =>
+                          setCreditNoteBillingMonth(
+                            normalizeBillingMonthValue(period?.billingMonth) || ACCOUNTS_INVOICE_BILLING_MONTH,
+                          )
+                        }
+                        className={`rounded-lg border p-4 text-left transition-all ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-slate-900">{period?.label || 'Unknown period'}</div>
+                          </div>
+                          <div className="font-semibold text-slate-900">
+                            {formatCurrency(Number(period?.periodAmount || 0))}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Amount</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={creditNoteAmount}
+                    onChange={(e) => setCreditNoteAmount(e.target.value)}
+                    disabled={processingCreditNote}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Reference</label>
+                  <Input
+                    value={creditNoteReference}
+                    onChange={(e) => setCreditNoteReference(e.target.value)}
+                    disabled={processingCreditNote}
+                    placeholder="Free text reference"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Comment</label>
+                <textarea
+                  value={creditNoteComment}
+                  onChange={(e) => setCreditNoteComment(e.target.value)}
+                  disabled={processingCreditNote}
+                  rows={4}
+                  placeholder="Free text comment"
+                  className="px-3 py-2 border rounded-md w-full"
+                />
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-3 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
+                <div>
+                  <div className="text-blue-700">Period</div>
+                  <div className="font-semibold text-slate-900">
+                    {selectedCreditNotePeriod?.label || formatBillingMonthLabel(creditNoteBillingMonth)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-blue-700">Current Outstanding</div>
+                  <div className="font-semibold text-slate-900">
+                    {formatCurrency(Number(selectedCreditNotePeriod?.periodAmount || 0))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-blue-700">After Credit</div>
+                  <div className="font-semibold text-slate-900">
+                    {formatCurrency(
+                      Math.max(
+                        0,
+                        Number(selectedCreditNotePeriod?.periodAmount || 0) -
+                          Number(String(creditNoteAmount || '').replace(/,/g, '')),
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-shrink-0 justify-end gap-3 p-6 border-gray-200 border-t">
+              <Button variant="outline" onClick={closeCreditNoteModal} disabled={processingCreditNote}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote || loadingCreditNotePeriods}>
+                {processingCreditNote ? 'Applying...' : 'Apply Credit Note'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Modal */}
       {showPaymentModal && paymentDetails && (
@@ -5998,5 +6379,3 @@ export default function ClientCostCentersPage() {
     </div>
   );
 }
-
-
