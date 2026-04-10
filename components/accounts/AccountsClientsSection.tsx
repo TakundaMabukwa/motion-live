@@ -51,6 +51,10 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const compactCellClass = 'min-w-[140px]';
   const addressCellClass = 'min-w-[280px]';
 
+  useEffect(() => {
+    setSearchTerm('');
+  }, [mode]);
+
   const COMPANY_INFO = {
     name: 'Soltrack (PTY) LTD',
     regNo: '2018/095975/07',
