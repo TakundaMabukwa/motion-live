@@ -252,6 +252,30 @@ const toFiniteNumber = (value: unknown): number => {
 const formatMoneyInput = (value: number): string =>
   Number.isFinite(value) ? value.toFixed(2) : "0.00";
 
+const getQuotationProductLineTotal = (product: QuotationProduct): number => {
+  const explicitTotal = toFiniteNumber(product.total_price);
+  if (explicitTotal > 0) {
+    return explicitTotal;
+  }
+
+  const quantity = Math.max(0, toFiniteNumber(product.quantity) || 0);
+  const activePrice = toFiniteNumber(product[getPreferredPriceField(product)]);
+  return Number((quantity * activePrice).toFixed(2));
+};
+
+const buildTotalsFromQuotationProducts = (products: QuotationProduct[]) => {
+  const subtotal = products.reduce(
+    (sum, product) => sum + getQuotationProductLineTotal(product),
+    0,
+  );
+
+  return {
+    subtotal,
+    vat: 0,
+    total: subtotal,
+  };
+};
+
 const getPreferredPriceField = (product: QuotationProduct): PriceField => {
   const purchaseType = (product.purchase_type || "").toLowerCase();
 
@@ -372,6 +396,7 @@ export default function FCCompletedJobsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [creatorFilter, setCreatorFilter] = useState("all");
   const [jobs, setJobs] = useState<CompletedJob[]>([]);
+  const [fcUsers, setFcUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedJob, setSelectedJob] = useState<CompletedJob | null>(null);
@@ -394,6 +419,13 @@ export default function FCCompletedJobsPage() {
       }
       const data = await response.json();
       setJobs(data.jobs || []);
+      setFcUsers(
+        Array.isArray(data.fcUsers)
+          ? data.fcUsers
+              .map((email: unknown) => toStringSafe(email).trim())
+              .filter(Boolean)
+          : [],
+      );
     } catch (error) {
       console.error("Error fetching completed jobs:", error);
       toast.error("Failed to load completed jobs");
@@ -413,16 +445,8 @@ export default function FCCompletedJobsPage() {
   };
 
   const creatorOptions = useMemo(() => {
-    const labels = Array.from(
-      new Set(
-        jobs
-          .map((job) => toStringSafe(job.creator_label).trim())
-          .filter(Boolean),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-
-    return labels;
-  }, [jobs]);
+    return Array.from(new Set(fcUsers)).sort((a, b) => a.localeCompare(b));
+  }, [fcUsers]);
 
   const filteredJobs = useMemo(
     () =>
@@ -437,11 +461,12 @@ export default function FCCompletedJobsPage() {
             .includes(search) ||
           toStringSafe(job.technician_phone).toLowerCase().includes(search) ||
           toStringSafe(job.new_account_number).toLowerCase().includes(search) ||
+          toStringSafe(job.creator_email).toLowerCase().includes(search) ||
           toStringSafe(job.creator_label).toLowerCase().includes(search);
 
         const matchesCreator =
           creatorFilter === "all" ||
-          toStringSafe(job.creator_label).trim() === creatorFilter;
+          toStringSafe(job.creator_email).trim() === creatorFilter;
 
         return matchesSearch && matchesCreator;
       }),
@@ -455,6 +480,7 @@ export default function FCCompletedJobsPage() {
 
   const handleEditJob = (job: CompletedJob) => {
     const quotationProducts = parseQuotationProducts(job.quotation_products);
+    const derivedTotals = buildTotalsFromQuotationProducts(quotationProducts);
     setEditingJob(job);
     setFinalizeError(null);
     setFormData({
@@ -469,9 +495,9 @@ export default function FCCompletedJobsPage() {
       job_location: toStringSafe(job.job_location),
       site_contact_person: toStringSafe(job.site_contact_person),
       site_contact_phone: toStringSafe(job.site_contact_phone),
-      quotation_subtotal: toStringSafe(job.quotation_subtotal),
-      quotation_vat_amount: toStringSafe(job.quotation_vat_amount),
-      quotation_total_amount: toStringSafe(job.quotation_total_amount),
+      quotation_subtotal: formatMoneyInput(derivedTotals.subtotal),
+      quotation_vat_amount: "0.00",
+      quotation_total_amount: formatMoneyInput(derivedTotals.total),
       estimated_cost: toStringSafe(job.estimated_cost),
       actual_cost: toStringSafe(job.actual_cost),
       work_notes: toStringSafe(job.work_notes),
@@ -500,7 +526,6 @@ export default function FCCompletedJobsPage() {
   }, [
     editingJob,
     formData.vehicle_registration,
-    formData.quotation_total_amount,
   ]);
 
   const handleSubtotalChange = (subtotal: string) => {
@@ -509,43 +534,21 @@ export default function FCCompletedJobsPage() {
       updateFormField("quotation_subtotal", subtotal);
       return;
     }
-    const vat = (subtotalNumber * 0.15).toFixed(2);
-    const total = (subtotalNumber + Number(vat)).toFixed(2);
     setFormData((prev) => ({
       ...prev,
       quotation_subtotal: subtotal,
-      quotation_vat_amount: vat,
-      quotation_total_amount: total,
-    }));
-  };
-
-  const handleVatChange = (vat: string) => {
-    const subtotal = Number(formData.quotation_subtotal);
-    const vatNumber = Number(vat);
-    const total =
-      Number.isFinite(subtotal) && Number.isFinite(vatNumber)
-        ? (subtotal + vatNumber).toFixed(2)
-        : formData.quotation_total_amount;
-
-    setFormData((prev) => ({
-      ...prev,
-      quotation_vat_amount: vat,
-      quotation_total_amount: total,
+      quotation_vat_amount: "0.00",
+      quotation_total_amount: subtotalNumber.toFixed(2),
     }));
   };
 
   const syncQuotationTotalsFromProducts = (products: QuotationProduct[]) => {
-    const subtotal = products.reduce(
-      (sum, product) => sum + toFiniteNumber(product.total_price),
-      0,
-    );
-    const vat = Number((subtotal * 0.15).toFixed(2));
-    const total = Number((subtotal + vat).toFixed(2));
+    const { subtotal, total } = buildTotalsFromQuotationProducts(products);
 
     setFormData((prev) => ({
       ...prev,
       quotation_subtotal: formatMoneyInput(subtotal),
-      quotation_vat_amount: formatMoneyInput(vat),
+      quotation_vat_amount: "0.00",
       quotation_total_amount: formatMoneyInput(total),
     }));
   };
@@ -597,6 +600,13 @@ export default function FCCompletedJobsPage() {
     try {
       setFinalizing(true);
       setFinalizeError(null);
+      const normalizedQuotationProducts = editableQuotationProducts.map((product) => ({
+        ...product,
+        total_price: getQuotationProductLineTotal(product),
+      }));
+      const derivedTotals = buildTotalsFromQuotationProducts(
+        normalizedQuotationProducts,
+      );
 
       const finalizeData = {
         vehicle_registration: formData.vehicle_registration.trim(),
@@ -610,10 +620,10 @@ export default function FCCompletedJobsPage() {
         job_location: formData.job_location.trim() || null,
         site_contact_person: formData.site_contact_person.trim() || null,
         site_contact_phone: formData.site_contact_phone.trim() || null,
-        quotation_subtotal: toNumberOrNull(formData.quotation_subtotal),
-        quotation_vat_amount: toNumberOrNull(formData.quotation_vat_amount),
-        quotation_total_amount: toNumberOrNull(formData.quotation_total_amount),
-        quotation_products: editableQuotationProducts,
+        quotation_subtotal: derivedTotals.subtotal,
+        quotation_vat_amount: 0,
+        quotation_total_amount: derivedTotals.total,
+        quotation_products: normalizedQuotationProducts,
         estimated_cost: toNumberOrNull(formData.estimated_cost),
         actual_cost: toNumberOrNull(formData.actual_cost),
         work_notes: formData.work_notes.trim() || null,
@@ -654,9 +664,9 @@ export default function FCCompletedJobsPage() {
             editingJob.customer_name ||
             "Unknown",
           skylink_trailer_unit_ip: formData.ip_address.trim(),
-          total_rental_sub: Number(formData.quotation_total_amount) || 0,
-          total_rental: Number(formData.quotation_subtotal) || 0,
-          total_sub: Number(formData.quotation_vat_amount) || 0,
+          total_rental_sub: derivedTotals.total,
+          total_rental: derivedTotals.subtotal,
+          total_sub: 0,
         };
 
         const vehicleResponse = await fetch("/api/vehicles", {
@@ -1959,17 +1969,6 @@ export default function FCCompletedJobsPage() {
                           step="0.01"
                           value={formData.quotation_subtotal}
                           onChange={(e) => handleSubtotalChange(e.target.value)}
-                          readOnly={editableQuotationProducts.length > 0}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="quotation_vat_amount">VAT Amount</Label>
-                        <Input
-                          id="quotation_vat_amount"
-                          type="number"
-                          step="0.01"
-                          value={formData.quotation_vat_amount}
-                          onChange={(e) => handleVatChange(e.target.value)}
                           readOnly={editableQuotationProducts.length > 0}
                         />
                       </div>

@@ -48,6 +48,7 @@ export default function AccountsDashboard() {
   } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
+  const [fromRiaPendingCount, setFromRiaPendingCount] = useState(0);
 
 
 
@@ -79,6 +80,51 @@ export default function AccountsDashboard() {
       window.removeEventListener('focus', handleWindowFocus);
     };
   }, [fetchCompanyGroups, activeTab]);
+
+  useEffect(() => {
+    const fetchFromRiaPendingCount = async () => {
+      try {
+        const response = await fetch('/api/job-cards', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Failed to fetch From Ria jobs');
+        }
+
+        const data = await response.json();
+        const jobCards = Array.isArray(data?.job_cards) ? data.job_cards : [];
+
+        const getFcMoveNote = (job) => {
+          const notes = String(job?.completion_notes || '').trim();
+          if (!notes) return '';
+
+          const sections = notes
+            .split(/\[Move note to FC\]/gi)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+          if (sections.length > 0) {
+            return sections[sections.length - 1].split(/\n{2,}/)[0].trim();
+          }
+
+          return notes;
+        };
+
+        const pendingCount = jobCards.filter((job) => {
+          const hasNote = Boolean(getFcMoveNote(job));
+          return hasNote && !Boolean(job?.fc_note_acknowledged);
+        }).length;
+
+        setFromRiaPendingCount(pendingCount);
+      } catch (error) {
+        console.error('Error fetching From Ria pending count:', error);
+        setFromRiaPendingCount(0);
+      }
+    };
+
+    fetchFromRiaPendingCount();
+
+    const intervalId = window.setInterval(fetchFromRiaPendingCount, 30000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const filteredCompanyGroups = useMemo(() => {
     
@@ -462,6 +508,11 @@ export default function AccountsDashboard() {
                 >
                   <Icon className="w-4 h-4" />
                   <span>{navItem.label}</span>
+                  {navItem.id === 'from-ria' && fromRiaPendingCount > 0 ? (
+                    <Badge className="bg-red-500 hover:bg-red-500 text-white px-2 py-0 text-[10px] min-w-5 h-5 flex items-center justify-center rounded-full">
+                      {fromRiaPendingCount}
+                    </Badge>
+                  ) : null}
                 </button>
               );
             }

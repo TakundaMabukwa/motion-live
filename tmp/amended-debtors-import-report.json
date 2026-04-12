@@ -1,18 +1,45 @@
 {
-  "workbook": "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  "workbook": "Take on Debtors ye 0226 -  receipts  0326 - update.xlsx",
   "openingSheet": "Amended Debtors age anal",
   "receiptsSheet": "March Receipts",
   "openingBillingMonth": "2026-02-01",
   "currentBillingMonth": "2026-03-01",
-  "workbookAccountCount": 142,
+  "codeOverrides": {
+    "MEK001": "MACS-0039",
+    "MACBRI": "MACS-0040",
+    "MACWADEVILLE": "MACS-0041"
+  },
+  "workbookAccountCount": 145,
   "receiptCount": 81,
+  "insertedCostCenters": 3,
+  "appendedMacsteelCodes": 3,
   "updatedOpeningRows": 142,
-  "insertedOpeningRows": 0,
-  "updatedCurrentRows": 120,
-  "insertedCurrentRows": 22,
-  "totalReceiptsApplied": 1954253.74,
-  "totalReceiptCredits": 36260.04,
-  "totalCurrentDueAfterImport": 1489387.65,
-  "totalOutstandingAfterImport": 3950523.88,
-  "mode": "apply"
+  "insertedOpeningRows": 3,
+  "updatedCurrentRows": 142,
+  "insertedCurrentRows": 3,
+  "totalReceiptsApplied": 1956949.3,
+  "totalReceiptCredits": 33564.48,
+  "totalCurrentDueAfterImport": 1427417.19,
+  "totalOutstandingAfterImport": 3909668.08,
+  "mode": "apply",
+  "overriddenAccounts": [
+    {
+      "account_fusion": "MEK001",
+      "account_solflo": "MACS-0039",
+      "client_name": "MACSTEEL EXPRESS KLERKDORP (PTY) LTD",
+      "outstanding_balance": 3908.2
+    },
+    {
+      "account_fusion": "MACBRI",
+      "account_solflo": "MACS-0040",
+      "client_name": "MACSTEEL TRADING BRIGHT BAR - DIV OF MSCSA  (PTY) LTD",
+      "outstanding_balance": 14691.38
+    },
+    {
+      "account_fusion": "MACWADEVILLE",
+      "account_solflo": "MACS-0041",
+      "client_name": "MACSTEEL TRADING PIPES, FITTINGS & FLANGES",
+      "outstanding_balance": 10931.63
+    }
+  ]
 }

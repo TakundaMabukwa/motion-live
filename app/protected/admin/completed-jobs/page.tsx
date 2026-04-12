@@ -247,7 +247,10 @@ export function AwaitingTestingContent({
       const response = await fetch(`/api/job-cards/${job.id}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination: "inv" }),
+        body: JSON.stringify({
+          destination: "inv",
+          inventoryPlacement: "completed-jobs",
+        }),
       });
 
       if (!response.ok) {
@@ -281,7 +284,10 @@ export function AwaitingTestingContent({
       const response = await fetch(`/api/job-cards/${job.id}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination: "accounts" }),
+        body: JSON.stringify({
+          destination: "accounts",
+          preserveCompleted: true,
+        }),
       });
 
       if (!response.ok) {

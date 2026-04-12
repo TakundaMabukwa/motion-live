@@ -66,6 +66,28 @@ export async function GET() {
       }
     }
 
+    const { data: fcUsers, error: fcUsersError } = await supabase
+      .from("users")
+      .select("email")
+      .eq("role", "fc")
+      .not("email", "is", null)
+      .order("email", { ascending: true });
+
+    if (fcUsersError) {
+      console.error("Error fetching FC users:", fcUsersError);
+    }
+
+    const fcUserEmails = Array.from(
+      new Set(
+        [
+          ...((fcUsers || [])
+            .map((user) => String(user.email || "").trim())
+            .filter(Boolean)),
+          "monique@soltrack.co.za",
+        ].sort((a, b) => a.localeCompare(b)),
+      ),
+    );
+
     const enrichedJobs = jobs.map((job) => {
       const creatorId = String(job.created_by || "").trim();
       const creator = creatorLookup.get(creatorId);
@@ -80,6 +102,7 @@ export async function GET() {
 
     return NextResponse.json({
       jobs: enrichedJobs,
+      fcUsers: fcUserEmails,
       total: enrichedJobs.length,
     });
   } catch (error) {

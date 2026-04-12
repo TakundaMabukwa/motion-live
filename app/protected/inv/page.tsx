@@ -175,6 +175,93 @@ import CreateRepairJobModal from "@/components/inv/CreateRepairJobModal";
 import AssignTechStockModal from "@/components/inv/components/AssignTechStockModal";
 import { toast } from "sonner";
 
+const normalizeCategoryCode = (value: unknown) =>
+  String(value || "")
+    .trim()
+    .toUpperCase();
+
+const normalizeSearchValue = (value: unknown) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const isSubsequenceMatch = (needle: string, haystack: string) => {
+  if (!needle || !haystack) return false;
+  let needleIndex = 0;
+  for (let i = 0; i < haystack.length && needleIndex < needle.length; i += 1) {
+    if (haystack[i] === needle[needleIndex]) {
+      needleIndex += 1;
+    }
+  }
+  return needleIndex === needle.length;
+};
+
+const boundedLevenshtein = (
+  source: string,
+  target: string,
+  maxDistance = 2,
+) => {
+  if (!source || !target) return Number.MAX_SAFE_INTEGER;
+  if (Math.abs(source.length - target.length) > maxDistance) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const previous = new Array(target.length + 1).fill(0);
+  const current = new Array(target.length + 1).fill(0);
+
+  for (let j = 0; j <= target.length; j += 1) {
+    previous[j] = j;
+  }
+
+  for (let i = 1; i <= source.length; i += 1) {
+    current[0] = i;
+    let rowMin = current[0];
+
+    for (let j = 1; j <= target.length; j += 1) {
+      const cost = source[i - 1] === target[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + cost,
+      );
+      rowMin = Math.min(rowMin, current[j]);
+    }
+
+    if (rowMin > maxDistance) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    for (let j = 0; j <= target.length; j += 1) {
+      previous[j] = current[j];
+    }
+  }
+
+  return previous[target.length];
+};
+
+const getFuzzyScore = (query: string, candidate: string) => {
+  const normalizedQuery = normalizeSearchValue(query);
+  const normalizedCandidate = normalizeSearchValue(candidate);
+
+  if (!normalizedQuery || !normalizedCandidate) return 0;
+  if (normalizedCandidate === normalizedQuery) return 100;
+  if (normalizedCandidate.startsWith(normalizedQuery)) return 80;
+  if (normalizedCandidate.includes(normalizedQuery)) return 65;
+  if (isSubsequenceMatch(normalizedQuery, normalizedCandidate)) return 45;
+
+  const distance = boundedLevenshtein(
+    normalizedQuery,
+    normalizedCandidate.slice(0, normalizedQuery.length + 2),
+    2,
+  );
+
+  if (distance <= 2) {
+    return 30 - distance * 5;
+  }
+
+  return 0;
+};
+
 export default function InventoryPage() {
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,6 +295,8 @@ export default function InventoryPage() {
   const [allIpAddresses, setAllIpAddresses] = useState([]);
   const [allStockItems, setAllStockItems] = useState([]);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [addItemCategorySearchTerm, setAddItemCategorySearchTerm] =
+    useState("");
   const [newItemData, setNewItemData] = useState({
     category_code: "",
     serial_number: "",
@@ -277,13 +366,6 @@ export default function InventoryPage() {
   );
 
   const handleMoveJob = async (jobId: string, destination: string) => {
-    if (destination === "fc") {
-      setPendingMoveJobId(jobId);
-      setMoveToFcNote("");
-      setShowMoveToFcDialog(true);
-      return;
-    }
-
     const loadingToast = toast.loading(`Moving job to ${destination}...`);
     try {
       const response = await fetch(`/api/job-cards/${jobId}/move`, {
@@ -291,7 +373,10 @@ export default function InventoryPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ destination }),
+        body: JSON.stringify({
+          destination,
+          preserveCompleted: true,
+        }),
       });
 
       if (!response.ok) {
@@ -303,7 +388,7 @@ export default function InventoryPage() {
 
       toast.dismiss(loadingToast);
       toast.success(`Job successfully moved to ${destination}`);
-      fetchJobCards(); // Refresh the job cards list
+      removeJobCardLocally(jobId);
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -326,6 +411,7 @@ export default function InventoryPage() {
         body: JSON.stringify({
           destination: "fc",
           note: moveToFcNote,
+          preserveCompleted: true,
         }),
       });
 
@@ -336,10 +422,10 @@ export default function InventoryPage() {
 
       toast.dismiss(loadingToast);
       toast.success("Job successfully moved to FC");
+      removeJobCardLocally(pendingMoveJobId);
       setShowMoveToFcDialog(false);
       setPendingMoveJobId(null);
       setMoveToFcNote("");
-      fetchJobCards();
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -623,6 +709,25 @@ export default function InventoryPage() {
     );
   };
 
+  const removeJobCardLocally = (jobId: string) => {
+    setJobCards((current) => current.filter((job) => job.id !== jobId));
+
+    if (selectedJobCard?.id === jobId) {
+      setSelectedJobCard(null);
+      setShowAssignParts(false);
+    }
+
+    if (selectedInventoryJob?.id === jobId) {
+      setSelectedInventoryJob(null);
+      setShowJobDetails(false);
+    }
+
+    if (selectedCompletedJob?.id === jobId) {
+      setSelectedCompletedJob(null);
+      setShowCompletedJobDetails(false);
+    }
+  };
+
   const filteredJobCards = jobCards.filter((job: JobCard) => {
     const matchesSearch =
       job.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -638,9 +743,11 @@ export default function InventoryPage() {
       !Array.isArray(job.parts_required) ||
       job.parts_required.length === 0;
 
+    const isAcknowledgedFcNoteJob = Boolean(job.fc_note_acknowledged);
+
     return (
       matchesSearch &&
-      hasNoParts &&
+      (hasNoParts || isAcknowledgedFcNoteJob) &&
       !isCompletedInventoryJob(job) &&
       !isMovedAwayFromInventory(job)
     );
@@ -649,6 +756,7 @@ export default function InventoryPage() {
   const jobCardsWithParts = jobCards.filter(
     (job: JobCard) =>
       !isMovedAwayFromInventory(job) &&
+      !Boolean(job.fc_note_acknowledged) &&
       job.parts_required &&
       Array.isArray(job.parts_required) &&
       job.parts_required.length > 0,
@@ -728,6 +836,41 @@ export default function InventoryPage() {
     return email.includes(query);
   });
 
+  const filteredAddItemCategories = useMemo(() => {
+    const normalizedOptions = stockTypes.map((type) => {
+      const code =
+        typeof type === "string" ? normalizeCategoryCode(type) : type.code;
+      const description =
+        typeof type === "string"
+          ? type
+          : `${type.code} - ${type.description || type.code}`;
+
+      return {
+        code,
+        description,
+        score: getFuzzyScore(addItemCategorySearchTerm, `${code} ${description}`),
+      };
+    });
+
+    if (!addItemCategorySearchTerm.trim()) {
+      return normalizedOptions.sort((a, b) =>
+        a.description.localeCompare(b.description),
+      );
+    }
+
+    return normalizedOptions
+      .filter((option) => option.score > 0)
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.description.localeCompare(b.description);
+      });
+  }, [addItemCategorySearchTerm, stockTypes]);
+
+  const addItemCategorySuggestions = useMemo(() => {
+    if (!addItemCategorySearchTerm.trim()) return [];
+    return filteredAddItemCategories.slice(0, 8);
+  }, [addItemCategorySearchTerm, filteredAddItemCategories]);
+
   const getClientStockStatusClasses = (status: string | null) => {
     const normalized = (status || "").toUpperCase();
 
@@ -779,7 +922,7 @@ export default function InventoryPage() {
       toast.success(
         `Job ${selectedJobCard.job_number} moved to admin with no parts required`,
       );
-      fetchJobCards();
+      removeJobCardLocally(selectedJobCard.id);
       setShowAssignParts(false);
       setSelectedJobCard(null);
     } catch (error) {
@@ -1501,6 +1644,9 @@ export default function InventoryPage() {
     const quantity = Number(item.quantity ?? 1) || 1;
     const supplier = String(item.supplier || item.source || "");
     const stockType = String(item.stock_type || item.type || "");
+    const serialNumber = String(
+      item.serial_number || item.serial || item.serialNumber || "",
+    );
     const totalCost =
       Number(
         item.total_cost ??
@@ -1517,6 +1663,7 @@ export default function InventoryPage() {
       quantity,
       supplier,
       stockType,
+      serialNumber,
       totalCost,
       source,
       stockId: item.stock_id || item.id || null,
@@ -1851,6 +1998,7 @@ export default function InventoryPage() {
 
       toast.success("New item added successfully");
       setShowAddItemModal(false);
+      setAddItemCategorySearchTerm("");
       setNewItemData({
         category_code: "",
         serial_number: "",
@@ -4500,25 +4648,9 @@ export default function InventoryPage() {
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-600">
                           <div>
                             <span className="font-medium text-gray-700">
-                              Supplier:
-                            </span>{" "}
-                            {part.supplier || "N/A"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">
                               Type:
                             </span>{" "}
                             {part.stockType || "N/A"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">
-                              Source:
-                            </span>{" "}
-                            {selectedCompletedJobIsInstall
-                              ? "Parts Required"
-                              : part.source === "equipment_used"
-                                ? "Equipment Used"
-                                : "Parts Required"}
                           </div>
                           <div>
                             <span className="font-medium text-gray-700">
@@ -4527,6 +4659,12 @@ export default function InventoryPage() {
                             {part.totalCost
                               ? `R ${Number(part.totalCost).toFixed(2)}`
                               : "N/A"}
+                          </div>
+                          <div className="col-span-2">
+                            <span className="font-medium text-gray-700">
+                              Serial Number:
+                            </span>{" "}
+                            {part.serialNumber || "N/A"}
                           </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -4697,7 +4835,7 @@ export default function InventoryPage() {
                                   {itemValue && (
                                     <div className="mt-1 text-sm text-gray-700">
                                       <span className="font-medium text-gray-900">
-                                        Value:
+                                        Serial Number:
                                       </span>{" "}
                                       <span className="font-mono rounded bg-amber-50 px-1 py-0.5 text-amber-700">
                                         {itemValue}
@@ -5647,6 +5785,52 @@ export default function InventoryPage() {
                 <label className="text-sm font-medium text-gray-700">
                   Category
                 </label>
+                <Input
+                  value={addItemCategorySearchTerm}
+                  onChange={(e) => setAddItemCategorySearchTerm(e.target.value)}
+                  placeholder="Search category code or description"
+                  className="mt-1"
+                />
+                {addItemCategorySuggestions.length > 0 && (
+                  <div className="mt-2">
+                    <p className="mb-1 text-xs font-medium text-blue-600">
+                      Closest
+                    </p>
+                    <div className="overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+                      {addItemCategorySuggestions.map((type) => {
+                        const isSelected =
+                          normalizeCategoryCode(newItemData.category_code) ===
+                          normalizeCategoryCode(type.code);
+
+                        return (
+                          <button
+                            key={`suggestion-${type.code}`}
+                            type="button"
+                            onClick={() => {
+                              setNewItemData({
+                                ...newItemData,
+                                category_code: type.code,
+                              });
+                              setAddItemCategorySearchTerm(type.description);
+                            }}
+                            className={`flex w-full items-start justify-between px-3 py-2 text-left text-sm transition-colors ${
+                              isSelected
+                                ? "bg-blue-50 text-blue-700"
+                                : "hover:bg-gray-50"
+                            }`}
+                          >
+                            <span>{type.description}</span>
+                            {isSelected && (
+                              <span className="ml-3 text-xs font-medium">
+                                Selected
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2 mt-1">
                   <select
                     value={newItemData.category_code}
@@ -5659,14 +5843,12 @@ export default function InventoryPage() {
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
                   >
                     <option value="">Select category...</option>
-                    {stockTypes.map((type) => (
+                    {filteredAddItemCategories.map((type) => (
                       <option
-                        key={typeof type === "string" ? type : type.code}
-                        value={typeof type === "string" ? type : type.code}
+                        key={type.code}
+                        value={type.code}
                       >
-                        {typeof type === "string"
-                          ? type
-                          : `${type.code} - ${type.description}`}
+                        {type.description}
                       </option>
                     ))}
                   </select>
@@ -5679,6 +5861,11 @@ export default function InventoryPage() {
                     <Plus className="w-4 h-4" />
                   </Button>
                 </div>
+                {newItemData.category_code && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Selected category: {newItemData.category_code}
+                  </p>
+                )}
               </div>
             ) : (
               <>
@@ -5768,6 +5955,7 @@ export default function InventoryPage() {
               variant="outline"
               onClick={() => {
                 setShowAddItemModal(false);
+                setAddItemCategorySearchTerm("");
                 setShowNewCategoryFields(false);
                 setNewItemData({
                   category_code: "",

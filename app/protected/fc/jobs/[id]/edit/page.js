@@ -20,6 +20,27 @@ export default function EditJobPage() {
   const [accountInfo, setAccountInfo] = useState(null);
   const [acknowledgingNote, setAcknowledgingNote] = useState(false);
 
+  const buildFallbackCustomerData = (resolvedJob) => ({
+    company: resolvedJob.customer_name || "",
+    trading_name: resolvedJob.customer_name || "",
+    email: resolvedJob.customer_email || "",
+    cell_no: resolvedJob.customer_phone || "",
+    new_account_number: resolvedJob.new_account_number || "",
+    branch_person_name: resolvedJob.contact_person || "",
+    branch_person_email: resolvedJob.customer_email || "",
+  });
+
+  const buildFallbackAccountData = (resolvedJob) => ({
+    new_account_number: resolvedJob.new_account_number || "",
+    account_id: resolvedJob.account_id || null,
+    trading_name: resolvedJob.customer_name || "",
+    company: resolvedJob.customer_name || "",
+    email: resolvedJob.customer_email || "",
+    branch_person_email: resolvedJob.customer_email || "",
+    cell_no: resolvedJob.customer_phone || "",
+    branch_person_name: resolvedJob.contact_person || "",
+  });
+
   const extractFcMoveNote = (notes) => {
     const normalized = String(notes || "");
     if (!/\[Move note to FC\]/i.test(normalized)) {
@@ -117,33 +138,84 @@ export default function EditJobPage() {
           cache: "no-store",
         });
         if (!response.ok) {
-          throw new Error("Failed to fetch job");
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData?.error || "Failed to fetch job");
         }
 
         const loadedJob = await response.json();
         const resolvedJob = loadedJob;
         setJob(resolvedJob);
 
-        const customerData = {
-          company: resolvedJob.customer_name || "",
-          trading_name: resolvedJob.customer_name || "",
-          email: resolvedJob.customer_email || "",
-          cell_no: resolvedJob.customer_phone || "",
-          new_account_number: resolvedJob.new_account_number || "",
-        };
+        const fallbackCustomerData = buildFallbackCustomerData(resolvedJob);
+        const fallbackAccountData = buildFallbackAccountData(resolvedJob);
 
-        const accountData = {
-          new_account_number: resolvedJob.new_account_number || "",
-          account_id: resolvedJob.account_id || null,
-          trading_name: resolvedJob.customer_name || "",
-          company: resolvedJob.customer_name || "",
-          email: resolvedJob.customer_email || "",
-          cell_no: resolvedJob.customer_phone || "",
-          branch_person_name: resolvedJob.contact_person || "",
-        };
+        setCustomer(fallbackCustomerData);
+        setAccountInfo(fallbackAccountData);
 
-        setCustomer(customerData);
-        setAccountInfo(accountData);
+        if (resolvedJob?.new_account_number) {
+          const customerResponse = await fetch(
+            `/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(resolvedJob.new_account_number)}`,
+            { cache: "no-store" },
+          );
+
+          if (customerResponse.ok) {
+            const customerPayload = await customerResponse.json();
+            const fetchedCustomer = customerPayload?.customer || null;
+
+            if (fetchedCustomer) {
+              setCustomer({
+                ...fallbackCustomerData,
+                ...fetchedCustomer,
+                company:
+                  fetchedCustomer.company ||
+                  fetchedCustomer.trading_name ||
+                  fallbackCustomerData.company,
+                trading_name:
+                  fetchedCustomer.trading_name ||
+                  fetchedCustomer.company ||
+                  fallbackCustomerData.trading_name,
+                email:
+                  fetchedCustomer.branch_person_email ||
+                  fetchedCustomer.email ||
+                  fallbackCustomerData.email,
+                cell_no:
+                  fetchedCustomer.cell_no ||
+                  fetchedCustomer.switchboard ||
+                  fallbackCustomerData.cell_no,
+              });
+
+              setAccountInfo({
+                ...fallbackAccountData,
+                ...fetchedCustomer,
+                new_account_number:
+                  fetchedCustomer.new_account_number ||
+                  fallbackAccountData.new_account_number,
+                trading_name:
+                  fetchedCustomer.trading_name ||
+                  fetchedCustomer.company ||
+                  fallbackAccountData.trading_name,
+                company:
+                  fetchedCustomer.company ||
+                  fetchedCustomer.trading_name ||
+                  fallbackAccountData.company,
+                email:
+                  fetchedCustomer.email ||
+                  fallbackAccountData.email,
+                branch_person_email:
+                  fetchedCustomer.branch_person_email ||
+                  fetchedCustomer.email ||
+                  fallbackAccountData.branch_person_email,
+                cell_no:
+                  fetchedCustomer.cell_no ||
+                  fetchedCustomer.switchboard ||
+                  fallbackAccountData.cell_no,
+                branch_person_name:
+                  fetchedCustomer.branch_person_name ||
+                  fallbackAccountData.branch_person_name,
+              });
+            }
+          }
+        }
       } catch (error) {
         toast.error("Failed to load job", {
           description: error.message || "Could not fetch job data.",

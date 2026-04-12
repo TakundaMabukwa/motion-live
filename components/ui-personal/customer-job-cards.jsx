@@ -7,6 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,6 +49,7 @@ export default function CustomerJobCards({
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [movingJobId, setMovingJobId] = useState(null);
+  const [pendingInventoryAcknowledgementJob, setPendingInventoryAcknowledgementJob] = useState(null);
 
   const fetchJobCards = async () => {
     try {
@@ -83,7 +90,7 @@ export default function CustomerJobCards({
     setRefreshing(false);
   };
 
-  const handleMoveJob = async (job, destination) => {
+  const executeMoveJob = async (job, destination, extraPayload = {}) => {
     if (!job?.id || !destination) return;
 
     setMovingJobId(job.id);
@@ -105,12 +112,14 @@ export default function CustomerJobCards({
               job_status: 'pending',
               completion_date: null,
               end_time: null,
+              ...extraPayload,
             }
           : destination === 'accounts'
             ? {
                 role: 'accounts',
                 move_to: 'accounts',
                 updated_by: 'fc',
+                ...extraPayload,
               }
             : {
                 role: 'admin',
@@ -120,6 +129,7 @@ export default function CustomerJobCards({
                 assigned_technician_id: null,
                 technician_name: null,
                 technician_phone: null,
+                ...extraPayload,
               };
 
       const response = await fetch(`/api/job-cards/${job.id}`, {
@@ -145,6 +155,23 @@ export default function CustomerJobCards({
     } finally {
       setMovingJobId(null);
     }
+  };
+
+  const handleMoveJob = async (job, destination) => {
+    if (notesOnly && destination === 'inv') {
+      setPendingInventoryAcknowledgementJob(job);
+      return;
+    }
+
+    await executeMoveJob(job, destination);
+  };
+
+  const handleConfirmInventoryAcknowledgement = async () => {
+    if (!pendingInventoryAcknowledgementJob) return;
+
+    const targetJob = pendingInventoryAcknowledgementJob;
+    setPendingInventoryAcknowledgementJob(null);
+    await executeMoveJob(targetJob, 'inv', { fc_note_acknowledged: true });
   };
 
   const getStatusColor = (status) => {
@@ -503,6 +530,47 @@ export default function CustomerJobCards({
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={Boolean(pendingInventoryAcknowledgementJob)}
+        onOpenChange={(open) => {
+          if (!open && movingJobId == null) {
+            setPendingInventoryAcknowledgementJob(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Acknowledge FC Note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Sending this job to Inventory will mark the FC note as acknowledged
+              and place it into Inventory Assign Parts.
+            </p>
+            {pendingInventoryAcknowledgementJob ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {getFcMoveNote(pendingInventoryAcknowledgementJob) || 'No note found'}
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPendingInventoryAcknowledgementJob(null)}
+                disabled={movingJobId != null}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmInventoryAcknowledgement}
+                disabled={movingJobId != null}
+              >
+                {movingJobId != null ? 'Moving...' : 'Acknowledge and Move'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,11 +3,30 @@ const path = require("path");
 const xlsx = require("xlsx");
 const { createClient } = require("@supabase/supabase-js");
 
-const WORKBOOK_PATH = path.resolve(
-  process.cwd(),
-  "tmp",
-  "Take on Debtors ye 0226 -  receipts  0326.xlsx",
-);
+const WORKBOOK_CANDIDATES = [
+  path.resolve(
+    process.cwd(),
+    "components",
+    "inv",
+    "components",
+    "Take on Debtors ye 0226 -  receipts  0326 - update.xlsx",
+  ),
+  path.resolve(
+    process.cwd(),
+    "components",
+    "inv",
+    "components",
+    "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  ),
+  path.resolve(
+    process.cwd(),
+    "tmp",
+    "Take on Debtors ye 0226 -  receipts  0326.xlsx",
+  ),
+];
+const WORKBOOK_PATH =
+  WORKBOOK_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ||
+  WORKBOOK_CANDIDATES[0];
 const OPENING_SHEET = "Amended Debtors age anal";
 const RECEIPTS_SHEET = "March Receipts";
 const REPORT_DIR = path.resolve(process.cwd(), "tmp");
@@ -23,7 +42,13 @@ function getOperationalBillingMonth(date = new Date()) {
   operationalDate.setDate(1);
   return `${operationalDate.getFullYear()}-${String(operationalDate.getMonth() + 1).padStart(2, "0")}-01`;
 }
-const CURRENT_BILLING_MONTH = getOperationalBillingMonth();
+const CURRENT_BILLING_MONTH = "2026-03-01";
+
+const ACCOUNT_SOLFLO_OVERRIDES = {
+  MEK001: "MACS-0039",
+  MACBRI: "MACS-0040",
+  MACWADEVILLE: "MACS-0041",
+};
 
 function loadEnv(name) {
   if (process.env[name]) return process.env[name];
@@ -51,6 +76,23 @@ const applyMode = process.argv.includes("--apply");
 
 function normalize(value) {
   return String(value ?? "").trim().toUpperCase();
+}
+
+function resolveAccountSolflo(rawAccountSolflo, accountFusion, clientName) {
+  const raw = String(rawAccountSolflo ?? "").trim();
+  if (raw && raw.toLowerCase() !== "create") return raw;
+
+  const fusionKey = normalize(accountFusion);
+  if (fusionKey && ACCOUNT_SOLFLO_OVERRIDES[fusionKey]) {
+    return ACCOUNT_SOLFLO_OVERRIDES[fusionKey];
+  }
+
+  const clientKey = normalize(clientName);
+  if (clientKey && ACCOUNT_SOLFLO_OVERRIDES[clientKey]) {
+    return ACCOUNT_SOLFLO_OVERRIDES[clientKey];
+  }
+
+  return "";
 }
 
 function toNumber(value) {
@@ -118,10 +160,13 @@ function parseOpeningSheet(rows) {
   return rows
     .slice(headerIndex + 1)
     .filter((row) => Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== ""))
-    .map((row) => ({
-      account_fusion: String(row[1] ?? "").trim(),
-      account_solflo: String(row[2] ?? "").trim(),
-      client_name: String(row[3] ?? "").trim(),
+    .map((row) => {
+      const accountFusion = String(row[1] ?? "").trim();
+      const clientName = String(row[3] ?? "").trim();
+      return {
+      account_fusion: accountFusion,
+      account_solflo: resolveAccountSolflo(row[2], accountFusion, clientName),
+      client_name: clientName,
       client_contact: String(row[4] ?? "").trim(),
       phone: String(row[5] ?? "").trim(),
       email: String(row[6] ?? "").trim(),
@@ -146,7 +191,8 @@ function parseOpeningSheet(rows) {
       overdue_90_days: roundCurrency(row[25]),
       overdue_120_plus_days: roundCurrency(row[26]),
       outstanding_balance: roundCurrency(row[27]),
-    }))
+    };
+    })
     .filter((row) => row.account_solflo);
 }
 
@@ -168,8 +214,8 @@ function parseReceiptsSheet(rows) {
     .filter((row) => Array.isArray(row) && row.some((cell) => String(cell ?? "").trim() !== ""))
     .forEach((row) => {
       const accountFusion = String(row[1] ?? "").trim();
-      const accountSolflo = String(row[2] ?? "").trim();
       const clientName = String(row[3] ?? "").trim();
+      const accountSolflo = resolveAccountSolflo(row[2], accountFusion, clientName);
       if (accountFusion) carry.account_fusion = accountFusion;
       if (accountSolflo) carry.account_solflo = accountSolflo;
       if (clientName) carry.client_name = clientName;
@@ -430,6 +476,91 @@ async function fetchRows(tableName, accountNumbers, columns) {
   return rows;
 }
 
+async function ensureCostCenters(records) {
+  const uniqueRecords = Array.from(
+    new Map(
+      records
+        .filter((record) => record.account_solflo)
+        .map((record) => [
+          normalize(record.account_solflo),
+          {
+            cost_code: record.account_solflo,
+            company: record.client_name || null,
+            legal_name: record.client_name || null,
+          },
+        ]),
+    ).values(),
+  );
+
+  if (uniqueRecords.length === 0) return { inserted: 0 };
+
+  const existing = await fetchRows(
+    "cost_centers",
+    uniqueRecords.map((record) => record.cost_code),
+    "cost_code",
+  );
+
+  const existingCodes = new Set(existing.map((row) => normalize(row.cost_code)));
+  const missing = uniqueRecords.filter((record) => !existingCodes.has(normalize(record.cost_code)));
+
+  if (missing.length === 0) return { inserted: 0 };
+  if (!applyMode) return { inserted: missing.length, dryRun: true };
+
+  const chunkSize = 100;
+  for (let i = 0; i < missing.length; i += chunkSize) {
+    const chunk = missing.slice(i, i + chunkSize).map((record) => ({
+      company: record.company,
+      legal_name: record.legal_name,
+      cost_code: record.cost_code,
+      validated: false,
+    }));
+    const { error } = await supabase.from("cost_centers").insert(chunk);
+    if (error) throw error;
+  }
+
+  return { inserted: missing.length };
+}
+
+async function ensureMacsteelGroup(codes) {
+  const normalizedCodes = Array.from(
+    new Set(
+      codes
+        .map((code) => String(code || "").trim())
+        .filter((code) => /^MACS-\d{4}$/i.test(code)),
+    ),
+  );
+
+  if (normalizedCodes.length === 0) return { appended: 0 };
+
+  const { data: existingGroup, error } = await supabase
+    .from("customers_grouped")
+    .select("id, all_new_account_numbers")
+    .eq("company_group", "MACSTEEL")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!existingGroup) return { appended: 0, missingGroup: true };
+
+  const existingCodes = String(existingGroup.all_new_account_numbers || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const existingSet = new Set(existingCodes.map((code) => normalize(code)));
+  const toAppend = normalizedCodes.filter((code) => !existingSet.has(normalize(code)));
+
+  if (toAppend.length === 0) return { appended: 0 };
+  if (!applyMode) return { appended: toAppend.length, dryRun: true };
+
+  const updatedCodes = [...existingCodes, ...toAppend].join(",");
+  const { error: updateError } = await supabase
+    .from("customers_grouped")
+    .update({ all_new_account_numbers: updatedCodes })
+    .eq("id", existingGroup.id);
+
+  if (updateError) throw updateError;
+  return { appended: toAppend.length };
+}
+
 async function main() {
   const workbook = xlsx.readFile(WORKBOOK_PATH);
   const openingRecords = parseOpeningSheet(getSheetRows(workbook, OPENING_SHEET));
@@ -526,14 +657,20 @@ async function main() {
   });
 
   const nowIso = new Date().toISOString();
+  const overriddenRecords = openingRecords.filter((record) =>
+    Object.values(ACCOUNT_SOLFLO_OVERRIDES).includes(record.account_solflo),
+  );
   const summary = {
     workbook: path.basename(WORKBOOK_PATH),
     openingSheet: OPENING_SHEET,
     receiptsSheet: RECEIPTS_SHEET,
     openingBillingMonth: OPENING_BILLING_MONTH,
     currentBillingMonth: CURRENT_BILLING_MONTH,
+    codeOverrides: ACCOUNT_SOLFLO_OVERRIDES,
     workbookAccountCount: openingRecords.length,
     receiptCount: receipts.length,
+    insertedCostCenters: 0,
+    appendedMacsteelCodes: 0,
     updatedOpeningRows: 0,
     insertedOpeningRows: 0,
     updatedCurrentRows: 0,
@@ -543,8 +680,21 @@ async function main() {
     totalCurrentDueAfterImport: 0,
     totalOutstandingAfterImport: 0,
     mode: applyMode ? "apply" : "dry-run",
+    overriddenAccounts: overriddenRecords.map((record) => ({
+      account_fusion: record.account_fusion,
+      account_solflo: record.account_solflo,
+      client_name: record.client_name,
+      outstanding_balance: record.outstanding_balance,
+    })),
   };
   const detail = [];
+
+  const costCenterSync = await ensureCostCenters(overriddenRecords);
+  const macsteelGroupSync = await ensureMacsteelGroup(
+    overriddenRecords.map((record) => record.account_solflo),
+  );
+  summary.insertedCostCenters = costCenterSync.inserted || 0;
+  summary.appendedMacsteelCodes = macsteelGroupSync.appended || 0;
 
   for (const record of openingRecords) {
     const code = normalize(record.account_solflo);

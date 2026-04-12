@@ -47,9 +47,10 @@ export default function StockOrderModal({ onOrderSubmitted }) {
   const supabase = createClient();
 
   useEffect(() => {
+    if (!isDialogOpen) return;
     fetchStockPricing();
     generateOrderNumber();
-  }, []);
+  }, [isDialogOpen]);
 
   const fetchStockPricing = async () => {
     try {
@@ -66,7 +67,7 @@ export default function StockOrderModal({ onOrderSubmitted }) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch stock items",
+        description: "We couldn't load stock pricing right now.",
       });
     } finally {
       setLoading(false);

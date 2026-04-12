@@ -47,6 +47,65 @@ export default function ClientQuoteForm({
   embedded = false,
 }) {
   const isJobEditMode = mode === "edit" && saveTarget === "job";
+
+  const humanizeSaveError = useCallback((error) => {
+    const raw = String(error?.message || error || '').trim();
+    const lower = raw.toLowerCase();
+
+    if (!raw) {
+      return 'We could not save the job. Please try again.';
+    }
+
+    if (lower.includes('unauthorized')) {
+      return 'Your session has expired or you do not have permission to edit this job.';
+    }
+
+    if (lower.includes('job card not found') || lower.includes('job not found')) {
+      return 'This job could not be found anymore. Please refresh the page and try again.';
+    }
+
+    if (lower.includes('duplicate key')) {
+      return 'This save would create a duplicate value that must stay unique. Please check the job details and try again.';
+    }
+
+    if (lower.includes('could not find the') && lower.includes('column of')) {
+      const columnMatch = raw.match(/could not find the '([^']+)' column/i);
+      if (columnMatch?.[1]) {
+        return `This job could not be saved because the system tried to update a field called ${columnMatch[1]}, but that field does not exist on the job card table yet.`;
+      }
+      return 'This job could not be saved because the system tried to update a field that does not exist on the job card table yet.';
+    }
+
+    if (lower.includes('invalid input syntax for type integer')) {
+      return 'One of the number fields has text in it. Please check the year, odometer, hours, or quantity fields.';
+    }
+
+    if (lower.includes('null value') && lower.includes('violates not-null constraint')) {
+      return 'A required field is missing. Please check the job type, customer details, and quote details.';
+    }
+
+    if (lower.includes('failed to update job card')) {
+      const detail = raw.replace(/^failed to update job card:?/i, '').trim();
+      if (detail) {
+        return `We could not save the job because ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+      }
+      return 'We could not save the job card. Please check the entered details and try again.';
+    }
+
+    if (lower.includes('failed to update client quote')) {
+      const detail = raw.replace(/^failed to update client quote:?/i, '').trim();
+      if (detail) {
+        return `We could not save the quote because ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+      }
+      return 'We could not save the quote. Please check the entered details and try again.';
+    }
+
+    if (lower.includes('failed to create client quote')) {
+      return 'We could not create the quote. Please review the details and try again.';
+    }
+
+    return raw;
+  }, []);
   const [currentStep, setCurrentStep] = useState(0);
   const [productItems, setProductItems] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -62,6 +121,10 @@ export default function ClientQuoteForm({
   const [newEmailRecipient, setNewEmailRecipient] = useState("");
   const [productTypes, setProductTypes] = useState([]);
   const [productCategories, setProductCategories] = useState([]);
+  const [recoveryQuote, setRecoveryQuote] = useState({
+    hours: "",
+    amount: "",
+  });
 
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
@@ -259,6 +322,39 @@ export default function ClientQuoteForm({
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
 
+  const buildRecoveryProduct = useCallback((hoursValue, amountValue) => {
+    const parsedHours = Number(hoursValue);
+    const parsedAmount = Number(amountValue);
+
+    return {
+      id: "recovery-line",
+      name: "Recovery",
+      description:
+        parsedHours > 0
+          ? `Recovery service - ${parsedHours} hour${parsedHours === 1 ? "" : "s"}`
+          : "Recovery service",
+      type: "Service",
+      category: "Recovery",
+      code: "RECOVERY",
+      quantity: parsedHours > 0 ? parsedHours : 1,
+      purchaseType: "service",
+      isLabour: true,
+      isRecovery: true,
+      cashPrice: parsedAmount > 0 ? parsedAmount : 0,
+      cashDiscount: 0,
+      rentalPrice: 0,
+      rentalDiscount: 0,
+      installationPrice: 0,
+      installationDiscount: 0,
+      deInstallationPrice: 0,
+      deInstallationDiscount: 0,
+      subscriptionPrice: 0,
+      subscriptionDiscount: 0,
+      annuityEndDate: "",
+      detailValue: parsedHours > 0 ? String(parsedHours) : "",
+    };
+  }, []);
+
   const steps = [
     {
       id: 0,
@@ -384,6 +480,24 @@ export default function ClientQuoteForm({
     setSelectedProducts(existingItems.map(deserialize));
     setHasUserSelectedJobType(!!initialQuote.job_type);
 
+    if (initialQuote.job_type === "recovery") {
+      const firstRecoveryLine = existingItems[0] || {};
+      setRecoveryQuote({
+        hours:
+          firstRecoveryLine.detail_value ||
+          firstRecoveryLine.detailValue ||
+          (firstRecoveryLine.quantity ? String(firstRecoveryLine.quantity) : ""),
+        amount: String(
+          Number(
+            firstRecoveryLine.total_price ||
+            firstRecoveryLine.cash_price ||
+            firstRecoveryLine.cashPrice ||
+            0
+          ) || ""
+        ),
+      });
+    }
+
     if (initialQuote.job_type === "deinstall" && Array.isArray(initialQuote.deinstall_vehicles)) {
       setDeInstallData((prev) => ({
         ...prev,
@@ -480,6 +594,26 @@ export default function ClientQuoteForm({
     }
   }, [formData.jobType, accountInfo?.new_account_number, fetchVehiclesFromIP]);
 
+  useEffect(() => {
+    if (formData.jobType !== "recovery") return;
+
+    const hasHours = Number(recoveryQuote.hours) > 0;
+    const hasAmount = Number(recoveryQuote.amount) > 0;
+
+    if (!hasHours && !hasAmount) {
+      setSelectedProducts((prev) =>
+        (prev || []).filter((product) => product.id !== "recovery-line")
+      );
+      return;
+    }
+
+    const recoveryProduct = buildRecoveryProduct(recoveryQuote.hours, recoveryQuote.amount);
+    setSelectedProducts((prev) => {
+      const remainingProducts = (prev || []).filter((product) => product.id !== "recovery-line");
+      return [recoveryProduct, ...remainingProducts];
+    });
+  }, [formData.jobType, recoveryQuote.hours, recoveryQuote.amount, buildRecoveryProduct]);
+
   const fetchProductItems = useCallback(async () => {
     // Skip if no filters are set and we already have products
     if (selectedType === 'all' && selectedCategory === 'all' && !debouncedSearchTerm && productItems.length > 0) {
@@ -515,7 +649,7 @@ export default function ClientQuoteForm({
     if (formData.jobType === 'deinstall' && accountInfo?.new_account_number && hasUserSelectedJobType) {
       console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
       fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
-    } else if (formData.jobType !== 'deinstall' && hasUserSelectedJobType) {
+    } else if (formData.jobType && formData.jobType !== 'deinstall' && formData.jobType !== 'recovery' && hasUserSelectedJobType) {
       console.log('Job type changed to install, fetching product items');
       fetchProductItems();
     } else if (formData.jobType === 'deinstall' && !accountInfo?.new_account_number && hasUserSelectedJobType) {
@@ -525,7 +659,7 @@ export default function ClientQuoteForm({
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType) {
+    if (formData.jobType && formData.jobType !== 'recovery') {
       fetchProductItems();
     }
   }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
@@ -637,6 +771,10 @@ export default function ClientQuoteForm({
   }, []);
 
   const getProductTotal = useCallback((product) => {
+    if (product.isRecovery) {
+      return calculateGrossAmount(product.cashPrice, product.cashDiscount);
+    }
+
     // Labour items: only use cash price (the labour cost field)
     if (product.isLabour) {
       const labourGross = calculateGrossAmount(product.cashPrice, product.cashDiscount);
@@ -697,6 +835,10 @@ export default function ClientQuoteForm({
         // For de-install, allow proceeding even without products (user can add pricing manually)
         if (formData.jobType === 'deinstall') {
           return true; // Allow proceeding, user can add products manually
+        }
+
+        if (formData.jobType === 'recovery') {
+          return Number(recoveryQuote.hours) > 0 && Number(recoveryQuote.amount) > 0;
         }
         
         // For all non-deinstall jobs, require selected products
@@ -817,6 +959,13 @@ export default function ClientQuoteForm({
         const detailValue = product.detailValue || "";
         const isVehicleLinkedDeinstall = Boolean(product.vehicleId || product.vehiclePlate);
         const serializedDescription =
+          product.isRecovery
+            ? (
+                quantity > 0
+                  ? `Recovery service - ${quantity} hour${quantity === 1 ? '' : 's'}`
+                  : (product.description || 'Recovery service')
+              )
+            :
           formData.jobType === 'deinstall' && !isLabour
             ? (
                 detailValue
@@ -846,7 +995,9 @@ export default function ClientQuoteForm({
         const subscriptionDiscount = isLabour ? 0 : (product.subscriptionDiscount || 0);
         const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
 
-        const totalPrice = ((isLabour || isPurchase ? cashGross : 0)
+        const totalPrice = product.isRecovery
+          ? cashGross
+          : ((isLabour || isPurchase ? cashGross : 0)
           + (isRental ? rentalGross : 0)
           + installationGross
           + deInstallationGross
@@ -859,7 +1010,7 @@ export default function ClientQuoteForm({
           id: product.id,
           name: product.name,
           description: serializedDescription,
-          detail_value: detailValue,
+          detail_value: product.isRecovery ? String(quantity || "") : detailValue,
           type: product.type,
           category: product.category,
           quantity,
@@ -889,7 +1040,12 @@ export default function ClientQuoteForm({
         };
       };
 
-      const quotationProducts = (selectedProducts || []).map(serializeProductForQuote);
+      const productsToSerialize =
+        formData.jobType === "recovery"
+          ? [buildRecoveryProduct(recoveryQuote.hours, recoveryQuote.amount)]
+          : (selectedProducts || []);
+
+      const quotationProducts = productsToSerialize.map(serializeProductForQuote);
       const subtotal = quotationProducts.reduce((sum, product) => sum + (product.total_price || 0), 0);
 
       const vatAmount = subtotal * 0.15; // 15% VAT
@@ -981,9 +1137,8 @@ export default function ClientQuoteForm({
 
       const isEditMode = mode === "edit" && !!quoteId;
 
-      const updatePayload = {
+      const baseUpdatePayload = {
         job_type: formData.jobType,
-        job_sub_type: formData.jobSubType || null,
         job_description: formData.description,
         purchase_type: formData.purchaseType || "purchase",
         quotation_job_type: formData.jobType,
@@ -994,7 +1149,6 @@ export default function ClientQuoteForm({
         contact_person: formData.contactPerson || null,
         decommission_date: formData.decommissionDate || null,
         annuity_end_date: null,
-        move_to_role: formData.moveToRole || null,
         vehicle_registration: formData.vehicle_registration || null,
         vehicle_make: formData.vehicle_make || null,
         vehicle_model: formData.vehicle_model || null,
@@ -1010,12 +1164,20 @@ export default function ClientQuoteForm({
         quotation_subtotal: subtotal,
         quotation_vat_amount: vatAmount,
         quotation_total_amount: totalAmount,
-        ...(formData.jobType === "deinstall" && {
-          deinstall_vehicles: quotationData.deinstall_vehicles || [],
-          deinstall_stock_items: [],
-          stock_received: null,
-        }),
       };
+
+      const updatePayload = isJobEditMode
+        ? baseUpdatePayload
+        : {
+            ...baseUpdatePayload,
+            job_sub_type: formData.jobSubType || null,
+            move_to_role: formData.moveToRole || null,
+            ...(formData.jobType === "deinstall" && {
+              deinstall_vehicles: quotationData.deinstall_vehicles || [],
+              deinstall_stock_items: [],
+              stock_received: null,
+            }),
+          };
 
       console.log('Submitting quotation data:', isEditMode ? updatePayload : quotationData);
 
@@ -1138,6 +1300,7 @@ export default function ClientQuoteForm({
         // Reset other state
         setCurrentStep(0);
         setSelectedProducts([]);
+        setRecoveryQuote({ hours: "", amount: "" });
         setSearchTerm("");
         setSelectedType("all");
         setSelectedCategory("all");
@@ -1150,6 +1313,7 @@ export default function ClientQuoteForm({
       }
     } catch (error) {
       console.error('Error submitting quote:', error);
+      const humanMessage = humanizeSaveError(error);
       
       // Show error toast
       toast.error(
@@ -1157,12 +1321,12 @@ export default function ClientQuoteForm({
           ? (isJobEditMode ? 'Failed to update job card' : 'Failed to update quote')
           : 'Failed to create quote',
         {
-        description: error.message || 'Please try again.',
+        description: humanMessage || 'Please try again.',
         duration: 5000,
         },
       );
       
-      setSubmitError(error.message);
+      setSubmitError(humanMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -1212,7 +1376,20 @@ export default function ClientQuoteForm({
                   <Select
                     value={formData.jobType}
                     onValueChange={(value) => {
-                      setFormData(prev => ({ ...prev, jobType: value, jobSubType: "" }));
+                      setFormData(prev => ({
+                        ...prev,
+                        jobType: value,
+                        jobSubType: value === "recovery" ? "recovery" : "",
+                        purchaseType: value === "recovery" ? "purchase" : prev.purchaseType,
+                      }));
+                      if (value === "recovery") {
+                        setSelectedProducts([]);
+                        setRecoveryQuote({ hours: "", amount: "" });
+                      } else {
+                        setSelectedProducts((prev) =>
+                          (prev || []).filter((product) => product.id !== "recovery-line")
+                        );
+                      }
                       setHasUserSelectedJobType(true);
                     }}
                   >
@@ -1222,6 +1399,7 @@ export default function ClientQuoteForm({
                     <SelectContent>
                       <SelectItem value="install">Installation</SelectItem>
                       <SelectItem value="deinstall">De-installation</SelectItem>
+                      <SelectItem value="recovery">Recovery</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1248,6 +1426,8 @@ export default function ClientQuoteForm({
                             <SelectItem value="decommission">Decommission</SelectItem>
                             <SelectItem value="de-install">De-install</SelectItem>
                           </>
+                        ) : formData.jobType === 'recovery' ? (
+                          <SelectItem value="recovery">Recovery</SelectItem>
                         ) : null}
                       </SelectContent>
                     </Select>
@@ -1431,8 +1611,73 @@ export default function ClientQuoteForm({
       case 2:
         return (
           <div className="space-y-6">
+            {formData.jobType === "recovery" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recovery Quote Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="recoveryHours">Hours *</Label>
+                      <Input
+                        id="recoveryHours"
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        placeholder="Enter recovery hours"
+                        value={recoveryQuote.hours}
+                        onChange={(e) =>
+                          setRecoveryQuote((prev) => ({
+                            ...prev,
+                            hours: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="recoveryAmount">Amount *</Label>
+                      <Input
+                        id="recoveryAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Enter total recovery amount"
+                        value={recoveryQuote.amount}
+                        onChange={(e) =>
+                          setRecoveryQuote((prev) => ({
+                            ...prev,
+                            amount: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
+                    <div className="flex justify-between items-center gap-4 text-sm">
+                      <div>
+                        <p className="font-medium text-blue-900">Recovery Summary</p>
+                        <p className="text-blue-700">
+                          {Number(recoveryQuote.hours) > 0
+                            ? `${recoveryQuote.hours} hour${Number(recoveryQuote.hours) === 1 ? "" : "s"}`
+                            : "No hours entered yet"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-blue-700">Total Amount</p>
+                        <p className="font-semibold text-blue-900">
+                          R {(Number(recoveryQuote.amount) || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Product Selection */}
-            {formData.jobType && (
+            {formData.jobType && formData.jobType !== "recovery" && (
               <Card>
                 <CardHeader>
                   <CardTitle>{formData.jobType === 'deinstall' ? 'Add Products' : 'Product Selection'}</CardTitle>
@@ -1653,7 +1898,7 @@ export default function ClientQuoteForm({
             )}
 
             {/* Selected Products */}
-            {(selectedProducts || []).length > 0 && (
+            {formData.jobType !== "recovery" && (selectedProducts || []).length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Selected Products</CardTitle>

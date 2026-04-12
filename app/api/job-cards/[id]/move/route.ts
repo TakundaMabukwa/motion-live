@@ -8,7 +8,8 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { id } = await params;
-    const { destination, note } = await request.json();
+    const { destination, note, inventoryPlacement, preserveCompleted } =
+      await request.json();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -58,8 +59,12 @@ export async function POST(
           : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
       }
 
+      const shouldSendInventoryToAssignParts =
+        targetRole === "inv" && inventoryPlacement === "assign-parts";
+      const shouldPreserveCompleted = Boolean(preserveCompleted);
+
       const completionPayload =
-        targetRole === "fc"
+        targetRole === "fc" && !shouldPreserveCompleted
           ? {
               role: "fc",
               move_to: "fc",
@@ -70,6 +75,16 @@ export async function POST(
               fc_note_acknowledged: false,
               ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
             }
+          : shouldSendInventoryToAssignParts
+            ? {
+                role: "inv",
+                move_to: "inv",
+                status: "pending",
+                job_status: "pending",
+                completion_date: null,
+                end_time: null,
+                ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+              }
           : {
               role: targetRole,
               move_to: targetRole,
@@ -110,7 +125,11 @@ export async function POST(
         success: true,
         message:
           targetRole === "fc"
-            ? "Job moved to FC"
+            ? shouldPreserveCompleted
+              ? "Job moved to FC and kept as completed"
+              : "Job moved to FC"
+            : shouldSendInventoryToAssignParts
+              ? "Job moved to Inventory Assign Parts"
             : `Job moved to ${targetRole.toUpperCase()} and marked as completed`,
         job: patchBody,
       });

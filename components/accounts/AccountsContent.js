@@ -957,12 +957,8 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getJobTotal = (job) => {
-    return (
-      toNumber(job?.quotation_total_amount) ||
-      toNumber(job?.actual_cost) ||
-      toNumber(job?.estimated_cost) ||
-      0
-    );
+    const { total } = getInvoiceTotals(job);
+    return total;
   };
 
   const getBillingStatusValue = (job, key) => {
@@ -1144,14 +1140,19 @@ export default function AccountsContent({ activeSection }) {
   const getInvoiceTotals = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
     const computedSubtotal = products.reduce((sum, product) => {
+      const explicitTotal = toNumber(product?.total_price);
+      if (explicitTotal > 0) {
+        return sum + explicitTotal;
+      }
+
       const qty = Math.max(1, toNumber(product?.quantity) || 1);
       const unitPrice = getProductUnitPrice(product);
       return sum + unitPrice * qty;
     }, 0);
 
-    const subtotal = toNumber(job?.quotation_subtotal) || computedSubtotal;
-    const vat = toNumber(job?.quotation_vat_amount) || subtotal * VAT_RATE;
-    const total = toNumber(job?.quotation_total_amount) || subtotal + vat;
+    const subtotal = computedSubtotal;
+    const vat = Number((subtotal * VAT_RATE).toFixed(2));
+    const total = Number((subtotal + vat).toFixed(2));
 
     return { products, subtotal, vat, total };
   };
@@ -1201,24 +1202,7 @@ export default function AccountsContent({ activeSection }) {
       generatedInvoice?.generatedAt ||
       COMPLETED_JOB_INVOICE_DATE;
 
-    const rows =
-      Array.isArray(storedInvoiceRecord?.line_items) &&
-      storedInvoiceRecord.line_items.length > 0
-        ? storedInvoiceRecord.line_items.map((item, index) => ({
-            key: `${item?.item_code || item?.description || "item"}-${index}`,
-            previousReg: item?.previous_reg || vehicleSummary || "N/A",
-            newReg:
-              item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
-            itemCode: item?.item_code || "Item",
-            description: item?.description || "-",
-            comments: item?.comments || "",
-            qty: Math.max(1, toNumber(item?.quantity) || 1),
-            unitPrice: toNumber(item?.unit_price),
-            vatPercent: item?.vat_percent || "15.00%",
-            vatAmount: toNumber(item?.vat_amount),
-            totalIncl: toNumber(item?.total_incl),
-          }))
-        : rawTotals.products.length > 0
+    const rows = rawTotals.products.length > 0
         ? rawTotals.products.flatMap((product, index) => {
             const chargeLines = getProductChargeLines(
               product,
@@ -1226,8 +1210,12 @@ export default function AccountsContent({ activeSection }) {
             );
 
             return chargeLines.map((chargeLine) => {
-              const lineVat = chargeLine.subtotal * VAT_RATE;
-              const lineTotal = chargeLine.subtotal + lineVat;
+              const lineVat = Number(
+                (chargeLine.subtotal * VAT_RATE).toFixed(2),
+              );
+              const lineTotal = Number(
+                (chargeLine.subtotal + lineVat).toFixed(2),
+              );
 
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
@@ -1245,6 +1233,22 @@ export default function AccountsContent({ activeSection }) {
               };
             });
           })
+      : Array.isArray(storedInvoiceRecord?.line_items) &&
+          storedInvoiceRecord.line_items.length > 0
+        ? storedInvoiceRecord.line_items.map((item, index) => ({
+            key: `${item?.item_code || item?.description || "item"}-${index}`,
+            previousReg: item?.previous_reg || vehicleSummary || "N/A",
+            newReg:
+              item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+            itemCode: item?.item_code || "Item",
+            description: item?.description || "-",
+            comments: item?.comments || "",
+            qty: Math.max(1, toNumber(item?.quantity) || 1),
+            unitPrice: toNumber(item?.unit_price),
+            vatPercent: item?.vat_percent || "0.00%",
+            vatAmount: toNumber(item?.vat_amount),
+            totalIncl: toNumber(item?.total_incl),
+          }))
         : [
             {
               key: "fallback-row",
@@ -1262,22 +1266,15 @@ export default function AccountsContent({ activeSection }) {
             },
           ];
 
-    const totals = storedInvoiceRecord
-      ? {
-          subtotal: toNumber(storedInvoiceRecord.subtotal),
-          vat: toNumber(storedInvoiceRecord.vat_amount),
-          total: toNumber(storedInvoiceRecord.total_amount),
-          discount: toNumber(storedInvoiceRecord.discount_amount),
-        }
-      : rows.reduce(
-          (acc, row) => {
-            acc.subtotal += row.unitPrice * row.qty;
-            acc.vat += row.vatAmount;
-            acc.total += row.totalIncl;
-            return acc;
-          },
-          { subtotal: 0, vat: 0, total: 0, discount: 0 },
-        );
+    const totals = rows.reduce(
+      (acc, row) => {
+        acc.subtotal += row.unitPrice * row.qty;
+        acc.vat += row.vatAmount;
+        acc.total += row.totalIncl;
+        return acc;
+      },
+      { subtotal: 0, vat: 0, total: 0, discount: 0 },
+    );
 
     return {
       invoiceNumber,
@@ -2003,7 +2000,7 @@ export default function AccountsContent({ activeSection }) {
                         </div>
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right font-semibold text-gray-900">
-                        {formatCurrency(getJobTotal(job))}
+                        {formatCurrency(getInvoiceTotals(job).total)}
                       </TableCell>
                       <TableCell className="py-2 px-3 text-gray-700">
                         {job.invoiced_by ? (

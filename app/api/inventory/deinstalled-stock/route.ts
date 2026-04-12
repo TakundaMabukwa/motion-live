@@ -17,12 +17,34 @@ const sanitizeCategoryCode = (value: string): string => {
   return cleaned || 'DEINSTALL_MISC';
 };
 
+const extractQuotedIdentifier = (item: Record<string, unknown>): string => {
+  const directValue =
+    getStringValue(item.value) ||
+    getStringValue(item.detail_value) ||
+    getStringValue(item.detailValue) ||
+    getStringValue(item.serial_number) ||
+    getStringValue(item.serial) ||
+    getStringValue(item.item_serial);
+
+  if (directValue) return directValue;
+
+  const description = getStringValue(item.description);
+  const serialMatch = description.match(/S\/N:\s*([^,\n\r]+)/i);
+  if (serialMatch?.[1]) {
+    return serialMatch[1].trim();
+  }
+
+  const valueMatch = description.match(/Value:\s*([^-\n\r,]+)/i);
+  return valueMatch?.[1]?.trim() || '';
+};
+
 const deriveCategoryCode = (item: Record<string, unknown>): string => {
   const raw =
     getStringValue(item.code) ||
+    getStringValue(item.name) ||
+    getStringValue(item.product) ||
     getStringValue(item.category) ||
     getStringValue(item.type) ||
-    getStringValue(item.product) ||
     getStringValue(item.name) ||
     'DEINSTALL_MISC';
 
@@ -44,9 +66,7 @@ const deriveSerialNumber = (
   itemIndex: number
 ): string => {
   const existing =
-    getStringValue(item.serial_number) ||
-    getStringValue(item.serial) ||
-    getStringValue(item.item_serial) ||
+    extractQuotedIdentifier(item) ||
     getStringValue(item.id);
 
   if (existing) return existing;
@@ -104,7 +124,8 @@ export async function POST(request: NextRequest) {
     const categoryDescription = deriveCategoryDescription(item, categoryCode);
     const serialNumber = deriveSerialNumber(item, getStringValue(job.job_number), itemIndex);
     const itemName = getStringValue(item.name) || getStringValue(item.product) || categoryDescription;
-    const notes = `De-installed from job ${job.job_number || job.id}: ${itemName}`;
+    const quotedIdentifier = extractQuotedIdentifier(item);
+    const notes = `De-installed from job ${job.job_number || job.id}: ${itemName}${quotedIdentifier ? ` (${quotedIdentifier})` : ''}`;
 
     const { data: existingCategory } = await supabase
       .from('inventory_categories')
@@ -148,6 +169,7 @@ export async function POST(request: NextRequest) {
           status: 'IN STOCK',
           notes,
           company: getStringValue(job.customer_name) || null,
+          job_card_id: job.id,
         })
         .select('*')
         .single();
@@ -227,6 +249,7 @@ export async function POST(request: NextRequest) {
         status: 'IN STOCK',
         notes,
         company: getStringValue(job.customer_name) || null,
+        job_card_id: job.id,
       })
       .select('*')
       .single();

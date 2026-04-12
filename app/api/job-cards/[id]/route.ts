@@ -193,7 +193,13 @@ export async function PATCH(
 
     if (updateError) {
       console.error('Error updating job card:', updateError);
-      return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'Failed to update job card',
+          details: updateError.message || updateError.details || 'Unknown database error',
+        },
+        { status: 500 }
+      );
     }
 
     // If job is being completed, handle vehicle addition and stock deduction

@@ -657,7 +657,12 @@ export default function AdminDashboard() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ destination }),
+        body: JSON.stringify({
+          destination,
+          ...(destination === "inv"
+            ? { inventoryPlacement: "assign-parts" }
+            : {}),
+        }),
       });
 
       if (!response.ok) {
