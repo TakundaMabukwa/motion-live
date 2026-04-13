@@ -411,15 +411,6 @@ const getVehicleDisplay = (vehicle: Record<string, any>) => {
   return vehicle.reg || vehicle.fleet_number || '';
 };
 
-const getBillingCutoff = (billingMonth: string | null) => {
-  const normalized = String(billingMonth || '').trim();
-  if (!normalized.startsWith('2026-03')) {
-    return null;
-  }
-
-  return '2026-03-30T23:59:59.999Z';
-};
-
 const normalizeLockCutoff = (value: string | null) => {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -702,10 +693,6 @@ export async function GET(request: NextRequest) {
     const lockCutoffAt = normalizeLockCutoff(searchParams.get('lockCutoffAt'));
     const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
     const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
-    const isEpsCostCenterRequest =
-      String(accountNumber || '').trim().toUpperCase().startsWith('EPSC-') ||
-      String(sourceAccountNumber || '').trim().toUpperCase().startsWith('EPSC-');
-
     if (!accountNumber) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
     }
@@ -767,8 +754,7 @@ export async function GET(request: NextRequest) {
     if (Boolean(costCenter?.total_amount_locked)) {
       vehiclesQuery = vehiclesQuery.eq('amount_locked', true);
     } else {
-      const billingCutoff = isEpsCostCenterRequest ? null : getBillingCutoff(billingMonth);
-      const vehicleCutoff = getEffectiveVehicleCutoff(billingCutoff, lockCutoffAt);
+      const vehicleCutoff = getEffectiveVehicleCutoff(null, lockCutoffAt);
       if (vehicleCutoff) {
         vehiclesQuery = vehiclesQuery.lte('created_at', vehicleCutoff);
       }
