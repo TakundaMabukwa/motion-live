@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
         new_account_number,
         contact_person,
         annuity_end_date,
+        order_number,
         invoiced_by
       `,
       )
@@ -176,6 +177,7 @@ export async function GET(request: NextRequest) {
         new_account_number: job.new_account_number,
         contact_person: job.contact_person,
         annuity_end_date: job.annuity_end_date,
+        order_number: job.order_number,
         invoiced_by: effectiveInvoicedBy,
         invoiced_by_email: effectiveInvoicedBy
           ? userEmailById.get(effectiveInvoicedBy) || null

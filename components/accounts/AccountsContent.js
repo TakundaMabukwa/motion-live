@@ -320,17 +320,35 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
+  const fetchLatestJobCard = async (job) => {
+    if (!job?.id) return job;
+
+    try {
+      const response = await fetch(`/api/job-cards/${encodeURIComponent(job.id)}`);
+      if (!response.ok) {
+        return job;
+      }
+
+      const latestJob = await response.json();
+      return latestJob?.id ? { ...job, ...latestJob } : job;
+    } catch (error) {
+      console.error("Error fetching latest job card:", error);
+      return job;
+    }
+  };
+
   const handleInvoiceClient = async (job) => {
-    setSelectedJobForInvoice(job);
+    const latestJob = await fetchLatestJobCard(job);
+    setSelectedJobForInvoice(latestJob);
     setGeneratedInvoice(null);
     setStoredInvoiceRecord(null);
     setSelectedCostCenterInfo(null);
     // Pre-fill form with available job data
     setInvoiceFormData({
-      clientName: job.customer_name || "",
-      clientEmail: job.customer_email || "",
-      clientPhone: job.customer_phone || "",
-      clientAddress: job.customer_address || "",
+      clientName: latestJob.customer_name || "",
+      clientEmail: latestJob.customer_email || "",
+      clientPhone: latestJob.customer_phone || "",
+      clientAddress: latestJob.customer_address || "",
       paymentTerms: "30 days",
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
         .toISOString()
@@ -342,6 +360,7 @@ export default function AccountsContent({ activeSection }) {
 
   const handleViewStoredInvoice = async (job) => {
     try {
+      const latestJob = await fetchLatestJobCard(job);
       const response = await fetch(
         `/api/invoices/job-card?jobCardId=${encodeURIComponent(job.id)}`,
       );
@@ -354,36 +373,36 @@ export default function AccountsContent({ activeSection }) {
       const invoice = result?.invoice;
 
       if (!invoice) {
-        handleInvoiceClient(job);
+        handleInvoiceClient(latestJob);
         toast.error("No stored invoice found yet. Generate the invoice first.");
         return;
       }
 
-      setSelectedJobForInvoice(job);
+      setSelectedJobForInvoice(latestJob);
       setStoredInvoiceRecord(invoice);
       setSelectedCostCenterInfo(null);
       setGeneratedInvoice({
         invoiceNumber: invoice.invoice_number,
-        jobNumber: invoice.job_number || job.job_number,
+        jobNumber: invoice.job_number || latestJob.job_number,
         generatedAt: invoice.invoice_date,
         pdfUrl: invoice.pdf_url || `#invoice-${invoice.invoice_number}`,
         invoiceId: invoice.id,
         clientInfo: {
-          clientName: invoice.client_name || job.customer_name || "",
-          clientEmail: invoice.client_email || job.customer_email || "",
-          clientPhone: invoice.client_phone || job.customer_phone || "",
-          clientAddress: invoice.client_address || job.customer_address || "",
+          clientName: invoice.client_name || latestJob.customer_name || "",
+          clientEmail: invoice.client_email || latestJob.customer_email || "",
+          clientPhone: invoice.client_phone || latestJob.customer_phone || "",
+          clientAddress: invoice.client_address || latestJob.customer_address || "",
           dueDate: invoice.due_date || "",
         },
       });
       setInvoiceFormData({
-        clientName: invoice.client_name || job.customer_name || "",
-        clientEmail: invoice.client_email || job.customer_email || "",
-        clientPhone: invoice.client_phone || job.customer_phone || "",
-        clientAddress: invoice.client_address || job.customer_address || "",
+        clientName: invoice.client_name || latestJob.customer_name || "",
+        clientEmail: invoice.client_email || latestJob.customer_email || "",
+        clientPhone: invoice.client_phone || latestJob.customer_phone || "",
+        clientAddress: invoice.client_address || latestJob.customer_address || "",
         paymentTerms: invoice.payment_terms || "30 days",
         dueDate: invoice.due_date || "",
-        notes: invoice.notes || "",
+        notes: invoice.notes || latestJob.special_instructions || "",
       });
       setShowInvoiceModal(true);
     } catch (error) {
@@ -1194,6 +1213,7 @@ export default function AccountsContent({ activeSection }) {
         : "N/A";
 
     const invoiceNumber =
+      selectedJobForInvoice.order_number ||
       storedInvoiceRecord?.invoice_number ||
       generatedInvoice?.invoiceNumber ||
       "PENDING";
@@ -1201,6 +1221,7 @@ export default function AccountsContent({ activeSection }) {
       storedInvoiceRecord?.invoice_date ||
       generatedInvoice?.generatedAt ||
       COMPLETED_JOB_INVOICE_DATE;
+    const orderNumber = selectedJobForInvoice.order_number || "N/A";
 
     const rows = rawTotals.products.length > 0
         ? rawTotals.products.flatMap((product, index) => {
@@ -1279,6 +1300,7 @@ export default function AccountsContent({ activeSection }) {
     return {
       invoiceNumber,
       invoiceDate: formatDate(invoiceDate),
+      orderNumber,
       clientName:
         storedInvoiceRecord?.client_name ||
         invoiceFormData.clientName ||
@@ -1415,6 +1437,10 @@ export default function AccountsContent({ activeSection }) {
                 <div class="invoice-meta-row">
                   <div class="label">Date:</div>
                   <div>${escapeHtml(invoiceView.invoiceDate)}</div>
+                </div>
+                <div class="invoice-meta-row">
+                  <div class="label">Order Number:</div>
+                  <div>${escapeHtml(invoiceView.orderNumber)}</div>
                 </div>
               </div>
             </div>
