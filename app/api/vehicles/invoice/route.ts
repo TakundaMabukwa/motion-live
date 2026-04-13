@@ -420,6 +420,27 @@ const getBillingCutoff = (billingMonth: string | null) => {
   return '2026-03-30T23:59:59.999Z';
 };
 
+const normalizeLockCutoff = (value: string | null) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+};
+
+const getEffectiveVehicleCutoff = (billingCutoff: string | null, lockCutoff: string | null) => {
+  if (!billingCutoff) return lockCutoff;
+  if (!lockCutoff) return billingCutoff;
+
+  return new Date(lockCutoff).getTime() < new Date(billingCutoff).getTime()
+    ? lockCutoff
+    : billingCutoff;
+};
+
 const getEpsCategoryLabel = (groupCode: string) => {
   const group = EPS_GROUP_BY_CODE.get(groupCode);
   return group?.name || groupCode;
@@ -678,11 +699,9 @@ export async function GET(request: NextRequest) {
     const sourceAccountNumber =
       String(searchParams.get('sourceAccountNumber') || accountNumber || '').trim();
     const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
+    const lockCutoffAt = normalizeLockCutoff(searchParams.get('lockCutoffAt'));
     const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
     const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
-    const shouldUseEpsGrouping =
-      String(accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT &&
-      sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT;
     const isEpsCostCenterRequest =
       String(accountNumber || '').trim().toUpperCase().startsWith('EPSC-') ||
       String(sourceAccountNumber || '').trim().toUpperCase().startsWith('EPSC-');
@@ -723,6 +742,11 @@ export async function GET(request: NextRequest) {
     }
 
     const costCenter = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
+    const shouldUseEpsGrouping =
+      String(accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT &&
+      sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT &&
+      Boolean(includeGroupSummaries || billingGroup) &&
+      !Boolean(costCenter?.total_amount_locked);
 
     // Fetch all vehicle fields
     const sourceAccountsForVehicles =
@@ -740,9 +764,14 @@ export async function GET(request: NextRequest) {
       .select('*')
       .or(vehicleAccountFilters.join(','));
 
-    const billingCutoff = isEpsCostCenterRequest ? null : getBillingCutoff(billingMonth);
-    if (billingCutoff) {
-      vehiclesQuery = vehiclesQuery.lte('created_at', billingCutoff);
+    if (Boolean(costCenter?.total_amount_locked)) {
+      vehiclesQuery = vehiclesQuery.eq('amount_locked', true);
+    } else {
+      const billingCutoff = isEpsCostCenterRequest ? null : getBillingCutoff(billingMonth);
+      const vehicleCutoff = getEffectiveVehicleCutoff(billingCutoff, lockCutoffAt);
+      if (vehicleCutoff) {
+        vehiclesQuery = vehiclesQuery.lte('created_at', vehicleCutoff);
+      }
     }
 
     const { data: vehicles, error } = await vehiclesQuery;

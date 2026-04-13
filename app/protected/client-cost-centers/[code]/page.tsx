@@ -67,12 +67,6 @@ const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
   invoiceItems: storedInvoice?.invoiceItems || [],
 });
 
-const isEpsCostCenterInvoice = (invoiceLike) => {
-  const accountNumber = String(invoiceLike?.account_number || '').trim().toUpperCase();
-  const sourceAccountNumber = String(invoiceLike?.source_account_number || '').trim().toUpperCase();
-  return accountNumber.startsWith('EPSC-') || sourceAccountNumber.startsWith('EPSC-');
-};
-
 const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
   if (!invoiceData) return null;
 
@@ -88,13 +82,61 @@ const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
   };
 };
 
-const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice) => {
+const shouldUseStoredInvoiceSnapshot = (storedBulkInvoice) => {
+  return Boolean(storedBulkInvoice?.invoice_locked);
+};
+
+const getEffectiveInvoiceLockState = (costCenter) => {
+  const invoiceData = costCenter?.invoiceData || null;
+  const costCenterInfo = costCenter?.costCenterInfo || null;
+
+  if (Boolean(invoiceData?.invoice_locked)) {
+    return {
+      locked: true,
+      source: 'invoice',
+      lockedByEmail: invoiceData?.invoice_locked_by_email || null,
+      lockedAt: invoiceData?.invoice_locked_at || null,
+      lockedAmount: Number(
+        invoiceData?.total_amount ??
+          invoiceData?.totalAmount ??
+          invoiceData?.subtotal ??
+          0,
+      ),
+      billingMonth:
+        String(invoiceData?.billing_month || costCenter?.billingMonth || '').trim() || null,
+    };
+  }
+
+  if (Boolean(costCenterInfo?.total_amount_locked)) {
+    return {
+      locked: true,
+      source: 'cost_center',
+      lockedByEmail: costCenterInfo?.total_amount_locked_by_email || null,
+      lockedAt: costCenterInfo?.total_amount_locked_at || null,
+      lockedAmount: Number(costCenterInfo?.total_amount_locked_value ?? 0),
+      billingMonth:
+        String(invoiceData?.billing_month || costCenter?.billingMonth || '').trim() || null,
+    };
+  }
+
+  return {
+    locked: false,
+    source: null,
+    lockedByEmail: null,
+    lockedAt: null,
+    lockedAmount: null,
+    billingMonth:
+      String(invoiceData?.billing_month || costCenter?.billingMonth || '').trim() || null,
+  };
+};
+
+const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice, _costCenterInfo = null) => {
   const normalizedStored = normalizeStoredBulkInvoiceForPreview(storedBulkInvoice);
   if (!normalizedStored) {
     return liveInvoiceData || null;
   }
 
-  if (normalizedStored.invoice_locked && !isEpsCostCenterInvoice(normalizedStored) && !isEpsCostCenterInvoice(liveInvoiceData)) {
+  if (shouldUseStoredInvoiceSnapshot(normalizedStored)) {
     return buildLockedInvoiceSnapshot(normalizedStored, liveInvoiceData || null);
   }
 
@@ -113,6 +155,42 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
     invoice_locked_at: normalizedStored.invoice_locked_at || null,
     invoice_locked_by_email: normalizedStored.invoice_locked_by_email || null,
   };
+};
+
+const applyCostCenterLockedTotals = (invoiceData, costCenterInfo) => {
+  if (!invoiceData || !Boolean(costCenterInfo?.total_amount_locked)) {
+    return invoiceData;
+  }
+
+  const lockedExVat = Number(costCenterInfo?.total_amount_locked_value ?? 0);
+  if (!(lockedExVat > 0)) {
+    return invoiceData;
+  }
+
+  const vatAmount = Number((lockedExVat * 0.15).toFixed(2));
+  const totalAmount = Number((lockedExVat + vatAmount).toFixed(2));
+
+  return {
+    ...invoiceData,
+    subtotal: lockedExVat,
+    vat_amount: vatAmount,
+    total_amount: totalAmount,
+    discount_amount: Number(invoiceData?.discount_amount || 0),
+  };
+};
+
+const appendInvoiceLockCutoff = (query, costCenterInfo, storedBulkInvoice = null) => {
+  if (Boolean(storedBulkInvoice?.invoice_locked)) {
+    return query;
+  }
+
+  const lockCutoffAt = String(costCenterInfo?.total_amount_locked_at || '').trim();
+  if (!lockCutoffAt) {
+    return query;
+  }
+
+  query.set('lockCutoffAt', lockCutoffAt);
+  return query;
 };
 
 export default function ClientCostCentersPage() {
@@ -741,6 +819,8 @@ export default function ClientCostCentersPage() {
         }
 
         try {
+          const rowCostCenterInfo = row?.costCenterInfo || (await fetchCostCenterInfo(row.accountNumber));
+          appendInvoiceLockCutoff(invoiceQuery, rowCostCenterInfo);
           const [bulkInvoiceResponse, invoiceResponse, paymentResponse, historyResponse] = await Promise.all([
             fetch(
               `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
@@ -1457,6 +1537,16 @@ export default function ClientCostCentersPage() {
     return result;
   };
 
+  const selectedInvoiceEffectiveLock = selectedCostCenterForInvoice
+    ? getEffectiveInvoiceLockState(selectedCostCenterForInvoice)
+    : {
+        locked: false,
+        source: null,
+        lockedByEmail: null,
+        lockedAt: null,
+        billingMonth: null,
+      };
+
   // Fetch payments data for each cost center
   const fetchPaymentsForCostCenters = async (costCenters) => {
     try {
@@ -1849,13 +1939,14 @@ export default function ClientCostCentersPage() {
       invoiceQuery.set('billingMonth', costCenter.billingMonth);
     }
 
+    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+    appendInvoiceLockCutoff(invoiceQuery, costCenterInfo, bulkInvoice);
+
     const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
     if (invoiceResponse.ok) {
       const invoicePayload = await invoiceResponse.json();
       invoiceData = invoicePayload?.invoiceData || null;
     }
-
-    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
     const reportCostCenter = {
       ...costCenter,
       paymentData: payment,
@@ -1890,16 +1981,19 @@ export default function ClientCostCentersPage() {
       query.set('billingGroup', costCenter.invoiceGroup);
     }
 
-    const [bulkInvoiceResponse, invoiceResponse] = await Promise.all([
-      fetch(`/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(targetBillingMonth)}`),
-      fetch(`/api/vehicles/invoice?${query.toString()}`),
-    ]);
-
     let bulkInvoice = null;
+    const bulkInvoiceResponse = await fetch(
+      `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(targetBillingMonth)}`,
+    );
     if (bulkInvoiceResponse.ok) {
       const bulkInvoicePayload = await bulkInvoiceResponse.json();
       bulkInvoice = bulkInvoicePayload?.invoice || null;
     }
+
+    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+    appendInvoiceLockCutoff(query, costCenterInfo, bulkInvoice);
+
+    const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
 
     let liveInvoiceData = null;
     if (invoiceResponse.ok) {
@@ -1908,7 +2002,10 @@ export default function ClientCostCentersPage() {
     }
 
     const invoiceData = normalizeBatchInvoiceAllInvoiceData(
-      mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice),
+      applyCostCenterLockedTotals(
+        mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice, costCenterInfo),
+        costCenterInfo,
+      ),
     );
     if (!invoiceData) {
       throw new Error('No vehicle data found for this account');
@@ -1921,8 +2018,6 @@ export default function ClientCostCentersPage() {
           invoice_date: BULK_INVOICE_ALL_DATE,
         })
       : null;
-
-    const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
     const reportCostCenter = {
       ...costCenter,
       billingMonth: targetBillingMonth,
@@ -3813,6 +3908,9 @@ export default function ClientCostCentersPage() {
         invoiceQuery.set('billingMonth', costCenter.billingMonth);
       }
 
+      const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+      appendInvoiceLockCutoff(invoiceQuery, costCenterInfo, bulkInvoice);
+
       const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
       if (invoiceResponse.ok) {
         const invoicePayload = await invoiceResponse.json();
@@ -3826,6 +3924,7 @@ export default function ClientCostCentersPage() {
         invoiceHistory,
         paymentHistory,
         bulkInvoice,
+        costCenterInfo,
       });
       setSelectedStatementVariant(variant);
       setShowDueReport(true);
@@ -4127,7 +4226,14 @@ export default function ClientCostCentersPage() {
           ? {
               ...prev,
               bulkInvoice: lockedInvoice,
-              invoiceData: mergeLiveInvoiceWithStoredBulkInvoice(prev.invoiceData || null, lockedInvoice),
+              invoiceData: applyCostCenterLockedTotals(
+                mergeLiveInvoiceWithStoredBulkInvoice(
+                  prev.invoiceData || null,
+                  lockedInvoice,
+                  prev.costCenterInfo || null,
+                ),
+                prev.costCenterInfo || null,
+              ),
             }
           : prev,
       );
@@ -4153,11 +4259,15 @@ export default function ClientCostCentersPage() {
       return;
     }
 
-    if (selectedCostCenterForInvoice?.invoiceData?.invoice_locked && !canAdminRebuildInvoice) {
+    const effectiveLock = getEffectiveInvoiceLockState(selectedCostCenterForInvoice);
+    if (effectiveLock.locked && !canAdminRebuildInvoice) {
       toast({
         variant: 'destructive',
         title: 'Invoice Rebuild Blocked',
-        description: 'Locked invoices must keep the stored invoice snapshot.',
+        description:
+          effectiveLock.source === 'cost_center'
+            ? 'This cost center is locked and the invoice is frozen to vehicles captured up to the lock time.'
+            : 'Locked invoices must keep the stored invoice snapshot.',
       });
       return;
     }
@@ -4181,6 +4291,11 @@ export default function ClientCostCentersPage() {
       if (selectedCostCenterForInvoice.invoiceGroup) {
         invoiceQuery.set('billingGroup', selectedCostCenterForInvoice.invoiceGroup);
       }
+      appendInvoiceLockCutoff(
+        invoiceQuery,
+        selectedCostCenterForInvoice?.costCenterInfo || null,
+        selectedCostCenterForInvoice?.bulkInvoice || null,
+      );
 
       const response = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`, {
         cache: 'no-store',
@@ -4228,7 +4343,14 @@ export default function ClientCostCentersPage() {
 
       const persistedInvoice = normalizeStoredBulkInvoiceForPreview(persistPayload.invoice);
       const mergedInvoiceData = normalizeBatchInvoiceAllInvoiceData(
-        mergeLiveInvoiceWithStoredBulkInvoice(rebuiltInvoiceData, persistedInvoice),
+        applyCostCenterLockedTotals(
+          mergeLiveInvoiceWithStoredBulkInvoice(
+            rebuiltInvoiceData,
+            persistedInvoice,
+            selectedCostCenterForInvoice?.costCenterInfo || null,
+          ),
+          selectedCostCenterForInvoice?.costCenterInfo || null,
+        ),
       );
 
       setSelectedCostCenterForInvoice((prev) =>
@@ -4846,13 +4968,17 @@ export default function ClientCostCentersPage() {
           ...prev,
           billingMonth: lockedInvoice.billing_month || targetBillingMonth,
           bulkInvoice: lockedInvoice,
-          invoiceData: mergeLiveInvoiceWithStoredBulkInvoice(
-            {
-              ...(prev.invoiceData || {}),
-              billing_month: lockedInvoice.billing_month || targetBillingMonth,
-              invoice_date: BULK_INVOICE_ALL_DATE,
-            },
-            lockedInvoice,
+          invoiceData: applyCostCenterLockedTotals(
+            mergeLiveInvoiceWithStoredBulkInvoice(
+              {
+                ...(prev.invoiceData || {}),
+                billing_month: lockedInvoice.billing_month || targetBillingMonth,
+                invoice_date: BULK_INVOICE_ALL_DATE,
+              },
+              lockedInvoice,
+              prev.costCenterInfo || null,
+            ),
+            prev.costCenterInfo || null,
           ),
         };
       });
@@ -6354,13 +6480,19 @@ export default function ClientCostCentersPage() {
                 <h3 className="font-semibold text-gray-900 text-xl">
                   Invoice - {selectedCostCenterForInvoice.accountName || selectedCostCenterForInvoice.company || clientLegalName || selectedCostCenterForInvoice.accountNumber}
                 </h3>
-                {selectedCostCenterForInvoice?.invoiceData?.invoice_locked && (
-                  <p className="mt-1 text-sm text-blue-700">
-                    Locked for {String(selectedCostCenterForInvoice?.invoiceData?.billing_month || selectedCostCenterForInvoice?.billingMonth || '').slice(0, 7)}
-                    {selectedCostCenterForInvoice?.invoiceData?.invoice_locked_by_email
-                      ? ` by ${selectedCostCenterForInvoice.invoiceData.invoice_locked_by_email}`
+                {selectedInvoiceEffectiveLock.locked && (
+                  <div className="mt-1 text-sm text-blue-700">
+                    Locked for {String(selectedInvoiceEffectiveLock.billingMonth || '').slice(0, 7)}
+                    {selectedInvoiceEffectiveLock.lockedByEmail
+                      ? ` by ${selectedInvoiceEffectiveLock.lockedByEmail}`
                       : ''}
-                  </p>
+                    {selectedInvoiceEffectiveLock.source === 'cost_center'
+                      ? ' via cost center lock'
+                      : ''}
+                    {selectedInvoiceEffectiveLock.lockedAmount !== null
+                      ? ` | Amount: ${formatCurrency(Number(selectedInvoiceEffectiveLock.lockedAmount || 0))}`
+                      : ''}
+                  </div>
                 )}
               </div>
               <Button
@@ -6387,7 +6519,7 @@ export default function ClientCostCentersPage() {
                     {canAdminRebuildInvoice && (
                       <Button
                         onClick={handleRebuildInvoiceFromVehicles}
-                        disabled={isRebuildingInvoiceFromVehicles}
+                        disabled={isRebuildingInvoiceFromVehicles || (selectedInvoiceEffectiveLock.locked && !canAdminRebuildInvoice)}
                         variant="outline"
                         className="flex items-center gap-2"
                       >
@@ -6398,12 +6530,12 @@ export default function ClientCostCentersPage() {
                     )}
                     <Button
                       onClick={handleLockInvoiceReport}
-                      disabled={isLockingInvoice || Boolean(selectedCostCenterForInvoice?.invoiceData?.invoice_locked)}
+                      disabled={isLockingInvoice || selectedInvoiceEffectiveLock.locked}
                       className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white"
                     >
                       {isLockingInvoice
                         ? 'Locking...'
-                        : selectedCostCenterForInvoice?.invoiceData?.invoice_locked
+                        : selectedInvoiceEffectiveLock.locked
                           ? 'Invoice Locked'
                           : 'Lock Invoice'}
                     </Button>

@@ -6,6 +6,62 @@ const normalizeCode = (value: unknown) =>
     .trim()
     .toUpperCase();
 
+type CostCenterRow = {
+  total_amount_locked_by?: string | null;
+  [key: string]: unknown;
+};
+
+type UserRow = {
+  id: string;
+  email: string | null;
+};
+
+async function attachLockedByEmails(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: CostCenterRow[] = [],
+) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+
+  const userIds = [
+    ...new Set(
+      rows
+        .map((row) => row?.total_amount_locked_by)
+        .filter((value) => typeof value === 'string' && value.trim().length > 0),
+    ),
+  ];
+
+  if (userIds.length === 0) {
+    return rows.map((row) => ({
+      ...row,
+      total_amount_locked_by_email: null,
+    }));
+  }
+
+  const { data: userRows, error } = await supabase
+    .from('users')
+    .select('id, email')
+    .in('id', userIds);
+
+  if (error) {
+    console.error('Error fetching cost center lock owner emails:', error);
+    return rows.map((row) => ({
+      ...row,
+      total_amount_locked_by_email: null,
+    }));
+  }
+
+  const emailMap = Object.fromEntries(
+    ((userRows || []) as UserRow[]).map((user) => [user.id, user.email || null]),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    total_amount_locked_by_email: row?.total_amount_locked_by
+      ? emailMap[row.total_amount_locked_by] || null
+      : null,
+  }));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -60,7 +116,7 @@ export async function GET(request: NextRequest) {
         .filter(Boolean),
     )];
 
-    let prefixCostCenters: any[] = [];
+    let prefixCostCenters: CostCenterRow[] = [];
 
     if (prefixes.length > 0) {
       const prefixQueries = prefixes.map((prefix) => `cost_code.ilike.${prefix}-%`);
@@ -77,7 +133,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const costCentersByCode = new Map<string, any>();
+    const costCentersByCode = new Map<string, CostCenterRow>();
     for (const center of [...(exactCostCenters || []), ...prefixCostCenters]) {
       const normalizedCode = normalizeCode(center?.cost_code);
       if (!normalizedCode) continue;
@@ -137,14 +193,21 @@ export async function GET(request: NextRequest) {
         cost_code: missingCode,
         validated: false,
         legal_name: fallbackLegalName || fallbackCompany || '',
+        total_amount_locked: false,
+        total_amount_locked_value: null,
+        total_amount_locked_by: null,
+        total_amount_locked_at: null,
+        total_amount_locked_by_email: null,
       });
     }
+
+    const enrichedCostCenters = await attachLockedByEmails(supabase, filledCostCenters);
 
     console.log(`Found ${costCenters?.length || 0} real cost centers and ${missingCodes.length} fallback cost centers for account numbers:`, accountNumbers);
 
     return NextResponse.json({ 
       success: true,
-      costCenters: filledCostCenters,
+      costCenters: enrichedCostCenters,
       accountNumbers: accountNumbers,
       matchedCount: costCenters?.length || 0,
       requestedCount: accountNumbers.length,

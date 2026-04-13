@@ -928,7 +928,8 @@ export default function ValidateVehiclesPage() {
         setInvoicePreviewCostCenter(previewPayload);
         setShowInvoicePreview(true);
 
-        try {
+        if (!Boolean(storedInvoice?.invoice_locked)) {
+          try {
           const persistResponse = await fetch("/api/invoices/bulk-account", {
             method: "POST",
             headers: {
@@ -1026,11 +1027,12 @@ export default function ValidateVehiclesPage() {
               persistResult?.error || persistResponse.statusText,
             );
           }
-        } catch (persistError) {
-          console.warn(
-            "Failed to persist live invoice preview for FC validate page:",
-            persistError,
-          );
+          } catch (persistError) {
+            console.warn(
+              "Failed to persist live invoice preview for FC validate page:",
+              persistError,
+            );
+          }
         }
       }
 
