@@ -1213,7 +1213,6 @@ export default function AccountsContent({ activeSection }) {
         : "N/A";
 
     const invoiceNumber =
-      selectedJobForInvoice.order_number ||
       storedInvoiceRecord?.invoice_number ||
       generatedInvoice?.invoiceNumber ||
       "PENDING";
