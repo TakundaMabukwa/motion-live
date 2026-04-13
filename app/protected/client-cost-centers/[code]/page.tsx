@@ -1589,6 +1589,101 @@ export default function ClientCostCentersPage() {
     }
   };
 
+  const reconcileCostCentersWithInvoiceRule = async (costCenters) => {
+    try {
+      const updatedCostCenters = await Promise.all(
+        costCenters.map(async (costCenter) => {
+          try {
+            const billingMonth = String(
+              costCenter?.billingMonth || ACCOUNTS_INVOICE_BILLING_MONTH,
+            ).trim() || ACCOUNTS_INVOICE_BILLING_MONTH;
+            const costCenterInfo =
+              costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
+
+            const bulkResponse = await fetch(
+              `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(billingMonth)}`,
+            );
+
+            let bulkInvoice = null;
+            if (bulkResponse.ok) {
+              const bulkPayload = await bulkResponse.json();
+              bulkInvoice = bulkPayload?.invoice || null;
+            }
+
+            const invoiceQuery = new URLSearchParams({
+              accountNumber: costCenter.accountNumber,
+              billingMonth,
+            });
+
+            if (costCenter.sourceAccountNumber) {
+              invoiceQuery.set('sourceAccountNumber', costCenter.sourceAccountNumber);
+            }
+            if (costCenter.invoiceGroup) {
+              invoiceQuery.set('billingGroup', costCenter.invoiceGroup);
+            }
+
+            appendInvoiceLockCutoff(invoiceQuery, costCenterInfo, bulkInvoice);
+
+            const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
+            let liveInvoiceData = null;
+            if (invoiceResponse.ok) {
+              const invoicePayload = await invoiceResponse.json();
+              liveInvoiceData = invoicePayload?.invoiceData || null;
+            }
+
+            const mergedInvoiceData = normalizeBatchInvoiceAllInvoiceData(
+              applyCostCenterLockedTotals(
+                mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice, costCenterInfo),
+                costCenterInfo,
+              ),
+            );
+
+            if (!mergedInvoiceData) {
+              return {
+                ...costCenter,
+                costCenterInfo,
+              };
+            }
+
+            const totalAmount = Number(
+              mergedInvoiceData?.total_amount ??
+                mergedInvoiceData?.subtotal ??
+                costCenter?.dueAmount ??
+                0,
+            );
+
+            return {
+              ...costCenter,
+              costCenterInfo,
+              bulkInvoice,
+              invoiceData: mergedInvoiceData,
+              dueAmount: totalAmount,
+              balanceDue: totalAmount,
+              monthlyAmount: totalAmount,
+              amountDue: totalAmount,
+              outstandingBalance: totalAmount,
+              reference:
+                mergedInvoiceData?.invoice_number ||
+                bulkInvoice?.invoice_number ||
+                costCenter?.reference ||
+                '',
+              billingMonth,
+              invoiceDate: mergedInvoiceData?.invoice_date || costCenter?.invoiceDate || null,
+            };
+          } catch (error) {
+            console.error(`Error reconciling invoice totals for ${costCenter.accountNumber}:`, error);
+            return costCenter;
+          }
+        }),
+      );
+
+      return updatedCostCenters;
+    } catch (error) {
+      console.error('Error reconciling cost centers with invoice rule:', error);
+      return costCenters;
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -3844,7 +3939,9 @@ export default function ClientCostCentersPage() {
       const costCenters = groupByCostCenter(filteredCostCenters);
       console.log('Grouped cost centers:', costCenters.length);
       if (clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api' || clientData?.searchMethod === 'cost_centers_with_payments') {
-        setCostCentersWithPayments(costCenters);
+        reconcileCostCentersWithInvoiceRule(costCenters).then((reconciledCostCenters) => {
+          setCostCentersWithPayments(reconciledCostCenters);
+        });
       } else {
         fetchPaymentsForCostCenters(costCenters).then(result => {
           console.log('Final cost centers with payments:', result.length);
