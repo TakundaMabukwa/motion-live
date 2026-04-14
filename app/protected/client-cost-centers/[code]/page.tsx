@@ -27,6 +27,12 @@ const formatBillingMonthInput = (value) => {
   return raw ? raw.slice(0, 7) : '';
 };
 
+const getTodayDateInputValue = () => {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+};
+
 const normalizeBillingMonthValue = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -218,6 +224,7 @@ export default function ClientCostCentersPage() {
   const [creditNoteDetails, setCreditNoteDetails] = useState(null);
   const [enteredAmount, setEnteredAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
+  const [paymentDate, setPaymentDate] = useState(getTodayDateInputValue());
   const [creditNoteBillingMonth, setCreditNoteBillingMonth] = useState(ACCOUNTS_INVOICE_BILLING_MONTH);
   const [creditNoteAmount, setCreditNoteAmount] = useState('');
   const [creditNoteReference, setCreditNoteReference] = useState('');
@@ -233,6 +240,7 @@ export default function ClientCostCentersPage() {
   const [clientLegalName, setClientLegalName] = useState('');
   const [selectedCostCenters, setSelectedCostCenters] = useState([]);
   const [payAllReference, setPayAllReference] = useState('');
+  const [bulkPaymentDate, setBulkPaymentDate] = useState(getTodayDateInputValue());
   const [bulkInvoiceSelections, setBulkInvoiceSelections] = useState({});
   const [selectedBulkPaymentTab, setSelectedBulkPaymentTab] = useState('current');
   const [generatingReport, setGeneratingReport] = useState({});
@@ -269,6 +277,9 @@ export default function ClientCostCentersPage() {
   });
   const [loggedInUserEmail, setLoggedInUserEmail] = useState('');
   const latestLoadKeyRef = useRef('');
+  const costCenterInfoRequestCacheRef = useRef(new Map());
+  const bulkInvoiceRequestCacheRef = useRef(new Map());
+  const liveInvoiceRequestCacheRef = useRef(new Map());
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
   const canAdminRebuildInvoice =
@@ -314,6 +325,64 @@ export default function ClientCostCentersPage() {
     setSelectedCostCenters([]);
     setBulkInvoiceSelections({});
     setSearchTerm('');
+  };
+
+  const runDedupedRequest = async (cacheRef, key, factory) => {
+    const existingRequest = cacheRef.current.get(key);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const requestPromise = (async () => {
+      try {
+        return await factory();
+      } finally {
+        cacheRef.current.delete(key);
+      }
+    })();
+
+    cacheRef.current.set(key, requestPromise);
+    return requestPromise;
+  };
+
+  const fetchBulkInvoiceData = async (accountNumber, billingMonth = '') => {
+    const normalizedAccountNumber = String(accountNumber || '').trim().toUpperCase();
+    const normalizedBillingMonth = String(billingMonth || '').trim();
+    const cacheKey = `${normalizedAccountNumber}::${normalizedBillingMonth}`;
+
+    return runDedupedRequest(bulkInvoiceRequestCacheRef, cacheKey, async () => {
+      const response = await fetch(
+        `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(normalizedAccountNumber)}${
+          normalizedBillingMonth ? `&billingMonth=${encodeURIComponent(normalizedBillingMonth)}` : ''
+        }`,
+      );
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = await response.json();
+      return payload?.invoice || null;
+    });
+  };
+
+  const fetchLiveInvoiceData = async (query) => {
+    const queryString =
+      query instanceof URLSearchParams ? query.toString() : String(query || '').trim();
+
+    if (!queryString) {
+      return null;
+    }
+
+    return runDedupedRequest(liveInvoiceRequestCacheRef, queryString, async () => {
+      const response = await fetch(`/api/vehicles/invoice?${queryString}`);
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = await response.json();
+      return payload?.invoiceData || null;
+    });
   };
 
   const buildCostCenterInfoMap = async (accountNumbers) => {
@@ -1616,18 +1685,12 @@ export default function ClientCostCentersPage() {
             const billingMonth = String(
               costCenter?.billingMonth || ACCOUNTS_INVOICE_BILLING_MONTH,
             ).trim() || ACCOUNTS_INVOICE_BILLING_MONTH;
-            const costCenterInfo =
-              costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
-
-            const bulkResponse = await fetch(
-              `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}&billingMonth=${encodeURIComponent(billingMonth)}`,
-            );
-
-            let bulkInvoice = null;
-            if (bulkResponse.ok) {
-              const bulkPayload = await bulkResponse.json();
-              bulkInvoice = bulkPayload?.invoice || null;
-            }
+            const [costCenterInfo, bulkInvoice] = await Promise.all([
+              costCenter?.costCenterInfo
+                ? Promise.resolve(costCenter.costCenterInfo)
+                : fetchCostCenterInfo(costCenter.accountNumber),
+              fetchBulkInvoiceData(costCenter.accountNumber, billingMonth),
+            ]);
 
             const invoiceQuery = new URLSearchParams({
               accountNumber: costCenter.accountNumber,
@@ -1643,12 +1706,9 @@ export default function ClientCostCentersPage() {
 
             appendInvoiceLockCutoff(invoiceQuery, costCenterInfo, bulkInvoice);
 
-            const invoiceResponse = await fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`);
-            let liveInvoiceData = null;
-            if (invoiceResponse.ok) {
-              const invoicePayload = await invoiceResponse.json();
-              liveInvoiceData = invoicePayload?.invoiceData || null;
-            }
+            const liveInvoiceData = bulkInvoice
+              ? null
+              : await fetchLiveInvoiceData(invoiceQuery);
 
             const mergedInvoiceData = normalizeBatchInvoiceAllInvoiceData(
               applyCostCenterLockedTotals(
@@ -1980,25 +2040,35 @@ export default function ClientCostCentersPage() {
   };
 
   const fetchCostCenterInfo = async (accountNumber) => {
-    const response = await fetch(
-      `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`,
-    );
-
-    if (!response.ok) {
+    const normalizedAccountNumber = String(accountNumber || '').trim().toUpperCase();
+    if (!normalizedAccountNumber) {
       return null;
     }
 
-    const result = await response.json();
-    if (!Array.isArray(result?.costCenters)) {
-      return null;
-    }
+    return runDedupedRequest(
+      costCenterInfoRequestCacheRef,
+      normalizedAccountNumber,
+      async () => {
+        const response = await fetch(
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(normalizedAccountNumber)}`,
+        );
 
-    return (
-      result.costCenters.find(
-        (item) =>
-          String(item?.cost_code || '').trim().toUpperCase() ===
-          String(accountNumber || '').trim().toUpperCase(),
-      ) || result.costCenters[0] || null
+        if (!response.ok) {
+          return null;
+        }
+
+        const result = await response.json();
+        if (!Array.isArray(result?.costCenters)) {
+          return null;
+        }
+
+        return (
+          result.costCenters.find(
+            (item) =>
+              String(item?.cost_code || '').trim().toUpperCase() === normalizedAccountNumber,
+          ) || result.costCenters[0] || null
+        );
+      },
     );
   };
 
@@ -2698,6 +2768,7 @@ export default function ClientCostCentersPage() {
     });
     setEnteredAmount('');
     setPaymentReference('');
+    setPaymentDate(getTodayDateInputValue());
     setOpenInvoicesForPayment([]);
     setSelectedPaymentInvoiceId(null);
     setShowPaymentModal(true);
@@ -2931,6 +3002,7 @@ export default function ClientCostCentersPage() {
     })));
     setBulkInvoiceSelections({});
     setPayAllReference('');
+    setBulkPaymentDate(getTodayDateInputValue());
     setSelectedBulkPaymentTab('current');
     
     setShowPayAllModal(true);
@@ -2982,12 +3054,13 @@ export default function ClientCostCentersPage() {
             accountNumber: allocation.accountNumber,
             accountInvoiceId: allocation.accountInvoiceId,
             billingMonth: allocation.billingMonth,
-            amount: allocation.amount,
-            paymentReference: allocation.paymentReference,
-            paymentPeriodType: allocation.paymentPeriodType || selectedBulkPaymentTab,
-          })),
-          paymentReference: payAllReference.trim() || null
-        }),
+                amount: allocation.amount,
+                paymentReference: allocation.paymentReference,
+                paymentPeriodType: allocation.paymentPeriodType || selectedBulkPaymentTab,
+                paymentDate: bulkPaymentDate,
+              })),
+              paymentReference: payAllReference.trim() || null
+            }),
       });
 
       if (!response.ok) {
@@ -3839,6 +3912,7 @@ export default function ClientCostCentersPage() {
             amount: amount,
             paymentReference: paymentReference || `Payment for ${paymentDetails.costCenter.accountNumber}`,
             paymentType: 'cost_center_payment',
+            paymentDate,
             paymentPeriodType: selectedPaymentInvoice?.isOutstandingSummary
               ? 'outstanding'
               : selectedPaymentTab,
@@ -3905,7 +3979,8 @@ export default function ClientCostCentersPage() {
                 billingMonth: costCenter.billingMonth || null,
                 amount: Math.min(amount - totalProcessed, costCenter.balanceDue),
                 paymentReference: paymentReference.trim() || `Bulk payment for ${costCenter.accountNumber}`,
-                paymentType: 'cost_center_payment'
+                paymentType: 'cost_center_payment',
+                paymentDate,
               }),
             });
 
@@ -3955,6 +4030,7 @@ export default function ClientCostCentersPage() {
     setShowPaymentModal(false);
     setPaymentDetails(null);
     setEnteredAmount('');
+    setPaymentDate(getTodayDateInputValue());
   };
 
   const closePaymentModal = () => {
@@ -3962,6 +4038,7 @@ export default function ClientCostCentersPage() {
     setPaymentDetails(null);
     setEnteredAmount('');
     setPaymentReference('');
+    setPaymentDate(getTodayDateInputValue());
     setProcessingPayment(false);
     setOpenInvoicesForPayment([]);
     setLoadingOpenInvoices(false);
@@ -3973,6 +4050,7 @@ export default function ClientCostCentersPage() {
     setShowPayAllModal(false);
     setSelectedCostCenters([]);
     setPayAllReference('');
+    setBulkPaymentDate(getTodayDateInputValue());
     setProcessingPayment(false);
     setBulkInvoiceSelections({});
     setSelectedBulkPaymentTab('current');
@@ -6077,6 +6155,22 @@ export default function ClientCostCentersPage() {
                 </p>
               </div>
 
+              <div className="mb-6">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">
+                  Payment Date
+                </label>
+                <Input
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  disabled={processingPayment}
+                  className="disabled:opacity-50 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-gray-500 text-xs">
+                  This date will be stored on the payment ledger and used as the payment date for this allocation.
+                </p>
+              </div>
+
               {/* Payment Details */}
               <div className="bg-gray-50 mb-6 p-4 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
@@ -6126,6 +6220,12 @@ export default function ClientCostCentersPage() {
                     <span className="font-semibold text-blue-600 text-sm">{paymentReference}</span>
                   </div>
                 )}
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium text-gray-700 text-sm">Payment Date:</span>
+                  <span className="font-semibold text-gray-900 text-sm">
+                    {paymentDate ? new Date(`${paymentDate}T12:00:00Z`).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
                 {paymentDetails.type === 'costCenter' && selectedPaymentInvoice && (
                   <>
                     <div className="flex justify-between items-center mb-2">
@@ -6196,6 +6296,7 @@ export default function ClientCostCentersPage() {
                   onClick={handleConfirmPayment}
                   disabled={
                     !enteredAmount ||
+                    !paymentDate ||
                     getNumericAmount() <= 0 ||
                     processingPayment ||
                     loadingOpenInvoices
@@ -6264,7 +6365,23 @@ export default function ClientCostCentersPage() {
                   onClick={() => setSelectedBulkPaymentTab('outstanding')}
                 >
                   Outstanding
-                </Button>
+                  </Button>
+              </div>
+
+              <div className="mb-6">
+                <label className="block mb-2 font-medium text-gray-700 text-sm">
+                  Payment Date
+                </label>
+                <Input
+                  type="date"
+                  value={bulkPaymentDate}
+                  onChange={(e) => setBulkPaymentDate(e.target.value)}
+                  disabled={processingPayment}
+                  className="disabled:opacity-50 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-gray-500 text-xs">
+                  This date will be saved on each selected payment allocation.
+                </p>
               </div>
 
               {/* Cost Centers Selection */}
@@ -6461,7 +6578,7 @@ export default function ClientCostCentersPage() {
                 </Button>
                 <Button
                   onClick={handlePayAllSubmit}
-                  disabled={processingPayment || getBulkSelectedAllocations().length === 0}
+                  disabled={processingPayment || !bulkPaymentDate || getBulkSelectedAllocations().length === 0}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white disabled:cursor-not-allowed"
                 >
                   {processingPayment ? (

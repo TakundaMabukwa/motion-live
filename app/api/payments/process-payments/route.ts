@@ -199,6 +199,24 @@ const isUuidLike = (value: unknown) =>
     String(value || "").trim(),
   );
 
+const normalizePaymentTimestamp = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return new Date().toISOString();
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw}T12:00:00.000Z`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Invalid payment date");
+  }
+
+  return parsed.toISOString();
+};
+
 const buildOutstandingInvoiceItems = (agingRow: Record<string, unknown>) => {
   const rows = [
     { description: "30 Days Outstanding", amount: Number(agingRow.overdue_30_days || 0) },
@@ -238,6 +256,7 @@ export async function POST(request: NextRequest) {
       notes,
       paymentType,
       paymentPeriodType,
+      paymentDate,
     } = requestBody;
     const normalizedPaymentPeriodType =
       String(paymentPeriodType || "").trim().toLowerCase() === "outstanding"
@@ -245,6 +264,16 @@ export async function POST(request: NextRequest) {
         : "current";
 
     const numericAmount = Number(amount);
+    let normalizedPaymentDate: string;
+    try {
+      normalizedPaymentDate = normalizePaymentTimestamp(paymentDate);
+    } catch (error) {
+      return NextResponse.json(
+        { error: formatUnknownError(error) },
+        { status: 400 },
+      );
+    }
+
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       return NextResponse.json(
         { error: "Amount must be greater than 0" },
@@ -547,7 +576,7 @@ export async function POST(request: NextRequest) {
       invoice_number: invoice.invoice_number,
       payment_reference: finalPaymentReference,
       amount: numericAmount,
-      payment_date: new Date().toISOString(),
+      payment_date: normalizedPaymentDate,
       payment_method: paymentMethod ? String(paymentMethod).trim() : null,
       notes: notes ? String(notes).trim() : null,
       created_by: user?.id || null,
@@ -603,7 +632,7 @@ export async function POST(request: NextRequest) {
       last_payment_reference: insertedPayment.payment_reference,
       fully_paid_at:
         financials.balanceDue <= 0
-          ? invoice.fully_paid_at || new Date().toISOString()
+          ? invoice.fully_paid_at || normalizedPaymentDate
           : null,
     };
 
