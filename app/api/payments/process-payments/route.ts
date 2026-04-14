@@ -2,10 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   applyOutstandingPaymentToBuckets,
+  buildCurrentPaymentAllocationRows,
+  buildOutstandingPaymentAllocationRows,
   defaultDueDate,
   buildDraftPaymentsFromVehicles,
   buildInvoiceFinancials,
-  getOutstandingBucketTotal,
+  getTotalOutstandingDue,
+  insertPaymentAllocations,
   normalizeBillingMonth,
   resolveAccountInvoice,
   upsertPaymentsMirror,
@@ -219,6 +222,7 @@ const normalizePaymentTimestamp = (value: unknown) => {
 
 const buildOutstandingInvoiceItems = (agingRow: Record<string, unknown>) => {
   const rows = [
+    { description: "Current Due", amount: Number(agingRow.current_due || 0) },
     { description: "30 Days Outstanding", amount: Number(agingRow.overdue_30_days || 0) },
     { description: "60 Days Outstanding", amount: Number(agingRow.overdue_60_days || 0) },
     { description: "90 Days Outstanding", amount: Number(agingRow.overdue_90_days || 0) },
@@ -351,7 +355,7 @@ export async function POST(request: NextRequest) {
       }
 
       outstandingAgingRow =
-        (agingRows || []).find((row) => getOutstandingBucketTotal(row) > 0) || null;
+        (agingRows || []).find((row) => getTotalOutstandingDue(row) > 0) || null;
 
       if (outstandingAgingRow) {
         const outstandingBillingMonth =
@@ -391,7 +395,7 @@ export async function POST(request: NextRequest) {
       if (
         normalizedPaymentPeriodType === "outstanding" &&
         outstandingAgingRow &&
-        getOutstandingBucketTotal(outstandingAgingRow) > 0
+        getTotalOutstandingDue(outstandingAgingRow) > 0
       ) {
         const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
           "allocate_document_number",
@@ -415,7 +419,7 @@ export async function POST(request: NextRequest) {
           outstandingAgingRow.company ||
           normalizedAccountNumber;
         const clientAddress = buildAddress(costCenterRow);
-        const totalOutstanding = getOutstandingBucketTotal(outstandingAgingRow);
+        const totalOutstanding = getTotalOutstandingDue(outstandingAgingRow);
         const invoiceItems = buildOutstandingInvoiceItems(outstandingAgingRow);
 
         const { data: insertedInvoice, error: insertError } = await supabase
@@ -597,6 +601,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    try {
+      const allocationRows =
+        normalizedPaymentPeriodType === "outstanding" && outstandingAgingRow
+          ? buildOutstandingPaymentAllocationRows({
+              source: outstandingAgingRow,
+              paymentAmount: numericAmount,
+              common: {
+                paymentId: insertedPayment.id,
+                accountNumber: invoice.account_number,
+                accountInvoiceId: invoice.id,
+                billingMonth:
+                  normalizeBillingMonth(outstandingAgingRow.billing_month) ||
+                  invoice.billing_month,
+                paymentDate: insertedPayment.payment_date,
+                reference: insertedPayment.payment_reference,
+                notes: insertedPayment.notes,
+                createdBy: user?.id || null,
+                createdByEmail: user?.email || null,
+              },
+            })
+          : buildCurrentPaymentAllocationRows({
+              paymentAmount: numericAmount,
+              invoiceTotal: invoice.total_amount,
+              invoicePaidAmount: invoice.paid_amount,
+              common: {
+                paymentId: insertedPayment.id,
+                accountNumber: invoice.account_number,
+                accountInvoiceId: invoice.id,
+                billingMonth: invoice.billing_month,
+                paymentDate: insertedPayment.payment_date,
+                reference: insertedPayment.payment_reference,
+                notes: insertedPayment.notes,
+                createdBy: user?.id || null,
+                createdByEmail: user?.email || null,
+              },
+            });
+
+      await insertPaymentAllocations(supabase, allocationRows);
+    } catch (allocationError) {
+      console.error("Failed to write payment allocation ledger:", allocationError);
+    }
+
     const { data: paymentRows, error: paymentsError } = await supabase
       .from("account_invoice_payments")
       .select("amount")
@@ -654,10 +700,7 @@ export async function POST(request: NextRequest) {
     if (normalizedPaymentPeriodType === "outstanding" && outstandingAgingRow) {
       const agedAllocation = applyOutstandingPaymentToBuckets(outstandingAgingRow, numericAmount);
       const currentCreditAmount = Number(outstandingAgingRow.credit_amount || 0);
-      const outstandingDueAmount = Math.max(
-        Number(outstandingAgingRow.due_amount || 0),
-        getOutstandingBucketTotal(outstandingAgingRow),
-      );
+      const outstandingDueAmount = getTotalOutstandingDue(outstandingAgingRow);
       const nextPaidAmount = Math.min(
         outstandingDueAmount,
         Number(outstandingAgingRow.paid_amount || 0) + agedAllocation.appliedToOutstanding,

@@ -34,6 +34,19 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   return new Date(year, month, invoiceDay).toISOString();
 };
 
+const buildAddress = (source?: Record<string, unknown> | null) =>
+  [
+    source?.physical_address_1,
+    source?.physical_address_2,
+    source?.physical_address_3,
+    source?.physical_area,
+    source?.physical_province,
+    source?.physical_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join("\n");
+
 const enrichBulkInvoiceWithLockMeta = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   invoice: Record<string, unknown> | null,
@@ -44,10 +57,48 @@ const enrichBulkInvoiceWithLockMeta = async (
 
   const lockedBy = String(invoice?.invoice_locked_by || '').trim();
   const normalizedInvoiceDate = getBillingInvoiceDate(invoice?.billing_month);
+  const accountNumber = String(invoice?.account_number || "").trim();
+
+  let costCenter: Record<string, unknown> | null = null;
+  if (accountNumber) {
+    const { data: costCenterRows, error: costCenterError } = await supabase
+      .from("cost_centers")
+      .select("*")
+      .eq("cost_code", accountNumber)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (costCenterError) {
+      console.error("Failed to refresh cost center invoice metadata:", costCenterError);
+    } else {
+      costCenter = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
+    }
+  }
+
+  const refreshedInvoice = {
+    ...invoice,
+    company_name:
+      costCenter?.company ||
+      costCenter?.legal_name ||
+      invoice?.company_name ||
+      null,
+    client_address:
+      buildAddress(costCenter) ||
+      String(invoice?.client_address || "").trim() ||
+      null,
+    customer_vat_number:
+      String(costCenter?.vat_number || "").trim() ||
+      String(invoice?.customer_vat_number || "").trim() ||
+      null,
+    company_registration_number:
+      String(costCenter?.registration_number || "").trim() ||
+      String(invoice?.company_registration_number || "").trim() ||
+      null,
+  };
 
   if (!lockedBy) {
     return {
-      ...invoice,
+      ...refreshedInvoice,
       invoice_date: normalizedInvoiceDate,
       invoice_locked_by_email: null,
     };
@@ -60,7 +111,7 @@ const enrichBulkInvoiceWithLockMeta = async (
     .maybeSingle();
 
   return {
-    ...invoice,
+    ...refreshedInvoice,
     invoice_date: normalizedInvoiceDate,
     invoice_locked_by_email: lockedUser?.email || null,
   };

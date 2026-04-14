@@ -296,11 +296,16 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     }
     .invoice-summary-table th,
     .invoice-summary-table td,
-    .invoice-table th,
-    .invoice-table td,
     .invoice-footer-table td,
     .invoice-totals-table td {
       border: 1px solid #111827;
+      padding: 7px 8px;
+      font-size: 12px;
+      vertical-align: top;
+    }
+    .invoice-table th,
+    .invoice-table td {
+      border: none;
       padding: 7px 8px;
       font-size: 12px;
       vertical-align: top;

@@ -652,7 +652,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             : ""
         }
 
-        <div class="statement-insert-total">Total Owed : ${escapeHtml(totals.outstanding)}</div>
+        <div class="statement-insert-total">Total : ${escapeHtml(totals.outstanding)}</div>
 
         <table class="statement-aging-table">
           <colgroup>

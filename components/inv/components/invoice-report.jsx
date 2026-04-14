@@ -359,11 +359,18 @@ const buildInvoiceStyles = () => `
 
   .invoice-summary-table th,
   .invoice-summary-table td,
-  .invoice-table th,
-  .invoice-table td,
   .invoice-footer-table td,
   .invoice-totals-table td {
     border: 2px solid var(--invoice-border);
+    padding: 4px 6px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .invoice-table th,
+  .invoice-table td {
+    border: none;
     padding: 4px 6px;
     vertical-align: top;
     overflow-wrap: anywhere;
@@ -942,36 +949,37 @@ export function buildInvoiceView({
       .trim()
       .toUpperCase()
       .startsWith('EPSC-');
+  const liveCompanyName =
+    customerInfo?.legal_name ||
+    customerInfo?.company ||
+    "";
+  const liveClientAddress = buildClientAddress(customerInfo, "");
+  const liveCompanyRegistrationNumber =
+    customerInfo?.registration_number ||
+    "";
+  const liveCustomerVatNumber =
+    customerInfo?.vat_number ||
+    "";
 
   const clientName = isEpsCostCenterInvoice
     ? customerInfo?.company || ''
     : isEpsVirtualInvoice
     ? costCenter?.accountName ||
-      customerInfo?.legal_name ||
-      customerInfo?.company ||
-      activeInvoiceData?.company_name ||
+      liveCompanyName ||
       clientLegalName ||
       ""
-    : customerInfo?.legal_name ||
-      customerInfo?.company ||
-      activeInvoiceData?.company_name ||
+    : liveCompanyName ||
       clientLegalName ||
       costCenter?.accountName ||
       "";
-  const clientAddress = buildClientAddress(
-    customerInfo,
-    activeInvoiceData?.client_address || activeInvoiceData?.company_address || "",
-  );
+  const clientAddress = liveClientAddress;
   const invoiceNumber =
     getRealInvoiceNumber(
       activeInvoiceData?.invoice_number,
       activeInvoiceData?.invoiceNumber,
       activeInvoiceData?.invoice_no,
     ) || "PENDING";
-  const companyRegistrationNumber =
-    customerInfo?.registration_number ||
-    activeInvoiceData?.company_registration_number ||
-    "";
+  const companyRegistrationNumber = liveCompanyRegistrationNumber;
 
   const totals = {
     totalExVat: rowTotals.totalExVat,
@@ -991,10 +999,7 @@ export function buildInvoiceView({
     invoiceNumber,
     invoiceDate: formatDate(activeInvoiceData?.invoice_date || getBillingInvoiceDate(activeInvoiceData?.billing_month || costCenter?.billingMonth)),
     accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
-    customerVatNumber:
-      customerInfo?.vat_number ||
-      activeInvoiceData?.customer_vat_number ||
-      "",
+    customerVatNumber: liveCustomerVatNumber,
     notes: noteText,
     rows,
     totals,
@@ -1185,9 +1190,7 @@ export default function InvoiceReportComponent({
   const [editableNotes, setEditableNotes] = useState(
     String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ""),
   );
-  const [customerInfo, setCustomerInfo] = useState(
-    costCenter?.costCenterInfo || null,
-  );
+  const [customerInfo, setCustomerInfo] = useState(null);
 
   useEffect(() => {
     setActiveInvoiceData(invoiceData);
@@ -1204,12 +1207,6 @@ export default function InvoiceReportComponent({
       ),
     );
   }, [activeInvoiceData]);
-
-  useEffect(() => {
-    if (costCenter?.costCenterInfo) {
-      setCustomerInfo(costCenter.costCenterInfo);
-    }
-  }, [costCenter?.costCenterInfo]);
 
   useEffect(() => {
     if (viewOnly) {
@@ -1254,15 +1251,15 @@ export default function InvoiceReportComponent({
   }, [costCenter?.accountNumber, viewOnly]);
 
   useEffect(() => {
-    if (viewOnly && costCenter?.costCenterInfo) {
-      setCustomerInfo(costCenter.costCenterInfo);
-      return undefined;
-    }
-
     let active = true;
 
     const loadCustomerInfo = async () => {
-      if (!costCenter?.accountNumber) return;
+      if (!costCenter?.accountNumber) {
+        if (active) {
+          setCustomerInfo(null);
+        }
+        return;
+      }
 
       try {
         const costCenterResponse = await fetch(

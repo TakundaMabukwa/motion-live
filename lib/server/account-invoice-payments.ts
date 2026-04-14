@@ -25,6 +25,8 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const roundAmount = (value: unknown) => Number(toNumber(value).toFixed(2));
+
 export const getOutstandingBucketTotal = (source?: Record<string, unknown> | null) =>
   Number(
     (
@@ -35,6 +37,165 @@ export const getOutstandingBucketTotal = (source?: Record<string, unknown> | nul
     ).toFixed(2),
   );
 
+export const getTotalOutstandingDue = (source?: Record<string, unknown> | null) => {
+  const currentDue = toNumber(source?.current_due);
+  const bucketTotal = getOutstandingBucketTotal(source);
+  const explicitOutstanding = toNumber(source?.outstanding_balance);
+
+  return Number(
+    Math.max(explicitOutstanding, currentDue + bucketTotal).toFixed(2),
+  );
+};
+
+type PaymentAllocationCommon = {
+  paymentId: string;
+  accountNumber: string;
+  accountInvoiceId?: string | null;
+  billingMonth?: string | null;
+  paymentDate: string;
+  reference?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdByEmail?: string | null;
+};
+
+const buildAllocationBase = (common: PaymentAllocationCommon) => ({
+  payment_id: common.paymentId,
+  account_number: common.accountNumber,
+  account_invoice_id: common.accountInvoiceId || null,
+  billing_month: normalizeBillingMonth(common.billingMonth),
+  payment_date: common.paymentDate,
+  reference: common.reference || null,
+  notes: common.notes || null,
+  created_by: common.createdBy || null,
+  created_by_email: common.createdByEmail || null,
+});
+
+export const buildCurrentPaymentAllocationRows = ({
+  paymentAmount,
+  invoiceTotal,
+  invoicePaidAmount,
+  common,
+}: {
+  paymentAmount: unknown;
+  invoiceTotal: unknown;
+  invoicePaidAmount?: unknown;
+  common: PaymentAllocationCommon;
+}) => {
+  const totalAmount = roundAmount(invoiceTotal);
+  const paidBefore = roundAmount(invoicePaidAmount);
+  const outstandingBefore = Math.max(0, roundAmount(totalAmount - paidBefore));
+  const receivedAmount = Math.max(0, roundAmount(paymentAmount));
+  const appliedToInvoice = Math.min(receivedAmount, outstandingBefore);
+  const creditAmount = roundAmount(receivedAmount - appliedToInvoice);
+  const rows: Array<Record<string, unknown>> = [];
+
+  if (appliedToInvoice > 0) {
+    rows.push({
+      ...buildAllocationBase(common),
+      allocation_type: "invoice",
+      amount: appliedToInvoice,
+      meta: {
+        outstanding_before: outstandingBefore,
+        invoice_total: totalAmount,
+        invoice_paid_before: paidBefore,
+      },
+    });
+  }
+
+  if (creditAmount > 0) {
+    rows.push({
+      ...buildAllocationBase(common),
+      allocation_type: "credit",
+      amount: creditAmount,
+      meta: {
+        outstanding_before: outstandingBefore,
+        invoice_total: totalAmount,
+        invoice_paid_before: paidBefore,
+      },
+    });
+  }
+
+  return rows;
+};
+
+export const buildOutstandingPaymentAllocationRows = ({
+  source,
+  paymentAmount,
+  common,
+}: {
+  source: Record<string, unknown> | null | undefined;
+  paymentAmount: unknown;
+  common: PaymentAllocationCommon;
+}) => {
+  const rows: Array<Record<string, unknown>> = [];
+  let remainingPayment = Math.max(0, roundAmount(paymentAmount));
+  const buckets = [
+    { key: "overdue_120_plus_days", amount: Math.max(0, roundAmount(source?.overdue_120_plus_days)) },
+    { key: "overdue_90_days", amount: Math.max(0, roundAmount(source?.overdue_90_days)) },
+    { key: "overdue_60_days", amount: Math.max(0, roundAmount(source?.overdue_60_days)) },
+    { key: "overdue_30_days", amount: Math.max(0, roundAmount(source?.overdue_30_days)) },
+    { key: "current_due", amount: Math.max(0, roundAmount(source?.current_due)) },
+  ];
+
+  for (const bucket of buckets) {
+    if (remainingPayment <= 0 || bucket.amount <= 0) continue;
+    const appliedAmount = Math.min(bucket.amount, remainingPayment);
+    remainingPayment = roundAmount(remainingPayment - appliedAmount);
+
+    rows.push({
+      ...buildAllocationBase({
+        ...common,
+        billingMonth: normalizeBillingMonth(source?.billing_month) || common.billingMonth || null,
+      }),
+      allocation_type: bucket.key,
+      amount: appliedAmount,
+      meta: {
+        bucket_before: bucket.amount,
+      },
+    });
+  }
+
+  if (remainingPayment > 0) {
+    rows.push({
+      ...buildAllocationBase(common),
+      allocation_type: "credit",
+      amount: remainingPayment,
+      meta: {
+        source: "outstanding_payment",
+      },
+    });
+  }
+
+  return rows;
+};
+
+export const insertPaymentAllocations = async (
+  supabase: SupabaseClient,
+  rows: Array<Record<string, unknown>>,
+) => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.from("account_payment_allocations").insert(rows);
+  if (!error) {
+    return;
+  }
+
+  const message = String(error.message || "");
+  if (
+    message.includes("account_payment_allocations") ||
+    message.includes("relation") ||
+    message.includes("does not exist")
+  ) {
+    console.warn("Payment allocation ledger insert skipped:", message);
+    return;
+  }
+
+  throw error;
+};
+
 export const applyOutstandingPaymentToBuckets = (
   source: Record<string, unknown> | null | undefined,
   paymentAmount: unknown,
@@ -44,7 +205,7 @@ export const applyOutstandingPaymentToBuckets = (
   let overdue90 = Math.max(0, toNumber(source?.overdue_90_days));
   let overdue60 = Math.max(0, toNumber(source?.overdue_60_days));
   let overdue30 = Math.max(0, toNumber(source?.overdue_30_days));
-  const currentDue = Math.max(0, toNumber(source?.current_due));
+  let currentDue = Math.max(0, toNumber(source?.current_due));
 
   const consume = (bucketValue: number) => {
     if (remainingPayment <= 0 || bucketValue <= 0) {
@@ -60,6 +221,7 @@ export const applyOutstandingPaymentToBuckets = (
   overdue90 = consume(overdue90);
   overdue60 = consume(overdue60);
   overdue30 = consume(overdue30);
+  currentDue = consume(currentDue);
 
   const remainingOutstanding = Number(
     (currentDue + overdue30 + overdue60 + overdue90 + overdue120).toFixed(2),
