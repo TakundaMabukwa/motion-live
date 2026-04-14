@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const SYSTEM_LOCK_KEY = 'billing';
+
+const getSystemLock = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) => {
+  const { data, error } = await supabase
+    .from('system_locks')
+    .select('*')
+    .eq('lock_key', SYSTEM_LOCK_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -76,6 +94,63 @@ export async function POST(request: NextRequest) {
 
     if (!jobCardId) {
       return NextResponse.json({ error: 'jobCardId is required' }, { status: 400 });
+    }
+
+    const systemLock = await getSystemLock(supabase);
+    const isSystemLocked = Boolean(systemLock?.is_locked);
+
+    if (isSystemLocked) {
+      const payload = {
+        refreshInvoiceNumber,
+        jobCardId,
+        jobNumber,
+        quotationNumber,
+        accountNumber,
+        clientName,
+        clientEmail,
+        clientPhone,
+        clientAddress,
+        invoiceDate,
+        dueDate,
+        paymentTerms,
+        notes,
+        subtotal,
+        vatAmount,
+        discountAmount,
+        totalAmount,
+        lineItems,
+      };
+
+      const { data: queuedInvoice, error: queueError } = await supabase
+        .from('job_card_invoice_queue')
+        .upsert(
+          {
+            job_card_id: jobCardId,
+            job_number: jobNumber || null,
+            payload,
+            status: 'pending',
+            queued_by: user.id,
+            queued_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'job_card_id' },
+        )
+        .select('*')
+        .single();
+
+      if (queueError) {
+        console.error('Error queuing job card invoice:', queueError);
+        return NextResponse.json({ error: 'Failed to queue invoice' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        queued: true,
+        lock: {
+          is_locked: true,
+          lock_date: systemLock?.lock_date || null,
+        },
+        queue: queuedInvoice,
+      });
     }
 
     const { data: existingInvoice, error: existingError } = await supabase

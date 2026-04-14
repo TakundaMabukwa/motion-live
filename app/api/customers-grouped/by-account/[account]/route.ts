@@ -14,6 +14,15 @@ export async function GET(
       return NextResponse.json({ error: 'Account parameter is required' }, { status: 400 });
     }
 
+    const requestedAccounts = Array.from(
+      new Set(
+        decodeURIComponent(account)
+          .split(',')
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    );
+
     const supabase = await createClient();
 
     // First, let's try to find by exact match in comma-separated list
@@ -30,8 +39,11 @@ export async function GET(
 
     // Find matching group by checking if account exists in comma-separated list
     const customerGroup = customerGroups.find(group => {
-      const accounts = (group.all_new_account_numbers || '').split(',').map(a => a.trim());
-      const hasMatch = accounts.some(acc => acc === account || account.includes(acc) || acc.includes(account));
+      const accounts = (group.all_new_account_numbers || '')
+        .split(',')
+        .map((value: string) => value.trim().toUpperCase())
+        .filter(Boolean);
+      const hasMatch = accounts.some((acc: string) => requestedAccounts.includes(acc));
       if (hasMatch) {
         console.log(`Match found in group ${group.id}: ${group.legal_names}`);
         console.log(`Group accounts: ${accounts.join(', ')}`);
@@ -86,7 +98,7 @@ export async function GET(
       validated_at: contactDetails.validated_at,
       
       // Account number for display
-      new_account_number: account
+      new_account_number: requestedAccounts[0] || account
     };
 
     console.log('Returning customer data for:', responseData.company || responseData.legal_names);

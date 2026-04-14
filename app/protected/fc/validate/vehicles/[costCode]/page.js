@@ -858,8 +858,26 @@ export default function ValidateVehiclesPage() {
       }
 
       const previewTitle = currentCostCenterName || costCode;
-      const shouldUseStoredInvoice = Boolean(storedInvoice?.invoice_locked);
+      let systemLock = null;
+      const systemLockResponse = await fetch('/api/system-lock', { cache: 'no-store' });
+      if (systemLockResponse.ok) {
+        const lockPayload = await systemLockResponse.json();
+        systemLock = lockPayload?.lock || null;
+      }
+      const systemLockMonth = String(systemLock?.lock_date || '').slice(0, 7);
+      const billingMonthKey = String(billingMonth || '').slice(0, 7);
+      const isSystemLockedForMonth =
+        Boolean(systemLock?.is_locked) &&
+        Boolean(systemLockMonth) &&
+        Boolean(billingMonthKey) &&
+        systemLockMonth === billingMonthKey;
+      const shouldUseStoredInvoice =
+        Boolean(storedInvoice?.invoice_locked) || isSystemLockedForMonth;
       let invoiceData = null;
+
+      if (isSystemLockedForMonth && !storedInvoice) {
+        throw new Error("System is locked for this billing month. No stored invoice is available.");
+      }
 
       if (shouldUseStoredInvoice && storedInvoice) {
         const lineItems = Array.isArray(storedInvoice?.line_items)

@@ -697,6 +697,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
     }
 
+    const { data: systemLockRow, error: systemLockError } = await supabase
+      .from('system_locks')
+      .select('*')
+      .eq('lock_key', 'billing')
+      .maybeSingle();
+
+    if (systemLockError) {
+      console.error('Error fetching system lock:', systemLockError);
+      throw systemLockError;
+    }
+
+    const systemLockMonth = String(systemLockRow?.lock_date || '').slice(0, 7);
+    const billingMonthKey = String(billingMonth || '').slice(0, 7);
+    const isSystemLockedForMonth =
+      Boolean(systemLockRow?.is_locked) &&
+      Boolean(systemLockMonth) &&
+      Boolean(billingMonthKey) &&
+      systemLockMonth === billingMonthKey;
+
     let storedInvoiceQuery = supabase
       .from('account_invoices')
       .select('*')
@@ -715,6 +734,18 @@ export async function GET(request: NextRequest) {
     }
 
     const storedInvoice = Array.isArray(storedInvoiceRows) ? storedInvoiceRows[0] || null : null;
+
+    if (isSystemLockedForMonth && !storedInvoice) {
+      return NextResponse.json(
+        {
+          success: false,
+          accountNumber,
+          invoiceData: null,
+          error: 'System is locked for this billing month. No stored invoice is available.',
+        },
+        { status: 409 },
+      );
+    }
 
     const { data: costCenterRows, error: costCenterError } = await supabase
       .from('cost_centers')
@@ -1050,7 +1081,7 @@ export async function GET(request: NextRequest) {
       Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
         ? storedInvoice.line_items
         : [];
-    const isLockedInvoice = Boolean(storedInvoice?.invoice_locked);
+    const isLockedInvoice = Boolean(storedInvoice?.invoice_locked) || isSystemLockedForMonth;
     const useStoredLineItems =
       isLockedInvoice &&
       storedLineItems.length > 0 &&

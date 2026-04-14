@@ -496,6 +496,16 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const invoiceCreateResult = await invoiceCreateResponse.json();
+      if (invoiceCreateResult?.queued) {
+        const lockDate = invoiceCreateResult?.lock?.lock_date;
+        toast.success(
+          lockDate
+            ? `System locked for ${lockDate}. Invoice queued and will be created after unlock.`
+            : "System locked. Invoice queued and will be created after unlock.",
+        );
+        setIsGeneratingInvoice(false);
+        return;
+      }
       const invoiceRecord = invoiceCreateResult?.invoice;
       const invoiceNumber = invoiceRecord?.invoice_number;
 

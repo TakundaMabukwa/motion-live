@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -268,6 +268,7 @@ export default function ClientCostCentersPage() {
     accountNumber: '',
   });
   const [loggedInUserEmail, setLoggedInUserEmail] = useState('');
+  const latestLoadKeyRef = useRef('');
   const showCostCenterTotalColumn = true;
   const showPaidAndBalanceColumns = true;
   const canAdminRebuildInvoice =
@@ -303,6 +304,17 @@ export default function ClientCostCentersPage() {
 
   const isRealInvoiceNumber = (value) =>
     /^(INV|SOL)-\d+$/i.test(String(value || '').trim());
+
+  const resetClientView = (label) => {
+    setLoading(true);
+    setClientLegalName(label || '');
+    setClientData(null);
+    setFilteredCostCenters([]);
+    setCostCentersWithPayments([]);
+    setSelectedCostCenters([]);
+    setBulkInvoiceSelections({});
+    setSearchTerm('');
+  };
 
   const buildCostCenterInfoMap = async (accountNumbers) => {
     if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
@@ -477,9 +489,13 @@ export default function ClientCostCentersPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/billing/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}&billingMonth=${encodeURIComponent(ACCOUNTS_INVOICE_BILLING_MONTH)}`,
-      );
+      const currentLoadKey = latestLoadKeyRef.current;
+      const [response, costCenterInfoMap] = await Promise.all([
+        fetch(
+          `/api/billing/by-client-accounts?all_new_account_numbers=${encodeURIComponent(accountNumbers.join(', '))}&billingMonth=${encodeURIComponent(ACCOUNTS_INVOICE_BILLING_MONTH)}`,
+        ),
+        buildCostCenterInfoMap(accountNumbers),
+      ]);
       if (!response.ok) {
         return false;
       }
@@ -487,7 +503,10 @@ export default function ClientCostCentersPage() {
       const data = await response.json();
       const payments = Array.isArray(data?.payments) ? data.payments : [];
       const summary = data?.summary || null;
-      const costCenterInfoMap = await buildCostCenterInfoMap(accountNumbers);
+
+      if (latestLoadKeyRef.current !== currentLoadKey) {
+        return false;
+      }
 
       loadFromPaymentsData({
         clientInfo: {
@@ -616,9 +635,9 @@ export default function ClientCostCentersPage() {
     if (code) {
       console.log('Client cost centers page loaded with code:', code);
       console.log('Decoded code:', decodedCode);
-      if (!clientLegalName) {
-        setClientLegalName(decodedCode || String(code));
-      }
+      const routeLabel = decodedCode || String(code);
+      latestLoadKeyRef.current = routeLabel;
+      resetClientView(routeLabel);
 
       // Fast path for comma-separated account numbers
       if ((decodedCode || '').includes(',')) {
@@ -2085,15 +2104,43 @@ export default function ClientCostCentersPage() {
       bulkInvoice = bulkInvoicePayload?.invoice || null;
     }
 
+    let systemLock = null;
+    const systemLockResponse = await fetch('/api/system-lock', { cache: 'no-store' });
+    if (systemLockResponse.ok) {
+      const lockPayload = await systemLockResponse.json();
+      systemLock = lockPayload?.lock || null;
+    }
+    const systemLockMonth = String(systemLock?.lock_date || '').slice(0, 7);
+    const billingMonthKey = String(targetBillingMonth || '').slice(0, 7);
+    const isSystemLockedForMonth =
+      Boolean(systemLock?.is_locked) &&
+      Boolean(systemLockMonth) &&
+      Boolean(billingMonthKey) &&
+      systemLockMonth === billingMonthKey;
+
+    if (isSystemLockedForMonth) {
+      if (!bulkInvoice) {
+        throw new Error('System is locked for this billing month. No stored invoice is available.');
+      }
+
+      bulkInvoice = {
+        ...bulkInvoice,
+        invoice_locked: true,
+        invoice_locked_by_email: bulkInvoice?.invoice_locked_by_email || systemLock?.locked_by_email || null,
+        invoice_locked_at: bulkInvoice?.invoice_locked_at || systemLock?.locked_at || null,
+      };
+    }
+
     const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
     appendInvoiceLockCutoff(query, costCenterInfo, bulkInvoice);
 
-    const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-
     let liveInvoiceData = null;
-    if (invoiceResponse.ok) {
-      const data = await invoiceResponse.json();
-      liveInvoiceData = data?.invoiceData || null;
+    if (!isSystemLockedForMonth) {
+      const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+      if (invoiceResponse.ok) {
+        const data = await invoiceResponse.json();
+        liveInvoiceData = data?.invoiceData || null;
+      }
     }
 
     const invoiceData = normalizeBatchInvoiceAllInvoiceData(
@@ -5098,10 +5145,88 @@ export default function ClientCostCentersPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center bg-gray-50 min-h-screen">
-        <div className="text-center">
-          <div className="mx-auto border-b-2 border-blue-600 rounded-full w-32 h-32 animate-spin"></div>
-          <p className="mt-4 text-gray-700 text-lg">Loading client data...</p>
+      <div className="bg-gray-50 min-h-screen animate-pulse">
+        <div className="bg-white shadow-sm border-gray-200 border-b">
+          <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+            <div className="flex items-start gap-3 py-3">
+              <div className="flex min-w-0 flex-1 items-start gap-4">
+                <div className="bg-gray-200 rounded-md w-[180px] h-11 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="bg-gray-200 rounded w-56 h-8" />
+                  <div className="bg-gray-200 rounded w-72 max-w-full h-5" />
+                  <div className="bg-gray-200 rounded w-48 h-4" />
+                  <div className="bg-gray-200 rounded w-64 max-w-full h-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto p-6 max-w-7xl container">
+          <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 mb-8">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Card key={`skeleton-top-${index}`} className="bg-white shadow-lg border-2 border-gray-100">
+                <CardHeader className="space-y-3 pb-3">
+                  <div className="flex justify-between items-center">
+                    <div className="bg-gray-200 rounded w-24 h-4" />
+                    <div className="bg-gray-200 rounded-full w-5 h-5" />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="bg-gray-200 rounded w-24 h-8" />
+                  <div className="bg-gray-200 rounded w-20 h-4" />
+                  <div className="bg-gray-200 rounded w-32 h-4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 mb-8">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Card key={`skeleton-bottom-${index}`} className="bg-white shadow-lg border-2 border-gray-100">
+                <CardContent className="space-y-3 p-6">
+                  <div className="bg-gray-200 rounded mx-auto w-24 h-8" />
+                  <div className="bg-gray-200 rounded mx-auto w-20 h-4" />
+                  <div className="bg-gray-200 rounded mx-auto w-28 h-4" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card className="bg-white shadow-lg border-2 border-gray-100">
+            <CardHeader className="bg-gray-50 border-gray-200 border-b">
+              <div className="flex justify-between items-start">
+                <div className="space-y-3">
+                  <div className="bg-gray-200 rounded w-80 max-w-full h-8" />
+                  <div className="bg-gray-200 rounded w-96 max-w-full h-5" />
+                </div>
+                <div className="flex gap-3">
+                  <div className="bg-gray-200 rounded-lg w-32 h-10" />
+                  <div className="bg-gray-200 rounded-lg w-32 h-10" />
+                  <div className="bg-gray-200 rounded-lg w-32 h-10" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="p-6 space-y-4">
+                <div className="gap-4 grid grid-cols-7">
+                  {Array.from({ length: 7 }).map((_, index) => (
+                    <div key={`skeleton-head-${index}`} className="bg-gray-200 rounded h-5" />
+                  ))}
+                </div>
+                {Array.from({ length: 4 }).map((_, rowIndex) => (
+                  <div key={`skeleton-row-${rowIndex}`} className="gap-4 grid grid-cols-7 items-center">
+                    {Array.from({ length: 7 }).map((_, colIndex) => (
+                      <div
+                        key={`skeleton-cell-${rowIndex}-${colIndex}`}
+                        className="bg-gray-100 rounded h-10"
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

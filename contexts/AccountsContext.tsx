@@ -64,7 +64,10 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
   const fetchCompanyGroups = useCallback(async (search = "") => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`);
+      const response = await fetch(
+        `/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`,
+        { cache: 'no-store' },
+      );
       if (!response.ok) {
         throw new Error('Failed to fetch company groups');
       }
@@ -141,7 +144,7 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
     setIsDataLoaded(false);
   }, []);
 
-  // Load data from localStorage on mount if available
+  // Load cached data for quick paint, but always refresh from the server after mount.
   useEffect(() => {
     try {
       const savedCompanyGroups = localStorage.getItem('accounts_company_groups');
@@ -159,6 +162,12 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
       console.error('Error loading data from localStorage:', error);
     }
   }, []);
+
+  useEffect(() => {
+    fetchCompanyGroups('').catch((error) => {
+      console.error('Error refreshing company groups after mount:', error);
+    });
+  }, [fetchCompanyGroups]);
 
   // Save data to localStorage whenever it changes
   useEffect(() => {

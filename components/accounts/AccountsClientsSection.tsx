@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Dialog,
@@ -38,6 +39,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const [isGeneratingAllInvoicesPdf, setIsGeneratingAllInvoicesPdf] = useState(false);
   const [showAllInvoicesDialog, setShowAllInvoicesDialog] = useState(false);
   const [showInvoiceNumberDialog, setShowInvoiceNumberDialog] = useState(false);
+  const [showSystemLockDialog, setShowSystemLockDialog] = useState(false);
+  const [systemLock, setSystemLock] = useState<Record<string, unknown> | null>(null);
+  const [loadingSystemLock, setLoadingSystemLock] = useState(false);
+  const [savingSystemLock, setSavingSystemLock] = useState(false);
+  const [systemLockDate, setSystemLockDate] = useState('');
   const [bulkInvoiceRows, setBulkInvoiceRows] = useState<Array<Record<string, unknown>>>([]);
   const [loadingBulkInvoiceRows, setLoadingBulkInvoiceRows] = useState(false);
   const [savingBulkInvoiceNumber, setSavingBulkInvoiceNumber] = useState<string | null>(null);
@@ -53,6 +59,30 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
   useEffect(() => {
     setSearchTerm('');
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'clients') return;
+    const fetchSystemLock = async () => {
+      try {
+        setLoadingSystemLock(true);
+        const response = await fetch('/api/system-lock', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Failed to load system lock');
+        }
+        const result = await response.json();
+        setSystemLock(result?.lock || null);
+        const lockDate = result?.lock?.lock_date;
+        setSystemLockDate(lockDate ? String(lockDate) : '');
+      } catch (error) {
+        console.error('Error fetching system lock:', error);
+        setSystemLock(null);
+      } finally {
+        setLoadingSystemLock(false);
+      }
+    };
+
+    fetchSystemLock();
   }, [mode]);
 
   const COMPANY_INFO = {
@@ -411,6 +441,44 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     } catch (error) {
       console.error('Error refreshing data:', error);
       toast.error('Failed to refresh data');
+    }
+  };
+
+  const handleSystemLockToggle = async () => {
+    try {
+      if (!systemLock || !systemLockDate) {
+        toast.error('Select a lock date first.');
+        return;
+      }
+      setSavingSystemLock(true);
+      const shouldLock = !Boolean(systemLock?.is_locked);
+      const response = await fetch('/api/system-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          isLocked: shouldLock,
+          lockDate: shouldLock ? systemLockDate : systemLock?.lock_date || systemLockDate,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || 'Failed to update system lock');
+      }
+
+      const result = await response.json();
+      setSystemLock(result?.lock || null);
+      toast.success(
+        shouldLock
+          ? `System locked for ${result?.lock?.lock_date || systemLockDate}`
+          : 'System unlocked',
+      );
+      setShowSystemLockDialog(false);
+    } catch (error) {
+      console.error('Error updating system lock:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update system lock');
+    } finally {
+      setSavingSystemLock(false);
     }
   };
 
@@ -1254,6 +1322,18 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
         </div>
         <div className="flex gap-3">
           <Button
+            onClick={() => setShowSystemLockDialog(true)}
+            variant={systemLock?.is_locked ? 'secondary' : 'outline'}
+            disabled={loadingSystemLock}
+          >
+            {loadingSystemLock ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 mr-2" />
+            )}
+            {systemLock?.is_locked ? 'Unlock System' : 'Lock System'}
+          </Button>
+          <Button
             onClick={() => setShowAllInvoicesDialog(true)}
             disabled={isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf}
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1512,6 +1592,46 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
               </Table>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSystemLockDialog} onOpenChange={setShowSystemLockDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {systemLock?.is_locked ? 'Unlock Billing System' : 'Lock Billing System'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              {systemLock?.is_locked
+                ? 'Unlocking will allow invoices to rebuild normally and will process queued job card invoices.'
+                : 'Locking freezes invoices for the selected billing month.'}
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="system-lock-date">Billing month to lock</Label>
+              <Input
+                id="system-lock-date"
+                type="date"
+                value={systemLockDate}
+                onChange={(event) => setSystemLockDate(event.target.value)}
+                disabled={savingSystemLock}
+              />
+              {systemLock?.is_locked && systemLock?.lock_date ? (
+                <p className="text-xs text-gray-500">
+                  Currently locked for {String(systemLock.lock_date)}.
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowSystemLockDialog(false)} disabled={savingSystemLock}>
+              Cancel
+            </Button>
+            <Button onClick={handleSystemLockToggle} disabled={savingSystemLock}>
+              {savingSystemLock ? <Loader2 className="w-4 h-4 animate-spin" /> : systemLock?.is_locked ? 'Unlock' : 'Lock'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

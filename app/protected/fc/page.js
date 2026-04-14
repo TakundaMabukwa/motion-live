@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
 import CreateCalibrationJobModal from '@/components/master/CreateCalibrationJobModal';
-
+import { toast } from "sonner";
 export default function AccountsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
@@ -163,16 +163,29 @@ export default function AccountsDashboard() {
     router.push('/protected/fc/add-account');
   };
 
+  const resolveAccountNumbers = (group) => {
+    const rawAccountNumbers = [
+      group?.all_new_account_numbers,
+      group?.all_account_numbers,
+    ]
+      .filter((value) => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim())
+      .find(Boolean);
+
+    return rawAccountNumbers || "";
+  };
+
   const handleViewDetails = (group) => {
-    
-    if (group.all_new_account_numbers) {
-      // Pass the entire all_new_account_numbers string to the cost centers page
-      const encodedAccountNumbers = encodeURIComponent(group.all_new_account_numbers);
-      
-      router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
-    } else {
+    const accountNumbers = resolveAccountNumbers(group);
+
+    if (!accountNumbers) {
       console.log('⚠️ [FC DASHBOARD] No account numbers found for group:', group);
+      toast.error("No account numbers found for this client.");
+      return;
     }
+
+    const encodedAccountNumbers = encodeURIComponent(accountNumbers);
+    router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
   };
 
   // Render content based on active tab
@@ -345,10 +358,17 @@ export default function AccountsDashboard() {
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <Button
+                                  type="button"
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
-                                    const accountNumbers = group.all_new_account_numbers;
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    const accountNumbers = resolveAccountNumbers(group);
+                                    if (!accountNumbers) {
+                                      toast.error("No account numbers found for this client.");
+                                      return;
+                                    }
                                     router.push(`/protected/fc/validate?account=${encodeURIComponent(accountNumbers)}`);
                                   }}
                                   className="text-xs h-8"
@@ -356,9 +376,14 @@ export default function AccountsDashboard() {
                                   Validate
                                 </Button>
                                 <Button
+                                  type="button"
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleViewDetails(group)}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    handleViewDetails(group);
+                                  }}
                                   className="h-8 w-8 p-0"
                                 >
                                   <MoreHorizontal className="h-4 w-4" />
@@ -499,6 +524,7 @@ export default function AccountsDashboard() {
               return (
                 <button
                   key={navItem.id}
+                  type="button"
                   onClick={() => setActiveTab(navItem.id)}
                   className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     isActive
@@ -541,3 +567,4 @@ export default function AccountsDashboard() {
     </div>
   );
 }
+
