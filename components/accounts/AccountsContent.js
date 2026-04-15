@@ -71,6 +71,7 @@ export default function AccountsContent({ activeSection }) {
   const [accountLoading, setAccountLoading] = useState(false);
   const [completedJobs, setCompletedJobs] = useState([]);
   const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
+  const [completedJobsSearchTerm, setCompletedJobsSearchTerm] = useState("");
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
@@ -1005,6 +1006,20 @@ export default function AccountsContent({ activeSection }) {
     }
     return "";
   };
+
+  const filteredCompletedJobs = completedJobs.filter((job) => {
+    const normalizedSearch = completedJobsSearchTerm.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return [
+      job?.job_number,
+      getBillingInvoiceNumber(job),
+      job?.customer_name,
+      job?.customer_email,
+    ].some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+  });
 
   const updateBillingStatus = async (job, key = "invoice", metadata = {}) => {
     if (!job?.id || !BILLING_STATUS_KEYS.includes(key)) return;
@@ -2005,8 +2020,29 @@ export default function AccountsContent({ activeSection }) {
               <p className="text-sm text-gray-600">
                 Quick scan view for billing and finance follow-up.
               </p>
+              <div className="relative mt-3 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  type="text"
+                  placeholder="Search by job, invoice number, or client..."
+                  value={completedJobsSearchTerm}
+                  onChange={(e) => setCompletedJobsSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-0">
+              {filteredCompletedJobs.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Search className="mx-auto mb-4 w-10 h-10 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-900 mb-2">
+                    No matching completed jobs
+                  </p>
+                  <p className="text-gray-600">
+                    Try a different job number, invoice number, or client.
+                  </p>
+                </div>
+              ) : (
               <Table>
                 <TableHeader>
                     <TableRow>
@@ -2035,7 +2071,7 @@ export default function AccountsContent({ activeSection }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {completedJobs.map((job) => (
+                  {filteredCompletedJobs.map((job) => (
                     <TableRow key={job.id} className="h-12">
                       <TableCell className="py-2 px-3 font-semibold text-gray-900">
                         <div className="text-sm">{job.job_number}</div>
@@ -2130,6 +2166,7 @@ export default function AccountsContent({ activeSection }) {
                   ))}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         )}
