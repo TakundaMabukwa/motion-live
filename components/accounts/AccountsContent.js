@@ -998,6 +998,14 @@ export default function AccountsContent({ activeSection }) {
     return false;
   };
 
+  const getBillingInvoiceNumber = (job, key = "invoice") => {
+    const raw = job?.billing_statuses?.[key];
+    if (raw && typeof raw === "object") {
+      return String(raw.invoice_number || raw.reference || "").trim();
+    }
+    return "";
+  };
+
   const updateBillingStatus = async (job, key = "invoice", metadata = {}) => {
     if (!job?.id || !BILLING_STATUS_KEYS.includes(key)) return;
     const loadingKey = `${job.id}:${key}`;
@@ -2001,13 +2009,16 @@ export default function AccountsContent({ activeSection }) {
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-10 px-3 text-xs">
-                      Job Number
-                    </TableHead>
-                    <TableHead className="h-10 px-3 text-xs">
-                      Customer
-                    </TableHead>
+                    <TableRow>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Job Number
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Invoice No
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Customer
+                      </TableHead>
                     <TableHead className="h-10 px-3 text-xs">Vehicle</TableHead>
                     <TableHead className="h-10 px-3 text-xs">
                       Billed Items
@@ -2028,6 +2039,15 @@ export default function AccountsContent({ activeSection }) {
                     <TableRow key={job.id} className="h-12">
                       <TableCell className="py-2 px-3 font-semibold text-gray-900">
                         <div className="text-sm">{job.job_number}</div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3 text-gray-700">
+                        {getBillingInvoiceNumber(job) ? (
+                          <div className="text-sm font-medium text-gray-900">
+                            {getBillingInvoiceNumber(job)}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Pending</span>
+                        )}
                       </TableCell>
                       <TableCell className="py-2 px-3 text-gray-700">
                         <div className="text-sm font-medium">
