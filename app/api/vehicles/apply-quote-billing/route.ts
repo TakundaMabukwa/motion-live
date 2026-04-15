@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getBillingLock, isBillingLocked } from "@/lib/server/billing-lock";
 import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
 import { buildTemporaryRegistration } from "@/lib/temp-registration";
 
@@ -809,6 +810,233 @@ const pickBillingColumn = (
   return null;
 };
 
+export const applyQuoteBilling = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  body: any,
+) => {
+  const costCode = (body?.cost_code || "").toString().trim();
+  const jobCardId = body?.job_card_id ? String(body.job_card_id) : null;
+  const quotationNumber = body?.quotation_number
+    ? String(body.quotation_number)
+    : null;
+  const invoiceNumber = body?.invoice_number ? String(body.invoice_number) : null;
+  const jobType = normalizeJobType(body?.job_type);
+  const quotationProducts = Array.isArray(body?.quotation_products)
+    ? body.quotation_products
+    : [];
+  const fallbackReg = (
+    body?.vehicle_registration ||
+    body?.temporary_registration ||
+    ""
+  )
+    .toString()
+    .trim();
+  const effectiveFallbackReg =
+    fallbackReg ||
+    buildTemporaryRegistration(
+      jobCardId,
+      body?.job_number,
+      quotationNumber,
+      costCode,
+    );
+  const customerName = body?.customer_name || null;
+  const vehicleMake = body?.vehicle_make || null;
+  const vehicleModel = body?.vehicle_model || null;
+  const vehicleYear = body?.vehicle_year || null;
+
+  if (!costCode) {
+    throw new Error("cost_code is required");
+  }
+
+  if (quotationProducts.length === 0) {
+    return {
+      success: true,
+      message: "No quotation products provided",
+      created: 0,
+      updated: 0,
+      skipped: [],
+      mode: jobType,
+    };
+  }
+
+  const itemsByReg = new Map<string, any[]>();
+  const skipped: any[] = [];
+
+  for (const item of quotationProducts) {
+    const recurringSpecs = getRecurringChargeSpecs(item, jobType);
+    const onceOffSpecs = getOnceOffChargeSpecs(item, jobType);
+    if (!recurringSpecs.length && !onceOffSpecs.length) {
+      skipped.push({ reason: "no_billing_effect", item });
+      continue;
+    }
+
+    const reg = (item?.vehicle_plate || effectiveFallbackReg || "")
+      .toString()
+      .trim();
+
+    if (!itemsByReg.has(reg)) {
+      itemsByReg.set(reg, []);
+    }
+    itemsByReg.get(reg)!.push(item);
+  }
+
+  let created = 0;
+  let updated = 0;
+
+  const selectColumns = "*";
+
+  for (const [reg, itemsForReg] of itemsByReg.entries()) {
+    const { data: existingRows, error: findError } = await supabase
+      .from("vehicles")
+      .select(selectColumns)
+      .ilike("reg", reg)
+      .limit(20);
+
+    if (findError) {
+      throw new Error(`Failed to check vehicles: ${findError.message}`);
+    }
+
+    const matchingRows = Array.isArray(existingRows) ? existingRows : [];
+    const existing =
+      matchingRows.find((row) => {
+        const rowNewAccount = String(row?.new_account_number || "").trim();
+        const rowAccount = String(row?.account_number || "").trim();
+        return rowNewAccount === costCode || rowAccount === costCode;
+      }) || null;
+
+    if (!existing && jobType === "deinstall") {
+      skipped.push({ reason: "vehicle_not_found_for_deinstall", reg });
+      continue;
+    }
+
+    const currentVehicle = existing || {
+      reg,
+      company: customerName,
+      new_account_number: costCode,
+      account_number: costCode,
+      make: vehicleMake,
+      model: vehicleModel,
+      year: vehicleYear,
+      once_off_fees: [],
+    };
+
+    const columnUpdates: Record<string, any> = {};
+    const onceOffFees: Array<Record<string, any>> = [];
+    for (const item of itemsForReg) {
+      const vehicleState = { ...currentVehicle, ...columnUpdates };
+      const recurringSpecs = getRecurringChargeSpecs(item, jobType);
+
+      for (const spec of recurringSpecs) {
+        const column = pickBillingColumn(item, vehicleState, columnUpdates, {
+          preferSub: spec.preferSub,
+          preferRental: spec.preferRental,
+          mode: jobType,
+        });
+
+        if (!column) {
+          skipped.push({ reason: "no_column_match", item, reg });
+          continue;
+        }
+
+        columnUpdates[column] = jobType === "deinstall" ? 0 : spec.amount;
+      }
+
+      for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {
+        onceOffFees.push(
+          buildOnceOffFeeEntry(item, feeSpec.amount, feeSpec.chargeType, {
+            jobCardId,
+            quotationNumber,
+            invoiceNumber,
+            reg,
+            jobType,
+          }),
+        );
+      }
+    }
+
+    const hasRecurringUpdates = Object.keys(columnUpdates).length > 0;
+    const hasOnceOffUpdates = onceOffFees.length > 0;
+
+    if (!hasRecurringUpdates && !hasOnceOffUpdates) {
+      continue;
+    }
+
+    if (!existing) {
+      const insertData: Record<string, any> = {
+        reg,
+        company: customerName,
+        new_account_number: costCode,
+        account_number: costCode,
+        make: vehicleMake,
+        model: vehicleModel,
+        year: vehicleYear,
+        once_off_fees: onceOffFees,
+      };
+
+      for (const [column, value] of Object.entries(columnUpdates)) {
+        insertData[column] = value;
+      }
+
+      Object.assign(insertData, recalculateVehicleTotals(insertData));
+
+      const { error: insertError } = await supabase
+        .from("vehicles")
+        .insert(insertData);
+
+      if (insertError) {
+        throw new Error(`Failed to insert vehicle billing: ${insertError.message}`);
+      }
+
+      created += 1;
+      continue;
+    }
+
+    const updateData: Record<string, any> = {};
+    if (!existing.new_account_number) {
+      updateData.new_account_number = costCode;
+    }
+    if (!existing.account_number) {
+      updateData.account_number = costCode;
+    }
+
+    for (const [column, value] of Object.entries(columnUpdates)) {
+      updateData[column] = value;
+    }
+
+    if (hasOnceOffUpdates) {
+      updateData.once_off_fees = mergeOnceOffFees(existing.once_off_fees, onceOffFees);
+    }
+
+    Object.assign(
+      updateData,
+      recalculateVehicleTotals({
+        ...existing,
+        ...updateData,
+      }),
+    );
+
+    const { error: updateError } = await supabase
+      .from("vehicles")
+      .update(updateData)
+      .eq("id", existing.id);
+
+    if (updateError) {
+      throw new Error(`Failed to update vehicle billing: ${updateError.message}`);
+    }
+
+    updated += 1;
+  }
+
+  return {
+    success: true,
+    cost_code: costCode,
+    mode: jobType,
+    created,
+    updated,
+    skipped,
+  };
+};
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -822,252 +1050,59 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const costCode = (body?.cost_code || "").toString().trim();
-    const jobCardId = body?.job_card_id ? String(body.job_card_id) : null;
-    const quotationNumber = body?.quotation_number
-      ? String(body.quotation_number)
-      : null;
-    const invoiceNumber = body?.invoice_number ? String(body.invoice_number) : null;
-    const jobType = normalizeJobType(body?.job_type);
-    const quotationProducts = Array.isArray(body?.quotation_products)
-      ? body.quotation_products
-      : [];
-    const fallbackReg = (
-      body?.vehicle_registration ||
-      body?.temporary_registration ||
-      ""
-    )
-      .toString()
-      .trim();
-    const effectiveFallbackReg =
-      fallbackReg ||
-      buildTemporaryRegistration(
-        jobCardId,
-        body?.job_number,
-        quotationNumber,
-        costCode,
-      );
-    const customerName = body?.customer_name || null;
-    const vehicleMake = body?.vehicle_make || null;
-    const vehicleModel = body?.vehicle_model || null;
-    const vehicleYear = body?.vehicle_year || null;
+    if (await isBillingLocked(supabase)) {
+      const lockRow = await getBillingLock(supabase);
+      const queuedReg = String(
+        body?.vehicle_registration || body?.temporary_registration || "",
+      ).trim() || null;
 
-    if (!costCode) {
-      return NextResponse.json(
-        { error: "cost_code is required" },
-        { status: 400 },
-      );
-    }
+      const { data: queuedRow, error: queueError } = await supabase
+        .from("vehicle_billing_queue")
+        .insert({
+          job_card_id: body?.job_card_id || null,
+          cost_code: body?.cost_code || null,
+          vehicle_reg: queuedReg,
+          action_type: "apply_quote_billing",
+          payload: body || {},
+          lock_date: lockRow?.lock_date || null,
+          queued_by: user.id,
+          queued_at: new Date().toISOString(),
+          status: "pending",
+        })
+        .select("*")
+        .single();
 
-    if (quotationProducts.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: "No quotation products provided",
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        mode: jobType,
-      });
-    }
-
-    const itemsByReg = new Map<string, any[]>();
-    const skipped: any[] = [];
-
-    for (const item of quotationProducts) {
-      const recurringSpecs = getRecurringChargeSpecs(item, jobType);
-      const onceOffSpecs = getOnceOffChargeSpecs(item, jobType);
-      if (!recurringSpecs.length && !onceOffSpecs.length) {
-        skipped.push({ reason: "no_billing_effect", item });
-        continue;
-      }
-
-      const reg = (item?.vehicle_plate || effectiveFallbackReg || "")
-        .toString()
-        .trim();
-
-      if (!itemsByReg.has(reg)) {
-        itemsByReg.set(reg, []);
-      }
-      itemsByReg.get(reg)!.push(item);
-    }
-
-    let created = 0;
-    let updated = 0;
-
-    const selectColumns = "*";
-
-    for (const [reg, itemsForReg] of itemsByReg.entries()) {
-      const { data: existingRows, error: findError } = await supabase
-        .from("vehicles")
-        .select(selectColumns)
-        .ilike("reg", reg)
-        .limit(20);
-
-      if (findError) {
-        return NextResponse.json(
-          { error: "Failed to check vehicles", details: findError.message },
-          { status: 500 },
-        );
-      }
-
-      const matchingRows = Array.isArray(existingRows) ? existingRows : [];
-      const existing =
-        matchingRows.find((row) => {
-          const rowNewAccount = String(row?.new_account_number || "").trim();
-          const rowAccount = String(row?.account_number || "").trim();
-          return rowNewAccount === costCode || rowAccount === costCode;
-        }) || null;
-
-      if (!existing && jobType === "deinstall") {
-        skipped.push({ reason: "vehicle_not_found_for_deinstall", reg });
-        continue;
-      }
-
-      const currentVehicle = existing || {
-        reg,
-        company: customerName,
-        new_account_number: costCode,
-        account_number: costCode,
-        make: vehicleMake,
-        model: vehicleModel,
-        year: vehicleYear,
-        once_off_fees: [],
-      };
-
-      const columnUpdates: Record<string, any> = {};
-      const onceOffFees: Array<Record<string, any>> = [];
-      for (const item of itemsForReg) {
-        const vehicleState = { ...currentVehicle, ...columnUpdates };
-        const recurringSpecs = getRecurringChargeSpecs(item, jobType);
-
-        for (const spec of recurringSpecs) {
-          const column = pickBillingColumn(item, vehicleState, columnUpdates, {
-            preferSub: spec.preferSub,
-            preferRental: spec.preferRental,
-            mode: jobType,
-          });
-
-          if (!column) {
-            skipped.push({ reason: "no_column_match", item, reg });
-            continue;
-          }
-
-          columnUpdates[column] = jobType === "deinstall" ? 0 : spec.amount;
-        }
-
-        for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {
-          onceOffFees.push(
-            buildOnceOffFeeEntry(item, feeSpec.amount, feeSpec.chargeType, {
-              jobCardId,
-              quotationNumber,
-              invoiceNumber,
-              reg,
-              jobType,
-            }),
-          );
-        }
-      }
-
-      const hasRecurringUpdates = Object.keys(columnUpdates).length > 0;
-      const hasOnceOffUpdates = onceOffFees.length > 0;
-
-      if (!hasRecurringUpdates && !hasOnceOffUpdates) {
-        continue;
-      }
-
-      if (!existing) {
-        const insertData: Record<string, any> = {
-          reg,
-          company: customerName,
-          new_account_number: costCode,
-          account_number: costCode,
-          make: vehicleMake,
-          model: vehicleModel,
-          year: vehicleYear,
-          once_off_fees: onceOffFees,
-        };
-
-        for (const [column, value] of Object.entries(columnUpdates)) {
-          insertData[column] = value;
-        }
-
-        Object.assign(insertData, recalculateVehicleTotals(insertData));
-
-        const { error: insertError } = await supabase
-          .from("vehicles")
-          .insert(insertData);
-
-        if (insertError) {
-          return NextResponse.json(
-            {
-              error: "Failed to insert vehicle billing",
-              details: insertError.message,
-            },
-            { status: 500 },
-          );
-        }
-
-        created += 1;
-        continue;
-      }
-
-      const updateData: Record<string, any> = {};
-      if (!existing.new_account_number) {
-        updateData.new_account_number = costCode;
-      }
-      if (!existing.account_number) {
-        updateData.account_number = costCode;
-      }
-
-      for (const [column, value] of Object.entries(columnUpdates)) {
-        updateData[column] = value;
-      }
-
-      if (hasOnceOffUpdates) {
-        updateData.once_off_fees = mergeOnceOffFees(existing.once_off_fees, onceOffFees);
-      }
-
-      Object.assign(
-        updateData,
-        recalculateVehicleTotals({
-          ...existing,
-          ...updateData,
-        }),
-      );
-
-      const { error: updateError } = await supabase
-        .from("vehicles")
-        .update(updateData)
-        .eq("id", existing.id);
-
-      if (updateError) {
+      if (queueError) {
         return NextResponse.json(
           {
-            error: "Failed to update vehicle billing",
-            details: updateError.message,
+            error: "Failed to queue vehicle billing update",
+            details: queueError.message,
           },
           { status: 500 },
         );
       }
 
-      updated += 1;
+      return NextResponse.json({
+        success: true,
+        queued: true,
+        applied: false,
+        queue: queuedRow,
+        message:
+          "Billing is locked. Quote billing changes were queued and will be applied after unlock.",
+      });
     }
 
-    return NextResponse.json({
-      success: true,
-      cost_code: costCode,
-      mode: jobType,
-      created,
-      updated,
-      skipped,
-    });
+    const result = await applyQuoteBilling(supabase, body);
+    return NextResponse.json(result);
   } catch (error: any) {
+    const errorMessage = error?.message || "Unknown error";
+    const status = /required/i.test(errorMessage) ? 400 : 500;
     return NextResponse.json(
       {
         error: "Internal server error",
-        details: error?.message || "Unknown error",
+        details: errorMessage,
       },
-      { status: 500 },
+      { status },
     );
   }
 }

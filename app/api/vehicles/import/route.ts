@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
+import {
+  BILLABLE_VEHICLE_FIELD_SET,
+  isBillingLocked,
+} from "@/lib/server/billing-lock";
 import { createClient } from "@/lib/supabase/server";
 
 const VEHICLE_DB_COLUMNS = new Set([
@@ -448,6 +452,7 @@ export async function POST(request: Request) {
     }
 
     const missingColumns = new Set<string>();
+    const billableColumnsInFile = new Set<string>();
     const mappedRows = rawRows
       .map((row) => {
         const mapped: Record<string, unknown> = {
@@ -481,6 +486,9 @@ export async function POST(request: Request) {
 
           const nextValue = toInsertValue(normalizedHeader, value);
           if (nextValue !== null) {
+            if (BILLABLE_VEHICLE_FIELD_SET.has(normalizedHeader)) {
+              billableColumnsInFile.add(normalizedHeader);
+            }
             mapped[normalizedHeader] = nextValue;
           }
         });
@@ -508,6 +516,18 @@ export async function POST(request: Request) {
             "No usable vehicle rows were found after matching the Excel headers",
         },
         { status: 400 },
+      );
+    }
+
+    if (billableColumnsInFile.size > 0 && (await isBillingLocked(supabase))) {
+      return NextResponse.json(
+        {
+          error: "Billing is locked",
+          details:
+            "Vehicle imports containing rental, subscription, or billing total columns are blocked while the system is locked.",
+          fields: [...billableColumnsInFile].sort(),
+        },
+        { status: 423 },
       );
     }
 

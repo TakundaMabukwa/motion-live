@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getBillingLock, isBillingLocked } from "@/lib/server/billing-lock";
 import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
 import { buildTemporaryRegistration } from "@/lib/temp-registration";
 
@@ -558,6 +559,166 @@ async function createVehicleForJob(
   return data;
 }
 
+export async function syncJobEquipmentToVehicles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  job: Record<string, any>,
+) {
+  if (!job?.id) {
+    throw new Error("job is required");
+  }
+
+  const jobTypeRaw = String(
+    job?.job_type || job?.quotation_job_type || "",
+  ).toLowerCase();
+  const jobType =
+    jobTypeRaw.includes("deinstall") ||
+    jobTypeRaw.includes("de-install") ||
+    jobTypeRaw.includes("decomm")
+      ? "deinstall"
+      : "install";
+
+  let createdVehicleId: number | null = null;
+  let vehicles = await getVehiclesForJob(supabase, job);
+  const vehicleRegs = getVehicleRegs(job);
+
+  if (jobType === "install") {
+    const costCode = String(job?.new_account_number || "").trim();
+    const existingRegKeys = new Set(
+      vehicles.map((vehicle) => {
+        const reg = String(vehicle?.reg || "")
+          .trim()
+          .toLowerCase();
+        const account = String(
+          vehicle?.new_account_number || vehicle?.account_number || "",
+        )
+          .trim()
+          .toLowerCase();
+        return `${reg}|${account}`;
+      }),
+    );
+
+    for (const reg of vehicleRegs) {
+      const regKey = `${String(reg || "")
+        .trim()
+        .toLowerCase()}|${costCode.toLowerCase()}`;
+      if (!reg || existingRegKeys.has(regKey)) continue;
+      const createdVehicle = await createVehicleForJob(supabase, job, reg);
+      if (createdVehicleId == null) {
+        createdVehicleId = createdVehicle?.id ?? null;
+      }
+      vehicles.push(createdVehicle);
+      existingRegKeys.add(regKey);
+    }
+  }
+
+  if (!vehicles.length && jobType === "install") {
+    const createdVehicle = await createVehicleForJob(supabase, job);
+    createdVehicleId = createdVehicle?.id ?? null;
+    vehicles = [createdVehicle];
+  }
+
+  if (!vehicles.length) {
+    throw new Error("No matching vehicle rows found in vehicles");
+  }
+
+  const sourceItems = [
+    ...parseArray(job?.quotation_products),
+    ...parseArray(job?.equipment_used),
+    ...parseArray(job?.parts_required),
+  ];
+
+  if (!sourceItems.length) {
+    return {
+      success: true,
+      updated: 0,
+      warnings: ["No equipment items found on job card"],
+      mode: jobType,
+      createdVehicleId,
+    };
+  }
+
+  let updated = 0;
+  const warnings: string[] = [];
+
+  const defaultVehicleReg = String(
+    job?.vehicle_registration ||
+      job?.temporary_registration ||
+      buildTemporaryRegistration(
+        job?.id,
+        job?.job_number,
+        job?.quotation_number,
+        job?.new_account_number,
+      ),
+  )
+    .trim()
+    .toLowerCase();
+  const hasMultipleVehicles = vehicles.length > 1;
+
+  for (const vehicle of vehicles) {
+    const updateData: Record<string, any> = {};
+
+    for (const item of sourceItems) {
+      const itemVehiclePlate = String(item?.vehicle_plate || "").trim();
+      if (
+        itemVehiclePlate &&
+        String(vehicle.reg || "").trim() &&
+        itemVehiclePlate.toLowerCase() !==
+          String(vehicle.reg || "")
+            .trim()
+            .toLowerCase()
+      ) {
+        continue;
+      }
+      if (
+        hasMultipleVehicles &&
+        !itemVehiclePlate &&
+        defaultVehicleReg &&
+        String(vehicle.reg || "")
+          .trim()
+          .toLowerCase() !== defaultVehicleReg
+      ) {
+        continue;
+      }
+
+      const { update, warning } = buildVehicleUpdate(
+        jobType,
+        { ...vehicle, ...updateData },
+        item,
+      );
+      if (warning)
+        warnings.push(
+          `${vehicle.reg || vehicle.fleet_number || vehicle.id}: ${warning}`,
+        );
+      if (update) {
+        Object.assign(updateData, update);
+      }
+    }
+
+    if (!Object.keys(updateData).length) {
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("vehicles")
+      .update(updateData)
+      .eq("id", vehicle.id);
+
+    if (updateError) {
+      throw new Error(updateError.message);
+    }
+
+    updated += 1;
+  }
+
+  return {
+    success: true,
+    mode: jobType,
+    updated,
+    warnings,
+    createdVehicleId,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -571,170 +732,64 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const job = body?.job && typeof body.job === "object" ? body.job : null;
-    if (!job?.id) {
-      return NextResponse.json({ error: "job is required" }, { status: 400 });
-    }
+    if (await isBillingLocked(supabase)) {
+      const lockRow = await getBillingLock(supabase);
+      const queuedReg = String(
+        job?.vehicle_registration || job?.temporary_registration || "",
+      ).trim() || null;
 
-    const jobTypeRaw = String(
-      job?.job_type || job?.quotation_job_type || "",
-    ).toLowerCase();
-    const jobType =
-      jobTypeRaw.includes("deinstall") ||
-      jobTypeRaw.includes("de-install") ||
-      jobTypeRaw.includes("decomm")
-        ? "deinstall"
-        : "install";
+      const { data: queuedRow, error: queueError } = await supabase
+        .from("vehicle_billing_queue")
+        .insert({
+          job_card_id: job?.id || null,
+          cost_code: job?.new_account_number || null,
+          vehicle_reg: queuedReg,
+          action_type: "sync_job_equipment",
+          payload: { job },
+          lock_date: lockRow?.lock_date || null,
+          queued_by: user.id,
+          queued_at: new Date().toISOString(),
+          status: "pending",
+        })
+        .select("*")
+        .single();
 
-    let createdVehicleId: number | null = null;
-    let vehicles = await getVehiclesForJob(supabase, job);
-    const vehicleRegs = getVehicleRegs(job);
-
-    if (jobType === "install") {
-      const costCode = String(job?.new_account_number || "").trim();
-      const existingRegKeys = new Set(
-        vehicles.map((vehicle) => {
-          const reg = String(vehicle?.reg || "")
-            .trim()
-            .toLowerCase();
-          const account = String(
-            vehicle?.new_account_number || vehicle?.account_number || "",
-          )
-            .trim()
-            .toLowerCase();
-          return `${reg}|${account}`;
-        }),
-      );
-
-      for (const reg of vehicleRegs) {
-        const regKey = `${String(reg || "")
-          .trim()
-          .toLowerCase()}|${costCode.toLowerCase()}`;
-        if (!reg || existingRegKeys.has(regKey)) continue;
-        const createdVehicle = await createVehicleForJob(supabase, job, reg);
-        if (createdVehicleId == null) {
-          createdVehicleId = createdVehicle?.id ?? null;
-        }
-        vehicles.push(createdVehicle);
-        existingRegKeys.add(regKey);
+      if (queueError) {
+        return NextResponse.json(
+          {
+            error: "Failed to queue vehicle equipment sync",
+            details: queueError.message,
+          },
+          { status: 500 },
+        );
       }
-    }
 
-    if (!vehicles.length && jobType === "install") {
-      const createdVehicle = await createVehicleForJob(supabase, job);
-      createdVehicleId = createdVehicle?.id ?? null;
-      vehicles = [createdVehicle];
-    }
-
-    if (!vehicles.length) {
-      return NextResponse.json(
-        { error: "No matching vehicle rows found in vehicles" },
-        { status: 404 },
-      );
-    }
-
-    const sourceItems =
-      [
-        ...parseArray(job?.quotation_products),
-        ...parseArray(job?.equipment_used),
-        ...parseArray(job?.parts_required),
-      ];
-
-    if (!sourceItems.length) {
       return NextResponse.json({
         success: true,
-        updated: 0,
-        warnings: ["No equipment items found on job card"],
-        mode: jobType,
+        queued: true,
+        applied: false,
+        queue: queuedRow,
+        message:
+          "Billing is locked. Vehicle equipment sync was queued and will be applied after unlock.",
       });
     }
 
-    let updated = 0;
-    const warnings: string[] = [];
-
-    const defaultVehicleReg = String(
-      job?.vehicle_registration ||
-        job?.temporary_registration ||
-        buildTemporaryRegistration(
-          job?.id,
-          job?.job_number,
-          job?.quotation_number,
-          job?.new_account_number,
-        ),
-    )
-      .trim()
-      .toLowerCase();
-    const hasMultipleVehicles = vehicles.length > 1;
-
-    for (const vehicle of vehicles) {
-      const updateData: Record<string, any> = {};
-
-      for (const item of sourceItems) {
-        const itemVehiclePlate = String(item?.vehicle_plate || "").trim();
-        if (
-          itemVehiclePlate &&
-          String(vehicle.reg || "").trim() &&
-          itemVehiclePlate.toLowerCase() !==
-            String(vehicle.reg || "")
-              .trim()
-              .toLowerCase()
-        ) {
-          continue;
-        }
-        if (
-          hasMultipleVehicles &&
-          !itemVehiclePlate &&
-          defaultVehicleReg &&
-          String(vehicle.reg || "")
-            .trim()
-            .toLowerCase() !== defaultVehicleReg
-        ) {
-          continue;
-        }
-
-        const { update, warning } = buildVehicleUpdate(
-          jobType,
-          { ...vehicle, ...updateData },
-          item,
-        );
-        if (warning)
-          warnings.push(
-            `${vehicle.reg || vehicle.fleet_number || vehicle.id}: ${warning}`,
-          );
-        if (update) {
-          Object.assign(updateData, update);
-        }
-      }
-
-      if (!Object.keys(updateData).length) {
-        continue;
-      }
-
-      const { error: updateError } = await supabase
-        .from("vehicles")
-        .update(updateData)
-        .eq("id", vehicle.id);
-
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-
-      updated += 1;
-    }
-
-    return NextResponse.json({
-      success: true,
-      mode: jobType,
-      updated,
-      warnings,
-      createdVehicleId,
-    });
+    const result = await syncJobEquipmentToVehicles(supabase, job);
+    return NextResponse.json(result);
   } catch (error: any) {
+    const errorMessage = error?.message || "Unknown error";
+    const status =
+      /job is required/i.test(errorMessage)
+        ? 400
+        : /No matching vehicle rows found/i.test(errorMessage)
+          ? 404
+          : 500;
     return NextResponse.json(
       {
         error: "Failed to sync job equipment to vehicles",
-        details: error?.message || "Unknown error",
+        details: errorMessage,
       },
-      { status: 500 },
+      { status },
     );
   }
 }

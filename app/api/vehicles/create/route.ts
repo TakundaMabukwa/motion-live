@@ -1,4 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
+import {
+  findPresentBillableVehicleFields,
+  isBillingLocked,
+} from '@/lib/server/billing-lock';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -19,6 +23,19 @@ export async function POST(request: Request) {
     delete normalizedVehicleData.color;
     
     const supabase = await createClient();
+    const touchedBillableFields = findPresentBillableVehicleFields(normalizedVehicleData);
+
+    if (touchedBillableFields.length > 0 && (await isBillingLocked(supabase))) {
+      return NextResponse.json(
+        {
+          error: 'Billing is locked',
+          details:
+            'Vehicles can still be created while locked, but rental, subscription, and billing total fields cannot be inserted.',
+          fields: touchedBillableFields,
+        },
+        { status: 423 }
+      );
+    }
 
     // Auto-validate vehicles added from FC validation flow.
     // If DB column is missing (migration not applied), retry without this field.

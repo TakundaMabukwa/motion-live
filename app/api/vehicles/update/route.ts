@@ -1,4 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
+import {
+  findPresentBillableVehicleFields,
+  findTouchedBillableVehicleFields,
+  isBillingLocked,
+} from '@/lib/server/billing-lock';
 import { NextResponse } from 'next/server';
 
 export async function PUT(request) {
@@ -13,11 +18,25 @@ export async function PUT(request) {
     }
 
     const supabase = await createClient();
+    const billingLocked = await isBillingLocked(supabase);
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
     const { id, unique_id, ...updateData } = vehicleData;
+    const touchedBillableFields = findTouchedBillableVehicleFields(updateData);
+
+    if (touchedBillableFields.length > 0 && billingLocked) {
+      return NextResponse.json(
+        {
+          error: 'Billing is locked',
+          details:
+            'Rental, subscription, and billing total fields cannot be changed while the system is locked.',
+          fields: touchedBillableFields,
+        },
+        { status: 423 }
+      );
+    }
 
     if (Object.prototype.hasOwnProperty.call(updateData, 'amount_locked')) {
       if (authError || !user) {
@@ -159,6 +178,19 @@ export async function PUT(request) {
 
       if (!insertPayload.account_number && insertPayload.new_account_number) {
         insertPayload.account_number = insertPayload.new_account_number;
+      }
+
+      const presentBillableFields = findPresentBillableVehicleFields(insertPayload);
+      if (presentBillableFields.length > 0 && billingLocked) {
+        return NextResponse.json(
+          {
+            error: 'Billing is locked',
+            details:
+              'This update would insert billing values into the vehicles table while the system is locked.',
+            fields: presentBillableFields,
+          },
+          { status: 423 }
+        );
       }
 
       const { error: vehiclesInsertError } = await supabase

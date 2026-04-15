@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { applyQuoteBilling } from '@/app/api/vehicles/apply-quote-billing/route';
+import { syncJobEquipmentToVehicles } from '@/app/api/vehicles/sync-job-equipment/route';
 
 const LOCK_KEY = 'billing';
 
@@ -275,6 +277,74 @@ const processQueuedJobCardInvoices = async (
   return results;
 };
 
+const processQueuedVehicleBilling = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  lockDate: string | null,
+) => {
+  if (!lockDate) {
+    return [];
+  }
+
+  const { data: queuedRows, error } = await supabase
+    .from('vehicle_billing_queue')
+    .select('*')
+    .eq('status', 'pending')
+    .eq('lock_date', lockDate)
+    .order('queued_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(queuedRows) ? queuedRows : [];
+  const results = [];
+
+  for (const row of rows) {
+    try {
+      if (row.action_type === 'apply_quote_billing') {
+        await applyQuoteBilling(supabase, row.payload || {});
+      } else if (row.action_type === 'sync_job_equipment') {
+        const payload = row.payload || {};
+        await syncJobEquipmentToVehicles(supabase, payload.job || null);
+      } else {
+        throw new Error(`Unsupported action type: ${row.action_type}`);
+      }
+
+      await supabase
+        .from('vehicle_billing_queue')
+        .update({
+          status: 'processed',
+          error: null,
+          processed_at: new Date().toISOString(),
+          processed_by: userId,
+        })
+        .eq('id', row.id);
+
+      results.push({ id: row.id, status: 'processed', action_type: row.action_type });
+    } catch (queueError: any) {
+      await supabase
+        .from('vehicle_billing_queue')
+        .update({
+          status: 'error',
+          error: queueError?.message || 'Failed to process queued vehicle billing',
+          processed_at: new Date().toISOString(),
+          processed_by: userId,
+        })
+        .eq('id', row.id);
+
+      results.push({
+        id: row.id,
+        status: 'error',
+        action_type: row.action_type,
+        error: queueError?.message || 'Failed to process queued vehicle billing',
+      });
+    }
+  }
+
+  return results;
+};
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -322,6 +392,7 @@ export async function POST(request: NextRequest) {
     }
 
     let lockRow = await getLockRow(supabase);
+    const previousLockDate = String(lockRow?.lock_date || '').trim() || null;
 
     if (!lockRow) {
       const { data: inserted, error: insertError } = await supabase
@@ -370,6 +441,7 @@ export async function POST(request: NextRequest) {
     let bulkLockCount = 0;
     let bulkUnlockCount = 0;
     let queueResults: Array<Record<string, unknown>> = [];
+    let vehicleQueueResults: Array<Record<string, unknown>> = [];
 
     if (isLocked && lockMonth) {
       bulkLockCount = await applySystemLockToBulkInvoices(supabase, {
@@ -382,6 +454,11 @@ export async function POST(request: NextRequest) {
       });
 
       queueResults = await processQueuedJobCardInvoices(supabase, user.id);
+      vehicleQueueResults = await processQueuedVehicleBilling(
+        supabase,
+        user.id,
+        previousLockDate,
+      );
     }
 
     const enriched = await enrichLockRow(supabase, lockRow);
@@ -392,6 +469,8 @@ export async function POST(request: NextRequest) {
       bulkUnlockCount,
       queuedProcessed: queueResults.length,
       queueResults,
+      vehicleQueuedProcessed: vehicleQueueResults.length,
+      vehicleQueueResults,
     });
   } catch (error) {
     console.error('Error updating system lock:', error);

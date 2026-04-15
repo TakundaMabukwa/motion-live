@@ -451,7 +451,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
   const handleSystemLockToggle = async () => {
     try {
-      if (!systemLock || !systemLockDate) {
+      if (!systemLockDate) {
         toast.error('Select a lock date first.');
         return;
       }
@@ -462,7 +462,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isLocked: shouldLock,
-          lockDate: shouldLock ? systemLockDate : systemLock?.lock_date || systemLockDate,
+          lockDate: systemLockDate,
         }),
       });
 
