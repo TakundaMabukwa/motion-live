@@ -54,6 +54,7 @@ import AccountDashboard from "@/components/accounts/AccountDashboard";
 import OrdersContent from "./OrdersContent";
 import PurchasesContent from "./PurchasesContent";
 import AccountsClientsSection from "./AccountsClientsSection";
+import AccountsInvoicesSection from "./AccountsInvoicesSection";
 
 export default function AccountsContent({ activeSection }) {
   const [customers, setCustomers] = useState([]);
@@ -718,7 +719,7 @@ export default function AccountsContent({ activeSection }) {
   };
 
   useEffect(() => {
-    const accountNumber = selectedJobForInvoice?.new_account_number?.trim();
+    const accountNumber = getSelectedInvoiceAccountNumber();
 
     if (!showInvoiceModal || !accountNumber) {
       return;
@@ -1200,6 +1201,7 @@ export default function AccountsContent({ activeSection }) {
       costCenterInfo?.physical_address_2,
       costCenterInfo?.physical_address_3,
       costCenterInfo?.physical_area,
+      costCenterInfo?.physical_province,
       costCenterInfo?.physical_code,
     ]
       .map((value) => String(value || "").trim())
@@ -1211,6 +1213,14 @@ export default function AccountsContent({ activeSection }) {
 
     return fallbackAddress || "No address provided";
   };
+
+  const getSelectedInvoiceAccountNumber = () =>
+    String(
+      selectedJobForInvoice?.new_account_number ||
+        storedInvoiceRecord?.account_number ||
+        selectedCostCenterInfo?.cost_code ||
+        "",
+    ).trim();
 
   const buildCompletedJobInvoiceView = () => {
     if (!selectedJobForInvoice) return null;
@@ -1311,6 +1321,8 @@ export default function AccountsContent({ activeSection }) {
       invoiceDate: formatDate(invoiceDate),
       orderNumber,
       clientName:
+        selectedCostCenterInfo?.company ||
+        selectedCostCenterInfo?.legal_name ||
         storedInvoiceRecord?.client_name ||
         invoiceFormData.clientName ||
         selectedJobForInvoice.customer_name ||
@@ -1332,10 +1344,15 @@ export default function AccountsContent({ activeSection }) {
             invoiceFormData.clientAddress ||
             selectedJobForInvoice.customer_address,
         ),
-      accountNumber: selectedJobForInvoice.new_account_number || "N/A",
+      accountNumber: getSelectedInvoiceAccountNumber() || "N/A",
       customerVatNumber:
         selectedCostCenterInfo?.vat_number ||
         selectedCostCenterInfo?.vat_exempt_number ||
+        storedInvoiceRecord?.customer_vat_number ||
+        "-",
+      companyRegistrationNumber:
+        selectedCostCenterInfo?.registration_number ||
+        storedInvoiceRecord?.company_registration_number ||
         "-",
       notes:
         storedInvoiceRecord?.notes ||
@@ -1436,6 +1453,7 @@ export default function AccountsContent({ activeSection }) {
             <div class="party-row">
               <div class="bill-to">
                 <div class="bill-company">${escapeHtml(invoiceView.clientName)}</div>
+                <div class="bill-address"><strong>Company Reg:</strong> ${escapeHtml(invoiceView.companyRegistrationNumber)}</div>
                 <div class="bill-address">${escapeHtml(invoiceView.clientAddress)}</div>
               </div>
               <div class="invoice-meta">
@@ -1889,6 +1907,10 @@ export default function AccountsContent({ activeSection }) {
 
   if (activeSection === "client-info") {
     return <AccountsClientsSection mode="client-info" />;
+  }
+
+  if (activeSection === "invoices") {
+    return <AccountsInvoicesSection />;
   }
 
   if (activeSection === "purchases") {
