@@ -336,11 +336,11 @@ export default function ClientQuoteForm({
       type: "Service",
       category: "Recovery",
       code: "RECOVERY",
-      quantity: parsedHours > 0 ? parsedHours : 1,
+      quantity: 1, // Always 1 for recovery - the total amount is in cashPrice
       purchaseType: "service",
       isLabour: true,
       isRecovery: true,
-      cashPrice: parsedAmount > 0 ? parsedAmount : 0,
+      cashPrice: parsedAmount > 0 ? parsedAmount : 0, // Total recovery amount
       cashDiscount: 0,
       rentalPrice: 0,
       rentalDiscount: 0,
@@ -351,7 +351,7 @@ export default function ClientQuoteForm({
       subscriptionPrice: 0,
       subscriptionDiscount: 0,
       annuityEndDate: "",
-      detailValue: parsedHours > 0 ? String(parsedHours) : "",
+      detailValue: parsedHours > 0 ? String(parsedHours) : "", // Store hours in detailValue for reference
     };
   }, []);
 
@@ -772,6 +772,7 @@ export default function ClientQuoteForm({
 
   const getProductTotal = useCallback((product) => {
     if (product.isRecovery) {
+      // For recovery quotes, the cashPrice is the total amount, quantity should always be 1
       return calculateGrossAmount(product.cashPrice, product.cashDiscount);
     }
 
@@ -996,7 +997,7 @@ export default function ClientQuoteForm({
         const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
 
         const totalPrice = product.isRecovery
-          ? cashGross
+          ? cashGross // For recovery, cashPrice is already the total amount
           : ((isLabour || isPurchase ? cashGross : 0)
           + (isRental ? rentalGross : 0)
           + installationGross

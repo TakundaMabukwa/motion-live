@@ -562,6 +562,9 @@ export default function AccountsContent({ activeSection }) {
       setGeneratedInvoice(invoiceData);
       setStoredInvoiceRecord(invoiceRecord);
 
+      const deferredActions = [];
+      const syncWarnings = [];
+
       if (effectiveAccountNumber) {
         const products = parseQuotationProducts(
           selectedJobForInvoice.quotation_products,
@@ -600,6 +603,11 @@ export default function AccountsContent({ activeSection }) {
                 "Failed to apply quotation billing",
             );
           }
+
+          const billingResult = await billingResponse.json().catch(() => ({}));
+          if (billingResult?.queued) {
+            deferredActions.push("quotation billing");
+          }
         }
       }
 
@@ -624,6 +632,12 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const equipmentResult = await equipmentResponse.json();
+      if (equipmentResult?.queued) {
+        deferredActions.push("vehicle equipment sync");
+      }
+      if (equipmentResult?.warnings?.length) {
+        syncWarnings.push(...equipmentResult.warnings);
+      }
 
       await updateBillingStatus(selectedJobForInvoice, "invoice", {
         invoice_number: invoiceNumber,
@@ -633,9 +647,13 @@ export default function AccountsContent({ activeSection }) {
         vat_amount: invoiceRecord.vat_amount || 0,
         total_amount: invoiceRecord.total_amount || 0,
       });
-      if (equipmentResult?.warnings?.length) {
+      if (deferredActions.length > 0) {
         toast.success(
-          `Invoice generated. Vehicle equipment updated with ${equipmentResult.warnings.length} warning(s).`,
+          `Invoice generated successfully. ${deferredActions.join(" and ")} will be applied after unlock.`,
+        );
+      } else if (syncWarnings.length > 0) {
+        toast.success(
+          `Invoice generated. Vehicle equipment updated with ${syncWarnings.length} warning(s).`,
         );
       } else {
         toast.success("Invoice generated successfully!");

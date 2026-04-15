@@ -1417,7 +1417,13 @@ export default function InvoiceReportComponent({
       });
 
       onInvoiceGenerated?.(result.invoice);
-      toast.success("Invoice generated successfully");
+      if (result?.locked) {
+        toast.success("Invoice is locked. Using the stored invoice snapshot with the current allowed date.");
+      } else if (result?.reused) {
+        toast.success("Invoice generated successfully");
+      } else {
+        toast.success("Invoice generated successfully");
+      }
     } catch (error) {
       toast.error(error?.message || "Failed to generate invoice");
     } finally {
