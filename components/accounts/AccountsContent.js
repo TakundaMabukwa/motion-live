@@ -95,6 +95,7 @@ export default function AccountsContent({ activeSection }) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [billingActionLoading, setBillingActionLoading] = useState({});
   const [movingJobId, setMovingJobId] = useState(null);
+  const [systemLock, setSystemLock] = useState(null);
 
   // Overdue section state
   const [refreshKey, setRefreshKey] = useState(0);
@@ -106,7 +107,26 @@ export default function AccountsContent({ activeSection }) {
   const router = useRouter();
   const VAT_RATE = 0.15;
   const BILLING_STATUS_KEYS = ["invoice"];
-  const COMPLETED_JOB_INVOICE_DATE = "2026-03-30T00:00:00.000Z";
+
+  const getLockMonthEndInvoiceDate = (lockDate) => {
+    const raw = String(lockDate || "").trim();
+    if (!raw) return null;
+
+    const parsed = new Date(`${raw.slice(0, 7)}-01T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return new Date(
+      parsed.getFullYear(),
+      parsed.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    ).toISOString();
+  };
 
   // Check if payment is due (after 21st of month)
   const isPaymentDue = () => {
@@ -204,6 +224,31 @@ export default function AccountsContent({ activeSection }) {
   useEffect(() => {
     fetchPaymentTotals();
   }, [fetchPaymentTotals]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchSystemLock = async () => {
+      try {
+        const response = await fetch("/api/system-lock", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (active) {
+          setSystemLock(payload?.lock || null);
+        }
+      } catch (error) {
+        console.error("Error fetching system lock:", error);
+      }
+    };
+
+    fetchSystemLock();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Real-time search filtering
   useEffect(() => {
@@ -478,7 +523,6 @@ export default function AccountsContent({ activeSection }) {
           clientAddress:
             invoiceFormData.clientAddress ||
             selectedJobForInvoice.customer_address,
-          invoiceDate: COMPLETED_JOB_INVOICE_DATE,
           dueDate: invoiceFormData.dueDate,
           paymentTerms: invoiceFormData.paymentTerms,
           notes:
@@ -498,16 +542,6 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const invoiceCreateResult = await invoiceCreateResponse.json();
-      if (invoiceCreateResult?.queued) {
-        const lockDate = invoiceCreateResult?.lock?.lock_date;
-        toast.success(
-          lockDate
-            ? `System locked for ${lockDate}. Invoice queued and will be created after unlock.`
-            : "System locked. Invoice queued and will be created after unlock.",
-        );
-        setIsGeneratingInvoice(false);
-        return;
-      }
       const invoiceRecord = invoiceCreateResult?.invoice;
       const invoiceNumber = invoiceRecord?.invoice_number;
 
@@ -520,7 +554,7 @@ export default function AccountsContent({ activeSection }) {
         jobNumber: selectedJobForInvoice.job_number,
         clientInfo: invoiceFormData,
         jobDetails: selectedJobForInvoice,
-        generatedAt: invoiceRecord.invoice_date || COMPLETED_JOB_INVOICE_DATE,
+        generatedAt: invoiceRecord.invoice_date || new Date().toISOString(),
         pdfUrl: invoiceRecord.pdf_url || `#invoice-${invoiceNumber}`,
         invoiceId: invoiceRecord.id,
       };
@@ -1259,10 +1293,14 @@ export default function AccountsContent({ activeSection }) {
       storedInvoiceRecord?.invoice_number ||
       generatedInvoice?.invoiceNumber ||
       "PENDING";
+    const lockedPreviewInvoiceDate =
+      Boolean(systemLock?.is_locked) &&
+      getLockMonthEndInvoiceDate(systemLock?.lock_date);
     const invoiceDate =
       storedInvoiceRecord?.invoice_date ||
       generatedInvoice?.generatedAt ||
-      COMPLETED_JOB_INVOICE_DATE;
+      lockedPreviewInvoiceDate ||
+      new Date().toISOString();
     const orderNumber = selectedJobForInvoice.order_number || "N/A";
 
     const rows = rawTotals.products.length > 0
@@ -2852,7 +2890,7 @@ export default function AccountsContent({ activeSection }) {
                     generatedInvoice?.invoiceNumber ||
                     "INV-PENDING";
                   const invoiceDate =
-                    generatedInvoice?.generatedAt || COMPLETED_JOB_INVOICE_DATE;
+                    generatedInvoice?.generatedAt || new Date().toISOString();
                   return (
                     <div
                       id="invoice-preview"

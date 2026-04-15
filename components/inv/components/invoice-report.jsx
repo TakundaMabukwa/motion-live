@@ -82,9 +82,7 @@ const getBillingInvoiceDate = (billingMonth) => {
 
   const year = parsed.getFullYear();
   const month = parsed.getMonth();
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const invoiceDay = Math.min(30, lastDay);
-  return new Date(year, month, invoiceDay).toISOString();
+  return new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
 };
 
 const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
@@ -115,6 +113,8 @@ const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
     storedInvoice?.source_account_number || liveInvoiceData?.source_account_number || null,
   billing_group: storedInvoice?.billing_group || liveInvoiceData?.billing_group || null,
   company_name: storedInvoice?.company_name || liveInvoiceData?.company_name || null,
+  billing_month: liveInvoiceData?.billing_month || storedInvoice?.billing_month || null,
+  invoice_date: liveInvoiceData?.invoice_date || storedInvoice?.invoice_date || null,
   invoice_items: storedInvoice?.invoice_items || [],
   invoiceItems: storedInvoice?.invoiceItems || [],
 });
@@ -133,8 +133,8 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
     ...(liveInvoiceData || {}),
     id: normalizedStored.id || liveInvoiceData?.id,
     invoice_number: normalizedStored.invoice_number || liveInvoiceData?.invoice_number,
-    invoice_date: normalizedStored.invoice_date || liveInvoiceData?.invoice_date,
-    billing_month: normalizedStored.billing_month || liveInvoiceData?.billing_month,
+    invoice_date: liveInvoiceData?.invoice_date || normalizedStored.invoice_date,
+    billing_month: liveInvoiceData?.billing_month || normalizedStored.billing_month,
     notes: normalizedStored.notes ?? liveInvoiceData?.notes ?? liveInvoiceData?.note ?? null,
     customer_vat_number: normalizedStored.customer_vat_number || liveInvoiceData?.customer_vat_number || null,
     company_registration_number: normalizedStored.company_registration_number || liveInvoiceData?.company_registration_number || null,
@@ -1381,7 +1381,9 @@ export default function InvoiceReportComponent({
           companyRegistrationNumber: invoiceView.companyRegistrationNumber,
           clientAddress: invoiceView.clientAddress,
           customerVatNumber: invoiceView.customerVatNumber,
-          invoiceDate: getBillingInvoiceDate(costCenter.billingMonth || activeInvoiceData?.billing_month),
+          invoiceDate:
+            activeInvoiceData?.invoice_date ||
+            getBillingInvoiceDate(costCenter.billingMonth || activeInvoiceData?.billing_month),
           subtotal: invoiceView.totals.totalExVat,
           vatAmount: invoiceView.totals.totalVat,
           discountAmount: invoiceView.totals.discount,

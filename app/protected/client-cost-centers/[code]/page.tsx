@@ -47,10 +47,34 @@ const formatBillingMonthLabel = (value) => {
   return parsed.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 };
 
-const BULK_INVOICE_ALL_BILLING_MONTH = '2026-03-01';
-const BULK_INVOICE_ALL_DATE = '2026-03-30T00:00:00.000Z';
-const ACCOUNTS_INVOICE_BILLING_MONTH = '2026-03-01';
-const ACCOUNTS_INVOICE_DATE = '2026-03-30T00:00:00.000Z';
+const getCurrentBillingMonth = () => {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return `${localDate.toISOString().slice(0, 7)}-01`;
+};
+
+const getMonthEndInvoiceDate = (billingMonth) => {
+  const normalized = normalizeBillingMonthValue(billingMonth) || getCurrentBillingMonth();
+  const parsed = new Date(`${String(normalized).slice(0, 7)}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().toISOString();
+  }
+
+  return new Date(
+    parsed.getFullYear(),
+    parsed.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999,
+  ).toISOString();
+};
+
+const BULK_INVOICE_ALL_BILLING_MONTH = getCurrentBillingMonth();
+const BULK_INVOICE_ALL_DATE = getMonthEndInvoiceDate(BULK_INVOICE_ALL_BILLING_MONTH);
+const ACCOUNTS_INVOICE_BILLING_MONTH = getCurrentBillingMonth();
+const ACCOUNTS_INVOICE_DATE = getMonthEndInvoiceDate(ACCOUNTS_INVOICE_BILLING_MONTH);
 
 const normalizeStoredBulkInvoiceForPreview = (invoice) => {
   if (!invoice) return null;
@@ -75,21 +99,14 @@ const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
 
 const normalizeBatchInvoiceAllInvoiceData = (invoiceData) => {
   if (!invoiceData) return null;
-
-  const billingMonth = String(invoiceData?.billing_month || '').trim();
-  if (!billingMonth.startsWith('2026-03')) {
-    return invoiceData;
-  }
+  const billingMonth =
+    String(invoiceData?.billing_month || '').trim() || BULK_INVOICE_ALL_BILLING_MONTH;
 
   return {
     ...invoiceData,
-    billing_month: BULK_INVOICE_ALL_BILLING_MONTH,
-    invoice_date: BULK_INVOICE_ALL_DATE,
+    billing_month: billingMonth,
+    invoice_date: invoiceData?.invoice_date || getMonthEndInvoiceDate(billingMonth),
   };
-};
-
-const shouldUseStoredInvoiceSnapshot = (storedBulkInvoice) => {
-  return Boolean(storedBulkInvoice?.invoice_locked);
 };
 
 const getEffectiveInvoiceLockState = (costCenter) => {
@@ -141,17 +158,23 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
   if (!normalizedStored) {
     return liveInvoiceData || null;
   }
-
-  if (shouldUseStoredInvoiceSnapshot(normalizedStored)) {
-    return buildLockedInvoiceSnapshot(normalizedStored, liveInvoiceData || null);
+  if (normalizedStored.invoice_locked) {
+    return {
+      ...normalizedStored,
+      invoice_date: liveInvoiceData?.invoice_date || normalizedStored.invoice_date || null,
+      billing_month: liveInvoiceData?.billing_month || normalizedStored.billing_month || null,
+    };
+  }
+  if (!liveInvoiceData) {
+    return buildLockedInvoiceSnapshot(normalizedStored, null);
   }
 
   return {
     ...(liveInvoiceData || {}),
     id: normalizedStored.id || liveInvoiceData?.id,
     invoice_number: normalizedStored.invoice_number || liveInvoiceData?.invoice_number,
-    invoice_date: normalizedStored.invoice_date || liveInvoiceData?.invoice_date,
-    billing_month: normalizedStored.billing_month || liveInvoiceData?.billing_month,
+    invoice_date: liveInvoiceData?.invoice_date || normalizedStored.invoice_date,
+    billing_month: liveInvoiceData?.billing_month || normalizedStored.billing_month,
     notes: normalizedStored.notes ?? liveInvoiceData?.notes ?? liveInvoiceData?.note ?? null,
     customer_vat_number: normalizedStored.customer_vat_number || liveInvoiceData?.customer_vat_number || null,
     company_registration_number: normalizedStored.company_registration_number || liveInvoiceData?.company_registration_number || null,
@@ -2189,10 +2212,6 @@ export default function ClientCostCentersPage() {
       systemLockMonth === billingMonthKey;
 
     if (isSystemLockedForMonth) {
-      if (!bulkInvoice) {
-        throw new Error('System is locked for this billing month. No stored invoice is available.');
-      }
-
       bulkInvoice = {
         ...bulkInvoice,
         invoice_locked: true,
@@ -2205,12 +2224,10 @@ export default function ClientCostCentersPage() {
     appendInvoiceLockCutoff(query, costCenterInfo, bulkInvoice);
 
     let liveInvoiceData = null;
-    if (!isSystemLockedForMonth) {
-      const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-      if (invoiceResponse.ok) {
-        const data = await invoiceResponse.json();
-        liveInvoiceData = data?.invoiceData || null;
-      }
+    const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+    if (invoiceResponse.ok) {
+      const data = await invoiceResponse.json();
+      liveInvoiceData = data?.invoiceData || null;
     }
 
     const invoiceData = normalizeBatchInvoiceAllInvoiceData(
@@ -2227,13 +2244,16 @@ export default function ClientCostCentersPage() {
       ? normalizeStoredBulkInvoiceForPreview({
           ...bulkInvoice,
           billing_month: targetBillingMonth,
-          invoice_date: BULK_INVOICE_ALL_DATE,
+          invoice_date:
+            invoiceData?.invoice_date ||
+            bulkInvoice?.invoice_date ||
+            getMonthEndInvoiceDate(targetBillingMonth),
         })
       : null;
     const reportCostCenter = {
       ...costCenter,
       billingMonth: targetBillingMonth,
-      invoiceDate: BULK_INVOICE_ALL_DATE,
+      invoiceDate: invoiceData?.invoice_date || getMonthEndInvoiceDate(targetBillingMonth),
       invoiceData,
       bulkInvoice: normalizedBulkInvoice,
       costCenterInfo,
@@ -4539,7 +4559,7 @@ export default function ClientCostCentersPage() {
           invoiceDate:
             rebuiltInvoiceData?.invoice_date ||
             selectedCostCenterForInvoice?.invoiceDate ||
-            BULK_INVOICE_ALL_DATE,
+            getMonthEndInvoiceDate(billingMonth),
           companyName: rebuiltInvoiceData?.company_name || null,
           companyRegistrationNumber: rebuiltInvoiceData?.company_registration_number || null,
           clientAddress: rebuiltInvoiceData?.client_address || null,
@@ -5024,7 +5044,10 @@ export default function ClientCostCentersPage() {
             costCenter: {
               ...costCenter,
               billingMonth: targetBillingMonth,
-              invoiceDate: BULK_INVOICE_ALL_DATE,
+              invoiceDate:
+                invoiceData?.invoice_date ||
+                costCenter?.invoiceDate ||
+                getMonthEndInvoiceDate(targetBillingMonth),
             },
             editableNotes: String(invoiceData?.notes ?? invoiceData?.note ?? invoiceData?.quote_notes ?? ''),
           });
@@ -5144,14 +5167,16 @@ export default function ClientCostCentersPage() {
           return normalizeStoredBulkInvoiceForPreview({
             ...result.invoice,
             billing_month: result.invoice.billing_month || targetBillingMonth,
-            invoice_date: BULK_INVOICE_ALL_DATE,
+            invoice_date:
+              result.invoice.invoice_date ||
+              getMonthEndInvoiceDate(result.invoice.billing_month || targetBillingMonth),
           });
         }),
       );
 
       const lockedInvoices = lockResults.filter(Boolean);
       if (lockedInvoices.length === 0) {
-        throw new Error('No March invoices were locked.');
+        throw new Error('No invoices were locked.');
       }
 
       const lockedByAccount = new Map(
@@ -5170,7 +5195,10 @@ export default function ClientCostCentersPage() {
             accountInvoiceId: lockedInvoice.id || item.accountInvoiceId,
             reference: lockedInvoice.invoice_number || item.reference,
             billingMonth: lockedInvoice.billing_month || targetBillingMonth,
-            invoiceDate: BULK_INVOICE_ALL_DATE,
+            invoiceDate:
+              lockedInvoice.invoice_date ||
+              item.invoiceDate ||
+              getMonthEndInvoiceDate(lockedInvoice.billing_month || targetBillingMonth),
             dueDate: lockedInvoice.due_date || item.dueDate,
           };
         }),
@@ -5195,7 +5223,10 @@ export default function ClientCostCentersPage() {
               {
                 ...(prev.invoiceData || {}),
                 billing_month: lockedInvoice.billing_month || targetBillingMonth,
-                invoice_date: BULK_INVOICE_ALL_DATE,
+                invoice_date:
+                  lockedInvoice.invoice_date ||
+                  prev.invoiceData?.invoice_date ||
+                  getMonthEndInvoiceDate(lockedInvoice.billing_month || targetBillingMonth),
               },
               lockedInvoice,
               prev.costCenterInfo || null,

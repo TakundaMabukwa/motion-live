@@ -29,9 +29,7 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
 
   const year = parsed.getFullYear();
   const month = parsed.getMonth();
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  const invoiceDay = Math.min(30, lastDay);
-  return new Date(year, month, invoiceDay).toISOString();
+  return new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
 };
 
 const buildAddress = (source?: Record<string, unknown> | null) =>
@@ -56,7 +54,8 @@ const enrichBulkInvoiceWithLockMeta = async (
   }
 
   const lockedBy = String(invoice?.invoice_locked_by || '').trim();
-  const normalizedInvoiceDate = getBillingInvoiceDate(invoice?.billing_month);
+  const preservedInvoiceDate = String(invoice?.invoice_date || "").trim();
+  const normalizedInvoiceDate = preservedInvoiceDate || getBillingInvoiceDate(invoice?.billing_month);
   const accountNumber = String(invoice?.account_number || "").trim();
 
   let costCenter: Record<string, unknown> | null = null;

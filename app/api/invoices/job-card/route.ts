@@ -19,6 +19,21 @@ const getSystemLock = async (
   return data || null;
 };
 
+const getLockMonthEndInvoiceDate = (lockDate: unknown) => {
+  const raw = String(lockDate || '').trim();
+  if (!raw) return null;
+
+  const lockMonth = `${raw.slice(0, 7)}-01T00:00:00`;
+  const parsed = new Date(lockMonth);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const lastDay = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0);
+  lastDay.setHours(23, 59, 59, 999);
+  return lastDay.toISOString();
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -98,60 +113,10 @@ export async function POST(request: NextRequest) {
 
     const systemLock = await getSystemLock(supabase);
     const isSystemLocked = Boolean(systemLock?.is_locked);
-
-    if (isSystemLocked) {
-      const payload = {
-        refreshInvoiceNumber,
-        jobCardId,
-        jobNumber,
-        quotationNumber,
-        accountNumber,
-        clientName,
-        clientEmail,
-        clientPhone,
-        clientAddress,
-        invoiceDate,
-        dueDate,
-        paymentTerms,
-        notes,
-        subtotal,
-        vatAmount,
-        discountAmount,
-        totalAmount,
-        lineItems,
-      };
-
-      const { data: queuedInvoice, error: queueError } = await supabase
-        .from('job_card_invoice_queue')
-        .upsert(
-          {
-            job_card_id: jobCardId,
-            job_number: jobNumber || null,
-            payload,
-            status: 'pending',
-            queued_by: user.id,
-            queued_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'job_card_id' },
-        )
-        .select('*')
-        .single();
-
-      if (queueError) {
-        console.error('Error queuing job card invoice:', queueError);
-        return NextResponse.json({ error: 'Failed to queue invoice' }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        queued: true,
-        lock: {
-          is_locked: true,
-          lock_date: systemLock?.lock_date || null,
-        },
-        queue: queuedInvoice,
-      });
-    }
+    const resolvedInvoiceDate =
+      (isSystemLocked ? getLockMonthEndInvoiceDate(systemLock?.lock_date) : null) ||
+      invoiceDate ||
+      new Date().toISOString();
 
     const { data: existingInvoice, error: existingError } = await supabase
       .from('invoices')
@@ -164,8 +129,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to check existing invoice' }, { status: 500 });
     }
 
-    if (existingInvoice && !refreshInvoiceNumber) {
-      return NextResponse.json({ invoice: existingInvoice, reused: true });
+    const payload = {
+      job_card_id: jobCardId,
+      job_number: jobNumber || null,
+      quotation_number: quotationNumber || null,
+      account_number: accountNumber || null,
+      client_name: clientName || null,
+      client_email: clientEmail || null,
+      client_phone: clientPhone || null,
+      client_address: clientAddress || null,
+      invoice_date: resolvedInvoiceDate,
+      due_date: dueDate || null,
+      payment_terms: paymentTerms || null,
+      notes: notes || null,
+      subtotal: Number(subtotal || 0),
+      vat_amount: Number(vatAmount || 0),
+      discount_amount: Number(discountAmount || 0),
+      total_amount: Number(totalAmount || 0),
+      line_items: Array.isArray(lineItems) ? lineItems : [],
+    };
+
+    if (existingInvoice?.id) {
+      const { data: updatedInvoice, error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          ...payload,
+          invoice_number: existingInvoice.invoice_number,
+          created_by: existingInvoice.created_by || user.id,
+        })
+        .eq('id', existingInvoice.id)
+        .select('*')
+        .single();
+
+      if (updateError) {
+        console.error('Error updating invoice:', updateError);
+        return NextResponse.json({ error: 'Failed to refresh invoice' }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        invoice: updatedInvoice,
+        reused: true,
+        refreshed: Boolean(refreshInvoiceNumber),
+      });
     }
 
     const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
@@ -184,50 +189,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = {
-      invoice_number: allocatedInvoiceNumber,
-      job_card_id: jobCardId,
-      job_number: jobNumber || null,
-      quotation_number: quotationNumber || null,
-      account_number: accountNumber || null,
-      client_name: clientName || null,
-      client_email: clientEmail || null,
-      client_phone: clientPhone || null,
-      client_address: clientAddress || null,
-      invoice_date: invoiceDate || new Date().toISOString(),
-      due_date: dueDate || null,
-      payment_terms: paymentTerms || null,
-      notes: notes || null,
-      subtotal: Number(subtotal || 0),
-      vat_amount: Number(vatAmount || 0),
-      discount_amount: Number(discountAmount || 0),
-      total_amount: Number(totalAmount || 0),
-      line_items: Array.isArray(lineItems) ? lineItems : [],
-      created_by: user.id,
-    };
-
-    if (existingInvoice && refreshInvoiceNumber) {
-      const { data: updatedInvoice, error: updateError } = await supabase
-        .from('invoices')
-        .update({
-          ...payload,
-          created_by: existingInvoice.created_by || user.id,
-        })
-        .eq('id', existingInvoice.id)
-        .select('*')
-        .single();
-
-      if (updateError) {
-        console.error('Error updating invoice:', updateError);
-        return NextResponse.json({ error: 'Failed to refresh invoice' }, { status: 500 });
-      }
-
-      return NextResponse.json({ invoice: updatedInvoice, reused: false, refreshed: true });
-    }
-
     const { data: insertedInvoice, error: insertError } = await supabase
       .from('invoices')
-      .insert(payload)
+      .insert({
+        ...payload,
+        invoice_number: allocatedInvoiceNumber,
+        created_by: user.id,
+      })
       .select('*')
       .single();
 

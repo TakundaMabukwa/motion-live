@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getBillingLock, isBillingLocked } from "@/lib/server/billing-lock";
 import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
 import { buildTemporaryRegistration } from "@/lib/temp-registration";
+
+// Helper function to check if system is locked
+async function isSystemLocked(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase
+    .from("system_locks")
+    .select("is_locked")
+    .eq("lock_key", "billing")
+    .single();
+  return data?.is_locked || false;
+}
 
 const BILLABLE_COLUMNS = [
   "skylink_trailer_unit_rental",
@@ -1050,8 +1059,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    if (await isBillingLocked(supabase)) {
-      const lockRow = await getBillingLock(supabase);
+    if (await isSystemLocked(supabase)) {
+      const { data: lockRow } = await supabase
+        .from("system_locks")
+        .select("*")
+        .eq("lock_key", "billing")
+        .single();
+
       const queuedReg = String(
         body?.vehicle_registration || body?.temporary_registration || "",
       ).trim() || null;

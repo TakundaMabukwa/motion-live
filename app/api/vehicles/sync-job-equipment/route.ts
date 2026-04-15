@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getBillingLock, isBillingLocked } from "@/lib/server/billing-lock";
 import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
 import { buildTemporaryRegistration } from "@/lib/temp-registration";
+
+// Helper functions for billing lock
+async function isBillingLocked(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase
+    .from('system_locks')
+    .select('is_locked')
+    .eq('lock_key', 'billing')
+    .single();
+  return data?.is_locked || false;
+}
+
+async function getBillingLock(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase
+    .from('system_locks')
+    .select('*')
+    .eq('lock_key', 'billing')
+    .single();
+  return data;
+}
 
 type VehicleRow = Record<string, any>;
 type EquipmentItem = Record<string, any>;

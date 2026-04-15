@@ -40,7 +40,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const FC_BILLING_MONTH = "2026-03-01";
+const getCurrentBillingMonth = () => {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return `${localDate.toISOString().slice(0, 7)}-01`;
+};
+
+const FC_BILLING_MONTH = getCurrentBillingMonth();
 
 const AddItemSearch = memo(function AddItemSearch({
   vehicleFieldsToAdd,
@@ -840,6 +846,7 @@ export default function ValidateVehiclesPage() {
 
     try {
       setIsLoadingInvoicePreview(true);
+
       const query = new URLSearchParams({
         accountNumber: costCode,
       });
@@ -859,95 +866,116 @@ export default function ValidateVehiclesPage() {
 
       const previewTitle = currentCostCenterName || costCode;
       let systemLock = null;
-      const systemLockResponse = await fetch('/api/system-lock', { cache: 'no-store' });
+      const systemLockResponse = await fetch("/api/system-lock", {
+        cache: "no-store",
+      });
       if (systemLockResponse.ok) {
         const lockPayload = await systemLockResponse.json();
         systemLock = lockPayload?.lock || null;
       }
-      const systemLockMonth = String(systemLock?.lock_date || '').slice(0, 7);
-      const billingMonthKey = String(billingMonth || '').slice(0, 7);
+
+      const systemLockMonth = String(systemLock?.lock_date || "").slice(0, 7);
+      const billingMonthKey = String(billingMonth || "").slice(0, 7);
       const isSystemLockedForMonth =
         Boolean(systemLock?.is_locked) &&
         Boolean(systemLockMonth) &&
         Boolean(billingMonthKey) &&
         systemLockMonth === billingMonthKey;
-      const shouldUseStoredInvoice =
-        Boolean(storedInvoice?.invoice_locked) || isSystemLockedForMonth;
-      let invoiceData = null;
 
-      if (isSystemLockedForMonth && !storedInvoice) {
-        throw new Error("System is locked for this billing month. No stored invoice is available.");
+      const liveResponse = await fetch(
+        `/api/vehicles/invoice?accountNumber=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(
+          billingMonth,
+        )}`,
+        { cache: "no-store" },
+      );
+      const liveResult = await liveResponse.json();
+      const liveInvoice = liveResult?.invoiceData || null;
+
+      if (!liveResponse.ok || !liveInvoice) {
+        throw new Error(liveResult?.error || "Failed to build live invoice preview");
       }
 
-      if (shouldUseStoredInvoice && storedInvoice) {
-        const lineItems = Array.isArray(storedInvoice?.line_items)
+      const liveLineItems = Array.isArray(
+        liveInvoice?.invoiceItems || liveInvoice?.invoice_items,
+      )
+        ? liveInvoice.invoiceItems || liveInvoice.invoice_items
+        : [];
+
+      let invoiceData;
+      if (Boolean(storedInvoice?.invoice_locked)) {
+        const storedLineItems = Array.isArray(storedInvoice?.line_items)
           ? storedInvoice.line_items
           : [];
 
         invoiceData = {
           ...storedInvoice,
-          invoiceItems: lineItems,
-          invoice_items: lineItems,
-          company_name: storedInvoice?.company_name || previewTitle,
+          invoice_number: storedInvoice?.invoice_number || "PENDING",
+          invoice_date:
+            liveInvoice?.invoice_date ||
+            storedInvoice?.invoice_date ||
+            `${billingMonth}T00:00:00.000Z`,
+          billing_month:
+            String(
+              liveInvoice?.billing_month ||
+                storedInvoice?.billing_month ||
+                billingMonth,
+            ).trim() || null,
+          company_name:
+            storedInvoice?.company_name || liveInvoice?.company_name || previewTitle,
+          invoice_locked: true,
+          invoice_locked_at: storedInvoice?.invoice_locked_at || null,
+          invoice_locked_by: storedInvoice?.invoice_locked_by || null,
+          invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
+          invoiceItems: storedLineItems,
+          invoice_items: storedLineItems,
         };
       } else {
-        const liveResponse = await fetch(
-          `/api/vehicles/invoice?accountNumber=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(
-            billingMonth,
-          )}`,
-          { cache: "no-store" },
-        );
-        const liveResult = await liveResponse.json();
-        const liveInvoice = liveResult?.invoiceData || null;
-
-        if (!liveResponse.ok || !liveInvoice) {
-          throw new Error(liveResult?.error || "Failed to build live invoice preview");
-        }
-
-        const liveLineItems = Array.isArray(
-          liveInvoice?.invoiceItems || liveInvoice?.invoice_items,
-        )
-          ? liveInvoice.invoiceItems || liveInvoice.invoice_items
-          : [];
-
         invoiceData = {
           ...liveInvoice,
           invoice_number:
             storedInvoice?.invoice_number || liveInvoice?.invoice_number || "PENDING",
           invoice_date:
-            storedInvoice?.invoice_date || liveInvoice?.invoice_date || `${billingMonth}T00:00:00.000Z`,
+            liveInvoice?.invoice_date ||
+            storedInvoice?.invoice_date ||
+            `${billingMonth}T00:00:00.000Z`,
           notes: storedInvoice?.notes || liveInvoice?.notes || null,
-          invoice_locked: Boolean(storedInvoice?.invoice_locked),
-          invoice_locked_at: storedInvoice?.invoice_locked_at || null,
-          invoice_locked_by: storedInvoice?.invoice_locked_by || null,
-          invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
-          billing_month:
-            String(storedInvoice?.billing_month || liveInvoice?.billing_month || billingMonth).trim() ||
+          invoice_locked: Boolean(isSystemLockedForMonth),
+          invoice_locked_at:
+            storedInvoice?.invoice_locked_at || systemLock?.locked_at || null,
+          invoice_locked_by:
+            storedInvoice?.invoice_locked_by || systemLock?.locked_by || null,
+          invoice_locked_by_email:
+            storedInvoice?.invoice_locked_by_email ||
+            systemLock?.locked_by_email ||
             null,
+          billing_month:
+            String(
+              storedInvoice?.billing_month ||
+                liveInvoice?.billing_month ||
+                billingMonth,
+            ).trim() || null,
           company_name:
-            storedInvoice?.company_name ||
-            liveInvoice?.company_name ||
-            previewTitle,
+            storedInvoice?.company_name || liveInvoice?.company_name || previewTitle,
           invoiceItems: liveLineItems,
           invoice_items: liveLineItems,
         };
+      }
 
-        const previewPayload = {
-          accountNumber: costCode,
-          accountName: previewTitle,
-          company: previewTitle,
-          billingMonth:
-            String(invoiceData?.billing_month || billingMonth).trim() || null,
-          costCenterInfo: currentCostCenter || null,
-          invoiceData,
-        };
+      const previewPayload = {
+        accountNumber: costCode,
+        accountName: previewTitle,
+        company: previewTitle,
+        billingMonth: String(invoiceData?.billing_month || billingMonth).trim() || null,
+        costCenterInfo: currentCostCenter || null,
+        invoiceData,
+      };
 
-        invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
-        setInvoicePreviewCostCenter(previewPayload);
-        setShowInvoicePreview(true);
+      invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
+      setInvoicePreviewCostCenter(previewPayload);
+      setShowInvoicePreview(true);
 
-        if (!Boolean(storedInvoice?.invoice_locked)) {
-          try {
+      if (!Boolean(storedInvoice?.invoice_locked)) {
+        try {
           const persistResponse = await fetch("/api/invoices/bulk-account", {
             method: "POST",
             headers: {
@@ -1030,9 +1058,7 @@ export default function ValidateVehiclesPage() {
               const persistedPreviewPayload = {
                 ...previewPayload,
                 billingMonth:
-                  String(
-                    invoiceData?.billing_month || billingMonth,
-                  ).trim() || null,
+                  String(invoiceData?.billing_month || billingMonth).trim() || null,
                 invoiceData,
               };
               invoicePreviewCacheRef.current.set(cacheKey, persistedPreviewPayload);
@@ -1045,29 +1071,12 @@ export default function ValidateVehiclesPage() {
               persistResult?.error || persistResponse.statusText,
             );
           }
-          } catch (persistError) {
-            console.warn(
-              "Failed to persist live invoice preview for FC validate page:",
-              persistError,
-            );
-          }
+        } catch (persistError) {
+          console.warn(
+            "Failed to persist live invoice preview for FC validate page:",
+            persistError,
+          );
         }
-      }
-
-      if (shouldUseStoredInvoice || !showInvoicePreview) {
-        const previewPayload = {
-          accountNumber: costCode,
-          accountName: previewTitle,
-          company: previewTitle,
-          billingMonth:
-            String(invoiceData?.billing_month || billingMonth).trim() || null,
-          costCenterInfo: currentCostCenter || null,
-          invoiceData,
-        };
-
-        invoicePreviewCacheRef.current.set(cacheKey, previewPayload);
-        setInvoicePreviewCostCenter(previewPayload);
-        setShowInvoicePreview(true);
       }
     } catch (error) {
       console.error("Invoice preview error:", error);
