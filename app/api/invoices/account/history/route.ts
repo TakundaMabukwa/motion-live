@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from("account_invoices")
         .select(
-          "id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, notes, created_at",
+          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, paid_amount, balance_due, credit_amount, payment_status, notes, created_at",
         )
         .eq("account_number", accountNumber)
         .order("billing_month", { ascending: false, nullsFirst: false })
@@ -118,8 +118,18 @@ export async function GET(request: NextRequest) {
           return rightTime - leftTime;
         });
 
+    const invoiceByPeriod = new Map(
+      (Array.isArray(invoices) ? invoices : []).map((invoice) => [
+        `${normalize(invoice?.account_number)}|${String(invoice?.billing_month || "").trim()}`,
+        invoice,
+      ]),
+    );
+
     const agingPeriods = (Array.isArray(agingRows) ? agingRows : [])
       .map((row) => {
+        const matchingInvoice = invoiceByPeriod.get(
+          `${normalize(accountNumber)}|${String(row?.billing_month || "").trim()}`,
+        );
         const currentDue = Number(row?.current_due || 0);
         const overdue30 = Number(row?.overdue_30_days || 0);
         const overdue60 = Number(row?.overdue_60_days || 0);
@@ -133,19 +143,25 @@ export async function GET(request: NextRequest) {
           id: row?.id || null,
           account_number: accountNumber,
           billing_month: row?.billing_month || null,
-          invoice_number: row?.invoice_number || null,
-          invoice_date: row?.invoice_date || null,
-          due_amount: Number(row?.due_amount || 0),
-          paid_amount: Number(row?.paid_amount || 0),
-          balance_due: Number((row?.balance_due ?? row?.amount_due ?? outstanding) || 0),
+          invoice_number: matchingInvoice?.invoice_number || row?.invoice_number || null,
+          invoice_date: matchingInvoice?.invoice_date || row?.invoice_date || null,
+          due_amount: Number(matchingInvoice?.total_amount ?? row?.due_amount ?? 0),
+          paid_amount: Number(matchingInvoice?.paid_amount ?? row?.paid_amount ?? 0),
+          balance_due: Number(
+            matchingInvoice?.balance_due ??
+              row?.balance_due ??
+              row?.amount_due ??
+              outstanding ??
+              0,
+          ),
           outstanding_balance: Number(outstanding || 0),
           current_due: currentDue,
           overdue_30_days: overdue30,
           overdue_60_days: overdue60,
           overdue_90_days: overdue90,
           overdue_120_plus_days: overdue120,
-          credit_amount: Number(row?.credit_amount || 0),
-          payment_status: row?.payment_status || null,
+          credit_amount: Number(matchingInvoice?.credit_amount ?? row?.credit_amount ?? 0),
+          payment_status: matchingInvoice?.payment_status || row?.payment_status || null,
           last_updated: row?.last_updated || null,
         };
       })

@@ -117,15 +117,12 @@ export default function AccountsContent({ activeSection }) {
       return null;
     }
 
-    return new Date(
-      parsed.getFullYear(),
-      parsed.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    ).toISOString();
+    const year = parsed.getFullYear();
+    const month = parsed.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const invoiceDay = Math.min(30, lastDay);
+
+    return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
   };
 
   // Check if payment is due (after 21st of month)

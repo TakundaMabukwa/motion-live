@@ -1,10 +1,10 @@
 {
   "mode": "apply",
-  "accounts": 142,
-  "openingInvoicesUpserted": 142,
-  "importedPaymentsDeleted": 26,
+  "accounts": 145,
+  "openingInvoicesUpserted": 145,
+  "importedPaymentsDeleted": 0,
   "importedPaymentsInserted": 78,
-  "paymentsMirrorLinked": 142,
+  "paymentsMirrorLinked": 145,
   "sample": [
     {
       "cost_code": "AFHU-0001",

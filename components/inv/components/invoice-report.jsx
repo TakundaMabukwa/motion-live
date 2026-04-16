@@ -82,7 +82,9 @@ const getBillingInvoiceDate = (billingMonth) => {
 
   const year = parsed.getFullYear();
   const month = parsed.getMonth();
-  return new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
 const EPS_SPECIAL_SOURCE_ACCOUNT = 'EPSC-0001';
@@ -978,6 +980,10 @@ export function buildInvoiceView({
       activeInvoiceData?.invoice_number,
       activeInvoiceData?.invoiceNumber,
       activeInvoiceData?.invoice_no,
+      costCenter?.bulkInvoice?.invoice_number,
+      costCenter?.reference,
+      costCenter?.invoiceNumber,
+      costCenter?.invoice_number,
     ) || "PENDING";
   const companyRegistrationNumber = liveCompanyRegistrationNumber;
 

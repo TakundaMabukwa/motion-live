@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
               `,
             )
             .eq("cost_code", normalizedAccountNumber)
-            .order("billing_month", { ascending: false })
+            .order("billing_month", { ascending: true })
             .order("last_updated", { ascending: false })
             .limit(12);
 
@@ -352,8 +352,27 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
+          const requestedAccountInvoiceId =
+            payment.accountInvoiceId && isUuidLike(payment.accountInvoiceId)
+              ? String(payment.accountInvoiceId)
+              : null;
+          const requestedBillingMonth = normalizeBillingMonth(payment.billingMonth);
+
           outstandingAgingRow =
-            (agingRows || []).find((row) => getTotalOutstandingDue(row) > 0) || null;
+            (agingRows || []).find(
+              (row) =>
+                requestedAccountInvoiceId &&
+                String(row.account_invoice_id || "") === requestedAccountInvoiceId &&
+                getTotalOutstandingDue(row) > 0,
+            ) ||
+            (agingRows || []).find(
+              (row) =>
+                requestedBillingMonth &&
+                normalizeBillingMonth(row.billing_month) === requestedBillingMonth &&
+                getTotalOutstandingDue(row) > 0,
+            ) ||
+            (agingRows || []).find((row) => getTotalOutstandingDue(row) > 0) ||
+            null;
 
           if (outstandingAgingRow) {
             const outstandingBillingMonth =

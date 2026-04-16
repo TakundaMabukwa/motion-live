@@ -5,6 +5,7 @@ import {
   buildInvoiceFinancials,
   calculateOverdueBuckets,
   getOperationalBillingMonthKey,
+  normalizeAgingBucketsToOutstanding,
 } from '@/lib/server/account-invoice-payments';
 
 const roundCurrency = (value: unknown) => Number(Number(value || 0).toFixed(2));
@@ -257,7 +258,57 @@ export async function GET(request: NextRequest) {
         };
       }
 
+      if (invoice) {
+        const financials = buildInvoiceFinancials({
+          totalAmount: invoice.total_amount,
+          paidAmount: invoice.paid_amount,
+          dueDate: invoice.due_date,
+        });
+        const normalizedAging = normalizeAgingBucketsToOutstanding(
+          mirroredPayment || null,
+          mirroredPayment?.outstanding_balance ??
+            mirroredPayment?.balance_due ??
+            financials.balanceDue,
+        );
+
+        return {
+          ...(mirroredPayment || {}),
+          id: mirroredPayment?.id || invoice.id,
+          company: mirroredPayment?.company || company,
+          cost_code: accountNumber,
+          account_invoice_id: invoice.id,
+          invoice_number: invoice.invoice_number || mirroredPayment?.invoice_number || null,
+          reference: invoice.invoice_number || mirroredPayment?.reference || '',
+          due_amount: roundCurrency(financials.totalAmount),
+          paid_amount: roundCurrency(financials.paidAmount),
+          balance_due: roundCurrency(
+            mirroredPayment?.outstanding_balance ??
+              mirroredPayment?.balance_due ??
+              financials.balanceDue,
+          ),
+          invoice_date: invoice.invoice_date || mirroredPayment?.invoice_date || null,
+          due_date: invoice.due_date || mirroredPayment?.due_date || null,
+          payment_status: invoice.payment_status || mirroredPayment?.payment_status || financials.paymentStatus,
+          last_updated: mirroredPayment?.last_updated || invoice.created_at || new Date().toISOString(),
+          billing_month: invoice.billing_month || mirroredPayment?.billing_month || currentBillingMonthKey,
+          source: mirroredPayment ? 'account_invoice_with_mirror' : 'account_invoice',
+          current_due: roundCurrency(normalizedAging.current_due),
+          overdue_30_days: roundCurrency(normalizedAging.overdue_30_days),
+          overdue_60_days: roundCurrency(normalizedAging.overdue_60_days),
+          overdue_90_days: roundCurrency(normalizedAging.overdue_90_days),
+          overdue_120_plus_days: roundCurrency(normalizedAging.overdue_120_plus_days),
+          outstanding_balance: roundCurrency(
+            normalizedAging.outstanding_balance,
+          ),
+          credit_amount: roundCurrency(mirroredPayment?.credit_amount),
+        };
+      }
+
       if (mirroredPayment) {
+        const normalizedAging = normalizeAgingBucketsToOutstanding(
+          mirroredPayment,
+          mirroredPayment.outstanding_balance ?? mirroredPayment.balance_due,
+        );
         return {
           ...mirroredPayment,
           company: mirroredPayment.company || company,
@@ -268,48 +319,15 @@ export async function GET(request: NextRequest) {
             mirroredPayment.outstanding_balance ?? mirroredPayment.balance_due,
           ),
           outstanding_balance: roundCurrency(
-            mirroredPayment.outstanding_balance ?? mirroredPayment.balance_due,
+            normalizedAging.outstanding_balance,
           ),
-          current_due: roundCurrency(mirroredPayment.current_due),
-          overdue_30_days: roundCurrency(mirroredPayment.overdue_30_days),
-          overdue_60_days: roundCurrency(mirroredPayment.overdue_60_days),
-          overdue_90_days: roundCurrency(mirroredPayment.overdue_90_days),
-          overdue_120_plus_days: roundCurrency(mirroredPayment.overdue_120_plus_days),
+          current_due: roundCurrency(normalizedAging.current_due),
+          overdue_30_days: roundCurrency(normalizedAging.overdue_30_days),
+          overdue_60_days: roundCurrency(normalizedAging.overdue_60_days),
+          overdue_90_days: roundCurrency(normalizedAging.overdue_90_days),
+          overdue_120_plus_days: roundCurrency(normalizedAging.overdue_120_plus_days),
           credit_amount: roundCurrency(mirroredPayment.credit_amount),
           source: 'payments_mirror',
-        };
-      }
-
-      if (invoice) {
-        const financials = buildInvoiceFinancials({
-          totalAmount: invoice.total_amount,
-          paidAmount: invoice.paid_amount,
-          dueDate: invoice.due_date,
-        });
-
-        return {
-          id: invoice.id,
-          company,
-          cost_code: accountNumber,
-          account_invoice_id: invoice.id,
-          invoice_number: invoice.invoice_number || null,
-          reference: invoice.invoice_number || '',
-          due_amount: roundCurrency(financials.totalAmount),
-          paid_amount: roundCurrency(financials.paidAmount),
-          balance_due: roundCurrency(financials.balanceDue),
-          invoice_date: invoice.invoice_date || null,
-          due_date: invoice.due_date || null,
-          payment_status: invoice.payment_status || financials.paymentStatus,
-          last_updated: invoice.created_at || new Date().toISOString(),
-          billing_month: invoice.billing_month || currentBillingMonthKey,
-          source: 'account_invoice',
-          current_due: 0,
-          overdue_30_days: 0,
-          overdue_60_days: 0,
-          overdue_90_days: 0,
-          overdue_120_plus_days: 0,
-          outstanding_balance: roundCurrency(financials.balanceDue),
-          credit_amount: 0,
         };
       }
 

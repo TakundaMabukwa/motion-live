@@ -753,20 +753,32 @@ export function buildStatementView({
 
   const clientAddress = structuredAddress;
 
-  const activeInvoice =
-    bulkInvoice ||
+  const liveInvoice =
     currentInvoice ||
     (costCenter?.invoiceData
       ? {
+          id: costCenter.invoiceData.id,
+          account_number: costCenter?.accountNumber,
+          billing_month: costCenter.invoiceData.billing_month,
           invoice_number: costCenter.invoiceData.invoice_number,
           invoice_date: costCenter.invoiceData.invoice_date,
           created_at: costCenter.invoiceData.created_at,
           total_amount: costCenter.invoiceData.total_amount,
           balance_due: costCenter.invoiceData.balance_due,
           paid_amount: costCenter.invoiceData.paid_amount,
+          credit_amount: costCenter.invoiceData.credit_amount,
           due_date: costCenter.invoiceData.due_date,
         }
       : null);
+
+  const activeInvoice =
+    bulkInvoice?.invoice_locked
+      ? {
+          ...bulkInvoice,
+          invoice_date: liveInvoice?.invoice_date || bulkInvoice?.invoice_date,
+          billing_month: liveInvoice?.billing_month || bulkInvoice?.billing_month,
+        }
+      : liveInvoice || bulkInvoice || null;
 
   const actualInvoiceNumber =
     activeInvoice?.invoice_number ||
@@ -777,8 +789,8 @@ export function buildStatementView({
 
   const matchedPayments = paymentHistory.filter((payment) => {
     const sameInvoiceId =
-      currentInvoice?.id &&
-      String(payment?.account_invoice_id || "") === String(currentInvoice.id);
+      activeInvoice?.id &&
+      String(payment?.account_invoice_id || "") === String(activeInvoice.id);
     const sameInvoiceNumber =
       actualInvoiceNumber &&
       String(payment?.invoice_number || "") === String(actualInvoiceNumber);
@@ -793,15 +805,14 @@ export function buildStatementView({
   );
   const monthlyPaidAmount = Math.max(
     matchedPaidAmount,
-    toNumber(paymentData?.paid_amount),
     toNumber(activeInvoice?.paid_amount),
+    toNumber(paymentData?.paid_amount),
   );
   const creditedAmount = toNumber(
-    paymentData?.credit_amount ??
-      paymentData?.credited_amount ??
-      paymentData?.credit_amount ??
+    activeInvoice?.credit_amount ??
       activeInvoice?.credited_amount ??
-      activeInvoice?.credit_amount ??
+      paymentData?.credit_amount ??
+      paymentData?.credited_amount ??
       costCenter?.credit_amount ??
       costCenter?.credited_amount,
   );
@@ -822,17 +833,6 @@ export function buildStatementView({
   );
   const dueDateValue = activeInvoice?.due_date || paymentData?.due_date || null;
   const dueDate = dueDateValue ? new Date(dueDateValue) : null;
-  const statementPaidAmount = toNumber(paymentData?.statement_paid_amount ?? monthlyPaidAmount);
-  const statementCreditedAmount = toNumber(
-    paymentData?.statement_credit_amount ?? creditedAmount,
-  );
-  const statementTotalInvoiced = Math.max(
-    totalInvoiced,
-    toNumber(
-      paymentData?.statement_total_invoiced ??
-        balanceDue + statementPaidAmount + statementCreditedAmount,
-    ),
-  );
 
   const normalizedToday = new Date();
   normalizedToday.setHours(0, 0, 0, 0);
@@ -875,17 +875,12 @@ export function buildStatementView({
   }
 
   const statementMonthSource =
-    paymentData?.billing_month ||
     activeInvoice?.billing_month ||
+    paymentData?.billing_month ||
     bulkInvoice?.billing_month ||
     activeInvoice?.invoice_date ||
     paymentData?.invoice_date ||
     new Date().toISOString();
-
-  const openingBalance = Math.max(
-    0,
-    balanceDue - totalInvoiced + statementPaidAmount + statementCreditedAmount,
-  );
 
   const paymentDateSource =
     paymentData?.last_payment_date ||
@@ -915,58 +910,88 @@ export function buildStatementView({
     (sum, payment) => sum + toNumber(payment.amount),
     0,
   );
+  const statementPaidAmount = Math.max(
+    toNumber(paymentData?.statement_paid_amount),
+    monthlyPaidAmount,
+    ledgerPaidAmount,
+  );
+  const statementCreditedAmount = toNumber(
+    paymentData?.statement_credit_amount ?? creditedAmount,
+  );
 
-  const rowsForStatement = [];
-  let runningOutstanding = 0;
+  const openingBalance = Math.max(
+    0,
+    balanceDue - totalInvoiced + statementPaidAmount + statementCreditedAmount,
+  );
+  const statementTotalInvoiced = Math.max(
+    totalInvoiced,
+    toNumber(
+      paymentData?.statement_total_invoiced ??
+        balanceDue + statementPaidAmount + statementCreditedAmount,
+    ),
+  );
+
+  const transactionRows = [];
 
   if (openingBalance > 0) {
-    runningOutstanding += openingBalance;
-    rowsForStatement.push({
+    transactionRows.push({
       date: formatStatementTransactionDate(statementMonthSource, 1),
+      sortDate: new Date(statementMonthSource || new Date().toISOString()).toISOString(),
       client: clientName,
       description: 'Opening Balance',
       amount: formatCurrency(openingBalance),
       debit: formatCurrency(openingBalance),
       credit: '-',
-      outstanding: formatCurrency(runningOutstanding),
       amountValue: openingBalance,
       debitValue: openingBalance,
       creditValue: 0,
-      outstandingValue: runningOutstanding,
+      outstandingValue: 0,
     });
   }
 
+  transactionRows.push({
+    date: formatStatementTransactionDate(invoiceDateSource),
+    sortDate: invoiceDateSource || statementMonthSource,
+    client: clientName,
+    description: actualInvoiceNumber || 'invoice',
+    amount: formatCurrency(totalInvoiced),
+    debit: formatCurrency(totalInvoiced),
+    credit: '-',
+    amountValue: totalInvoiced,
+    debitValue: totalInvoiced,
+    creditValue: 0,
+    outstandingValue: 0,
+  });
+
   if (matchedStatementPayments.length > 0) {
     matchedStatementPayments.forEach((payment) => {
-      runningOutstanding = Math.max(0, runningOutstanding - payment.amount);
-      rowsForStatement.push({
+      transactionRows.push({
         date: formatStatementTransactionDate(payment.date),
+        sortDate: payment.date || paymentDateSource,
         client: clientName,
         description: String(payment.description || 'payment').toLowerCase().includes('payment') ? 'payment' : 'payment',
         amount: formatCurrency(payment.amount),
         debit: '-',
         credit: formatCurrency(payment.amount),
-        outstanding: formatCurrency(runningOutstanding),
         amountValue: payment.amount,
         debitValue: 0,
         creditValue: payment.amount,
-        outstandingValue: runningOutstanding,
+        outstandingValue: 0,
       });
     });
   } else if (statementPaidAmount > 0) {
-    runningOutstanding = Math.max(0, runningOutstanding - statementPaidAmount);
-    rowsForStatement.push({
+    transactionRows.push({
       date: formatStatementTransactionDate(paymentDateSource),
+      sortDate: paymentDateSource,
       client: clientName,
       description: 'payment',
       amount: formatCurrency(statementPaidAmount),
       debit: '-',
       credit: formatCurrency(statementPaidAmount),
-      outstanding: formatCurrency(runningOutstanding),
       amountValue: statementPaidAmount,
       debitValue: 0,
       creditValue: statementPaidAmount,
-      outstandingValue: runningOutstanding,
+      outstandingValue: 0,
     });
   }
 
@@ -976,35 +1001,33 @@ export function buildStatementView({
   );
 
   if (remainingCreditedAmount > 0) {
-    runningOutstanding = Math.max(0, runningOutstanding - remainingCreditedAmount);
-    rowsForStatement.push({
+    transactionRows.push({
       date: formatStatementTransactionDate(paymentDateSource),
+      sortDate: paymentDateSource,
       client: clientName,
       description: 'credit',
       amount: formatCurrency(remainingCreditedAmount),
       debit: '-',
       credit: formatCurrency(remainingCreditedAmount),
-      outstanding: formatCurrency(runningOutstanding),
       amountValue: remainingCreditedAmount,
       debitValue: 0,
       creditValue: remainingCreditedAmount,
-      outstandingValue: runningOutstanding,
+      outstandingValue: 0,
     });
   }
 
-  runningOutstanding += totalInvoiced;
-  rowsForStatement.push({
-    date: formatStatementTransactionDate(invoiceDateSource),
-    client: clientName,
-    description: actualInvoiceNumber || 'invoice',
-    amount: formatCurrency(totalInvoiced),
-    debit: formatCurrency(totalInvoiced),
-    credit: '-',
-    outstanding: formatCurrency(runningOutstanding),
-    amountValue: totalInvoiced,
-    debitValue: totalInvoiced,
-    creditValue: 0,
-    outstandingValue: runningOutstanding,
+  const rowsForStatement = transactionRows
+    .sort((left, right) => sortTransactionDatesAsc(left.sortDate, right.sortDate))
+    .map((row) => ({ ...row }));
+
+  let runningOutstanding = 0;
+  rowsForStatement.forEach((row) => {
+    runningOutstanding = Math.max(
+      0,
+      Number((runningOutstanding + toNumber(row.debitValue) - toNumber(row.creditValue)).toFixed(2)),
+    );
+    row.outstanding = formatCurrency(runningOutstanding);
+    row.outstandingValue = runningOutstanding;
   });
 
   const totalsFromRows = rowsForStatement.reduce(
@@ -1039,7 +1062,12 @@ export function buildStatementView({
       paymentData?.company_registration_number ||
       "-",
     statementNumber: "",
-    statementDate: formatDate(new Date().toISOString()),
+    statementDate: formatDate(
+      paymentDateSource ||
+        invoiceDateSource ||
+        activeInvoice?.created_at ||
+        new Date().toISOString(),
+    ),
     statementPeriod: formatMonthYear(statementMonthSource),
     accountNumber: costCenter?.accountNumber || "N/A",
     customerVatNumber:
@@ -1215,8 +1243,6 @@ export default function DueReportComponent({
     </div>
   );
 }
-
-
 
 
 

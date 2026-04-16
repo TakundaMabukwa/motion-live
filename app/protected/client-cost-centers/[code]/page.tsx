@@ -60,15 +60,12 @@ const getMonthEndInvoiceDate = (billingMonth) => {
     return new Date().toISOString();
   }
 
-  return new Date(
-    parsed.getFullYear(),
-    parsed.getMonth() + 1,
-    0,
-    23,
-    59,
-    59,
-    999,
-  ).toISOString();
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
 const BULK_INVOICE_ALL_BILLING_MONTH = getCurrentBillingMonth();
@@ -2254,6 +2251,16 @@ export default function ClientCostCentersPage() {
       throw new Error('No vehicle data found for this account');
     }
 
+    const resolvedInvoiceNumber =
+      (isRealInvoiceNumber(invoiceData?.invoice_number) && invoiceData?.invoice_number) ||
+      (isRealInvoiceNumber(bulkInvoice?.invoice_number) && bulkInvoice?.invoice_number) ||
+      (isRealInvoiceNumber(costCenter?.reference) && costCenter?.reference) ||
+      null;
+
+    if (resolvedInvoiceNumber) {
+      invoiceData.invoice_number = resolvedInvoiceNumber;
+    }
+
     if (lockedInvoiceDate) {
       invoiceData.invoice_date = lockedInvoiceDate;
     }
@@ -2272,6 +2279,7 @@ export default function ClientCostCentersPage() {
     const reportCostCenter = {
       ...costCenter,
       billingMonth: targetBillingMonth,
+      reference: resolvedInvoiceNumber || costCenter?.reference || null,
       invoiceDate:
         lockedInvoiceDate ||
         invoiceData?.invoice_date ||

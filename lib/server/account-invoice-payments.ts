@@ -47,6 +47,83 @@ export const getTotalOutstandingDue = (source?: Record<string, unknown> | null) 
   );
 };
 
+export const normalizeAgingBucketsToOutstanding = (
+  source?: Record<string, unknown> | null,
+  outstandingOverride?: unknown,
+) => {
+  const buckets = {
+    current_due: roundAmount(source?.current_due),
+    overdue_30_days: roundAmount(source?.overdue_30_days),
+    overdue_60_days: roundAmount(source?.overdue_60_days),
+    overdue_90_days: roundAmount(source?.overdue_90_days),
+    overdue_120_plus_days: roundAmount(source?.overdue_120_plus_days),
+  };
+
+  const explicitOutstanding = roundAmount(
+    outstandingOverride ?? source?.outstanding_balance ?? source?.balance_due ?? source?.amount_due,
+  );
+
+  const bucketTotal =
+    buckets.current_due +
+    buckets.overdue_30_days +
+    buckets.overdue_60_days +
+    buckets.overdue_90_days +
+    buckets.overdue_120_plus_days;
+
+  if (explicitOutstanding <= 0) {
+    return {
+      current_due: 0,
+      overdue_30_days: 0,
+      overdue_60_days: 0,
+      overdue_90_days: 0,
+      overdue_120_plus_days: 0,
+      outstanding_balance: 0,
+    };
+  }
+
+  if (bucketTotal <= 0) {
+    return {
+      current_due: explicitOutstanding,
+      overdue_30_days: 0,
+      overdue_60_days: 0,
+      overdue_90_days: 0,
+      overdue_120_plus_days: 0,
+      outstanding_balance: explicitOutstanding,
+    };
+  }
+
+  if (bucketTotal <= explicitOutstanding + 0.01) {
+    return {
+      ...buckets,
+      outstanding_balance: roundAmount(Math.max(explicitOutstanding, bucketTotal)),
+    };
+  }
+
+  let overflow = roundAmount(bucketTotal - explicitOutstanding);
+  const normalizedBuckets = { ...buckets };
+  const bucketKeys: Array<keyof typeof normalizedBuckets> = [
+    "overdue_120_plus_days",
+    "overdue_90_days",
+    "overdue_60_days",
+    "overdue_30_days",
+    "current_due",
+  ];
+
+  for (const key of bucketKeys) {
+    if (overflow <= 0.01) break;
+    const available = normalizedBuckets[key];
+    if (available <= 0) continue;
+    const deduction = Math.min(available, overflow);
+    normalizedBuckets[key] = roundAmount(available - deduction);
+    overflow = roundAmount(overflow - deduction);
+  }
+
+  return {
+    ...normalizedBuckets,
+    outstanding_balance: explicitOutstanding,
+  };
+};
+
 type PaymentAllocationCommon = {
   paymentId: string;
   accountNumber: string;
@@ -130,12 +207,13 @@ export const buildOutstandingPaymentAllocationRows = ({
 }) => {
   const rows: Array<Record<string, unknown>> = [];
   let remainingPayment = Math.max(0, roundAmount(paymentAmount));
+  const normalizedSource = normalizeAgingBucketsToOutstanding(source);
   const buckets = [
-    { key: "overdue_120_plus_days", amount: Math.max(0, roundAmount(source?.overdue_120_plus_days)) },
-    { key: "overdue_90_days", amount: Math.max(0, roundAmount(source?.overdue_90_days)) },
-    { key: "overdue_60_days", amount: Math.max(0, roundAmount(source?.overdue_60_days)) },
-    { key: "overdue_30_days", amount: Math.max(0, roundAmount(source?.overdue_30_days)) },
-    { key: "current_due", amount: Math.max(0, roundAmount(source?.current_due)) },
+    { key: "overdue_120_plus_days", amount: Math.max(0, roundAmount(normalizedSource.overdue_120_plus_days)) },
+    { key: "overdue_90_days", amount: Math.max(0, roundAmount(normalizedSource.overdue_90_days)) },
+    { key: "overdue_60_days", amount: Math.max(0, roundAmount(normalizedSource.overdue_60_days)) },
+    { key: "overdue_30_days", amount: Math.max(0, roundAmount(normalizedSource.overdue_30_days)) },
+    { key: "current_due", amount: Math.max(0, roundAmount(normalizedSource.current_due)) },
   ];
 
   for (const bucket of buckets) {
@@ -200,12 +278,13 @@ export const applyOutstandingPaymentToBuckets = (
   source: Record<string, unknown> | null | undefined,
   paymentAmount: unknown,
 ) => {
+  const normalizedSource = normalizeAgingBucketsToOutstanding(source);
   let remainingPayment = Math.max(0, toNumber(paymentAmount));
-  let overdue120 = Math.max(0, toNumber(source?.overdue_120_plus_days));
-  let overdue90 = Math.max(0, toNumber(source?.overdue_90_days));
-  let overdue60 = Math.max(0, toNumber(source?.overdue_60_days));
-  let overdue30 = Math.max(0, toNumber(source?.overdue_30_days));
-  let currentDue = Math.max(0, toNumber(source?.current_due));
+  let overdue120 = Math.max(0, toNumber(normalizedSource.overdue_120_plus_days));
+  let overdue90 = Math.max(0, toNumber(normalizedSource.overdue_90_days));
+  let overdue60 = Math.max(0, toNumber(normalizedSource.overdue_60_days));
+  let overdue30 = Math.max(0, toNumber(normalizedSource.overdue_30_days));
+  let currentDue = Math.max(0, toNumber(normalizedSource.current_due));
 
   const consume = (bucketValue: number) => {
     if (remainingPayment <= 0 || bucketValue <= 0) {

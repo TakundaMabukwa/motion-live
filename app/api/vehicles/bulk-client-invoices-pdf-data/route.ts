@@ -19,7 +19,7 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   const month = parsed.getMonth();
   const lastDay = new Date(year, month + 1, 0).getDate();
   const invoiceDay = Math.min(30, lastDay);
-  return new Date(year, month, invoiceDay).toISOString();
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
 const resolveInvoiceDate = (billingMonth: unknown, existingInvoiceDate: unknown) => {

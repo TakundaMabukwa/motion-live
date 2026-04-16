@@ -29,9 +29,11 @@ const getLockMonthEndInvoiceDate = (lockDate: unknown) => {
     return null;
   }
 
-  const lastDay = new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0);
-  lastDay.setHours(23, 59, 59, 999);
-  return lastDay.toISOString();
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
 export async function GET(request: NextRequest) {

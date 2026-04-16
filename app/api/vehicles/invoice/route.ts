@@ -697,9 +697,9 @@ export async function GET(request: NextRequest) {
       const lockDateObj = new Date(lockDate.slice(0, 7) + '-01');
       const year = lockDateObj.getFullYear();
       const month = lockDateObj.getMonth();
-      const lastDay = new Date(year, month + 1, 0);
-      lastDay.setHours(23, 59, 59, 999);
-      billingCutoffDate = lastDay.toISOString();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const invoiceDay = Math.min(30, lastDay);
+      billingCutoffDate = new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
     }
 
     let storedInvoiceQuery = supabase

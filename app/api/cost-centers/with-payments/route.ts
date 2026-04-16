@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
-import { getOperationalBillingMonthKey } from '@/lib/server/account-invoice-payments';
+import {
+  getOperationalBillingMonthKey,
+  normalizeAgingBucketsToOutstanding,
+} from '@/lib/server/account-invoice-payments';
 import { NextResponse } from 'next/server';
 import { buildDraftPaymentsFromVehicles } from '@/lib/server/account-invoice-payments';
 
@@ -175,38 +178,83 @@ export async function GET(request: Request) {
         paymentByCodeAndMonth.get(paymentKey) ||
         null;
 
-      const normalizedPayment =
-        payment ||
-        (invoice
-          ? {
-              id: null,
-              company: invoice.company_name || center.legal_name || center.company || '',
-              cost_code: invoice.account_number,
-              account_invoice_id: invoice.id,
-              invoice_number: invoice.invoice_number,
-              reference: invoice.invoice_number,
-              due_amount: Number(invoice.total_amount || 0),
-              paid_amount: Number(invoice.paid_amount || 0),
-              balance_due: Number(invoice.balance_due || invoice.total_amount || 0),
-              credit_amount: 0,
-              invoice_date: invoice.invoice_date,
-              due_date: invoice.due_date || null,
-              payment_status: invoice.payment_status || 'pending',
-              current_due: Number(invoice.balance_due || invoice.total_amount || 0),
-              overdue_30_days: 0,
-              overdue_60_days: 0,
-              overdue_90_days: 0,
-              overdue_120_plus_days: 0,
-              outstanding_balance: Number(invoice.balance_due || invoice.total_amount || 0),
-              last_updated: invoice.created_at || null,
-              billing_month: invoice.billing_month || null,
-              source: 'account_invoice',
-            }
-          : draftPaymentsByCode.get(String(center.cost_code || '').trim().toUpperCase()) || null);
+      const normalizedPayment = invoice
+        ? {
+            ...(payment || {}),
+            id: payment?.id || invoice.id || null,
+            company:
+              invoice.company_name ||
+              payment?.company ||
+              center.legal_name ||
+              center.company ||
+              '',
+            cost_code: invoice.account_number || center.cost_code,
+            account_invoice_id: invoice.id,
+            invoice_number: invoice.invoice_number,
+            reference: invoice.invoice_number || payment?.reference || '',
+            due_amount: Number(invoice.total_amount || payment?.due_amount || 0),
+            paid_amount: Number(invoice.paid_amount || payment?.paid_amount || 0),
+            balance_due: Number(
+              invoice.balance_due ??
+                payment?.balance_due ??
+                payment?.outstanding_balance ??
+                invoice.total_amount ??
+                0,
+            ),
+            credit_amount: Number(payment?.credit_amount || invoice.credit_amount || 0),
+            invoice_date: invoice.invoice_date || payment?.invoice_date || null,
+            due_date: invoice.due_date || payment?.due_date || null,
+            payment_status: invoice.payment_status || payment?.payment_status || 'pending',
+            current_due: Number(
+              payment?.current_due ??
+                invoice.balance_due ??
+                invoice.total_amount ??
+                0,
+            ),
+            overdue_30_days: Number(payment?.overdue_30_days || 0),
+            overdue_60_days: Number(payment?.overdue_60_days || 0),
+            overdue_90_days: Number(payment?.overdue_90_days || 0),
+            overdue_120_plus_days: Number(payment?.overdue_120_plus_days || 0),
+            outstanding_balance: Number(
+              payment?.outstanding_balance ??
+                invoice.balance_due ??
+                invoice.total_amount ??
+                0,
+            ),
+            last_updated: payment?.last_updated || invoice.created_at || null,
+            billing_month: invoice.billing_month || payment?.billing_month || null,
+            source: payment ? 'account_invoice_with_mirror' : 'account_invoice',
+          }
+        : payment ||
+          draftPaymentsByCode.get(String(center.cost_code || '').trim().toUpperCase()) ||
+          null;
+
+      const balancedPayment = normalizedPayment
+        ? (() => {
+            const normalizedAging = normalizeAgingBucketsToOutstanding(
+              normalizedPayment,
+              normalizedPayment.outstanding_balance ?? normalizedPayment.balance_due,
+            );
+
+            return {
+              ...normalizedPayment,
+              current_due: normalizedAging.current_due,
+              overdue_30_days: normalizedAging.overdue_30_days,
+              overdue_60_days: normalizedAging.overdue_60_days,
+              overdue_90_days: normalizedAging.overdue_90_days,
+              overdue_120_plus_days: normalizedAging.overdue_120_plus_days,
+              outstanding_balance: normalizedAging.outstanding_balance,
+              balance_due:
+                Number(normalizedPayment.balance_due ?? normalizedAging.outstanding_balance) > 0
+                  ? Number(normalizedPayment.balance_due ?? normalizedAging.outstanding_balance)
+                  : normalizedAging.outstanding_balance,
+            };
+          })()
+        : null;
 
       return {
         ...center,
-        payment: normalizedPayment,
+        payment: balancedPayment,
         invoice,
       };
     });

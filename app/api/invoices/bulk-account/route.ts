@@ -29,7 +29,9 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
 
   const year = parsed.getFullYear();
   const month = parsed.getMonth();
-  return new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
 const buildAddress = (source?: Record<string, unknown> | null) =>
@@ -227,7 +229,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get("accountNumber") || "").trim();
-    const billingMonth = normalizeBillingMonth(searchParams.get("billingMonth"));
+    const requestedBillingMonth = normalizeBillingMonth(searchParams.get("billingMonth"));
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -236,32 +238,103 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = supabase
-      .from("bulk_account_invoices")
-      .select("*")
-      .eq("account_number", accountNumber)
-      .order("billing_month", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
+    const { data: systemLockRows, error: systemLockError } = await supabase
+      .from("system_locks")
+      .select("is_locked, lock_date")
+      .eq("lock_key", "billing")
       .limit(1);
 
-    if (billingMonth) {
-      query = query.eq("billing_month", billingMonth);
-    }
-
-    const { data, error } = await query;
-    if (error) {
+    if (systemLockError) {
       return NextResponse.json(
-        { error: error.message || "Failed to fetch bulk account invoice" },
+        { error: systemLockError.message || "Failed to fetch system lock" },
         { status: 500 },
       );
     }
 
-    const invoice = await enrichBulkInvoiceWithLockMeta(
-      supabase,
-      Array.isArray(data) ? data[0] || null : null,
-    );
+    const systemLock = Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
+    const lockedBillingMonth = Boolean(systemLock?.is_locked)
+      ? normalizeBillingMonth(systemLock?.lock_date)
+      : null;
 
-    return NextResponse.json({ invoice });
+    const fetchInvoiceForBillingMonth = async (targetBillingMonth: string | null) => {
+      let query = supabase
+        .from("bulk_account_invoices")
+        .select("*")
+        .eq("account_number", accountNumber)
+        .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      query = targetBillingMonth
+        ? query.eq("billing_month", targetBillingMonth)
+        : query;
+
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+
+      return Array.isArray(data) ? data[0] || null : null;
+    };
+
+    const fetchLatestInvoiceForAccount = async () => {
+      const { data, error } = await supabase
+        .from("bulk_account_invoices")
+        .select("*")
+        .eq("account_number", accountNumber)
+        .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) {
+        throw error;
+      }
+
+      return Array.isArray(data) ? data[0] || null : null;
+    };
+
+    let rawInvoice = null;
+    let resolvedBillingMonth = requestedBillingMonth || null;
+
+    try {
+      rawInvoice = await fetchInvoiceForBillingMonth(requestedBillingMonth || null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch bulk account invoice";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    if (!rawInvoice && lockedBillingMonth && lockedBillingMonth !== requestedBillingMonth) {
+      try {
+        rawInvoice = await fetchInvoiceForBillingMonth(lockedBillingMonth);
+        if (rawInvoice) {
+          resolvedBillingMonth = lockedBillingMonth;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch locked-period bulk invoice";
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
+    }
+
+    if (!rawInvoice) {
+      try {
+        rawInvoice = await fetchLatestInvoiceForAccount();
+        if (rawInvoice) {
+          resolvedBillingMonth = normalizeBillingMonth(rawInvoice?.billing_month);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch latest bulk invoice";
+        return NextResponse.json({ error: message }, { status: 500 });
+      }
+    }
+
+    const invoice = await enrichBulkInvoiceWithLockMeta(supabase, rawInvoice);
+
+    return NextResponse.json({
+      invoice,
+      requestedBillingMonth,
+      resolvedBillingMonth,
+      lockedBillingMonth,
+    });
   } catch (error) {
     console.error("Unexpected error in bulk account invoice GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
