@@ -72,8 +72,10 @@ export async function POST(request: Request) {
     
     const supabase = await createClient();
     const touchedBillableFields = findPresentBillableVehicleFields(normalizedVehicleData);
+    const isValidationInsert = normalizedVehicleData.vehicle_validated === true;
+    const billingLocked = await isBillingLocked(supabase);
 
-    if (touchedBillableFields.length > 0 && (await isBillingLocked(supabase))) {
+    if (touchedBillableFields.length > 0 && billingLocked && !isValidationInsert) {
       return NextResponse.json(
         {
           error: 'Billing is locked',
@@ -114,7 +116,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      ...data,
+      billing_fields_stripped: [],
+    });
   } catch (error) {
     console.error('Error in vehicle create API:', error);
     const errMsg = error instanceof Error ? error.message : String(error);
