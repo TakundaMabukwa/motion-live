@@ -86,6 +86,19 @@ const normalizeStoredBulkInvoiceForPreview = (invoice) => {
   };
 };
 
+const getActiveSystemLockInvoiceDate = (systemLock) => {
+  if (!Boolean(systemLock?.is_locked)) {
+    return null;
+  }
+
+  const lockDate = String(systemLock?.lock_date || '').trim();
+  if (!lockDate) {
+    return null;
+  }
+
+  return getMonthEndInvoiceDate(lockDate);
+};
+
 const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
   ...storedInvoice,
   account_number: storedInvoice?.account_number || liveInvoiceData?.account_number || null,
@@ -2203,6 +2216,7 @@ export default function ClientCostCentersPage() {
       const lockPayload = await systemLockResponse.json();
       systemLock = lockPayload?.lock || null;
     }
+    const lockedInvoiceDate = getActiveSystemLockInvoiceDate(systemLock);
     const systemLockMonth = String(systemLock?.lock_date || '').slice(0, 7);
     const billingMonthKey = String(targetBillingMonth || '').slice(0, 7);
     const isSystemLockedForMonth =
@@ -2240,11 +2254,16 @@ export default function ClientCostCentersPage() {
       throw new Error('No vehicle data found for this account');
     }
 
+    if (lockedInvoiceDate) {
+      invoiceData.invoice_date = lockedInvoiceDate;
+    }
+
     const normalizedBulkInvoice = bulkInvoice
       ? normalizeStoredBulkInvoiceForPreview({
           ...bulkInvoice,
           billing_month: targetBillingMonth,
           invoice_date:
+            lockedInvoiceDate ||
             invoiceData?.invoice_date ||
             bulkInvoice?.invoice_date ||
             getMonthEndInvoiceDate(targetBillingMonth),
@@ -2253,7 +2272,10 @@ export default function ClientCostCentersPage() {
     const reportCostCenter = {
       ...costCenter,
       billingMonth: targetBillingMonth,
-      invoiceDate: invoiceData?.invoice_date || getMonthEndInvoiceDate(targetBillingMonth),
+      invoiceDate:
+        lockedInvoiceDate ||
+        invoiceData?.invoice_date ||
+        getMonthEndInvoiceDate(targetBillingMonth),
       invoiceData,
       bulkInvoice: normalizedBulkInvoice,
       costCenterInfo,
