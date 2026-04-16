@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       'allocate_document_number',
       {
         sequence_name: 'invoice',
-        prefix: 'INV-',
+        prefix: 'INV',
       },
     );
 

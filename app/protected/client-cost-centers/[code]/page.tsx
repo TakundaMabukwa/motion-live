@@ -83,7 +83,7 @@ const normalizeStoredBulkInvoiceForPreview = (invoice) => {
   };
 };
 
-const getActiveSystemLockInvoiceDate = (systemLock) => {
+const getActiveSystemLockInvoiceDate = (systemLock, billingMonth) => {
   if (!Boolean(systemLock?.is_locked)) {
     return null;
   }
@@ -93,7 +93,10 @@ const getActiveSystemLockInvoiceDate = (systemLock) => {
     return null;
   }
 
-  return getMonthEndInvoiceDate(lockDate);
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  const targetYear = String(normalizedBillingMonth || lockDate).slice(0, 4);
+  const targetMonth = lockDate.slice(5, 7);
+  return getMonthEndInvoiceDate(`${targetYear}-${targetMonth}-01`);
 };
 
 const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
@@ -2213,9 +2216,9 @@ export default function ClientCostCentersPage() {
       const lockPayload = await systemLockResponse.json();
       systemLock = lockPayload?.lock || null;
     }
-    const lockedInvoiceDate = getActiveSystemLockInvoiceDate(systemLock);
-    const systemLockMonth = String(systemLock?.lock_date || '').slice(0, 7);
-    const billingMonthKey = String(targetBillingMonth || '').slice(0, 7);
+    const lockedInvoiceDate = getActiveSystemLockInvoiceDate(systemLock, targetBillingMonth);
+    const systemLockMonth = String(systemLock?.lock_date || '').slice(5, 7);
+    const billingMonthKey = String(targetBillingMonth || '').slice(5, 7);
     const isSystemLockedForMonth =
       Boolean(systemLock?.is_locked) &&
       Boolean(systemLockMonth) &&

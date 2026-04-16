@@ -34,6 +34,22 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
 };
 
+const resolveLockBillingMonth = (
+  lockDate: unknown,
+  requestedBillingMonth: string | null,
+) => {
+  const normalizedLockMonth = normalizeBillingMonth(lockDate);
+  if (!normalizedLockMonth) {
+    return null;
+  }
+
+  const targetYear = String(
+    normalizeBillingMonth(requestedBillingMonth) || normalizedLockMonth,
+  ).slice(0, 4);
+  const targetMonth = String(normalizedLockMonth).slice(5, 7);
+  return `${targetYear}-${targetMonth}-01`;
+};
+
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
     source?.physical_address_1,
@@ -253,7 +269,7 @@ export async function GET(request: NextRequest) {
 
     const systemLock = Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
     const lockedBillingMonth = Boolean(systemLock?.is_locked)
-      ? normalizeBillingMonth(systemLock?.lock_date)
+      ? resolveLockBillingMonth(systemLock?.lock_date, requestedBillingMonth)
       : null;
 
     const fetchInvoiceForBillingMonth = async (targetBillingMonth: string | null) => {
@@ -417,16 +433,16 @@ export async function POST(request: NextRequest) {
 
       if (!hasRealInvoiceNumber(invoiceNumberToKeep)) {
         const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-          "allocate_bulk_document_number",
+          "allocate_document_number",
           {
-            sequence_name: "bulk_invoice",
+            sequence_name: "invoice",
             prefix: "INV",
           },
         );
 
         if (numberError || !allocatedInvoiceNumber) {
           return NextResponse.json(
-            { error: numberError?.message || "Failed to allocate bulk invoice number" },
+            { error: numberError?.message || "Failed to allocate invoice number" },
             { status: 500 },
           );
         }
@@ -474,16 +490,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-      "allocate_bulk_document_number",
+      "allocate_document_number",
       {
-        sequence_name: "bulk_invoice",
+        sequence_name: "invoice",
         prefix: "INV",
       },
     );
 
     if (numberError || !allocatedInvoiceNumber) {
       return NextResponse.json(
-        { error: numberError?.message || "Failed to allocate bulk invoice number" },
+        { error: numberError?.message || "Failed to allocate invoice number" },
         { status: 500 },
       );
     }

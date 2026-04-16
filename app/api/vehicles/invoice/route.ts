@@ -690,17 +690,38 @@ export async function GET(request: NextRequest) {
 
     const isSystemLocked = Boolean(systemLock?.is_locked);
     const lockDate = systemLock?.lock_date || null;
-    
-    // Calculate end of month from lock_date for vehicle cutoff
-    let billingCutoffDate: string | null = null;
-    if (isSystemLocked && lockDate) {
-      const lockDateObj = new Date(lockDate.slice(0, 7) + '-01');
-      const year = lockDateObj.getFullYear();
-      const month = lockDateObj.getMonth();
+    const normalizedRequestedBillingMonth =
+      typeof billingMonth === 'string' && billingMonth.trim()
+        ? normalizeBillingMonth(billingMonth)
+        : null;
+
+    const resolveLockedInvoiceDate = (rawLockDate: string | null, fallbackBillingMonth: string | null) => {
+      const normalizedLockMonth = rawLockDate ? normalizeBillingMonth(rawLockDate) : null;
+      if (!normalizedLockMonth) {
+        return null;
+      }
+
+      const lockMonthPart = String(normalizedLockMonth).slice(5, 7);
+      const yearSource = fallbackBillingMonth || normalizedLockMonth;
+      const targetYear = String(yearSource).slice(0, 4);
+      const effectiveBillingMonth = `${targetYear}-${lockMonthPart}-01`;
+      const parsed = new Date(`${effectiveBillingMonth}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) {
+        return null;
+      }
+
+      const year = parsed.getFullYear();
+      const month = parsed.getMonth();
       const lastDay = new Date(year, month + 1, 0).getDate();
       const invoiceDay = Math.min(30, lastDay);
-      billingCutoffDate = new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
-    }
+      return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
+    };
+    
+    // Calculate end of month from lock_date for vehicle cutoff
+    const billingCutoffDate =
+      isSystemLocked && lockDate
+        ? resolveLockedInvoiceDate(lockDate, normalizedRequestedBillingMonth)
+        : null;
 
     let storedInvoiceQuery = supabase
       .from('account_invoices')

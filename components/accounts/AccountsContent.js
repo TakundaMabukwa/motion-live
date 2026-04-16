@@ -108,11 +108,16 @@ export default function AccountsContent({ activeSection }) {
   const VAT_RATE = 0.15;
   const BILLING_STATUS_KEYS = ["invoice"];
 
-  const getLockMonthEndInvoiceDate = (lockDate) => {
+  const getLockMonthEndInvoiceDate = (lockDate, referenceDate) => {
     const raw = String(lockDate || "").trim();
     if (!raw) return null;
 
-    const parsed = new Date(`${raw.slice(0, 7)}-01T00:00:00`);
+    const referenceRaw = String(referenceDate || "").trim();
+    const referenceYear = /^\d{4}/.test(referenceRaw)
+      ? referenceRaw.slice(0, 4)
+      : String(new Date().getFullYear());
+    const effectiveBillingMonth = `${referenceYear}-${raw.slice(5, 7)}-01`;
+    const parsed = new Date(`${effectiveBillingMonth}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) {
       return null;
     }
@@ -1310,7 +1315,14 @@ export default function AccountsContent({ activeSection }) {
       "PENDING";
     const lockedPreviewInvoiceDate =
       Boolean(systemLock?.is_locked) &&
-      getLockMonthEndInvoiceDate(systemLock?.lock_date);
+      getLockMonthEndInvoiceDate(
+        systemLock?.lock_date,
+        storedInvoiceRecord?.invoice_date ||
+          generatedInvoice?.generatedAt ||
+          selectedJobForInvoice?.end_time ||
+          selectedJobForInvoice?.completion_date ||
+          selectedJobForInvoice?.job_date,
+      );
     const invoiceDate =
       storedInvoiceRecord?.invoice_date ||
       generatedInvoice?.generatedAt ||
