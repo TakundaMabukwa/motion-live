@@ -2227,15 +2227,24 @@ export default function AccountsContent({ activeSection }) {
                               View Invoice
                             </Button>
                           )}
-                          <Button
-                            onClick={() => handleInvoiceClient(job)}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs"
-                          >
-                            {getBillingStatusValue(job, "invoice")
-                              ? "Refresh Invoice"
-                              : "Invoice"}
-                          </Button>
+                          {getBillingStatusValue(job, "invoice") ? (
+                            <Button
+                              size="sm"
+                              disabled
+                              variant="secondary"
+                              className="h-8 px-3 text-xs"
+                            >
+                              Invoiced
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => handleInvoiceClient(job)}
+                              size="sm"
+                              className="bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs"
+                            >
+                              Invoice
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

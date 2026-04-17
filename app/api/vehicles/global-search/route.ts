@@ -95,13 +95,25 @@ export async function GET(request: NextRequest) {
     const exactJobMatchesPromise = supabase
       .from("job_cards")
       .select(JOB_SEARCH_SELECT)
-      .or(`job_number.eq.${escapedSearch},job_number.eq.${normalizedSearch}`)
+      .or(
+        `job_number.eq.${escapedSearch},job_number.eq.${normalizedSearch},new_account_number.eq.${escapedSearch},vehicle_registration.eq.${escapedSearch},vehicle_registration.eq.${normalizedSearch}`,
+      )
       .limit(limit);
 
     const prefixJobMatchesPromise = supabase
       .from("job_cards")
       .select(JOB_SEARCH_SELECT)
-      .ilike("job_number", `${escapedSearch}%`)
+      .or(
+        `job_number.ilike.${escapedSearch}%,customer_name.ilike.${escapedSearch}%,new_account_number.ilike.${escapedSearch}%,vehicle_registration.ilike.${escapedSearch}%`,
+      )
+      .limit(limit);
+
+    const containsJobMatchesPromise = supabase
+      .from("job_cards")
+      .select(JOB_SEARCH_SELECT)
+      .or(
+        `job_number.ilike.%${escapedSearch}%,customer_name.ilike.%${escapedSearch}%,new_account_number.ilike.%${escapedSearch}%,vehicle_registration.ilike.%${escapedSearch}%`,
+      )
       .limit(limit);
 
     const [
@@ -110,12 +122,14 @@ export async function GET(request: NextRequest) {
       containsMatches,
       exactJobMatches,
       prefixJobMatches,
+      containsJobMatches,
     ] = await Promise.all([
       exactMatchesPromise,
       prefixMatchesPromise,
       containsMatchesPromise,
       exactJobMatchesPromise,
       prefixJobMatchesPromise,
+      containsJobMatchesPromise,
     ]);
 
     if (
@@ -123,7 +137,8 @@ export async function GET(request: NextRequest) {
       prefixMatches.error ||
       containsMatches.error ||
       exactJobMatches.error ||
-      prefixJobMatches.error
+      prefixJobMatches.error ||
+      containsJobMatches.error
     ) {
       console.error("Vehicle global search error:", {
         exact: exactMatches.error,
@@ -131,6 +146,7 @@ export async function GET(request: NextRequest) {
         contains: containsMatches.error,
         exactJob: exactJobMatches.error,
         prefixJob: prefixJobMatches.error,
+        containsJob: containsJobMatches.error,
       });
       return NextResponse.json(
         { error: "Failed to search vehicles and job cards" },
@@ -147,6 +163,7 @@ export async function GET(request: NextRequest) {
     const jobCards = dedupeJobCards([
       ...(exactJobMatches.data || []),
       ...(prefixJobMatches.data || []),
+      ...(containsJobMatches.data || []),
     ]).slice(0, limit);
 
     return NextResponse.json({ vehicles, job_cards: jobCards });
