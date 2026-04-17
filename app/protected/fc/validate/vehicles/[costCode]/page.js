@@ -78,7 +78,13 @@ const AddItemSearch = memo(function AddItemSearch({
     () => billingFieldsToAdd.filter(matchesSearch),
     [billingFieldsToAdd, normalizedSearch],
   );
-  const firstMatch = filteredVehicleFields[0] || filteredBillingFields[0] || "";
+  const firstMatch = filteredBillingFields[0] || filteredVehicleFields[0] || "";
+  const resolvedField =
+    (selectedField &&
+    (filteredBillingFields.includes(selectedField) ||
+      filteredVehicleFields.includes(selectedField))
+      ? selectedField
+      : "") || firstMatch;
 
   const handleSelectField = (field) => {
     setSelectedField(field);
@@ -88,8 +94,8 @@ const AddItemSearch = memo(function AddItemSearch({
   };
 
   const handleAdd = () => {
-    if (!selectedField) return;
-    onAddField(selectedField, fieldValue);
+    if (!resolvedField) return;
+    onAddField(resolvedField, fieldValue);
     setSelectedField("");
     setFieldValue("");
     setFieldSearch("");
@@ -105,11 +111,14 @@ const AddItemSearch = memo(function AddItemSearch({
     if (e.key !== "Enter") return;
     e.preventDefault();
     setIsDropdownOpen(true);
-    if (!selectedField && firstMatch) {
+    if (!resolvedField && firstMatch) {
       handleSelectField(firstMatch);
       return;
     }
-    if (selectedField) {
+    if (resolvedField) {
+      if (!selectedField && resolvedField) {
+        setSelectedField(resolvedField);
+      }
       requestAnimationFrame(() => valueInputRef.current?.focus());
     }
   };
@@ -200,10 +209,10 @@ const AddItemSearch = memo(function AddItemSearch({
         onKeyDown={handleValueKeyDown}
         placeholder="Enter value..."
         className="h-9 text-sm w-[180px]"
-        disabled={!selectedField}
+        disabled={!resolvedField}
         ref={valueInputRef}
       />
-      <Button size="sm" onClick={handleAdd} disabled={!selectedField}>
+      <Button size="sm" onClick={handleAdd} disabled={!resolvedField}>
         <Plus className="h-3 w-3 mr-1" />
         Add Item
       </Button>
@@ -801,7 +810,6 @@ export default function ValidateVehiclesPage() {
           const errorText = await response.text();
           if (errorText) errorMessage = errorText;
         }
-        console.error("Update failed:", errorMessage);
         throw new Error(errorMessage);
       }
 
@@ -819,7 +827,6 @@ export default function ValidateVehiclesPage() {
       }
       setEditedData({});
     } catch (error) {
-      console.error("Save error:", error);
       setVehicles(previousVehicles);
       setEditingVehicle(editedData.id);
       toast.error("Failed to update vehicle: " + error.message);

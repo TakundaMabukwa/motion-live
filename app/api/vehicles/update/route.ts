@@ -69,15 +69,44 @@ export async function PUT(request) {
     }
 
     const supabase = await createClient();
-    const billingLocked = await isBillingLocked(supabase);
     const {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
     const { id, unique_id, ...updateData } = vehicleData;
+    const identifier = unique_id || id;
+    const identifierField = unique_id ? 'unique_id' : 'id';
+    const { data: existingVehicle, error: existingVehicleError } = await supabase
+      .from('vehicles_duplicate')
+      .select('id, unique_id, vehicle_validated')
+      .eq(identifierField, identifier)
+      .maybeSingle();
+
+    if (existingVehicleError) {
+      console.error('Error finding existing vehicle before update:', {
+        error: existingVehicleError,
+        identifier,
+        identifierField,
+      });
+      return NextResponse.json(
+        { error: 'Failed to update vehicle', details: existingVehicleError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!existingVehicle) {
+      return NextResponse.json(
+        { error: 'Vehicle not found' },
+        { status: 404 }
+      );
+    }
+
+    const billingLocked = await isBillingLocked(supabase);
+    const isValidationUpdate =
+      existingVehicle.vehicle_validated === true || updateData.vehicle_validated === true;
     const touchedBillableFields = findTouchedBillableVehicleFields(updateData);
 
-    if (touchedBillableFields.length > 0 && billingLocked) {
+    if (touchedBillableFields.length > 0 && billingLocked && !isValidationUpdate) {
       return NextResponse.json(
         {
           error: 'Billing is locked',
@@ -114,9 +143,6 @@ export async function PUT(request) {
       }
       delete updateData.cost_code;
     }
-
-    const identifier = unique_id || id;
-    const identifierField = unique_id ? 'unique_id' : 'id';
 
     console.log('Updating vehicle:', { identifier, identifierField, hasUpdateData: Object.keys(updateData).length });
 
@@ -226,13 +252,14 @@ export async function PUT(request) {
       const insertPayload = Object.fromEntries(
         Object.entries(updatedVehicle || {}).filter(([, value]) => value !== undefined)
       );
+      delete insertPayload.id;
 
       if (!insertPayload.account_number && insertPayload.new_account_number) {
         insertPayload.account_number = insertPayload.new_account_number;
       }
 
       const presentBillableFields = findPresentBillableVehicleFields(insertPayload);
-      if (presentBillableFields.length > 0 && billingLocked) {
+      if (presentBillableFields.length > 0 && billingLocked && !isValidationUpdate) {
         return NextResponse.json(
           {
             error: 'Billing is locked',
