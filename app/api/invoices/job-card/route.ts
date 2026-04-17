@@ -19,11 +19,18 @@ const getSystemLock = async (
   return data || null;
 };
 
-const getLockMonthEndInvoiceDate = (lockDate: unknown) => {
+const getLockMonthEndInvoiceDate = (
+  lockDate: unknown,
+  referenceBillingDate?: unknown,
+) => {
   const raw = String(lockDate || '').trim();
   if (!raw) return null;
 
-  const lockMonth = `${raw.slice(0, 7)}-01T00:00:00`;
+  const referenceRaw = String(referenceBillingDate || '').trim();
+  const referenceYear = /^\d{4}/.test(referenceRaw)
+    ? referenceRaw.slice(0, 4)
+    : raw.slice(0, 4);
+  const lockMonth = `${referenceYear}-${raw.slice(5, 7)}-01T00:00:00`;
   const parsed = new Date(lockMonth);
   if (Number.isNaN(parsed.getTime())) {
     return null;
@@ -115,8 +122,14 @@ export async function POST(request: NextRequest) {
 
     const systemLock = await getSystemLock(supabase);
     const isSystemLocked = Boolean(systemLock?.is_locked);
+    const lockReferenceDate =
+      invoiceDate ||
+      dueDate ||
+      new Date().toISOString();
     const resolvedInvoiceDate =
-      (isSystemLocked ? getLockMonthEndInvoiceDate(systemLock?.lock_date) : null) ||
+      (isSystemLocked
+        ? getLockMonthEndInvoiceDate(systemLock?.lock_date, lockReferenceDate)
+        : null) ||
       invoiceDate ||
       new Date().toISOString();
 

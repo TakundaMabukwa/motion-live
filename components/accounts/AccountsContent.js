@@ -1329,6 +1329,7 @@ export default function AccountsContent({ activeSection }) {
         systemLock?.lock_date,
         storedInvoiceRecord?.invoice_date ||
           generatedInvoice?.generatedAt ||
+          invoiceFormData?.dueDate ||
           selectedJobForInvoice?.end_time ||
           selectedJobForInvoice?.completion_date ||
           selectedJobForInvoice?.job_date,
@@ -2229,11 +2230,10 @@ export default function AccountsContent({ activeSection }) {
                           <Button
                             onClick={() => handleInvoiceClient(job)}
                             size="sm"
-                            className={`bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs ${getBillingStatusValue(job, "invoice") ? "opacity-70 cursor-not-allowed" : ""}`}
-                            disabled={getBillingStatusValue(job, "invoice")}
+                            className="bg-blue-600 hover:bg-blue-700 h-8 px-3 text-xs"
                           >
                             {getBillingStatusValue(job, "invoice")
-                              ? "Invoiced"
+                              ? "Refresh Invoice"
                               : "Invoice"}
                           </Button>
                         </div>
@@ -2754,7 +2754,7 @@ export default function AccountsContent({ activeSection }) {
                         htmlFor="client-name"
                         className="text-sm font-medium text-gray-700"
                       >
-                        Client Name *
+                        Client Name
                       </Label>
                       <Input
                         id="client-name"
@@ -2774,7 +2774,7 @@ export default function AccountsContent({ activeSection }) {
                         htmlFor="client-email"
                         className="text-sm font-medium text-gray-700"
                       >
-                        Email Address *
+                        Email Address
                       </Label>
                       <Input
                         id="client-email"
@@ -2908,8 +2908,10 @@ export default function AccountsContent({ activeSection }) {
                   return (
                     <div id="invoice-preview" className="rounded-lg border bg-white p-2">
                       <iframe
+                        key={`${selectedJobForInvoice?.id || "job"}-${invoiceView?.invoiceNumber || "pending"}-${invoiceView?.invoiceDate || "date"}`}
                         title="Invoice Preview"
                         srcDoc={invoiceHtml}
+                        scrolling="auto"
                         className="h-[1380px] w-full rounded-md border-0"
                       />
                     </div>
@@ -3189,11 +3191,7 @@ export default function AccountsContent({ activeSection }) {
                   {!generatedInvoice ? (
                     <Button
                       onClick={generateInvoice}
-                      disabled={
-                        !invoiceFormData.clientName ||
-                        !invoiceFormData.clientEmail ||
-                        isGeneratingInvoice
-                      }
+                      disabled={isGeneratingInvoice}
                       className="flex-1 bg-blue-600 hover:bg-blue-700"
                     >
                       {isGeneratingInvoice ? (
