@@ -40,8 +40,7 @@ export async function POST(
       );
     }
 
-    // Inventory and Accounts display these inside their completed/review tabs.
-    // FC jobs, however, should return as active work for editing and follow-up.
+    // Inventory, Accounts, and FC review display these inside their completed/review tabs.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
       let nextCompletionNotes: string | null | undefined;
 
@@ -61,21 +60,11 @@ export async function POST(
 
       const shouldSendInventoryToAssignParts =
         targetRole === "inv" && inventoryPlacement === "assign-parts";
-      const shouldPreserveCompleted = Boolean(preserveCompleted);
+      const shouldPreserveCompleted =
+        targetRole === "fc" ? true : Boolean(preserveCompleted);
 
       const completionPayload =
-        targetRole === "fc" && !shouldPreserveCompleted
-          ? {
-              role: "fc",
-              move_to: "fc",
-              status: "pending",
-              job_status: "created",
-              completion_date: null,
-              end_time: null,
-              fc_note_acknowledged: false,
-              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
-            }
-          : shouldSendInventoryToAssignParts
+        shouldSendInventoryToAssignParts
             ? {
                 role: "inv",
                 move_to: "inv",
@@ -92,6 +81,7 @@ export async function POST(
               job_status: "Completed",
               completion_date: new Date().toISOString(),
               end_time: new Date().toISOString(),
+              ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
               ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
             };
 
@@ -125,9 +115,7 @@ export async function POST(
         success: true,
         message:
           targetRole === "fc"
-            ? shouldPreserveCompleted
-              ? "Job moved to FC and kept as completed"
-              : "Job moved to FC"
+            ? "Job moved to FC and kept as completed"
             : shouldSendInventoryToAssignParts
               ? "Job moved to Inventory Assign Parts"
             : `Job moved to ${targetRole.toUpperCase()} and marked as completed`,

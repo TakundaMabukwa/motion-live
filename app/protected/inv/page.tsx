@@ -266,6 +266,8 @@ export default function InventoryPage() {
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [assignedPartsSearchTerm, setAssignedPartsSearchTerm] = useState("");
+  const [completedJobsSearchTerm, setCompletedJobsSearchTerm] = useState("");
   const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
   const [showAssignParts, setShowAssignParts] = useState(false);
   const [markingNoPartsRequired, setMarkingNoPartsRequired] = useState(false);
@@ -770,6 +772,32 @@ export default function InventoryPage() {
       normalizedRole === "inv" || normalizedMoveTo === "inv";
 
     return isCompletedInventoryJob(job) && isInventoryRouted;
+  });
+
+  const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
+    if (!assignedPartsSearchTerm.trim()) return true;
+
+    const searchLower = assignedPartsSearchTerm.toLowerCase();
+    return (
+      job.job_number?.toLowerCase().includes(searchLower) ||
+      job.customer_name?.toLowerCase().includes(searchLower) ||
+      job.vehicle_registration?.toLowerCase().includes(searchLower) ||
+      job.job_description?.toLowerCase().includes(searchLower) ||
+      job.ip_address?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const filteredCompletedJobs = completedJobs.filter((job: JobCard) => {
+    if (!completedJobsSearchTerm.trim()) return true;
+
+    const searchLower = completedJobsSearchTerm.toLowerCase();
+    return (
+      job.job_number?.toLowerCase().includes(searchLower) ||
+      job.customer_name?.toLowerCase().includes(searchLower) ||
+      job.vehicle_registration?.toLowerCase().includes(searchLower) ||
+      job.job_description?.toLowerCase().includes(searchLower) ||
+      job.completion_notes?.toLowerCase().includes(searchLower)
+    );
   });
 
   interface OrderItem {
@@ -2675,10 +2703,20 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="font-semibold text-xl">Jobs with Assigned Parts</h2>
-        <Badge variant="outline">{jobCardsWithParts.length} jobs</Badge>
+        <Badge variant="outline">{filteredJobCardsWithParts.length} jobs</Badge>
       </div>
 
-      {jobCardsWithParts.length === 0 ? (
+      <div className="relative">
+        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+        <Input
+          placeholder="Search assigned parts jobs by job number, customer, vehicle, IP, or description..."
+          value={assignedPartsSearchTerm}
+          onChange={(e) => setAssignedPartsSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredJobCardsWithParts.length === 0 ? (
         <div className="py-12 text-center">
           <Package className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">
@@ -2715,7 +2753,7 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {jobCardsWithParts.map((job) => (
+                {filteredJobCardsWithParts.map((job) => (
                   <tr
                     key={job.id}
                     className="cursor-pointer border-b border-gray-100 transition-colors hover:bg-green-50/50"
@@ -2853,10 +2891,20 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="font-semibold text-xl">Completed Jobs</h2>
-        <Badge variant="outline">{completedJobs.length} jobs</Badge>
+        <Badge variant="outline">{filteredCompletedJobs.length} jobs</Badge>
       </div>
 
-      {completedJobs.length === 0 ? (
+      <div className="relative">
+        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+        <Input
+          placeholder="Search completed jobs by job number, customer, vehicle, notes, or description..."
+          value={completedJobsSearchTerm}
+          onChange={(e) => setCompletedJobsSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredCompletedJobs.length === 0 ? (
         <div className="py-12 text-center">
           <CheckCircle className="mx-auto mb-4 w-12 h-12 text-gray-400" />
           <h3 className="mb-2 font-medium text-gray-900 text-lg">
@@ -2891,7 +2939,7 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {completedJobs.map((job) => (
+                {filteredCompletedJobs.map((job) => (
                   <tr
                     key={job.id}
                     className="border-b border-gray-100 transition-colors hover:bg-gray-50/50"

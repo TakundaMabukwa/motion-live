@@ -103,41 +103,16 @@ export default function CustomerJobCards({
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
-      const payload =
-        destination === 'inv'
-          ? {
-              role: 'inv',
-              move_to: 'inv',
-              status: 'pending',
-              job_status: 'pending',
-              completion_date: null,
-              end_time: null,
-              ...extraPayload,
-            }
-          : destination === 'accounts'
-            ? {
-                role: 'accounts',
-                move_to: 'accounts',
-                updated_by: 'fc',
-                ...extraPayload,
-              }
-            : {
-                role: 'admin',
-                move_to: 'admin',
-                status: 'admin_created',
-                job_status: 'created',
-                assigned_technician_id: null,
-                technician_name: null,
-                technician_phone: null,
-                ...extraPayload,
-              };
-
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          destination,
+          inventoryPlacement: destination === 'inv' ? 'assign-parts' : undefined,
+          ...extraPayload,
+        }),
       });
 
       if (!response.ok) {
@@ -242,6 +217,20 @@ export default function CustomerJobCards({
 
   const hasFcMoveNote = (job) => Boolean(getFcMoveNote(job));
   const isFcNoteAcknowledged = (job) => Boolean(job?.fc_note_acknowledged);
+  const isInFcQueue = (job) => {
+    const role = String(job?.role || '').trim().toLowerCase();
+    const moveTo = String(job?.move_to || '').trim().toLowerCase();
+    const status = String(job?.status || '').trim().toLowerCase();
+    const jobStatus = String(job?.job_status || '').trim().toLowerCase();
+
+    return (
+      role === 'fc' ||
+      moveTo === 'fc' ||
+      status === 'moved_to_fc' ||
+      (status === 'completed' && role === 'fc') ||
+      jobStatus === 'created'
+    );
+  };
 
   const handleEditJob = async (job) => {
     try {
@@ -265,7 +254,9 @@ export default function CustomerJobCards({
     });
   };
 
-  const fcNoteJobs = jobCards.filter((job) => hasFcMoveNote(job) && !isFcNoteAcknowledged(job));
+  const fcNoteJobs = jobCards.filter(
+    (job) => hasFcMoveNote(job) && !isFcNoteAcknowledged(job) && isInFcQueue(job)
+  );
 
   const searchBaseJobs = notesOnly ? fcNoteJobs : jobCards;
 

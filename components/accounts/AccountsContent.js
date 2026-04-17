@@ -318,7 +318,11 @@ export default function AccountsContent({ activeSection }) {
 
     setMovingJobId(job.id);
     const destinationLabel =
-      destination === "inv" ? "Inventory" : "Admin Awaiting Technician";
+      destination === "inv"
+        ? "Inventory"
+        : destination === "fc"
+          ? "FC"
+          : "Admin Awaiting Technician";
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
@@ -332,15 +336,21 @@ export default function AccountsContent({ activeSection }) {
               completion_date: null,
               end_time: null,
             }
-          : {
-              role: "admin",
-              move_to: "admin",
-              status: "admin_created",
-              job_status: "created",
-              assigned_technician_id: null,
-              technician_name: null,
-              technician_phone: null,
-            };
+          : destination === "fc"
+            ? {
+                role: "fc",
+                move_to: "fc",
+                updated_by: "accounts",
+              }
+            : {
+                role: "admin",
+                move_to: "admin",
+                status: "admin_created",
+                job_status: "created",
+                assigned_technician_id: null,
+                technician_name: null,
+                technician_phone: null,
+              };
 
       const response = await fetch(`/api/job-cards/${job.id}`, {
         method: "PATCH",
@@ -2201,6 +2211,7 @@ export default function AccountsContent({ activeSection }) {
                               />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="fc">FC</SelectItem>
                               <SelectItem value="inv">Inventory</SelectItem>
                               <SelectItem value="admin">Admin</SelectItem>
                             </SelectContent>
