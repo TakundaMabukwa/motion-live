@@ -257,9 +257,10 @@ export default function ValidateVehiclesPage() {
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
-  const canAdminRebuildInvoice =
-    String(loggedInUserEmail || "").trim().toLowerCase() ===
-    "mabukwatakunda@gmail.com";
+  const canRebuildInvoice = true;
+  const lastVehiclesFetchKeyRef = useRef(null);
+  const lastInitialCostCenterFetchRef = useRef(null);
+  const hasLoadedPrefixCostCentersRef = useRef(false);
 
   const excludeKeys = [
     "id",
@@ -470,23 +471,25 @@ export default function ValidateVehiclesPage() {
           return;
         }
 
-        console.log("Fetching vehicles for cost code:", costCode);
-        const billingMonth = String(currentCostCenter?.billing_month || FC_BILLING_MONTH).trim();
+        const billingMonth = FC_BILLING_MONTH;
+        const requestKey = `${costCode}::${billingMonth}`;
+        if (lastVehiclesFetchKeyRef.current === requestKey) {
+          return;
+        }
+        lastVehiclesFetchKeyRef.current = requestKey;
         const response = await fetch(
           `/api/vehicles/get?cost_code=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(billingMonth)}`,
         );
-        console.log("Vehicles response status:", response.status);
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Vehicles error:", errorData);
           throw new Error(errorData.error || "Failed to fetch vehicles");
         }
 
         const data = await response.json();
-        console.log("Vehicles data:", data);
         setVehicles(Array.isArray(data) ? data : []);
       } catch (error) {
+        lastVehiclesFetchKeyRef.current = null;
         console.error("Error fetching vehicles:", error);
         toast.error("Failed to load vehicles: " + error.message);
       } finally {
@@ -495,26 +498,61 @@ export default function ValidateVehiclesPage() {
     };
 
     fetchVehicles();
-  }, [costCode, currentCostCenter?.billing_month]);
+  }, [costCode]);
 
   useEffect(() => {
-    const fetchCostCenters = async () => {
+    const fetchCurrentCostCenter = async () => {
       try {
-        const response = await fetch("/api/cost-centers?all=1");
+        if (!costCode) return;
+        if (lastInitialCostCenterFetchRef.current === costCode) {
+          return;
+        }
+        lastInitialCostCenterFetchRef.current = costCode;
+        const requestUrl = `/api/cost-centers?accounts=${encodeURIComponent(costCode)}`;
+        const response = await fetch(requestUrl);
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData?.error || "Failed to fetch cost centers");
         }
         const data = await response.json();
-        setCostCenterOptions(Array.isArray(data) ? data : []);
+        const options = Array.isArray(data) ? data : [];
+        setCostCenterOptions(options);
+        hasLoadedPrefixCostCentersRef.current = false;
       } catch (error) {
+        lastInitialCostCenterFetchRef.current = null;
         console.error("Error fetching cost centers:", error);
         toast.error(`Failed to load cost centers: ${error.message}`);
       }
     };
 
-    fetchCostCenters();
-  }, []);
+    fetchCurrentCostCenter();
+  }, [costCode]);
+
+  const loadPrefixCostCenters = async () => {
+    const prefix = String(costCode || "")
+      .trim()
+      .split("-")[0]
+      .trim();
+
+    if (!prefix || hasLoadedPrefixCostCentersRef.current) {
+      return;
+    }
+
+    const response = await fetch(
+      `/api/cost-centers?prefix=${encodeURIComponent(prefix)}`,
+      { cache: "no-store" },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.error || "Failed to fetch cost centers");
+    }
+
+    const data = await response.json();
+    const options = Array.isArray(data) ? data : [];
+    setCostCenterOptions(options);
+    hasLoadedPrefixCostCentersRef.current = true;
+  };
 
   const toggleVehicle = (vehicleId) => {
     setExpandedVehicles((prev) => ({
@@ -637,6 +675,10 @@ export default function ValidateVehiclesPage() {
       formatCostCenterOption(currentOption) || currentCostCenter,
     );
     setCostCenterDropdownOpen(false);
+    loadPrefixCostCenters().catch((error) => {
+      console.error("Error loading cost centers:", error);
+      toast.error(`Failed to load cost centers: ${error.message}`);
+    });
   };
 
   const cancelEdit = () => {
@@ -843,13 +885,6 @@ export default function ValidateVehiclesPage() {
 
     const billingMonth = String(currentCostCenter?.billing_month || FC_BILLING_MONTH).trim();
     const cacheKey = [String(costCode).trim().toUpperCase(), billingMonth || "current"].join("::");
-    const cachedPreview = invoicePreviewCacheRef.current.get(cacheKey);
-
-    if (cachedPreview) {
-      setInvoicePreviewCostCenter(cachedPreview);
-      setShowInvoicePreview(true);
-      return;
-    }
 
     try {
       setIsLoadingInvoicePreview(true);
@@ -908,65 +943,36 @@ export default function ValidateVehiclesPage() {
         ? liveInvoice.invoiceItems || liveInvoice.invoice_items
         : [];
 
-      let invoiceData;
-      if (Boolean(storedInvoice?.invoice_locked)) {
-        const storedLineItems = Array.isArray(storedInvoice?.line_items)
-          ? storedInvoice.line_items
-          : [];
-
-        invoiceData = {
-          ...storedInvoice,
-          invoice_number: storedInvoice?.invoice_number || "PENDING",
-          invoice_date:
-            liveInvoice?.invoice_date ||
-            storedInvoice?.invoice_date ||
-            `${billingMonth}T00:00:00.000Z`,
-          billing_month:
-            String(
+      let invoiceData = {
+        ...liveInvoice,
+        invoice_number:
+          storedInvoice?.invoice_number || liveInvoice?.invoice_number || "PENDING",
+        invoice_date:
+          liveInvoice?.invoice_date ||
+          storedInvoice?.invoice_date ||
+          `${billingMonth}T00:00:00.000Z`,
+        notes: storedInvoice?.notes || liveInvoice?.notes || null,
+        invoice_locked:
+          Boolean(storedInvoice?.invoice_locked) || Boolean(isSystemLockedForMonth),
+        invoice_locked_at:
+          storedInvoice?.invoice_locked_at || systemLock?.locked_at || null,
+        invoice_locked_by:
+          storedInvoice?.invoice_locked_by || systemLock?.locked_by || null,
+        invoice_locked_by_email:
+          storedInvoice?.invoice_locked_by_email ||
+          systemLock?.locked_by_email ||
+          null,
+        billing_month:
+          String(
+            storedInvoice?.billing_month ||
               liveInvoice?.billing_month ||
-                storedInvoice?.billing_month ||
-                billingMonth,
-            ).trim() || null,
-          company_name:
-            storedInvoice?.company_name || liveInvoice?.company_name || previewTitle,
-          invoice_locked: true,
-          invoice_locked_at: storedInvoice?.invoice_locked_at || null,
-          invoice_locked_by: storedInvoice?.invoice_locked_by || null,
-          invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
-          invoiceItems: storedLineItems,
-          invoice_items: storedLineItems,
-        };
-      } else {
-        invoiceData = {
-          ...liveInvoice,
-          invoice_number:
-            storedInvoice?.invoice_number || liveInvoice?.invoice_number || "PENDING",
-          invoice_date:
-            liveInvoice?.invoice_date ||
-            storedInvoice?.invoice_date ||
-            `${billingMonth}T00:00:00.000Z`,
-          notes: storedInvoice?.notes || liveInvoice?.notes || null,
-          invoice_locked: Boolean(isSystemLockedForMonth),
-          invoice_locked_at:
-            storedInvoice?.invoice_locked_at || systemLock?.locked_at || null,
-          invoice_locked_by:
-            storedInvoice?.invoice_locked_by || systemLock?.locked_by || null,
-          invoice_locked_by_email:
-            storedInvoice?.invoice_locked_by_email ||
-            systemLock?.locked_by_email ||
-            null,
-          billing_month:
-            String(
-              storedInvoice?.billing_month ||
-                liveInvoice?.billing_month ||
-                billingMonth,
-            ).trim() || null,
-          company_name:
-            storedInvoice?.company_name || liveInvoice?.company_name || previewTitle,
-          invoiceItems: liveLineItems,
-          invoice_items: liveLineItems,
-        };
-      }
+              billingMonth,
+          ).trim() || null,
+        company_name:
+          storedInvoice?.company_name || liveInvoice?.company_name || previewTitle,
+        invoiceItems: liveLineItems,
+        invoice_items: liveLineItems,
+      };
 
       const previewPayload = {
         accountNumber: costCode,
@@ -981,109 +987,108 @@ export default function ValidateVehiclesPage() {
       setInvoicePreviewCostCenter(previewPayload);
       setShowInvoicePreview(true);
 
-      if (!Boolean(storedInvoice?.invoice_locked)) {
-        try {
-          const persistResponse = await fetch("/api/invoices/bulk-account", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              accountNumber: costCode,
-              billingMonth:
-                String(
-                  liveInvoice?.billing_month ||
-                    storedInvoice?.billing_month ||
-                    billingMonth,
-                ).trim() || null,
-              companyName:
-                liveInvoice?.company_name ||
-                storedInvoice?.company_name ||
-                previewTitle,
-              companyRegistrationNumber:
-                liveInvoice?.company_registration_number ||
-                storedInvoice?.company_registration_number ||
-                null,
-              clientAddress:
-                liveInvoice?.client_address ||
-                storedInvoice?.client_address ||
-                null,
-              customerVatNumber:
-                liveInvoice?.customer_vat_number ||
-                storedInvoice?.customer_vat_number ||
-                null,
-              invoiceDate:
-                liveInvoice?.invoice_date ||
-                storedInvoice?.invoice_date ||
+      try {
+        const persistResponse = await fetch("/api/invoices/bulk-account", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            accountNumber: costCode,
+            billingMonth:
+              String(
+                liveInvoice?.billing_month ||
+                  storedInvoice?.billing_month ||
+                  billingMonth,
+              ).trim() || null,
+            companyName:
+              liveInvoice?.company_name ||
+              storedInvoice?.company_name ||
+              previewTitle,
+            companyRegistrationNumber:
+              liveInvoice?.company_registration_number ||
+              storedInvoice?.company_registration_number ||
+              null,
+            clientAddress:
+              liveInvoice?.client_address ||
+              storedInvoice?.client_address ||
+              null,
+            customerVatNumber:
+              liveInvoice?.customer_vat_number ||
+              storedInvoice?.customer_vat_number ||
+              null,
+            invoiceDate:
+              liveInvoice?.invoice_date ||
+              storedInvoice?.invoice_date ||
+              `${billingMonth}T00:00:00.000Z`,
+            subtotal: Number(liveInvoice?.subtotal || 0),
+            vatAmount: Number(liveInvoice?.vat_amount || 0),
+            discountAmount: Number(liveInvoice?.discount_amount || 0),
+            totalAmount: Number(liveInvoice?.total_amount || 0),
+            lineItems: liveLineItems,
+            notes: storedInvoice?.notes || liveInvoice?.notes || null,
+            allowLockedRebuild: true,
+          }),
+        });
+
+        if (persistResponse.ok) {
+          const persistResult = await persistResponse.json();
+          const persistedInvoice = persistResult?.invoice || null;
+
+          if (persistedInvoice) {
+            invoiceData = {
+              ...invoiceData,
+              ...persistedInvoice,
+              invoice_number:
+                persistedInvoice?.invoice_number ||
+                invoiceData?.invoice_number ||
+                "PENDING",
+              invoice_date:
+                persistedInvoice?.invoice_date ||
+                invoiceData?.invoice_date ||
                 `${billingMonth}T00:00:00.000Z`,
-              subtotal: Number(liveInvoice?.subtotal || 0),
-              vatAmount: Number(liveInvoice?.vat_amount || 0),
-              discountAmount: Number(liveInvoice?.discount_amount || 0),
-              totalAmount: Number(liveInvoice?.total_amount || 0),
-              lineItems: liveLineItems,
-              notes: storedInvoice?.notes || liveInvoice?.notes || null,
-            }),
-          });
+              invoice_locked: Boolean(persistedInvoice?.invoice_locked),
+              invoice_locked_at:
+                persistedInvoice?.invoice_locked_at ||
+                invoiceData?.invoice_locked_at ||
+                null,
+              invoice_locked_by:
+                persistedInvoice?.invoice_locked_by ||
+                invoiceData?.invoice_locked_by ||
+                null,
+              invoice_locked_by_email:
+                persistedInvoice?.invoice_locked_by_email ||
+                invoiceData?.invoice_locked_by_email ||
+                null,
+              invoiceItems: Array.isArray(persistedInvoice?.line_items)
+                ? persistedInvoice.line_items
+                : liveLineItems,
+              invoice_items: Array.isArray(persistedInvoice?.line_items)
+                ? persistedInvoice.line_items
+                : liveLineItems,
+            };
 
-          if (persistResponse.ok) {
-            const persistResult = await persistResponse.json();
-            const persistedInvoice = persistResult?.invoice || null;
-
-            if (persistedInvoice) {
-              invoiceData = {
-                ...invoiceData,
-                ...persistedInvoice,
-                invoice_number:
-                  persistedInvoice?.invoice_number ||
-                  invoiceData?.invoice_number ||
-                  "PENDING",
-                invoice_date:
-                  persistedInvoice?.invoice_date ||
-                  invoiceData?.invoice_date ||
-                  `${billingMonth}T00:00:00.000Z`,
-                invoice_locked: Boolean(persistedInvoice?.invoice_locked),
-                invoice_locked_at:
-                  persistedInvoice?.invoice_locked_at ||
-                  invoiceData?.invoice_locked_at ||
-                  null,
-                invoice_locked_by:
-                  persistedInvoice?.invoice_locked_by ||
-                  invoiceData?.invoice_locked_by ||
-                  null,
-                invoice_locked_by_email:
-                  persistedInvoice?.invoice_locked_by_email ||
-                  invoiceData?.invoice_locked_by_email ||
-                  null,
-                invoiceItems: Array.isArray(persistedInvoice?.line_items)
-                  ? persistedInvoice.line_items
-                  : liveLineItems,
-                invoice_items: Array.isArray(persistedInvoice?.line_items)
-                  ? persistedInvoice.line_items
-                  : liveLineItems,
-              };
-
-              const persistedPreviewPayload = {
-                ...previewPayload,
-                billingMonth:
-                  String(invoiceData?.billing_month || billingMonth).trim() || null,
-                invoiceData,
-              };
-              invoicePreviewCacheRef.current.set(cacheKey, persistedPreviewPayload);
-              setInvoicePreviewCostCenter(persistedPreviewPayload);
-            }
-          } else {
-            const persistResult = await persistResponse.json().catch(() => ({}));
-            console.warn(
-              "Failed to persist live invoice preview for FC validate page:",
-              persistResult?.error || persistResponse.statusText,
-            );
+            const persistedPreviewPayload = {
+              ...previewPayload,
+              billingMonth:
+                String(invoiceData?.billing_month || billingMonth).trim() || null,
+              invoiceData,
+            };
+            invoicePreviewCacheRef.current.set(cacheKey, persistedPreviewPayload);
+            setInvoicePreviewCostCenter(persistedPreviewPayload);
           }
-        } catch (persistError) {
+        } else {
+          const persistResult = await persistResponse.json().catch(() => ({}));
           console.warn(
             "Failed to persist live invoice preview for FC validate page:",
-            persistError,
+            persistResult?.error || persistResponse.statusText,
           );
         }
+      } catch (persistError) {
+        console.warn(
+          "Failed to persist live invoice preview for FC validate page:",
+          persistError,
+        );
       }
     } catch (error) {
       console.error("Invoice preview error:", error);
@@ -1096,14 +1101,6 @@ export default function ValidateVehiclesPage() {
   const handleRebuildInvoiceFromVehicles = async () => {
     if (!invoicePreviewCostCenter?.accountNumber) {
       toast.error("No invoice selected");
-      return;
-    }
-
-    if (
-      invoicePreviewCostCenter?.invoiceData?.invoice_locked &&
-      !canAdminRebuildInvoice
-    ) {
-      toast.error("Locked invoices must keep the stored invoice snapshot.");
       return;
     }
 
@@ -1165,7 +1162,7 @@ export default function ValidateVehiclesPage() {
           totalAmount: Number(liveInvoice?.total_amount || 0),
           lineItems: liveLineItems,
           notes: liveInvoice?.notes || "",
-          allowLockedRebuild: canAdminRebuildInvoice,
+          allowLockedRebuild: canRebuildInvoice,
         }),
       });
 
@@ -1178,26 +1175,65 @@ export default function ValidateVehiclesPage() {
         );
       }
 
-      const persistedLineItems = Array.isArray(persistedInvoice?.line_items)
-        ? persistedInvoice.line_items
+      const [refreshedStoredResponse, refreshedLiveResponse] = await Promise.all([
+        fetch(
+          `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(
+            invoicePreviewCostCenter.accountNumber,
+          )}&billingMonth=${encodeURIComponent(billingMonth)}`,
+          { cache: "no-store" },
+        ),
+        fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`, {
+          cache: "no-store",
+        }),
+      ]);
+
+      let refreshedStoredInvoice = persistedInvoice;
+      if (refreshedStoredResponse.ok) {
+        const refreshedStoredResult = await refreshedStoredResponse
+          .json()
+          .catch(() => ({}));
+        refreshedStoredInvoice =
+          refreshedStoredResult?.invoice || refreshedStoredInvoice;
+      }
+
+      let refreshedLiveInvoice = liveInvoice;
+      if (refreshedLiveResponse.ok) {
+        const refreshedLiveResult = await refreshedLiveResponse
+          .json()
+          .catch(() => ({}));
+        refreshedLiveInvoice =
+          refreshedLiveResult?.invoiceData || refreshedLiveInvoice;
+      }
+
+      const persistedLineItems = Array.isArray(refreshedStoredInvoice?.line_items)
+        ? refreshedStoredInvoice.line_items
         : liveLineItems;
 
       const rebuiltPreviewPayload = {
         ...invoicePreviewCostCenter,
+        bulkInvoice: refreshedStoredInvoice,
+        reference:
+          refreshedStoredInvoice?.invoice_number ||
+          invoicePreviewCostCenter?.reference ||
+          null,
+        invoiceNumber:
+          refreshedStoredInvoice?.invoice_number ||
+          invoicePreviewCostCenter?.invoiceNumber ||
+          null,
         billingMonth:
           String(
-            persistedInvoice?.billing_month ||
-              liveInvoice?.billing_month ||
+            refreshedStoredInvoice?.billing_month ||
+              refreshedLiveInvoice?.billing_month ||
               billingMonth,
           ).trim() || billingMonth,
         invoiceData: {
-          ...liveInvoice,
-          ...persistedInvoice,
+          ...refreshedLiveInvoice,
+          ...refreshedStoredInvoice,
           invoiceItems: persistedLineItems,
           invoice_items: persistedLineItems,
           company_name:
-            persistedInvoice?.company_name ||
-            liveInvoice?.company_name ||
+            refreshedStoredInvoice?.company_name ||
+            refreshedLiveInvoice?.company_name ||
             invoicePreviewTitle,
         },
       };
@@ -1905,9 +1941,13 @@ export default function ValidateVehiclesPage() {
                                         setCostCenterSearch(e.target.value);
                                         setCostCenterDropdownOpen(true);
                                       }}
-                                      onFocus={() =>
-                                        setCostCenterDropdownOpen(true)
-                                      }
+                                      onFocus={() => {
+                                        setCostCenterDropdownOpen(true);
+                                        loadPrefixCostCenters().catch((error) => {
+                                          console.error("Error loading cost centers:", error);
+                                          toast.error(`Failed to load cost centers: ${error.message}`);
+                                        });
+                                      }}
                                       placeholder="Search any cost center..."
                                       className="mt-1 h-9 text-sm bg-white"
                                     />
@@ -2076,21 +2116,19 @@ export default function ValidateVehiclesPage() {
                 viewOnly
                 extraActions={
                   <div className="flex items-center gap-2">
-                    {canAdminRebuildInvoice && (
-                      <Button
-                        onClick={handleRebuildInvoiceFromVehicles}
-                        disabled={isRebuildingInvoice}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        {isRebuildingInvoice ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <FileText className="h-4 w-4" />
-                        )}
-                        Rebuild From Vehicles
-                      </Button>
-                    )}
+                    <Button
+                      onClick={handleRebuildInvoiceFromVehicles}
+                      disabled={isRebuildingInvoice}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      {isRebuildingInvoice ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                      Rebuild From Vehicles
+                    </Button>
                     <Button
                       onClick={lockCostCenterTotal}
                       disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}

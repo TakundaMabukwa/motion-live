@@ -54,23 +54,18 @@ export default function CustomerJobCards({
   const fetchJobCards = async () => {
     try {
       setLoading(true);
-      let url = '/api/job-cards';
+      const params = new URLSearchParams({ view: 'fc-list' });
       
       // Add account number filter if provided
       if (accountNumber) {
-        url += `?account_number=${encodeURIComponent(accountNumber)}`;
+        params.set('account_number', accountNumber);
       }
-      
-      console.log('Fetching job cards for account:', accountNumber || 'all accounts');
-      const response = await fetch(url, { cache: 'no-store' });
-      console.log('Response status:', response.status);
+
+      const response = await fetch(`/api/job-cards?${params.toString()}`, { cache: 'no-store' });
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Response error text:', errorText);
         throw new Error('Failed to fetch job cards');
       }
       const data = await response.json();
-      console.log('Job cards response:', data);
       setJobCards(data.job_cards || []);
     } catch (error) {
       console.error('Error fetching job cards:', error);

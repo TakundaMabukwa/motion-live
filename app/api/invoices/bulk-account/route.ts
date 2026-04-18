@@ -12,10 +12,6 @@ const hasRealInvoiceNumber = (value: unknown) => {
   return Boolean(normalized) && normalized !== "PENDING";
 };
 
-const ALLOWED_LOCKED_REBUILD_EMAILS = new Set([
-  'mabukwatakunda@gmail.com',
-]);
-
 const getBillingInvoiceDate = (billingMonth: unknown) => {
   if (!billingMonth) {
     return new Date().toISOString();
@@ -374,7 +370,7 @@ export async function POST(request: NextRequest) {
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
     const allowLockedRebuild = Boolean(body?.allowLockedRebuild);
-    const canOverrideLockedInvoice = allowLockedRebuild && ALLOWED_LOCKED_REBUILD_EMAILS.has(String(user.email || '').trim().toLowerCase());
+    const canOverrideLockedInvoice = allowLockedRebuild;
 
     if (!accountNumber) {
       return NextResponse.json(

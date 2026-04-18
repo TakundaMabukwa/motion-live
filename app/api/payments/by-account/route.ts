@@ -58,6 +58,38 @@ const rollForwardPriorAging = (row: Record<string, unknown> | null) => {
   };
 };
 
+const monthsBetweenBillingMonths = (fromBillingMonth: unknown, toBillingMonth: unknown) => {
+  const fromRaw = String(fromBillingMonth || '').slice(0, 10);
+  const toRaw = String(toBillingMonth || '').slice(0, 10);
+  if (!fromRaw || !toRaw) return 0;
+
+  const fromDate = new Date(`${fromRaw}T00:00:00.000Z`);
+  const toDate = new Date(`${toRaw}T00:00:00.000Z`);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return 0;
+
+  return Math.max(
+    0,
+    (toDate.getUTCFullYear() - fromDate.getUTCFullYear()) * 12 +
+      (toDate.getUTCMonth() - fromDate.getUTCMonth()),
+  );
+};
+
+const shiftAgingBucketsByMonths = (row: Record<string, unknown> | null, months: number) => {
+  const normalized = normalizeAgingBuckets(row);
+  const shifted = { ...normalized };
+
+  for (let index = 0; index < months; index += 1) {
+    shifted.overdue_120_plus_days =
+      shifted.overdue_120_plus_days + shifted.overdue_90_days;
+    shifted.overdue_90_days = shifted.overdue_60_days;
+    shifted.overdue_60_days = shifted.overdue_30_days;
+    shifted.overdue_30_days = shifted.current_due;
+    shifted.current_due = 0;
+  }
+
+  return shifted;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -287,62 +319,75 @@ export async function GET(request: NextRequest) {
       balanceDue: payment.balance_due,
       dueDate: payment.due_date,
     });
-    const mirroredCurrentDue = Number(
+    const agingCandidates = [latestAging, ...priorAgingRowsList].filter(Boolean) as Record<string, unknown>[];
+    const effectiveAgingRow =
+      agingCandidates.find((row) => {
+        const normalized = normalizeAgingBuckets(row);
+        return (
+          normalized.current_due +
+            normalized.overdue_30_days +
+            normalized.overdue_60_days +
+            normalized.overdue_90_days +
+            normalized.overdue_120_plus_days >
+          0.01
+        );
+      }) || null;
+    const effectiveAgingMonths = effectiveAgingRow
+      ? monthsBetweenBillingMonths(effectiveAgingRow.billing_month, currentBillingMonth)
+      : 0;
+    const shiftedAging = effectiveAgingRow
+      ? shiftAgingBucketsByMonths(effectiveAgingRow, effectiveAgingMonths)
+      : null;
+    const fallbackCurrentDue = Number(
       paymentsMirror?.current_due ??
         payment.balance_due ??
         overdue.currentDue ??
         0,
     );
-    const agingSource = latestAging || paymentsMirror || null;
-    const currentRowOverdueTotal =
-      toNumeric(agingSource?.overdue_30_days) +
-      toNumeric(agingSource?.overdue_60_days) +
-      toNumeric(agingSource?.overdue_90_days) +
-      toNumeric(agingSource?.overdue_120_plus_days);
-    const priorAgingRow = priorAgingRowsList[0] as Record<string, unknown> | undefined;
-    const normalizedPriorAging = priorAgingRow ? normalizeAgingBuckets(priorAgingRow) : null;
-    const priorOutstandingTotal = normalizedPriorAging
-      ? normalizedPriorAging.current_due +
-        normalizedPriorAging.overdue_30_days +
-        normalizedPriorAging.overdue_60_days +
-        normalizedPriorAging.overdue_90_days +
-        normalizedPriorAging.overdue_120_plus_days
-      : 0;
-    const shouldRollForwardPriorAging =
-      currentRowOverdueTotal <= 0.01 &&
-      priorAgingRowsList.length > 0 &&
-      priorOutstandingTotal > 0.01;
-    const reconstructedAging = shouldRollForwardPriorAging
-      ? rollForwardPriorAging(priorAgingRow || null)
-      : null;
-    const reconstructedOutstanding = reconstructedAging
-      ? mirroredCurrentDue +
-        toNumeric(reconstructedAging.overdue_30_days) +
-        toNumeric(reconstructedAging.overdue_60_days) +
-        toNumeric(reconstructedAging.overdue_90_days) +
-        toNumeric(reconstructedAging.overdue_120_plus_days)
-      : null;
-    const mirroredOutstanding = Number(
-      reconstructedOutstanding ??
-        agingSource?.outstanding_balance ??
-        (mirroredCurrentDue + overdue.overdue30Days + overdue.overdue60Days + overdue.overdue90Days + overdue.overdue91PlusDays),
+    const mirroredCurrentDue = Number(
+      shiftedAging?.current_due ??
+        effectiveAgingRow?.current_due ??
+        fallbackCurrentDue,
     );
     const mirroredOverdue30 = Number(
-      reconstructedAging?.overdue_30_days ?? agingSource?.overdue_30_days ?? overdue.overdue30Days ?? 0,
+      shiftedAging?.overdue_30_days ??
+        effectiveAgingRow?.overdue_30_days ??
+        overdue.overdue30Days ??
+        0,
     );
     const mirroredOverdue60 = Number(
-      reconstructedAging?.overdue_60_days ?? agingSource?.overdue_60_days ?? overdue.overdue60Days ?? 0,
+      shiftedAging?.overdue_60_days ??
+        effectiveAgingRow?.overdue_60_days ??
+        overdue.overdue60Days ??
+        0,
     );
     const mirroredOverdue90 = Number(
-      reconstructedAging?.overdue_90_days ?? agingSource?.overdue_90_days ?? overdue.overdue90Days ?? 0,
+      shiftedAging?.overdue_90_days ??
+        effectiveAgingRow?.overdue_90_days ??
+        overdue.overdue90Days ??
+        0,
     );
-    const mirroredOverdue120 = Number(paymentsMirror?.overdue_120_plus_days ?? overdue.overdue91PlusDays ?? 0);
     const mirroredOverdue120FromAging = Number(
-      reconstructedAging?.overdue_120_plus_days ??
-        agingSource?.overdue_120_plus_days ??
-        mirroredOverdue120 ??
+      shiftedAging?.overdue_120_plus_days ??
+        effectiveAgingRow?.overdue_120_plus_days ??
+        paymentsMirror?.overdue_120_plus_days ??
         overdue.overdue91PlusDays ??
         0,
+    );
+    const mirroredOutstanding = Number(
+      shiftedAging
+        ? mirroredCurrentDue +
+            mirroredOverdue30 +
+            mirroredOverdue60 +
+            mirroredOverdue90 +
+            mirroredOverdue120FromAging
+        : effectiveAgingRow?.outstanding_balance ??
+            paymentsMirror?.outstanding_balance ??
+            (mirroredCurrentDue +
+              overdue.overdue30Days +
+              overdue.overdue60Days +
+              overdue.overdue90Days +
+              overdue.overdue91PlusDays),
     );
     const statementPaidAmount = Number(
       priorAgingRowsList.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0) +

@@ -724,6 +724,9 @@ export function buildStatementView({
   paymentHistory = [],
   bulkInvoice = null,
 }) {
+  const targetBillingMonth = String(
+    costCenter?.billingMonth || paymentData?.billing_month || bulkInvoice?.billing_month || "",
+  ).trim();
   const invoiceItems =
     costCenter?.invoiceData?.invoiceItems ||
     costCenter?.invoiceData?.invoice_items ||
@@ -732,7 +735,7 @@ export function buildStatementView({
   const currentInvoice =
     invoiceHistory.find(
       (invoice) =>
-        String(invoice?.billing_month || "") === String(paymentData?.billing_month || "") &&
+        String(invoice?.billing_month || "") === targetBillingMonth &&
         String(invoice?.account_number || "") === String(costCenter?.accountNumber || ""),
     ) || null;
 
@@ -875,6 +878,7 @@ export function buildStatementView({
   }
 
   const statementMonthSource =
+    targetBillingMonth ||
     activeInvoice?.billing_month ||
     paymentData?.billing_month ||
     bulkInvoice?.billing_month ||
@@ -1243,6 +1247,5 @@ export default function DueReportComponent({
     </div>
   );
 }
-
 
 

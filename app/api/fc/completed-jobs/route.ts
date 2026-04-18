@@ -1,6 +1,80 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const COMPLETED_JOB_FIELDS = [
+  "id",
+  "job_number",
+  "order_number",
+  "job_date",
+  "due_date",
+  "completion_date",
+  "created_at",
+  "updated_at",
+  "start_time",
+  "end_time",
+  "status",
+  "job_status",
+  "job_type",
+  "job_description",
+  "priority",
+  "role",
+  "move_to",
+  "repair",
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+  "customer_address",
+  "contact_person",
+  "new_account_number",
+  "vehicle_registration",
+  "vehicle_make",
+  "vehicle_model",
+  "vehicle_year",
+  "vin_numer",
+  "odormeter",
+  "ip_address",
+  "qr_code",
+  "technician_name",
+  "technician_phone",
+  "assigned_technician_id",
+  "job_location",
+  "site_contact_person",
+  "site_contact_phone",
+  "latitude",
+  "longitude",
+  "estimated_duration_hours",
+  "actual_duration_hours",
+  "estimated_cost",
+  "actual_cost",
+  "quotation_number",
+  "quote_status",
+  "quote_type",
+  "quotation_job_type",
+  "purchase_type",
+  "quote_date",
+  "quote_expiry_date",
+  "quotation_subtotal",
+  "quotation_vat_amount",
+  "quotation_total_amount",
+  "quotation_products",
+  "parts_required",
+  "products_required",
+  "equipment_used",
+  "safety_checklist_completed",
+  "quality_check_passed",
+  "customer_signature_obtained",
+  "before_photos",
+  "after_photos",
+  "documents",
+  "special_instructions",
+  "access_requirements",
+  "work_notes",
+  "completion_notes",
+  "customer_feedback",
+  "customer_satisfaction_rating",
+  "created_by",
+].join(", ");
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -15,10 +89,9 @@ export async function GET() {
     }
 
     // Fetch completed jobs where role is 'fc' and job_status is 'Completed'.
-    // Select all columns so FC screens can use full job-card context.
     const { data, error } = await supabase
       .from("job_cards")
-      .select("*")
+      .select(COMPLETED_JOB_FIELDS)
       .eq("role", "fc")
       .eq("job_status", "Completed")
       .order("completion_date", { ascending: false });

@@ -3,36 +3,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('API: Starting customers-grouped request');
-    
-    // Create Supabase server client
     const supabase = await createClient();
-    console.log('API: Supabase client created');
-    
-    // Check if user is authenticated
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+
     if (authError || !user) {
-      console.log('API: Authentication failed', { authError, user: !!user });
       return NextResponse.json(
         { error: 'Unauthorized - Authentication required' },
         { status: 401 }
       );
     }
 
-    console.log('API: User authenticated successfully');
-
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const search = searchParams.get('search') || '';
     const fetchAll = searchParams.get('fetchAll') === 'true';
+    const includePayments = searchParams.get('includePayments') === 'true';
     const limit = 20;
     const offset = (page - 1) * limit;
 
-    console.log('API: Query parameters', { page, search, fetchAll, limit, offset });
-
-    // Build the query
     let query = supabase
       .from('customers_grouped')
       .select(`
@@ -44,9 +33,7 @@ export async function GET(request: NextRequest) {
         created_at
       `, { count: 'exact' });
 
-    // Apply search filter if provided
     if (search.trim()) {
-      console.log('API: Applying search filter for:', search);
       try {
         query = query.or(
           `company_group.ilike.%${search}%,` +
@@ -60,33 +47,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply pagination - if fetchAll is true, get all records
     if (fetchAll) {
-      console.log('API: Fetching all records');
       query = query.order('created_at', { ascending: false });
     } else {
-      console.log('API: Applying pagination', { offset, limit });
       query = query
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
     }
 
-    console.log('API: Executing database query');
     const { data: companyGroups, error, count } = await query;
 
     if (error) {
-      console.error('API: Database error:', error);
       return NextResponse.json(
         { error: 'Failed to fetch company groups data', details: error.message },
         { status: 500 }
       );
     }
 
-    // Fetch payment data and aggregate by company group
     let paymentData = {};
-    if (companyGroups && companyGroups.length > 0) {
+    if (includePayments && companyGroups && companyGroups.length > 0) {
       try {
-        // Get all cost codes from all_new_account_numbers
         const allCostCodes = companyGroups
           .flatMap(group => {
             if (group.all_new_account_numbers) {
@@ -99,9 +79,6 @@ export async function GET(request: NextRequest) {
           });
 
         if (allCostCodes.length > 0) {
-          console.log('API: Fetching payment data for cost codes:', allCostCodes);
-          
-          // Query payments table for matching cost codes
           const { data: payments, error: paymentsError } = await supabase
             .from('payments_')
             .select('cost_code, due_amount, balance_due, billing_month')
@@ -110,9 +87,6 @@ export async function GET(request: NextRequest) {
           if (paymentsError) {
             console.error('API: Error fetching payments:', paymentsError);
           } else {
-            console.log('API: Payment data received:', payments?.length || 0, 'records');
-            
-            // Aggregate payments by company group
             paymentData = companyGroups.reduce((acc: any, group: any) => {
               const groupCostCodes = group.all_new_account_numbers ? 
                 group.all_new_account_numbers.split(',').map((code: string) => code.trim().toUpperCase()).filter((code: string) => code.length > 0) : [];
@@ -138,12 +112,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log('API: Query successful', { 
-      companyGroupsCount: companyGroups?.length || 0, 
-      totalCount: count 
-    });
-
-    // Transform the data to match the frontend expectations
     const transformedCompanyGroups = companyGroups?.map(group => ({
       id: group.id,
       company_group: group.company_group,
@@ -157,10 +125,6 @@ export async function GET(request: NextRequest) {
       legal_names_list: group.legal_names ? group.legal_names.split(',').map(name => name.trim()) : []
     })) || [];
 
-    console.log('API: Data transformation complete', { 
-      transformedCount: transformedCompanyGroups.length 
-    });
-
     const response = {
       companyGroups: transformedCompanyGroups,
       paymentData,
@@ -172,17 +136,13 @@ export async function GET(request: NextRequest) {
       fetchAll
     };
 
-    console.log('API: Request completed successfully');
     return NextResponse.json(response);
 
   } catch (error) {
-    console.error('API: Unexpected error:', error);
-    console.error('API: Error stack:', error.stack);
     return NextResponse.json(
       { 
         error: 'Internal server error', 
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );

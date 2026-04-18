@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,7 @@ function ValidateCustomerContent() {
   const [validationStatus, setValidationStatus] = useState(false);
   const [validationSaving, setValidationSaving] = useState(false);
   const [isInitialDataEntry, setIsInitialDataEntry] = useState(false);
+  const lastLoadedAccountRef = useRef(null);
 
   const handleInputChange = (field, value) => {
     setEditValues(prev => ({ ...prev, [field]: value }));
@@ -50,13 +51,17 @@ function ValidateCustomerContent() {
     const fetchCustomerData = async () => {
       try {
         const accountParam = searchParams?.get('account');
-        console.log('URL account param:', accountParam);
         
         if (!accountParam) {
           toast.error('No customer selected');
           router.back();
           return;
         }
+
+        if (lastLoadedAccountRef.current === accountParam) {
+          return;
+        }
+        lastLoadedAccountRef.current = accountParam;
 
         // Fetch customer data from customers_grouped with new API
         const customerResponse = await fetch(`/api/customers-grouped/by-account/${encodeURIComponent(accountParam)}`);
@@ -68,7 +73,6 @@ function ValidateCustomerContent() {
         }
         
         const customerData = await customerResponse.json();
-        console.log('Customer data loaded:', customerData);
         
         // Set both customer group and detailed data from single response
         setCustomerGroup({
@@ -85,9 +89,6 @@ function ValidateCustomerContent() {
         // Check if this is initial data entry (no contact details filled)
         const hasContactDetails = customerData.company || customerData.email || customerData.cell_no;
         setIsInitialDataEntry(!hasContactDetails);
-        
-        console.log('Customer data and group loaded successfully');
-        console.log('Is initial data entry:', !hasContactDetails);
       } catch (error) {
         console.error('Error fetching customer data:', error);
         toast.error('Failed to load customer information: ' + error.message);

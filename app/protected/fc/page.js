@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
@@ -49,27 +49,42 @@ export default function AccountsDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
   const [fromRiaPendingCount, setFromRiaPendingCount] = useState(0);
+  const lastCompaniesRefreshRef = useRef(0);
+
+  const maybeRefreshCompanyGroups = async (force = false) => {
+    if (activeTab !== "companies") return;
+
+    const now = Date.now();
+    const isFresh = now - lastCompaniesRefreshRef.current < 60000;
+
+    if (!force && isDataLoaded && isFresh) {
+      return;
+    }
+
+    await fetchCompanyGroups("");
+    lastCompaniesRefreshRef.current = Date.now();
+  };
 
 
 
   // Initial load
   useEffect(() => {
     if (activeTab === 'companies') {
-      fetchCompanyGroups("");
+      maybeRefreshCompanyGroups(true);
     }
-  }, [fetchCompanyGroups, activeTab, pathname]);
+  }, [activeTab, pathname]);
 
   useEffect(() => {
     if (activeTab !== 'companies') return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchCompanyGroups("");
+        maybeRefreshCompanyGroups(false);
       }
     };
 
     const handleWindowFocus = () => {
-      fetchCompanyGroups("");
+      maybeRefreshCompanyGroups(false);
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -79,41 +94,18 @@ export default function AccountsDashboard() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [fetchCompanyGroups, activeTab]);
+  }, [activeTab, isDataLoaded, fetchCompanyGroups]);
 
   useEffect(() => {
     const fetchFromRiaPendingCount = async () => {
       try {
-        const response = await fetch('/api/job-cards', { cache: 'no-store' });
+        const response = await fetch('/api/fc/from-ria-count', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error('Failed to fetch From Ria jobs');
         }
 
         const data = await response.json();
-        const jobCards = Array.isArray(data?.job_cards) ? data.job_cards : [];
-
-        const getFcMoveNote = (job) => {
-          const notes = String(job?.completion_notes || '').trim();
-          if (!notes) return '';
-
-          const sections = notes
-            .split(/\[Move note to FC\]/gi)
-            .map((part) => part.trim())
-            .filter(Boolean);
-
-          if (sections.length > 0) {
-            return sections[sections.length - 1].split(/\n{2,}/)[0].trim();
-          }
-
-          return notes;
-        };
-
-        const pendingCount = jobCards.filter((job) => {
-          const hasNote = Boolean(getFcMoveNote(job));
-          return hasNote && !Boolean(job?.fc_note_acknowledged);
-        }).length;
-
-        setFromRiaPendingCount(pendingCount);
+        setFromRiaPendingCount(Number(data?.pendingCount || 0));
       } catch (error) {
         console.error('Error fetching From Ria pending count:', error);
         setFromRiaPendingCount(0);
@@ -125,20 +117,6 @@ export default function AccountsDashboard() {
     const intervalId = window.setInterval(fetchFromRiaPendingCount, 30000);
     return () => window.clearInterval(intervalId);
   }, []);
-
-  const filteredCompanyGroups = useMemo(() => {
-    
-    // Log each group's account numbers for debugging
-    companyGroups.forEach((group, index) => {
-      console.log(`📋 [FC DASHBOARD] Group ${index}:`, {
-        company_group: group.company_group,
-        legal_names: group.legal_names,
-        all_new_account_numbers: group.all_new_account_numbers
-      });
-    });
-    
-    return companyGroups;
-  }, [companyGroups]);
 
   const visibleCompanyGroups = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -212,7 +190,9 @@ export default function AccountsDashboard() {
               </div>
               <Button
                 variant="outline"
-                onClick={() => fetchCompanyGroups("")}
+                onClick={async () => {
+                  await maybeRefreshCompanyGroups(true);
+                }}
                 disabled={loading}
                 className="flex items-center gap-2"
               >
@@ -240,12 +220,6 @@ export default function AccountsDashboard() {
                   <span className="ml-2 text-green-600">
                     <CheckCircle className="w-3 h-3 inline mr-1" />
                     Data loaded
-                  </span>
-                )}
-                {/* Debug: Show which groups have ALLI-0001 */}
-                {filteredCompanyGroups.some(group => group.all_new_account_numbers?.includes('ALLI-0001')) && (
-                  <span className="ml-2 text-orange-600">
-                    ⚠️ Found ALLI-0001 in data
                   </span>
                 )}
               </div>

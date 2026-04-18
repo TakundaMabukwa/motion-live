@@ -36,8 +36,13 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '5000');
     const offset = (page - 1) * limit;
     const accountNumber = searchParams.get('account_number');
+    const view = searchParams.get('view') || '';
+    const selectFields =
+      view === 'fc-list'
+        ? 'id, job_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, account_id, new_account_number'
+        : '*';
 
-    let query = supabase.from('job_cards').select('*').order('created_at', { ascending: false });
+    let query = supabase.from('job_cards').select(selectFields).order('created_at', { ascending: false });
 
     if (accountNumber) {
       query = query.eq('new_account_number', accountNumber);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import nextDynamic from "next/dynamic";
 
 // Force dynamic rendering to avoid useSearchParams issues
 export const dynamic = "force-dynamic";
@@ -24,15 +25,38 @@ import {
   Quote,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
-import LiveVehicleMap from "@/components/ui-personal/live-vehicle-map";
-import VehicleCards from "@/components/vehicle-tracking/VehicleCards";
-import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
-import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
-import ClientJobCards from "@/components/ui-personal/client-job-cards";
-import AccountDashboard from "@/components/ui-personal/account-dashboard";
 
 import { toast } from "sonner";
 import { type Vehicle } from "@/lib/actions/vehicles";
+
+const tabLoadingFallback = () => (
+  <div className="py-8 text-center text-gray-500">Loading...</div>
+);
+
+const LiveVehicleMap = nextDynamic(
+  () => import("@/components/ui-personal/live-vehicle-map"),
+  { loading: tabLoadingFallback, ssr: false },
+);
+const VehicleCards = nextDynamic(
+  () => import("@/components/vehicle-tracking/VehicleCards"),
+  { loading: tabLoadingFallback, ssr: false },
+);
+const CustomerJobCards = nextDynamic(
+  () => import("@/components/ui-personal/customer-job-cards"),
+  { loading: tabLoadingFallback, ssr: false },
+);
+const ClientQuoteForm = nextDynamic(
+  () => import("@/components/ui-personal/client-quote-form"),
+  { loading: tabLoadingFallback, ssr: false },
+);
+const ClientJobCards = nextDynamic(
+  () => import("@/components/ui-personal/client-job-cards"),
+  { loading: tabLoadingFallback, ssr: false },
+);
+const AccountDashboard = nextDynamic(
+  () => import("@/components/ui-personal/account-dashboard"),
+  { loading: tabLoadingFallback, ssr: false },
+);
 
 function AccountDetailPageContent() {
   const params = useParams();
@@ -59,29 +83,37 @@ function AccountDetailPageContent() {
   const [lastVehicleImportSummary, setLastVehicleImportSummary] =
     useState(null);
   const vehicleFileInputRef = useRef<HTMLInputElement | null>(null);
+  const hasLoadedVehiclesRef = useRef(false);
+  const lastLoadedAccountRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (accountId) {
+      if (lastLoadedAccountRef.current === String(accountId)) {
+        return;
+      }
+      lastLoadedAccountRef.current = String(accountId);
       fetchCustomerData();
-      fetchVehicles(1); // Load vehicles immediately, no need to wait for customer data
     }
   }, [accountId]);
 
   useEffect(() => {
     // Fetch vehicles when page changes (including page 1)
-    if (vehiclesPage >= 1) {
-      console.log("📄 [PAGINATION] Fetching vehicles for page:", vehiclesPage);
+    if (hasLoadedVehiclesRef.current && vehiclesPage >= 1) {
       fetchVehicles(vehiclesPage);
     }
   }, [vehiclesPage]);
 
   // Ensure vehicles are loaded when switching to vehicles tab
   useEffect(() => {
-    if (tab === "vehicles" && vehicles.length === 0 && !vehiclesLoading) {
-      console.log("🚗 [TAB SWITCH] Loading vehicles for vehicles tab");
+    if (
+      (tab === "vehicles" || tab === "map" || showClientQuote) &&
+      vehicles.length === 0 &&
+      !vehiclesLoading
+    ) {
+      hasLoadedVehiclesRef.current = true;
       fetchVehicles(1);
     }
-  }, [tab, vehicles.length, vehiclesLoading]);
+  }, [tab, showClientQuote, vehicles.length, vehiclesLoading]);
 
   const fetchCustomerData = async () => {
     try {
@@ -112,10 +144,11 @@ function AccountDetailPageContent() {
       };
 
       setCustomer(customerData);
-      console.log("Created customer data from cost code:", customerData);
     } catch (error) {
       console.error("Error creating customer data:", error);
       toast.error("Failed to load customer data");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,17 +157,12 @@ function AccountDetailPageContent() {
 
     // Check if request is already in progress
     if (activeRequests.has(requestKey)) {
-      console.log(
-        "⏳ [ACCOUNT DETAILS] Request already in progress for:",
-        requestKey,
-      );
       return;
     }
 
     // Check cache first (valid for 30 seconds)
     const cached = requestCache.get(requestKey);
     if (cached && Date.now() - cached.timestamp < 30000) {
-      console.log("💾 [ACCOUNT DETAILS] Using cached data for:", requestKey);
       setVehicles(cached.data.vehicles);
       setVehiclesTotalCount(cached.data.totalCount);
       setVehiclesTotalPages(cached.data.totalPages);
@@ -143,13 +171,6 @@ function AccountDetailPageContent() {
     }
 
     try {
-      console.log(
-        "🚗 [ACCOUNT DETAILS] Fetching vehicles for account:",
-        accountId,
-        "page:",
-        page,
-      );
-
       setActiveRequests((prev) => new globalThis.Set(prev).add(requestKey));
       setVehiclesLoading(true);
 
@@ -161,20 +182,12 @@ function AccountDetailPageContent() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ [ACCOUNT DETAILS] Response not ok:", errorText);
         throw new Error(
           `Failed to fetch vehicles: ${response.status} ${errorText}`,
         );
       }
 
       const data = await response.json();
-      console.log("✅ [ACCOUNT DETAILS] Vehicles data received:", data);
-      console.log(
-        "📊 [ACCOUNT DETAILS] Vehicles count:",
-        data.vehicles?.length || 0,
-        "of",
-        data.totalCount || 0,
-      );
 
       if (data.success) {
         setVehicles(data.vehicles);
@@ -192,20 +205,14 @@ function AccountDetailPageContent() {
             timestamp: Date.now(),
           }),
         );
-
-        console.log(
-          "✅ [ACCOUNT DETAILS] Vehicles loaded successfully for account:",
-          accountId,
-        );
       } else {
-        console.error("❌ [ACCOUNT DETAILS] API returned error:", data.error);
         setVehicles([]);
         setVehiclesTotalCount(0);
         setVehiclesTotalPages(0);
         toast.error(data.error || "Failed to load vehicles");
       }
     } catch (error) {
-      console.error("💥 [ACCOUNT DETAILS] Error fetching vehicles:", error);
+      console.error("Error fetching vehicles:", error);
       setVehicles([]);
       setVehiclesTotalCount(0);
       setVehiclesTotalPages(0);
@@ -226,12 +233,6 @@ function AccountDetailPageContent() {
   };
 
   const handleVehiclesPageChange = (newPage: number) => {
-    console.log(
-      "📄 [PAGE CHANGE] Changing from page",
-      vehiclesPage,
-      "to page",
-      newPage,
-    );
     setVehiclesPage(newPage);
   };
 
@@ -285,6 +286,7 @@ function AccountDetailPageContent() {
       );
 
       setRequestCache(() => new globalThis.Map());
+      hasLoadedVehiclesRef.current = true;
       setVehiclesPage(1);
       await fetchVehicles(1);
       router.refresh();
@@ -300,12 +302,6 @@ function AccountDetailPageContent() {
   };
 
   const handleTabChange = (newTab: string) => {
-    console.log(
-      "🔄 [TAB CHANGE] Switching to tab:",
-      newTab,
-      "Current vehicles count:",
-      vehicles.length,
-    );
     const url = new URL(window.location.href);
     url.searchParams.set("tab", newTab);
     // Use replace instead of push to avoid adding to history stack

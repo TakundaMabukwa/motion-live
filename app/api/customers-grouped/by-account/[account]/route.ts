@@ -3,12 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { account: string } }
+  { params }: { params: Promise<{ account: string }> }
 ) {
   try {
-    const { account } = params;
-
-    console.log('Looking for customer with account:', account);
+    const { account } = await params;
 
     if (!account) {
       return NextResponse.json({ error: 'Account parameter is required' }, { status: 400 });
@@ -25,41 +23,38 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // First, let's try to find by exact match in comma-separated list
     const { data: customerGroups, error: searchError } = await supabase
       .from('customers_grouped')
-      .select('*');
+      .select(`
+        id,
+        company_group,
+        legal_names,
+        all_new_account_numbers,
+        contact_details
+      `)
+      .or(
+        requestedAccounts
+          .map((value) => `all_new_account_numbers.ilike.%${value}%`)
+          .join(','),
+      );
 
     if (searchError) {
       console.error('Error searching customer groups:', searchError);
       return NextResponse.json({ error: 'Database error' }, { status: 500 });
     }
 
-    console.log(`Found ${customerGroups.length} customer groups to search through`);
-
-    // Find matching group by checking if account exists in comma-separated list
-    const customerGroup = customerGroups.find(group => {
+    const customerGroup = (customerGroups || []).find(group => {
       const accounts = (group.all_new_account_numbers || '')
         .split(',')
         .map((value: string) => value.trim().toUpperCase())
         .filter(Boolean);
-      const hasMatch = accounts.some((acc: string) => requestedAccounts.includes(acc));
-      if (hasMatch) {
-        console.log(`Match found in group ${group.id}: ${group.legal_names}`);
-        console.log(`Group accounts: ${accounts.join(', ')}`);
-      }
-      return hasMatch;
+      return accounts.some((acc: string) => requestedAccounts.includes(acc));
     });
 
     if (!customerGroup) {
-      console.log('No matching customer group found');
-      console.log('Available accounts:', customerGroups.slice(0, 5).map(g => 
-        `${g.legal_names}: ${g.all_new_account_numbers}`
-      ));
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Parse contact_details JSON and merge with other fields
     const contactDetails = customerGroup.contact_details || {};
     
     const responseData = {
@@ -101,7 +96,6 @@ export async function GET(
       new_account_number: requestedAccounts[0] || account
     };
 
-    console.log('Returning customer data for:', responseData.company || responseData.legal_names);
     return NextResponse.json(responseData);
 
   } catch (error) {

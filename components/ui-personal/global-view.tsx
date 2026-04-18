@@ -50,7 +50,6 @@ interface AccountSummary {
 export default function GlobalView() {
   const [recentJobs, setRecentJobs] = useState<JobCard[]>([]);
   const [accountSummaries, setAccountSummaries] = useState<AccountSummary[]>([]);
-  const [paymentData, setPaymentData] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const router = useRouter();
@@ -62,67 +61,18 @@ export default function GlobalView() {
   const fetchGlobalData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch all job cards from the last 24 hours
-      const response = await fetch('/api/job-cards');
+
+      const response = await fetch('/api/fc/global-summary', { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Failed to fetch global data');
       }
-      
+
       const data = await response.json();
-      const jobCards = data.job_cards || [];
-      
-      // Filter jobs from last 24 hours
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const recentJobsData = jobCards.filter((job: JobCard) => 
-        new Date(job.created_at) >= twentyFourHoursAgo
+      setRecentJobs(Array.isArray(data?.recentJobs) ? data.recentJobs : []);
+      setAccountSummaries(
+        Array.isArray(data?.accountSummaries) ? data.accountSummaries : [],
       );
-      
-      setRecentJobs(recentJobsData);
-      
-      // Create account summaries
-      const accountMap = new Map<string, AccountSummary>();
-      
-      jobCards.forEach((job: JobCard) => {
-        const accountNumber = job.new_account_number || 'Unknown';
-        const existing = accountMap.get(accountNumber);
-        
-        if (existing) {
-          existing.total_jobs += 1;
-          existing.total_value += parseFloat(job.quotation_total_amount) || 0;
-          if (job.job_status !== 'completed') {
-            existing.open_jobs += 1;
-          }
-          if (new Date(job.updated_at) > new Date(existing.last_activity)) {
-            existing.last_activity = job.updated_at;
-          }
-        } else {
-          accountMap.set(accountNumber, {
-            account_number: accountNumber,
-            company_name: job.customer_name || 'Unknown Company',
-            total_jobs: 1,
-            open_jobs: job.job_status !== 'completed' ? 1 : 0,
-            total_value: parseFloat(job.quotation_total_amount) || 0,
-            last_activity: job.updated_at
-          });
-        }
-      });
-      
-      setAccountSummaries(Array.from(accountMap.values()));
-      
-      // Fetch payment data from payments dashboard
-      try {
-        const paymentResponse = await fetch('/api/customers-grouped?fetchAll=true');
-        if (paymentResponse.ok) {
-          const paymentDataResponse = await paymentResponse.json();
-          setPaymentData(paymentDataResponse.paymentData || {});
-        }
-      } catch (paymentError) {
-        console.error('Error fetching payment data:', paymentError);
-      }
-      
       setLastUpdated(new Date());
-      
     } catch (error) {
       console.error('Error fetching global data:', error);
       toast.error('Failed to load global data');

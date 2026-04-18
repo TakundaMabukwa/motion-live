@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,14 +24,19 @@ export default function ValidateCostCentersPage() {
   const [selectedTransferTarget, setSelectedTransferTarget] = useState(null);
   const [deleteAction, setDeleteAction] = useState(null); // 'transfer' or 'delete'
   const accountNumbers = params?.accountNumbers ? decodeURIComponent(params.accountNumbers) : "";
+  const lastFetchKeyRef = useRef(null);
 
-  const normalizedAccountNumbers = Array.from(
-    new Set(
-      accountNumbers
-        .split(",")
-        .map((value) => value.trim().toUpperCase())
-        .filter(Boolean),
-    ),
+  const normalizedAccountNumbers = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          accountNumbers
+            .split(",")
+            .map((value) => value.trim().toUpperCase())
+            .filter(Boolean),
+        ),
+      ),
+    [accountNumbers],
   );
 
   useEffect(() => {
@@ -48,24 +53,27 @@ export default function ValidateCostCentersPage() {
         const isSingleAccount = normalizedAccountNumbers.length === 1;
         const singleAccount = normalizedAccountNumbers[0] || "";
         const prefix = singleAccount.split("-")[0]?.trim();
+        const requestKey = isSingleAccount
+          ? `prefix:${prefix || ""}`
+          : `accounts:${normalizedAccountNumbers.join(",")}`;
+
+        if (lastFetchKeyRef.current === requestKey) {
+          return;
+        }
+        lastFetchKeyRef.current = requestKey;
 
         const requestUrl =
           isSingleAccount && prefix
             ? `/api/cost-centers?prefix=${encodeURIComponent(prefix)}`
             : `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(normalizedAccountNumbers.join(","))}`;
-
-        console.log('Fetching cost centers using request:', requestUrl);
         const response = await fetch(requestUrl, { cache: "no-store" });
-        console.log('Cost centers response status:', response.status);
         
         if (!response.ok) {
           const errorData = await response.json();
-          console.error('Cost centers error:', errorData);
           throw new Error(errorData.error || 'Failed to fetch cost centers');
         }
         
         const data = await response.json();
-        console.log('Cost centers data:', data);
 
         const fetchedCenters = Array.isArray(data?.costCenters)
           ? data.costCenters
@@ -100,6 +108,7 @@ export default function ValidateCostCentersPage() {
           console.warn("Missing cost centers for codes:", missingCodes);
         }
       } catch (error) {
+        lastFetchKeyRef.current = null;
         console.error('Error fetching cost centers:', error);
         toast.error('Failed to load cost centers: ' + error.message);
       } finally {
@@ -108,7 +117,7 @@ export default function ValidateCostCentersPage() {
     };
 
     fetchCostCenters();
-  }, [accountNumbers]);
+  }, [normalizedAccountNumbers]);
 
   const handleValidate = async (costCenter) => {
     const key = costCenter.cost_code;

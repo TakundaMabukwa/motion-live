@@ -111,44 +111,13 @@ function ClientCostCentersContent() {
 
   const fetchClientGroupInfo = async (account: string) => {
     try {
-      let response = await fetch(
+      const response = await fetch(
         `/api/customers-grouped/by-account/${encodeURIComponent(account)}`,
         { cache: "no-store" },
       );
 
       if (!response.ok) {
-        const fallbackResponse = await fetch(
-          `/api/customers-grouped?fetchAll=true`,
-          { cache: "no-store" },
-        );
-
-        if (!fallbackResponse.ok) {
-          throw new Error("Failed to fetch grouped client info");
-        }
-
-        const fallbackPayload = await fallbackResponse.json();
-        const groups = Array.isArray(fallbackPayload?.companyGroups)
-          ? fallbackPayload.companyGroups
-          : [];
-
-        const normalizedAccount = account.trim().toUpperCase();
-        const matchedGroup = groups.find((group: any) => {
-          const accounts = String(group?.all_new_account_numbers || "")
-            .split(",")
-            .map((value) => value.trim().toUpperCase())
-            .filter(Boolean);
-          return accounts.includes(normalizedAccount);
-        });
-
-        if (!matchedGroup) {
-          throw new Error("Failed to fetch grouped client info");
-        }
-
-        setClientInfo((prev: any) => ({
-          ...prev,
-          ...matchedGroup,
-        }));
-        return;
+        throw new Error("Failed to fetch grouped client info");
       }
 
       const payload = await response.json();

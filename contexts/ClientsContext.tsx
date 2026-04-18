@@ -1,6 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { toast } from 'sonner';
 
 interface ContactInfo {
@@ -73,117 +80,139 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const groupsCacheRef = useRef<
+    Map<string, { companyGroups: CompanyGroup[]; totalCount: number; cachedAt: number }>
+  >(new Map());
+  const contactCacheRef = useRef<Map<string, ContactInfo>>(new Map());
 
-  // Fetch company groups data from customers-grouped table
-  const fetchCompanyGroups = useCallback(async (search = "") => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch company groups');
-      }
-      const data = await response.json();
-      
-      console.log('Company groups data received:', data);
-      
-      const newCompanyGroups = data.companyGroups || [];
-      const newPaymentData = data.paymentData || {};
-      
-      setCompanyGroups(newCompanyGroups);
-      setPaymentData(newPaymentData);
-      setTotalCount(data.count || newCompanyGroups.length);
-      setIsDataLoaded(true);
-      
-      // After loading company groups, fetch contact info for each
-      if (newCompanyGroups.length > 0) {
-        fetchContactInfo(newCompanyGroups);
-      }
-      
-    } catch (error) {
-      console.error('Error fetching company groups:', error);
-      toast.error('Failed to load company groups');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch contact info for each company group using batch API
   const fetchContactInfo = useCallback(async (groups: CompanyGroup[]) => {
     try {
       setLoadingContacts(true);
-      console.log('🔍 Starting batch contact info fetch for', groups.length, 'company groups');
-      
-      // Collect all unique account numbers from all groups
+
       const allAccountNumbers = new Set<string>();
       const groupAccountMap: Record<string, string[]> = {};
-      
-      groups.forEach(group => {
-        if (group.all_new_account_numbers) {
-          const accountNumbers = group.all_new_account_numbers
-            .split(',')
-            .map(account => account.trim())
-            .filter(account => account.length > 0);
-          
-          groupAccountMap[group.id] = accountNumbers;
-          accountNumbers.forEach(account => allAccountNumbers.add(account));
-        }
+
+      groups.forEach((group) => {
+        if (!group.all_new_account_numbers) return;
+
+        const accountNumbers = group.all_new_account_numbers
+          .split(',')
+          .map((account) => account.trim())
+          .filter((account) => account.length > 0);
+
+        groupAccountMap[group.id] = accountNumbers;
+        accountNumbers.forEach((account) => allAccountNumbers.add(account));
       });
-      
+
       const accountNumbersArray = Array.from(allAccountNumbers);
-      console.log('📊 Batch fetching contact info for', accountNumbersArray.length, 'unique account numbers');
-      
-      // Make single batch API call
-      const response = await fetch('/api/customers/contact-info/batch', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ accountNumbers: accountNumbersArray }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch batch contact info');
+      const uncachedAccountNumbers = accountNumbersArray.filter(
+        (accountNumber) => !contactCacheRef.current.has(accountNumber),
+      );
+
+      if (uncachedAccountNumbers.length > 0) {
+        const response = await fetch('/api/customers/contact-info/batch', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ accountNumbers: uncachedAccountNumbers }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch batch contact info');
+        }
+
+        const data = await response.json();
+        const customerMap = data.customers || {};
+
+        Object.entries(customerMap).forEach(([accountNumber, customer]) => {
+          contactCacheRef.current.set(accountNumber, customer as ContactInfo);
+        });
       }
-      
-      const data = await response.json();
-      const customerMap = data.customers || {};
-      
-      console.log('✅ Batch API returned', data.found, 'customers out of', data.requested, 'requested');
-      
-      // Map customers back to groups
+
       const contactMap: Record<string, ContactInfo> = {};
-      groups.forEach(group => {
+      groups.forEach((group) => {
         const accountNumbers = groupAccountMap[group.id] || [];
-        
-        // Find first matching customer for this group
+
         for (const accountNumber of accountNumbers) {
-          if (customerMap[accountNumber]) {
-            contactMap[group.id] = customerMap[accountNumber];
+          const cachedContact = contactCacheRef.current.get(accountNumber);
+          if (cachedContact) {
+            contactMap[group.id] = cachedContact;
             break;
           }
         }
       });
-      
-      console.log(`📈 Contact info mapping completed. Found contacts for ${Object.keys(contactMap).length} groups`);
+
       setContactInfo(contactMap);
     } catch (error) {
-      console.error('💥 Error fetching contact info:', error);
+      console.error('Error fetching contact info:', error);
       toast.error('Failed to load contact information');
     } finally {
       setLoadingContacts(false);
     }
   }, []);
 
-  // Clear all data
+  const fetchCompanyGroups = useCallback(async (search = '') => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const cachedGroupResult = groupsCacheRef.current.get(normalizedSearch);
+
+    if (cachedGroupResult && Date.now() - cachedGroupResult.cachedAt < 60000) {
+      setCompanyGroups(cachedGroupResult.companyGroups);
+      setPaymentData({});
+      setTotalCount(cachedGroupResult.totalCount);
+      setIsDataLoaded(true);
+
+      if (cachedGroupResult.companyGroups.length > 0) {
+        await fetchContactInfo(cachedGroupResult.companyGroups);
+      }
+
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `/api/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true&includePayments=false`,
+        { cache: 'no-store' },
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch company groups');
+      }
+
+      const data = await response.json();
+      const newCompanyGroups = data.companyGroups || [];
+      const nextTotalCount = data.count || newCompanyGroups.length;
+
+      setCompanyGroups(newCompanyGroups);
+      setPaymentData({});
+      setTotalCount(nextTotalCount);
+      setIsDataLoaded(true);
+      groupsCacheRef.current.set(normalizedSearch, {
+        companyGroups: newCompanyGroups,
+        totalCount: nextTotalCount,
+        cachedAt: Date.now(),
+      });
+
+      if (newCompanyGroups.length > 0) {
+        await fetchContactInfo(newCompanyGroups);
+      }
+    } catch (error) {
+      console.error('Error fetching company groups:', error);
+      toast.error('Failed to load company groups');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchContactInfo]);
+
   const clearData = useCallback(() => {
     setCompanyGroups([]);
     setContactInfo({});
     setPaymentData({});
     setTotalCount(0);
     setIsDataLoaded(false);
+    groupsCacheRef.current.clear();
   }, []);
 
   const value: ClientsContextType = {

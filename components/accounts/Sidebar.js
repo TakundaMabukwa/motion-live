@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   Users,
   CreditCard,
-  FileText
+  FileText,
+  Clock3
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogoutButton } from '../logout-button';
@@ -28,6 +29,8 @@ const getIcon = (name) => {
       return CreditCard;
     case 'file-text':
       return FileText;
+    case 'clock':
+      return Clock3;
     case 'wrench':
       return Wrench;
     case 'receipt':
@@ -52,6 +55,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
     { name: 'Invoices', icon: 'file-text', key: 'invoices' },
     { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'credit-card', key: 'purchases' },
+    { name: 'Job Pool', icon: 'clock', key: 'job-pool' },
     // { name: 'Job Cards', icon: 'wrench', key: 'job-cards' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },
     { name: 'Orders', icon: 'shopping-cart', key: 'orders' },

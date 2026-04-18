@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,12 +26,16 @@ export default function AccountDashboard({ customer, accountNumber, onNewQuote }
     recentInvoices: [],
     totalJobsValue: 0 // Added for total jobs value
   });
-  const [clientQuotes, setClientQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const lastLoadedAccountRef = useRef(null);
 
   useEffect(() => {
     if (accountNumber) {
+      if (lastLoadedAccountRef.current === accountNumber) {
+        return;
+      }
+      lastLoadedAccountRef.current = accountNumber;
       fetchSalesData();
     }
   }, [accountNumber]);
@@ -39,76 +43,24 @@ export default function AccountDashboard({ customer, accountNumber, onNewQuote }
   const fetchSalesData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch data from both job_cards and client_quotes tables
-      const [jobCardsResponse, clientQuotesResponse] = await Promise.all([
-        fetch(`/api/job-cards?account_number=${accountNumber}`),
-        fetch(`/api/client-quotes?account_number=${accountNumber}`)
-      ]);
+      const response = await fetch(
+        `/api/fc/account-dashboard?accountNumber=${encodeURIComponent(accountNumber)}`,
+        { cache: "no-store" },
+      );
 
-      if (!jobCardsResponse.ok || !clientQuotesResponse.ok) {
+      if (!response.ok) {
         throw new Error('Failed to fetch sales data');
       }
 
-      const jobCardsData = await jobCardsResponse.json();
-      const clientQuotesData = await clientQuotesResponse.json();
-
-      const jobCards = jobCardsData.job_cards || [];
-      const clientQuotes = clientQuotesData.data || clientQuotesData.client_quotes || [];
-      
-      // Store client quotes for dashboard cards
-      setClientQuotes(clientQuotes);
-
-      // Process the data to create sales funnel metrics
-      // Filter by created_by to show only quotes/jobs created by the current user
-      const quotationsOpened = clientQuotes.filter(quote => 
-        quote.created_by // Only show quotes created by the user
-      ).length;
-      
-      const approved = clientQuotes.filter(quote => 
-        String(quote.job_status || '').toLowerCase() === 'approved' && quote.created_by
-      ).length;
-      
-      const jobsOpen = jobCards.filter(job => 
-        String(job.job_status || '').toLowerCase() !== 'completed' && job.created_by
-      ).length;
-      
-      // Calculate total amounts - show both quotation and actual costs
-      const totalQuotationAmount = clientQuotes
-        .filter(quote => quote.created_by && String(quote.job_status || '').toLowerCase() === 'approved')
-        .reduce((sum, quote) => {
-          const amount = parseFloat(quote.quotation_total_amount) || 0;
-          return sum + amount;
-        }, 0);
-
-      // Get recent invoices (completion dates from job_cards) - only approved quotes that became jobs
-      const recentInvoices = jobCards
-        .filter(job => job.completion_date && job.created_by && job.quotation_total_amount)
-        .sort((a, b) => new Date(b.completion_date) - new Date(a.completion_date))
-        .slice(0, 5)
-        .map(job => ({
-          id: job.id,
-          jobNumber: job.job_number,
-          completionDate: job.completion_date,
-          totalAmount: parseFloat(job.quotation_total_amount) || 0,
-          status: job.job_status || job.status
-        }));
-
-      // Calculate total jobs value from job_cards
-      const totalJobsValue = jobCards
-        .filter(job => job.created_by && job.quotation_total_amount)
-        .reduce((sum, job) => {
-          const amount = parseFloat(job.quotation_total_amount) || 0;
-          return sum + amount;
-        }, 0);
+      const data = await response.json();
 
       setSalesData({
-        quotationsOpened,
-        approved,
-        jobsOpen,
-        totalQuotationAmount,
-        recentInvoices,
-        totalJobsValue // Update totalJobsValue
+        quotationsOpened: Number(data?.quotationsOpened || 0),
+        approved: Number(data?.approved || 0),
+        jobsOpen: Number(data?.jobsOpen || 0),
+        totalQuotationAmount: Number(data?.totalQuotationAmount || 0),
+        recentInvoices: Array.isArray(data?.recentInvoices) ? data.recentInvoices : [],
+        totalJobsValue: Number(data?.totalJobsValue || 0),
       });
 
       setLastUpdated(new Date());

@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { searchParams } = new URL(request.url);
+    const invoiceState = String(
+      searchParams.get("invoiceState") || "all",
+    ).toLowerCase();
+    const search = String(searchParams.get("search") || "").trim();
 
     // Check authentication
     const {
@@ -15,74 +20,77 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch completed jobs where role is 'accounts' and job_status is 'Completed' or 'Invoiced'
-    const { data, error } = await supabase
-      .from("job_cards")
-      .select(
-        `
-        id,
-        job_number,
-        job_date,
-        start_time,
-        end_time,
-        status,
-        job_type,
-        job_description,
-        priority,
-        customer_name,
-        customer_email,
-        customer_phone,
-        customer_address,
-        vehicle_registration,
-        vehicle_make,
-        vehicle_model,
-        vehicle_year,
-        technician_name,
-        technician_phone,
-        estimated_duration_hours,
-        actual_duration_hours,
-        created_at,
-        updated_at,
-        repair,
-        role,
-        job_status,
-        job_location,
-        estimated_cost,
-        actual_cost,
-        quotation_number,
-        quote_date,
-        quote_expiry_date,
-        quote_status,
-        purchase_type,
-        quotation_job_type,
-        quote_type,
-        quotation_products,
-        parts_required,
-        equipment_used,
-        quotation_subtotal,
-        quotation_vat_amount,
-        quotation_total_amount,
-        billing_statuses,
-        before_photos,
-        after_photos,
-        work_notes,
-        completion_notes,
-        completion_date,
-        special_instructions,
-        site_contact_person,
-        site_contact_phone,
-        vin_numer,
-        odormeter,
-        ip_address,
-        new_account_number,
-        contact_person,
-        annuity_end_date,
-        order_number,
-        invoiced_by
-      `,
-      )
-      .eq("role", "accounts")
-      .in("job_status", ["Completed", "completed", "Invoiced", "invoiced"])
-      .order("completion_date", { ascending: false });
+    const baseQuery = () =>
+      supabase
+        .from("job_cards")
+        .select(
+          `
+          id,
+          job_number,
+          job_date,
+          end_time,
+          status,
+          job_type,
+          job_description,
+          customer_name,
+          customer_email,
+          vehicle_registration,
+          vehicle_make,
+          vehicle_model,
+          updated_at,
+          job_status,
+          quotation_products,
+          quotation_total_amount,
+          billing_statuses,
+          completion_notes,
+          completion_date,
+          new_account_number,
+          order_number,
+          invoiced_by
+        `,
+        )
+        .eq("role", "accounts")
+        .in("job_status", ["Completed", "completed", "Invoiced", "invoiced"]);
+
+    const buildFilteredQuery = () => {
+      let query = baseQuery();
+
+      if (invoiceState === "invoiced") {
+        query = query.in("job_status", ["Invoiced", "invoiced"]);
+      } else if (invoiceState === "not_invoiced") {
+        query = query.in("job_status", ["Completed", "completed"]);
+      }
+
+      if (search) {
+        const escapedSearch = search.replace(/[%_,]/g, "");
+        query = query.or(
+          [
+            `job_number.ilike.%${escapedSearch}%`,
+            `customer_name.ilike.%${escapedSearch}%`,
+            `customer_email.ilike.%${escapedSearch}%`,
+          ].join(","),
+        );
+      }
+
+      return query.order("completion_date", { ascending: false });
+    };
+
+    const [jobsResult, invoicedCountResult, notInvoicedCountResult] =
+      await Promise.all([
+        buildFilteredQuery(),
+        supabase
+          .from("job_cards")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "accounts")
+          .in("job_status", ["Invoiced", "invoiced"]),
+        supabase
+          .from("job_cards")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "accounts")
+          .in("job_status", ["Completed", "completed"]),
+      ]);
+
+    const { data, error } = jobsResult;
 
     if (error) {
       console.error("Error fetching accounts completed jobs:", error);
@@ -188,6 +196,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       jobs: transformedJobs,
       total: transformedJobs.length,
+      counts: {
+        invoiced: invoicedCountResult.count || 0,
+        notInvoiced: notInvoicedCountResult.count || 0,
+      },
     });
   } catch (error) {
     console.error("Error in accounts completed jobs GET:", error);

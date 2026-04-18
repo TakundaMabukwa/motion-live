@@ -55,8 +55,13 @@ import OrdersContent from "./OrdersContent";
 import PurchasesContent from "./PurchasesContent";
 import AccountsClientsSection from "./AccountsClientsSection";
 import AccountsInvoicesSection from "./AccountsInvoicesSection";
+import AccountsJobPoolSection from "./AccountsJobPoolSection";
 
 export default function AccountsContent({ activeSection }) {
+  const COMPLETED_JOB_TABS = [
+    { key: "not_invoiced", label: "Not Invoiced" },
+    { key: "invoiced", label: "Invoiced" },
+  ];
   const [customers, setCustomers] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
   const [paymentData, setPaymentData] = useState({});
@@ -72,6 +77,14 @@ export default function AccountsContent({ activeSection }) {
   const [completedJobs, setCompletedJobs] = useState([]);
   const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
   const [completedJobsSearchTerm, setCompletedJobsSearchTerm] = useState("");
+  const [completedJobsInvoiceTab, setCompletedJobsInvoiceTab] =
+    useState("not_invoiced");
+  const [completedJobsCounts, setCompletedJobsCounts] = useState({
+    invoiced: 0,
+    notInvoiced: 0,
+  });
+  const [completedJobsHasLoadedOnce, setCompletedJobsHasLoadedOnce] =
+    useState(false);
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
@@ -289,15 +302,35 @@ export default function AccountsContent({ activeSection }) {
   // Fetch completed jobs when section changes
   useEffect(() => {
     if (activeSection === "completed-jobs") {
-      fetchCompletedJobs();
+      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
     }
   }, [activeSection]);
 
-  const fetchCompletedJobs = async () => {
+  useEffect(() => {
+    if (activeSection !== "completed-jobs") {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [activeSection, completedJobsInvoiceTab, completedJobsSearchTerm]);
+
+  const fetchCompletedJobs = async (
+    invoiceState = completedJobsInvoiceTab,
+    search = completedJobsSearchTerm,
+  ) => {
     try {
       setCompletedJobsLoading(true);
+      const params = new URLSearchParams();
+      params.set("invoiceState", invoiceState);
+      if (String(search || "").trim()) {
+        params.set("search", String(search).trim());
+      }
 
-      const response = await fetch("/api/accounts/completed-jobs");
+      const response = await fetch(`/api/accounts/completed-jobs?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch completed jobs");
@@ -305,6 +338,13 @@ export default function AccountsContent({ activeSection }) {
 
       const data = await response.json();
       setCompletedJobs(data.jobs || []);
+      setCompletedJobsCounts(
+        data.counts || {
+          invoiced: 0,
+          notInvoiced: 0,
+        },
+      );
+      setCompletedJobsHasLoadedOnce(true);
     } catch (error) {
       console.error("Error fetching completed jobs:", error);
       toast.error("Failed to load completed jobs");
@@ -369,7 +409,7 @@ export default function AccountsContent({ activeSection }) {
 
       toast.dismiss(loadingToast);
       toast.success(`Job moved to ${destinationLabel}`);
-      await fetchCompletedJobs();
+      await fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
     } catch (error) {
       console.error("Error moving accounts completed job:", error);
       toast.dismiss(loadingToast);
@@ -470,8 +510,9 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
-  const handleViewJobDetails = (job) => {
-    setSelectedJobDetails(job);
+  const handleViewJobDetails = async (job) => {
+    const latestJob = await fetchLatestJobCard(job);
+    setSelectedJobDetails(latestJob);
     setShowJobDetailsModal(true);
   };
 
@@ -1082,8 +1123,21 @@ export default function AccountsContent({ activeSection }) {
       getBillingInvoiceNumber(job),
       job?.customer_name,
       job?.customer_email,
-    ].some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+    ].some((value) =>
+      String(value || "").toLowerCase().includes(normalizedSearch),
+    );
   });
+
+  const renderCompletedJobsSkeletonRows = () =>
+    Array.from({ length: 6 }).map((_, index) => (
+      <TableRow key={`completed-job-skeleton-${index}`} className="h-12">
+        {Array.from({ length: 8 }).map((__, cellIndex) => (
+          <TableCell key={`completed-job-skeleton-cell-${index}-${cellIndex}`} className="py-3 px-3">
+            <div className="h-4 bg-gray-100 rounded animate-pulse" />
+          </TableCell>
+        ))}
+      </TableRow>
+    ));
 
   const updateBillingStatus = async (job, key = "invoice", metadata = {}) => {
     if (!job?.id || !BILLING_STATUS_KEYS.includes(key)) return;
@@ -1128,18 +1182,7 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const updated = await response.json();
-      setCompletedJobs((prev) =>
-        prev.map((item) =>
-          item.id === job.id
-            ? {
-                ...item,
-                billing_statuses: updated.billing_statuses,
-                job_status: updated.job_status ?? item.job_status,
-                status: updated.status ?? item.status,
-              }
-            : item,
-        ),
-      );
+      await fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
       setSelectedJobDetails((prev) =>
         prev?.id === job.id
           ? {
@@ -2054,6 +2097,10 @@ export default function AccountsContent({ activeSection }) {
     );
   }
 
+  if (activeSection === "job-pool") {
+    return <AccountsJobPoolSection />;
+  }
+
   if (activeSection === "completed-jobs") {
     return (
       <div className="space-y-6">
@@ -2062,7 +2109,12 @@ export default function AccountsContent({ activeSection }) {
             Completed Job Cards
           </h2>
           <Button
-            onClick={fetchCompletedJobs}
+            onClick={() =>
+              fetchCompletedJobs(
+                completedJobsInvoiceTab,
+                completedJobsSearchTerm,
+              )
+            }
             variant="outline"
             size="sm"
             disabled={completedJobsLoading}
@@ -2072,7 +2124,7 @@ export default function AccountsContent({ activeSection }) {
           </Button>
         </div>
 
-        {completedJobsLoading ? (
+        {completedJobsLoading && !completedJobsHasLoadedOnce ? (
           <div className="flex justify-center items-center py-12">
             <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
             <span className="ml-2">Loading completed jobs...</span>
@@ -2096,11 +2148,34 @@ export default function AccountsContent({ activeSection }) {
               <p className="text-sm text-gray-600">
                 Quick scan view for billing and finance follow-up.
               </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {COMPLETED_JOB_TABS.map((tab) => {
+                  const isActive = completedJobsInvoiceTab === tab.key;
+                  const count =
+                    tab.key === "invoiced"
+                      ? completedJobsCounts.invoiced
+                      : completedJobsCounts.notInvoiced;
+
+                  return (
+                    <Button
+                      key={tab.key}
+                      type="button"
+                      size="sm"
+                      variant={isActive ? "default" : "outline"}
+                      onClick={() => setCompletedJobsInvoiceTab(tab.key)}
+                      className="h-8"
+                    >
+                      {tab.label}
+                      <span className="ml-1 font-semibold">{count}</span>
+                    </Button>
+                  );
+                })}
+              </div>
               <div className="relative mt-3 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   type="text"
-                  placeholder="Search by job, invoice number, or client..."
+                  placeholder="Search by job or client..."
                   value={completedJobsSearchTerm}
                   onChange={(e) => setCompletedJobsSearchTerm(e.target.value)}
                   className="pl-10"
@@ -2108,14 +2183,43 @@ export default function AccountsContent({ activeSection }) {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {filteredCompletedJobs.length === 0 ? (
+              {completedJobsLoading && completedJobsHasLoadedOnce ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Job Number
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Invoice No
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Customer
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Vehicle
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
+                        Billed Items
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs text-right">
+                        Total
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs text-right">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>{renderCompletedJobsSkeletonRows()}</TableBody>
+                </Table>
+              ) : filteredCompletedJobs.length === 0 ? (
                 <div className="py-12 text-center">
                   <Search className="mx-auto mb-4 w-10 h-10 text-gray-400" />
                   <p className="text-lg font-medium text-gray-900 mb-2">
                     No matching completed jobs
                   </p>
                   <p className="text-gray-600">
-                    Try a different job number, invoice number, or client.
+                    Try a different job number or client.
                   </p>
                 </div>
               ) : (
@@ -2137,9 +2241,6 @@ export default function AccountsContent({ activeSection }) {
                     </TableHead>
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Total
-                    </TableHead>
-                    <TableHead className="h-10 px-3 text-xs">
-                      Invoiced By
                     </TableHead>
                     <TableHead className="h-10 px-3 text-xs text-right">
                       Actions
@@ -2190,15 +2291,6 @@ export default function AccountsContent({ activeSection }) {
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right font-semibold text-gray-900">
                         {formatCurrency(getInvoiceTotals(job).total)}
-                      </TableCell>
-                      <TableCell className="py-2 px-3 text-gray-700">
-                        {job.invoiced_by ? (
-                          <span className="text-sm text-gray-900 break-all">
-                            {job.invoiced_by_email || "Unknown user"}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">Not invoiced</span>
-                        )}
                       </TableCell>
                       <TableCell className="py-2 px-3 text-right">
                         <div className="flex justify-end gap-2 flex-wrap">

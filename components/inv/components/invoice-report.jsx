@@ -117,8 +117,24 @@ const buildLockedInvoiceSnapshot = (storedInvoice, liveInvoiceData) => ({
   company_name: storedInvoice?.company_name || liveInvoiceData?.company_name || null,
   billing_month: liveInvoiceData?.billing_month || storedInvoice?.billing_month || null,
   invoice_date: liveInvoiceData?.invoice_date || storedInvoice?.invoice_date || null,
-  invoice_items: storedInvoice?.invoice_items || [],
-  invoiceItems: storedInvoice?.invoiceItems || [],
+  line_items:
+    storedInvoice?.line_items ||
+    liveInvoiceData?.line_items ||
+    [],
+  invoice_items:
+    storedInvoice?.invoice_items ||
+    storedInvoice?.line_items ||
+    liveInvoiceData?.invoice_items ||
+    liveInvoiceData?.line_items ||
+    [],
+  invoiceItems:
+    storedInvoice?.invoiceItems ||
+    storedInvoice?.invoice_items ||
+    storedInvoice?.line_items ||
+    liveInvoiceData?.invoiceItems ||
+    liveInvoiceData?.invoice_items ||
+    liveInvoiceData?.line_items ||
+    [],
 });
 
 const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoice) => {
@@ -137,6 +153,24 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
     invoice_number: normalizedStored.invoice_number || liveInvoiceData?.invoice_number,
     invoice_date: liveInvoiceData?.invoice_date || normalizedStored.invoice_date,
     billing_month: liveInvoiceData?.billing_month || normalizedStored.billing_month,
+    line_items:
+      normalizedStored.line_items ||
+      liveInvoiceData?.line_items ||
+      [],
+    invoice_items:
+      normalizedStored.invoice_items ||
+      normalizedStored.line_items ||
+      liveInvoiceData?.invoice_items ||
+      liveInvoiceData?.line_items ||
+      [],
+    invoiceItems:
+      normalizedStored.invoiceItems ||
+      normalizedStored.invoice_items ||
+      normalizedStored.line_items ||
+      liveInvoiceData?.invoiceItems ||
+      liveInvoiceData?.invoice_items ||
+      liveInvoiceData?.line_items ||
+      [],
     notes: normalizedStored.notes ?? liveInvoiceData?.notes ?? liveInvoiceData?.note ?? null,
     customer_vat_number: normalizedStored.customer_vat_number || liveInvoiceData?.customer_vat_number || null,
     company_registration_number: normalizedStored.company_registration_number || liveInvoiceData?.company_registration_number || null,
@@ -952,14 +986,25 @@ export function buildInvoiceView({
       .toUpperCase()
       .startsWith('EPSC-');
   const liveCompanyName =
+    activeInvoiceData?.company_name ||
+    costCenter?.bulkInvoice?.company_name ||
     customerInfo?.legal_name ||
     customerInfo?.company ||
     "";
-  const liveClientAddress = buildClientAddress(customerInfo, "");
+  const liveClientAddress =
+    String(
+      activeInvoiceData?.client_address ||
+      costCenter?.bulkInvoice?.client_address ||
+      "",
+    ).trim() || buildClientAddress(customerInfo, "");
   const liveCompanyRegistrationNumber =
+    activeInvoiceData?.company_registration_number ||
+    costCenter?.bulkInvoice?.company_registration_number ||
     customerInfo?.registration_number ||
     "";
   const liveCustomerVatNumber =
+    activeInvoiceData?.customer_vat_number ||
+    costCenter?.bulkInvoice?.customer_vat_number ||
     customerInfo?.vat_number ||
     "";
 
