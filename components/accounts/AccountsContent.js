@@ -48,7 +48,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { OverdueAccountsWidget } from "@/components/overdue/OverdueAccountsWidget";
 import InternalAccountDashboard from "./InternalAccountDashboard";
 import AccountDashboard from "@/components/accounts/AccountDashboard";
 import OrdersContent from "./OrdersContent";
@@ -56,6 +55,7 @@ import PurchasesContent from "./PurchasesContent";
 import AccountsClientsSection from "./AccountsClientsSection";
 import AccountsInvoicesSection from "./AccountsInvoicesSection";
 import AccountsJobPoolSection from "./AccountsJobPoolSection";
+import AccountsReceivablesSection from "./AccountsReceivablesSection";
 
 export default function AccountsContent({ activeSection }) {
   const COMPLETED_JOB_TABS = [
@@ -109,9 +109,6 @@ export default function AccountsContent({ activeSection }) {
   const [billingActionLoading, setBillingActionLoading] = useState({});
   const [movingJobId, setMovingJobId] = useState(null);
   const [systemLock, setSystemLock] = useState(null);
-
-  // Overdue section state
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // Payment totals state
   const [paymentTotals, setPaymentTotals] = useState(null);
@@ -3360,117 +3357,7 @@ export default function AccountsContent({ activeSection }) {
   }
 
   if (activeSection === "overdue") {
-    const handleRefresh = () => {
-      setRefreshKey((prev) => prev + 1);
-    };
-
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Overdue Accounts</h2>
-          <Button onClick={handleRefresh} variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Overdue
-              </CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                <OverdueAccountsWidget
-                  key={`overdue-total-${refreshKey}`}
-                  autoRefresh={false}
-                  refreshInterval={300000}
-                  showAllAccounts={false}
-                  maxAccounts={1}
-                  showSummaryOnly={true}
-                  onAccountClick={(accountNumber) => {
-                    router.push(
-                      `/protected/accounts?section=vehicles&account=${accountNumber}`,
-                    );
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Accounts Affected
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                <OverdueAccountsWidget
-                  key={`overdue-count-${refreshKey}`}
-                  autoRefresh={false}
-                  refreshInterval={300000}
-                  showAllAccounts={false}
-                  maxAccounts={1}
-                  showSummaryOnly={true}
-                  showAccountCount={true}
-                  onAccountClick={(accountNumber) => {
-                    router.push(
-                      `/protected/accounts?section=vehicles&account=${accountNumber}`,
-                    );
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                <OverdueAccountsWidget
-                  key={`overdue-status-${refreshKey}`}
-                  autoRefresh={false}
-                  refreshInterval={300000}
-                  showAllAccounts={false}
-                  maxAccounts={1}
-                  showSummaryOnly={true}
-                  showStatus={true}
-                  onAccountClick={(accountNumber) => {
-                    router.push(
-                      `/protected/accounts?section=vehicles&account=${accountNumber}`,
-                    );
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* All Overdue Accounts with Expandable Cards */}
-        <OverdueAccountsWidget
-          key={`overdue-expandable-${refreshKey}`}
-          autoRefresh={false}
-          refreshInterval={300000}
-          showAllAccounts={true}
-          maxAccounts={50}
-          expandableCards={true}
-          onAccountClick={(accountNumber) => {
-            router.push(
-              `/protected/accounts?section=vehicles&account=${accountNumber}`,
-            );
-          }}
-        />
-      </div>
-    );
+    return <AccountsReceivablesSection />;
   }
 
   if (activeSection === "vehicles") {

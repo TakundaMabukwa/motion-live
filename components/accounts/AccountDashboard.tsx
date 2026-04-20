@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import AccountJobCardsSection from '@/components/accounts/AccountJobCardsSection';
 import { 
   Car, 
   DollarSign, 
@@ -72,10 +73,10 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
   }, [accountNumber]);
 
   useEffect(() => {
-    if (accountNumber) {
+    if (accountNumber && activeSection !== 'job-cards') {
       fetchAccountData();
     }
-  }, [accountNumber, fetchAccountData]);
+  }, [accountNumber, activeSection, fetchAccountData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -131,6 +132,10 @@ export default function AccountDashboard({ activeSection }: AccountDashboardProp
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  if (activeSection === 'job-cards') {
+    return <AccountJobCardsSection accountNumber={accountNumber} />;
+  }
 
   if (loading) {
     return (

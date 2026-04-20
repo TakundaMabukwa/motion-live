@@ -52,7 +52,7 @@ export default function AccountsTopBar({ activeSection, onSectionChange }) {
     { name: 'Clients', icon: 'clients', key: 'clients' },
     { name: 'Invoices', icon: 'file-text', key: 'invoices' },
     { name: 'Client Info', icon: 'clients', key: 'client-info' },
-    { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
+    { name: 'Receivables', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
     { name: 'Job Pool', icon: 'clock', key: 'job-pool' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },

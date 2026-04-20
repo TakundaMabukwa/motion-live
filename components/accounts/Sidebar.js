@@ -53,7 +53,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
     { name: 'Dashboard', icon: 'grid', key: 'dashboard' },
     { name: 'Clients', icon: 'clients', key: 'clients' },
     { name: 'Invoices', icon: 'file-text', key: 'invoices' },
-    { name: 'Overdue Accounts', icon: 'alert-triangle', key: 'overdue' },
+    { name: 'Receivables', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'credit-card', key: 'purchases' },
     { name: 'Job Pool', icon: 'clock', key: 'job-pool' },
     // { name: 'Job Cards', icon: 'wrench', key: 'job-cards' },

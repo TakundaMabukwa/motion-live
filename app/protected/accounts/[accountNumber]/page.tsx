@@ -66,6 +66,7 @@ function AccountPageContent() {
                 { name: 'Dashboard', icon: 'Building2', key: 'dashboard' },
                 { name: 'Vehicles', icon: 'Car', key: 'vehicles' },
                 { name: 'Financial Summary', icon: 'DollarSign', key: 'financials' },
+                { name: 'Job Cards', icon: 'FileText', key: 'job-cards' },
                 { name: 'Payment', icon: 'CreditCard', key: 'payment' },
                 { name: 'Settings', icon: 'Settings', key: 'settings' },
               ].map((item) => (
