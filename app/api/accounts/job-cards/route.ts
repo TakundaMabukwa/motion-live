@@ -237,7 +237,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const normalizedRows = ((jobs || [])
+    const normalizedRows = (jobs || [])
       .map((job) => {
         const closed = isClosedJob(job);
         const billingAnchor = closed
