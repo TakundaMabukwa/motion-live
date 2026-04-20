@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
       .select(
         "id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, company_name, customer_vat_number, company_registration_number, client_address, line_items, notes, created_at",
       )
-      .order("invoice_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
+      .order("invoice_date", { ascending: false, nullsFirst: false })
       .limit(limit);
 
     if (search) {

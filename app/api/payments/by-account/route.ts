@@ -13,6 +13,68 @@ const toNumeric = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const roundMoney = (value: unknown) => Number(toNumeric(value).toFixed(2));
+
+const aggregateMirrorRows = (rows: Array<Record<string, unknown>> = []) => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftTime = new Date(
+      String(left?.last_updated || left?.invoice_date || left?.billing_month || 0),
+    ).getTime();
+    const rightTime = new Date(
+      String(right?.last_updated || right?.invoice_date || right?.billing_month || 0),
+    ).getTime();
+    return rightTime - leftTime;
+  });
+
+  const latestRow = sortedRows[0];
+
+  return {
+    ...latestRow,
+    current_due: roundMoney(sortedRows.reduce((sum, row) => sum + toNumeric(row?.current_due), 0)),
+    overdue_30_days: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.overdue_30_days), 0),
+    ),
+    overdue_60_days: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.overdue_60_days), 0),
+    ),
+    overdue_90_days: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.overdue_90_days), 0),
+    ),
+    overdue_120_plus_days: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.overdue_120_plus_days), 0),
+    ),
+    outstanding_balance: roundMoney(
+      sortedRows.reduce(
+        (sum, row) =>
+          sum +
+          toNumeric(
+            row?.outstanding_balance ?? row?.balance_due ?? row?.amount_due ?? 0,
+          ),
+        0,
+      ),
+    ),
+    paid_amount: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0),
+    ),
+    credit_amount: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.credit_amount), 0),
+    ),
+    balance_due: roundMoney(
+      sortedRows.reduce(
+        (sum, row) => sum + toNumeric(row?.balance_due ?? row?.amount_due ?? 0),
+        0,
+      ),
+    ),
+    due_amount: roundMoney(
+      sortedRows.reduce((sum, row) => sum + toNumeric(row?.due_amount ?? row?.amount_due ?? 0), 0),
+    ),
+  };
+};
+
 const normalizeAgingBuckets = (row: Record<string, unknown> | null) => {
   const buckets = {
     current_due: toNumeric(row?.current_due),
@@ -162,8 +224,7 @@ export async function GET(request: NextRequest) {
         `)
         .eq('cost_code', accountNumber)
         .eq('billing_month', currentBillingMonth)
-        .order('last_updated', { ascending: false })
-        .limit(1),
+        .order('last_updated', { ascending: false }),
       supabase
         .from('payments_')
         .select(`
@@ -181,8 +242,7 @@ export async function GET(request: NextRequest) {
         .eq('cost_code', accountNumber)
         .lte('billing_month', currentBillingMonth)
         .order('billing_month', { ascending: false })
-        .order('last_updated', { ascending: false })
-        .limit(1),
+        .order('last_updated', { ascending: false }),
       supabase
         .from('payments_')
         .select(`
@@ -214,7 +274,6 @@ export async function GET(request: NextRequest) {
         .from('cost_centers')
         .select('cost_code, company, legal_name')
         .eq('cost_code', accountNumber)
-        .maybeSingle(),
     ]);
 
     if (invoiceError || paymentsMirrorError || latestAgingError || priorAgingError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
@@ -233,8 +292,16 @@ export async function GET(request: NextRequest) {
     }
 
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
-    const paymentsMirror = Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows[0] || null : null;
-    const latestAging = Array.isArray(latestAgingRows) ? latestAgingRows[0] || null : null;
+    const paymentsMirror = aggregateMirrorRows(
+      Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows : [],
+    );
+    const latestAgingCandidates = Array.isArray(latestAgingRows) ? latestAgingRows : [];
+    const latestAging = aggregateMirrorRows(
+      latestAgingCandidates.filter(
+        (row) => normalizeBillingMonth(row?.billing_month) === currentBillingMonth,
+      ),
+    ) ||
+      aggregateMirrorRows(latestAgingCandidates);
     const priorAgingRowsList = Array.isArray(priorAgingRows) ? priorAgingRows : [];
 
     const dedupedVehicles = new Map<string, Record<string, unknown>>();
@@ -319,7 +386,23 @@ export async function GET(request: NextRequest) {
       balanceDue: payment.balance_due,
       dueDate: payment.due_date,
     });
-    const agingCandidates = [latestAging, ...priorAgingRowsList].filter(Boolean) as Record<string, unknown>[];
+    const priorAgingByMonth = new Map<string, Record<string, unknown>[]>();
+    priorAgingRowsList.forEach((row) => {
+      const key = normalizeBillingMonth(row?.billing_month) || '';
+      if (!key) return;
+      const current = priorAgingByMonth.get(key) || [];
+      current.push(row);
+      priorAgingByMonth.set(key, current);
+    });
+
+    const aggregatedPriorAgingRows = Array.from(priorAgingByMonth.entries())
+      .map(([billingMonthKey, rows]) => {
+        const aggregated = aggregateMirrorRows(rows);
+        return aggregated ? { ...aggregated, billing_month: billingMonthKey } : null;
+      })
+      .filter(Boolean) as Record<string, unknown>[];
+
+    const agingCandidates = [latestAging, ...aggregatedPriorAgingRows].filter(Boolean) as Record<string, unknown>[];
     const effectiveAgingRow =
       agingCandidates.find((row) => {
         const normalized = normalizeAgingBuckets(row);

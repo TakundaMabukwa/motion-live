@@ -2124,7 +2124,11 @@ export default function ClientCostCentersPage() {
     const paymentDataResult = await response.json();
     const payment = paymentDataResult.payment || {};
     const [historyResponse, bulkInvoiceResponse] = await Promise.all([
-      fetch(`/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`),
+      fetch(
+        `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+          costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
+        }`,
+      ),
       fetch(
         `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
           costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
@@ -2134,11 +2138,15 @@ export default function ClientCostCentersPage() {
 
     let invoiceHistory = [];
     let paymentHistory = [];
+    let creditNotes = [];
+    let agingPeriods = [];
     let bulkInvoice = null;
     if (historyResponse.ok) {
       const historyData = await historyResponse.json();
       invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
       paymentHistory = Array.isArray(historyData?.payments) ? historyData.payments : [];
+      creditNotes = Array.isArray(historyData?.creditNotes) ? historyData.creditNotes : [];
+      agingPeriods = Array.isArray(historyData?.agingPeriods) ? historyData.agingPeriods : [];
     }
     if (bulkInvoiceResponse.ok) {
       const bulkInvoiceData = await bulkInvoiceResponse.json();
@@ -2173,6 +2181,8 @@ export default function ClientCostCentersPage() {
       invoiceData: invoiceData || costCenter.invoiceData || null,
       invoiceHistory,
       paymentHistory,
+      creditNotes,
+      agingPeriods,
       bulkInvoice,
       costCenterInfo,
     };
@@ -2182,6 +2192,8 @@ export default function ClientCostCentersPage() {
       paymentData: payment,
       invoiceHistory,
       paymentHistory,
+      creditNotes,
+      agingPeriods,
       bulkInvoice,
     });
 
@@ -6865,6 +6877,8 @@ export default function ClientCostCentersPage() {
                 paymentData={selectedCostCenterForReport.paymentData}
                 invoiceHistory={selectedCostCenterForReport.invoiceHistory}
                 paymentHistory={selectedCostCenterForReport.paymentHistory}
+                creditNotes={selectedCostCenterForReport.creditNotes}
+                agingPeriods={selectedCostCenterForReport.agingPeriods}
                 bulkInvoice={selectedCostCenterForReport.bulkInvoice}
                 showItemBreakdown={selectedStatementVariant === 'items'}
               />

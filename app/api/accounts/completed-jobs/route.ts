@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
       searchParams.get("invoiceState") || "all",
     ).toLowerCase();
     const search = String(searchParams.get("search") || "").trim();
+    const searchField = String(searchParams.get("searchField") || "").trim().toLowerCase();
 
     // Check authentication
     const {
@@ -63,13 +64,17 @@ export async function GET(request: NextRequest) {
 
       if (search) {
         const escapedSearch = search.replace(/[%_,]/g, "");
-        query = query.or(
-          [
-            `job_number.ilike.%${escapedSearch}%`,
-            `customer_name.ilike.%${escapedSearch}%`,
-            `customer_email.ilike.%${escapedSearch}%`,
-          ].join(","),
-        );
+        if (searchField === "job_number") {
+          query = query.ilike("job_number", `%${escapedSearch}%`);
+        } else {
+          query = query.or(
+            [
+              `job_number.ilike.%${escapedSearch}%`,
+              `customer_name.ilike.%${escapedSearch}%`,
+              `customer_email.ilike.%${escapedSearch}%`,
+            ].join(","),
+          );
+        }
       }
 
       return query.order("completion_date", { ascending: false });

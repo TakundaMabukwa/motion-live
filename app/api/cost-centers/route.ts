@@ -61,6 +61,9 @@ async function attachLockedByEmails(supabase, rows = []) {
   }));
 }
 
+const COST_CENTER_SELECT_FIELDS =
+  "id, created_at, company, cost_code, legal_name, contact_name, vat_number, email, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code, postal_address_1, postal_address_2, postal_address_3, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at";
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -80,7 +83,7 @@ export async function GET(request) {
     if (all === "1") {
       const { data, error } = await supabase
         .from("cost_centers")
-        .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
+        .select(COST_CENTER_SELECT_FIELDS)
         .order("cost_code", { ascending: true });
 
       if (error) {
@@ -103,7 +106,7 @@ export async function GET(request) {
 
       const { data, error } = await supabase
         .from("cost_centers")
-        .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
+        .select(COST_CENTER_SELECT_FIELDS)
         .ilike("cost_code", `${cleanPrefix}-%`)
         .order("cost_code", { ascending: true });
 
@@ -128,7 +131,7 @@ export async function GET(request) {
     // Fetch from cost_centers table where cost_code matches any account number
     const { data, error } = await supabase
       .from("cost_centers")
-      .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
+      .select(COST_CENTER_SELECT_FIELDS)
       .in("cost_code", accountArray)
       .order("cost_code", { ascending: true });
 

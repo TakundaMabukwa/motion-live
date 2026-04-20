@@ -3,6 +3,50 @@ import { createClient } from "@/lib/supabase/server";
 
 const normalize = (value: unknown) => String(value || "").trim().toUpperCase();
 
+const normalizeBillingMonthValue = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}$/.test(raw)) {
+    return `${raw}-01`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw.slice(0, 10);
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-01`;
+};
+
+const getBillingMonthCutoff = (billingMonth: string) => {
+  if (!billingMonth) return null;
+  const parsed = new Date(`${billingMonth}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+};
+
+const isOnOrBeforeBillingMonth = (
+  billingMonth: string,
+  value: unknown,
+  fallbackDateValue?: unknown,
+) => {
+  if (!billingMonth) return true;
+
+  const normalizedValue = normalizeBillingMonthValue(value);
+  if (normalizedValue) {
+    return normalizedValue <= billingMonth;
+  }
+
+  const fallback = fallbackDateValue ? new Date(String(fallbackDateValue)) : null;
+  const cutoff = getBillingMonthCutoff(billingMonth);
+  if (!fallback || Number.isNaN(fallback.getTime()) || !cutoff) {
+    return false;
+  }
+
+  return fallback.getTime() <= cutoff.getTime();
+};
+
 async function loadImportedReceiptPayments(
   supabase: Awaited<ReturnType<typeof createClient>>,
   accountNumber: string,
@@ -52,6 +96,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get("accountNumber") || "").trim();
+    const billingMonth = normalizeBillingMonthValue(searchParams.get("billingMonth"));
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -64,6 +109,7 @@ export async function GET(request: NextRequest) {
       { data: invoices, error: invoicesError },
       { data: payments, error: paymentsError },
       { data: agingRows, error: agingError },
+      { data: creditNotes, error: creditNotesError },
       importedPayments,
     ] = await Promise.all([
       supabase
@@ -90,11 +136,19 @@ export async function GET(request: NextRequest) {
         .eq("cost_code", accountNumber)
         .order("billing_month", { ascending: false, nullsFirst: false })
         .order("last_updated", { ascending: false }),
+      supabase
+        .from("credit_notes")
+        .select(
+          "id, credit_note_number, account_number, billing_month_applies_to, credit_note_date, amount, applied_amount, unapplied_amount, reference, comment, reason, status, account_invoice_id, created_at",
+        )
+        .eq("account_number", accountNumber)
+        .order("credit_note_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
       loadImportedReceiptPayments(supabase, accountNumber),
     ]);
 
-    if (invoicesError || paymentsError || agingError) {
-      const error = invoicesError || paymentsError || agingError;
+    if (invoicesError || paymentsError || agingError || creditNotesError) {
+      const error = invoicesError || paymentsError || agingError || creditNotesError;
       console.error("Failed to fetch account invoice/payment history:", error);
       return NextResponse.json(
         { error: error.message || "Failed to fetch account invoice history" },
@@ -102,13 +156,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const livePayments = Array.isArray(payments) ? payments : [];
+    const filteredInvoices = (Array.isArray(invoices) ? invoices : []).filter((invoice) =>
+      isOnOrBeforeBillingMonth(
+        billingMonth,
+        invoice?.billing_month,
+        invoice?.invoice_date || invoice?.created_at,
+      ),
+    );
+
+    const livePayments = (Array.isArray(payments) ? payments : []).filter((payment) =>
+      isOnOrBeforeBillingMonth(
+        billingMonth,
+        payment?.billing_month,
+        payment?.payment_date || payment?.created_at,
+      ),
+    );
     const hasImportedLedgerPayments = livePayments.some((payment) =>
       String(payment?.notes || "").includes("Imported from March Receipts sheet"),
     );
+    const filteredImportedPayments = importedPayments.filter((payment) =>
+      isOnOrBeforeBillingMonth(
+        billingMonth,
+        payment?.billing_month,
+        payment?.payment_date || payment?.created_at,
+      ),
+    );
     const mergedPayments = hasImportedLedgerPayments
       ? livePayments
-      : [...importedPayments, ...livePayments].sort((left, right) => {
+      : [...filteredImportedPayments, ...livePayments].sort((left, right) => {
           const leftTime = new Date(
             String(left?.payment_date || left?.created_at || 0),
           ).getTime();
@@ -119,13 +194,20 @@ export async function GET(request: NextRequest) {
         });
 
     const invoiceByPeriod = new Map(
-      (Array.isArray(invoices) ? invoices : []).map((invoice) => [
+      filteredInvoices.map((invoice) => [
         `${normalize(invoice?.account_number)}|${String(invoice?.billing_month || "").trim()}`,
         invoice,
       ]),
     );
 
     const agingPeriods = (Array.isArray(agingRows) ? agingRows : [])
+      .filter((row) =>
+        isOnOrBeforeBillingMonth(
+          billingMonth,
+          row?.billing_month,
+          row?.invoice_date || row?.last_updated,
+        ),
+      )
       .map((row) => {
         const matchingInvoice = invoiceByPeriod.get(
           `${normalize(accountNumber)}|${String(row?.billing_month || "").trim()}`,
@@ -176,10 +258,19 @@ export async function GET(request: NextRequest) {
         return outstanding > 0 || bucketTotal > 0;
       });
 
+    const filteredCreditNotes = (Array.isArray(creditNotes) ? creditNotes : []).filter((creditNote) =>
+      isOnOrBeforeBillingMonth(
+        billingMonth,
+        creditNote?.billing_month_applies_to,
+        creditNote?.credit_note_date || creditNote?.created_at,
+      ),
+    );
+
     return NextResponse.json({
-      invoices: invoices || [],
+      invoices: filteredInvoices,
       payments: mergedPayments,
       agingPeriods,
+      creditNotes: filteredCreditNotes,
     });
   } catch (error) {
     console.error("Unexpected error in account invoice history GET:", error);

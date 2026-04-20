@@ -7,6 +7,8 @@ import {
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
 
+const SYSTEM_LOCK_KEY = "billing";
+
 const getBillingInvoiceDate = (billingMonth: unknown) => {
   if (!billingMonth) {
     return new Date().toISOString();
@@ -16,6 +18,46 @@ const getBillingInvoiceDate = (billingMonth: unknown) => {
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
     return new Date().toISOString();
+  }
+
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const invoiceDay = Math.min(30, lastDay);
+  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
+};
+
+const getSystemLock = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+) => {
+  const { data, error } = await supabase
+    .from("system_locks")
+    .select("*")
+    .eq("lock_key", SYSTEM_LOCK_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+};
+
+const getLockMonthEndInvoiceDate = (
+  lockDate: unknown,
+  referenceBillingDate?: unknown,
+) => {
+  const raw = String(lockDate || "").trim();
+  if (!raw) return null;
+
+  const referenceRaw = String(referenceBillingDate || "").trim();
+  const referenceYear = /^\d{4}/.test(referenceRaw)
+    ? referenceRaw.slice(0, 4)
+    : raw.slice(0, 4);
+  const lockMonth = `${referenceYear}-${raw.slice(5, 7)}-01T00:00:00`;
+  const parsed = new Date(lockMonth);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
   }
 
   const year = parsed.getFullYear();
@@ -36,6 +78,9 @@ export async function GET(request: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const systemLock = await getSystemLock(supabase);
+    const isSystemLocked = Boolean(systemLock?.is_locked);
 
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get("accountNumber") || "").trim();
@@ -70,7 +115,15 @@ export async function GET(request: NextRequest) {
     const normalizedInvoice = invoice
       ? {
           ...invoice,
-          invoice_date: getBillingInvoiceDate(invoice.billing_month),
+          invoice_date:
+            (isSystemLocked
+              ? getLockMonthEndInvoiceDate(
+                  systemLock?.lock_date,
+                  invoice?.invoice_date || invoice?.billing_month,
+                )
+              : null) ||
+            String(invoice.invoice_date || "").trim() ||
+            getBillingInvoiceDate(invoice.billing_month),
         }
       : null;
 
@@ -93,11 +146,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const systemLock = await getSystemLock(supabase);
+    const isSystemLocked = Boolean(systemLock?.is_locked);
+
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
-    const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
+    const invoiceDate =
+      (isSystemLocked
+        ? getLockMonthEndInvoiceDate(
+            systemLock?.lock_date,
+            body?.invoiceDate || billingMonth,
+          )
+        : null) ||
+      body?.invoiceDate ||
+      getBillingInvoiceDate(billingMonth);
     const dueDate = body?.dueDate || defaultDueDate(invoiceDate);
+    const forceNew = Boolean(body?.forceNew);
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -131,7 +196,7 @@ export async function POST(request: NextRequest) {
       ? existingInvoices[0] || null
       : null;
 
-    if (existingInvoice) {
+    if (existingInvoice && !forceNew) {
       const financials = buildInvoiceFinancials({
         totalAmount: Number(body?.totalAmount ?? existingInvoice.total_amount ?? 0),
         paidAmount: existingInvoice.paid_amount ?? 0,
@@ -186,7 +251,7 @@ export async function POST(request: NextRequest) {
       "allocate_document_number",
       {
         sequence_name: "invoice",
-        prefix: "INV-",
+        prefix: "INV",
       },
     );
 
@@ -234,7 +299,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await upsertPaymentsMirror(supabase, insertedInvoice);
+    if (!forceNew) {
+      await upsertPaymentsMirror(supabase, insertedInvoice);
+    }
 
     return NextResponse.json({ invoice: insertedInvoice, reused: false });
   } catch (error) {

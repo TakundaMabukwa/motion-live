@@ -69,7 +69,7 @@ const getStateTone = (state) => {
 
 const renderRowSkeleton = (key) => (
   <tr key={key} className="border-b border-slate-200 even:bg-slate-50/60">
-    {Array.from({ length: 11 }).map((_, index) => (
+    {Array.from({ length: 12 }).map((_, index) => (
       <td key={`${key}-${index}`} className="border-r border-slate-200 px-3 py-3 last:border-r-0">
         <div className="h-4 w-full animate-pulse rounded bg-slate-100" />
       </td>
@@ -178,6 +178,7 @@ export default function AccountsReceivablesSection() {
     days30: 0,
     days60: 0,
     days90: 0,
+    days120: 0,
     paymentsTotal: 0,
     invoiceTotal: 0,
     totalAmount: 0,
@@ -221,6 +222,7 @@ export default function AccountsReceivablesSection() {
           days30: 0,
           days60: 0,
           days90: 0,
+          days120: 0,
           paymentsTotal: 0,
           invoiceTotal: 0,
           totalAmount: 0,
@@ -349,7 +351,7 @@ export default function AccountsReceivablesSection() {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Open Annuity
+            Open Value
           </div>
           <div className="mt-2 text-2xl font-bold text-slate-900">
             {formatCurrency(summary.openAnnuity)}
@@ -403,7 +405,7 @@ export default function AccountsReceivablesSection() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-lg font-semibold text-slate-900">
-              Receivables Ledger View
+              Accounts Overview
             </div>
             <div className="text-sm text-slate-500">
               Month-driven receivables snapshot from the payment mirror and invoice ledger.
@@ -430,18 +432,19 @@ export default function AccountsReceivablesSection() {
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="min-w-[1640px] w-full table-fixed border-collapse text-sm">
+          <table className="min-w-[1740px] w-full table-fixed border-collapse text-sm">
             <thead className="bg-slate-50">
               <tr className="border-b border-slate-200 text-left">
                 <th className="w-[260px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Client</th>
                 <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Open Annuity</th>
                 <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">30</th>
                 <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">60</th>
-                <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">90+</th>
+                <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">90</th>
+                <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">120+</th>
                 <th className="w-[150px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Open JC</th>
                 <th className="w-[150px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Closed JC</th>
                 <th className="w-[170px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Payments</th>
-                <th className="w-[310px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Invoiced - Include Dates</th>
+                <th className="w-[310px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Invoiced - Annuity</th>
                 <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Payment State</th>
                 <th className="w-[120px] px-3 py-3 font-semibold text-slate-600">Total Amount</th>
               </tr>
@@ -478,6 +481,7 @@ export default function AccountsReceivablesSection() {
                         <td className="border-r border-slate-200 px-3 py-3 text-slate-700">{formatCurrency(row.days30)}</td>
                         <td className="border-r border-slate-200 px-3 py-3 text-slate-700">{formatCurrency(row.days60)}</td>
                         <td className="border-r border-slate-200 px-3 py-3 text-slate-700">{formatCurrency(row.days90)}</td>
+                        <td className="border-r border-slate-200 px-3 py-3 text-slate-700">{formatCurrency(row.days120)}</td>
                         <td className="border-r border-slate-200 px-3 py-3">
                           {row.openJobCount > 0 ? (
                             <button
@@ -610,7 +614,7 @@ export default function AccountsReceivablesSection() {
 
               {!loading && hasLoadedOnce && displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-slate-500">
+                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-slate-500">
                     No receivables found for the selected month.
                   </td>
                 </tr>

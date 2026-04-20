@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getOperationalBillingMonthKey, normalizeBillingMonth } from "@/lib/server/account-invoice-payments";
+import {
+  getOperationalBillingMonthKey,
+  normalizeAgingBucketsToOutstanding,
+  normalizeBillingMonth,
+} from "@/lib/server/account-invoice-payments";
 
 const toNumber = (value: unknown) => {
   const numeric = Number(value);
@@ -138,6 +142,23 @@ const sortInvoices = (left: Record<string, unknown>, right: Record<string, unkno
   return rightDate - leftDate;
 };
 
+const getMirrorAgingTotal = (row: Record<string, unknown> | null | undefined) =>
+  toNumber(row?.current_due) +
+  toNumber(row?.overdue_30_days) +
+  toNumber(row?.overdue_60_days) +
+  toNumber(row?.overdue_90_days) +
+  toNumber(row?.overdue_120_plus_days);
+
+const getMirrorOutstanding = (row: Record<string, unknown> | null | undefined) =>
+  toNumber(row?.outstanding_balance) ||
+  toNumber(row?.balance_due) ||
+  getMirrorAgingTotal(row);
+
+const hasMeaningfulAgeAnalysis = (row: Record<string, unknown> | null | undefined) =>
+  getMirrorOutstanding(row) > 0.01 ||
+  toNumber(row?.paid_amount) > 0.01 ||
+  toNumber(row?.credit_amount) > 0.01;
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -190,7 +211,9 @@ export async function GET(request: NextRequest) {
           last_updated
         `,
         )
-        .eq("billing_month", resolvedBillingMonth),
+        .lte("billing_month", resolvedBillingMonth)
+        .order("billing_month", { ascending: false })
+        .order("last_updated", { ascending: false, nullsFirst: false }),
       supabase
         .from("account_invoices")
         .select(
@@ -302,10 +325,28 @@ export async function GET(request: NextRequest) {
     }
 
     const mirrorByAccount = new Map<string, Record<string, unknown>>();
+    const mirrorRowsByAccount = new Map<string, Record<string, unknown>[]>();
     (mirrorRows || []).forEach((row) => {
       const key = normalizeKey(row.cost_code);
-      if (key && !mirrorByAccount.has(key)) {
-        mirrorByAccount.set(key, row);
+      if (!key) return;
+      const current = mirrorRowsByAccount.get(key) || [];
+      current.push(row);
+      mirrorRowsByAccount.set(key, current);
+    });
+
+    mirrorRowsByAccount.forEach((rows, key) => {
+      const exactMonthRows = rows.filter(
+        (row) => normalizeBillingMonth(row.billing_month) === resolvedBillingMonth,
+      );
+
+      const preferredExact =
+        exactMonthRows.find((row) => hasMeaningfulAgeAnalysis(row)) || exactMonthRows[0] || null;
+      const preferredPrior =
+        rows.find((row) => hasMeaningfulAgeAnalysis(row)) || rows[0] || null;
+
+      const preferredRow = preferredExact || preferredPrior;
+      if (preferredRow) {
+        mirrorByAccount.set(key, preferredRow);
       }
     });
 
@@ -519,15 +560,21 @@ export async function GET(request: NextRequest) {
           closedValue: 0,
         };
 
-        const openAnnuity = toNumber(mirror?.current_due);
-        const days30 = toNumber(mirror?.overdue_30_days);
-        const days60 = toNumber(mirror?.overdue_60_days);
-        const days90 =
-          toNumber(mirror?.overdue_90_days) + toNumber(mirror?.overdue_120_plus_days);
+        const mirrorOutstanding =
+          getMirrorOutstanding(mirror) || getMirrorAgingTotal(mirror);
+        const normalizedAging = normalizeAgingBucketsToOutstanding(
+          mirror,
+          mirrorOutstanding,
+        );
+        const openAnnuity = toNumber(normalizedAging.current_due);
+        const days30 = toNumber(normalizedAging.overdue_30_days);
+        const days60 = toNumber(normalizedAging.overdue_60_days);
+        const days90 = toNumber(normalizedAging.overdue_90_days);
+        const days120 = toNumber(normalizedAging.overdue_120_plus_days);
         const totalOutstanding =
-          toNumber(mirror?.outstanding_balance) ||
-          toNumber(mirror?.balance_due) ||
-          openAnnuity + days30 + days60 + days90;
+          toNumber(normalizedAging.outstanding_balance) ||
+          mirrorOutstanding ||
+          openAnnuity + days30 + days60 + days90 + days120;
         const totalInvoiced =
           effectiveInvoices.reduce((sum, invoice) => sum + toNumber(invoice.total_amount), 0) ||
           toNumber(mirror?.due_amount) ||
@@ -548,6 +595,7 @@ export async function GET(request: NextRequest) {
           days30,
           days60,
           days90,
+          days120,
           paymentsCount: paymentStats.count,
           paymentsTotal: Number(paymentStats.total.toFixed(2)),
           lastPaymentDate: paymentStats.lastPaymentDate,
@@ -593,6 +641,7 @@ export async function GET(request: NextRequest) {
           row.days30 > 0 ||
           row.days60 > 0 ||
           row.days90 > 0 ||
+          row.days120 > 0 ||
           row.paymentsTotal > 0 ||
           row.invoiceTotal > 0 ||
           row.creditAmount > 0 ||
@@ -629,6 +678,7 @@ export async function GET(request: NextRequest) {
         days30: acc.days30 + row.days30,
         days60: acc.days60 + row.days60,
         days90: acc.days90 + row.days90,
+        days120: acc.days120 + row.days120,
         paymentsTotal: acc.paymentsTotal + row.paymentsTotal,
         invoiceTotal: acc.invoiceTotal + row.invoiceTotal,
         totalAmount: acc.totalAmount + row.totalAmount,
@@ -644,6 +694,7 @@ export async function GET(request: NextRequest) {
         days30: 0,
         days60: 0,
         days90: 0,
+        days120: 0,
         paymentsTotal: 0,
         invoiceTotal: 0,
         totalAmount: 0,
@@ -664,6 +715,7 @@ export async function GET(request: NextRequest) {
         days30: Number(summary.days30.toFixed(2)),
         days60: Number(summary.days60.toFixed(2)),
         days90: Number(summary.days90.toFixed(2)),
+        days120: Number(summary.days120.toFixed(2)),
         paymentsTotal: Number(summary.paymentsTotal.toFixed(2)),
         invoiceTotal: Number(summary.invoiceTotal.toFixed(2)),
         totalAmount: Number(summary.totalAmount.toFixed(2)),

@@ -45,6 +45,8 @@ import {
   Settings,
   CreditCard,
   Clock,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -56,6 +58,9 @@ import AccountsClientsSection from "./AccountsClientsSection";
 import AccountsInvoicesSection from "./AccountsInvoicesSection";
 import AccountsJobPoolSection from "./AccountsJobPoolSection";
 import AccountsReceivablesSection from "./AccountsReceivablesSection";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import InvoiceReportComponent from "@/components/inv/components/invoice-report";
 
 export default function AccountsContent({ activeSection }) {
   const COMPLETED_JOB_TABS = [
@@ -85,6 +90,55 @@ export default function AccountsContent({ activeSection }) {
   });
   const [completedJobsHasLoadedOnce, setCompletedJobsHasLoadedOnce] =
     useState(false);
+  const [showInvoiceBuilderModal, setShowInvoiceBuilderModal] = useState(false);
+  const [showInvoiceBuilderPreviewModal, setShowInvoiceBuilderPreviewModal] =
+    useState(false);
+  const [invoiceBuilderCreatedInvoice, setInvoiceBuilderCreatedInvoice] =
+    useState(null);
+  const [invoiceBuilderSearchTerm, setInvoiceBuilderSearchTerm] = useState("");
+  const [invoiceBuilderSelectedJobIds, setInvoiceBuilderSelectedJobIds] =
+    useState([]);
+  const [invoiceBuilderJobs, setInvoiceBuilderJobs] = useState([]);
+  const [invoiceBuilderLoading, setInvoiceBuilderLoading] = useState(false);
+  const [invoiceBuilderCostCenters, setInvoiceBuilderCostCenters] = useState([]);
+  const [invoiceBuilderSelectedCostCenterCode, setInvoiceBuilderSelectedCostCenterCode] =
+    useState("");
+  const [invoiceBuilderCostCentersLoading, setInvoiceBuilderCostCentersLoading] =
+    useState(false);
+  const [invoiceBuilderCreatingInvoice, setInvoiceBuilderCreatingInvoice] =
+    useState(false);
+  const [invoiceBuilderVehicles, setInvoiceBuilderVehicles] = useState([]);
+  const [invoiceBuilderVehiclesLoading, setInvoiceBuilderVehiclesLoading] =
+    useState(false);
+  const [invoiceBuilderProductItems, setInvoiceBuilderProductItems] = useState([]);
+  const [invoiceBuilderProductItemsLoading, setInvoiceBuilderProductItemsLoading] =
+    useState(false);
+  const [invoiceBuilderSelectedLineIds, setInvoiceBuilderSelectedLineIds] =
+    useState([]);
+  const [invoiceBuilderManualLines, setInvoiceBuilderManualLines] = useState([]);
+  const [invoiceBuilderManualForm, setInvoiceBuilderManualForm] = useState({
+    jobCardId: "none",
+    vehicleKey: "none",
+    vehicleText: "",
+    productItemId: "",
+    itemName: "",
+    description: "",
+    chargeType: "Cash",
+    jobReferences: "",
+    quantity: "1",
+    unitPrice: "",
+  });
+  const [showInvoiceBuilderJobTools, setShowInvoiceBuilderJobTools] =
+    useState(false);
+  const [invoiceBuilderManualErrors, setInvoiceBuilderManualErrors] = useState({});
+  const [invoiceBuilderCostCenterPickerOpen, setInvoiceBuilderCostCenterPickerOpen] =
+    useState(false);
+  const [invoiceBuilderProductItemPickerOpen, setInvoiceBuilderProductItemPickerOpen] =
+    useState(false);
+  const [invoiceBuilderCostCenterSearch, setInvoiceBuilderCostCenterSearch] =
+    useState("");
+  const [invoiceBuilderProductItemSearch, setInvoiceBuilderProductItemSearch] =
+    useState("");
   const [showJobDetailsModal, setShowJobDetailsModal] = useState(false);
   const [selectedJobDetails, setSelectedJobDetails] = useState(null);
   const [showFinancialDetails, setShowFinancialDetails] = useState(false);
@@ -296,25 +350,6 @@ export default function AccountsContent({ activeSection }) {
     }
   }, []);
 
-  // Fetch completed jobs when section changes
-  useEffect(() => {
-    if (activeSection === "completed-jobs") {
-      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
-    }
-  }, [activeSection]);
-
-  useEffect(() => {
-    if (activeSection !== "completed-jobs") {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
-    }, 250);
-
-    return () => clearTimeout(timeoutId);
-  }, [activeSection, completedJobsInvoiceTab, completedJobsSearchTerm]);
-
   const fetchCompletedJobs = async (
     invoiceState = completedJobsInvoiceTab,
     search = completedJobsSearchTerm,
@@ -349,6 +384,215 @@ export default function AccountsContent({ activeSection }) {
       setCompletedJobsLoading(false);
     }
   };
+
+  const fetchInvoiceBuilderJobs = useCallback(async (jobNumberSearch = "") => {
+    try {
+      setInvoiceBuilderLoading(true);
+      const params = new URLSearchParams();
+      params.set("invoiceState", "all");
+      if (String(jobNumberSearch || "").trim()) {
+        params.set("search", String(jobNumberSearch).trim());
+        params.set("searchField", "job_number");
+      }
+
+      const response = await fetch(`/api/accounts/completed-jobs?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch job cards for invoice builder");
+      }
+
+      const data = await response.json();
+      setInvoiceBuilderJobs(data.jobs || []);
+    } catch (error) {
+      console.error("Error fetching invoice builder jobs:", error);
+      toast.error("Failed to load invoice builder jobs");
+    } finally {
+      setInvoiceBuilderLoading(false);
+    }
+  }, []);
+
+  const fetchInvoiceBuilderCostCenters = useCallback(
+    async () => {
+      try {
+        setInvoiceBuilderCostCentersLoading(true);
+        const response = await fetch(`/api/cost-centers?all=1`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch cost centers for invoice builder");
+        }
+
+        const result = await response.json();
+        const nextCostCenters = (Array.isArray(result) ? result : [])
+          .filter((item) => String(item?.cost_code || "").trim())
+          .sort((left, right) => {
+            const leftName = String(
+              left?.company || left?.legal_name || left?.cost_code || "",
+            ).toLowerCase();
+            const rightName = String(
+              right?.company || right?.legal_name || right?.cost_code || "",
+            ).toLowerCase();
+
+            if (leftName !== rightName) {
+              return leftName.localeCompare(rightName);
+            }
+
+            return String(left?.cost_code || "").localeCompare(
+              String(right?.cost_code || ""),
+            );
+          });
+
+        setInvoiceBuilderCostCenters(nextCostCenters);
+        setInvoiceBuilderSelectedCostCenterCode((currentValue) => {
+          const normalizedCurrent = String(currentValue || "")
+            .trim()
+            .toUpperCase();
+          if (
+            normalizedCurrent &&
+            nextCostCenters.some(
+              (item) =>
+                String(item?.cost_code || "").trim().toUpperCase() ===
+                normalizedCurrent,
+            )
+          ) {
+            return normalizedCurrent;
+          }
+
+          return normalizedCurrent;
+        });
+      } catch (error) {
+        console.error("Error fetching invoice builder cost centers:", error);
+        toast.error("Failed to load cost center options");
+      } finally {
+        setInvoiceBuilderCostCentersLoading(false);
+      }
+    },
+    [],
+  );
+
+  const fetchInvoiceBuilderVehicles = useCallback(async (costCenterCode) => {
+    const normalizedCostCenterCode = String(costCenterCode || "").trim().toUpperCase();
+    if (!normalizedCostCenterCode) {
+      setInvoiceBuilderVehicles([]);
+      return;
+    }
+
+    try {
+      setInvoiceBuilderVehiclesLoading(true);
+      const response = await fetch(
+        `/api/vehicles/get?cost_code=${encodeURIComponent(normalizedCostCenterCode)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch vehicles for invoice builder");
+      }
+
+      const result = await response.json();
+      setInvoiceBuilderVehicles(Array.isArray(result) ? result : []);
+    } catch (error) {
+      console.error("Error fetching invoice builder vehicles:", error);
+      toast.error("Failed to load vehicles for the selected cost center");
+    } finally {
+      setInvoiceBuilderVehiclesLoading(false);
+    }
+  }, []);
+
+  const fetchInvoiceBuilderProductItems = useCallback(async () => {
+    try {
+      setInvoiceBuilderProductItemsLoading(true);
+      const response = await fetch("/api/product-items");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch product items");
+      }
+
+      const result = await response.json();
+      setInvoiceBuilderProductItems(Array.isArray(result?.products) ? result.products : []);
+    } catch (error) {
+      console.error("Error fetching invoice builder product items:", error);
+      toast.error("Failed to load product items");
+    } finally {
+      setInvoiceBuilderProductItemsLoading(false);
+    }
+  }, []);
+
+  const getInvoiceBuilderBillingMonth = useCallback(() => {
+    const rawLockDate = String(systemLock?.lock_date || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawLockDate)) {
+      const year = String(new Date().getFullYear());
+      return `${year}-${rawLockDate.slice(5, 7)}-01`;
+    }
+
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}-01`;
+  }, [systemLock]);
+
+  // Fetch completed jobs when section changes
+  useEffect(() => {
+    if (activeSection === "completed-jobs") {
+      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection !== "completed-jobs") {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [activeSection, completedJobsInvoiceTab, completedJobsSearchTerm]);
+
+  useEffect(() => {
+    if (!showInvoiceBuilderModal) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      fetchInvoiceBuilderJobs(invoiceBuilderSearchTerm);
+    }, 200);
+
+    return () => clearTimeout(timeoutId);
+  }, [showInvoiceBuilderModal, invoiceBuilderSearchTerm, fetchInvoiceBuilderJobs]);
+
+  useEffect(() => {
+    if (!showInvoiceBuilderModal) {
+      return;
+    }
+
+    fetchInvoiceBuilderCostCenters();
+  }, [
+    showInvoiceBuilderModal,
+    fetchInvoiceBuilderCostCenters,
+  ]);
+
+  useEffect(() => {
+    if (!showInvoiceBuilderModal) {
+      return;
+    }
+
+    fetchInvoiceBuilderProductItems();
+  }, [showInvoiceBuilderModal, fetchInvoiceBuilderProductItems]);
+
+  useEffect(() => {
+    if (!showInvoiceBuilderModal) {
+      return;
+    }
+
+    if (!invoiceBuilderSelectedCostCenterCode) {
+      setInvoiceBuilderVehicles([]);
+      return;
+    }
+
+    fetchInvoiceBuilderVehicles(invoiceBuilderSelectedCostCenterCode);
+  }, [
+    showInvoiceBuilderModal,
+    invoiceBuilderSelectedCostCenterCode,
+    fetchInvoiceBuilderVehicles,
+  ]);
 
   const handleMoveJob = async (job, destination) => {
     if (!job?.id || !destination) return;
@@ -454,6 +698,409 @@ export default function AccountsContent({ activeSection }) {
     setShowInvoiceModal(true);
   };
 
+  const handleOpenInvoiceBuilder = () => {
+    setInvoiceBuilderSearchTerm("");
+    setInvoiceBuilderSelectedJobIds([]);
+    setInvoiceBuilderJobs([]);
+    setInvoiceBuilderCostCenters([]);
+    setInvoiceBuilderSelectedCostCenterCode("");
+    setInvoiceBuilderSelectedLineIds([]);
+    setInvoiceBuilderManualLines([]);
+    setInvoiceBuilderManualForm({
+      jobCardId: "none",
+      vehicleKey: "none",
+      vehicleText: "",
+      productItemId: "",
+      itemName: "",
+      description: "",
+      chargeType: "Cash",
+      jobReferences: "",
+      quantity: "1",
+      unitPrice: "",
+    });
+    setShowInvoiceBuilderJobTools(false);
+    setInvoiceBuilderManualErrors({});
+    setInvoiceBuilderCostCenterPickerOpen(false);
+    setInvoiceBuilderProductItemPickerOpen(false);
+    setInvoiceBuilderCostCenterSearch("");
+    setInvoiceBuilderProductItemSearch("");
+    setInvoiceBuilderCreatedInvoice(null);
+    setShowInvoiceBuilderPreviewModal(false);
+    setShowInvoiceBuilderModal(true);
+    fetchInvoiceBuilderJobs("");
+  };
+
+  const toggleInvoiceBuilderJob = (jobId) => {
+    const targetJob = invoiceBuilderJobs.find((job) => job.id === jobId);
+    const targetAccountCode = String(targetJob?.new_account_number || "")
+      .trim()
+      .toUpperCase();
+    const selectedAccountCode = String(invoiceBuilderSelectedCostCenterCode || "")
+      .trim()
+      .toUpperCase();
+
+    if (targetAccountCode && selectedAccountCode && targetAccountCode !== selectedAccountCode) {
+      toast.error("One draft invoice can only use one cost center at a time");
+      return;
+    }
+
+    if (!selectedAccountCode && targetAccountCode) {
+      setInvoiceBuilderSelectedCostCenterCode(targetAccountCode);
+    }
+
+    setInvoiceBuilderSelectedJobIds((prev) =>
+      prev.includes(jobId)
+        ? prev.filter((value) => value !== jobId)
+        : [...prev, jobId],
+    );
+    setInvoiceBuilderSelectedLineIds((prev) => {
+      const targetLineIds = targetJob
+        ? getInvoiceBuilderJobLines(targetJob).map((line) => line.id)
+        : [];
+
+      return prev.filter((lineId) => !targetLineIds.includes(lineId));
+    });
+  };
+
+  const handleInvoiceBuilderCostCenterChange = (value) => {
+    const normalizedValue = String(value || "").trim().toUpperCase();
+    setInvoiceBuilderSelectedCostCenterCode(normalizedValue);
+    setInvoiceBuilderManualErrors((prev) => ({
+      ...prev,
+      costCenter: false,
+    }));
+    setInvoiceBuilderSelectedJobIds((prev) =>
+      prev.filter((jobId) => {
+        const job = invoiceBuilderJobs.find((item) => item.id === jobId);
+        return (
+          String(job?.new_account_number || "").trim().toUpperCase() ===
+          normalizedValue
+        );
+      }),
+    );
+    setInvoiceBuilderSelectedLineIds((prev) =>
+      prev.filter((lineId) => {
+        const matchingJob = invoiceBuilderJobs.find((job) =>
+          getInvoiceBuilderJobLines(job).some((line) => line.id === lineId),
+        );
+        return (
+          String(matchingJob?.new_account_number || "").trim().toUpperCase() ===
+          normalizedValue
+        );
+      }),
+    );
+    setInvoiceBuilderManualLines((prev) =>
+      prev.filter(
+        (line) =>
+          !line.accountNumber ||
+          String(line.accountNumber || "").trim().toUpperCase() === normalizedValue,
+      ),
+    );
+    setInvoiceBuilderManualForm((prev) => ({
+      ...prev,
+      jobCardId:
+        prev.jobCardId === "none"
+          ? "none"
+          : selectedInvoiceBuilderJobs.some(
+                (job) =>
+                  job.id === prev.jobCardId &&
+                  String(job?.new_account_number || "").trim().toUpperCase() ===
+                    normalizedValue,
+              )
+            ? prev.jobCardId
+            : "none",
+      vehicleKey: "none",
+      vehicleText: "",
+      productItemId: "",
+      itemName: "",
+      description: "",
+      chargeType: "Cash",
+      jobReferences: "",
+      unitPrice: "",
+    }));
+  };
+
+  const toggleInvoiceBuilderLine = (lineId) => {
+    setInvoiceBuilderSelectedLineIds((prev) =>
+      prev.includes(lineId)
+        ? prev.filter((value) => value !== lineId)
+        : [...prev, lineId],
+    );
+  };
+
+  const handleInvoiceBuilderManualFormChange = (field, value) => {
+    setInvoiceBuilderManualErrors((prev) => ({
+      ...prev,
+      [field]: false,
+      ...(field === "vehicleKey" || field === "vehicleText"
+        ? { vehicle: false }
+        : {}),
+      ...(field === "productItemId" ? { productItem: false } : {}),
+      ...(field === "unitPrice" ? { unitPrice: false } : {}),
+    }));
+    setInvoiceBuilderManualForm((prev) => {
+      const next = {
+        ...prev,
+        [field]: value,
+      };
+
+      if (field === "productItemId") {
+        const selectedProductItem = invoiceBuilderProductItems.find(
+          (item) => String(item?.id || "") === String(value || ""),
+        );
+
+        if (selectedProductItem) {
+          next.itemName = selectedProductItem.product || "";
+          next.description =
+            selectedProductItem.description || selectedProductItem.category || "";
+          const defaultUnitPrice = getInvoiceBuilderManualChargePrice(
+            selectedProductItem,
+            next.chargeType,
+          );
+          next.unitPrice = defaultUnitPrice > 0 ? String(defaultUnitPrice) : "";
+        }
+      }
+
+      if (field === "chargeType" || field === "productItemId") {
+        const selectedProductItem = invoiceBuilderProductItems.find(
+          (item) => String(item?.id || "") === String(next.productItemId || ""),
+        );
+        if (selectedProductItem) {
+          const autoPrice = getInvoiceBuilderManualChargePrice(
+            selectedProductItem,
+            next.chargeType,
+          );
+          next.unitPrice = autoPrice > 0 ? String(autoPrice) : "";
+        }
+      }
+
+      return next;
+    });
+  };
+
+  const addInvoiceBuilderManualLine = () => {
+    const unitPrice = toNumber(invoiceBuilderManualForm.unitPrice);
+    const quantity = Math.max(1, toNumber(invoiceBuilderManualForm.quantity) || 1);
+    const selectedProductItem = invoiceBuilderProductItems.find(
+      (item) =>
+        String(item?.id || "") ===
+        String(invoiceBuilderManualForm.productItemId || ""),
+    );
+    const selectedVehicle =
+      invoiceBuilderManualForm.vehicleKey &&
+      invoiceBuilderManualForm.vehicleKey !== "none"
+        ? invoiceBuilderVehicles.find(
+            (vehicle) =>
+              getInvoiceBuilderVehicleKey(vehicle) ===
+              invoiceBuilderManualForm.vehicleKey,
+          )
+        : null;
+    const typedVehicleText = String(invoiceBuilderManualForm.vehicleText || "").trim();
+    const resolvedVehicleLabel = selectedVehicle
+      ? getInvoiceBuilderVehicleLabel(selectedVehicle)
+      : typedVehicleText;
+    const resolvedVehicleRegistration = selectedVehicle?.reg || typedVehicleText;
+    const nextErrors = {
+      costCenter: !invoiceBuilderSelectedCostCenterCode,
+      vehicle: !resolvedVehicleLabel,
+      productItem: !selectedProductItem,
+      unitPrice: unitPrice <= 0,
+    };
+    const hasErrors = Object.values(nextErrors).some(Boolean);
+
+    setInvoiceBuilderManualErrors((prev) => ({
+      ...prev,
+      ...nextErrors,
+    }));
+
+    if (hasErrors) {
+      toast.error("Complete the highlighted fields before adding the line");
+      return;
+    }
+
+    const sourceJob =
+      invoiceBuilderManualForm.jobCardId &&
+      invoiceBuilderManualForm.jobCardId !== "none"
+        ? selectedInvoiceBuilderJobs.find(
+            (job) => job.id === invoiceBuilderManualForm.jobCardId,
+          )
+        : null;
+    const subtotal = Number((unitPrice * quantity).toFixed(2));
+    const vat = Number((subtotal * VAT_RATE).toFixed(2));
+    const total = Number((subtotal + vat).toFixed(2));
+
+    setInvoiceBuilderManualLines((prev) => [
+      ...prev,
+      {
+        id: `manual:${invoiceBuilderSelectedCostCenterCode}:${Date.now()}`,
+        jobCardId: sourceJob?.id || null,
+        jobNumber: sourceJob?.job_number || "",
+        clientName:
+          sourceJob?.customer_name ||
+          selectedInvoiceBuilderCostCenter?.company ||
+          selectedInvoiceBuilderCostCenter?.legal_name ||
+          "Manual Line",
+        accountNumber:
+          sourceJob?.new_account_number || invoiceBuilderSelectedCostCenterCode,
+        vehicleKey: getInvoiceBuilderVehicleKey(selectedVehicle),
+        vehicleRegistration: resolvedVehicleRegistration,
+        vehicleLabel: resolvedVehicleLabel,
+        productItemId: selectedProductItem.id,
+        jobReferences: String(invoiceBuilderManualForm.jobReferences || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean),
+        itemName:
+          invoiceBuilderManualForm.itemName.trim() ||
+          selectedProductItem.product ||
+          "Manual Item",
+        description:
+          invoiceBuilderManualForm.description.trim() ||
+          selectedProductItem.description ||
+          selectedProductItem.category ||
+          "-",
+        chargeType: invoiceBuilderManualForm.chargeType.trim() || "Manual",
+        quantity,
+        unitPrice,
+        subtotal,
+        vat,
+        total,
+        isManual: true,
+      },
+    ]);
+
+    setInvoiceBuilderManualForm((prev) => ({
+      ...prev,
+      jobCardId: "none",
+      vehicleKey: "none",
+      vehicleText: "",
+      productItemId: "",
+      itemName: "",
+      description: "",
+      chargeType: "Cash",
+      jobReferences: "",
+      quantity: "1",
+      unitPrice: "",
+    }));
+    setInvoiceBuilderManualErrors({});
+  };
+
+  const createInvoiceBuilderInvoice = async () => {
+    if (!invoiceBuilderSelectedCostCenterCode) {
+      toast.error("Select a cost center before creating the invoice");
+      return;
+    }
+
+    if (invoiceBuilderDraftWithManualLines.lines.length === 0) {
+      toast.error("Select or add at least one line item");
+      return;
+    }
+
+    const billingMonth = getInvoiceBuilderBillingMonth();
+    const lineItems = invoiceBuilderDraftWithManualLines.lines.map((line, index) => ({
+      line_order: index + 1,
+      source_type: line.isManual ? "manual" : "job_card",
+      job_card_id: line.jobCardId || null,
+      job_number: line.jobNumber || null,
+      account_number: invoiceBuilderSelectedCostCenterCode,
+      product_item_id: line.productItemId || null,
+      item_code: line.chargeType || "Charge",
+      description: line.itemName || "Item",
+      previous_reg: line.vehicleRegistration || null,
+      new_reg: line.vehicleRegistration || null,
+      comments: [
+        line.jobNumber,
+        line.clientName,
+        line.vehicleLabel || line.vehicleRegistration,
+        Array.isArray(line.jobReferences) && line.jobReferences.length > 0
+          ? `Refs: ${line.jobReferences.join(", ")}`
+          : null,
+        line.description,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .join(" - "),
+      units: line.quantity,
+      quantity: line.quantity,
+      unit_price_without_vat: Number(line.unitPrice.toFixed(2)),
+      unit_price: Number(line.unitPrice.toFixed(2)),
+      amountExcludingVat: Number(line.subtotal.toFixed(2)),
+      total_excl_vat: Number(line.subtotal.toFixed(2)),
+      vat_amount: Number(line.vat.toFixed(2)),
+      vatAmount: Number(line.vat.toFixed(2)),
+      total_including_vat: Number(line.total.toFixed(2)),
+      total_incl_vat: Number(line.total.toFixed(2)),
+      client_name: line.clientName || null,
+    }));
+
+    const payload = {
+      forceNew: true,
+      accountNumber: invoiceBuilderSelectedCostCenterCode,
+      billingMonth,
+      companyName:
+        selectedInvoiceBuilderCostCenter?.company ||
+        selectedInvoiceBuilderCostCenter?.legal_name ||
+        null,
+      companyRegistrationNumber:
+        selectedInvoiceBuilderCostCenter?.registration_number || null,
+      clientAddress: buildClientAddress(selectedInvoiceBuilderCostCenter, ""),
+      customerVatNumber:
+        selectedInvoiceBuilderCostCenter?.vat_number ||
+        selectedInvoiceBuilderCostCenter?.vat_exempt_number ||
+        null,
+      subtotal: Number(invoiceBuilderDraftWithManualLines.subtotal.toFixed(2)),
+      vatAmount: Number(invoiceBuilderDraftWithManualLines.vat.toFixed(2)),
+      discountAmount: 0,
+      totalAmount: Number(invoiceBuilderDraftWithManualLines.total.toFixed(2)),
+      lineItems,
+      notes: null,
+    };
+
+    try {
+      setInvoiceBuilderCreatingInvoice(true);
+      const response = await fetch("/api/invoices/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to create invoice");
+      }
+
+      const createdInvoice = result?.invoice || null;
+      toast.success(
+        `Invoice ${createdInvoice?.invoice_number || "created"} created successfully`,
+      );
+      setInvoiceBuilderCreatedInvoice(createdInvoice);
+      setShowInvoiceBuilderPreviewModal(true);
+      setShowInvoiceBuilderModal(false);
+      setInvoiceBuilderSelectedJobIds([]);
+      setInvoiceBuilderSelectedLineIds([]);
+      setInvoiceBuilderManualLines([]);
+      setInvoiceBuilderManualErrors({});
+    } catch (error) {
+      console.error("Error creating invoice builder invoice:", error);
+      toast.error(error.message || "Failed to create invoice");
+    } finally {
+      setInvoiceBuilderCreatingInvoice(false);
+    }
+  };
+
+  const handleOpenInvoiceBuilderSingleReview = async () => {
+    if (selectedInvoiceBuilderJobs.length !== 1) {
+      toast.error("Select exactly one job card to open single-job invoice review");
+      return;
+    }
+
+    const [job] = selectedInvoiceBuilderJobs;
+    setShowInvoiceBuilderModal(false);
+    await handleInvoiceClient(job);
+  };
+
   const handleViewStoredInvoice = async (job) => {
     try {
       const latestJob = await fetchLatestJobCard(job);
@@ -504,6 +1151,15 @@ export default function AccountsContent({ activeSection }) {
     } catch (error) {
       console.error("Error viewing stored invoice:", error);
       toast.error(error?.message || "Failed to load stored invoice");
+    }
+  };
+
+  const handleRebuildStoredInvoice = async (job) => {
+    try {
+      await handleViewStoredInvoice(job);
+    } catch (error) {
+      console.error("Error rebuilding stored invoice:", error);
+      toast.error(error?.message || "Failed to open invoice rebuild review");
     }
   };
 
@@ -978,6 +1634,51 @@ export default function AccountsContent({ activeSection }) {
     return Number.isFinite(num) ? num : 0;
   };
 
+  const getInvoiceBuilderVehicleKey = (vehicle) =>
+    String(vehicle?.unique_id || vehicle?.id || vehicle?.reg || "none");
+
+  const getInvoiceBuilderVehicleLabel = (vehicle) => {
+    if (!vehicle) return "No vehicle selected";
+
+    const reg = String(vehicle?.reg || "").trim();
+    const fleet = String(vehicle?.fleet_number || "").trim();
+    const make = String(vehicle?.make || "").trim();
+    const model = String(vehicle?.model || "").trim();
+    const primary = reg || fleet || "Unnamed vehicle";
+    const secondary = [fleet && fleet !== primary ? fleet : "", make, model]
+      .filter(Boolean)
+      .join(" - ");
+
+    return secondary ? `${primary} - ${secondary}` : primary;
+  };
+
+  const getInvoiceBuilderManualChargePrice = (productItem, chargeType) => {
+    if (!productItem) return 0;
+
+    const normalizedChargeType = String(chargeType || "Cash")
+      .trim()
+      .toLowerCase();
+
+    if (normalizedChargeType === "subscription") {
+      return toNumber(productItem.subscription);
+    }
+    if (normalizedChargeType === "rental") {
+      return toNumber(productItem.rental);
+    }
+    if (normalizedChargeType === "installation") {
+      return toNumber(productItem.installation);
+    }
+
+    return toNumber(productItem.price);
+  };
+
+  const invoiceBuilderManualChargeTypes = [
+    "Cash",
+    "Rental",
+    "Subscription",
+    "Installation",
+  ];
+
   const parseQuotationProducts = (products) => {
     if (!products) return [];
     if (Array.isArray(products)) return products;
@@ -1009,7 +1710,6 @@ export default function AccountsContent({ activeSection }) {
     if (directUnitPrice) return directUnitPrice;
 
     const totalPrice =
-      toNumber(product?.total_price) ||
       toNumber(product?.subscription_gross) ||
       toNumber(product?.cash_gross) ||
       toNumber(product?.rental_gross) ||
@@ -1023,24 +1723,18 @@ export default function AccountsContent({ activeSection }) {
     return 0;
   };
 
-  const getNormalizedPurchaseType = (product) =>
-    String(product?.purchase_type || "")
-      .trim()
-      .toLowerCase();
-
   const getProductChargeLines = (product, job) => {
     const qty = Math.max(1, toNumber(product?.quantity) || 1);
-    const purchaseType = getNormalizedPurchaseType(product);
     const jobType = String(
       job?.job_type || job?.quotation_job_type || "",
     ).toLowerCase();
     const lines = [];
 
-    const addLine = (key, label) => {
-      const amount = toNumber(product?.[key]);
+    const addLine = (grossKey, priceKey, label) => {
+      const amount = toNumber(product?.[grossKey]) || toNumber(product?.[priceKey]);
       if (amount <= 0) return;
       lines.push({
-        key,
+        key: priceKey,
         label,
         qty,
         unitPrice: amount,
@@ -1053,24 +1747,18 @@ export default function AccountsContent({ activeSection }) {
       jobType.includes("de-install") ||
       jobType.includes("decomm");
 
-    if (purchaseType === "rental" || purchaseType === "subscription" || !purchaseType) {
-      addLine("subscription_price", "Subscription");
-    }
-    if (purchaseType === "rental" || !purchaseType) {
-      addLine("rental_price", "Rental");
-    }
-    if (purchaseType === "purchase" || purchaseType === "cash") {
-      addLine("cash_price", "Cash");
-    }
+    addLine("subscription_gross", "subscription_price", "Subscription");
+    addLine("rental_gross", "rental_price", "Rental");
+    addLine("cash_gross", "cash_price", "Cash");
     if (!isDeinstall) {
-      addLine("installation_price", "Installation");
+      addLine("installation_gross", "installation_price", "Installation");
     }
     if (isDeinstall) {
-      addLine("de_installation_price", "De-Installation");
+      addLine("de_installation_gross", "de_installation_price", "De-Installation");
     }
     if (lines.length === 0) {
-      addLine("price", "Price");
-      addLine("unit_price", "Unit Price");
+      addLine("price", "price", "Price");
+      addLine("unit_price", "unit_price", "Unit Price");
     }
 
     if (lines.length === 0) {
@@ -1124,6 +1812,145 @@ export default function AccountsContent({ activeSection }) {
       String(value || "").toLowerCase().includes(normalizedSearch),
     );
   });
+
+  const getInvoiceBuilderJobLines = (job) => {
+    const products = parseQuotationProducts(job?.quotation_products);
+
+    return products.flatMap((product, productIndex) =>
+      getProductChargeLines(product, job)
+        .filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0)
+        .map((chargeLine, chargeIndex) => {
+          const subtotal = toNumber(chargeLine.subtotal);
+          const vat = Number((subtotal * VAT_RATE).toFixed(2));
+          const total = Number((subtotal + vat).toFixed(2));
+          const lineId = [
+            job.id,
+            product?.id || product?.name || productIndex,
+            chargeLine.key || chargeLine.label || chargeIndex,
+            chargeIndex,
+          ].join(":");
+
+          return {
+            id: lineId,
+            jobCardId: job.id,
+            jobNumber: job.job_number,
+            clientName: job.customer_name || "Unknown Customer",
+            accountNumber: job.new_account_number || "",
+            vehicleRegistration: job.vehicle_registration || "",
+            vehicleLabel: job.vehicle_registration || "",
+            itemName: product?.name || product?.item_code || "Item",
+            description: product?.description || product?.category || "-",
+            chargeType: chargeLine.label,
+            quantity: chargeLine.qty,
+            unitPrice: toNumber(chargeLine.unitPrice),
+            subtotal,
+            vat,
+            total,
+          };
+        }),
+    );
+  };
+
+  const selectedInvoiceBuilderCostCenter =
+    invoiceBuilderCostCenters.find(
+      (item) =>
+        String(item?.cost_code || "").trim().toUpperCase() ===
+        String(invoiceBuilderSelectedCostCenterCode || "").trim().toUpperCase(),
+    ) || null;
+
+  const filteredInvoiceBuilderCostCenters = invoiceBuilderCostCenters.filter(
+    (costCenter) => {
+      const normalizedSearch = String(invoiceBuilderCostCenterSearch || "")
+        .trim()
+        .toLowerCase();
+      if (!normalizedSearch) return true;
+
+      return [
+        costCenter?.company,
+        costCenter?.legal_name,
+        costCenter?.cost_code,
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(normalizedSearch),
+      );
+    },
+  );
+
+  const filteredInvoiceBuilderProductItems = invoiceBuilderProductItems.filter(
+    (productItem) => {
+      const normalizedSearch = String(invoiceBuilderProductItemSearch || "")
+        .trim()
+        .toLowerCase();
+      if (!normalizedSearch) return true;
+
+      return [
+        productItem?.product,
+        productItem?.type,
+        productItem?.description,
+        productItem?.category,
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(normalizedSearch),
+      );
+    },
+  );
+
+  const invoiceBuilderSelectedVehicle =
+    invoiceBuilderManualForm.vehicleKey &&
+    invoiceBuilderManualForm.vehicleKey !== "none"
+      ? invoiceBuilderVehicles.find(
+          (vehicle) =>
+            getInvoiceBuilderVehicleKey(vehicle) ===
+            invoiceBuilderManualForm.vehicleKey,
+        ) || null
+      : null;
+
+  const invoiceBuilderSelectedVehicleLabel = invoiceBuilderSelectedVehicle
+    ? getInvoiceBuilderVehicleLabel(invoiceBuilderSelectedVehicle)
+    : String(invoiceBuilderManualForm.vehicleText || "").trim();
+
+  const invoiceBuilderVisibleJobs = invoiceBuilderSelectedCostCenterCode
+    ? invoiceBuilderJobs.filter(
+        (job) =>
+          String(job?.new_account_number || "").trim().toUpperCase() ===
+          String(invoiceBuilderSelectedCostCenterCode || "").trim().toUpperCase(),
+      )
+    : invoiceBuilderJobs;
+
+  const selectedInvoiceBuilderJobs = invoiceBuilderJobs.filter((job) =>
+    invoiceBuilderSelectedJobIds.includes(job.id),
+  );
+
+  const invoiceBuilderDraft = selectedInvoiceBuilderJobs.reduce(
+    (acc, job) => {
+      const jobLines = getInvoiceBuilderJobLines(job).filter((line) =>
+        invoiceBuilderSelectedLineIds.includes(line.id),
+      );
+
+      acc.jobs += 1;
+      acc.lineCount += jobLines.length;
+      acc.subtotal += jobLines.reduce((sum, line) => sum + line.subtotal, 0);
+      acc.vat += jobLines.reduce((sum, line) => sum + line.vat, 0);
+      acc.total += jobLines.reduce((sum, line) => sum + line.total, 0);
+      acc.lines.push(...jobLines);
+      return acc;
+    },
+    {
+      jobs: 0,
+      lineCount: 0,
+      subtotal: 0,
+      vat: 0,
+      total: 0,
+      lines: [],
+    },
+  );
+
+  const invoiceBuilderDraftWithManualLines = {
+    ...invoiceBuilderDraft,
+    lineCount: invoiceBuilderDraft.lineCount + invoiceBuilderManualLines.length,
+    subtotal: invoiceBuilderDraft.subtotal + invoiceBuilderManualLines.reduce((sum, line) => sum + line.subtotal, 0),
+    vat: invoiceBuilderDraft.vat + invoiceBuilderManualLines.reduce((sum, line) => sum + line.vat, 0),
+    total: invoiceBuilderDraft.total + invoiceBuilderManualLines.reduce((sum, line) => sum + line.total, 0),
+    lines: [...invoiceBuilderDraft.lines, ...invoiceBuilderManualLines],
+  };
 
   const renderCompletedJobsSkeletonRows = () =>
     Array.from({ length: 6 }).map((_, index) => (
@@ -1297,9 +2124,18 @@ export default function AccountsContent({ activeSection }) {
   const getInvoiceTotals = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
     const computedSubtotal = products.reduce((sum, product) => {
-      const explicitTotal = toNumber(product?.total_price);
-      if (explicitTotal > 0) {
-        return sum + explicitTotal;
+      const chargeLines = getProductChargeLines(product, job).filter(
+        (chargeLine) => toNumber(chargeLine?.unitPrice) > 0,
+      );
+
+      if (chargeLines.length > 0) {
+        return (
+          sum +
+          chargeLines.reduce(
+            (lineSum, chargeLine) => lineSum + toNumber(chargeLine.subtotal),
+            0,
+          )
+        );
       }
 
       const qty = Math.max(1, toNumber(product?.quantity) || 1);
@@ -1388,22 +2224,27 @@ export default function AccountsContent({ activeSection }) {
               selectedJobForInvoice,
             );
 
-            return chargeLines.map((chargeLine) => {
+            return chargeLines
+              .filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0)
+              .map((chargeLine) => {
               const lineVat = Number(
                 (chargeLine.subtotal * VAT_RATE).toFixed(2),
               );
               const lineTotal = Number(
                 (chargeLine.subtotal + lineVat).toFixed(2),
               );
+              const productName =
+                product?.name || product?.item_code || "Item";
+              const lineLabel = `${productName} - ${chargeLine.label}`;
 
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
                 previousReg: product?.vehicle_plate || vehicleSummary || "N/A",
                 newReg: product?.vehicle_plate || vehicleSummary || "N/A",
-                itemCode: product?.name || product?.item_code || "Item",
+                itemCode: chargeLine.label,
                 description:
-                  product?.description || product?.category || "-",
-                comments: chargeLine.label,
+                  product?.description || lineLabel || product?.category || "-",
+                comments: lineLabel,
                 qty: chargeLine.qty,
                 unitPrice: chargeLine.unitPrice,
                 vatPercent: "15.00%",
@@ -1414,20 +2255,22 @@ export default function AccountsContent({ activeSection }) {
           })
       : Array.isArray(storedInvoiceRecord?.line_items) &&
           storedInvoiceRecord.line_items.length > 0
-        ? storedInvoiceRecord.line_items.map((item, index) => ({
-            key: `${item?.item_code || item?.description || "item"}-${index}`,
-            previousReg: item?.previous_reg || vehicleSummary || "N/A",
-            newReg:
-              item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
-            itemCode: item?.item_code || "Item",
-            description: item?.description || "-",
-            comments: item?.comments || "",
-            qty: Math.max(1, toNumber(item?.quantity) || 1),
-            unitPrice: toNumber(item?.unit_price),
-            vatPercent: item?.vat_percent || "0.00%",
-            vatAmount: toNumber(item?.vat_amount),
-            totalIncl: toNumber(item?.total_incl),
-          }))
+        ? storedInvoiceRecord.line_items
+            .filter((item) => toNumber(item?.unit_price) > 0)
+            .map((item, index) => ({
+              key: `${item?.item_code || item?.description || "item"}-${index}`,
+              previousReg: item?.previous_reg || vehicleSummary || "N/A",
+              newReg:
+                item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+              itemCode: item?.item_code || "Item",
+              description: item?.description || "-",
+              comments: item?.comments || "",
+              qty: Math.max(1, toNumber(item?.quantity) || 1),
+              unitPrice: toNumber(item?.unit_price),
+              vatPercent: item?.vat_percent || "0.00%",
+              vatAmount: toNumber(item?.vat_amount),
+              totalIncl: toNumber(item?.total_incl),
+            }))
         : [
             {
               key: "fallback-row",
@@ -1550,17 +2393,18 @@ export default function AccountsContent({ activeSection }) {
             .invoice-meta-row { display: grid; grid-template-columns: 170px 1fr; margin-bottom: 24px; }
             .invoice-meta-row .label { font-weight: 700; }
             .box-table, .line-table, .totals-table, .footer-table { width: calc(100% - 48px); margin: 0 24px; border-collapse: collapse; table-layout: fixed; }
-            .box-table th, .box-table td, .line-table th, .line-table td, .totals-table td, .footer-table td { border: 2px solid #505050; }
+            .box-table th, .box-table td, .totals-table td, .footer-table td { border: 2px solid #505050; }
             .box-table { margin-top: 8px; }
             .box-table th { font-size: 12px; font-weight: 700; text-align: center; padding: 4px 4px; }
             .box-table td { font-size: 14px; text-align: center; padding: 6px 4px; }
             .line-table { margin-top: 16px; }
-            .line-table th { background: #d6d6d6; font-size: 11px; font-weight: 700; text-align: left; padding: 4px 3px; white-space: nowrap; }
-            .line-table td { font-size: 11px; padding: 3px 3px; vertical-align: top; }
+            .line-table thead { border-top: 2px solid #505050; border-bottom: 2px solid #505050; }
+            .line-table th { background: #d6d6d6; font-size: 11px; font-weight: 700; text-align: left; padding: 4px 3px; white-space: nowrap; border: 0; }
+            .line-table td { font-size: 11px; padding: 3px 3px; vertical-align: top; border: 0; }
             .line-table tbody tr:nth-child(even) td { background: #dcdcdc; }
             .line-table .text-right { text-align: right; }
             .line-table .text-center { text-align: center; }
-            .line-table .spacer td { height: 168px; background: #fff !important; }
+            .line-table .spacer td { height: 168px; background: #fff !important; border-bottom: 0; }
             .bottom-row { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: start; margin: 16px 24px 0; }
             .notes { font-size: 14px; white-space: pre-line; }
             .notes strong { font-size: 16px; }
@@ -1992,7 +2836,7 @@ export default function AccountsContent({ activeSection }) {
                             Legal Names: {customer.legal_names || "N/A"}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {customer.vehicleCount || 0} vehicles •{" "}
+                            {customer.vehicleCount || 0} vehicles -{" "}
                             {customer.uniqueClientCount || 0} clients
                           </p>
                         </div>
@@ -2178,6 +3022,17 @@ export default function AccountsContent({ activeSection }) {
                   className="pl-10"
                 />
               </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenInvoiceBuilder}
+                  className="h-8"
+                >
+                  Invoice Client
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {completedJobsLoading && completedJobsHasLoadedOnce ? (
@@ -2318,12 +3173,12 @@ export default function AccountsContent({ activeSection }) {
                           )}
                           {getBillingStatusValue(job, "invoice") ? (
                             <Button
+                              onClick={() => handleRebuildStoredInvoice(job)}
                               size="sm"
-                              disabled
                               variant="secondary"
                               className="h-8 px-3 text-xs"
                             >
-                              Invoiced
+                              Rebuild
                             </Button>
                           ) : (
                             <Button
@@ -2344,6 +3199,843 @@ export default function AccountsContent({ activeSection }) {
             </CardContent>
           </Card>
         )}
+
+        <Dialog
+          open={showInvoiceBuilderModal}
+          onOpenChange={setShowInvoiceBuilderModal}
+        >
+          <DialogContent className="sm:max-w-6xl max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-blue-600" />
+                Job Card Invoice Builder
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              <div className="rounded-xl border bg-gradient-to-r from-slate-50 via-white to-blue-50 p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Invoice Workspace
+                      </div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        Start with a cost center, vehicle, item, and amount. Job-linked quotation lines are available underneath when you need them.
+                      </div>
+                    </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm md:w-[360px]">
+                    <div className="rounded-lg border bg-white px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Billing Month
+                      </div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        {formatDate(getInvoiceBuilderBillingMonth())}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border bg-white px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Invoice Number
+                      </div>
+                      <div className="mt-1 font-semibold text-slate-900">
+                        Allocated on create
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_0.75fr] gap-5">
+                <div className="space-y-4">
+                  <div className="rounded-xl border bg-white p-4 space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2 md:max-w-[420px]">
+                        <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Cost Center
+                        </Label>
+                        <Popover
+                          open={invoiceBuilderCostCenterPickerOpen}
+                          onOpenChange={setInvoiceBuilderCostCenterPickerOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              className={`h-12 w-full justify-between text-left font-normal ${
+                                invoiceBuilderManualErrors.costCenter
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : ""
+                              }`}
+                            >
+                              <span className="truncate">
+                                {selectedInvoiceBuilderCostCenter
+                                  ? `${
+                                      selectedInvoiceBuilderCostCenter.company ||
+                                      selectedInvoiceBuilderCostCenter.legal_name ||
+                                      "Unnamed cost center"
+                                    } - ${selectedInvoiceBuilderCostCenter.cost_code}`
+                                  : "Select cost center"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[420px] p-0" align="start">
+                            <div className="border-b p-3">
+                              <Input
+                                value={invoiceBuilderCostCenterSearch}
+                                onChange={(e) =>
+                                  setInvoiceBuilderCostCenterSearch(e.target.value)
+                                }
+                                placeholder="Search cost center or company..."
+                                className="h-11"
+                              />
+                            </div>
+                            <ScrollArea className="h-72">
+                              <div className="p-2">
+                              {filteredInvoiceBuilderCostCenters.length === 0 ? (
+                                <div className="px-3 py-6 text-sm text-slate-500 text-center">
+                                  No cost centers found.
+                                </div>
+                              ) : (
+                                filteredInvoiceBuilderCostCenters.map((costCenter) => {
+                                  const value = String(costCenter.cost_code || "")
+                                    .trim()
+                                    .toUpperCase();
+                                  const isSelected =
+                                    value ===
+                                    String(invoiceBuilderSelectedCostCenterCode || "")
+                                      .trim()
+                                      .toUpperCase();
+
+                                  return (
+                                    <button
+                                      key={`builder-cost-center-${value}`}
+                                      type="button"
+                                      onClick={() => {
+                                        handleInvoiceBuilderCostCenterChange(value);
+                                        setInvoiceBuilderCostCenterPickerOpen(false);
+                                      }}
+                                      className="flex w-full items-start justify-between gap-3 rounded-md px-3 py-3 text-left hover:bg-slate-50"
+                                    >
+                                      <div className="min-w-0">
+                                        <div className="truncate text-sm font-medium text-slate-900">
+                                          {costCenter.company ||
+                                            costCenter.legal_name ||
+                                            "Unnamed cost center"}
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                          {value}
+                                        </div>
+                                      </div>
+                                      {isSelected ? (
+                                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                                      ) : null}
+                                    </button>
+                                  );
+                                })
+                              )}
+                              </div>
+                            </ScrollArea>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      {showInvoiceBuilderJobTools ? (
+                        <div className="space-y-2 md:max-w-[420px]">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Find Job Cards
+                          </Label>
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                            <Input
+                              type="text"
+                              placeholder="Search job number..."
+                              value={invoiceBuilderSearchTerm}
+                              onChange={(e) =>
+                                setInvoiceBuilderSearchTerm(e.target.value)
+                              }
+                              className="pl-10"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="rounded-lg border bg-slate-50 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Selected Jobs
+                        </div>
+                        <div className="mt-1 text-2xl font-bold text-slate-900">
+                          {invoiceBuilderDraftWithManualLines.jobs}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Draft Lines
+                        </div>
+                        <div className="mt-1 text-2xl font-bold text-slate-900">
+                          {invoiceBuilderDraftWithManualLines.lineCount}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Subtotal
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">
+                          {formatCurrency(invoiceBuilderDraftWithManualLines.subtotal)}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Draft Total
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">
+                          {formatCurrency(invoiceBuilderDraftWithManualLines.total)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {showInvoiceBuilderJobTools ? (
+                  <div className="rounded-xl border overflow-hidden bg-white">
+                    <div className="border-b bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        2. Select Jobs For This Invoice
+                      </div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        One draft invoice can only bill one cost center at a time.
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[36px_150px_1fr_130px_110px] gap-0 border-b bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <div className="px-3 py-3"></div>
+                      <div className="px-3 py-3">Job</div>
+                      <div className="px-3 py-3">Client</div>
+                      <div className="px-3 py-3">Account</div>
+                      <div className="px-3 py-3 text-right">Value</div>
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      {invoiceBuilderLoading ? (
+                        <div className="px-4 py-8 text-sm text-slate-500 text-center">
+                          Loading job cards...
+                        </div>
+                      ) : invoiceBuilderVisibleJobs.length === 0 ? (
+                        <div className="px-4 py-8 text-sm text-slate-500 text-center">
+                          {invoiceBuilderSelectedCostCenterCode
+                            ? "No completed job cards found for that cost center and search."
+                            : "Search job numbers, then choose the cost center you want to invoice."}
+                        </div>
+                      ) : (
+                        invoiceBuilderVisibleJobs.map((job) => {
+                          const isSelected =
+                            invoiceBuilderSelectedJobIds.includes(job.id);
+                          return (
+                            <button
+                              key={`builder-${job.id}`}
+                              type="button"
+                              onClick={() => toggleInvoiceBuilderJob(job.id)}
+                              className={`grid w-full grid-cols-[36px_150px_1fr_130px_110px] gap-0 border-b text-left transition hover:bg-blue-50 ${
+                                isSelected ? "bg-blue-50" : "bg-white"
+                              }`}
+                            >
+                              <div className="px-3 py-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  readOnly
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                              </div>
+                              <div className="px-3 py-3 text-sm font-semibold text-slate-900">
+                                {job.job_number}
+                              </div>
+                              <div className="px-3 py-3 text-sm text-slate-700">
+                                <div className="font-medium text-slate-900">
+                                  {job.customer_name || "Unknown Customer"}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  {job.vehicle_registration || "No vehicle"}
+                                </div>
+                              </div>
+                              <div className="px-3 py-3 text-sm text-slate-600">
+                                {job.new_account_number || "N/A"}
+                              </div>
+                              <div className="px-3 py-3 text-right text-sm font-semibold text-slate-900">
+                                {formatCurrency(getJobTotal(job))}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  ) : null}
+
+                  {showInvoiceBuilderJobTools && selectedInvoiceBuilderJobs.length > 0 ? (
+                    <div className="rounded-xl border overflow-hidden bg-white">
+                      <div className="border-b bg-slate-50 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          3. Choose Billable Lines
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          Pick the exact quoted lines you want to bring into the invoice.
+                        </div>
+                      </div>
+                      <div className="max-h-[280px] overflow-y-auto divide-y">
+                        {selectedInvoiceBuilderJobs.map((job) => {
+                          const jobLines = getInvoiceBuilderJobLines(job);
+                          return (
+                            <div key={`job-lines-${job.id}`} className="bg-white">
+                              <div className="px-4 py-3">
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {job.job_number}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  {job.customer_name || "Unknown Customer"} -{" "}
+                                  {job.new_account_number || "N/A"}
+                                </div>
+                              </div>
+                              <div className="space-y-1 px-3 pb-3">
+                                {jobLines.length === 0 ? (
+                                  <div className="px-2 py-2 text-xs text-slate-400">
+                                    No billable quote items on this job.
+                                  </div>
+                                ) : (
+                                  jobLines.map((line) => {
+                                    const isSelected =
+                                      invoiceBuilderSelectedLineIds.includes(
+                                        line.id,
+                                      );
+                                    return (
+                                      <button
+                                        key={line.id}
+                                        type="button"
+                                        onClick={() =>
+                                          toggleInvoiceBuilderLine(line.id)
+                                        }
+                                        className={`grid w-full grid-cols-[28px_1fr_96px] items-start gap-3 rounded-md border px-3 py-2 text-left transition ${
+                                          isSelected
+                                            ? "border-blue-200 bg-blue-50"
+                                            : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                                        }`}
+                                      >
+                                        <div className="pt-0.5">
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            readOnly
+                                            className="h-4 w-4 rounded border-gray-300"
+                                          />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="text-sm font-medium text-slate-900">
+                                            {line.itemName} - {line.chargeType}
+                                          </div>
+                                          <div className="text-xs text-slate-500">
+                                            {line.description}
+                                          </div>
+                                        </div>
+                                        <div className="text-right text-sm font-semibold text-slate-900">
+                                          {formatCurrency(line.subtotal)}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="rounded-xl border overflow-hidden bg-white">
+                    <div className="border-b bg-slate-50 px-4 py-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        1. Quick Manual Invoice Lines
+                      </div>
+                      <div className="mt-1 text-sm text-slate-600">
+                        Choose the cost center, pick or type a vehicle, select an item, and add optional job references.
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Select Vehicle
+                          </Label>
+                          <Select
+                            value={invoiceBuilderManualForm.vehicleKey}
+                            onValueChange={(value) =>
+                              handleInvoiceBuilderManualFormChange("vehicleKey", value)
+                            }
+                            disabled={
+                              !invoiceBuilderSelectedCostCenterCode ||
+                              invoiceBuilderVehiclesLoading
+                            }
+                          >
+                            <SelectTrigger
+                              className={`mt-1 h-12 text-base ${
+                                invoiceBuilderManualErrors.vehicle
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : ""
+                              }`}
+                            >
+                              <SelectValue
+                                placeholder={
+                                  !invoiceBuilderSelectedCostCenterCode
+                                    ? "Select cost center first"
+                                    : invoiceBuilderVehiclesLoading
+                                      ? "Loading vehicles..."
+                                      : "Select vehicle"
+                                }
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select vehicle</SelectItem>
+                              {invoiceBuilderVehicles.map((vehicle) => (
+                                <SelectItem
+                                  key={`manual-vehicle-${getInvoiceBuilderVehicleKey(vehicle)}`}
+                                  value={getInvoiceBuilderVehicleKey(vehicle)}
+                                >
+                                  {getInvoiceBuilderVehicleLabel(vehicle)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Or Enter Vehicle
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.vehicleText}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "vehicleText",
+                                e.target.value,
+                              )
+                            }
+                            className={`mt-1 h-12 text-base ${
+                              invoiceBuilderManualErrors.vehicle
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : ""
+                            }`}
+                            placeholder="Type reg, fleet, or vehicle name"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Product Item
+                          </Label>
+                          <Popover
+                            open={invoiceBuilderProductItemPickerOpen}
+                            onOpenChange={setInvoiceBuilderProductItemPickerOpen}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                role="combobox"
+                                disabled={invoiceBuilderProductItemsLoading}
+                                className={`mt-1 h-12 w-full justify-between text-left font-normal ${
+                                  invoiceBuilderManualErrors.productItem
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : ""
+                                }`}
+                              >
+                                <span className="truncate">
+                                  {invoiceBuilderManualForm.productItemId
+                                    ? (() => {
+                                        const selectedItem =
+                                          invoiceBuilderProductItems.find(
+                                            (productItem) =>
+                                              String(productItem.id) ===
+                                              String(
+                                                invoiceBuilderManualForm.productItemId,
+                                              ),
+                                          );
+                                        return selectedItem
+                                          ? `${selectedItem.product} - ${selectedItem.type}`
+                                          : "Select product item";
+                                      })()
+                                    : invoiceBuilderProductItemsLoading
+                                      ? "Loading items..."
+                                      : "Select product item"}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[420px] p-0" align="start">
+                              <div className="border-b p-3">
+                                <Input
+                                  value={invoiceBuilderProductItemSearch}
+                                  onChange={(e) =>
+                                    setInvoiceBuilderProductItemSearch(
+                                      e.target.value,
+                                    )
+                                  }
+                                  placeholder="Search item, type, or category..."
+                                  className="h-11"
+                                />
+                              </div>
+                              <ScrollArea className="h-72">
+                                <div className="p-2">
+                                {filteredInvoiceBuilderProductItems.length === 0 ? (
+                                  <div className="px-3 py-6 text-sm text-slate-500 text-center">
+                                    No product items found.
+                                  </div>
+                                ) : (
+                                  filteredInvoiceBuilderProductItems.map(
+                                    (productItem) => {
+                                      const isSelected =
+                                        String(productItem.id) ===
+                                        String(
+                                          invoiceBuilderManualForm.productItemId || "",
+                                        );
+
+                                      return (
+                                        <button
+                                          key={`manual-product-item-${productItem.id}`}
+                                          type="button"
+                                          onClick={() => {
+                                            handleInvoiceBuilderManualFormChange(
+                                              "productItemId",
+                                              String(productItem.id),
+                                            );
+                                            setInvoiceBuilderProductItemPickerOpen(
+                                              false,
+                                            );
+                                          }}
+                                          className="flex w-full items-start justify-between gap-3 rounded-md px-3 py-3 text-left hover:bg-slate-50"
+                                        >
+                                          <div className="min-w-0">
+                                            <div className="truncate text-sm font-medium text-slate-900">
+                                              {productItem.product}
+                                            </div>
+                                            <div className="text-xs text-slate-500">
+                                              {productItem.type} -{" "}
+                                              {productItem.category}
+                                            </div>
+                                          </div>
+                                          {isSelected ? (
+                                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                                          ) : null}
+                                        </button>
+                                      );
+                                    },
+                                  )
+                                )}
+                                </div>
+                              </ScrollArea>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Charge Type
+                          </Label>
+                          <Select
+                            value={invoiceBuilderManualForm.chargeType}
+                            onValueChange={(value) =>
+                              handleInvoiceBuilderManualFormChange("chargeType", value)
+                            }
+                          >
+                            <SelectTrigger className="mt-1 h-12 text-base">
+                              <SelectValue placeholder="Select charge type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {invoiceBuilderManualChargeTypes.map((chargeType) => (
+                                <SelectItem
+                                  key={`manual-charge-type-${chargeType}`}
+                                  value={chargeType}
+                                >
+                                  {chargeType}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Qty
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.quantity}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "quantity",
+                                e.target.value,
+                              )
+                            }
+                            className="mt-1 h-12 text-base"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Amount
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.unitPrice}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "unitPrice",
+                                e.target.value,
+                              )
+                            }
+                            className={`mt-1 h-12 text-base ${
+                              invoiceBuilderManualErrors.unitPrice
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : ""
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Job Reference(s)
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.jobReferences}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "jobReferences",
+                                e.target.value,
+                              )
+                            }
+                            className="mt-1 h-12 text-base"
+                            placeholder="SOL-123, SOL-456"
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            type="button"
+                            onClick={addInvoiceBuilderManualLine}
+                            disabled={!invoiceBuilderSelectedCostCenterCode}
+                            className="w-full bg-blue-600 hover:bg-blue-700"
+                          >
+                            Add Line
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Item
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.itemName}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "itemName",
+                                e.target.value,
+                              )
+                            }
+                            className="mt-1 h-12 text-base"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-slate-600">
+                            Description
+                          </Label>
+                          <Input
+                            value={invoiceBuilderManualForm.description}
+                            onChange={(e) =>
+                              handleInvoiceBuilderManualFormChange(
+                                "description",
+                                e.target.value,
+                              )
+                            }
+                            className="mt-1 h-12 text-base"
+                          />
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-dashed bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-semibold uppercase tracking-wide text-slate-500">
+                              Quote-Linked Job Lines
+                            </div>
+                            <div className="mt-1 text-slate-500">
+                              Optional advanced mode if you want to pull exact quotation lines from completed job cards.
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() =>
+                              setShowInvoiceBuilderJobTools((current) => !current)
+                            }
+                          >
+                            {showInvoiceBuilderJobTools ? "Hide Job Tools" : "Show Job Tools"}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-3 text-xs text-slate-600">
+                        <div className="font-semibold uppercase tracking-wide text-slate-500">
+                          Manual Source Preview
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          <div>
+                            Vehicle:{" "}
+                            <span className="font-medium text-slate-900">
+                              {invoiceBuilderSelectedVehicleLabel || "No vehicle selected"}
+                            </span>
+                          </div>
+                          <div>
+                            Item:{" "}
+                            <span className="font-medium text-slate-900">
+                              {invoiceBuilderManualForm.itemName || "No product item selected"}
+                            </span>
+                          </div>
+                          <div>
+                            Job Refs:{" "}
+                            <span className="font-medium text-slate-900">
+                              {invoiceBuilderManualForm.jobReferences || "No job references entered"}
+                            </span>
+                          </div>
+                          <div>
+                            Charge Amount:{" "}
+                            <span className="font-medium text-slate-900">
+                              {formatCurrency(invoiceBuilderManualForm.unitPrice || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border bg-white p-4 space-y-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Invoice Setup
+                    </div>
+                    <div className="rounded-lg border bg-slate-50 px-3 py-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Selected Cost Center
+                      </div>
+                      {invoiceBuilderCostCentersLoading ? (
+                        <div className="mt-2 text-sm text-slate-500">
+                          Loading cost center info...
+                        </div>
+                      ) : selectedInvoiceBuilderCostCenter ? (
+                        <>
+                          <div className="mt-2 text-base font-semibold text-slate-900">
+                            {selectedInvoiceBuilderCostCenter.company ||
+                              selectedInvoiceBuilderCostCenter.legal_name ||
+                              "Unnamed cost center"}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {selectedInvoiceBuilderCostCenter.cost_code}
+                          </div>
+                          <div className="mt-2 text-xs text-slate-500 whitespace-pre-line">
+                            {buildClientAddress(
+                              selectedInvoiceBuilderCostCenter,
+                              "",
+                            ) || "No address available"}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-500">
+                          Choose a cost center to anchor this invoice.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border bg-slate-50 p-4 space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">Subtotal</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(invoiceBuilderDraftWithManualLines.subtotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">VAT</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(invoiceBuilderDraftWithManualLines.vat)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t pt-3 text-sm">
+                        <span className="font-semibold text-slate-900">
+                          Draft Total
+                        </span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(invoiceBuilderDraftWithManualLines.total)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Draft Preview
+                    </div>
+                    <div className="mt-3 max-h-[360px] overflow-y-auto space-y-2">
+                      {invoiceBuilderDraftWithManualLines.lines.length === 0 ? (
+                        <div className="text-sm text-slate-500">
+                          Select quote lines or add manual items to build the draft.
+                        </div>
+                      ) : (
+                        invoiceBuilderDraftWithManualLines.lines.map(
+                          (line, index) => (
+                            <div
+                              key={`${line.jobCardId || "manual"}-${line.itemName}-${line.chargeType}-${index}`}
+                              className="rounded-md border bg-slate-50 px-3 py-2"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-slate-900">
+                                    {line.itemName} - {line.chargeType}
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    {[line.vehicleLabel || line.vehicleRegistration || null, line.jobNumber, line.clientName]
+                                      .map((value) => String(value || "").trim())
+                                      .filter(Boolean)
+                                      .join(" - ") || "Manual line"}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold text-slate-900 whitespace-nowrap">
+                                    {formatCurrency(line.subtotal)}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500">
+                                    Qty {line.quantity}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ),
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowInvoiceBuilderModal(false)}
+              >
+                Close
+              </Button>
+              <Button
+                onClick={createInvoiceBuilderInvoice}
+                disabled={
+                  invoiceBuilderCreatingInvoice ||
+                  !invoiceBuilderSelectedCostCenterCode ||
+                  invoiceBuilderDraftWithManualLines.lines.length === 0
+                }
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {invoiceBuilderCreatingInvoice ? "Creating..." : "Create Invoice"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Job Details Modal */}
         <Dialog
@@ -2640,7 +4332,7 @@ export default function AccountsContent({ activeSection }) {
                                   <TableCell className="text-gray-600">
                                     {product?.description ||
                                       product?.category ||
-                                      "—"}
+                                      "-"}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {qty}
@@ -3165,7 +4857,7 @@ export default function AccountsContent({ activeSection }) {
                                     <TableCell className="text-gray-600">
                                       {product?.description ||
                                         product?.category ||
-                                        "—"}
+                                        "-"}
                                     </TableCell>
                                     <TableCell className="text-gray-600">
                                       {vehicleLabel || "N/A"}
@@ -3336,6 +5028,11 @@ export default function AccountsContent({ activeSection }) {
                     </>
                   )}
                 </div>
+                {generatedInvoice ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Rebuild review shows the latest quotation-product line items in the preview only. It does not refresh the stored invoice.
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -3350,6 +5047,68 @@ export default function AccountsContent({ activeSection }) {
                 Close
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={showInvoiceBuilderPreviewModal}
+          onOpenChange={setShowInvoiceBuilderPreviewModal}
+        >
+          <DialogContent className="max-w-7xl max-h-[92vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {invoiceBuilderCreatedInvoice?.invoice_number || "Invoice Preview"}
+              </DialogTitle>
+            </DialogHeader>
+            {invoiceBuilderCreatedInvoice ? (
+              <InvoiceReportComponent
+                viewOnly
+                clientLegalName={
+                  invoiceBuilderCreatedInvoice.company_name ||
+                  invoiceBuilderCreatedInvoice.account_number
+                }
+                costCenter={{
+                  accountNumber: invoiceBuilderCreatedInvoice.account_number,
+                  billingMonth: invoiceBuilderCreatedInvoice.billing_month,
+                }}
+                invoiceData={{
+                  ...invoiceBuilderCreatedInvoice,
+                  account_number: invoiceBuilderCreatedInvoice.account_number,
+                  billing_month: invoiceBuilderCreatedInvoice.billing_month,
+                  invoice_number: invoiceBuilderCreatedInvoice.invoice_number,
+                  invoice_date: invoiceBuilderCreatedInvoice.invoice_date,
+                  total_amount: Number(
+                    invoiceBuilderCreatedInvoice.total_amount || 0,
+                  ),
+                  paid_amount: Number(
+                    invoiceBuilderCreatedInvoice.paid_amount || 0,
+                  ),
+                  balance_due: Number(
+                    invoiceBuilderCreatedInvoice.balance_due || 0,
+                  ),
+                  notes: invoiceBuilderCreatedInvoice.notes || "",
+                  customer_vat_number:
+                    invoiceBuilderCreatedInvoice.customer_vat_number,
+                  company_registration_number:
+                    invoiceBuilderCreatedInvoice.company_registration_number,
+                  client_address: invoiceBuilderCreatedInvoice.client_address,
+                  company_name: invoiceBuilderCreatedInvoice.company_name,
+                  line_items: Array.isArray(invoiceBuilderCreatedInvoice.line_items)
+                    ? invoiceBuilderCreatedInvoice.line_items
+                    : [],
+                  invoice_items: Array.isArray(
+                    invoiceBuilderCreatedInvoice.line_items,
+                  )
+                    ? invoiceBuilderCreatedInvoice.line_items
+                    : [],
+                  invoiceItems: Array.isArray(
+                    invoiceBuilderCreatedInvoice.line_items,
+                  )
+                    ? invoiceBuilderCreatedInvoice.line_items
+                    : [],
+                }}
+              />
+            ) : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -3407,3 +5166,4 @@ export default function AccountsContent({ activeSection }) {
     </>
   );
 }
+
