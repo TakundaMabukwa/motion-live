@@ -3,6 +3,27 @@ import { createClient } from '@/lib/supabase/server';
 import { ensureExternalClientSetup } from '@/lib/server/ensure-external-client';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 
+const OPTIONAL_JOB_CARD_COLUMNS = [
+  'vehicle_chassis',
+  'vehicle_colour',
+  'old_serial_number',
+  'new_serial_number',
+] as const;
+
+function stripOptionalJobCardColumns<T extends Record<string, any>>(payload: T): T {
+  const next = { ...payload };
+  for (const column of OPTIONAL_JOB_CARD_COLUMNS) {
+    delete next[column];
+  }
+  return next;
+}
+
+function isMissingOptionalJobCardColumn(message?: string | null): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return OPTIONAL_JOB_CARD_COLUMNS.some((column) => normalized.includes(column));
+}
+
 function generateSolJobNumber(): string {
   const n = Math.floor(100000 + Math.random() * 900000);
   return `SOL-${n}`;
@@ -197,11 +218,22 @@ export async function POST(request: NextRequest) {
       job_number: effectiveRepairFlag ? body.job_number || jobNumber : jobNumber,
     };
 
-    const { data, error } = await supabase
+    let insertQuery = supabase
       .from('job_cards')
       .insert([jobCardData])
       .select('id, job_number, customer_name, job_type, status, created_at')
       .single();
+
+    let { data, error } = await insertQuery;
+
+    if (error && isMissingOptionalJobCardColumn(error.message)) {
+      const fallbackJobCardData = stripOptionalJobCardColumns(jobCardData);
+      ({ data, error } = await supabase
+        .from('job_cards')
+        .insert([fallbackJobCardData])
+        .select('id, job_number, customer_name, job_type, status, created_at')
+        .single());
+    }
 
     if (error) {
       console.error('Error inserting job card:', error);

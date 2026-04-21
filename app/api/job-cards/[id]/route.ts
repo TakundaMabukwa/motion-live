@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const OPTIONAL_JOB_CARD_COLUMNS = [
+  'vehicle_chassis',
+  'vehicle_colour',
+  'old_serial_number',
+  'new_serial_number',
+] as const;
+
+function stripOptionalJobCardColumns<T extends Record<string, any>>(payload: T): T {
+  const next = { ...payload };
+  for (const column of OPTIONAL_JOB_CARD_COLUMNS) {
+    delete next[column];
+  }
+  return next;
+}
+
+function isMissingOptionalJobCardColumn(message?: string | null): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return OPTIONAL_JOB_CARD_COLUMNS.some((column) => normalized.includes(column));
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -184,12 +205,22 @@ export async function PATCH(
     }
 
     // Update the job card
-    const { data: updatedJob, error: updateError } = await supabase
+    let { data: updatedJob, error: updateError } = await supabase
       .from('job_cards')
       .update(updateData)
       .eq('id', id)
       .select()
       .single();
+
+    if (updateError && isMissingOptionalJobCardColumn(updateError.message)) {
+      const fallbackUpdateData = stripOptionalJobCardColumns(updateData);
+      ({ data: updatedJob, error: updateError } = await supabase
+        .from('job_cards')
+        .update(fallbackUpdateData)
+        .eq('id', id)
+        .select()
+        .single());
+    }
 
     if (updateError) {
       console.error('Error updating job card:', updateError);
