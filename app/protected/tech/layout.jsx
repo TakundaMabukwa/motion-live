@@ -5,7 +5,6 @@ import UniversalLayout from '@/components/shared/UniversalLayout';
 import { 
   BarChart3, 
   Calendar,
-  Briefcase,
   Package,
   Camera
 } from 'lucide-react';
@@ -13,7 +12,6 @@ import {
 const techSidebarItems = [
   { name: 'Dashboard', href: '/protected/tech', icon: BarChart3 },
   { name: 'Schedule', href: '/protected/tech/schedule', icon: Calendar },
-  { name: 'Jobs', href: '/protected/tech/job', icon: Briefcase },
   { name: 'Boot Stock', href: '/protected/tech/boot-stock', icon: Package },
   // { name: 'VIN Scanner', href: '/protected/tech/test-vin', icon: Camera },
 ];

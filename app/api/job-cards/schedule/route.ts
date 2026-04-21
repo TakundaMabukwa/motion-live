@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     // Apply technician email filter if provided
     if (technicianEmail) {
       // Note: technician_email is stored in technician_phone field as per user's note
-      query = query.eq('technician_phone', technicianEmail);
+      query = query.ilike('technician_phone', technicianEmail);
     }
 
     const { data, error } = await query;
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
     if (technicianName) {
       query = query.eq('technician_name', technicianName);
     } else if (technicianEmail) {
-      query = query.eq('technician_phone', technicianEmail);
+      query = query.ilike('technician_phone', technicianEmail);
     }
 
     const { data, error } = await query;

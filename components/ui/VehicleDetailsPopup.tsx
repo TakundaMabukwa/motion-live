@@ -115,7 +115,7 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="w-5 h-5" />
@@ -126,7 +126,7 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
         <div className="space-y-6">
           {/* Job Information */}
           {jobData && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Package className="w-4 h-4" />
@@ -134,12 +134,12 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="gap-4 grid grid-cols-2 text-sm">
+                <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2 text-sm">
                   <div>
-                    <span className="font-medium">Customer:</span> {jobData.customerName}
+                    <span className="font-medium">Customer:</span> <span className="break-words">{jobData.customerName}</span>
                   </div>
                   <div>
-                    <span className="font-medium">Account:</span> {jobData.customerEmail}
+                    <span className="font-medium">Account:</span> <span className="break-words">{jobData.customerEmail}</span>
                   </div>
                 </div>
               </CardContent>
@@ -147,7 +147,7 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
           )}
 
           {/* Vehicle Details Form */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Car className="w-4 h-4" />
@@ -310,7 +310,6 @@ export function VehicleDetailsPopup({ isOpen, onClose, onVehicleAdded, jobData }
     </Dialog>
   );
 }
-
 
 
 

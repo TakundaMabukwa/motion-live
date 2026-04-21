@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       jobsQuery = supabase
         .from('job_cards')
         .select('*')
-        .eq('technician_phone', userData.email)
+        .ilike('technician_phone', userData.email)
         .order('created_at', { ascending: false });
     }
 

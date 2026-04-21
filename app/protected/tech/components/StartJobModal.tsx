@@ -54,6 +54,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     vehicle_make: '',
     vehicle_model: '',
     vehicle_registration: '',
+    vehicle_chassis: '',
+    vehicle_colour: '',
+    old_serial_number: '',
+    new_serial_number: '',
     vin_numer: '',
     odormeter: '',
     ip_address: '',
@@ -106,6 +110,19 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       const existingIds = getExistingEquipmentSelectionKeys(existingEquipmentUsed);
       setSelectedEquipmentIds(existingIds);
       setCompletionNotes(String(jobData?.completion_notes || ''));
+      setVehicleDetails(prev => ({
+        ...prev,
+        vehicle_year: String(jobData?.vehicle_year || prev.vehicle_year || ''),
+        vehicle_make: String(jobData?.vehicle_make || prev.vehicle_make || ''),
+        vehicle_model: String(jobData?.vehicle_model || prev.vehicle_model || ''),
+        vehicle_registration: String(jobData?.vehicle_registration || prev.vehicle_registration || ''),
+        vehicle_chassis: String(jobData?.vehicle_chassis || jobData?.vin_numer || prev.vehicle_chassis || ''),
+        vehicle_colour: String(jobData?.vehicle_colour || prev.vehicle_colour || ''),
+        old_serial_number: String(jobData?.old_serial_number || prev.old_serial_number || ''),
+        new_serial_number: String(jobData?.new_serial_number || prev.new_serial_number || ''),
+        vin_numer: String(jobData?.vin_numer || prev.vin_numer || ''),
+        odormeter: String(jobData?.odormeter || prev.odormeter || ''),
+      }));
     }
   }, [isOpen, jobData]);
 
@@ -250,6 +267,12 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     items
       .map((item: any) => {
         const source = String(item?.source || '');
+        if (source === 'job_card.parts_required') {
+          const partId = String(item?.part_required_id || item?.stock_id || item?.id || '').trim();
+          if (partId) return `assigned:${partId}`;
+          const fallback = `${String(item?.code || '')}::${String(item?.description || item?.name || '')}`;
+          return fallback.trim() ? `assigned:${fallback}` : '';
+        }
         if (source === 'tech_stock.assigned_parts') {
           const stockId = String(item?.stock_id || item?.id || '').trim();
           return stockId ? `stock:${stockId}` : '';
@@ -263,6 +286,33 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         return '';
       })
       .filter(Boolean);
+
+  const getAssignedPartsOptions = (currentJob: any) => {
+    const items = parseArrayField(currentJob?.parts_required);
+    return items.map((item: any, index: number) => {
+      const baseId = String(
+        item?.part_required_id ||
+        item?.stock_id ||
+        item?.id ||
+        `${item?.code || 'part'}::${item?.description || item?.name || ''}::${index}`
+      );
+
+      return {
+        selectionKey: `assigned:${baseId}`,
+        equipmentItem: {
+          ...item,
+          part_required_id: baseId,
+          code: String(item?.code || ''),
+          description: String(item?.description || item?.name || 'Assigned part'),
+          supplier: String(item?.supplier || ''),
+          stock_type: String(item?.stock_type || item?.stockType || ''),
+          quantity: Number(item?.quantity || 1) || 1,
+          selected_at: new Date().toISOString(),
+          source: 'job_card.parts_required',
+        },
+      };
+    });
+  };
 
   const getRegistrationCandidates = (currentJob: any): string[] => {
     const quotationProducts = parseQuotationProducts(currentJob?.quotation_products);
@@ -360,6 +410,12 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       .slice(0, 4)
       .map((item) => String(item.description || item.name || item.code || 'Part'))
       .join(', ');
+  };
+
+  const shouldShowSerialFields = (currentJob: any) => {
+    const jobType = String(currentJob?.job_type || '').toLowerCase();
+    const status = String(currentJob?.status || '').toLowerCase();
+    return jobType === 'repair' || status === 'admin_created';
   };
 
   const handleEquipmentUsedComplete = async () => {
@@ -902,6 +958,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           vehicle_make: qrData.vehicle_make || prev.vehicle_make,
           vehicle_model: qrData.vehicle_model || prev.vehicle_model,
           vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
+          vehicle_chassis: qrData.vehicle_chassis || qrData.chasis || prev.vehicle_chassis,
+          vehicle_colour: qrData.vehicle_colour || qrData.color || prev.vehicle_colour,
           vin_numer: qrData.vin_numer || prev.vin_numer,
           odormeter: qrData.odormeter || prev.odormeter,
         }));
@@ -984,6 +1042,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
             vehicle_make: qrData.vehicle_make || prev.vehicle_make,
             vehicle_model: qrData.vehicle_model || prev.vehicle_model,
             vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
+            vehicle_chassis: qrData.vehicle_chassis || qrData.chasis || prev.vehicle_chassis,
+            vehicle_colour: qrData.vehicle_colour || qrData.color || prev.vehicle_colour,
             vin_numer: qrData.vin_numer || prev.vin_numer,
             odormeter: qrData.odormeter || prev.odormeter,
           }));
@@ -1066,6 +1126,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       setVehicleDetails((prev) => ({
         ...prev,
         vehicle_registration: fullJobData?.vehicle_registration || regInput.trim(),
+        vehicle_chassis: fullJobData?.vehicle_chassis || fullJobData?.vin_numer || prev.vehicle_chassis,
+        vehicle_colour: fullJobData?.vehicle_colour || prev.vehicle_colour,
       }));
       
       toast.success(`✅ Job verified! ${matchingJob.job_number}`);
@@ -1200,7 +1262,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
            vehicle_make: vehicleDetails.vehicle_make || null,
            vehicle_model: vehicleDetails.vehicle_model || null,
            vehicle_registration: vehicleDetails.vehicle_registration || null,
-           vin_numer: vehicleDetails.vin_numer || null,
+           vehicle_chassis: vehicleDetails.vehicle_chassis || null,
+           vehicle_colour: vehicleDetails.vehicle_colour || null,
+           old_serial_number: vehicleDetails.old_serial_number || null,
+           new_serial_number: vehicleDetails.new_serial_number || null,
+           vin_numer: vehicleDetails.vin_numer || vehicleDetails.vehicle_chassis || null,
            odormeter: vehicleDetails.odormeter || null,
            ip_address: vehicleDetails.ip_address || null,
          }),
@@ -1333,6 +1399,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       vehicle_make: '',
       vehicle_model: '',
       vehicle_registration: '',
+      vehicle_chassis: '',
+      vehicle_colour: '',
+      old_serial_number: '',
+      new_serial_number: '',
       vin_numer: '',
       odormeter: '',
       ip_address: '',
@@ -1626,6 +1696,50 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       />
                     </div>
                     <div>
+                      <Label htmlFor="vehicleChassis" className="text-sm font-medium text-gray-700">Chasis</Label>
+                      <Input
+                        id="vehicleChassis"
+                        value={vehicleDetails.vehicle_chassis}
+                        onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_chassis: e.target.value }))}
+                        placeholder="Chasis number"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="vehicleColour" className="text-sm font-medium text-gray-700">Color</Label>
+                      <Input
+                        id="vehicleColour"
+                        value={vehicleDetails.vehicle_colour}
+                        onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_colour: e.target.value }))}
+                        placeholder="White"
+                        className="mt-1"
+                      />
+                    </div>
+                    {shouldShowSerialFields(jobData) && (
+                      <>
+                        <div>
+                          <Label htmlFor="oldSerialNumber" className="text-sm font-medium text-gray-700">Old Serial Number</Label>
+                          <Input
+                            id="oldSerialNumber"
+                            value={vehicleDetails.old_serial_number}
+                            onChange={(e) => setVehicleDetails(prev => ({ ...prev, old_serial_number: e.target.value }))}
+                            placeholder="Removed unit serial"
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="newSerialNumber" className="text-sm font-medium text-gray-700">New Serial Number</Label>
+                          <Input
+                            id="newSerialNumber"
+                            value={vehicleDetails.new_serial_number}
+                            onChange={(e) => setVehicleDetails(prev => ({ ...prev, new_serial_number: e.target.value }))}
+                            placeholder="Installed unit serial"
+                            className="mt-1"
+                          />
+                        </div>
+                      </>
+                    )}
+                    <div>
                       <Label htmlFor="vinNumber" className="text-sm font-medium text-gray-700">VIN Number</Label>
                       <Input
                         id="vinNumber"
@@ -1662,6 +1776,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       <Badge variant="outline" className="shrink-0 capitalize">
                         {String(jobData?.job_status || jobData?.status || 'pending')}
                       </Badge>
+                    </div>
+
+                    <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
+                        To be installed/de-installed
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Review the quotation products first, then confirm the required parts below.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
@@ -1805,9 +1928,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           {currentStep === 'equipment-used' && (
             <div className="space-y-6">
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Equipment Used</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Equipment Used</h3>
                 <p className="text-gray-600 text-sm">
-                  Check the technician stock items used on this job. These will be saved under equipment used.
+                  Review the assigned installed parts first, then select only any extra technician stock used on this job.
                 </p>
               </div>
 
@@ -1820,6 +1943,39 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     Selected: <span className="font-semibold text-blue-700">{selectedEquipmentIds.length}</span>
                   </div>
                 </div>
+
+                {getAssignedPartsOptions(jobData).length > 0 && (
+                  <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-emerald-900">Assigned parts from job card</p>
+                      <p className="text-xs text-emerald-800 mt-1">
+                        These are the parts assigned on the job card and shown here as the installed reference list. They are not selectable.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {getAssignedPartsOptions(jobData).map((option) => {
+                        return (
+                          <div
+                            key={option.selectionKey}
+                            className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-white/70 p-3"
+                          >
+                            <div className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900">{option.equipmentItem.description}</p>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
+                                <span>Code: {option.equipmentItem.code || 'N/A'}</span>
+                                <span>Qty: {option.equipmentItem.quantity || 1}</span>
+                                {option.equipmentItem.supplier ? (
+                                  <span>Supplier: {option.equipmentItem.supplier}</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {isDeinstallJob(jobData) && getDeinstallEquipmentOptions(jobData).length > 0 && (
                   <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -1872,7 +2028,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <p className="text-sm text-gray-600">No technician stock available.</p>
                   </div>
                 ) : (
-                  <div className="max-h-[42vh] overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                  <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                    <div className="border-b border-gray-200 bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-slate-900">Additional technician stock</p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Select any extra boot stock used beyond the assigned installed parts above.
+                      </p>
+                    </div>
+                    <div className="max-h-[42vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                       {technicianStock.map((item: any) => {
                         const itemId = String(item.id);
@@ -1901,6 +2064,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                           </label>
                         );
                       })}
+                    </div>
                     </div>
                   </div>
                 )}

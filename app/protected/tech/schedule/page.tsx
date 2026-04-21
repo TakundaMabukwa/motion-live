@@ -58,6 +58,7 @@ export default function TechSchedule() {
   const [showTechnicianCalendar, setShowTechnicianCalendar] = useState(false);
   const [selectedTechnician, setSelectedTechnician] = useState(null);
   const [technicianColors, setTechnicianColors] = useState({});
+  const [showDateJobsDialog, setShowDateJobsDialog] = useState(false);
 
   const pathname = usePathname();
 
@@ -176,8 +177,10 @@ export default function TechSchedule() {
             technician: job.technician_name || job.technician_phone,
             technicianEmail: job.technician_phone,
             technicianColor: getColorHex(job.technician_color) || '#6B7280',
-            time: job.start_time ? job.start_time.split('T')[1]?.substring(0, 5) : 'No time',
+            time: formatScheduleTime(job.start_time, job.job_date),
+            rawStartTime: job.start_time || null,
             date: dateKey,
+            scheduledDate: job.job_date || null,
             jobType: job.job_type,
             totalAmount: job.estimated_cost || job.quotation_total_amount || 0,
             subtotal: job.estimated_cost || job.quotation_total_amount || 0,
@@ -201,6 +204,14 @@ export default function TechSchedule() {
         }
       });
       
+      Object.keys(jobsByDate).forEach((dateKey) => {
+        jobsByDate[dateKey].sort((left, right) => {
+          const leftTime = new Date(left.rawStartTime || `${dateKey}T00:00:00`).getTime();
+          const rightTime = new Date(right.rawStartTime || `${dateKey}T00:00:00`).getTime();
+          return leftTime - rightTime;
+        });
+      });
+
       console.log('Jobs grouped by date:', jobsByDate);
       console.log('Technician colors:', colors);
       setJobs(jobsByDate);
@@ -304,10 +315,57 @@ export default function TechSchedule() {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
+  const formatScheduleDate = (dateValue) => {
+    if (!dateValue) return 'No scheduled date';
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return 'No scheduled date';
+    return parsed.toLocaleDateString('en-ZA', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const formatScheduleTime = (timeValue, dateValue) => {
+    const rawTime = String(timeValue || '');
+    if (rawTime) {
+      if (rawTime.includes('T')) {
+        const parsed = new Date(rawTime);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toLocaleTimeString('en-ZA', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+        }
+      }
+
+      if (/^\d{2}:\d{2}/.test(rawTime)) {
+        return rawTime.slice(0, 5);
+      }
+    }
+
+    if (dateValue) {
+      const parsed = new Date(dateValue);
+      if (!Number.isNaN(parsed.getTime())) {
+        const hours = parsed.getHours();
+        const minutes = parsed.getMinutes();
+        if (hours !== 0 || minutes !== 0) {
+          return parsed.toLocaleTimeString('en-ZA', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+        }
+      }
+    }
+
+    return 'Time TBD';
+  };
+
   const handleDateClick = (day) => {
     if (day) {
       const dateKey = formatDateKey(currentDate.getFullYear(), currentDate.getMonth(), day);
       setSelectedDate(dateKey);
+      setShowDateJobsDialog(true);
     }
   };
 
@@ -397,6 +455,13 @@ export default function TechSchedule() {
 
   const days = getDaysInMonth(currentDate);
   const selectedEvents = jobs[selectedDate] || [];
+  const selectedDateLabel = selectedDate
+    ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-ZA', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '';
 
   return (
     <div className="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
@@ -491,8 +556,8 @@ export default function TechSchedule() {
           </div>
         </div>
 
-        <div className="hidden lg:grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-4">
-          {/* Calendar Section - Left Side - Hidden on Mobile */}
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-4">
+          {/* Calendar Section */}
           <div className="lg:col-span-3">
             <Card className="shadow-lg">
               <CardHeader className="pb-4">
@@ -541,53 +606,30 @@ export default function TechSchedule() {
                       <div
                         key={index}
                         className={`
-                          min-h-[100px] p-2 border border-gray-100 cursor-pointer transition-colors
+                          min-h-[72px] sm:min-h-[100px] p-2 border border-gray-100 cursor-pointer transition-colors
                           ${day ? 'hover:bg-gray-50' : 'bg-gray-25'}
                           ${isSelected ? 'bg-blue-50 border-blue-200' : ''}
                         `}
                         onClick={() => handleDateClick(day)}
                       >
                         {day && (
-                          <>
-                            <div className="mb-1 font-medium text-gray-900">
+                          <div className="flex h-full flex-col justify-between">
+                            <div className="font-medium text-gray-900 text-sm sm:text-base">
                               {day}
                             </div>
-                            <div className="space-y-1">
-                              {events.map((event, eventIndex) => (
-                                <div
-                                  key={eventIndex}
-                                  className="shadow-sm hover:shadow-md p-2 border-l-4 rounded-lg text-xs transition-all duration-200 cursor-pointer"
-                                  style={{
-                                    backgroundColor: `${event.technicianColor}15`,
-                                    borderLeftColor: event.technicianColor,
-                                    color: event.technicianColor
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleJobClick(event);
-                                  }}
-                                >
-                                  <div className="mb-1 font-semibold truncate">
-                                    {event.customerName}
-                                  </div>
-                                  <div className="opacity-90 mb-1 text-xs">
-                                    <Clock className="inline mr-1 w-3 h-3" />
-                                    {event.time}
-                                  </div>
-                                  {userInfo?.isTechAdmin && (
-                                    <div className="flex items-center gap-1 mb-1">
-                                      <div 
-                                        className="rounded-full w-2 h-2"
-                                        style={{ backgroundColor: event.technicianColor }}
-                                      ></div>
-                                      <span className="opacity-80 text-xs">{event.technician}</span>
-                                    </div>
-                                  )}
-
-                                </div>
-                              ))}
+                            <div className="flex items-end justify-between">
+                              {events.length > 0 ? (
+                                <>
+                                  <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                                  <span className="text-[11px] text-blue-700 font-medium">
+                                    {events.length}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-[11px] text-slate-300"> </span>
+                              )}
                             </div>
-                          </>
+                          </div>
                         )}
                       </div>
                     );
@@ -665,7 +707,7 @@ export default function TechSchedule() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="w-5 h-5" />
-                  Jobs for {selectedDate}
+                  Jobs for {selectedDateLabel || selectedDate}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -686,6 +728,7 @@ export default function TechSchedule() {
                           </Badge>
                         </div>
                         <div className="space-y-1 text-gray-600 text-xs">
+                          <p><Calendar className="inline mr-1 w-3 h-3" />{formatScheduleDate(event.scheduledDate)}</p>
                           <p><Package className="inline mr-1 w-3 h-3" />{event.productName}</p>
                           {userInfo?.isTechAdmin && (
                           <p><User className="inline mr-1 w-3 h-3" />{event.technician}</p>
@@ -738,6 +781,70 @@ export default function TechSchedule() {
         onJobVerified={handleJobVerified}
         expectedJobNumber={selectedJob?.jobNumber || selectedJob?.id}
       />
+
+      <Dialog open={showDateJobsDialog} onOpenChange={setShowDateJobsDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Jobs for {selectedDateLabel || selectedDate}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {selectedEvents.length === 0 ? (
+              <p className="py-6 text-center text-gray-500 text-sm">No jobs scheduled for this date.</p>
+            ) : (
+              selectedEvents.map((event, index) => (
+                <div
+                  key={`${event.id || event.jobNumber || 'job'}-${index}`}
+                  className="hover:bg-gray-50 p-4 border rounded-lg transition-colors cursor-pointer"
+                  onClick={() => {
+                    handleJobClick(event);
+                    setShowDateJobsDialog(false);
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-slate-900 truncate">
+                        {event.customerName}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {event.jobNumber || 'No job number'}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {event.time}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-xs text-gray-600">
+                    <p><Calendar className="inline mr-1 w-3 h-3" />{formatScheduleDate(event.scheduledDate)}</p>
+                    <p><Package className="inline mr-1 w-3 h-3" />{event.productName}</p>
+                    {userInfo?.isTechAdmin ? (
+                      <p><User className="inline mr-1 w-3 h-3" />{event.technician}</p>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartJob(event);
+                        setShowDateJobsDialog(false);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                    >
+                      <Play className="w-3 h-3 mr-1" />
+                      Start Job
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Vehicle Details Popup */}
       <VehicleDetailsPopup

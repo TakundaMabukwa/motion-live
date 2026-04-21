@@ -126,7 +126,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="w-5 h-5" />
@@ -136,11 +136,11 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
         
         <div className="space-y-6">
           {/* Mode Toggle */}
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button
               variant={scanMode === 'scan' ? 'default' : 'outline'}
               onClick={() => setScanMode('scan')}
-              className="flex items-center gap-2"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <Camera className="w-4 h-4" />
               Camera Scan
@@ -148,7 +148,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
             <Button
               variant={scanMode === 'manual' ? 'default' : 'outline'}
               onClick={() => setScanMode('manual')}
-              className="flex items-center gap-2"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto"
             >
               <QrCode className="w-4 h-4" />
               Manual Input
@@ -157,7 +157,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
 
           {/* Camera Scanner */}
           {scanMode === 'scan' && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Camera className="w-4 h-4" />
@@ -170,7 +170,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
                     ref={videoRef}
                     autoPlay
                     playsInline
-                    className="w-full h-64 object-cover"
+                    className="w-full h-56 sm:h-64 object-cover"
                   />
                   {scanning && (
                     <div className="absolute inset-0 flex justify-center items-center">
@@ -189,7 +189,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
 
           {/* Manual Input */}
           {scanMode === 'manual' && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <QrCode className="w-4 h-4" />
@@ -220,7 +220,7 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
 
           {/* Expected Job Info */}
           {expectedJobNumber && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Package className="w-4 h-4" />
@@ -265,7 +265,6 @@ export function QRCodeScanner({ isOpen, onClose, onJobVerified, expectedJobNumbe
     </Dialog>
   );
 }
-
 
 
 

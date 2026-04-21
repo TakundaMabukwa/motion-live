@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       query = query.ilike('customer_name', `%${company}%`);
     }
     if (technician) {
-      query = query.eq('technician_phone', technician);
+      query = query.ilike('technician_phone', technician);
       console.log('Jobs API - Filtering by technician:', technician);
     } else {
       console.log('Jobs API - No technician filter, showing all jobs');

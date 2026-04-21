@@ -143,7 +143,9 @@ export async function POST(request: NextRequest) {
       vehicle_make: body.vehicleMake || body.vehicle_make || '',
       vehicle_model: body.vehicleModel || body.vehicle_model || '',
       vehicle_year: body.vehicleYear || body.vehicle_year || null,
-      vin_numer: body.vinNumber || body.vin_numer || '',
+      vehicle_chassis: body.vehicleChassis || body.vehicle_chassis || body.chasis || body.vinNumber || body.vin_numer || '',
+      vehicle_colour: body.vehicleColour || body.vehicle_colour || body.color || body.colour || '',
+      vin_numer: body.vinNumber || body.vin_numer || body.vehicleChassis || body.vehicle_chassis || body.chasis || '',
       odormeter: body.odormeter || body.odormeter || '',
 
       job_location: body.jobLocation || body.job_location || '',
@@ -178,6 +180,9 @@ export async function POST(request: NextRequest) {
       assigned_technician_id: body.assigned_technician_id || null,
       technician_name: body.technician_name || null,
       technician_phone: body.technician_phone || null,
+
+      old_serial_number: body.old_serial_number || body.oldSerialNumber || null,
+      new_serial_number: body.new_serial_number || body.newSerialNumber || null,
 
       job_date: body.job_date || new Date().toISOString(),
       start_time: body.start_time || null,

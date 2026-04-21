@@ -52,11 +52,11 @@ export async function POST(
     // Extract vehicle information from job card for new vehicles table
     const vehicleData = {
       reg: jobCard.vehicle_registration || '',
-      vin: jobCard.vin_numer || '',
+      vin: jobCard.vehicle_chassis || jobCard.vin_numer || '',
       make: jobCard.vehicle_make || '',
       model: jobCard.vehicle_model || '',
       year: jobCard.vehicle_year?.toString() || '',
-      colour: 'Unknown',
+      colour: jobCard.vehicle_colour || 'Unknown',
       company: jobCard.customer_name || 'Unknown Company',
       new_account_number: jobCard.new_account_number || `JOB-${jobCard.job_number}`,
       branch: null,

@@ -103,7 +103,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Package className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -122,7 +122,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           </div>
 
           {/* Customer Information */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <User className="w-4 h-4" />
@@ -133,7 +133,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
               <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Customer Name</label>
-                  <p className="text-sm">{job.customerName || 'N/A'}</p>
+                  <p className="text-sm break-words">{job.customerName || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Email</label>
@@ -146,14 +146,14 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Phone</label>
                   <div className="flex items-center gap-2">
                     <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                    <p className="text-sm">{job.customerPhone || 'N/A'}</p>
+                    <p className="text-sm break-words">{job.customerPhone || 'N/A'}</p>
                   </div>
                 </div>
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Address</label>
                   <div className="flex items-center gap-2">
                     <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                    <p className="text-sm">{job.customerAddress || 'N/A'}</p>
+                    <p className="text-sm break-words">{job.customerAddress || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -161,7 +161,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           </Card>
 
           {/* Job Details */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Package className="w-4 h-4" />
@@ -172,7 +172,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
               <div className="gap-3 sm:gap-4 grid grid-cols-1 sm:grid-cols-2">
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Product/Service</label>
-                  <p className="text-sm">{job.productName || 'N/A'}</p>
+                  <p className="text-sm break-words">{job.productName || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Quantity</label>
@@ -180,18 +180,18 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
                 </div>
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Job Type</label>
-                  <p className="text-sm">{job.jobType || 'N/A'}</p>
+                  <p className="text-sm break-words">{job.jobType || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="font-medium text-gray-500 text-xs sm:text-sm">Technician</label>
-                  <p className="text-sm">{job.technician || 'N/A'}</p>
+                  <p className="text-sm break-words">{job.technician || 'N/A'}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Schedule Information */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -219,7 +219,7 @@ export function JobDetailsPopup({ job, isOpen, onClose }: JobDetailsPopupProps) 
           </Card>
 
           {/* Financial Information */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
                 <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
