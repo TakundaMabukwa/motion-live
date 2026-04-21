@@ -107,9 +107,12 @@ export async function GET(request: NextRequest) {
 
     const [
       { data: invoices, error: invoicesError },
+      { data: accountJobCards, error: accountJobCardsError },
+      { data: jobCardInvoicesByAccount, error: jobCardInvoicesByAccountError },
       { data: payments, error: paymentsError },
       { data: agingRows, error: agingError },
       { data: creditNotes, error: creditNotesError },
+      { data: bulkInvoices, error: bulkInvoicesError },
       importedPayments,
     ] = await Promise.all([
       supabase
@@ -119,6 +122,18 @@ export async function GET(request: NextRequest) {
         )
         .eq("account_number", accountNumber)
         .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("job_cards")
+        .select("id, new_account_number")
+        .eq("new_account_number", accountNumber),
+      supabase
+        .from("invoices")
+        .select(
+          "id, job_card_id, job_number, account_number, client_name, invoice_number, invoice_date, subtotal, vat_amount, total_amount, due_date, notes, created_at",
+        )
+        .eq("account_number", accountNumber)
+        .order("invoice_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
       supabase
         .from("account_invoice_payments")
@@ -144,11 +159,34 @@ export async function GET(request: NextRequest) {
         .eq("account_number", accountNumber)
         .order("credit_note_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
+      supabase
+        .from("bulk_account_invoices")
+        .select(
+          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, notes, created_at",
+        )
+        .eq("account_number", accountNumber)
+        .order("billing_month", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
       loadImportedReceiptPayments(supabase, accountNumber),
     ]);
 
-    if (invoicesError || paymentsError || agingError || creditNotesError) {
-      const error = invoicesError || paymentsError || agingError || creditNotesError;
+    if (
+      invoicesError ||
+      accountJobCardsError ||
+      jobCardInvoicesByAccountError ||
+      paymentsError ||
+      agingError ||
+      creditNotesError ||
+      bulkInvoicesError
+    ) {
+      const error =
+        invoicesError ||
+        accountJobCardsError ||
+        jobCardInvoicesByAccountError ||
+        paymentsError ||
+        agingError ||
+        creditNotesError ||
+        bulkInvoicesError;
       console.error("Failed to fetch account invoice/payment history:", error);
       return NextResponse.json(
         { error: error.message || "Failed to fetch account invoice history" },
@@ -156,12 +194,102 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const filteredInvoices = (Array.isArray(invoices) ? invoices : []).filter((invoice) =>
-      isOnOrBeforeBillingMonth(
-        billingMonth,
-        invoice?.billing_month,
-        invoice?.invoice_date || invoice?.created_at,
-      ),
+    const accountJobCardIds = new Set(
+      (Array.isArray(accountJobCards) ? accountJobCards : [])
+        .map((row) => String(row?.id || "").trim())
+        .filter(Boolean),
+    );
+
+    const normalizedAccountInvoices = (Array.isArray(invoices) ? invoices : []).map(
+      (invoice) => ({
+        ...invoice,
+        source_type: "account_invoice",
+      }),
+    );
+
+    const normalizedJobCardInvoices = (Array.isArray(jobCardInvoicesByAccount) ? jobCardInvoicesByAccount : [])
+      .filter((invoice) => {
+        const jobCardId = String(invoice?.job_card_id || "").trim();
+        return !jobCardId || accountJobCardIds.has(jobCardId);
+      })
+      .map((invoice) => ({
+        id: invoice.id,
+        account_number: invoice.account_number || accountNumber,
+        billing_month:
+          normalizeBillingMonthValue(invoice?.invoice_date) ||
+          normalizeBillingMonthValue(invoice?.created_at) ||
+          null,
+        invoice_number: invoice.invoice_number || null,
+        company_name: invoice.client_name || null,
+        invoice_date: invoice.invoice_date || null,
+        total_amount: Number(invoice.total_amount || invoice.subtotal || 0),
+        paid_amount: 0,
+        balance_due: Number(invoice.total_amount || invoice.subtotal || 0),
+        credit_amount: 0,
+        payment_status: "pending",
+        notes: invoice.notes || null,
+        created_at: invoice.created_at || null,
+        due_date: invoice.due_date || null,
+        job_card_id: invoice.job_card_id || null,
+        job_number: invoice.job_number || null,
+        source_type: "job_card_invoice",
+      }));
+
+    const normalizedBulkInvoices = (Array.isArray(bulkInvoices) ? bulkInvoices : []).map(
+      (invoice) => ({
+        ...invoice,
+        paid_amount: 0,
+        balance_due: Number(invoice.total_amount || 0),
+        credit_amount: 0,
+        payment_status: "pending",
+        due_date: null,
+        source_type: "bulk_account_invoice",
+      }),
+    );
+
+    const mergedInvoiceMap = new Map();
+    [...normalizedAccountInvoices, ...normalizedJobCardInvoices, ...normalizedBulkInvoices]
+      .filter((invoice) =>
+        isOnOrBeforeBillingMonth(
+          billingMonth,
+          invoice?.billing_month,
+          invoice?.invoice_date || invoice?.created_at,
+        ),
+      )
+      .sort((left, right) => {
+        const leftTime = new Date(
+          String(left?.invoice_date || left?.created_at || left?.billing_month || 0),
+        ).getTime();
+        const rightTime = new Date(
+          String(right?.invoice_date || right?.created_at || right?.billing_month || 0),
+        ).getTime();
+        return rightTime - leftTime;
+      })
+      .forEach((invoice) => {
+        const invoiceNumber = String(invoice?.invoice_number || "").trim();
+        const fallbackKey = [
+          String(invoice?.source_type || ""),
+          String(invoice?.job_card_id || ""),
+          String(invoice?.billing_month || ""),
+          String(invoice?.invoice_date || ""),
+          String(invoice?.total_amount || ""),
+        ].join("|");
+        const key = invoiceNumber || fallbackKey;
+        if (!mergedInvoiceMap.has(key)) {
+          mergedInvoiceMap.set(key, invoice);
+        }
+      });
+
+    const filteredInvoices = Array.from(mergedInvoiceMap.values()).sort(
+      (left, right) => {
+        const leftTime = new Date(
+          String(left?.invoice_date || left?.created_at || left?.billing_month || 0),
+        ).getTime();
+        const rightTime = new Date(
+          String(right?.invoice_date || right?.created_at || right?.billing_month || 0),
+        ).getTime();
+        return rightTime - leftTime;
+      },
     );
 
     const livePayments = (Array.isArray(payments) ? payments : []).filter((payment) =>
