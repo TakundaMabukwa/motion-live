@@ -578,7 +578,10 @@ function AccountDetailPageContent() {
               <h2 className="font-semibold text-xl">Job Cards</h2>
             </div>
 
-            <CustomerJobCards accountNumber={customer?.new_account_number} />
+            <CustomerJobCards
+              accountNumber={customer?.new_account_number}
+              strictAccount
+            />
           </div>
         );
 

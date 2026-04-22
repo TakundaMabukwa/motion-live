@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 
 export default function CustomerJobCards({
   accountNumber,
+  strictAccount = false,
   notesOnly = false,
   title,
   emptyTitle,
@@ -59,6 +60,9 @@ export default function CustomerJobCards({
       // Add account number filter if provided
       if (accountNumber) {
         params.set('account_number', accountNumber);
+        if (strictAccount) {
+          params.set('strictAccount', 'true');
+        }
       }
 
       const response = await fetch(`/api/job-cards?${params.toString()}`, { cache: 'no-store' });
@@ -77,7 +81,7 @@ export default function CustomerJobCards({
 
   useEffect(() => {
     fetchJobCards();
-  }, [accountNumber]);
+  }, [accountNumber, strictAccount]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
