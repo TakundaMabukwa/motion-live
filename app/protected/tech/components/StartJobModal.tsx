@@ -14,6 +14,7 @@ import {
   Trash2,
   Loader2,
   Car,
+  ChevronLeft,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
@@ -63,6 +64,57 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     ip_address: '',
   });
 
+  const resolveLoadedStep = (loadedJobData: any) => {
+    const hasBeforePhotos = parseArrayField(loadedJobData?.before_photos).length > 0;
+    const hasEquipmentUsed = parseArrayField(loadedJobData?.equipment_used).length > 0;
+    const isActiveJob = loadedJobData?.status === 'Active' || loadedJobData?.job_status === 'Active';
+
+    if (isActiveJob) {
+      return hasBeforePhotos && !hasEquipmentUsed ? 'equipment-used' : 'job-active';
+    }
+
+    return 'vehicle-details';
+  };
+
+  const goToPreviousStep = () => {
+    const previousStepMap: Record<typeof currentStep, typeof currentStep | null> = {
+      'qr-scan': null,
+      'vehicle-details': 'qr-scan',
+      'before-photos': 'vehicle-details',
+      'equipment-used': 'before-photos',
+      'job-active': 'equipment-used',
+      'after-photos': 'job-active',
+      'complete': 'after-photos',
+    };
+
+    const previousStep = previousStepMap[currentStep];
+    if (!previousStep) {
+      onClose();
+      return;
+    }
+
+    setCurrentStep(previousStep);
+  };
+
+  const orderedSteps: Array<typeof currentStep> = [
+    'qr-scan',
+    'vehicle-details',
+    'before-photos',
+    'equipment-used',
+    'job-active',
+    'after-photos',
+    'complete',
+  ];
+
+  const canNavigateToStep = (targetStep: typeof currentStep) => {
+    return orderedSteps.indexOf(targetStep) <= orderedSteps.indexOf(currentStep);
+  };
+
+  const handleStepNavigation = (targetStep: typeof currentStep) => {
+    if (!canNavigateToStep(targetStep)) return;
+    setCurrentStep(targetStep);
+  };
+
   // Get IP address when component mounts
   useEffect(() => {
     const getIPAddress = async () => {
@@ -97,13 +149,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         toast.success(`Job loaded: ${jobData.job_number} - ${jobData.customer_name || 'Unknown Customer'}`);
       }
       
-      if (jobData.status === 'Active' || jobData.job_status === 'Active') {
-        console.log('Setting step to job-active');
-        setCurrentStep('job-active');
-      } else if (jobData.job_number && currentStep === 'qr-scan') {
+      if (jobData.job_number && currentStep === 'qr-scan') {
         // If job is loaded and we're on QR scan step, move to vehicle details
-        console.log('Job loaded, moving to vehicle-details');
-        setCurrentStep('vehicle-details');
+        const loadedStep = resolveLoadedStep(jobData);
+        console.log('Job loaded, moving to step:', loadedStep);
+        setCurrentStep(loadedStep);
       }
 
       const existingEquipmentUsed = parseArrayField(jobData?.equipment_used);
@@ -116,7 +166,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         vehicle_make: String(jobData?.vehicle_make || prev.vehicle_make || ''),
         vehicle_model: String(jobData?.vehicle_model || prev.vehicle_model || ''),
         vehicle_registration: String(jobData?.vehicle_registration || prev.vehicle_registration || ''),
-        vehicle_chassis: String(jobData?.vehicle_chassis || jobData?.vin_numer || prev.vehicle_chassis || ''),
+        vehicle_chassis: String(prev.vehicle_chassis || ''),
         vehicle_colour: String(jobData?.vehicle_colour || prev.vehicle_colour || ''),
         old_serial_number: String(jobData?.old_serial_number || prev.old_serial_number || ''),
         new_serial_number: String(jobData?.new_serial_number || prev.new_serial_number || ''),
@@ -131,11 +181,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     if (isOpen) {
       console.log('Modal isOpen changed to:', isOpen);
       if (jobData) {
-              if (jobData.status === 'Active' || jobData.job_status === 'Active') {
-        setCurrentStep('job-active');
-      } else {
-        setCurrentStep('qr-scan');
-      }
+        const isActiveJob = jobData?.status === 'Active' || jobData?.job_status === 'Active';
+        setCurrentStep(isActiveJob ? resolveLoadedStep(jobData) : 'qr-scan');
       }
     }
   }, [isOpen]);
@@ -403,6 +450,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       .join(', ');
   };
 
+  const getQuotationProductItems = (currentJob: any) =>
+    parseQuotationProducts(currentJob?.quotation_products)
+      .map((item) => String(item?.name || item?.description || item?.product_name || 'Item').trim())
+      .filter(Boolean);
+
   const getPartsRequiredSummary = (currentJob: any) => {
     const items = parseArrayField(currentJob?.parts_required);
     if (!items.length) return 'No parts assigned';
@@ -421,6 +473,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const handleEquipmentUsedComplete = async () => {
     try {
       setIsSubmitting(true);
+
+      const selectedAssignedItems = getAssignedPartsOptions(jobData)
+        .filter((option) => selectedEquipmentIds.includes(option.selectionKey))
+        .map((option) => option.equipmentItem);
 
       const selectedStockItems = technicianStock
         .filter((item) => selectedEquipmentIds.includes(`stock:${String(item.id)}`))
@@ -471,6 +527,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
       const mergedEquipmentUsed = [
         ...preservedEquipmentUsed,
+        ...selectedAssignedItems,
         ...selectedStockItems,
         ...selectedDeinstallItems,
       ];
@@ -958,7 +1015,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           vehicle_make: qrData.vehicle_make || prev.vehicle_make,
           vehicle_model: qrData.vehicle_model || prev.vehicle_model,
           vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
-          vehicle_chassis: qrData.vehicle_chassis || qrData.chasis || prev.vehicle_chassis,
+          vehicle_chassis: prev.vehicle_chassis,
           vehicle_colour: qrData.vehicle_colour || qrData.color || prev.vehicle_colour,
           vin_numer: qrData.vin_numer || prev.vin_numer,
           odormeter: qrData.odormeter || prev.odormeter,
@@ -1042,7 +1099,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
             vehicle_make: qrData.vehicle_make || prev.vehicle_make,
             vehicle_model: qrData.vehicle_model || prev.vehicle_model,
             vehicle_registration: qrData.vehicle_registration || prev.vehicle_registration,
-            vehicle_chassis: qrData.vehicle_chassis || qrData.chasis || prev.vehicle_chassis,
+            vehicle_chassis: prev.vehicle_chassis,
             vehicle_colour: qrData.vehicle_colour || qrData.color || prev.vehicle_colour,
             vin_numer: qrData.vin_numer || prev.vin_numer,
             odormeter: qrData.odormeter || prev.odormeter,
@@ -1126,7 +1183,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       setVehicleDetails((prev) => ({
         ...prev,
         vehicle_registration: fullJobData?.vehicle_registration || regInput.trim(),
-        vehicle_chassis: fullJobData?.vehicle_chassis || fullJobData?.vin_numer || prev.vehicle_chassis,
+        vehicle_chassis: prev.vehicle_chassis,
         vehicle_colour: fullJobData?.vehicle_colour || prev.vehicle_colour,
       }));
       
@@ -1478,11 +1535,19 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
               ].map((step, index) => {
                 const Icon = step.icon;
                 const isActive = currentStep === step.key;
-                const isCompleted = ['qr-scan', 'vehicle-details', 'before-photos', 'equipment-used', 'job-active', 'after-photos', 'complete'].indexOf(currentStep) > index;
+                const isCompleted = orderedSteps.indexOf(currentStep) > index;
+                const isClickable = canNavigateToStep(step.key);
                 
                 return (
                   <div key={step.key} className="flex items-center flex-shrink-0">
-                    <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleStepNavigation(step.key)}
+                      disabled={!isClickable}
+                      className={`flex flex-col items-center rounded-lg transition-all ${
+                        isClickable ? 'cursor-pointer' : 'cursor-not-allowed'
+                      }`}
+                    >
                       <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all ${
                         isActive ? 'bg-blue-600 border-blue-600 text-white shadow-lg' :
                         isCompleted ? 'bg-green-500 border-green-500 text-white' :
@@ -1495,7 +1560,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                         isCompleted ? 'text-green-600' :
                         'text-gray-400'
                       }`}>{step.label}</span>
-                    </div>
+                    </button>
                     {index < 6 && (
                       <div className={`w-6 sm:w-12 h-0.5 mx-1 sm:mx-3 transition-colors ${
                         isCompleted ? 'bg-green-500' : 'bg-gray-200'
@@ -1638,6 +1703,17 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     </div>
                   </div>
                 )}
+
+                <div className="flex justify-start">
+                  <Button
+                    onClick={goToPreviousStep}
+                    variant="outline"
+                    className="px-6"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1696,12 +1772,12 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       />
                     </div>
                     <div>
-                      <Label htmlFor="vehicleChassis" className="text-sm font-medium text-gray-700">Chasis</Label>
+                      <Label htmlFor="vehicleChassis" className="text-sm font-medium text-gray-700">Engine Number</Label>
                       <Input
                         id="vehicleChassis"
                         value={vehicleDetails.vehicle_chassis}
                         onChange={(e) => setVehicleDetails(prev => ({ ...prev, vehicle_chassis: e.target.value }))}
-                        placeholder="Chasis number"
+                        placeholder="Engine number"
                         className="mt-1"
                       />
                     </div>
@@ -1762,49 +1838,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 </div>
 
-                {(vehicleDetails.vehicle_registration?.trim() || jobData?.vehicle_registration) && (
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                    <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 truncate">
-                          {jobData?.job_number || 'Current Job'}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">
-                          {jobData?.customer_name || 'Customer'} • Reg: {vehicleDetails.vehicle_registration || jobData?.vehicle_registration}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="shrink-0 capitalize">
-                        {String(jobData?.job_status || jobData?.status || 'pending')}
-                      </Badge>
-                    </div>
-
-                    <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-700">
-                        To be installed/de-installed
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Review the quotation products first, then confirm the required parts below.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4">
-                      <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Quotation Products</p>
-                        <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                          {getQuotationProductSummary(jobData)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Parts Required</p>
-                        <p className="text-xs text-slate-700 mt-1 leading-relaxed">
-                          {getPartsRequiredSummary(jobData)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={goToPreviousStep}
+                    variant="outline"
+                    className="sm:px-6"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
                   <Button
                     onClick={() => setCurrentStep('before-photos')}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
@@ -1904,7 +1946,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={goToPreviousStep}
+                    variant="outline"
+                    className="sm:px-6"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
                   <Button
                     onClick={handleBeforePhotosComplete}
                     disabled={beforePhotos.length === 0 || isSubmitting}
@@ -1944,22 +1994,52 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 </div>
 
+                {getQuotationProductItems(jobData).length > 0 && (
+                  <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <div className="mb-3">
+                      <p className="text-sm font-semibold text-blue-900">Quotation products</p>
+                      <p className="text-xs text-blue-800 mt-1">
+                        Items on the quote for this job.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {getQuotationProductItems(jobData).map((item, index) => (
+                        <div
+                          key={`${item}-${index}`}
+                          className="flex items-start gap-3 rounded-lg border border-blue-200 bg-white/80 p-3"
+                        >
+                          <div className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" />
+                          <p className="text-sm font-medium text-gray-900">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {getAssignedPartsOptions(jobData).length > 0 && (
                   <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                     <div className="mb-3">
                       <p className="text-sm font-semibold text-emerald-900">Assigned parts from job card</p>
                       <p className="text-xs text-emerald-800 mt-1">
-                        These are the parts assigned on the job card and shown here as the installed reference list. They are not selectable.
+                        Select the assigned parts that were actually installed on this job.
                       </p>
                     </div>
                     <div className="space-y-2">
                       {getAssignedPartsOptions(jobData).map((option) => {
+                        const checked = selectedEquipmentIds.includes(option.selectionKey);
                         return (
-                          <div
+                          <label
                             key={option.selectionKey}
-                            className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-white/70 p-3"
+                            className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
+                              checked ? 'border-emerald-400 bg-white' : 'border-emerald-200 bg-white/70'
+                            }`}
                           >
-                            <div className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleEquipmentItem(option.selectionKey)}
+                              className="mt-1 h-4 w-4 accent-emerald-600"
+                            />
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900">{option.equipmentItem.description}</p>
                               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
@@ -1970,7 +2050,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                                 ) : null}
                               </div>
                             </div>
-                          </div>
+                          </label>
                         );
                       })}
                     </div>
@@ -2072,6 +2152,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
+                  onClick={goToPreviousStep}
+                  variant="outline"
+                  className="sm:w-auto"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
                   onClick={handleEquipmentUsedComplete}
                   disabled={isSubmitting || stockLoading}
                   className="flex-1 bg-green-600 hover:bg-green-700"
@@ -2137,9 +2225,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </Button>
                 </div>
 
-                <Button onClick={handleClose} variant="outline" className="w-full">
-                  Close (Job will remain active)
-                 </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button onClick={goToPreviousStep} variant="outline" className="sm:w-auto">
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button onClick={handleClose} variant="outline" className="w-full">
+                    Close (Job will remain active)
+                  </Button>
+                </div>
                </CardContent>
              </Card>
            )}
@@ -2241,6 +2335,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
+                    onClick={goToPreviousStep}
+                    variant="outline"
+                    className="sm:px-6"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button
                     onClick={handleAfterPhotosComplete}
                     disabled={afterPhotos.length === 0 || isSubmitting}
                     className="flex-1 bg-green-600 hover:bg-green-700"
@@ -2296,9 +2398,15 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 </div>
 
-                <Button onClick={handleClose} className="w-full">
-                  Close
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button onClick={goToPreviousStep} variant="outline" className="sm:w-auto">
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button onClick={handleClose} className="w-full">
+                    Close
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}

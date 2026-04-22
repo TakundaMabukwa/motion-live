@@ -436,7 +436,7 @@ export default function AccountsReceivablesSection() {
             <thead className="bg-slate-50">
               <tr className="border-b border-slate-200 text-left">
                 <th className="w-[260px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Client</th>
-                <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Open Annuity</th>
+                <th className="w-[120px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">Current.</th>
                 <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">30</th>
                 <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">60</th>
                 <th className="w-[100px] border-r border-slate-200 px-3 py-3 font-semibold text-slate-600 last:border-r-0">90</th>

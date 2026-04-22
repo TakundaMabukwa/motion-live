@@ -178,6 +178,7 @@ export async function GET(request: NextRequest) {
     const resolvedBillingMonth = requestedBillingMonth || (await getLockMonth(supabase));
 
     const [
+      { data: costCenters, error: costCentersError },
       { data: mirrorRows, error: mirrorError },
       { data: accountInvoices, error: accountInvoicesError },
       { data: bulkInvoices, error: bulkInvoicesError },
@@ -185,6 +186,16 @@ export async function GET(request: NextRequest) {
       { data: importedPayments, error: importedPaymentsError },
       { data: creditNotes, error: creditNotesError },
     ] = await Promise.all([
+      supabase
+        .from("cost_centers")
+        .select(
+          `
+          cost_code,
+          company,
+          legal_name
+        `,
+        )
+        .order("cost_code", { ascending: true }),
       supabase
         .from("payments_")
         .select(
@@ -309,6 +320,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const firstError =
+      costCentersError ||
       mirrorError ||
       accountInvoicesError ||
       bulkInvoicesError ||
@@ -323,6 +335,23 @@ export async function GET(request: NextRequest) {
         { status: 500 },
       );
     }
+
+    const costCenterInfoByAccount = new Map<
+      string,
+      {
+        company: string | null;
+        legalName: string | null;
+      }
+    >();
+
+    (costCenters || []).forEach((costCenter) => {
+      const key = normalizeKey(costCenter.cost_code);
+      if (!key) return;
+      costCenterInfoByAccount.set(key, {
+        company: String(costCenter.company || "").trim() || null,
+        legalName: String(costCenter.legal_name || "").trim() || null,
+      });
+    });
 
     const mirrorByAccount = new Map<string, Record<string, unknown>>();
     const mirrorRowsByAccount = new Map<string, Record<string, unknown>[]>();
@@ -456,6 +485,7 @@ export async function GET(request: NextRequest) {
     });
 
     const accountKeys = new Set<string>([
+      ...Array.from(costCenterInfoByAccount.keys()),
       ...Array.from(mirrorByAccount.keys()),
       ...Array.from(accountInvoicesByAccount.keys()),
       ...Array.from(bulkInvoicesByAccount.keys()),
@@ -535,6 +565,7 @@ export async function GET(request: NextRequest) {
     const rows = Array.from(accountKeys)
       .map((accountNumber) => {
         const mirror = mirrorByAccount.get(accountNumber) || null;
+        const costCenterInfo = costCenterInfoByAccount.get(accountNumber) || null;
         const accountInvoiceRows = (accountInvoicesByAccount.get(accountNumber) || []).sort(sortInvoices);
         const bulkInvoiceRows = (bulkInvoicesByAccount.get(accountNumber) || []).sort(sortInvoices);
         const effectiveInvoices =
@@ -582,8 +613,10 @@ export async function GET(request: NextRequest) {
 
         const company = String(
           mirror?.company ||
-            leadInvoice?.company_name ||
-            "",
+          leadInvoice?.company_name ||
+          costCenterInfo?.company ||
+          costCenterInfo?.legalName ||
+          "",
         ).trim() || accountNumber;
 
         const invoiceStatuses = accountInvoiceRows.map((invoice) => String(invoice.payment_status || ""));
@@ -636,20 +669,6 @@ export async function GET(request: NextRequest) {
         };
       })
       .filter((row) => {
-        const isMeaningful =
-          row.openAnnuity > 0 ||
-          row.days30 > 0 ||
-          row.days60 > 0 ||
-          row.days90 > 0 ||
-          row.days120 > 0 ||
-          row.paymentsTotal > 0 ||
-          row.invoiceTotal > 0 ||
-          row.creditAmount > 0 ||
-          row.openJobCount > 0 ||
-          row.closedJobCount > 0;
-
-        if (!isMeaningful) return false;
-
         if (!search) return true;
 
         return (
