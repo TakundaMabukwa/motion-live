@@ -351,6 +351,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           part_required_id: baseId,
           code: String(item?.code || ''),
           description: String(item?.description || item?.name || 'Assigned part'),
+          serial_number: String(item?.serial_number || item?.serialNumber || ''),
           supplier: String(item?.supplier || ''),
           stock_type: String(item?.stock_type || item?.stockType || ''),
           quantity: Number(item?.quantity || 1) || 1,
@@ -2045,6 +2046,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
                                 <span>Code: {option.equipmentItem.code || 'N/A'}</span>
                                 <span>Qty: {option.equipmentItem.quantity || 1}</span>
+                                {option.equipmentItem.serial_number ? (
+                                  <span>Serial: {option.equipmentItem.serial_number}</span>
+                                ) : null}
                                 {option.equipmentItem.supplier ? (
                                   <span>Supplier: {option.equipmentItem.supplier}</span>
                                 ) : null}
