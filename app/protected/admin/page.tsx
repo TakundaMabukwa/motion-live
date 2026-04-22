@@ -776,6 +776,23 @@ export default function AdminDashboard() {
     setViewJobOpen(true);
   };
 
+  const handleViewFullJob = async (job: JobCard) => {
+    if (!job?.id) return;
+
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch full job details");
+      }
+
+      const fullJob = await response.json();
+      handleViewJob({ ...job, ...fullJob });
+    } catch (error) {
+      console.error("Error fetching full admin job details:", error);
+      toast.error("Failed to load full job details");
+    }
+  };
+
   const handleSaveVehicleInfo = async () => {
     if (!selectedJob) return;
 
@@ -1813,10 +1830,7 @@ export default function AdminDashboard() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  setSelectedJob(job as JobCard);
-                  setViewJobOpen(true);
-                }}
+                onClick={() => handleViewFullJob(job as JobCard)}
               >
                 View
               </Button>
