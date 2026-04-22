@@ -48,6 +48,17 @@ export default function QuotesDashboard() {
   const [quotePendingApproval, setQuotePendingApproval] = useState(null);
   const [annuityEndDate, setAnnuityEndDate] = useState("");
   const [approvalDestination, setApprovalDestination] = useState("");
+  const [approvalForm, setApprovalForm] = useState({
+    customer_name: "",
+    customer_email: "",
+    customer_phone: "",
+    customer_address: "",
+    contact_person: "",
+    job_description: "",
+    vehicle_registration: "",
+    vehicle_make: "",
+    vehicle_model: "",
+  });
 
   // Fetch quotes from the API
   const fetchQuotes = useCallback(async () => {
@@ -169,6 +180,37 @@ export default function QuotesDashboard() {
     );
   };
 
+  const APPROVAL_FIELD_DEFS = [
+    { key: 'customer_name', label: 'Customer Name', required: true },
+    { key: 'customer_email', label: 'Customer Email' },
+    { key: 'customer_phone', label: 'Customer Phone', required: true },
+    { key: 'customer_address', label: 'Customer Address', required: true },
+    { key: 'contact_person', label: 'Contact Person' },
+    { key: 'job_description', label: 'Job Description', required: true },
+    { key: 'vehicle_registration', label: 'Vehicle Registration', required: true },
+    { key: 'vehicle_make', label: 'Vehicle Make' },
+    { key: 'vehicle_model', label: 'Vehicle Model' },
+  ];
+
+  const isMissingValue = (value) => String(value ?? '').trim() === '';
+
+  const buildApprovalForm = (quote) => ({
+    customer_name: String(quote?.customer_name || ''),
+    customer_email: String(quote?.customer_email || ''),
+    customer_phone: String(quote?.customer_phone || ''),
+    customer_address: String(quote?.customer_address || ''),
+    contact_person: String(quote?.contact_person || ''),
+    job_description: String(quote?.job_description || ''),
+    vehicle_registration: String(quote?.vehicle_registration || ''),
+    vehicle_make: String(quote?.vehicle_make || ''),
+    vehicle_model: String(quote?.vehicle_model || ''),
+  });
+
+  const getMissingApprovalFields = (quote, formValues) =>
+    APPROVAL_FIELD_DEFS.filter((field) =>
+      isMissingValue((formValues || {})[field.key] ?? quote?.[field.key])
+    );
+
   const getRoutingPayload = (destination) => {
     switch (destination) {
       case 'admin':
@@ -197,6 +239,17 @@ export default function QuotesDashboard() {
     setQuotePendingApproval(null);
     setAnnuityEndDate('');
     setApprovalDestination('');
+    setApprovalForm({
+      customer_name: "",
+      customer_email: "",
+      customer_phone: "",
+      customer_address: "",
+      contact_person: "",
+      job_description: "",
+      vehicle_registration: "",
+      vehicle_make: "",
+      vehicle_model: "",
+    });
   };
 
   const approveQuoteAndCreateJobCard = async (quote, options = {}) => {
@@ -304,6 +357,7 @@ export default function QuotesDashboard() {
       setQuotePendingApproval(quote);
       setAnnuityEndDate(toDateInputValue(quote.decommission_date));
       setApprovalDestination('');
+      setApprovalForm(buildApprovalForm(quote));
       setIsApproveModalOpen(true);
       return;
     }
@@ -318,13 +372,45 @@ export default function QuotesDashboard() {
   const handleConfirmModalApproval = async () => {
     if (!quotePendingApproval) return;
 
+    const missingFields = getMissingApprovalFields(quotePendingApproval, approvalForm);
+    const missingRequiredFields = missingFields.filter((field) => field.required);
+    if (missingRequiredFields.length > 0) {
+      toast.error(`Please complete: ${missingRequiredFields.map((field) => field.label).join(', ')}`);
+      return;
+    }
+
     if (!annuityEndDate) {
-      toast.error('Annuity end date is required');
+      toast.error('Last Annuity Payment is required');
       return;
     }
 
     if (!approvalDestination) {
       toast.error('Please choose where to route the job card');
+      return;
+    }
+
+    try {
+      const quoteUpdatePayload = {
+        ...approvalForm,
+        decommission_date: annuityEndDate,
+      };
+
+      const updateResponse = await fetch(`/api/customer-quotes/${quotePendingApproval.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(quoteUpdatePayload),
+      });
+
+      if (!updateResponse.ok) {
+        const updateError = await updateResponse.json().catch(() => ({}));
+        throw new Error(updateError.error || 'Failed to save quote details before approval');
+      }
+    } catch (error) {
+      toast.error('Failed to save missing quote fields', {
+        description: error instanceof Error ? error.message : 'Unknown error'
+      });
       return;
     }
 
@@ -744,8 +830,35 @@ export default function QuotesDashboard() {
           <div className="space-y-4">
             <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
               Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span> is a de-install/decommission job.
-              Add annuity end date and choose where the new job card should go.
+              Complete missing details below, then add the annuity date and routing.
             </div>
+
+            {getMissingApprovalFields(quotePendingApproval, approvalForm).length > 0 && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {getMissingApprovalFields(quotePendingApproval, approvalForm).map((field) => (
+                  <div
+                    key={field.key}
+                    className={field.key === 'customer_address' || field.key === 'job_description' ? 'md:col-span-2' : ''}
+                  >
+                    <label htmlFor={`approval-${field.key}`} className="text-sm font-medium text-gray-700">
+                      {field.label}
+                      {field.required ? <span className="text-red-600"> *</span> : null}
+                    </label>
+                    <Input
+                      id={`approval-${field.key}`}
+                      value={approvalForm[field.key] || ''}
+                      onChange={(event) =>
+                        setApprovalForm((prev) => ({
+                          ...prev,
+                          [field.key]: event.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-2">
               <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">

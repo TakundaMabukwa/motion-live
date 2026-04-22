@@ -221,6 +221,14 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     );
   };
 
+  const isDeinstallQuote = (quote) => {
+    const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const jobType = normalize(quote?.job_type);
+    const quotationJobType = normalize(quote?.quotation_job_type);
+
+    return jobType.includes('deinstall') || quotationJobType.includes('deinstall');
+  };
+
   const resetApproveModalState = () => {
     setIsApproveModalOpen(false);
     setQuotePendingApproval(null);
@@ -276,10 +284,11 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   };
 
   const handleApproveQuote = async (quote) => {
-    if (isDecommissionQuote(quote)) {
+    if (isDeinstallQuote(quote)) {
+      const requiresRouting = isDecommissionQuote(quote);
       setQuotePendingApproval(quote);
       setAnnuityEndDate(toDateInputValue(quote.annuity_end_date || quote.decommission_date));
-      setApprovalDestination(quote.move_to_role || '');
+      setApprovalDestination(requiresRouting ? (quote.move_to_role || '') : 'none');
       setIsApproveModalOpen(true);
       return;
     }
@@ -293,20 +302,21 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
 
   const handleConfirmModalApproval = async () => {
     if (!quotePendingApproval) return;
+    const requiresRouting = isDecommissionQuote(quotePendingApproval);
 
     if (!annuityEndDate) {
-      toast.error('Annuity end date is required');
+      toast.error('Last Annuity Payment is required');
       return;
     }
 
-    if (!approvalDestination) {
+    if (requiresRouting && !approvalDestination) {
       toast.error('Please choose where to route the job card');
       return;
     }
 
     const success = await approveQuote(quotePendingApproval, {
       annuityDate: annuityEndDate,
-      destination: approvalDestination
+      destination: requiresRouting ? approvalDestination : 'none'
     });
 
     if (success) {
@@ -647,18 +657,24 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       <Dialog open={isApproveModalOpen} onOpenChange={handleApproveModalOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Approve Quote and Route Job Card</DialogTitle>
+            <DialogTitle>
+              {isDecommissionQuote(quotePendingApproval)
+                ? 'Approve Quote and Route Job Card'
+                : 'Approve De-install Quote'}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-              Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span> is a decommission job.
-              Add annuity end date and choose where the new job card should go.
+              Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span>{' '}
+              {isDecommissionQuote(quotePendingApproval)
+                ? 'is a decommission job. Add Last Annuity Payment and choose where the new job card should go.'
+                : 'is a de-install quote. Add the Last Annuity Payment before approval.'}
             </div>
 
             <div className="space-y-2">
               <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
-                Annuity End Date <span className="text-red-600">*</span>
+                Last Annuity Payment <span className="text-red-600">*</span>
               </label>
               <Input
                 id="annuity-end-date"
@@ -669,26 +685,28 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
               />
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="job-routing-destination" className="text-sm font-medium text-gray-700">
-                Route Job Card To <span className="text-red-600">*</span>
-              </label>
-              <select
-                id="job-routing-destination"
-                value={approvalDestination}
-                onChange={(event) => setApprovalDestination(event.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                required
-              >
-                <option value="" disabled>Select a destination</option>
-                <option value="inv">Inventory</option>
-                <option value="admin">Admin</option>
-                <option value="accounts">Accounts</option>
-              </select>
-              <p className="text-xs text-gray-500">
-                Decommission job cards are routed to the selected role after approval.
-              </p>
-            </div>
+            {isDecommissionQuote(quotePendingApproval) && (
+              <div className="space-y-2">
+                <label htmlFor="job-routing-destination" className="text-sm font-medium text-gray-700">
+                  Route Job Card To <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="job-routing-destination"
+                  value={approvalDestination}
+                  onChange={(event) => setApprovalDestination(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  required
+                >
+                  <option value="" disabled>Select a destination</option>
+                  <option value="inv">Inventory</option>
+                  <option value="admin">Admin</option>
+                  <option value="accounts">Accounts</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  Decommission job cards are routed to the selected role after approval.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button
@@ -701,7 +719,11 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
               <Button
                 className="bg-green-600 hover:bg-green-700"
                 onClick={handleConfirmModalApproval}
-                disabled={Boolean(approvingQuote) || !annuityEndDate || !approvalDestination}
+                disabled={
+                  Boolean(approvingQuote) ||
+                  !annuityEndDate ||
+                  (isDecommissionQuote(quotePendingApproval) && !approvalDestination)
+                }
               >
                 {approvingQuote ? (
                   <>
@@ -939,7 +961,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
                             )}
                             {selectedQuote.annuity_end_date && (
                               <div>
-                                <dt className="text-sm font-medium text-gray-500">Annuity End Date</dt>
+                                <dt className="text-sm font-medium text-gray-500">Last Annuity Payment</dt>
                                 <dd className="mt-1 text-sm text-blue-700">{formatDate(selectedQuote.annuity_end_date)}</dd>
                               </div>
                             )}
@@ -948,7 +970,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
 
                         {selectedQuote.job_type === 'deinstall' && selectedQuote.annuity_end_date && (
                           <div className="mt-4 rounded border border-blue-200 bg-blue-50 p-3">
-                            <dt className="text-sm font-medium text-blue-800">Annuity End Date</dt>
+                            <dt className="text-sm font-medium text-blue-800">Last Annuity Payment</dt>
                             <dd className="mt-1 text-sm font-medium text-blue-900">{formatDate(selectedQuote.annuity_end_date)}</dd>
                           </div>
                         )}
