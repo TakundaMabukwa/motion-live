@@ -13,6 +13,7 @@ import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
 import { AccountsProvider } from "@/contexts/AccountsContext";
 import AccountsClientsSection from "@/components/accounts/AccountsClientsSection";
+import RoleEscalationsPanel from "@/components/shared/RoleEscalationsPanel";
 import {
   Users,
   Search,
@@ -408,13 +409,27 @@ export default function AccountsDashboard() {
           </AccountsProvider>
         );
 
-      case 'from-ria':
+      case 'escalations':
         return (
-          <CustomerJobCards
-            notesOnly
-            title="From Ria"
-            emptyTitle="No jobs from Ria"
-            emptyDescription="Jobs moved from inventory to FC with notes will appear here."
+          <RoleEscalationsPanel
+            role="fc"
+            title="FC Escalations"
+            emptyTitle="No FC escalations"
+            emptyDescription="Jobs moved into FC will appear here first."
+            moveOptions={[
+              { value: "inv", label: "Inventory", payload: { inventoryPlacement: "assign-parts" } },
+              { value: "admin", label: "Admin" },
+              { value: "accounts", label: "Accounts" },
+            ]}
+            renderActions={(job) => (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/protected/fc/jobs/${job.id}/edit`)}
+              >
+                Review
+              </Button>
+            )}
           />
         );
 
@@ -478,7 +493,7 @@ export default function AccountsDashboard() {
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'client-info', label: 'Client Info', icon: Users, type: 'tab' },
-            { id: 'from-ria', label: 'From Ria', icon: MessageSquareText, type: 'tab' },
+            { id: 'escalations', label: 'Escalations', icon: MessageSquareText, type: 'tab' },
             { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
@@ -491,7 +506,7 @@ export default function AccountsDashboard() {
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
                            (navItem.id === 'client-info' && activeTab === 'client-info') ||
-                           (navItem.id === 'from-ria' && activeTab === 'from-ria') ||
+                           (navItem.id === 'escalations' && activeTab === 'escalations') ||
                            (navItem.type === 'link' && pathname === navItem.href);
             
             if (navItem.type === 'tab') {
@@ -508,7 +523,7 @@ export default function AccountsDashboard() {
                 >
                   <Icon className="w-4 h-4" />
                   <span>{navItem.label}</span>
-                  {navItem.id === 'from-ria' && fromRiaPendingCount > 0 ? (
+                  {navItem.id === 'escalations' && fromRiaPendingCount > 0 ? (
                     <Badge className="bg-red-500 hover:bg-red-500 text-white px-2 py-0 text-[10px] min-w-5 h-5 flex items-center justify-center rounded-full">
                       {fromRiaPendingCount}
                     </Badge>
@@ -541,4 +556,3 @@ export default function AccountsDashboard() {
     </div>
   );
 }
-

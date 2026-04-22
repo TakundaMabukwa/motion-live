@@ -65,6 +65,9 @@ export async function GET(request: NextRequest) {
          repair,
          role,
          move_to,
+         escalation_role,
+         escalation_source_role,
+         escalated_at,
          decommission_date,
          annuity_end_date
        `);
@@ -114,6 +117,10 @@ export async function GET(request: NextRequest) {
     );
   };
 
+    const isEscalatedToAdmin = (job: {
+      escalation_role?: string | null;
+    }) => String(job.escalation_role || '').toLowerCase() === 'admin';
+
     // Transform the data to match the expected format
     let transformedJobs = (data || []).map(job => ({
       id: job.id,
@@ -160,6 +167,9 @@ export async function GET(request: NextRequest) {
       repair: job.repair,
       role: job.role,
       move_to: job.move_to,
+      escalation_role: job.escalation_role,
+      escalation_source_role: job.escalation_source_role,
+      escalated_at: job.escalated_at,
       decommission_date: job.decommission_date,
       annuity_end_date: job.annuity_end_date
     }));
@@ -167,6 +177,7 @@ export async function GET(request: NextRequest) {
     if (status === 'open') {
       transformedJobs = transformedJobs.filter(job => {
         if (isCompletedJob(job)) return false;
+        if (isEscalatedToAdmin(job)) return false;
         return hasPartsRequired(job.parts_required) || isAdminRoutedJob(job);
       });
     } else if (status === 'completed') {

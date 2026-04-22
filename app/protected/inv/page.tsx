@@ -168,6 +168,7 @@ import {
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import DashboardTabs from "@/components/shared/DashboardTabs";
+import RoleEscalationsPanel from "@/components/shared/RoleEscalationsPanel";
 import AssignPartsModal from "@/components/ui-personal/assign-parts-modal";
 import StockOrderModal from "@/components/accounts/StockOrderModal";
 import AssignIPAddressModal from "@/components/inv/components/AssignIPAddressModal";
@@ -711,6 +712,9 @@ export default function InventoryPage() {
     );
   };
 
+  const isEscalatedToInventory = (job: JobCard) =>
+    String(job.escalation_role || "").toLowerCase() === "inv";
+
   const removeJobCardLocally = (jobId: string) => {
     setJobCards((current) => current.filter((job) => job.id !== jobId));
 
@@ -751,13 +755,15 @@ export default function InventoryPage() {
       matchesSearch &&
       (hasNoParts || isAcknowledgedFcNoteJob) &&
       !isCompletedInventoryJob(job) &&
-      !isMovedAwayFromInventory(job)
+      !isMovedAwayFromInventory(job) &&
+      !isEscalatedToInventory(job)
     );
   });
 
   const jobCardsWithParts = jobCards.filter(
     (job: JobCard) =>
       !isMovedAwayFromInventory(job) &&
+      !isEscalatedToInventory(job) &&
       !Boolean(job.fc_note_acknowledged) &&
       job.parts_required &&
       Array.isArray(job.parts_required) &&
@@ -772,7 +778,7 @@ export default function InventoryPage() {
       normalizedRole === "inv" || normalizedMoveTo === "inv";
 
     return isCompletedInventoryJob(job) && isInventoryRouted;
-  });
+  }).filter((job) => !isEscalatedToInventory(job));
 
   const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
     if (!assignedPartsSearchTerm.trim()) return true;
@@ -4087,6 +4093,50 @@ export default function InventoryPage() {
       label: "Assigned Parts",
       icon: Package,
       content: assignedPartsContent,
+    },
+    {
+      value: "escalations",
+      label: "Escalations",
+      icon: AlertCircle,
+      content: (
+        <RoleEscalationsPanel
+          role="inv"
+          title="Inventory Escalations"
+          emptyTitle="No inventory escalations"
+          emptyDescription="Jobs moved into inventory will appear here first."
+          moveOptions={[
+            { value: "admin", label: "Admin" },
+            { value: "fc", label: "FC" },
+            { value: "accounts", label: "Accounts" },
+          ]}
+          renderActions={(job) => (
+            <>
+              {Array.isArray(job.parts_required) && job.parts_required.length > 0 ? (
+                <Button
+                  size="sm"
+                  onClick={() => handleAssignParts(job as JobCard)}
+                >
+                  Assign Parts
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleOpenJobDetails(job as JobCard)}
+              >
+                View Parts
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleViewCompletedJobDetails(String(job.id))}
+              >
+                Stock Modal
+              </Button>
+            </>
+          )}
+        />
+      ),
     },
     {
       value: "completed-jobs",

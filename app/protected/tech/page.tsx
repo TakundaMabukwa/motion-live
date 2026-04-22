@@ -33,6 +33,7 @@ import StartJobModal from './components/StartJobModal';
 import CreateRepairJobModal from './components/CreateRepairJobModal';
 import NewStockNotification from './components/NewStockNotification';
 import BootStock from './boot-stock/page';
+import RoleEscalationsPanel from '@/components/shared/RoleEscalationsPanel';
 
 interface Job {
   id: string;
@@ -80,7 +81,7 @@ export default function Dashboard() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
-  const [activeJobsView, setActiveJobsView] = useState<'my-jobs' | 'all-jobs'>('my-jobs');
+  const [activeJobsView, setActiveJobsView] = useState<'my-jobs' | 'all-jobs' | 'escalations'>('my-jobs');
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
   const [jobStats, setJobStats] = useState([
     { title: 'New Jobs', value: 0, change: '+0 today', color: 'bg-blue-500', icon: Plus },
@@ -134,11 +135,15 @@ export default function Dashboard() {
       const sortedJobs = sortJobsNewestFirst(transformedJobs);
       setUserJobs(sortedJobs);
       setJobs(sortedJobs);
+
+      const queueJobs = sortedJobs.filter(
+        (job) => String(job.escalation_role || '').toLowerCase() !== 'tech',
+      );
       
-      const newJobs = sortedJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
-      const openJobs = sortedJobs.filter(job => job.job_status === 'created' && job.technician_phone).length;
-      const completedJobs = sortedJobs.filter(job => job.job_status === 'completed').length;
-      const awaitingParts = sortedJobs.filter(job => job.job_status === 'awaiting_parts').length;
+      const newJobs = queueJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
+      const openJobs = queueJobs.filter(job => job.job_status === 'created' && job.technician_phone).length;
+      const completedJobs = queueJobs.filter(job => job.job_status === 'completed').length;
+      const awaitingParts = queueJobs.filter(job => job.job_status === 'awaiting_parts').length;
 
       setJobStats([
         { title: 'New Jobs', value: newJobs, change: `+${newJobs} today`, color: 'bg-blue-500', icon: Plus },
@@ -269,32 +274,15 @@ export default function Dashboard() {
     const loadingToast = sonnerToast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
-      const payload =
-        destination === 'inv'
-          ? {
-              role: 'inv',
-              move_to: 'inv',
-              status: 'pending',
-              job_status: 'pending',
-              completion_date: null,
-              end_time: null,
-            }
-          : {
-              role: 'admin',
-              move_to: 'admin',
-              status: 'admin_created',
-              job_status: 'created',
-              assigned_technician_id: null,
-              technician_name: null,
-              technician_phone: null,
-            };
-
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          destination,
+          ...(destination === 'inv' ? { inventoryPlacement: 'assign-parts' } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -406,11 +394,20 @@ export default function Dashboard() {
   const getAssignedTechnicianLabel = (job: Job) =>
     String(job.technician_name || job.technician_phone || '').trim();
 
+  const isEscalatedToTech = (job: Job) =>
+    String(job.escalation_role || '').toLowerCase() === 'tech';
+
   const activeUserJobs = userJobs.filter((job) => !isCompletedJob(job));
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
-  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job));
-  const allJobs = assignedActiveJobs;
-  const displayedJobs = activeJobsView === 'my-jobs' ? myJobs : allJobs;
+  const escalationJobs = assignedActiveJobs.filter((job) => isEscalatedToTech(job));
+  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job) && !isEscalatedToTech(job));
+  const allJobs = assignedActiveJobs.filter((job) => !isEscalatedToTech(job));
+  const displayedJobs =
+    activeJobsView === 'my-jobs'
+      ? myJobs
+      : activeJobsView === 'all-jobs'
+        ? allJobs
+        : escalationJobs;
 
   const JobTable = ({ jobs }: { jobs: Job[] }) => (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -689,7 +686,7 @@ export default function Dashboard() {
           <CardHeader>
             <div className="flex flex-col gap-4">
               <CardTitle className="text-2xl font-bold tracking-tight">Jobs</CardTitle>
-              <div className="bg-slate-100 p-1 rounded-xl w-full sm:w-fit grid grid-cols-2 sm:flex gap-1">
+              <div className="bg-slate-100 p-1 rounded-xl w-full sm:w-fit grid grid-cols-1 sm:grid-cols-3 sm:flex gap-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -714,11 +711,41 @@ export default function Dashboard() {
                 >
                   All Jobs ({allJobs.length})
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setActiveJobsView('escalations')}
+                  className={`h-10 rounded-lg px-4 text-sm font-medium transition-all ${
+                    activeJobsView === 'escalations'
+                      ? 'bg-white shadow-sm text-slate-900'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  Escalations ({escalationJobs.length})
+                </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <JobTable jobs={displayedJobs} />
+            {activeJobsView === 'escalations' ? (
+              <RoleEscalationsPanel
+                role="tech"
+                title="Tech Escalations"
+                emptyTitle="No tech escalations"
+                emptyDescription="Jobs assigned into tech will appear here first."
+                moveOptions={[
+                  { value: 'inv', label: 'Inventory', payload: { inventoryPlacement: 'assign-parts' } },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+                renderActions={(job) => (
+                  <Button size="sm" onClick={() => handleStartJob(job as Job)}>
+                    Start Job
+                  </Button>
+                )}
+              />
+            ) : (
+              <JobTable jobs={displayedJobs} />
+            )}
           </CardContent>
         </Card>
 

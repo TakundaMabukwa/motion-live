@@ -355,32 +355,15 @@ export default function Jobs() {
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
-      const payload =
-        destination === 'inv'
-          ? {
-              role: 'inv',
-              move_to: 'inv',
-              status: 'pending',
-              job_status: 'pending',
-              completion_date: null,
-              end_time: null,
-            }
-          : {
-              role: 'admin',
-              move_to: 'admin',
-              status: 'admin_created',
-              job_status: 'created',
-              assigned_technician_id: null,
-              technician_name: null,
-              technician_phone: null,
-            };
-
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          destination,
+          ...(destination === 'inv' ? { inventoryPlacement: 'assign-parts' } : {}),
+        }),
       });
 
       if (!response.ok) {

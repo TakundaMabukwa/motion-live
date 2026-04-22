@@ -19,6 +19,7 @@ const COMPLETED_JOB_FIELDS = [
   "priority",
   "role",
   "move_to",
+  "escalation_role",
   "repair",
   "customer_name",
   "customer_email",
@@ -104,7 +105,9 @@ export async function GET() {
       );
     }
 
-    const jobs = data || [];
+    const jobs = (data || []).filter(
+      (job) => String(job.escalation_role || "").toLowerCase() !== "fc",
+    );
     const creatorIds = Array.from(
       new Set(
         jobs

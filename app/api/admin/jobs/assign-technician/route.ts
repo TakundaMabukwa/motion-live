@@ -204,7 +204,7 @@ export async function PUT(request: NextRequest) {
     // Get job parts before updating
     const { data: jobData } = await supabase
       .from('job_cards')
-      .select('parts_required')
+      .select('parts_required, role, move_to')
       .eq('id', jobId)
       .single();
     
@@ -219,6 +219,11 @@ export async function PUT(request: NextRequest) {
       start_time: startDateTime,
       end_time: endDateTime,
       status: 'assigned',
+      escalation_role: 'tech',
+      escalation_source_role: String(jobData?.role || jobData?.move_to || 'admin')
+        .trim()
+        .toLowerCase() || 'admin',
+      escalated_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };

@@ -40,47 +40,68 @@ export async function POST(
       );
     }
 
-    // Inventory, Accounts, and FC review display these inside their completed/review tabs.
+    const { data: currentJob, error: currentJobError } = await supabase
+      .from("job_cards")
+      .select("role, move_to, completion_notes")
+      .eq("id", id)
+      .single();
+
+    if (currentJobError || !currentJob) {
+      return NextResponse.json(
+        { error: "Job not found" },
+        { status: 404 },
+      );
+    }
+
+    const sourceRole = String(
+      currentJob.role || currentJob.move_to || "",
+    ).trim().toLowerCase() || null;
+    const escalationPayload =
+      targetRole === "accounts"
+        ? {
+            escalation_role: null,
+            escalation_source_role: null,
+            escalated_at: null,
+          }
+        : {
+            escalation_role: targetRole,
+            escalation_source_role: sourceRole,
+            escalated_at: new Date().toISOString(),
+          };
+
+    // Only Accounts should receive jobs as completed.
+    // Other role-to-role moves should stay active/pending and surface via escalations.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
       let nextCompletionNotes: string | null | undefined;
 
       if (typeof note === "string" && note.trim()) {
-        const { data: existingJob } = await supabase
-          .from("job_cards")
-          .select("completion_notes")
-          .eq("id", id)
-          .maybeSingle();
-
         const trimmedNote = note.trim();
-        const existingNotes = String(existingJob?.completion_notes || "").trim();
+        const existingNotes = String(currentJob?.completion_notes || "").trim();
         nextCompletionNotes = existingNotes
           ? `${existingNotes}\n\n[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`
           : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
       }
 
-      const shouldSendInventoryToAssignParts =
-        targetRole === "inv" && inventoryPlacement === "assign-parts";
-      const shouldPreserveCompleted =
-        targetRole === "fc" ? true : Boolean(preserveCompleted);
-
       const completionPayload =
-        shouldSendInventoryToAssignParts
-            ? {
-                role: "inv",
-                move_to: "inv",
-                status: "pending",
-                job_status: "pending",
-                completion_date: null,
-                end_time: null,
-                ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
-              }
-          : {
-              role: targetRole,
-              move_to: targetRole,
+        targetRole === "accounts"
+          ? {
+              role: "accounts",
+              move_to: "accounts",
               status: "completed",
               job_status: "Completed",
               completion_date: new Date().toISOString(),
               end_time: new Date().toISOString(),
+              ...escalationPayload,
+              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+            }
+          : {
+              role: targetRole,
+              move_to: targetRole,
+              status: "pending",
+              job_status: "pending",
+              completion_date: null,
+              end_time: null,
+              ...escalationPayload,
               ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
               ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
             };
@@ -102,9 +123,9 @@ export async function POST(
         return NextResponse.json(
           {
             error:
-              targetRole === "fc"
-                ? "Failed to move job to FC"
-                : `Failed to complete and move job to ${targetRole.toUpperCase()}`,
+              targetRole === "accounts"
+                ? "Failed to complete and move job to Accounts"
+                : `Failed to move job to ${targetRole.toUpperCase()}`,
             details: patchBody?.error || patchBody?.details || "Unknown error",
           },
           { status: patchResponse.status },
@@ -114,11 +135,9 @@ export async function POST(
       return NextResponse.json({
         success: true,
         message:
-          targetRole === "fc"
-            ? "Job moved to FC and kept as completed"
-            : shouldSendInventoryToAssignParts
-              ? "Job moved to Inventory Assign Parts"
-            : `Job moved to ${targetRole.toUpperCase()} and marked as completed`,
+          targetRole === "accounts"
+            ? "Job moved to Accounts and marked as completed"
+            : `Job moved to ${targetRole.toUpperCase()} escalation queue`,
         job: patchBody,
       });
     }
@@ -129,6 +148,7 @@ export async function POST(
         status: `moved_to_${targetRole}`,
         role: targetRole,
         move_to: targetRole,
+        ...escalationPayload,
       })
       .eq("id", id)
       .select()

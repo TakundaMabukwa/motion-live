@@ -43,6 +43,7 @@ import {
   Bell,
 } from "lucide-react";
 import StatsCard from "@/components/shared/StatsCard";
+import RoleEscalationsPanel from "@/components/shared/RoleEscalationsPanel";
 import { toast } from "sonner";
 import CreateJobModal from "./components/CreateJobModal";
 import { AwaitingTestingContent } from "./completed-jobs/page";
@@ -94,6 +95,9 @@ interface JobCard {
   odormeter?: string;
   role?: string;
   move_to?: string;
+  escalation_role?: string;
+  escalation_source_role?: string;
+  escalated_at?: string;
   annuity_end_date?: string;
   job_status?: string;
 }
@@ -1787,6 +1791,44 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      ),
+    },
+    {
+      value: "escalations",
+      label: "Escalations",
+      icon: Bell,
+      content: (
+        <RoleEscalationsPanel
+          role="admin"
+          title="Admin Escalations"
+          emptyTitle="No admin escalations"
+          emptyDescription="Jobs moved into admin will appear here first."
+          moveOptions={[
+            { value: "inv", label: "Inventory", payload: { inventoryPlacement: "assign-parts" } },
+            { value: "fc", label: "FC" },
+            { value: "accounts", label: "Accounts" },
+          ]}
+          renderActions={(job) => (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedJob(job as JobCard);
+                  setViewJobOpen(true);
+                }}
+              >
+                View
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handleAssignTechnician(job as JobCard)}
+              >
+                Assign Tech
+              </Button>
+            </>
+          )}
+        />
       ),
     },
     {

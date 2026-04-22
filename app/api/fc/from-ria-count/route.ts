@@ -1,22 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-function extractFcMoveNote(notes: string) {
-  const trimmed = String(notes || "").trim();
-  if (!trimmed) return "";
-
-  const sections = trimmed
-    .split(/\[Move note to FC\]/gi)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (sections.length > 0) {
-    return sections[sections.length - 1].split(/\n{2,}/)[0].trim();
-  }
-
-  return trimmed;
-}
-
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -32,16 +16,8 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("job_cards")
-      .select("completion_notes, fc_note_acknowledged, role, move_to, status, job_status")
-      .eq("fc_note_acknowledged", false)
-      .not("completion_notes", "is", null)
-      .or([
-        "role.eq.fc",
-        "move_to.eq.fc",
-        "status.eq.moved_to_fc",
-        "status.eq.completed",
-        "job_status.eq.created",
-      ].join(","));
+      .select("id")
+      .eq("escalation_role", "fc");
 
     if (error) {
       return NextResponse.json(
@@ -50,10 +26,7 @@ export async function GET() {
       );
     }
 
-    const pendingCount = (data || []).filter((job) => {
-      const hasNote = Boolean(extractFcMoveNote(job?.completion_notes || ""));
-      return hasNote && !Boolean(job?.fc_note_acknowledged);
-    }).length;
+    const pendingCount = (data || []).length;
 
     return NextResponse.json({ pendingCount });
   } catch (error) {
