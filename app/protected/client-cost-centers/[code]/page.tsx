@@ -421,6 +421,103 @@ export default function ClientCostCentersPage() {
     });
   };
 
+  const getStatementAccountNumbers = (costCenter) =>
+    Array.from(
+      new Set(
+        costCentersWithPayments
+          .map((item) => String(item?.accountNumber || '').trim())
+          .filter(
+            (value) =>
+              Boolean(value) &&
+              String(value).split('-')[0] === String(costCenter?.accountNumber || '').split('-')[0],
+          ),
+      ),
+    );
+
+  const mergeLockedStatementBulkInvoices = async (
+    invoiceHistory,
+    accountNumbers,
+    billingMonth = '',
+  ) => {
+    if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
+      return {
+        invoiceHistory: Array.isArray(invoiceHistory) ? invoiceHistory : [],
+        statementBulkInvoices: [],
+      };
+    }
+
+    const statementBulkInvoices = (await Promise.all(
+      accountNumbers.map((accountNumber) => fetchBulkInvoiceData(accountNumber, billingMonth)),
+    )).filter(Boolean);
+
+    const normalizedBulkInvoices = statementBulkInvoices.map((invoice) => ({
+      id: invoice.id,
+      account_number: invoice.account_number || null,
+      billing_month: invoice.billing_month || null,
+      invoice_number: invoice.invoice_number || null,
+      company_name: invoice.company_name || null,
+      invoice_date: invoice.invoice_date || null,
+      total_amount: Number(invoice.total_amount || 0),
+      paid_amount: 0,
+      balance_due: Number(invoice.total_amount || 0),
+      credit_amount: 0,
+      payment_status: 'pending',
+      notes: invoice.notes || null,
+      created_at: invoice.created_at || null,
+      due_date: null,
+      invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
+      source_type: 'bulk_account_invoice',
+      invoice_locked: Boolean(invoice.invoice_locked),
+      invoice_locked_by_email: invoice.invoice_locked_by_email || null,
+      invoice_locked_at: invoice.invoice_locked_at || null,
+    }));
+
+    const lockedInvoiceKeySet = new Set(
+      normalizedBulkInvoices.map((invoice) =>
+        [
+          String(invoice?.account_number || '').trim().toUpperCase(),
+          String(invoice?.billing_month || '').trim(),
+        ].join('|'),
+      ),
+    );
+
+    const merged = new Map();
+
+    (Array.isArray(invoiceHistory) ? invoiceHistory : []).forEach((invoice) => {
+      const accountBillingKey = [
+        String(invoice?.account_number || '').trim().toUpperCase(),
+        String(invoice?.billing_month || '').trim(),
+      ].join('|');
+
+      if (lockedInvoiceKeySet.has(accountBillingKey)) {
+        return;
+      }
+
+      const key = [
+        String(invoice?.account_number || '').trim(),
+        String(invoice?.invoice_number || '').trim(),
+        String(invoice?.billing_month || '').trim(),
+      ].join('|');
+      if (!merged.has(key)) {
+        merged.set(key, invoice);
+      }
+    });
+
+    normalizedBulkInvoices.forEach((invoice) => {
+      const key = [
+        String(invoice?.account_number || '').trim(),
+        String(invoice?.invoice_number || '').trim(),
+        String(invoice?.billing_month || '').trim(),
+      ].join('|');
+      merged.set(key, invoice);
+    });
+
+    return {
+      invoiceHistory: Array.from(merged.values()),
+      statementBulkInvoices,
+    };
+  };
+
   const buildCostCenterInfoMap = async (accountNumbers) => {
     if (!Array.isArray(accountNumbers) || accountNumbers.length === 0) {
       return new Map();
@@ -2109,9 +2206,13 @@ export default function ClientCostCentersPage() {
   };
 
   const fetchStatementReportPayload = async (costCenter) => {
+    const statementAccountNumbers = getStatementAccountNumbers(costCenter);
     const query = new URLSearchParams({
       accountNumber: costCenter.accountNumber,
     });
+    if (statementAccountNumbers.length > 0) {
+      query.set("accountNumbers", statementAccountNumbers.join(","));
+    }
     if (costCenter.billingMonth) {
       query.set('billingMonth', costCenter.billingMonth);
     }
@@ -2127,6 +2228,8 @@ export default function ClientCostCentersPage() {
       fetch(
         `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
           costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ''
+        }${
+          statementAccountNumbers.length > 0 ? `&accountNumbers=${encodeURIComponent(statementAccountNumbers.join(","))}` : ""
         }`,
       ),
       fetch(
@@ -2141,6 +2244,7 @@ export default function ClientCostCentersPage() {
     let creditNotes = [];
     let agingPeriods = [];
     let bulkInvoice = null;
+    let statementBulkInvoices = [];
     if (historyResponse.ok) {
       const historyData = await historyResponse.json();
       invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
@@ -2152,6 +2256,13 @@ export default function ClientCostCentersPage() {
       const bulkInvoiceData = await bulkInvoiceResponse.json();
       bulkInvoice = bulkInvoiceData?.invoice || null;
     }
+    const mergedStatementInvoices = await mergeLockedStatementBulkInvoices(
+      invoiceHistory,
+      statementAccountNumbers,
+      costCenter.billingMonth,
+    );
+    invoiceHistory = mergedStatementInvoices.invoiceHistory;
+    statementBulkInvoices = mergedStatementInvoices.statementBulkInvoices;
 
     let invoiceData = null;
     const invoiceQuery = new URLSearchParams({
@@ -2185,6 +2296,8 @@ export default function ClientCostCentersPage() {
       agingPeriods,
       bulkInvoice,
       costCenterInfo,
+      statementAccountNumbers,
+      statementBulkInvoices,
     };
     const statementView = buildStatementView({
       costCenter: reportCostCenter,
@@ -4148,9 +4261,13 @@ export default function ClientCostCentersPage() {
   const handleShowDueReport = async (costCenter, variant = 'summary') => {
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
+      const statementAccountNumbers = getStatementAccountNumbers(costCenter);
       const query = new URLSearchParams({
         accountNumber: costCenter.accountNumber,
       });
+      if (statementAccountNumbers.length > 0) {
+        query.set("accountNumbers", statementAccountNumbers.join(","));
+      }
       if (costCenter.billingMonth) {
         query.set('billingMonth', costCenter.billingMonth);
       }
@@ -4162,7 +4279,9 @@ export default function ClientCostCentersPage() {
       const paymentData = await response.json();
       const payment = paymentData.payment || {};
       const historyResponse = await fetch(
-        `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}`,
+        `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+          statementAccountNumbers.length > 0 ? `&accountNumbers=${encodeURIComponent(statementAccountNumbers.join(","))}` : ""
+        }`,
       );
       const bulkInvoiceResponse = await fetch(
         `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
@@ -4172,6 +4291,7 @@ export default function ClientCostCentersPage() {
       let invoiceHistory = [];
       let paymentHistory = [];
       let bulkInvoice = null;
+      let statementBulkInvoices = [];
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
@@ -4181,6 +4301,13 @@ export default function ClientCostCentersPage() {
         const bulkInvoiceData = await bulkInvoiceResponse.json();
         bulkInvoice = bulkInvoiceData?.invoice || null;
       }
+      const mergedStatementInvoices = await mergeLockedStatementBulkInvoices(
+        invoiceHistory,
+        statementAccountNumbers,
+        costCenter.billingMonth,
+      );
+      invoiceHistory = mergedStatementInvoices.invoiceHistory;
+      statementBulkInvoices = mergedStatementInvoices.statementBulkInvoices;
       let invoiceData = null;
       const invoiceQuery = new URLSearchParams({
         accountNumber: costCenter.accountNumber,
@@ -4212,6 +4339,8 @@ export default function ClientCostCentersPage() {
         paymentHistory,
         bulkInvoice,
         costCenterInfo,
+        statementAccountNumbers,
+        statementBulkInvoices,
       });
       setSelectedStatementVariant(variant);
       setShowDueReport(true);

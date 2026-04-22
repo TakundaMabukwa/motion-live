@@ -45,6 +45,21 @@ const formatDate = (value) => {
   return parsed.toLocaleDateString("en-GB");
 };
 
+const formatLongDate = (value) => {
+  if (!value) return "N/A";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+};
+
 const formatMonthYear = (value) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -80,6 +95,14 @@ const sortTransactionDatesAsc = (left, right) => {
   return safeLeft - safeRight;
 };
 
+const normalizeStatementDescription = (value, fallback = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  if (raw.toUpperCase().includes("OPEN")) return fallback;
+  if (raw.toUpperCase() === "IMPORT") return fallback;
+  return raw;
+};
+
 const normalizeBillingMonthValue = (value) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -96,6 +119,30 @@ const getBillingMonthCutoff = (billingMonth) => {
   const parsed = new Date(`${normalized}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return null;
   return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+};
+
+const getStatementAsAtDate = (statementMonthSource) => {
+  const normalized = normalizeBillingMonthValue(statementMonthSource);
+  const today = new Date();
+  const formatLocalDateValue = (date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+  if (!normalized) {
+    return formatLocalDateValue(today);
+  }
+
+  const statementMonthDate = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(statementMonthDate.getTime())) {
+    return formatLocalDateValue(today);
+  }
+
+  const currentMonthNormalized = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+
+  if (normalized === currentMonthNormalized) {
+    return formatLocalDateValue(today);
+  }
+
+  return `${statementMonthDate.getUTCFullYear()}-${String(statementMonthDate.getUTCMonth() + 1).padStart(2, "0")}-${String(new Date(Date.UTC(statementMonthDate.getUTCFullYear(), statementMonthDate.getUTCMonth() + 1, 0)).getUTCDate()).padStart(2, "0")}`;
 };
 
 const isOnOrBeforeBillingMonth = (billingMonth, value, fallbackDateValue = null) => {
@@ -573,7 +620,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
           </div>
           <div class="statement-meta">
             <div class="statement-meta-label">DEBTOR STATEMENT :</div>
-            <div class="statement-meta-value">${escapeHtml(statementView.statementPeriod || "-")}</div>
+            <div class="statement-meta-value">${escapeHtml(statementView.statementHeaderDate || statementView.statementDate || "-")}</div>
           </div>
         </div>
 
@@ -648,18 +695,20 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
               <div class="statement-section-title">Item Breakdown</div>
               <table class="statement-table">
                 <colgroup>
-                  <col style="width: 16%" />
                   <col style="width: 14%" />
-                  <col style="width: 34%" />
                   <col style="width: 12%" />
-                  <col style="width: 12%" />
-                  <col style="width: 12%" />
+                  <col style="width: 28%" />
+                  <col style="width: 18%" />
+                  <col style="width: 9%" />
+                  <col style="width: 9%" />
+                  <col style="width: 10%" />
                 </colgroup>
                 <thead>
                   <tr>
                     <th>Vehicle Reg</th>
                     <th>Fleet No</th>
                     <th>Description</th>
+                    <th>Job Card(s)</th>
                     <th class="col-right">Unit Price</th>
                     <th class="col-right">VAT</th>
                     <th class="col-right">Total Incl</th>
@@ -673,6 +722,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
                           <td>${escapeHtml(row.reg)}</td>
                           <td>${escapeHtml(row.fleetNumber)}</td>
                           <td>${escapeHtml(row.description)}</td>
+                          <td>${escapeHtml(row.jobCards)}</td>
                           <td class="col-right">${escapeHtml(row.unitPrice)}</td>
                           <td class="col-right">${escapeHtml(row.vatAmount)}</td>
                           <td class="col-right">${escapeHtml(row.totalIncl)}</td>
@@ -760,17 +810,26 @@ export function buildStatementView({
   agingPeriods = [],
   bulkInvoice = null,
 }) {
+  const statementAccountNumbers = Array.from(
+    new Set(
+      [
+        costCenter?.accountNumber,
+        ...(Array.isArray(costCenter?.statementAccountNumbers)
+          ? costCenter.statementAccountNumbers
+          : []),
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  const statementAccountNumberSet = new Set(statementAccountNumbers);
   const targetBillingMonth = normalizeBillingMonthValue(
     costCenter?.billingMonth || paymentData?.billing_month || bulkInvoice?.billing_month || "",
   );
-  const invoiceItems =
-    costCenter?.invoiceData?.invoiceItems ||
-    costCenter?.invoiceData?.invoice_items ||
-    [];
 
   const filteredInvoiceHistory = invoiceHistory.filter(
     (invoice) =>
-      String(invoice?.account_number || "") === String(costCenter?.accountNumber || "") &&
+      statementAccountNumberSet.has(String(invoice?.account_number || "").trim()) &&
       isOnOrBeforeBillingMonth(
         targetBillingMonth,
         invoice?.billing_month,
@@ -780,7 +839,7 @@ export function buildStatementView({
 
   const filteredPaymentHistory = paymentHistory.filter(
     (payment) =>
-      String(payment?.account_number || "") === String(costCenter?.accountNumber || "") &&
+      statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
       isOnOrBeforeBillingMonth(
         targetBillingMonth,
         payment?.billing_month,
@@ -790,7 +849,7 @@ export function buildStatementView({
 
   const filteredCreditNotes = creditNotes.filter(
     (creditNote) =>
-      String(creditNote?.account_number || "") === String(costCenter?.accountNumber || "") &&
+      statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
       isOnOrBeforeBillingMonth(
         targetBillingMonth,
         creditNote?.billing_month_applies_to,
@@ -798,12 +857,19 @@ export function buildStatementView({
       ),
   );
 
+  const primaryStatementAccountNumber = String(costCenter?.accountNumber || "").trim();
   const currentInvoice =
     filteredInvoiceHistory.find(
       (invoice) =>
         normalizeBillingMonthValue(invoice?.billing_month) === targetBillingMonth &&
-        String(invoice?.account_number || "") === String(costCenter?.accountNumber || ""),
-    ) || null;
+        String(invoice?.account_number || "").trim() === primaryStatementAccountNumber,
+    ) ||
+    filteredInvoiceHistory.find(
+      (invoice) =>
+        normalizeBillingMonthValue(invoice?.billing_month) === targetBillingMonth &&
+        statementAccountNumberSet.has(String(invoice?.account_number || "").trim()),
+    ) ||
+    null;
 
   const clientName =
     costCenter?.costCenterInfo?.company ||
@@ -816,9 +882,15 @@ export function buildStatementView({
     costCenter?.accountNumber ||
     "Client Name";
 
-  const structuredAddress = String(
-    costCenter?.costCenterInfo?.physical_area || "",
-  ).trim();
+  const structuredAddress = [
+    costCenter?.costCenterInfo?.postal_address_1,
+    costCenter?.costCenterInfo?.postal_address_2,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ") || String(
+      costCenter?.costCenterInfo?.physical_area || "",
+    ).trim();
 
   const clientAddress = structuredAddress;
 
@@ -849,6 +921,60 @@ export function buildStatementView({
         }
       : liveInvoice || bulkInvoice || null;
 
+  const statementInvoiceItems = Array.from(
+    new Map(
+      [
+        ...filteredInvoiceHistory
+          .filter(
+            (invoice) =>
+              normalizeBillingMonthValue(invoice?.billing_month) === targetBillingMonth,
+          )
+          .flatMap((invoice) => {
+            const invoiceAccount = String(invoice?.account_number || "").trim();
+            const invoiceNumber = String(invoice?.invoice_number || "").trim();
+            const rawItems = Array.isArray(invoice?.invoice_items)
+              ? invoice.invoice_items
+              : Array.isArray(invoice?.line_items)
+                ? invoice.line_items
+                : [];
+
+            return rawItems.map((item, index) => ({
+              ...item,
+              source_account_number: invoiceAccount,
+              source_invoice_number: invoiceNumber,
+              source_job_number: String(invoice?.job_number || "").trim(),
+              source_index: index,
+            }));
+          }),
+        ...(Array.isArray(costCenter?.invoiceData?.invoiceItems)
+          ? costCenter.invoiceData.invoiceItems
+          : Array.isArray(costCenter?.invoiceData?.invoice_items)
+            ? costCenter.invoiceData.invoice_items
+            : []
+        ).map((item, index) => ({
+          ...item,
+          source_account_number: primaryStatementAccountNumber,
+          source_invoice_number: String(costCenter?.invoiceData?.invoice_number || "").trim(),
+          source_job_number: String(item?.job_number || "").trim(),
+          source_index: index,
+        })),
+      ].map((item, index) => {
+        const key = [
+          String(item?.source_account_number || "").trim(),
+          String(item?.source_invoice_number || "").trim(),
+          String(item?.new_reg || item?.reg || item?.previous_reg || "").trim(),
+          String(item?.description || item?.item_description || item?.itemCode || "").trim(),
+          String(
+            item?.total_including_vat ?? item?.total_incl_vat ?? item?.total_incl ?? item?.totalIncl ?? ""
+          ).trim(),
+          String(item?.source_index ?? index),
+        ].join("|");
+
+        return [key, item];
+      }),
+    ).values(),
+  );
+
   const actualInvoiceNumber =
     activeInvoice?.invoice_number ||
     paymentData?.invoice_number ||
@@ -863,8 +989,7 @@ export function buildStatementView({
     const sameInvoiceNumber =
       actualInvoiceNumber &&
       String(payment?.invoice_number || "") === String(actualInvoiceNumber);
-    const sameAccount =
-      String(payment?.account_number || "") === String(costCenter?.accountNumber || "");
+    const sameAccount = statementAccountNumberSet.has(String(payment?.account_number || "").trim());
     return sameAccount && (sameInvoiceId || sameInvoiceNumber);
   });
 
@@ -1006,7 +1131,7 @@ export function buildStatementView({
       date: formatStatementTransactionDate(sortDate),
       sortDate,
       client: clientName,
-      description: invoice?.invoice_number || "invoice",
+      description: normalizeStatementDescription(invoice?.invoice_number, "invoice"),
       amount: formatCurrency(invoiceAmount),
       debit: formatCurrency(invoiceAmount),
       credit: "-",
@@ -1023,7 +1148,7 @@ export function buildStatementView({
 
   const agingInvoiceFallbackRows = agingPeriods
     .filter((period) =>
-      String(period?.account_number || "") === String(costCenter?.accountNumber || "") &&
+      statementAccountNumberSet.has(String(period?.account_number || "").trim()) &&
       isOnOrBeforeBillingMonth(
         targetBillingMonth,
         period?.billing_month,
@@ -1037,7 +1162,10 @@ export function buildStatementView({
         period?.billing_month ||
         period?.last_updated ||
         statementMonthSource;
-      const description = period?.invoice_number || `Invoice ${period?.billing_month || ""}`.trim();
+      const description = normalizeStatementDescription(
+        period?.invoice_number,
+        `Invoice ${period?.billing_month || ""}`.trim(),
+      );
       return {
         date: formatStatementTransactionDate(sortDate),
         sortDate,
@@ -1055,13 +1183,17 @@ export function buildStatementView({
     .filter((row) => toNumber(row.debitValue) > 0)
     .filter((row) => !invoiceLedgerKeys.has(`${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`));
 
+  const hasExplicitOpeningInvoice = [...invoiceLedgerRows, ...agingInvoiceFallbackRows].some(
+    (row) => String(row?.description || '').trim().toUpperCase().startsWith('OPEN'),
+  );
+
   const paymentLedgerRows = filteredPaymentHistory.map((payment) => {
     const paymentAmount = toNumber(payment?.amount);
     const descriptionBase =
-      payment?.payment_reference ||
-      payment?.notes ||
-      payment?.payment_method ||
-      "Payment";
+      normalizeStatementDescription(payment?.payment_reference) ||
+      normalizeStatementDescription(payment?.notes) ||
+      normalizeStatementDescription(payment?.payment_method) ||
+      (paymentAmount > 0 ? "Payment" : "-");
     const sortDate = payment?.payment_date || payment?.created_at || paymentDateSource;
     return {
       date: formatStatementTransactionDate(sortDate),
@@ -1129,7 +1261,7 @@ export function buildStatementView({
 
   const transactionRows = [];
 
-  if (openingBalance > 0) {
+  if (openingBalance > 0 && !hasExplicitOpeningInvoice) {
     transactionRows.push({
       date: formatStatementTransactionDate(statementMonthSource, 1),
       sortDate: new Date(statementMonthSource || new Date().toISOString()).toISOString(),
@@ -1200,12 +1332,8 @@ export function buildStatementView({
       paymentData?.company_registration_number ||
       "-",
     statementNumber: "",
-    statementDate: formatDate(
-      paymentDateSource ||
-        invoiceDateSource ||
-        activeInvoice?.created_at ||
-        new Date().toISOString(),
-    ),
+    statementDate: formatDate(getStatementAsAtDate(statementMonthSource)),
+    statementHeaderDate: formatLongDate(getStatementAsAtDate(statementMonthSource)),
     statementPeriod: formatMonthYear(statementMonthSource),
     accountNumber: costCenter?.accountNumber || "N/A",
     customerVatNumber:
@@ -1224,14 +1352,32 @@ export function buildStatementView({
       credit: row.credit,
       outstanding: row.outstanding,
     })),
-    itemRows: invoiceItems.map((item, index) => ({
-      id: `${item?.reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
-      reg: item?.reg || "-",
+    itemRows: statementInvoiceItems.map((item, index) => ({
+      id: `${item?.new_reg || item?.reg || item?.previous_reg || "row"}-${item?.fleetNumber || item?.fleet_number || index}-${index}`,
+      reg: item?.new_reg || item?.reg || item?.previous_reg || "-",
       fleetNumber: item?.fleetNumber || item?.fleet_number || "-",
       description: item?.description || item?.item_description || item?.itemCode || "Billed Item",
+      jobCards:
+        [
+          item?.job_number,
+          item?.jobNumber,
+          item?.source_job_number,
+          ...(Array.isArray(item?.job_refs) ? item.job_refs : []),
+          ...(Array.isArray(item?.jobRefs) ? item.jobRefs : []),
+        ]
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+          .filter((value, itemIndex, values) => values.indexOf(value) === itemIndex)
+          .join(", ") || "-",
       unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
       vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
-      totalIncl: formatCurrency(item?.total_including_vat || item?.totalIncl || 0),
+      totalIncl: formatCurrency(
+        item?.total_including_vat ??
+          item?.total_incl_vat ??
+          item?.total_incl ??
+          item?.totalIncl ??
+          0,
+      ),
     })),
     totals: {
       currentInvoice: formatCurrency(ledgerInvoiceTotal),

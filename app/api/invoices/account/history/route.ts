@@ -3,6 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 
 const normalize = (value: unknown) => String(value || "").trim().toUpperCase();
 
+const normalizeDateValue = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+};
+
 const normalizeBillingMonthValue = (value: unknown) => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -10,7 +18,7 @@ const normalizeBillingMonthValue = (value: unknown) => {
     return `${raw}-01`;
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw.slice(0, 10);
+    return `${raw.slice(0, 7)}-01`;
   }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
@@ -49,14 +57,26 @@ const isOnOrBeforeBillingMonth = (
 
 async function loadImportedReceiptPayments(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  accountNumber: string,
+  accountNumbers: string[],
 ) {
+  const normalizedAccounts = Array.from(
+    new Set(
+      accountNumbers
+        .map((value) => String(value || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (normalizedAccounts.length === 0) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("imported_account_payments")
     .select(
       "id, account_number, billing_month_applied_to, payment_date, amount, payer_name, reference, notes, created_at",
     )
-    .eq("account_number", accountNumber)
+    .in("account_number", normalizedAccounts)
     .order("payment_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -66,15 +86,15 @@ async function loadImportedReceiptPayments(
   }
 
   return (Array.isArray(data) ? data : []).map((payment, index) => ({
-    id: payment.id || `imported-${normalize(accountNumber)}-${index + 1}`,
+    id: payment.id || `imported-${normalize(payment?.account_number)}-${index + 1}`,
     account_invoice_id: null,
-    account_number: accountNumber,
+    account_number: payment.account_number || null,
     billing_month: payment.billing_month_applied_to || null,
     invoice_number: null,
     payment_reference: payment.reference || "payment",
     amount: Number(payment.amount || 0),
     payment_date: payment.payment_date || null,
-    payment_method: "import",
+    payment_method: "",
     notes: payment.notes || "Imported from March Receipts sheet",
     payer_name: payment.payer_name || null,
     created_at: payment.created_at || payment.payment_date || null,
@@ -97,6 +117,16 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get("accountNumber") || "").trim();
     const billingMonth = normalizeBillingMonthValue(searchParams.get("billingMonth"));
+    const accountNumbers = Array.from(
+      new Set(
+        [accountNumber, ...String(searchParams.get("accountNumbers") || "")
+          .split(",")
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)]
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    );
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -108,7 +138,6 @@ export async function GET(request: NextRequest) {
     const [
       { data: invoices, error: invoicesError },
       { data: accountJobCards, error: accountJobCardsError },
-      { data: jobCardInvoicesByAccount, error: jobCardInvoicesByAccountError },
       { data: payments, error: paymentsError },
       { data: agingRows, error: agingError },
       { data: creditNotes, error: creditNotesError },
@@ -118,29 +147,21 @@ export async function GET(request: NextRequest) {
       supabase
         .from("account_invoices")
         .select(
-          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, paid_amount, balance_due, credit_amount, payment_status, notes, created_at",
+          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, paid_amount, balance_due, credit_amount, payment_status, notes, created_at, line_items",
         )
-        .eq("account_number", accountNumber)
+        .in("account_number", accountNumbers)
         .order("billing_month", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
       supabase
         .from("job_cards")
-        .select("id, new_account_number")
-        .eq("new_account_number", accountNumber),
-      supabase
-        .from("invoices")
-        .select(
-          "id, job_card_id, job_number, account_number, client_name, invoice_number, invoice_date, subtotal, vat_amount, total_amount, due_date, notes, created_at",
-        )
-        .eq("account_number", accountNumber)
-        .order("invoice_date", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false }),
+        .select("id, new_account_number, job_number")
+        .in("new_account_number", accountNumbers),
       supabase
         .from("account_invoice_payments")
         .select(
           "id, account_invoice_id, account_number, billing_month, invoice_number, payment_reference, amount, payment_date, payment_method, notes, created_at",
         )
-        .eq("account_number", accountNumber)
+        .in("account_number", accountNumbers)
         .order("payment_date", { ascending: false })
         .order("created_at", { ascending: false }),
       supabase
@@ -148,7 +169,7 @@ export async function GET(request: NextRequest) {
         .select(
           "id, cost_code, billing_month, due_amount, paid_amount, balance_due, amount_due, current_due, overdue_30_days, overdue_60_days, overdue_90_days, overdue_120_plus_days, outstanding_balance, credit_amount, payment_status, invoice_number, invoice_date, last_updated",
         )
-        .eq("cost_code", accountNumber)
+        .in("cost_code", accountNumbers)
         .order("billing_month", { ascending: false, nullsFirst: false })
         .order("last_updated", { ascending: false }),
       supabase
@@ -156,24 +177,23 @@ export async function GET(request: NextRequest) {
         .select(
           "id, credit_note_number, account_number, billing_month_applies_to, credit_note_date, amount, applied_amount, unapplied_amount, reference, comment, reason, status, account_invoice_id, created_at",
         )
-        .eq("account_number", accountNumber)
+        .in("account_number", accountNumbers)
         .order("credit_note_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
       supabase
         .from("bulk_account_invoices")
         .select(
-          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, notes, created_at",
+          "id, account_number, billing_month, invoice_number, company_name, invoice_date, total_amount, notes, created_at, line_items",
         )
-        .eq("account_number", accountNumber)
+        .in("account_number", accountNumbers)
         .order("billing_month", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false }),
-      loadImportedReceiptPayments(supabase, accountNumber),
+      loadImportedReceiptPayments(supabase, accountNumbers),
     ]);
 
     if (
       invoicesError ||
       accountJobCardsError ||
-      jobCardInvoicesByAccountError ||
       paymentsError ||
       agingError ||
       creditNotesError ||
@@ -182,7 +202,6 @@ export async function GET(request: NextRequest) {
       const error =
         invoicesError ||
         accountJobCardsError ||
-        jobCardInvoicesByAccountError ||
         paymentsError ||
         agingError ||
         creditNotesError ||
@@ -199,18 +218,88 @@ export async function GET(request: NextRequest) {
         .map((row) => String(row?.id || "").trim())
         .filter(Boolean),
     );
+    const accountJobNumbers = Array.from(
+      new Set(
+        (Array.isArray(accountJobCards) ? accountJobCards : [])
+          .map((row) => String(row?.job_number || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const [
+      { data: jobCardInvoicesByAccount, error: jobCardInvoicesByAccountError },
+      { data: jobCardInvoicesById, error: jobCardInvoicesByIdError },
+      { data: jobCardInvoicesByNumber, error: jobCardInvoicesByNumberError },
+    ] = await Promise.all([
+      supabase
+        .from("invoices")
+        .select(
+          "id, job_card_id, job_number, account_number, client_name, invoice_number, invoice_date, subtotal, vat_amount, total_amount, due_date, notes, created_at, line_items",
+        )
+        .in("account_number", accountNumbers)
+        .order("invoice_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+      accountJobCardIds.size > 0
+        ? supabase
+            .from("invoices")
+            .select(
+              "id, job_card_id, job_number, account_number, client_name, invoice_number, invoice_date, subtotal, vat_amount, total_amount, due_date, notes, created_at, line_items",
+            )
+            .in("job_card_id", Array.from(accountJobCardIds))
+            .order("invoice_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+      accountJobNumbers.length > 0
+        ? supabase
+            .from("invoices")
+            .select(
+              "id, job_card_id, job_number, account_number, client_name, invoice_number, invoice_date, subtotal, vat_amount, total_amount, due_date, notes, created_at, line_items",
+            )
+            .in("job_number", accountJobNumbers)
+            .order("invoice_date", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (jobCardInvoicesByAccountError || jobCardInvoicesByIdError || jobCardInvoicesByNumberError) {
+      const error =
+        jobCardInvoicesByAccountError ||
+        jobCardInvoicesByIdError ||
+        jobCardInvoicesByNumberError;
+      console.error("Failed to fetch old job-card invoices:", error);
+      return NextResponse.json(
+        { error: error.message || "Failed to fetch job-card invoices" },
+        { status: 500 },
+      );
+    }
 
     const normalizedAccountInvoices = (Array.isArray(invoices) ? invoices : []).map(
       (invoice) => ({
         ...invoice,
+        invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         source_type: "account_invoice",
       }),
     );
 
-    const normalizedJobCardInvoices = (Array.isArray(jobCardInvoicesByAccount) ? jobCardInvoicesByAccount : [])
+    const mergedOldJobCardInvoices = Array.from(
+      new Map(
+        [
+          ...(Array.isArray(jobCardInvoicesByAccount) ? jobCardInvoicesByAccount : []),
+          ...(Array.isArray(jobCardInvoicesById) ? jobCardInvoicesById : []),
+          ...(Array.isArray(jobCardInvoicesByNumber) ? jobCardInvoicesByNumber : []),
+        ].map((invoice) => [String(invoice?.id || ""), invoice]),
+      ).values(),
+    );
+
+    const normalizedJobCardInvoices = mergedOldJobCardInvoices
       .filter((invoice) => {
         const jobCardId = String(invoice?.job_card_id || "").trim();
-        return !jobCardId || accountJobCardIds.has(jobCardId);
+        const jobNumber = String(invoice?.job_number || "").trim();
+        return (
+          !jobCardId ||
+          accountJobCardIds.has(jobCardId) ||
+          (jobNumber && accountJobNumbers.includes(jobNumber))
+        );
       })
       .map((invoice) => ({
         id: invoice.id,
@@ -232,6 +321,7 @@ export async function GET(request: NextRequest) {
         due_date: invoice.due_date || null,
         job_card_id: invoice.job_card_id || null,
         job_number: invoice.job_number || null,
+        invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         source_type: "job_card_invoice",
       }));
 
@@ -243,6 +333,7 @@ export async function GET(request: NextRequest) {
         credit_amount: 0,
         payment_status: "pending",
         due_date: null,
+        invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         source_type: "bulk_account_invoice",
       }),
     );
@@ -309,9 +400,28 @@ export async function GET(request: NextRequest) {
         payment?.payment_date || payment?.created_at,
       ),
     );
+    const livePaymentKeys = new Set(
+      livePayments.map((payment) =>
+        [
+          normalize(payment?.account_number),
+          normalizeBillingMonthValue(payment?.billing_month),
+          normalizeDateValue(payment?.payment_date || payment?.created_at),
+          Number(payment?.amount || 0).toFixed(2),
+        ].join("|"),
+      ),
+    );
+    const dedupedImportedPayments = filteredImportedPayments.filter((payment) => {
+      const key = [
+        normalize(payment?.account_number),
+        normalizeBillingMonthValue(payment?.billing_month),
+        normalizeDateValue(payment?.payment_date || payment?.created_at),
+        Number(payment?.amount || 0).toFixed(2),
+      ].join("|");
+      return !livePaymentKeys.has(key);
+    });
     const mergedPayments = hasImportedLedgerPayments
       ? livePayments
-      : [...filteredImportedPayments, ...livePayments].sort((left, right) => {
+      : [...dedupedImportedPayments, ...livePayments].sort((left, right) => {
           const leftTime = new Date(
             String(left?.payment_date || left?.created_at || 0),
           ).getTime();
@@ -337,8 +447,9 @@ export async function GET(request: NextRequest) {
         ),
       )
       .map((row) => {
+        const agingAccountNumber = normalize(row?.cost_code || accountNumber);
         const matchingInvoice = invoiceByPeriod.get(
-          `${normalize(accountNumber)}|${String(row?.billing_month || "").trim()}`,
+          `${agingAccountNumber}|${String(row?.billing_month || "").trim()}`,
         );
         const currentDue = Number(row?.current_due || 0);
         const overdue30 = Number(row?.overdue_30_days || 0);
@@ -351,7 +462,7 @@ export async function GET(request: NextRequest) {
 
         return {
           id: row?.id || null,
-          account_number: accountNumber,
+          account_number: row?.cost_code || accountNumber,
           billing_month: row?.billing_month || null,
           invoice_number: matchingInvoice?.invoice_number || row?.invoice_number || null,
           invoice_date: matchingInvoice?.invoice_date || row?.invoice_date || null,

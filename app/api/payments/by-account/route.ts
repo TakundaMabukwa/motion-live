@@ -15,6 +15,15 @@ const toNumeric = (value: unknown) => {
 
 const roundMoney = (value: unknown) => Number(toNumeric(value).toFixed(2));
 
+const uniqueAccountNumbers = (values: unknown[]) =>
+  Array.from(
+    new Set(
+      values
+        .map((value) => String(value || '').trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  );
+
 const aggregateMirrorRows = (rows: Array<Record<string, unknown>> = []) => {
   if (!Array.isArray(rows) || rows.length === 0) {
     return null;
@@ -72,6 +81,54 @@ const aggregateMirrorRows = (rows: Array<Record<string, unknown>> = []) => {
     due_amount: roundMoney(
       sortedRows.reduce((sum, row) => sum + toNumeric(row?.due_amount ?? row?.amount_due ?? 0), 0),
     ),
+  };
+};
+
+const aggregateInvoiceRows = (rows: Array<Record<string, unknown>> = []) => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return null;
+  }
+
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftTime = new Date(
+      String(left?.created_at || left?.invoice_date || left?.billing_month || 0),
+    ).getTime();
+    const rightTime = new Date(
+      String(right?.created_at || right?.invoice_date || right?.billing_month || 0),
+    ).getTime();
+    return rightTime - leftTime;
+  });
+
+  const latestRow = sortedRows[0];
+  const summedTotal = roundMoney(sortedRows.reduce((sum, row) => sum + toNumeric(row?.total_amount), 0));
+  const summedPaid = roundMoney(sortedRows.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0));
+  const summedBalance = roundMoney(sortedRows.reduce((sum, row) => sum + toNumeric(row?.balance_due), 0));
+
+  return {
+    ...latestRow,
+    invoice_number: sortedRows.length === 1 ? latestRow?.invoice_number || null : null,
+    total_amount: summedTotal,
+    paid_amount: summedPaid,
+    balance_due: summedBalance,
+    payment_status: sortedRows.every((row) => String(row?.payment_status || '').toLowerCase() === 'paid')
+      ? 'paid'
+      : sortedRows.some((row) => toNumeric(row?.paid_amount) > 0)
+        ? 'partial'
+        : latestRow?.payment_status || 'pending',
+  };
+};
+
+const aggregateDraftRows = (drafts: Array<Record<string, unknown>> = []) => {
+  if (!Array.isArray(drafts) || drafts.length === 0) {
+    return null;
+  }
+
+  const latestDraft = drafts[0];
+  return {
+    ...latestDraft,
+    due_amount: roundMoney(drafts.reduce((sum, row) => sum + toNumeric(row?.due_amount), 0)),
+    paid_amount: roundMoney(drafts.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0)),
+    balance_due: roundMoney(drafts.reduce((sum, row) => sum + toNumeric(row?.balance_due), 0)),
   };
 };
 
@@ -156,6 +213,12 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get('accountNumber') || '').trim().toUpperCase();
+    const accountNumbers = uniqueAccountNumbers([
+      accountNumber,
+      ...String(searchParams.get('accountNumbers') || '')
+        .split(',')
+        .map((value) => value.trim()),
+    ]);
     const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
 
     if (!accountNumber) {
@@ -194,10 +257,10 @@ export async function GET(request: NextRequest) {
           billing_month,
           created_at
         `)
-        .eq('account_number', accountNumber)
+        .in('account_number', accountNumbers)
         .eq('billing_month', currentBillingMonth)
         .order('created_at', { ascending: false })
-        .limit(1),
+        ,
       supabase
         .from('payments_')
         .select(`
@@ -222,7 +285,7 @@ export async function GET(request: NextRequest) {
           overdue_120_plus_days,
           outstanding_balance
         `)
-        .eq('cost_code', accountNumber)
+        .in('cost_code', accountNumbers)
         .eq('billing_month', currentBillingMonth)
         .order('last_updated', { ascending: false }),
       supabase
@@ -239,7 +302,7 @@ export async function GET(request: NextRequest) {
           billing_month,
           last_updated
         `)
-        .eq('cost_code', accountNumber)
+        .in('cost_code', accountNumbers)
         .lte('billing_month', currentBillingMonth)
         .order('billing_month', { ascending: false })
         .order('last_updated', { ascending: false }),
@@ -258,22 +321,22 @@ export async function GET(request: NextRequest) {
           billing_month,
           last_updated
         `)
-        .eq('cost_code', accountNumber)
+        .in('cost_code', accountNumbers)
         .lt('billing_month', currentBillingMonth)
         .order('billing_month', { ascending: false })
         .order('last_updated', { ascending: false }),
       supabase
         .from('vehicles')
         .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
-        .eq('new_account_number', accountNumber),
+        .in('new_account_number', accountNumbers),
       supabase
         .from('vehicles')
         .select('id, reg, company, new_account_number, account_number, total_rental, total_sub')
-        .eq('account_number', accountNumber),
+        .in('account_number', accountNumbers),
       supabase
         .from('cost_centers')
         .select('cost_code, company, legal_name')
-        .eq('cost_code', accountNumber)
+        .in('cost_code', accountNumbers)
     ]);
 
     if (invoiceError || paymentsMirrorError || latestAgingError || priorAgingError || vehiclesByNewAccountError || vehiclesByAccountError || costCenterError) {
@@ -291,7 +354,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Database error: ${message}` }, { status: 500 });
     }
 
-    const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
+    const invoice = aggregateInvoiceRows(Array.isArray(invoiceRows) ? invoiceRows : []);
     const paymentsMirror = aggregateMirrorRows(
       Array.isArray(paymentsMirrorRows) ? paymentsMirrorRows : [],
     );
@@ -321,12 +384,21 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const draft = buildDraftPaymentsFromVehicles(Array.from(dedupedVehicles.values())).get(accountNumber);
+    const draftMap = buildDraftPaymentsFromVehicles(Array.from(dedupedVehicles.values()));
+    const draft = aggregateDraftRows(
+      accountNumbers
+        .map((number) => draftMap.get(number))
+        .filter(Boolean) as Record<string, unknown>[],
+    );
     const company =
       invoice?.company_name ||
       draft?.company ||
-      costCenterRow?.legal_name ||
-      costCenterRow?.company ||
+      (Array.isArray(costCenterRow)
+        ? costCenterRow.find((row) => String(row?.cost_code || '').trim().toUpperCase() === accountNumber)?.legal_name ||
+          costCenterRow.find((row) => String(row?.cost_code || '').trim().toUpperCase() === accountNumber)?.company ||
+          costCenterRow[0]?.legal_name ||
+          costCenterRow[0]?.company
+        : costCenterRow?.legal_name || costCenterRow?.company) ||
       accountNumber;
 
     let payment: Record<string, unknown> | null = null;
