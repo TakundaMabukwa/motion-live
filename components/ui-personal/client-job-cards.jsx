@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
+export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAccount = false }) {
   const router = useRouter();
   const [clientQuotes, setClientQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,13 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
       setLoading(true);
       let url = '/api/client-quotes';
       if (accountNumber) {
-        url += `?accountNumber=${encodeURIComponent(accountNumber)}`;
+        const params = new URLSearchParams({
+          accountNumber: String(accountNumber),
+        });
+        if (strictAccount) {
+          params.set('strictAccount', 'true');
+        }
+        url += `?${params.toString()}`;
       }
       
       const response = await fetch(url);
@@ -241,8 +247,13 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to approve quote');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || 'Failed to approve quote';
+
+        toast.error('Failed to approve quote', {
+          description: errorMessage
+        });
+        return false;
       }
 
       toast.success('Quote approved successfully!', {
@@ -256,7 +267,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber }) {
     } catch (error) {
       console.error('Error approving quote:', error);
       toast.error('Failed to approve quote', {
-        description: error.message
+        description: error instanceof Error ? error.message : 'Unknown error'
       });
       return false;
     } finally {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import PWAInstallPrompt from "@/components/pwa-install-prompt";
 import "./globals.css";
 import 'mapbox-gl/dist/mapbox-gl.css';

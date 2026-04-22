@@ -603,6 +603,7 @@ function AccountDetailPageContent() {
             <ClientJobCards
               key={refreshKey}
               accountNumber={customer?.new_account_number}
+              strictAccount
               onQuoteCreated={() => {
                 // Refresh the client quotes list
                 setShowClientQuote(false);

@@ -325,6 +325,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const accountNumber = searchParams.get('account_number') || searchParams.get('accountNumber');
     const status = searchParams.get('status');
+    const strictAccount = ['1', 'true', 'yes'].includes(
+      String(searchParams.get('strictAccount') || '').trim().toLowerCase()
+    );
 
     let query = supabase
       .from('client_quotes')
@@ -334,24 +337,28 @@ export async function GET(request: NextRequest) {
     // Only filter by account number if specifically provided
     if (accountNumber && accountNumber.trim() !== '') {
       console.log('Filtering quotes by account number:', accountNumber);
-      
-      // First, find the customer group that contains this account number
-      const { data: customerGroup } = await supabase
-        .from('customers_grouped')
-        .select('all_new_account_numbers')
-        .ilike('all_new_account_numbers', `%${accountNumber}%`)
-        .limit(1);
-      
-      if (customerGroup && customerGroup.length > 0) {
-        // Get all account numbers from the group and use IN clause
-        const allAccountNumbers = customerGroup[0].all_new_account_numbers;
-        const accountNumbers = [...new Set(
-          allAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0)
-        )];
-        query = query.in('new_account_number', accountNumbers);
-      } else {
-        // Fallback to direct match
+
+      if (strictAccount) {
         query = query.eq('new_account_number', accountNumber);
+      } else {
+        // First, find the customer group that contains this account number
+        const { data: customerGroup } = await supabase
+          .from('customers_grouped')
+          .select('all_new_account_numbers')
+          .ilike('all_new_account_numbers', `%${accountNumber}%`)
+          .limit(1);
+
+        if (customerGroup && customerGroup.length > 0) {
+          // Get all account numbers from the group and use IN clause
+          const allAccountNumbers = customerGroup[0].all_new_account_numbers;
+          const accountNumbers = [...new Set(
+            allAccountNumbers.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0)
+          )];
+          query = query.in('new_account_number', accountNumbers);
+        } else {
+          // Fallback to direct match
+          query = query.eq('new_account_number', accountNumber);
+        }
       }
     }
     if (status) {

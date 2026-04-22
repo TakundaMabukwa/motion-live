@@ -18,6 +18,17 @@ export function Toaster(props: ToasterProps) {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       style={toasterStyle}
+      position="top-right"
+      toastOptions={{
+        classNames: {
+          error:
+            "!bg-red-600 !text-white !border-red-700",
+          title: "!text-white",
+          description: "!text-white/90",
+          closeButton:
+            "!bg-red-700 !border-red-500 !text-white hover:!bg-red-800",
+        },
+      }}
       {...props}
     />
   );
