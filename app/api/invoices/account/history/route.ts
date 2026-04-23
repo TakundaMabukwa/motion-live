@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false }),
       supabase
         .from("job_cards")
-        .select("id, new_account_number, job_number")
+        .select("id, new_account_number, job_number, customer_name, vehicle_registration, quotation_products, quotation_total_amount, billing_statuses, completion_date, updated_at")
         .in("new_account_number", accountNumbers),
       supabase
         .from("account_invoice_payments")
@@ -224,6 +224,17 @@ export async function GET(request: NextRequest) {
           .map((row) => String(row?.job_number || "").trim())
           .filter(Boolean),
       ),
+    );
+
+    const jobCardById = new Map(
+      (Array.isArray(accountJobCards) ? accountJobCards : [])
+        .map((row) => [String(row?.id || "").trim(), row])
+        .filter(([id]) => Boolean(id)),
+    );
+    const jobCardByNumber = new Map(
+      (Array.isArray(accountJobCards) ? accountJobCards : [])
+        .map((row) => [String(row?.job_number || "").trim(), row])
+        .filter(([jobNumber]) => Boolean(jobNumber)),
     );
 
     const [
@@ -324,6 +335,95 @@ export async function GET(request: NextRequest) {
         invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         source_type: "job_card_invoice",
       }));
+
+    const invoicedJobs = Array.from(
+      new Map(
+        [
+          ...(Array.isArray(accountJobCards) ? accountJobCards : [])
+            .filter((row) => {
+              const invoiceNumber = String(
+                row?.billing_statuses?.invoice?.invoice_number || "",
+              ).trim();
+              return Boolean(invoiceNumber);
+            })
+            .map((row) => {
+              const invoiceNumber = String(
+                row?.billing_statuses?.invoice?.invoice_number || "",
+              ).trim();
+              const key = `${String(row?.new_account_number || "").trim()}|${invoiceNumber}|${String(row?.job_number || "").trim()}`;
+
+              return [
+                key,
+                {
+                  id: row?.id || null,
+                  account_number: row?.new_account_number || null,
+                  job_number: row?.job_number || null,
+                  customer_name: row?.customer_name || null,
+                  vehicle_registration: row?.vehicle_registration || null,
+                  quotation_products: Array.isArray(row?.quotation_products) ? row.quotation_products : [],
+                  total_amount: Number(
+                    row?.billing_statuses?.invoice?.total_amount ??
+                      row?.quotation_total_amount ??
+                      0,
+                  ),
+                  invoice_number: invoiceNumber || null,
+                  invoice_date:
+                    row?.billing_statuses?.invoice?.invoice_date ||
+                    row?.completion_date ||
+                    row?.updated_at ||
+                    null,
+                },
+              ];
+            }),
+          ...normalizedJobCardInvoices.map((invoice) => {
+            const jobCardId = String(invoice?.job_card_id || "").trim();
+            const jobNumber = String(invoice?.job_number || "").trim();
+            const linkedJobCard =
+              jobCardById.get(jobCardId) ||
+              jobCardByNumber.get(jobNumber) ||
+              null;
+            const lineItems = Array.isArray(invoice?.invoice_items) ? invoice.invoice_items : [];
+            const derivedVehicleRegistration =
+              String(
+                lineItems.find((item) =>
+                  String(item?.new_reg || item?.previous_reg || item?.reg || "").trim(),
+                )?.new_reg ||
+                  lineItems.find((item) =>
+                    String(item?.new_reg || item?.previous_reg || item?.reg || "").trim(),
+                  )?.previous_reg ||
+                  lineItems.find((item) =>
+                    String(item?.new_reg || item?.previous_reg || item?.reg || "").trim(),
+                  )?.reg ||
+                  linkedJobCard?.vehicle_registration ||
+                  "",
+              ).trim() || null;
+            const key = `${String(invoice?.account_number || "").trim()}|${String(invoice?.invoice_number || "").trim()}|${jobNumber}`;
+
+            return [
+              key,
+              {
+                id: linkedJobCard?.id || invoice?.job_card_id || null,
+                account_number: invoice?.account_number || linkedJobCard?.new_account_number || null,
+                job_number: invoice?.job_number || linkedJobCard?.job_number || null,
+                customer_name: linkedJobCard?.customer_name || invoice?.company_name || null,
+                vehicle_registration: derivedVehicleRegistration,
+                quotation_products: Array.isArray(linkedJobCard?.quotation_products)
+                  ? linkedJobCard.quotation_products
+                  : [],
+                total_amount: Number(
+                  invoice?.total_amount ??
+                    linkedJobCard?.billing_statuses?.invoice?.total_amount ??
+                    linkedJobCard?.quotation_total_amount ??
+                    0,
+                ),
+                invoice_number: invoice?.invoice_number || null,
+                invoice_date: invoice?.invoice_date || null,
+              },
+            ];
+          }),
+        ].filter(([key]) => Boolean(key)),
+      ).values(),
+    );
 
     const normalizedBulkInvoices = (Array.isArray(bulkInvoices) ? bulkInvoices : []).map(
       (invoice) => ({
@@ -510,6 +610,7 @@ export async function GET(request: NextRequest) {
       payments: mergedPayments,
       agingPeriods,
       creditNotes: filteredCreditNotes,
+      invoicedJobs,
     });
   } catch (error) {
     console.error("Unexpected error in account invoice history GET:", error);

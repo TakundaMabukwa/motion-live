@@ -1,0 +1,142 @@
+{
+  "workbookPath": "C:\\Users\\mabuk\\Desktop\\Dashboards\\motion-live\\components\\accounts\\fusion inv's.xlsx",
+  "generatedAt": "2026-04-22T13:33:03.077Z",
+  "targetAccountNumber": "EPSC-0001",
+  "sourceAccountNumbers": [
+    "EPS002",
+    "EPS004"
+  ],
+  "totalRowsMatched": 16,
+  "existingCount": 0,
+  "toInsertCount": 16,
+  "invoices": [
+    {
+      "invoice_number": "00118623",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-23T22:00:00.000Z",
+      "total_amount": 138,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118573",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 138,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118572",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 138,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118471",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 138,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118463",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 6951.75,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118462",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 7138.05,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118461",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 7745.25,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118460",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 7138.05,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118459",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 632.5,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118458",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 286.35,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118457",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 6951.75,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118456",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 6951.75,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118455",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 7745.25,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118454",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 6951.75,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118453",
+      "source_account_number": "EPS004",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 7558.95,
+      "exists": false
+    },
+    {
+      "invoice_number": "00118452",
+      "source_account_number": "EPS002",
+      "billing_month": "2026-03-01",
+      "invoice_date": "2026-03-08T22:00:00.000Z",
+      "total_amount": 402.5,
+      "exists": false
+    }
+  ]
+}

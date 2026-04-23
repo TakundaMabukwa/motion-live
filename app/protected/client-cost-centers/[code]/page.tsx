@@ -295,6 +295,9 @@ export default function ClientCostCentersPage() {
     loading: false,
     request: null,
     selectedBillingMonth: '',
+    statementMode: 'single',
+    availableStatementCostCenters: [],
+    selectedStatementAccounts: [],
   });
   const [emailPreviewModal, setEmailPreviewModal] = useState({
     open: false,
@@ -421,18 +424,58 @@ export default function ClientCostCentersPage() {
     });
   };
 
-  const getStatementAccountNumbers = (costCenter) =>
-    Array.from(
-      new Set(
+  const getStatementAccountNumbers = (costCenter) => {
+    const selectedAccount = String(costCenter?.accountNumber || '').trim();
+    return selectedAccount ? [selectedAccount] : [];
+  };
+
+  const getAvailableStatementCostCenters = (costCenter) => {
+    const selectedAccount = String(costCenter?.accountNumber || '').trim();
+    if (!selectedAccount) return [];
+
+    return Array.from(
+      new Map(
         costCentersWithPayments
-          .map((item) => String(item?.accountNumber || '').trim())
-          .filter(
-            (value) =>
-              Boolean(value) &&
-              String(value).split('-')[0] === String(costCenter?.accountNumber || '').split('-')[0],
-          ),
-      ),
-    );
+          .filter((item) => {
+            const accountNumber = String(item?.accountNumber || '').trim();
+            if (!accountNumber) return false;
+            return true;
+          })
+          .map((item) => [
+            String(item?.accountNumber || '').trim(),
+            {
+              accountNumber: String(item?.accountNumber || '').trim(),
+              accountName:
+                String(item?.accountName || item?.company || item?.costCenterInfo?.company || '')
+                  .trim() || String(item?.accountNumber || '').trim(),
+              hasInvoiceReference:
+                isRealInvoiceNumber(item?.reference) ||
+                isRealInvoiceNumber(item?.invoiceData?.invoice_number) ||
+                isRealInvoiceNumber(item?.bulkInvoice?.invoice_number),
+            },
+          ])
+          .concat([
+            [
+              selectedAccount,
+              {
+                accountNumber: selectedAccount,
+                accountName:
+                  String(
+                    costCenter?.accountName ||
+                      costCenter?.company ||
+                      costCenter?.costCenterInfo?.company ||
+                      selectedAccount,
+                  ).trim() || selectedAccount,
+                hasInvoiceReference:
+                  isRealInvoiceNumber(costCenter?.reference) ||
+                  isRealInvoiceNumber(costCenter?.invoiceData?.invoice_number) ||
+                  isRealInvoiceNumber(costCenter?.bulkInvoice?.invoice_number),
+              },
+            ],
+          ]),
+      ).values(),
+    ).sort((left, right) => left.accountNumber.localeCompare(right.accountNumber));
+  };
 
   const mergeLockedStatementBulkInvoices = async (
     invoiceHistory,
@@ -2205,8 +2248,20 @@ export default function ClientCostCentersPage() {
     );
   };
 
-  const fetchStatementReportPayload = async (costCenter) => {
-    const statementAccountNumbers = getStatementAccountNumbers(costCenter);
+  const fetchStatementReportPayload = async (costCenter, options = {}) => {
+    const requestedStatementAccounts = Array.isArray(options?.statementAccountNumbers)
+      ? options.statementAccountNumbers
+      : [];
+    const statementAccountNumbers = Array.from(
+      new Set(
+        (requestedStatementAccounts.length > 0
+          ? requestedStatementAccounts
+          : getStatementAccountNumbers(costCenter)
+        )
+          .map((value) => String(value || '').trim())
+          .filter(Boolean),
+      ),
+    );
     const query = new URLSearchParams({
       accountNumber: costCenter.accountNumber,
     });
@@ -2243,6 +2298,7 @@ export default function ClientCostCentersPage() {
     let paymentHistory = [];
     let creditNotes = [];
     let agingPeriods = [];
+    let invoicedJobs = [];
     let bulkInvoice = null;
     let statementBulkInvoices = [];
     if (historyResponse.ok) {
@@ -2251,6 +2307,7 @@ export default function ClientCostCentersPage() {
       paymentHistory = Array.isArray(historyData?.payments) ? historyData.payments : [];
       creditNotes = Array.isArray(historyData?.creditNotes) ? historyData.creditNotes : [];
       agingPeriods = Array.isArray(historyData?.agingPeriods) ? historyData.agingPeriods : [];
+      invoicedJobs = Array.isArray(historyData?.invoicedJobs) ? historyData.invoicedJobs : [];
     }
     if (bulkInvoiceResponse.ok) {
       const bulkInvoiceData = await bulkInvoiceResponse.json();
@@ -2294,6 +2351,7 @@ export default function ClientCostCentersPage() {
       paymentHistory,
       creditNotes,
       agingPeriods,
+      invoicedJobs,
       bulkInvoice,
       costCenterInfo,
       statementAccountNumbers,
@@ -2307,6 +2365,7 @@ export default function ClientCostCentersPage() {
       paymentHistory,
       creditNotes,
       agingPeriods,
+      invoicedJobs,
       bulkInvoice,
     });
 
@@ -4258,10 +4317,22 @@ export default function ClientCostCentersPage() {
   }, [filteredCostCenters]);
 
   // Show Due Report Component (replaces PDF generation)
-  const handleShowDueReport = async (costCenter, variant = 'summary') => {
+  const handleShowDueReport = async (costCenter, variant = 'summary', options = {}) => {
     try {
       setGeneratingReport(prev => ({ ...prev, [costCenter.accountNumber]: true }));
-      const statementAccountNumbers = getStatementAccountNumbers(costCenter);
+      const requestedStatementAccounts = Array.isArray(options?.statementAccountNumbers)
+        ? options.statementAccountNumbers
+        : [];
+      const statementAccountNumbers = Array.from(
+        new Set(
+          (requestedStatementAccounts.length > 0
+            ? requestedStatementAccounts
+            : getStatementAccountNumbers(costCenter)
+          )
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+        ),
+      );
       const query = new URLSearchParams({
         accountNumber: costCenter.accountNumber,
       });
@@ -4290,12 +4361,18 @@ export default function ClientCostCentersPage() {
       );
       let invoiceHistory = [];
       let paymentHistory = [];
+      let creditNotes = [];
+      let agingPeriods = [];
+      let invoicedJobs = [];
       let bulkInvoice = null;
       let statementBulkInvoices = [];
       if (historyResponse.ok) {
         const historyData = await historyResponse.json();
         invoiceHistory = Array.isArray(historyData?.invoices) ? historyData.invoices : [];
         paymentHistory = Array.isArray(historyData?.payments) ? historyData.payments : [];
+        creditNotes = Array.isArray(historyData?.creditNotes) ? historyData.creditNotes : [];
+        agingPeriods = Array.isArray(historyData?.agingPeriods) ? historyData.agingPeriods : [];
+        invoicedJobs = Array.isArray(historyData?.invoicedJobs) ? historyData.invoicedJobs : [];
       }
       if (bulkInvoiceResponse.ok) {
         const bulkInvoiceData = await bulkInvoiceResponse.json();
@@ -4337,6 +4414,9 @@ export default function ClientCostCentersPage() {
         invoiceData: invoiceData || costCenter.invoiceData || null,
         invoiceHistory,
         paymentHistory,
+        creditNotes,
+        agingPeriods,
+        invoicedJobs,
         bulkInvoice,
         costCenterInfo,
         statementAccountNumbers,
@@ -4830,11 +4910,20 @@ export default function ClientCostCentersPage() {
   };
 
   const openReportDeliveryOptions = (request) => {
+    const availableStatementCostCenters =
+      request?.type === 'invoice'
+        ? []
+        : getAvailableStatementCostCenters(request?.costCenter);
+    const selectedAccount = String(request?.costCenter?.accountNumber || '').trim();
+
     setReportDeliveryModal({
       open: true,
       loading: false,
       request,
       selectedBillingMonth: String(request?.costCenter?.billingMonth || currentBillingMonthKey || '').trim(),
+      statementMode: 'single',
+      availableStatementCostCenters,
+      selectedStatementAccounts: selectedAccount ? [selectedAccount] : [],
     });
   };
 
@@ -4844,6 +4933,9 @@ export default function ClientCostCentersPage() {
       loading: false,
       request: null,
       selectedBillingMonth: '',
+      statementMode: 'single',
+      availableStatementCostCenters: [],
+      selectedStatementAccounts: [],
     });
   };
 
@@ -4896,16 +4988,35 @@ export default function ClientCostCentersPage() {
       const isInvoice = request.type === 'invoice';
       const isItems = request.type === 'items';
       const selectedBillingMonth = normalizeBillingMonthValue(reportDeliveryModal.selectedBillingMonth) || request.costCenter?.billingMonth || currentBillingMonthKey;
+      const selectedStatementAccounts = Array.from(
+        new Set(
+          (reportDeliveryModal.statementMode === 'bulk'
+            ? reportDeliveryModal.selectedStatementAccounts
+            : [request.costCenter?.accountNumber]
+          )
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+        ),
+      );
+
+      if (!isInvoice && selectedStatementAccounts.length === 0) {
+        throw new Error('Select at least one cost center for the statement.');
+      }
+
       const requestCostCenter = {
         ...request.costCenter,
         billingMonth: selectedBillingMonth,
+        statementAccountNumbers: selectedStatementAccounts,
+        statementMode: reportDeliveryModal.statementMode,
       };
 
       if (format === 'pdf' && destination === 'preview') {
         if (isInvoice) {
           await handleShowInvoiceReport(requestCostCenter);
         } else {
-          await handleShowDueReport(requestCostCenter, isItems ? 'items' : 'summary');
+          await handleShowDueReport(requestCostCenter, isItems ? 'items' : 'summary', {
+            statementAccountNumbers: selectedStatementAccounts,
+          });
         }
         closeReportDeliveryOptions();
         return;
@@ -5005,7 +5116,9 @@ export default function ClientCostCentersPage() {
         return;
       }
 
-      const { statementView } = await fetchStatementReportPayload(request.costCenter);
+      const { statementView } = await fetchStatementReportPayload(requestCostCenter, {
+        statementAccountNumbers: selectedStatementAccounts,
+      });
       const safeAccount = String(request.costCenter?.accountNumber || 'statement').replace(/[^a-zA-Z0-9_-]/g, '_');
 
       if (format === 'excel') {
@@ -6840,23 +6953,111 @@ export default function ClientCostCentersPage() {
             </div>
 
             {reportDeliveryModal.request?.type !== 'invoice' && (
-              <div className="space-y-2">
-                <label className="font-medium text-slate-700 text-sm">Statement month</label>
-                <Input
-                  type="month"
-                  value={formatBillingMonthInput(reportDeliveryModal.selectedBillingMonth)}
-                  onChange={(event) =>
-                    setReportDeliveryModal((prev) => ({
-                      ...prev,
-                      selectedBillingMonth: normalizeBillingMonthValue(event.target.value),
-                    }))
-                  }
-                  disabled={reportDeliveryModal.loading}
-                  max={formatBillingMonthInput(currentBillingMonthKey)}
-                />
-                <p className="text-slate-500 text-xs">
-                  Pick the month you want the statement to reflect. The statement will fetch the values for that billing month.
-                </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Statement type</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant={reportDeliveryModal.statementMode === 'single' ? 'default' : 'outline'}
+                      className={reportDeliveryModal.statementMode === 'single' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                      disabled={reportDeliveryModal.loading}
+                      onClick={() =>
+                        setReportDeliveryModal((prev) => ({
+                          ...prev,
+                          statementMode: 'single',
+                          selectedStatementAccounts: prev.request?.costCenter?.accountNumber
+                            ? [String(prev.request.costCenter.accountNumber).trim()]
+                            : [],
+                        }))
+                      }
+                    >
+                      This Cost Center
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={reportDeliveryModal.statementMode === 'bulk' ? 'default' : 'outline'}
+                      className={reportDeliveryModal.statementMode === 'bulk' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                      disabled={reportDeliveryModal.loading}
+                      onClick={() =>
+                        setReportDeliveryModal((prev) => ({
+                          ...prev,
+                          statementMode: 'bulk',
+                          selectedStatementAccounts:
+                            prev.selectedStatementAccounts.length > 0
+                              ? prev.selectedStatementAccounts
+                              : prev.availableStatementCostCenters.map((item) => item.accountNumber),
+                        }))
+                      }
+                    >
+                      Bulk Statement
+                    </Button>
+                  </div>
+                </div>
+
+                {reportDeliveryModal.statementMode === 'bulk' && (
+                  <div className="space-y-2">
+                    <label className="font-medium text-slate-700 text-sm">Cost centers to include</label>
+                    <div className="space-y-2 border rounded-lg p-3 max-h-56 overflow-y-auto">
+                      {reportDeliveryModal.availableStatementCostCenters.map((item) => {
+                        const checked = reportDeliveryModal.selectedStatementAccounts.includes(item.accountNumber);
+                        return (
+                          <label
+                            key={item.accountNumber}
+                            className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1"
+                              checked={checked}
+                              disabled={reportDeliveryModal.loading}
+                              onChange={(event) =>
+                                setReportDeliveryModal((prev) => {
+                                  const nextSelected = event.target.checked
+                                    ? Array.from(new Set([...prev.selectedStatementAccounts, item.accountNumber]))
+                                    : prev.selectedStatementAccounts.filter((value) => value !== item.accountNumber);
+                                  return {
+                                    ...prev,
+                                    selectedStatementAccounts: nextSelected,
+                                  };
+                                })
+                              }
+                            />
+                            <div className="min-w-0">
+                              <div className="font-medium text-slate-900">{item.accountNumber}</div>
+                              <div className="text-slate-600 text-sm">{item.accountName}</div>
+                              {!item.hasInvoiceReference && (
+                                <div className="text-amber-600 text-xs">No direct invoice reference found yet</div>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-slate-500 text-xs">
+                      Bulk statements include the selected cost centers on one statement.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Statement month</label>
+                  <Input
+                    type="month"
+                    value={formatBillingMonthInput(reportDeliveryModal.selectedBillingMonth)}
+                    onChange={(event) =>
+                      setReportDeliveryModal((prev) => ({
+                        ...prev,
+                        selectedBillingMonth: normalizeBillingMonthValue(event.target.value),
+                      }))
+                    }
+                    disabled={reportDeliveryModal.loading}
+                    max={formatBillingMonthInput(currentBillingMonthKey)}
+                  />
+                  <p className="text-slate-500 text-xs">
+                    Pick the month the statement should reflect. The invoiced job list below the statement is not month-limited.
+                  </p>
+                </div>
               </div>
             )}
 

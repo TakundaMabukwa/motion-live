@@ -837,6 +837,10 @@ export function buildStatementView({
       ),
   );
 
+  const allStatementInvoiceHistory = invoiceHistory.filter((invoice) =>
+    statementAccountNumberSet.has(String(invoice?.account_number || "").trim()),
+  );
+
   const filteredPaymentHistory = paymentHistory.filter(
     (payment) =>
       statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
@@ -924,11 +928,7 @@ export function buildStatementView({
   const statementInvoiceItems = Array.from(
     new Map(
       [
-        ...filteredInvoiceHistory
-          .filter(
-            (invoice) =>
-              normalizeBillingMonthValue(invoice?.billing_month) === targetBillingMonth,
-          )
+        ...allStatementInvoiceHistory
           .flatMap((invoice) => {
             const invoiceAccount = String(invoice?.account_number || "").trim();
             const invoiceNumber = String(invoice?.invoice_number || "").trim();
@@ -958,6 +958,42 @@ export function buildStatementView({
           source_job_number: String(item?.job_number || "").trim(),
           source_index: index,
         })),
+        ...(Array.isArray(costCenter?.invoicedJobs) ? costCenter.invoicedJobs : []).flatMap((job, jobIndex) => {
+          const invoiceNumber = String(job?.invoice_number || "").trim();
+          const accountNumber = String(job?.account_number || "").trim();
+          const reg = String(job?.vehicle_registration || "").trim();
+          const products = Array.isArray(job?.quotation_products) ? job.quotation_products : [];
+
+          const productNames = products
+            .map((product) =>
+              String(
+                product?.description ||
+                  product?.product ||
+                  product?.item ||
+                  product?.name ||
+                  "",
+              ).trim(),
+            )
+            .filter(Boolean);
+
+          const description = productNames.join(", ") || "Invoiced Job";
+
+          return [
+            {
+              source_account_number: accountNumber,
+              source_invoice_number: invoiceNumber,
+              source_job_number: String(job?.job_number || "").trim(),
+              source_index: `job-${jobIndex}`,
+              reg,
+              new_reg: reg,
+              description,
+              unit_price_without_vat: 0,
+              vat_amount: 0,
+              total_including_vat: 0,
+              from_invoiced_job_card: true,
+            },
+          ];
+        }),
       ].map((item, index) => {
         const key = [
           String(item?.source_account_number || "").trim(),
@@ -1142,6 +1178,27 @@ export function buildStatementView({
     };
   });
 
+  const completedJobInvoiceFallbackRows = (Array.isArray(costCenter?.invoicedJobs) ? costCenter.invoicedJobs : [])
+    .filter((job) => statementAccountNumberSet.has(String(job?.account_number || "").trim()))
+    .map((job) => {
+      const invoiceAmount = toNumber(job?.total_amount);
+      const sortDate = job?.invoice_date || statementMonthSource;
+      return {
+        date: formatStatementTransactionDate(sortDate),
+        sortDate,
+        client: String(job?.customer_name || clientName || "").trim() || clientName,
+        description: normalizeStatementDescription(job?.invoice_number, "invoice"),
+        amount: formatCurrency(invoiceAmount),
+        debit: formatCurrency(invoiceAmount),
+        credit: "-",
+        amountValue: invoiceAmount,
+        debitValue: invoiceAmount,
+        creditValue: 0,
+        outstandingValue: 0,
+      };
+    })
+    .filter((row) => toNumber(row.debitValue) > 0);
+
   const invoiceLedgerKeys = new Set(
     invoiceLedgerRows.map((row) => `${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`),
   );
@@ -1183,7 +1240,11 @@ export function buildStatementView({
     .filter((row) => toNumber(row.debitValue) > 0)
     .filter((row) => !invoiceLedgerKeys.has(`${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`));
 
-  const hasExplicitOpeningInvoice = [...invoiceLedgerRows, ...agingInvoiceFallbackRows].some(
+  const completedJobInvoiceRows = completedJobInvoiceFallbackRows.filter(
+    (row) => !invoiceLedgerKeys.has(`${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`),
+  );
+
+  const hasExplicitOpeningInvoice = [...invoiceLedgerRows, ...agingInvoiceFallbackRows, ...completedJobInvoiceRows].some(
     (row) => String(row?.description || '').trim().toUpperCase().startsWith('OPEN'),
   );
 
@@ -1279,6 +1340,7 @@ export function buildStatementView({
 
   transactionRows.push(
     ...invoiceLedgerRows,
+    ...completedJobInvoiceRows,
     ...agingInvoiceFallbackRows,
     ...paymentLedgerRows,
     ...creditLedgerRows,
@@ -1369,15 +1431,21 @@ export function buildStatementView({
           .filter(Boolean)
           .filter((value, itemIndex, values) => values.indexOf(value) === itemIndex)
           .join(", ") || "-",
-      unitPrice: formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
-      vatAmount: formatCurrency(item?.vat_amount || item?.vatAmount || 0),
-      totalIncl: formatCurrency(
-        item?.total_including_vat ??
-          item?.total_incl_vat ??
-          item?.total_incl ??
-          item?.totalIncl ??
-          0,
-      ),
+      unitPrice: item?.from_invoiced_job_card
+        ? "-"
+        : formatCurrency(item?.unit_price_without_vat || item?.unitPrice || 0),
+      vatAmount: item?.from_invoiced_job_card
+        ? "-"
+        : formatCurrency(item?.vat_amount || item?.vatAmount || 0),
+      totalIncl: item?.from_invoiced_job_card
+        ? "-"
+        : formatCurrency(
+            item?.total_including_vat ??
+              item?.total_incl_vat ??
+              item?.total_incl ??
+              item?.totalIncl ??
+              0,
+          ),
     })),
     totals: {
       currentInvoice: formatCurrency(ledgerInvoiceTotal),
