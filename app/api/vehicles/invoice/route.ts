@@ -19,6 +19,20 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
 
 const normalizeTextValue = (value: unknown) => String(value || '').trim();
 
+const isLockAppliedToBillingMonth = (
+  lockDate: unknown,
+  billingMonth: string | null,
+) => {
+  const normalizedLockMonth = normalizeBillingMonth(lockDate);
+  const normalizedBillingMonth = normalizeBillingMonth(billingMonth);
+
+  if (!normalizedLockMonth || !normalizedBillingMonth) {
+    return false;
+  }
+
+  return normalizedLockMonth === normalizedBillingMonth;
+};
+
 const TOTAL_BILLING_COLUMNS = new Set([
   'total_rental_sub',
   'total_rental',
@@ -694,6 +708,8 @@ export async function GET(request: NextRequest) {
       typeof billingMonth === 'string' && billingMonth.trim()
         ? normalizeBillingMonth(billingMonth)
         : null;
+    const isSystemLockedForBillingMonth =
+      isSystemLocked && isLockAppliedToBillingMonth(lockDate, normalizedRequestedBillingMonth);
 
     const resolveLockedInvoiceDate = (rawLockDate: string | null, fallbackBillingMonth: string | null) => {
       const normalizedLockMonth = rawLockDate ? normalizeBillingMonth(rawLockDate) : null;
@@ -719,7 +735,7 @@ export async function GET(request: NextRequest) {
     
     // Calculate end of month from lock_date for vehicle cutoff
     const billingCutoffDate =
-      isSystemLocked && lockDate
+      isSystemLockedForBillingMonth && lockDate
         ? resolveLockedInvoiceDate(lockDate, normalizedRequestedBillingMonth)
         : null;
 
@@ -1073,7 +1089,8 @@ export async function GET(request: NextRequest) {
       Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
         ? storedInvoice.line_items
         : [];
-    const isLockedInvoice = Boolean(storedInvoice?.invoice_locked) || isSystemLocked;
+    const isLockedInvoice =
+      Boolean(storedInvoice?.invoice_locked) || isSystemLockedForBillingMonth;
     const useStoredLineItems =
       isLockedInvoice &&
       storedLineItems.length > 0 &&
@@ -1106,7 +1123,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate invoice date - use locked month end date when system is locked
     let invoiceDate: string;
-    if (isSystemLocked && billingCutoffDate) {
+    if (isSystemLockedForBillingMonth && billingCutoffDate) {
       // When locked, ALWAYS use the end of the locked month as invoice date
       // This overrides any stored invoice date to ensure consistency
       invoiceDate = billingCutoffDate;

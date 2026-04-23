@@ -87,8 +87,16 @@ const applySystemLockToBulkInvoices = async (
 
 const clearSystemLockFromBulkInvoices = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
-  { userId }: { userId: string },
+  {
+    lockMonth,
+  }: {
+    lockMonth: string | null;
+  },
 ) => {
+  if (!lockMonth) {
+    return 0;
+  }
+
   const { data, error } = await supabase
     .from('bulk_account_invoices')
     .update({
@@ -102,6 +110,7 @@ const clearSystemLockFromBulkInvoices = async (
       updated_at: new Date().toISOString(),
     })
     .eq('system_locked', true)
+    .eq('system_locked_date', lockMonth)
     .select('id');
 
   if (error) {
@@ -443,6 +452,15 @@ export async function POST(request: NextRequest) {
     let queueResults: Array<Record<string, unknown>> = [];
     let vehicleQueueResults: Array<Record<string, unknown>> = [];
 
+    const isSwitchingLockMonth =
+      Boolean(isLocked && lockMonth && previousLockDate && previousLockDate !== lockMonth);
+
+    if (isSwitchingLockMonth) {
+      await clearSystemLockFromBulkInvoices(supabase, {
+        lockMonth: previousLockDate,
+      });
+    }
+
     if (isLocked && lockMonth) {
       bulkLockCount = await applySystemLockToBulkInvoices(supabase, {
         lockMonth,
@@ -450,7 +468,7 @@ export async function POST(request: NextRequest) {
       });
     } else if (!isLocked) {
       bulkUnlockCount = await clearSystemLockFromBulkInvoices(supabase, {
-        userId: user.id,
+        lockMonth: previousLockDate,
       });
 
       queueResults = await processQueuedJobCardInvoices(supabase, user.id);

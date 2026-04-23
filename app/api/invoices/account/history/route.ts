@@ -41,13 +41,24 @@ const isOnOrBeforeBillingMonth = (
 ) => {
   if (!billingMonth) return true;
 
+  const cutoff = getBillingMonthCutoff(billingMonth);
+  const fallback = fallbackDateValue ? new Date(String(fallbackDateValue)) : null;
+  const hasRealFallbackDate =
+    Boolean(fallback) && !Number.isNaN(fallback.getTime()) && Boolean(cutoff);
+
   const normalizedValue = normalizeBillingMonthValue(value);
   if (normalizedValue) {
-    return normalizedValue <= billingMonth;
+    if (normalizedValue > billingMonth) {
+      return false;
+    }
+
+    if (hasRealFallbackDate) {
+      return fallback.getTime() <= cutoff.getTime();
+    }
+
+    return true;
   }
 
-  const fallback = fallbackDateValue ? new Date(String(fallbackDateValue)) : null;
-  const cutoff = getBillingMonthCutoff(billingMonth);
   if (!fallback || Number.isNaN(fallback.getTime()) || !cutoff) {
     return false;
   }

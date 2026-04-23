@@ -46,6 +46,9 @@ const resolveLockBillingMonth = (
   return `${targetYear}-${targetMonth}-01`;
 };
 
+const shouldUseActiveLockMonth = (requestedBillingMonth: string | null) =>
+  !normalizeBillingMonth(requestedBillingMonth);
+
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
     source?.physical_address_1,
@@ -264,9 +267,10 @@ export async function GET(request: NextRequest) {
     }
 
     const systemLock = Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
-    const lockedBillingMonth = Boolean(systemLock?.is_locked)
-      ? resolveLockBillingMonth(systemLock?.lock_date, requestedBillingMonth)
-      : null;
+    const lockedBillingMonth =
+      Boolean(systemLock?.is_locked) && shouldUseActiveLockMonth(requestedBillingMonth)
+        ? resolveLockBillingMonth(systemLock?.lock_date, requestedBillingMonth)
+        : null;
 
     const fetchInvoiceForBillingMonth = async (targetBillingMonth: string | null) => {
       let query = supabase

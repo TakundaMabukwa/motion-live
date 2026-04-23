@@ -149,16 +149,69 @@ const isOnOrBeforeBillingMonth = (billingMonth, value, fallbackDateValue = null)
   const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
   if (!normalizedBillingMonth) return true;
 
+  const cutoff = getBillingMonthCutoff(normalizedBillingMonth);
+  const parsedFallback = fallbackDateValue ? new Date(String(fallbackDateValue)) : null;
+  const hasRealFallbackDate =
+    parsedFallback && !Number.isNaN(parsedFallback.getTime()) && cutoff;
+
   const normalizedValue = normalizeBillingMonthValue(value);
   if (normalizedValue) {
-    return normalizedValue <= normalizedBillingMonth;
+    if (normalizedValue > normalizedBillingMonth) {
+      return false;
+    }
+
+    if (hasRealFallbackDate) {
+      return parsedFallback.getTime() <= cutoff.getTime();
+    }
+
+    return true;
   }
 
   if (!fallbackDateValue) return false;
-  const parsedFallback = new Date(String(fallbackDateValue));
-  const cutoff = getBillingMonthCutoff(normalizedBillingMonth);
   if (Number.isNaN(parsedFallback.getTime()) || !cutoff) return false;
   return parsedFallback.getTime() <= cutoff.getTime();
+};
+
+const isWithinBillingMonth = (billingMonth, value, fallbackDateValue = null) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const cutoff = getBillingMonthCutoff(normalizedBillingMonth);
+  const monthStart = new Date(`${normalizedBillingMonth}T00:00:00.000Z`);
+  const parsedFallback = fallbackDateValue ? new Date(String(fallbackDateValue)) : null;
+  const hasRealFallbackDate =
+    parsedFallback && !Number.isNaN(parsedFallback.getTime()) && cutoff;
+
+  const normalizedValue = normalizeBillingMonthValue(value);
+  if (normalizedValue) {
+    if (normalizedValue !== normalizedBillingMonth) {
+      return false;
+    }
+
+    if (hasRealFallbackDate) {
+      return (
+        parsedFallback.getTime() >= monthStart.getTime() &&
+        parsedFallback.getTime() <= cutoff.getTime()
+      );
+    }
+
+    return true;
+  }
+
+  if (!hasRealFallbackDate) return false;
+  return (
+    parsedFallback.getTime() >= monthStart.getTime() &&
+    parsedFallback.getTime() <= cutoff.getTime()
+  );
+};
+
+const isBeforeBillingMonth = (billingMonth, value, fallbackDateValue = null) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return false;
+  return (
+    isOnOrBeforeBillingMonth(normalizedBillingMonth, value, fallbackDateValue) &&
+    !isWithinBillingMonth(normalizedBillingMonth, value, fallbackDateValue)
+  );
 };
 
 
@@ -830,7 +883,7 @@ export function buildStatementView({
   const filteredInvoiceHistory = invoiceHistory.filter(
     (invoice) =>
       statementAccountNumberSet.has(String(invoice?.account_number || "").trim()) &&
-      isOnOrBeforeBillingMonth(
+      isWithinBillingMonth(
         targetBillingMonth,
         invoice?.billing_month,
         invoice?.invoice_date || invoice?.created_at,
@@ -844,7 +897,7 @@ export function buildStatementView({
   const filteredPaymentHistory = paymentHistory.filter(
     (payment) =>
       statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
-      isOnOrBeforeBillingMonth(
+      isWithinBillingMonth(
         targetBillingMonth,
         payment?.billing_month,
         payment?.payment_date || payment?.created_at,
@@ -854,7 +907,7 @@ export function buildStatementView({
   const filteredCreditNotes = creditNotes.filter(
     (creditNote) =>
       statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
-      isOnOrBeforeBillingMonth(
+      isWithinBillingMonth(
         targetBillingMonth,
         creditNote?.billing_month_applies_to,
         creditNote?.credit_note_date || creditNote?.created_at,
@@ -1126,6 +1179,84 @@ export function buildStatementView({
     paymentData?.created_at ||
     statementMonthSource;
 
+  const priorAgingPeriods = agingPeriods.filter(
+    (period) =>
+      statementAccountNumberSet.has(String(period?.account_number || "").trim()) &&
+      isBeforeBillingMonth(
+        targetBillingMonth,
+        period?.billing_month,
+        period?.invoice_date || period?.last_updated,
+      ),
+  );
+
+  const latestPriorAgingByAccount = new Map();
+  priorAgingPeriods.forEach((period) => {
+    const accountNumber = String(period?.account_number || "").trim();
+    if (!accountNumber) return;
+
+    const candidateTime = new Date(
+      String(period?.invoice_date || period?.last_updated || period?.billing_month || 0),
+    ).getTime();
+    const current = latestPriorAgingByAccount.get(accountNumber);
+    const currentTime = current
+      ? new Date(
+          String(
+            current?.invoice_date || current?.last_updated || current?.billing_month || 0,
+          ),
+        ).getTime()
+      : Number.NEGATIVE_INFINITY;
+
+    if (!current || candidateTime > currentTime) {
+      latestPriorAgingByAccount.set(accountNumber, period);
+    }
+  });
+
+  const openingBalanceFromAging = Array.from(latestPriorAgingByAccount.values()).reduce(
+    (sum, period) => sum + Math.max(0, toNumber(period?.outstanding_balance)),
+    0,
+  );
+
+  const priorInvoiceHistory = invoiceHistory.filter(
+    (invoice) =>
+      statementAccountNumberSet.has(String(invoice?.account_number || "").trim()) &&
+      isBeforeBillingMonth(
+        targetBillingMonth,
+        invoice?.billing_month,
+        invoice?.invoice_date || invoice?.created_at,
+      ),
+  );
+
+  const priorPaymentHistory = paymentHistory.filter(
+    (payment) =>
+      statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
+      isBeforeBillingMonth(
+        targetBillingMonth,
+        payment?.billing_month,
+        payment?.payment_date || payment?.created_at,
+      ),
+  );
+
+  const priorCreditNotes = creditNotes.filter(
+    (creditNote) =>
+      statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
+      isBeforeBillingMonth(
+        targetBillingMonth,
+        creditNote?.billing_month_applies_to,
+        creditNote?.credit_note_date || creditNote?.created_at,
+      ),
+  );
+
+  const openingBalanceFromLedger = Math.max(
+    0,
+    priorInvoiceHistory.reduce((sum, invoice) => sum + toNumber(invoice?.total_amount), 0) -
+      priorPaymentHistory.reduce((sum, payment) => sum + toNumber(payment?.amount), 0) -
+      priorCreditNotes.reduce(
+        (sum, creditNote) => sum + toNumber(creditNote?.applied_amount ?? creditNote?.amount),
+        0,
+      ),
+  );
+  const openingBalance = Math.max(openingBalanceFromAging, openingBalanceFromLedger);
+
   const matchedStatementPayments = filteredPaymentHistory
     .map((payment) => ({
       id: payment?.id,
@@ -1175,11 +1306,21 @@ export function buildStatementView({
       debitValue: invoiceAmount,
       creditValue: 0,
       outstandingValue: 0,
+      sourceAccountNumber: String(invoice?.account_number || "").trim(),
+      sourceBillingMonth: normalizeBillingMonthValue(invoice?.billing_month),
     };
   });
 
   const completedJobInvoiceFallbackRows = (Array.isArray(costCenter?.invoicedJobs) ? costCenter.invoicedJobs : [])
-    .filter((job) => statementAccountNumberSet.has(String(job?.account_number || "").trim()))
+    .filter(
+      (job) =>
+        statementAccountNumberSet.has(String(job?.account_number || "").trim()) &&
+        isWithinBillingMonth(
+          targetBillingMonth,
+          job?.billing_month || job?.invoice_date,
+          job?.invoice_date || job?.created_at,
+        ),
+    )
     .map((job) => {
       const invoiceAmount = toNumber(job?.total_amount);
       const sortDate = job?.invoice_date || statementMonthSource;
@@ -1195,6 +1336,8 @@ export function buildStatementView({
         debitValue: invoiceAmount,
         creditValue: 0,
         outstandingValue: 0,
+        sourceAccountNumber: String(job?.account_number || "").trim(),
+        sourceBillingMonth: normalizeBillingMonthValue(job?.billing_month || job?.invoice_date),
       };
     })
     .filter((row) => toNumber(row.debitValue) > 0);
@@ -1202,11 +1345,16 @@ export function buildStatementView({
   const invoiceLedgerKeys = new Set(
     invoiceLedgerRows.map((row) => `${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`),
   );
+  const invoiceLedgerPeriodKeys = new Set(
+    invoiceLedgerRows
+      .map((row) => `${String(row.sourceAccountNumber || "").trim()}|${normalizeBillingMonthValue(row.sourceBillingMonth)}`)
+      .filter((key) => !key.endsWith("|")),
+  );
 
   const agingInvoiceFallbackRows = agingPeriods
     .filter((period) =>
       statementAccountNumberSet.has(String(period?.account_number || "").trim()) &&
-      isOnOrBeforeBillingMonth(
+      isWithinBillingMonth(
         targetBillingMonth,
         period?.billing_month,
         period?.invoice_date || period?.last_updated,
@@ -1235,9 +1383,17 @@ export function buildStatementView({
         debitValue: invoiceAmount,
         creditValue: 0,
         outstandingValue: 0,
+        sourceAccountNumber: String(period?.account_number || "").trim(),
+        sourceBillingMonth: normalizeBillingMonthValue(period?.billing_month),
       };
     })
     .filter((row) => toNumber(row.debitValue) > 0)
+    .filter(
+      (row) =>
+        !invoiceLedgerPeriodKeys.has(
+          `${String(row.sourceAccountNumber || "").trim()}|${normalizeBillingMonthValue(row.sourceBillingMonth)}`,
+        ),
+    )
     .filter((row) => !invoiceLedgerKeys.has(`${String(row.description || "").trim()}|${String(row.sortDate || "").trim()}`));
 
   const completedJobInvoiceRows = completedJobInvoiceFallbackRows.filter(
@@ -1299,7 +1455,13 @@ export function buildStatementView({
     };
   });
 
-  const ledgerInvoiceTotal = invoiceLedgerRows.reduce(
+  const allStatementInvoiceRows = [
+    ...invoiceLedgerRows,
+    ...completedJobInvoiceRows,
+    ...agingInvoiceFallbackRows,
+  ];
+
+  const ledgerInvoiceTotal = allStatementInvoiceRows.reduce(
     (sum, row) => sum + toNumber(row.debitValue),
     0,
   );
@@ -1315,11 +1477,6 @@ export function buildStatementView({
     0,
     toNumber(paymentData?.outstanding_balance ?? balanceDue),
   );
-  const openingBalance = Math.max(
-    0,
-    statementOutstandingFromMirror + ledgerPaymentTotal + ledgerCreditTotal - ledgerInvoiceTotal,
-  );
-
   const transactionRows = [];
 
   if (openingBalance > 0 && !hasExplicitOpeningInvoice) {
@@ -1382,6 +1539,12 @@ export function buildStatementView({
     rowsForStatement.length > 0
       ? Math.max(toNumber(totalsFromRows.outstanding), statementOutstandingFromMirror)
       : statementOutstandingFromMirror;
+
+  current = statementOutstandingTotal;
+  days30 = 0;
+  days60 = 0;
+  days90 = 0;
+  days120Plus = 0;
 
   return {
     clientName,
