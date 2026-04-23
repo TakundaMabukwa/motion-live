@@ -17,9 +17,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = normalizeSearch(searchParams.get("search"));
+    const fetchAll = ["1", "true", "yes"].includes(
+      String(searchParams.get("all") || "").trim().toLowerCase(),
+    );
     const limit = Math.min(
       Math.max(Number.parseInt(String(searchParams.get("limit") || "100"), 10) || 100, 1),
-      500,
+      5000,
     );
 
     let query = supabase
@@ -28,13 +31,14 @@ export async function GET(request: NextRequest) {
         "id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, company_name, customer_vat_number, company_registration_number, client_address, line_items, notes, created_at",
       )
       .order("created_at", { ascending: false })
-      .order("invoice_date", { ascending: false, nullsFirst: false })
-      .limit(limit);
+      .order("invoice_date", { ascending: false, nullsFirst: false });
+
+    query = fetchAll ? query.range(0, 9999) : query.limit(limit);
 
     if (search) {
       const escaped = search.replace(/[%_]/g, "\\$&");
       query = query.or(
-        `invoice_number.ilike.%${escaped}%,account_number.ilike.%${escaped}%,company_name.ilike.%${escaped}%`,
+        `invoice_number.ilike.%${escaped}%,account_number.ilike.%${escaped}%,company_name.ilike.%${escaped}%,customer_vat_number.ilike.%${escaped}%,company_registration_number.ilike.%${escaped}%`,
       );
     }
 

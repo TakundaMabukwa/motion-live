@@ -125,6 +125,58 @@ async function insertInBatches(rows, batchSize = 200) {
   }
 }
 
+function normalizeText(value) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function buildReceiptKey(row) {
+  return [
+    normalizeText(row.account_number),
+    String(row.payment_date || '').trim(),
+    roundCurrency(row.amount).toFixed(2),
+  ].join('|');
+}
+
+function buildAllocationSignature(row) {
+  return [
+    roundCurrency(row.allocation_current_due).toFixed(2),
+    roundCurrency(row.allocation_overdue_30_days).toFixed(2),
+    roundCurrency(row.allocation_overdue_60_days).toFixed(2),
+    roundCurrency(row.allocation_overdue_90_days).toFixed(2),
+    roundCurrency(row.allocation_overdue_120_plus_days).toFixed(2),
+  ].join('|');
+}
+
+async function fetchExistingImportedPayments() {
+  const { data, error } = await supabase
+    .from('imported_account_payments')
+    .select(
+      [
+        'id',
+        'account_number',
+        'client_name',
+        'source_workbook',
+        'source_sheet',
+        'payer_name',
+        'reference',
+        'payment_date',
+        'amount',
+        'allocation_current_due',
+        'allocation_overdue_30_days',
+        'allocation_overdue_60_days',
+        'allocation_overdue_90_days',
+        'allocation_overdue_120_plus_days',
+        'billing_month_applied_to',
+        'notes',
+      ].join(','),
+    )
+    .eq('billing_month_applied_to', BILLING_MONTH_APPLIED_TO)
+    .eq('source_sheet', SOURCE_SHEET);
+
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+}
+
 async function main() {
   const workbook = xlsx.readFile(WORKBOOK_PATH, { cellDates: true });
   const rows = getSheetRows(workbook, SOURCE_SHEET);
@@ -151,6 +203,45 @@ async function main() {
   const workbookTotal = roundCurrency(payload.reduce((sum, row) => sum + row.amount, 0));
   const allocationTotal = roundCurrency(payload.reduce((sum, row) => sum + row.allocation_current_due + row.allocation_overdue_30_days + row.allocation_overdue_60_days + row.allocation_overdue_90_days + row.allocation_overdue_120_plus_days, 0));
   const accounts = [...new Set(payload.map((row) => row.account_number))].sort();
+  const existingRows = await fetchExistingImportedPayments();
+
+  const existingByKey = new Map();
+  existingRows.forEach((row) => {
+    const key = buildReceiptKey(row);
+    if (!existingByKey.has(key)) {
+      existingByKey.set(key, []);
+    }
+    existingByKey.get(key).push(row);
+  });
+
+  const exactMatches = [];
+  const missingRows = [];
+  const conflictingRows = [];
+
+  payload.forEach((row) => {
+    const key = buildReceiptKey(row);
+    const matches = existingByKey.get(key) || [];
+    if (matches.length === 0) {
+      missingRows.push(row);
+      return;
+    }
+
+    const incomingSignature = buildAllocationSignature(row);
+    const exact = matches.find((existingRow) => buildAllocationSignature(existingRow) === incomingSignature);
+
+    if (exact) {
+      exactMatches.push({
+        workbook: row,
+        existing: exact,
+      });
+      return;
+    }
+
+    conflictingRows.push({
+      workbook: row,
+      existing: matches,
+    });
+  });
 
   const summary = {
     workbook: SOURCE_WORKBOOK,
@@ -162,23 +253,23 @@ async function main() {
     distinct_accounts: accounts.length,
     workbook_total_amount: workbookTotal,
     workbook_total_allocations: allocationTotal,
+    existing_db_row_count: existingRows.length,
+    exact_match_count: exactMatches.length,
+    missing_count: missingRows.length,
+    conflict_count: conflictingRows.length,
+    missing_total_amount: roundCurrency(missingRows.reduce((sum, row) => sum + row.amount, 0)),
+    conflict_total_amount: roundCurrency(conflictingRows.reduce((sum, row) => sum + row.workbook.amount, 0)),
+    exact_match_total_amount: roundCurrency(exactMatches.reduce((sum, row) => sum + row.workbook.amount, 0)),
+    sample_missing: missingRows.slice(0, 20),
+    sample_conflicts: conflictingRows.slice(0, 20),
   };
 
   if (APPLY_MODE) {
-    const { error: deleteError } = await supabase
-      .from('imported_account_payments')
-      .delete()
-      .eq('source_workbook', SOURCE_WORKBOOK)
-      .eq('source_sheet', SOURCE_SHEET)
-      .eq('billing_month_applied_to', BILLING_MONTH_APPLIED_TO);
-    if (deleteError) throw deleteError;
-
-    await insertInBatches(payload);
+    await insertInBatches(missingRows);
 
     const { data: insertedRows, error: selectError } = await supabase
       .from('imported_account_payments')
       .select('account_number, amount, payment_date')
-      .eq('source_workbook', SOURCE_WORKBOOK)
       .eq('source_sheet', SOURCE_SHEET)
       .eq('billing_month_applied_to', BILLING_MONTH_APPLIED_TO);
     if (selectError) throw selectError;
@@ -186,11 +277,25 @@ async function main() {
     const dbTotal = roundCurrency((insertedRows || []).reduce((sum, row) => sum + toNumber(row.amount), 0));
     summary.db_row_count = insertedRows?.length || 0;
     summary.db_total_amount = dbTotal;
-    summary.db_matches_workbook = dbTotal === workbookTotal && (insertedRows?.length || 0) === payload.length;
+    summary.inserted_missing_rows = missingRows.length;
+    summary.db_contains_all_workbook_rows = missingRows.length === 0 && conflictingRows.length === 0;
   }
 
   fs.writeFileSync(REPORT_PATH, JSON.stringify(summary, null, 2));
-  fs.writeFileSync(DETAIL_PATH, JSON.stringify(payload, null, 2));
+  fs.writeFileSync(
+    DETAIL_PATH,
+    JSON.stringify(
+      {
+        workbook_rows: payload,
+        exact_matches: exactMatches,
+        missing_rows: missingRows,
+        conflicting_rows: conflictingRows,
+        existing_rows: existingRows,
+      },
+      null,
+      2,
+    ),
+  );
   console.log(JSON.stringify(summary, null, 2));
 }
 

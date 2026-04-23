@@ -791,34 +791,6 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
 
         <div class="statement-insert-total">Total : ${escapeHtml(totals.outstanding)}</div>
 
-        <table class="statement-aging-table">
-          <colgroup>
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Current</th>
-              <th>30 Days</th>
-              <th>60 Days</th>
-              <th>90 Days</th>
-              <th>120+ Days</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>${escapeHtml(aging.current)}</td>
-              <td>${escapeHtml(aging.days30)}</td>
-              <td>${escapeHtml(aging.days60)}</td>
-              <td>${escapeHtml(aging.days90)}</td>
-              <td>${escapeHtml(aging.days120Plus)}</td>
-            </tr>
-          </tbody>
-        </table>
-
         <table class="statement-footer-table">
           <colgroup>
             <col style="width: 35%" />

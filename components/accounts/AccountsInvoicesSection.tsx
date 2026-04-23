@@ -91,6 +91,7 @@ export default function AccountsInvoicesSection() {
       }
 
       const query = new URLSearchParams();
+      query.set("all", "1");
       if (search.trim()) {
         query.set("search", search.trim());
       }
