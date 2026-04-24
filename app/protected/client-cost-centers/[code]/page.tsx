@@ -298,6 +298,7 @@ export default function ClientCostCentersPage() {
     selectedBillingMonth: '',
     statementMode: 'single',
     bulkStatementCompanyName: '',
+    bulkStatementSearchTerm: '',
     availableStatementCostCenters: [],
     selectedStatementAccounts: [],
   });
@@ -4980,6 +4981,7 @@ export default function ClientCostCentersPage() {
       selectedBillingMonth: String(request?.costCenter?.billingMonth || currentBillingMonthKey || '').trim(),
       statementMode: 'single',
       bulkStatementCompanyName: defaultStatementCompanyName,
+      bulkStatementSearchTerm: '',
       availableStatementCostCenters,
       selectedStatementAccounts: selectedAccount ? [selectedAccount] : [],
     });
@@ -4993,6 +4995,7 @@ export default function ClientCostCentersPage() {
       selectedBillingMonth: '',
       statementMode: 'single',
       bulkStatementCompanyName: '',
+      bulkStatementSearchTerm: '',
       availableStatementCostCenters: [],
       selectedStatementAccounts: [],
     });
@@ -7012,7 +7015,7 @@ export default function ClientCostCentersPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Choose Report Format</DialogTitle>
             <DialogDescription>
@@ -7112,13 +7115,98 @@ export default function ClientCostCentersPage() {
 
                     <div className="space-y-2">
                       <label className="font-medium text-slate-700 text-sm">Cost centers to include</label>
-                      <div className="space-y-2 border rounded-lg p-3 max-h-56 overflow-y-auto">
-                        {reportDeliveryModal.availableStatementCostCenters.map((item) => {
+                      <Input
+                        value={reportDeliveryModal.bulkStatementSearchTerm}
+                        onChange={(event) =>
+                          setReportDeliveryModal((prev) => ({
+                            ...prev,
+                            bulkStatementSearchTerm: event.target.value,
+                          }))
+                        }
+                        disabled={reportDeliveryModal.loading}
+                        placeholder="Search by cost center code or client name"
+                        className="h-11"
+                      />
+                      {(() => {
+                        const normalizedSearchTerm = String(
+                          reportDeliveryModal.bulkStatementSearchTerm || '',
+                        )
+                          .trim()
+                          .toLowerCase();
+                        const visibleCostCenters = reportDeliveryModal.availableStatementCostCenters.filter((item) => {
+                          if (!normalizedSearchTerm) return true;
+                          return [
+                            item.accountNumber,
+                            item.accountName,
+                          ]
+                            .map((value) => String(value || '').toLowerCase())
+                            .some((value) => value.includes(normalizedSearchTerm));
+                        });
+                        const visibleAccountNumbers = visibleCostCenters.map((item) => item.accountNumber);
+                        const allVisibleSelected =
+                          visibleAccountNumbers.length > 0 &&
+                          visibleAccountNumbers.every((accountNumber) =>
+                            reportDeliveryModal.selectedStatementAccounts.includes(accountNumber),
+                          );
+                        const selectedVisibleCount = visibleAccountNumbers.filter((accountNumber) =>
+                          reportDeliveryModal.selectedStatementAccounts.includes(accountNumber),
+                        ).length;
+
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-2 text-sm">
+                              <div className="text-slate-600">
+                                Showing {visibleCostCenters.length} of {reportDeliveryModal.availableStatementCostCenters.length} cost centers
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={reportDeliveryModal.loading || reportDeliveryModal.availableStatementCostCenters.length === 0}
+                                  onClick={() =>
+                                    setReportDeliveryModal((prev) => ({
+                                      ...prev,
+                                      selectedStatementAccounts: prev.availableStatementCostCenters.map(
+                                        (item) => item.accountNumber,
+                                      ),
+                                    }))
+                                  }
+                                >
+                                  Select all
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={reportDeliveryModal.loading || visibleAccountNumbers.length === 0}
+                                  onClick={() =>
+                                    setReportDeliveryModal((prev) => {
+                                      const nextSelected = allVisibleSelected
+                                        ? prev.selectedStatementAccounts.filter(
+                                            (accountNumber) => !visibleAccountNumbers.includes(accountNumber),
+                                          )
+                                        : visibleAccountNumbers;
+                                      return {
+                                        ...prev,
+                                        selectedStatementAccounts: nextSelected,
+                                      };
+                                    })
+                                  }
+                                >
+                                  {allVisibleSelected
+                                    ? `Clear found (${selectedVisibleCount})`
+                                    : `Select found (${visibleCostCenters.length})`}
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-3 border rounded-lg p-4 max-h-[28rem] overflow-y-auto">
+                        {visibleCostCenters.map((item) => {
                           const checked = reportDeliveryModal.selectedStatementAccounts.includes(item.accountNumber);
                           return (
                             <label
                               key={item.accountNumber}
-                              className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-slate-50"
+                              className="flex items-start gap-3 rounded-md border px-4 py-3 cursor-pointer hover:bg-slate-50"
                             >
                               <input
                                 type="checkbox"
@@ -7138,16 +7226,21 @@ export default function ClientCostCentersPage() {
                                 }
                               />
                               <div className="min-w-0">
-                                <div className="font-medium text-slate-900">{item.accountNumber}</div>
-                                <div className="text-slate-600 text-sm">{item.accountName}</div>
-                                {!item.hasInvoiceReference && (
-                                  <div className="text-amber-600 text-xs">No direct invoice reference found yet</div>
-                                )}
+                                <div className="font-semibold text-base leading-tight text-slate-900">{item.accountNumber}</div>
+                                <div className="text-slate-600 text-sm leading-tight mt-1">{item.accountName}</div>
                               </div>
                             </label>
                           );
                         })}
-                      </div>
+                              {visibleCostCenters.length === 0 && (
+                                <div className="rounded-md border border-dashed p-6 text-center text-sm text-slate-500">
+                                  No cost centers match that search.
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                       <p className="text-slate-500 text-xs">
                         Bulk statements include the selected cost centers on one statement.
                       </p>
