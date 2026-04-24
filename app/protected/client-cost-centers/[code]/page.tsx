@@ -235,6 +235,43 @@ const appendInvoiceLockCutoff = (query, costCenterInfo, storedBulkInvoice = null
   return query;
 };
 
+const EXPRESS_PRIORITY_COST_CENTERS = [
+  'MACS-0005',
+  'MACS-0011',
+  'MACS-0009',
+  'MACS-0008',
+];
+
+const prioritizeCostCentersForSearch = (costCenters = [], rawSearchTerm = '') => {
+  const normalizedSearchTerm = String(rawSearchTerm || '').trim().toLowerCase();
+  const rows = Array.isArray(costCenters) ? [...costCenters] : [];
+
+  if (!normalizedSearchTerm) {
+    return rows;
+  }
+
+  if (normalizedSearchTerm.includes('express')) {
+    const priorityIndex = new Map(
+      EXPRESS_PRIORITY_COST_CENTERS.map((code, index) => [code, index]),
+    );
+
+    return rows.sort((left, right) => {
+      const leftCode = String(left?.accountNumber || '').trim().toUpperCase();
+      const rightCode = String(right?.accountNumber || '').trim().toUpperCase();
+      const leftPriority = priorityIndex.has(leftCode) ? priorityIndex.get(leftCode) : Number.POSITIVE_INFINITY;
+      const rightPriority = priorityIndex.has(rightCode) ? priorityIndex.get(rightCode) : Number.POSITIVE_INFINITY;
+
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+
+      return String(left?.accountName || leftCode).localeCompare(String(right?.accountName || rightCode));
+    });
+  }
+
+  return rows;
+};
+
 export default function ClientCostCentersPage() {
   const params = useParams();
   const router = useRouter();
@@ -4343,12 +4380,34 @@ export default function ClientCostCentersPage() {
       console.log('Grouped cost centers:', costCenters.length);
       if (clientData?.searchMethod === 'payments_table_focus' || clientData?.searchMethod === 'payments_table_focus_api' || clientData?.searchMethod === 'cost_centers_with_payments') {
         reconcileCostCentersWithInvoiceRule(costCenters).then((reconciledCostCenters) => {
-          setCostCentersWithPayments(reconciledCostCenters);
+          const prioritizedCostCenters = prioritizeCostCentersForSearch(reconciledCostCenters, searchTerm);
+          setCostCentersWithPayments(prioritizedCostCenters);
+          if (String(searchTerm || '').trim().toLowerCase().includes('express')) {
+            const prioritySet = new Set(EXPRESS_PRIORITY_COST_CENTERS);
+            setSelectedCostCenters(
+              prioritizedCostCenters
+                .filter((costCenter) => prioritySet.has(String(costCenter?.accountNumber || '').trim().toUpperCase()))
+                .map((costCenter) => ({ ...costCenter, selected: true })),
+            );
+          } else {
+            setSelectedCostCenters([]);
+          }
         });
       } else {
         fetchPaymentsForCostCenters(costCenters).then(result => {
           console.log('Final cost centers with payments:', result.length);
-          setCostCentersWithPayments(result);
+          const prioritizedCostCenters = prioritizeCostCentersForSearch(result, searchTerm);
+          setCostCentersWithPayments(prioritizedCostCenters);
+          if (String(searchTerm || '').trim().toLowerCase().includes('express')) {
+            const prioritySet = new Set(EXPRESS_PRIORITY_COST_CENTERS);
+            setSelectedCostCenters(
+              prioritizedCostCenters
+                .filter((costCenter) => prioritySet.has(String(costCenter?.accountNumber || '').trim().toUpperCase()))
+                .map((costCenter) => ({ ...costCenter, selected: true })),
+            );
+          } else {
+            setSelectedCostCenters([]);
+          }
         });
       }
     } else {
@@ -4983,7 +5042,7 @@ export default function ClientCostCentersPage() {
       bulkStatementCompanyName: defaultStatementCompanyName,
       bulkStatementSearchTerm: '',
       availableStatementCostCenters,
-      selectedStatementAccounts: selectedAccount ? [selectedAccount] : [],
+      selectedStatementAccounts: [],
     });
   };
 
@@ -5791,15 +5850,6 @@ export default function ClientCostCentersPage() {
                     Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
                   </p>
                 )}
-                <div className="relative mt-3 max-w-xl">
-                  <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2" />
-                  <Input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search by client or cost center name..."
-                    className="bg-white pl-9"
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -7057,9 +7107,7 @@ export default function ClientCostCentersPage() {
                           ...prev,
                           statementMode: 'single',
                           bulkStatementCompanyName: prev.bulkStatementCompanyName,
-                          selectedStatementAccounts: prev.request?.costCenter?.accountNumber
-                            ? [String(prev.request.costCenter.accountNumber).trim()]
-                            : [],
+                          selectedStatementAccounts: [],
                         }))
                       }
                     >
@@ -7082,9 +7130,7 @@ export default function ClientCostCentersPage() {
                             '',
                           ).trim(),
                           selectedStatementAccounts:
-                            prev.statementMode === 'bulk' && prev.selectedStatementAccounts.length > 0
-                              ? prev.selectedStatementAccounts
-                              : prev.availableStatementCostCenters.map((item) => item.accountNumber),
+                            prev.statementMode === 'bulk' ? prev.selectedStatementAccounts : [],
                         }))
                       }
                     >
