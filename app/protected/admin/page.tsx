@@ -1369,8 +1369,10 @@ export default function AdminDashboard() {
     const role = String(job.role || "").toLowerCase();
     const moveTo = String(job.move_to || "").toLowerCase();
     const status = String(job.status || "").toLowerCase();
+    const escalationRole = String(job.escalation_role || "").toLowerCase();
 
     return (
+      (!!escalationRole && escalationRole !== "admin") ||
       ["inv", "accounts", "fc"].includes(role) ||
       ["inv", "accounts", "fc"].includes(moveTo) ||
       ["moved_to_inv", "moved_to_accounts"].includes(status) ||

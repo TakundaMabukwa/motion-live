@@ -80,6 +80,16 @@ const getBillingMonthRange = (billingMonth: string) => {
   return { start, end };
 };
 
+const getPreviousBillingMonth = (billingMonth: string | null | undefined) => {
+  const normalized = normalizeBillingMonth(billingMonth);
+  if (!normalized) return null;
+
+  const date = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setMonth(date.getMonth() - 1);
+  return normalizeBillingMonth(date.toISOString()) || null;
+};
+
 const isInBillingMonth = (value: unknown, billingMonth: string) => {
   const raw = String(value || "").trim();
   if (!raw) return false;
@@ -106,6 +116,43 @@ const getLockMonth = async (supabase: Awaited<ReturnType<typeof createClient>>) 
   }
 
   return getOperationalBillingMonthKey();
+};
+
+const getLatestMeaningfulMirrorMonth = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  maxBillingMonth?: string | null,
+) => {
+  let query = supabase
+    .from("payments_")
+    .select(
+      `
+      billing_month,
+      current_due,
+      overdue_30_days,
+      overdue_60_days,
+      overdue_90_days,
+      overdue_120_plus_days,
+      outstanding_balance,
+      paid_amount,
+      credit_amount,
+      last_updated
+    `,
+    )
+    .order("billing_month", { ascending: false })
+    .order("last_updated", { ascending: false, nullsFirst: false })
+    .limit(2000);
+
+  if (maxBillingMonth) {
+    query = query.lte("billing_month", maxBillingMonth);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  const firstMeaningfulRow = (data || []).find((row) => hasMeaningfulAgeAnalysis(row));
+  return normalizeBillingMonth(firstMeaningfulRow?.billing_month) || null;
 };
 
 const buildPaymentState = ({
@@ -175,7 +222,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const resolvedBillingMonth = requestedBillingMonth || (await getLockMonth(supabase));
+    const activeBillingMonth = await getLockMonth(supabase);
+    const latestMirrorBillingMonth = await getLatestMeaningfulMirrorMonth(
+      supabase,
+      activeBillingMonth,
+    );
+    const resolvedBillingMonth =
+      requestedBillingMonth ||
+      latestMirrorBillingMonth ||
+      getPreviousBillingMonth(activeBillingMonth) ||
+      activeBillingMonth;
 
     const [
       { data: costCenters, error: costCentersError },

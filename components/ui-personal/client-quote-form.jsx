@@ -322,25 +322,42 @@ export default function ClientQuoteForm({
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
 
+  const parseRecoveryHours = useCallback((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }, []);
+
+  const parseRecoveryAmount = useCallback((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }, []);
+
+  const calculateRecoveryTotal = useCallback((hoursValue, amountValue) => {
+    const parsedHours = parseRecoveryHours(hoursValue);
+    const parsedAmount = parseRecoveryAmount(amountValue);
+    return Number((parsedHours * parsedAmount).toFixed(2));
+  }, [parseRecoveryHours, parseRecoveryAmount]);
+
   const buildRecoveryProduct = useCallback((hoursValue, amountValue) => {
-    const parsedHours = Number(hoursValue);
-    const parsedAmount = Number(amountValue);
+    const parsedHours = parseRecoveryHours(hoursValue);
+    const parsedAmount = parseRecoveryAmount(amountValue);
+    const totalRecoveryAmount = calculateRecoveryTotal(parsedHours, parsedAmount);
 
     return {
       id: "recovery-line",
       name: "Recovery",
       description:
         parsedHours > 0
-          ? `Recovery service - ${parsedHours} hour${parsedHours === 1 ? "" : "s"}`
+          ? `Recovery service - ${parsedHours} hour${parsedHours === 1 ? "" : "s"} @ R${parsedAmount.toFixed(2)}/hour`
           : "Recovery service",
       type: "Service",
       category: "Recovery",
       code: "RECOVERY",
-      quantity: 1, // Always 1 for recovery - the total amount is in cashPrice
+      quantity: parsedHours > 0 ? parsedHours : 1,
       purchaseType: "service",
       isLabour: true,
       isRecovery: true,
-      cashPrice: parsedAmount > 0 ? parsedAmount : 0, // Total recovery amount
+      cashPrice: parsedAmount,
       cashDiscount: 0,
       rentalPrice: 0,
       rentalDiscount: 0,
@@ -351,9 +368,10 @@ export default function ClientQuoteForm({
       subscriptionPrice: 0,
       subscriptionDiscount: 0,
       annuityEndDate: "",
-      detailValue: parsedHours > 0 ? String(parsedHours) : "", // Store hours in detailValue for reference
+      detailValue: parsedHours > 0 ? String(parsedHours) : "",
+      totalRecoveryAmount,
     };
-  }, []);
+  }, [calculateRecoveryTotal, parseRecoveryAmount, parseRecoveryHours]);
 
   const steps = [
     {
@@ -482,19 +500,26 @@ export default function ClientQuoteForm({
 
     if (initialQuote.job_type === "recovery") {
       const firstRecoveryLine = existingItems[0] || {};
-      setRecoveryQuote({
-        hours:
+      const parsedHours =
+        Number(
           firstRecoveryLine.detail_value ||
           firstRecoveryLine.detailValue ||
-          (firstRecoveryLine.quantity ? String(firstRecoveryLine.quantity) : ""),
-        amount: String(
-          Number(
-            firstRecoveryLine.total_price ||
-            firstRecoveryLine.cash_price ||
-            firstRecoveryLine.cashPrice ||
-            0
-          ) || ""
-        ),
+          firstRecoveryLine.quantity ||
+          0,
+        ) || 0;
+      const parsedTotal =
+        Number(
+          firstRecoveryLine.total_price ||
+          firstRecoveryLine.cash_price ||
+          firstRecoveryLine.cashPrice ||
+          0,
+        ) || 0;
+      const parsedRate =
+        parsedHours > 0 ? Number((parsedTotal / parsedHours).toFixed(2)) : parsedTotal;
+
+      setRecoveryQuote({
+        hours: parsedHours > 0 ? String(parsedHours) : "",
+        amount: parsedRate > 0 ? String(parsedRate) : "",
       });
     }
 
@@ -772,8 +797,8 @@ export default function ClientQuoteForm({
 
   const getProductTotal = useCallback((product) => {
     if (product.isRecovery) {
-      // For recovery quotes, the cashPrice is the total amount, quantity should always be 1
-      return calculateGrossAmount(product.cashPrice, product.cashDiscount);
+      const recoveryGross = calculateGrossAmount(product.cashPrice, product.cashDiscount);
+      return recoveryGross * (Number(product.quantity) || 0);
     }
 
     // Labour items: only use cash price (the labour cost field)
@@ -997,7 +1022,7 @@ export default function ClientQuoteForm({
         const subscriptionGross = calculateGrossAmount(subscriptionPrice, subscriptionDiscount);
 
         const totalPrice = product.isRecovery
-          ? cashGross // For recovery, cashPrice is already the total amount
+          ? cashGross * quantity
           : ((isLabour || isPurchase ? cashGross : 0)
           + (isRental ? rentalGross : 0)
           + installationGross
@@ -1660,15 +1685,15 @@ export default function ClientQuoteForm({
                       <div>
                         <p className="font-medium text-blue-900">Recovery Summary</p>
                         <p className="text-blue-700">
-                          {Number(recoveryQuote.hours) > 0
-                            ? `${recoveryQuote.hours} hour${Number(recoveryQuote.hours) === 1 ? "" : "s"}`
+                          {parseRecoveryHours(recoveryQuote.hours) > 0
+                            ? `${recoveryQuote.hours} hour${parseRecoveryHours(recoveryQuote.hours) === 1 ? "" : "s"} x R ${parseRecoveryAmount(recoveryQuote.amount).toFixed(2)}`
                             : "No hours entered yet"}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-blue-700">Total Amount</p>
                         <p className="font-semibold text-blue-900">
-                          R {(Number(recoveryQuote.amount) || 0).toFixed(2)}
+                          R {calculateRecoveryTotal(recoveryQuote.hours, recoveryQuote.amount).toFixed(2)}
                         </p>
                       </div>
                     </div>

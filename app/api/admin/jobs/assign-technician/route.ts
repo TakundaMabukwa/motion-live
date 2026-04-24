@@ -219,11 +219,9 @@ export async function PUT(request: NextRequest) {
       start_time: startDateTime,
       end_time: endDateTime,
       status: 'assigned',
-      escalation_role: 'tech',
-      escalation_source_role: String(jobData?.role || jobData?.move_to || 'admin')
-        .trim()
-        .toLowerCase() || 'admin',
-      escalated_at: new Date().toISOString(),
+      escalation_role: null,
+      escalation_source_role: null,
+      escalated_at: null,
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };

@@ -121,6 +121,13 @@ export async function GET(request: NextRequest) {
       escalation_role?: string | null;
     }) => String(job.escalation_role || '').toLowerCase() === 'admin';
 
+    const isEscalatedAwayFromAdmin = (job: {
+      escalation_role?: string | null;
+    }) => {
+      const escalationRole = String(job.escalation_role || '').toLowerCase();
+      return !!escalationRole && escalationRole !== 'admin';
+    };
+
     // Transform the data to match the expected format
     let transformedJobs = (data || []).map(job => ({
       id: job.id,
@@ -178,6 +185,7 @@ export async function GET(request: NextRequest) {
       transformedJobs = transformedJobs.filter(job => {
         if (isCompletedJob(job)) return false;
         if (isEscalatedToAdmin(job)) return false;
+        if (isEscalatedAwayFromAdmin(job)) return false;
         return hasPartsRequired(job.parts_required) || isAdminRoutedJob(job);
       });
     } else if (status === 'completed') {

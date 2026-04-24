@@ -352,15 +352,11 @@ export default function AccountsContent({ activeSection }) {
 
   const fetchCompletedJobs = async (
     invoiceState = completedJobsInvoiceTab,
-    search = completedJobsSearchTerm,
   ) => {
     try {
       setCompletedJobsLoading(true);
       const params = new URLSearchParams();
       params.set("invoiceState", invoiceState);
-      if (String(search || "").trim()) {
-        params.set("search", String(search).trim());
-      }
 
       const response = await fetch(`/api/accounts/completed-jobs?${params.toString()}`);
 
@@ -530,7 +526,7 @@ export default function AccountsContent({ activeSection }) {
   // Fetch completed jobs when section changes
   useEffect(() => {
     if (activeSection === "completed-jobs") {
-      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+      fetchCompletedJobs(completedJobsInvoiceTab);
     }
   }, [activeSection]);
 
@@ -540,11 +536,11 @@ export default function AccountsContent({ activeSection }) {
     }
 
     const timeoutId = setTimeout(() => {
-      fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+      fetchCompletedJobs(completedJobsInvoiceTab);
     }, 250);
 
     return () => clearTimeout(timeoutId);
-  }, [activeSection, completedJobsInvoiceTab, completedJobsSearchTerm]);
+  }, [activeSection, completedJobsInvoiceTab]);
 
   useEffect(() => {
     if (!showInvoiceBuilderModal) {
@@ -627,7 +623,7 @@ export default function AccountsContent({ activeSection }) {
 
       toast.dismiss(loadingToast);
       toast.success(`Job moved to ${destinationLabel}`);
-      await fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+      await fetchCompletedJobs(completedJobsInvoiceTab);
     } catch (error) {
       console.error("Error moving accounts completed job:", error);
       toast.dismiss(loadingToast);
@@ -1983,7 +1979,7 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const updated = await response.json();
-      await fetchCompletedJobs(completedJobsInvoiceTab, completedJobsSearchTerm);
+      await fetchCompletedJobs(completedJobsInvoiceTab);
       setSelectedJobDetails((prev) =>
         prev?.id === job.id
           ? {
@@ -2930,7 +2926,6 @@ export default function AccountsContent({ activeSection }) {
             onClick={() =>
               fetchCompletedJobs(
                 completedJobsInvoiceTab,
-                completedJobsSearchTerm,
               )
             }
             variant="outline"
