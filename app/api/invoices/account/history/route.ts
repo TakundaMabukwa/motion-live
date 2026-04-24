@@ -52,6 +52,10 @@ const isOnOrBeforeBillingMonth = (
       return false;
     }
 
+    if (normalizedValue < billingMonth) {
+      return true;
+    }
+
     if (hasRealFallbackDate) {
       return fallback.getTime() <= cutoff.getTime();
     }
@@ -627,7 +631,8 @@ export async function GET(request: NextRequest) {
           Number(row.overdue_60_days || 0) +
           Number(row.overdue_90_days || 0) +
           Number(row.overdue_120_plus_days || 0);
-        return outstanding > 0 || bucketTotal > 0;
+        const creditAmount = Number(row.credit_amount || 0);
+        return outstanding > 0 || bucketTotal > 0 || creditAmount > 0;
       });
 
     const filteredCreditNotes = (Array.isArray(creditNotes) ? creditNotes : []).filter((creditNote) =>

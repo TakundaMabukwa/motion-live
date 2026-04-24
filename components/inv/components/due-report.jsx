@@ -178,6 +178,10 @@ const isOnOrBeforeBillingMonth = (billingMonth, value, fallbackDateValue = null)
       return false;
     }
 
+    if (normalizedValue < normalizedBillingMonth) {
+      return true;
+    }
+
     if (hasRealFallbackDate) {
       return parsedFallback.getTime() <= cutoff.getTime();
     }
@@ -1249,6 +1253,10 @@ export function buildStatementView({
     (sum, period) => sum + Math.max(0, toNumber(period?.outstanding_balance)),
     0,
   );
+  const openingCreditFromAging = Array.from(latestPriorAgingByAccount.values()).reduce(
+    (sum, period) => sum + Math.max(0, toNumber(period?.credit_amount)),
+    0,
+  );
 
   const priorInvoiceHistory = invoiceHistory.filter(
     (invoice) =>
@@ -1289,6 +1297,13 @@ export function buildStatementView({
   const openingBalance = hasPriorAging
     ? openingBalanceFromAging
     : openingBalanceFromLedger;
+  const openingCreditAmount = hasPriorAging ? openingCreditFromAging : 0;
+  const shouldShowOpeningBalanceRow =
+    hasPriorAging ||
+    openingBalance > 0 ||
+    priorInvoiceHistory.length > 0 ||
+    priorPaymentHistory.length > 0 ||
+    priorCreditNotes.length > 0;
 
   const matchedStatementPayments = filteredPaymentHistory
     .map((payment) => ({
@@ -1519,7 +1534,7 @@ export function buildStatementView({
   );
   const transactionRows = [];
 
-  if (openingBalance > 0) {
+  if (shouldShowOpeningBalanceRow) {
     transactionRows.push({
       date: formatStatementTransactionDate(statementMonthSource, 1),
       sortDate: new Date(statementMonthSource || new Date().toISOString()).toISOString(),
@@ -1532,6 +1547,23 @@ export function buildStatementView({
       debitValue: openingBalance,
       creditValue: 0,
       outstandingValue: 0,
+    });
+  }
+
+  if (openingCreditAmount > 0) {
+    transactionRows.push({
+      date: formatStatementTransactionDate(statementMonthSource, 1),
+      sortDate: new Date(statementMonthSource || new Date().toISOString()).toISOString(),
+      client: clientName,
+      description: "Credit Balance",
+      amount: formatCurrency(openingCreditAmount),
+      debit: "-",
+      credit: formatCurrency(openingCreditAmount),
+      amountValue: openingCreditAmount,
+      debitValue: 0,
+      creditValue: openingCreditAmount,
+      outstandingValue: 0,
+      isCreditAdjustment: true,
     });
   }
 
@@ -1562,12 +1594,12 @@ export function buildStatementView({
       totalInvoiced: summary.totalInvoiced + toNumber(row.debitValue),
       paid:
         summary.paid +
-        (!row.isCreditNote && toNumber(row.creditValue) > 0
+        (!row.isCreditNote && !row.isCreditAdjustment && toNumber(row.creditValue) > 0
           ? toNumber(row.creditValue)
           : 0),
       credited:
         summary.credited +
-        (row.isCreditNote
+        (row.isCreditNote || row.isCreditAdjustment
           ? toNumber(row.creditValue)
           : 0),
       outstanding: toNumber(row.outstandingValue),
