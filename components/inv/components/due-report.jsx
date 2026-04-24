@@ -79,12 +79,21 @@ const formatStatementTransactionDate = (value, fallbackDay = null) => {
   }
 
   if (fallbackDay) {
-    parsed.setDate(fallbackDay);
+    const monthIndex = parsed.getUTCMonth();
+    const year = parsed.getUTCFullYear();
+    const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+    const safeDay = Math.max(1, Math.min(fallbackDay, lastDay));
+    const monthLabel = parsed.toLocaleString('en-GB', {
+      month: 'short',
+      timeZone: 'UTC',
+    });
+    return `${String(safeDay).padStart(2, '0')} ${monthLabel}`;
   }
 
   return parsed.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
+    timeZone: 'UTC',
   });
 };
 const sortTransactionDatesAsc = (left, right) => {
