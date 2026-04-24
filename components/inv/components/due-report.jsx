@@ -438,7 +438,7 @@ export const buildStatementStyles = () => `
 .statement-company {
   justify-self: end;
   text-align: left;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.3;
   min-width: 240px;
 }
@@ -452,7 +452,7 @@ export const buildStatementStyles = () => `
 
   .statement-company strong {
     display: block;
-    font-size: 20px;
+    font-size: 18px;
     margin-bottom: 8px;
   }
 
@@ -464,7 +464,7 @@ export const buildStatementStyles = () => `
   .statement-title {
     text-align: center;
     font-weight: 700;
-    font-size: 20px;
+    font-size: 18px;
     margin: 8px 0 36px;
     text-transform: uppercase;
   }
@@ -481,7 +481,7 @@ export const buildStatementStyles = () => `
   .statement-meta-label,
   .statement-meta-value {
     font-weight: 700;
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .statement-client-block {
@@ -492,8 +492,8 @@ export const buildStatementStyles = () => `
 
   .statement-client-address {
     white-space: pre-line;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 13px;
+    line-height: 1.45;
   }
 
   .statement-meta {
@@ -501,6 +501,11 @@ export const buildStatementStyles = () => `
     grid-template-columns: auto 1fr;
     gap: 18px 14px;
     align-content: start;
+  }
+
+  .statement-meta-label,
+  .statement-meta-value {
+    font-size: 14px;
   }
 
   .statement-summary-table,
@@ -715,7 +720,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
           <div class="statement-client-block">
             <div class="statement-client-name">${escapeHtml(clientName)}</div>
             <div class="statement-client-address"><strong>Company Reg:</strong> ${escapeHtml(companyRegistrationNumber || "-")}</div>
-            <div class="statement-client-address"><strong>Postal Address:</strong> ${escapeHtml(clientAddress || "-")}</div>
+            <div class="statement-client-address"><strong>Postal Address:</strong><br />${escapeHtml(clientAddress || "-")}</div>
           </div>
           <div class="statement-meta">
             <div class="statement-meta-label">DEBTOR STATEMENT :</div>
@@ -961,10 +966,11 @@ export function buildStatementView({
   const structuredAddress = [
     costCenter?.costCenterInfo?.postal_address_1,
     costCenter?.costCenterInfo?.postal_address_2,
+    costCenter?.costCenterInfo?.postal_address_3,
   ]
     .map((value) => String(value || "").trim())
     .filter(Boolean)
-    .join(", ") || String(
+    .join("\n") || String(
       costCenter?.costCenterInfo?.physical_area || "",
     ).trim();
 

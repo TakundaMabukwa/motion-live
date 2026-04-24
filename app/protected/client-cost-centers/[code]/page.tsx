@@ -426,57 +426,81 @@ export default function ClientCostCentersPage() {
     });
   };
 
-  const getStatementAccountNumbers = (costCenter) => {
-    const selectedAccount = String(costCenter?.accountNumber || '').trim();
-    return selectedAccount ? [selectedAccount] : [];
-  };
-
   const getAvailableStatementCostCenters = (costCenter) => {
     const selectedAccount = String(costCenter?.accountNumber || '').trim();
     if (!selectedAccount) return [];
 
+    const optionsByAccount = new Map();
+
+    const addStatementOption = (item = {}) => {
+      const accountNumber = String(
+        item?.accountNumber ||
+          item?.account_number ||
+          item?.cost_code ||
+          item?.new_account_number ||
+          '',
+      ).trim();
+
+      if (!accountNumber) return;
+
+      const existing = optionsByAccount.get(accountNumber);
+      const accountName =
+        String(
+          item?.accountName ||
+            item?.account_name ||
+            item?.company ||
+            item?.customer_name ||
+            item?.legal_name ||
+            item?.costCenterInfo?.legal_name ||
+            item?.costCenterInfo?.company ||
+            existing?.accountName ||
+            accountNumber,
+        ).trim() || accountNumber;
+      const hasInvoiceReference =
+        Boolean(existing?.hasInvoiceReference) ||
+        isRealInvoiceNumber(item?.reference) ||
+        isRealInvoiceNumber(item?.invoiceData?.invoice_number) ||
+        isRealInvoiceNumber(item?.bulkInvoice?.invoice_number);
+
+      optionsByAccount.set(accountNumber, {
+        accountNumber,
+        accountName,
+        hasInvoiceReference,
+      });
+    };
+
+    filteredCostCenters.forEach(addStatementOption);
+    costCentersWithPayments.forEach(addStatementOption);
+    selectedCostCenters.forEach(addStatementOption);
+    addStatementOption(costCenter);
+
+    (Array.isArray(costCenter?.statementAccountNumbers)
+      ? costCenter.statementAccountNumbers
+      : []
+    ).forEach((accountNumber) =>
+      addStatementOption({
+        accountNumber,
+      }),
+    );
+
+    return Array.from(optionsByAccount.values()).sort((left, right) =>
+      left.accountNumber.localeCompare(right.accountNumber),
+    );
+  };
+
+  const getStatementAccountNumbers = (costCenter) => {
     return Array.from(
-      new Map(
-        costCentersWithPayments
-          .filter((item) => {
-            const accountNumber = String(item?.accountNumber || '').trim();
-            if (!accountNumber) return false;
-            return true;
-          })
-          .map((item) => [
-            String(item?.accountNumber || '').trim(),
-            {
-              accountNumber: String(item?.accountNumber || '').trim(),
-              accountName:
-                String(item?.accountName || item?.company || item?.costCenterInfo?.company || '')
-                  .trim() || String(item?.accountNumber || '').trim(),
-              hasInvoiceReference:
-                isRealInvoiceNumber(item?.reference) ||
-                isRealInvoiceNumber(item?.invoiceData?.invoice_number) ||
-                isRealInvoiceNumber(item?.bulkInvoice?.invoice_number),
-            },
-          ])
-          .concat([
-            [
-              selectedAccount,
-              {
-                accountNumber: selectedAccount,
-                accountName:
-                  String(
-                    costCenter?.accountName ||
-                      costCenter?.company ||
-                      costCenter?.costCenterInfo?.company ||
-                      selectedAccount,
-                  ).trim() || selectedAccount,
-                hasInvoiceReference:
-                  isRealInvoiceNumber(costCenter?.reference) ||
-                  isRealInvoiceNumber(costCenter?.invoiceData?.invoice_number) ||
-                  isRealInvoiceNumber(costCenter?.bulkInvoice?.invoice_number),
-              },
-            ],
-          ]),
-      ).values(),
-    ).sort((left, right) => left.accountNumber.localeCompare(right.accountNumber));
+      new Set(
+        [
+          costCenter?.accountNumber,
+          ...(Array.isArray(costCenter?.statementAccountNumbers)
+            ? costCenter.statementAccountNumbers
+            : []),
+        ]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean),
+      ),
+    );
   };
 
   const mergeLockedStatementBulkInvoices = async (
@@ -5764,6 +5788,15 @@ export default function ClientCostCentersPage() {
                     Found {clientData.searchDetails.paymentsTableRecords || 0} payment records
                   </p>
                 )}
+                <div className="relative mt-3 max-w-xl">
+                  <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2" />
+                  <Input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search by client or cost center name..."
+                    className="bg-white pl-9"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -5922,7 +5955,13 @@ export default function ClientCostCentersPage() {
                 <CardTitle className="text-gray-900 text-lg">
                   {(clientLegalName || decodedCode || code)} - Cost Centers
                 </CardTitle>
-                <p className="mt-1 text-gray-600 text-sm">Individual cost centers with company names and account codes for this client</p>
+                <p className="mt-1 text-gray-600 text-sm">
+                  Individual cost centers with company names and account codes for this client
+                </p>
+                <p className="mt-1 text-gray-400 text-xs">
+                  Showing {costCentersWithPayments.length} matched cost center{costCentersWithPayments.length === 1 ? '' : 's'}
+                  {searchTerm ? ` for "${searchTerm}"` : ''}
+                </p>
               </div>
               <div className="text-right">
                 <div className="flex gap-2 mb-2">
@@ -7040,7 +7079,7 @@ export default function ClientCostCentersPage() {
                             '',
                           ).trim(),
                           selectedStatementAccounts:
-                            prev.selectedStatementAccounts.length > 0
+                            prev.statementMode === 'bulk' && prev.selectedStatementAccounts.length > 0
                               ? prev.selectedStatementAccounts
                               : prev.availableStatementCostCenters.map((item) => item.accountNumber),
                         }))
