@@ -80,6 +80,29 @@ const sortJobsNewestFirst = <T extends { created_at?: string; job_date?: string;
     return bDate - aDate;
   });
 
+const normalizeTechnicianToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const splitTechnicianCsv = (value: string | null | undefined) =>
+  String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const isJobCompleted = (job: Job) =>
+  ['completed', 'done'].includes(String(job.job_status || job.status || '').trim().toLowerCase());
+
+const isJobOpenForTechnician = (job: Job) => {
+  const normalizedJobStatus = String(job.job_status || '').trim().toLowerCase();
+  const normalizedStatus = String(job.status || '').trim().toLowerCase();
+
+  if (isJobCompleted(job)) return false;
+
+  return !!String(job.technician_phone || '').trim() && (
+    ['created', 'pending', 'active', 'in_progress', 'assigned'].includes(normalizedJobStatus || normalizedStatus) ||
+    normalizedStatus === 'assigned'
+  );
+};
+
 export default function Jobs() {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
@@ -219,11 +242,27 @@ export default function Jobs() {
     });
   };
 
+  const isAssignedToCurrentUser = (job: Job) => {
+    const userEmail = String(userInfo?.user?.email || '').trim().toLowerCase();
+    const emailTokens = splitTechnicianCsv(job.technician_phone).map((token) => token.toLowerCase());
+    if (userEmail && emailTokens.includes(userEmail)) {
+      return true;
+    }
+
+    const prefix = userEmail.split('@')[0] || '';
+    const cleaned = prefix.replace(/[._-]/g, ' ');
+    const candidates = [prefix, cleaned, ...cleaned.split(' ')]
+      .filter(Boolean)
+      .map(normalizeTechnicianToken);
+    const nameTokens = splitTechnicianCsv(job.technician_name).map((token) => normalizeTechnicianToken(token));
+    return candidates.some((candidate) => nameTokens.includes(candidate));
+  };
+
   // Get job statistics
   const getJobStats = () => {
     const totalNew = userJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
-    const totalOpen = userJobs.filter(job => job.job_status === 'created' && job.technician_phone).length;
-    const totalCompleted = userJobs.filter(job => job.job_status === 'completed').length;
+    const totalOpen = userJobs.filter(job => isJobOpenForTechnician(job)).length;
+    const totalCompleted = userJobs.filter(job => isJobCompleted(job)).length;
     const totalRepair = userJobs.filter(job => job.repair === true).length;
     const serviceUpcoming = userJobs.filter(job => {
       if (!job.job_date) return false;
@@ -789,7 +828,7 @@ export default function Jobs() {
                   <CardTitle>Open Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.job_status === 'created' && job.technician_phone)} />
+                  <JobTable jobs={userJobs.filter(job => isJobOpenForTechnician(job))} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -809,7 +848,7 @@ export default function Jobs() {
                       if (userInfo?.isTechAdmin) return true;
                       
                       // Regular technicians can only see their own repair jobs
-                      return job.technician_phone === userInfo?.user?.email;
+                      return isAssignedToCurrentUser(job);
                     });
                     
                     console.log('🔧 Repair Jobs Filtering:', {
@@ -833,7 +872,7 @@ export default function Jobs() {
                   <CardTitle>Completed Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => job.job_status === 'completed')} />
+                  <JobTable jobs={userJobs.filter(job => isJobCompleted(job))} />
                 </CardContent>
               </Card>
             </TabsContent>

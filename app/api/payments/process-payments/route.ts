@@ -741,15 +741,15 @@ export async function POST(request: NextRequest) {
           credit_amount: Number(
             (currentCreditAmount + Math.max(0, creditAmount)).toFixed(2),
           ),
-          payment_status:
-            agedAllocation.outstanding_balance <= 0 && agedAllocation.current_due <= 0
-              ? "paid"
-              : nextPaidAmount > 0
-                ? "partial"
-                : "pending",
-          last_updated: new Date().toISOString(),
-        })
-        .eq("id", outstandingAgingRow.id);
+              payment_status:
+                agedAllocation.outstanding_balance <= 0 && agedAllocation.current_due <= 0
+                  ? "paid"
+                  : nextPaidAmount > 0
+                    ? "partial"
+                    : "pending",
+              last_updated: insertedPayment.payment_date,
+            })
+            .eq("id", outstandingAgingRow.id);
 
       if (paymentsMirrorUpdateError) {
         return NextResponse.json(

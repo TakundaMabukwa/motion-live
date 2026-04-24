@@ -397,10 +397,22 @@ export default function Dashboard() {
   const isEscalatedToTech = (job: Job) =>
     String(job.escalation_role || '').toLowerCase() === 'tech';
 
+  const isOpenJob = (job: Job) => {
+    const normalizedJobStatus = String(job.job_status || '').trim().toLowerCase();
+    const normalizedStatus = String(job.status || '').trim().toLowerCase();
+
+    if (isCompletedJob(job)) return false;
+
+    return Boolean(String(job.technician_phone || '').trim()) && (
+      ['created', 'pending', 'active', 'in_progress', 'assigned'].includes(normalizedJobStatus || normalizedStatus) ||
+      normalizedStatus === 'assigned'
+    );
+  };
   const activeUserJobs = userJobs.filter((job) => !isCompletedJob(job));
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
   const escalationJobs = assignedActiveJobs.filter((job) => isEscalatedToTech(job));
-  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job) && !isEscalatedToTech(job));
+  // Assigned techs should still see escalated jobs in My Jobs; the Escalations tab is an extra view, not an exclusion.
+  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job));
   const allJobs = assignedActiveJobs.filter((job) => !isEscalatedToTech(job));
   const displayedJobs =
     activeJobsView === 'my-jobs'

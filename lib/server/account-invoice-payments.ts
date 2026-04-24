@@ -624,17 +624,18 @@ export const upsertPaymentsMirror = async (
     id: string;
     account_number: string;
     billing_month?: string | null;
-    invoice_number: string;
-    company_name?: string | null;
-    invoice_date?: string | null;
-    due_date?: string | null;
-    total_amount?: number | null;
-    paid_amount?: number | null;
-    balance_due?: number | null;
-    payment_status?: string | null;
-    last_payment_reference?: string | null;
-    updated_at?: string | null;
-    credit_amount?: number | null;
+  invoice_number: string;
+  company_name?: string | null;
+  invoice_date?: string | null;
+  due_date?: string | null;
+  total_amount?: number | null;
+  paid_amount?: number | null;
+  balance_due?: number | null;
+  payment_status?: string | null;
+  last_payment_at?: string | null;
+  last_payment_reference?: string | null;
+  updated_at?: string | null;
+  credit_amount?: number | null;
   },
 ) => {
   const isMissingCreditAmountColumnError = (error: unknown) => {
@@ -670,7 +671,10 @@ export const upsertPaymentsMirror = async (
     outstanding_balance: toNumber(invoice.balance_due),
     amount_due: toNumber(invoice.balance_due),
     billing_month: billingMonth,
-    last_updated: new Date().toISOString(),
+    last_updated:
+      invoice.last_payment_at ||
+      invoice.updated_at ||
+      new Date().toISOString(),
   };
 
   const basePayload = { ...payload };

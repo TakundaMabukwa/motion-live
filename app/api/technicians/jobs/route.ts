@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const splitCsv = (value: string | null | undefined) =>
+  String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getUserNameCandidates = (email: string | null | undefined) => {
+  const prefix = String(email || '').split('@')[0] || '';
+  const cleaned = prefix.replace(/[._-]/g, ' ');
+  return [prefix, cleaned, ...cleaned.split(' ')]
+    .filter(Boolean)
+    .map(normalizeToken);
+};
+
+const isAssignedToTechnician = (job: Record<string, unknown>, userEmail: string | null | undefined) => {
+  const normalizedEmail = String(userEmail || '').trim().toLowerCase();
+  const emailTokens = splitCsv(String(job?.technician_phone || '')).map((token) => token.toLowerCase());
+  if (normalizedEmail && emailTokens.includes(normalizedEmail)) {
+    return true;
+  }
+
+  const nameTokens = splitCsv(String(job?.technician_name || '')).map((token) => normalizeToken(token));
+  const candidates = getUserNameCandidates(userEmail);
+  return candidates.some((candidate) => nameTokens.includes(candidate));
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -31,11 +59,10 @@ export async function GET(request: NextRequest) {
         .select('*')
         .order('created_at', { ascending: false });
     } else {
-      // If tech_admin is false, load jobs where email matches technician_phone
+      // Load jobs broadly, then match comma-separated technician emails/names in code.
       jobsQuery = supabase
         .from('job_cards')
         .select('*')
-        .ilike('technician_phone', userData.email)
         .order('created_at', { ascending: false });
     }
 
@@ -46,6 +73,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
     }
 
+    const visibleJobs = userData.tech_admin
+      ? (jobs || [])
+      : (jobs || []).filter((job) => isAssignedToTechnician(job, userData.email));
+
     // Check if user wants detailed job info
     const { searchParams } = new URL(request.url);
     const detailed = searchParams.get('detailed');
@@ -54,10 +85,10 @@ export async function GET(request: NextRequest) {
     if (detailed === 'true' || format === 'json') {
       // Return detailed job information with all fields
       return NextResponse.json({ 
-        jobs: jobs || [],
+        jobs: visibleJobs,
         userRole: userData.tech_admin ? 'tech_admin' : 'technician',
         userEmail: userData.email,
-        totalJobs: jobs?.length || 0,
+        totalJobs: visibleJobs.length || 0,
         timestamp: new Date().toISOString(),
         fields: {
           basic: ['id', 'job_number', 'job_type', 'status', 'job_status', 'priority', 'job_description'],
@@ -73,7 +104,7 @@ export async function GET(request: NextRequest) {
 
     // Return standard response
     return NextResponse.json({ 
-      jobs: jobs || [],
+      jobs: visibleJobs,
       userRole: userData.tech_admin ? 'tech_admin' : 'technician',
       userEmail: userData.email
     });

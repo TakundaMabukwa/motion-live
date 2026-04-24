@@ -1,0 +1,126 @@
+{
+  "workbookPath": "C:\\Users\\mabuk\\Desktop\\motion-live\\components\\inv\\components\\Take on Debtors ye 0226 -  receipts  0326 - update.xlsx",
+  "fixed": 25,
+  "sample": [
+    {
+      "code": "HITA-0001",
+      "expected": 223732.5,
+      "actual": 204056.02,
+      "reconciledTotal": 223732.5,
+      "afterOutstanding": 223732.5,
+      "afterCurrent": 223732.5
+    },
+    {
+      "code": "INTA-0001",
+      "expected": 23164.3,
+      "actual": 18640.02,
+      "reconciledTotal": 23164.3,
+      "afterOutstanding": 23164.3,
+      "afterCurrent": 9320.01
+    },
+    {
+      "code": "MACS-0030",
+      "expected": 8642.5,
+      "actual": 8642.89,
+      "reconciledTotal": 8642.5,
+      "afterOutstanding": 8642.5,
+      "afterCurrent": 8642.5
+    },
+    {
+      "code": "MACS-0019",
+      "expected": 13064.34,
+      "actual": 13064.4,
+      "reconciledTotal": 13064.34,
+      "afterOutstanding": 13064.34,
+      "afterCurrent": 13064.34
+    },
+    {
+      "code": "ICON-0001",
+      "expected": 98364.74,
+      "actual": 52681.94,
+      "reconciledTotal": 98364.74,
+      "afterOutstanding": 98364.74,
+      "afterCurrent": 62958.58
+    },
+    {
+      "code": "MACS-0006",
+      "expected": -35.44,
+      "actual": 0,
+      "reconciledTotal": 0,
+      "afterOutstanding": -35.44,
+      "afterCurrent": 0
+    },
+    {
+      "code": "MFAN-0001",
+      "expected": 286.84,
+      "actual": 143.42,
+      "reconciledTotal": 286.84,
+      "afterOutstanding": 286.84,
+      "afterCurrent": 143.42
+    },
+    {
+      "code": "MACS-0003",
+      "expected": 19436.9,
+      "actual": 19440.68,
+      "reconciledTotal": 19436.9,
+      "afterOutstanding": 19436.9,
+      "afterCurrent": 19436.9
+    },
+    {
+      "code": "MACS-0023",
+      "expected": 15462.64,
+      "actual": 15462.72,
+      "reconciledTotal": 15462.64,
+      "afterOutstanding": 15462.64,
+      "afterCurrent": 15462.63
+    },
+    {
+      "code": "KANO-0001",
+      "expected": 0.31,
+      "actual": 0,
+      "reconciledTotal": 0.31,
+      "afterOutstanding": 0.31,
+      "afterCurrent": 0.31
+    },
+    {
+      "code": "MIJA-0001",
+      "expected": -0.3,
+      "actual": 0,
+      "reconciledTotal": 0,
+      "afterOutstanding": -0.3,
+      "afterCurrent": 0
+    },
+    {
+      "code": "MACS-0015",
+      "expected": 28245.51,
+      "actual": 28245.61,
+      "reconciledTotal": 28245.51,
+      "afterOutstanding": 28245.51,
+      "afterCurrent": 28245.51
+    },
+    {
+      "code": "MACS-0025",
+      "expected": 30561.79,
+      "actual": 30561.78,
+      "reconciledTotal": 30561.79,
+      "afterOutstanding": 30561.79,
+      "afterCurrent": 30561.76
+    },
+    {
+      "code": "NIGE-0001",
+      "expected": 0,
+      "actual": 0.33,
+      "reconciledTotal": 0,
+      "afterOutstanding": 0,
+      "afterCurrent": 0
+    },
+    {
+      "code": "MACS-0028",
+      "expected": 3646.35,
+      "actual": 3646.31,
+      "reconciledTotal": 3646.35,
+      "afterOutstanding": 3646.35,
+      "afterCurrent": 3646.35
+    }
+  ]
+}

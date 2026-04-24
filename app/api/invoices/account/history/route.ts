@@ -66,6 +66,29 @@ const isOnOrBeforeBillingMonth = (
   return fallback.getTime() <= cutoff.getTime();
 };
 
+const isAccountStyleInvoice = (invoice: Record<string, unknown> | null | undefined) => {
+  const sourceType = String(invoice?.source_type || "").trim();
+  return sourceType === "account_invoice" || sourceType === "bulk_account_invoice";
+};
+
+const isInvoiceOnOrBeforeBillingMonth = (
+  billingMonth: string,
+  invoice: Record<string, unknown> | null | undefined,
+) => {
+  if (!billingMonth) return true;
+
+  const normalizedInvoiceBillingMonth = normalizeBillingMonthValue(invoice?.billing_month);
+  if (isAccountStyleInvoice(invoice) && normalizedInvoiceBillingMonth) {
+    return normalizedInvoiceBillingMonth <= billingMonth;
+  }
+
+  return isOnOrBeforeBillingMonth(
+    billingMonth,
+    invoice?.billing_month,
+    invoice?.invoice_date || invoice?.created_at,
+  );
+};
+
 async function loadImportedReceiptPayments(
   supabase: Awaited<ReturnType<typeof createClient>>,
   accountNumbers: string[],
@@ -315,6 +338,11 @@ export async function GET(request: NextRequest) {
 
     const normalizedJobCardInvoices = mergedOldJobCardInvoices
       .filter((invoice) => {
+        const invoiceAccountNumber = String(invoice?.account_number || "").trim();
+        if (invoiceAccountNumber && accountNumbers.includes(invoiceAccountNumber)) {
+          return true;
+        }
+
         const jobCardId = String(invoice?.job_card_id || "").trim();
         const jobNumber = String(invoice?.job_number || "").trim();
         return (
@@ -451,13 +479,7 @@ export async function GET(request: NextRequest) {
 
     const mergedInvoiceMap = new Map();
     [...normalizedAccountInvoices, ...normalizedJobCardInvoices, ...normalizedBulkInvoices]
-      .filter((invoice) =>
-        isOnOrBeforeBillingMonth(
-          billingMonth,
-          invoice?.billing_month,
-          invoice?.invoice_date || invoice?.created_at,
-        ),
-      )
+      .filter((invoice) => isInvoiceOnOrBeforeBillingMonth(billingMonth, invoice))
       .sort((left, right) => {
         const leftTime = new Date(
           String(left?.invoice_date || left?.created_at || left?.billing_month || 0),

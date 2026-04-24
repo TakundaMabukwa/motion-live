@@ -403,7 +403,50 @@ export async function GET(request: NextRequest) {
 
     let payment: Record<string, unknown> | null = null;
 
-    if (invoice) {
+    if (paymentsMirror) {
+      payment = {
+        ...paymentsMirror,
+        company,
+        cost_code: accountNumber,
+        account_invoice_id: paymentsMirror.account_invoice_id || invoice?.id || null,
+        invoice_number: paymentsMirror.invoice_number || invoice?.invoice_number || null,
+        reference: paymentsMirror.reference || invoice?.invoice_number || draft?.reference || '',
+        due_amount: Number(
+          paymentsMirror.due_amount ??
+            invoice?.total_amount ??
+            draft?.due_amount ??
+            0,
+        ),
+        paid_amount: Number(
+          paymentsMirror.paid_amount ??
+            invoice?.paid_amount ??
+            draft?.paid_amount ??
+            0,
+        ),
+        balance_due: Number(
+          paymentsMirror.balance_due ??
+            paymentsMirror.outstanding_balance ??
+            invoice?.balance_due ??
+            draft?.balance_due ??
+            0,
+        ),
+        invoice_date: paymentsMirror.invoice_date || invoice?.invoice_date || null,
+        due_date: paymentsMirror.due_date || invoice?.due_date || null,
+        payment_status:
+          paymentsMirror.payment_status ||
+          invoice?.payment_status ||
+          draft?.payment_status ||
+          'pending',
+        billing_month: paymentsMirror.billing_month || invoice?.billing_month || currentBillingMonth,
+        last_updated:
+          paymentsMirror.last_updated ||
+          invoice?.created_at ||
+          draft?.last_updated ||
+          new Date().toISOString(),
+        credit_amount: Number(paymentsMirror.credit_amount || 0),
+        source: 'payments_mirror',
+      };
+    } else if (invoice) {
       const financials = buildInvoiceFinancials({
         totalAmount: invoice.total_amount,
         paidAmount: invoice.paid_amount,
@@ -435,15 +478,6 @@ export async function GET(request: NextRequest) {
         cost_code: accountNumber,
         billing_month: draft.billing_month || currentBillingMonth,
         credit_amount: Number(paymentsMirror?.credit_amount || 0),
-      };
-    } else if (paymentsMirror) {
-      payment = {
-        ...paymentsMirror,
-        company,
-        cost_code: accountNumber,
-        billing_month: paymentsMirror.billing_month || currentBillingMonth,
-        credit_amount: Number(paymentsMirror.credit_amount || 0),
-        source: 'payments_mirror',
       };
     }
 
@@ -545,8 +579,7 @@ export async function GET(request: NextRequest) {
               overdue.overdue91PlusDays),
     );
     const statementPaidAmount = Number(
-      priorAgingRowsList.reduce((sum, row) => sum + toNumeric(row?.paid_amount), 0) +
-        toNumeric(paymentsMirror?.paid_amount ?? payment?.paid_amount),
+      paymentsMirror?.paid_amount ?? payment?.paid_amount ?? 0,
     );
     const statementCreditAmount = Number(
       paymentsMirror?.credit_amount ?? payment?.credit_amount ?? 0,

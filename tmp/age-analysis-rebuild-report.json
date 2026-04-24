@@ -1,0 +1,65 @@
+{
+  "workbookPath": "C:\\Users\\mabuk\\Desktop\\motion-live\\components\\inv\\components\\Take on Debtors ye 0226 -  receipts  0326 - update.xlsx",
+  "updatedOpening": 142,
+  "updatedCurrent": 142,
+  "insertedCurrent": 0,
+  "totalAccounts": 142,
+  "sample": [
+    {
+      "code": "AFHU-0001",
+      "feb_outstanding": 836.65,
+      "march_current_due": 836.64,
+      "march_outstanding": 1673.29,
+      "receipt_used": 0
+    },
+    {
+      "code": "ADRI-0001",
+      "feb_outstanding": 545.41,
+      "march_current_due": 128.8,
+      "march_outstanding": 674.21,
+      "receipt_used": 0
+    },
+    {
+      "code": "AERZ-0001",
+      "feb_outstanding": 0,
+      "march_current_due": 0,
+      "march_outstanding": 0,
+      "receipt_used": 11807.1
+    },
+    {
+      "code": "AIPE-0001",
+      "feb_outstanding": 0,
+      "march_current_due": 0,
+      "march_outstanding": 0,
+      "receipt_used": 641.7
+    },
+    {
+      "code": "AJSC-0001",
+      "feb_outstanding": 255.51,
+      "march_current_due": 255.51,
+      "march_outstanding": 511.02,
+      "receipt_used": 0
+    },
+    {
+      "code": "ALBE-0001",
+      "feb_outstanding": 0,
+      "march_current_due": 0,
+      "march_outstanding": 0,
+      "receipt_used": 321.32
+    },
+    {
+      "code": "ALL--0001",
+      "feb_outstanding": 11962.51,
+      "march_current_due": 0,
+      "march_outstanding": 11881.87,
+      "receipt_used": 11962.51
+    },
+    {
+      "code": "ALST-0001",
+      "feb_outstanding": 73466.6,
+      "march_current_due": 0,
+      "march_outstanding": 33216.6,
+      "receipt_used": 73466.6
+    }
+  ]
+}

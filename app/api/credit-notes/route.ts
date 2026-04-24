@@ -11,6 +11,24 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const normalizeEventTimestamp = (value: unknown, fallback = new Date().toISOString()) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw}T12:00:00.000Z`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Invalid credit note date");
+  }
+
+  return parsed.toISOString();
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -20,6 +38,16 @@ export async function POST(request: NextRequest) {
     const reference = String(body?.reference || "").trim() || null;
     const comment = String(body?.comment || "").trim() || null;
     const dryRun = Boolean(body?.dryRun);
+    let creditNoteDate: string;
+
+    try {
+      creditNoteDate = normalizeEventTimestamp(body?.creditNoteDate);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Invalid credit note date" },
+        { status: 400 },
+      );
+    }
 
     if (!accountNumber) {
       return NextResponse.json({ error: "accountNumber is required" }, { status: 400 });
@@ -140,6 +168,7 @@ export async function POST(request: NextRequest) {
         unappliedAmount,
         reference,
         comment,
+        creditNoteDate,
       });
     }
 
@@ -172,7 +201,7 @@ export async function POST(request: NextRequest) {
         account_number: accountNumber,
         client_name: clientName,
         billing_month_applies_to: billingMonth,
-        credit_note_date: new Date().toISOString(),
+        credit_note_date: creditNoteDate,
         amount,
         applied_amount: appliedAmount,
         unapplied_amount: unappliedAmount,
@@ -241,7 +270,7 @@ export async function POST(request: NextRequest) {
           payment_status: financials.paymentStatus,
           fully_paid_at:
             financials.balanceDue <= 0
-              ? invoice.fully_paid_at || new Date().toISOString()
+              ? invoice.fully_paid_at || creditNoteDate
               : null,
         })
         .eq("id", invoice.id)
@@ -303,7 +332,7 @@ export async function POST(request: NextRequest) {
             costCenterRow?.company ||
             accountNumber,
           billing_month: billingMonth,
-          last_updated: new Date().toISOString(),
+          last_updated: creditNoteDate,
         })
         .eq("id", paymentsMirror.id);
 
@@ -335,7 +364,7 @@ export async function POST(request: NextRequest) {
         outstanding_balance: bucketApplication.outstanding_balance,
         credit_amount: nextMirrorCredit,
         billing_month: billingMonth,
-        last_updated: new Date().toISOString(),
+        last_updated: creditNoteDate,
       });
 
       if (mirrorInsertError) {

@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const splitCsv = (value: string | null | undefined) =>
+  String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getTechnicianCandidates = (email: string | null | undefined) => {
+  const prefix = String(email || '').split('@')[0] || '';
+  const cleaned = prefix.replace(/[._-]/g, ' ');
+  return [String(email || '').trim().toLowerCase(), prefix, cleaned, ...cleaned.split(' ')]
+    .filter(Boolean)
+    .map((value, index) => (index === 0 ? String(value).toLowerCase() : normalizeToken(String(value))));
+};
+
+const isJobAssignedToTechnician = (job: Record<string, unknown>, technician: string | null | undefined) => {
+  const normalizedEmail = String(technician || '').trim().toLowerCase();
+  const emailTokens = splitCsv(String(job?.technician_phone || '')).map((token) => token.toLowerCase());
+  if (normalizedEmail && emailTokens.includes(normalizedEmail)) {
+    return true;
+  }
+
+  const nameTokens = splitCsv(String(job?.technician_name || '')).map((token) => normalizeToken(token));
+  const candidates = getTechnicianCandidates(technician).slice(1);
+  return candidates.some((candidate) => nameTokens.includes(candidate));
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -29,11 +57,10 @@ export async function GET(request: NextRequest) {
     if (company) {
       query = query.ilike('customer_name', `%${company}%`);
     }
-    if (technician) {
-      query = query.ilike('technician_phone', technician);
-      console.log('Jobs API - Filtering by technician:', technician);
-    } else {
+    if (!technician) {
       console.log('Jobs API - No technician filter, showing all jobs');
+    } else {
+      console.log('Jobs API - Filtering by technician (csv-aware):', technician);
     }
     if (role && role !== 'all') {
       if (role === 'tech') {
@@ -53,8 +80,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
     }
 
+    const filteredJobs = technician
+      ? (data || []).filter((job) => isJobAssignedToTechnician(job, technician))
+      : (data || []);
+
     // Transform the data to match the expected format
-    const transformedQuotes = data?.map(job => {
+    const transformedQuotes = filteredJobs.map(job => {
       console.log('Job:', job.id, 'technician_name:', job.technician_name);
       return {
         ...job,

@@ -741,7 +741,7 @@ export async function POST(request: NextRequest) {
                   : nextPaidAmount > 0
                     ? "partial"
                     : "pending",
-              last_updated: new Date().toISOString(),
+              last_updated: insertedPayment.payment_date,
             })
             .eq("id", outstandingAgingRow.id);
 
