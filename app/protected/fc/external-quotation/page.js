@@ -298,8 +298,44 @@ export default function ExternalQuotation() {
     setSubmitError(null);
 
     try {
-      // If vehicles are present, use the first one for single-vehicle fields
-      const primaryVehicle = vehicles[0] || {};
+      // Prefer vehicles selected from customer details, then manual vehicle step.
+      const availableVehicles =
+        (Array.isArray(selectedVehiclesFromDetails) && selectedVehiclesFromDetails.length > 0)
+          ? selectedVehiclesFromDetails
+          : vehicles;
+      const primaryVehicle = availableVehicles[0] || {};
+
+      const resolvedVehicleRegistration = String(
+        primaryVehicle.registration ||
+          primaryVehicle.registration_number ||
+          primaryVehicle.plate_number ||
+          primaryVehicle.group_name ||
+          primaryVehicle.new_registration ||
+          primaryVehicle.reg ||
+          formData.vehicle_registration ||
+          "",
+      ).trim();
+
+      const resolvedVehicleMake = String(
+        primaryVehicle.make ||
+          primaryVehicle.vehicle_make ||
+          formData.vehicle_make ||
+          "",
+      ).trim();
+
+      const resolvedVehicleModel = String(
+        primaryVehicle.model ||
+          primaryVehicle.vehicle_model ||
+          formData.vehicle_model ||
+          "",
+      ).trim();
+
+      const resolvedVehicleYear = String(
+        primaryVehicle.year ||
+          primaryVehicle.vehicle_year ||
+          formData.vehicle_year ||
+          "",
+      ).trim();
 
       const serializeProductForQuote = (product) => {
         const quantity = Number(product.quantity) || 1;
@@ -388,11 +424,11 @@ export default function ExternalQuotation() {
           : [formData.customerEmail],
         
         // Vehicle information
-        vehicles: vehicles,
-        vehicle_registration: primaryVehicle.registration || formData.vehicle_registration,
-        vehicle_make: primaryVehicle.make || formData.vehicle_make,
-        vehicle_model: primaryVehicle.model || formData.vehicle_model,
-        vehicle_year: formData.vehicle_year,
+        vehicles: availableVehicles,
+        vehicle_registration: resolvedVehicleRegistration,
+        vehicle_make: resolvedVehicleMake,
+        vehicle_model: resolvedVehicleModel,
+        vehicle_year: resolvedVehicleYear,
         vin_number: formData.vin_number,
         odormeter: formData.odormeter,
         
@@ -500,6 +536,7 @@ export default function ExternalQuotation() {
       setCurrentStep(0);
       setSelectedProducts([]);
       setVehicles([]);
+      setSelectedVehiclesFromDetails([]);
       setFormData({
         jobType: "",
         jobSubType: "",

@@ -13,12 +13,18 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     
-         // Extract vehicle information - use vehicle_registration if available, otherwise generate temporary_registration
-     let vehicleRegistration = null;
-     let temporaryRegistration = null;
+    // Extract vehicle information - use vehicle_registration if available, otherwise generate temporary_registration
+    let vehicleRegistration = null;
+    let temporaryRegistration = null;
      
-     if (body.vehicle_registration) {
-       vehicleRegistration = body.vehicle_registration;
+    const submittedVehicleRegistration =
+       body.vehicle_registration ||
+       body.vehicleRegistration ||
+       body.registration ||
+       '';
+
+     if (String(submittedVehicleRegistration).trim()) {
+       vehicleRegistration = String(submittedVehicleRegistration).trim();
      } else {
        // Generate temporary registration number if vehicle registration is not provided
        temporaryRegistration = `TEMP-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
        decommission_date: body.decommissionDate || null,
        
        // Vehicle information
-       vehicle_registration: body.vehicle_registration || null,
+       vehicle_registration: vehicleRegistration,
        vehicle_make: body.vehicle_make || null,
        vehicle_model: body.vehicle_model || null,
        vehicle_year: body.vehicle_year ? parseInt(body.vehicle_year) : null,

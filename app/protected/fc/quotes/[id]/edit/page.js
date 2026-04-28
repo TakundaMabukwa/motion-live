@@ -14,6 +14,7 @@ export default function EditQuotePage() {
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState(null);
+  const [quoteSource, setQuoteSource] = useState("customer");
   const [customer, setCustomer] = useState(null);
   const [accountInfo, setAccountInfo] = useState(null);
 
@@ -29,18 +30,54 @@ export default function EditQuotePage() {
     const loadQuote = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/client-quotes/${quoteId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch quote");
+        const loadQuoteFromSource = async (source) => {
+          const endpoint =
+            source === "customer"
+              ? `/api/customer-quotes/${quoteId}`
+              : `/api/client-quotes/${quoteId}`;
+
+          const response = await fetch(endpoint, { cache: "no-store" });
+          const result = await response.json().catch(() => null);
+
+          if (!response.ok || !result?.success || !result?.data) {
+            return {
+              success: false,
+              error:
+                result?.error ||
+                result?.details ||
+                `Quote not found in ${source} quotes`,
+            };
+          }
+
+          return {
+            success: true,
+            source,
+            quote: result.data,
+          };
+        };
+
+        const preferredSources = ["customer", "client"];
+        let loadedQuote = null;
+        let loadedSource = "customer";
+        let lastError = "Quote not found";
+
+        for (const source of preferredSources) {
+          const attempt = await loadQuoteFromSource(source);
+          if (attempt.success) {
+            loadedQuote = attempt.quote;
+            loadedSource = attempt.source;
+            break;
+          }
+          lastError = attempt.error || lastError;
         }
 
-        const result = await response.json();
-        if (!result.success || !result.data) {
-          throw new Error("Quote not found");
+        if (!loadedQuote) {
+          throw new Error(lastError);
         }
 
-        const q = result.data;
+        const q = loadedQuote;
         setQuote(q);
+        setQuoteSource(loadedSource);
 
         const customerData = {
           company: q.customer_name || "",
@@ -112,6 +149,7 @@ export default function EditQuotePage() {
           vehicles={[]}
           accountInfo={accountInfo}
           initialQuote={quote}
+          quoteSource={quoteSource}
           mode="edit"
           quoteId={quoteId}
           embedded

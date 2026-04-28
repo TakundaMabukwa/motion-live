@@ -43,10 +43,12 @@ export default function ClientQuoteForm({
   initialQuote = null,
   mode = "create", // "create" | "edit"
   quoteId = null,
+  quoteSource = "client", // "client" | "customer"
   saveTarget = "quote", // "quote" | "job"
   embedded = false,
 }) {
   const isJobEditMode = mode === "edit" && saveTarget === "job";
+  const normalizedQuoteSource = quoteSource === "customer" ? "customer" : "client";
 
   const humanizeSaveError = useCallback((error) => {
     const raw = String(error?.message || error || '').trim();
@@ -94,6 +96,14 @@ export default function ClientQuoteForm({
 
     if (lower.includes('failed to update client quote')) {
       const detail = raw.replace(/^failed to update client quote:?/i, '').trim();
+      if (detail) {
+        return `We could not save the quote because ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
+      }
+      return 'We could not save the quote. Please check the entered details and try again.';
+    }
+
+    if (lower.includes('failed to update customer quote')) {
+      const detail = raw.replace(/^failed to update customer quote:?/i, '').trim();
       if (detail) {
         return `We could not save the quote because ${detail.charAt(0).toLowerCase()}${detail.slice(1)}.`;
       }
@@ -962,6 +972,16 @@ export default function ClientQuoteForm({
   const handleSubmitQuote = async () => {
     if (!canProceed()) return;
 
+    const isEditMode = mode === "edit" && !!quoteId;
+    const isCustomerQuoteEdit =
+      isEditMode && !isJobEditMode && normalizedQuoteSource === "customer";
+    const editQuoteApi = isCustomerQuoteEdit ? "customer-quotes" : "client-quotes";
+    const updateContextLabel = isJobEditMode
+      ? "job card"
+      : isCustomerQuoteEdit
+        ? "customer quote"
+        : "client quote";
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -1161,8 +1181,6 @@ export default function ClientQuoteForm({
         status: 'pending'
       };
 
-      const isEditMode = mode === "edit" && !!quoteId;
-
       const baseUpdatePayload = {
         job_type: formData.jobType,
         job_description: formData.description,
@@ -1205,25 +1223,37 @@ export default function ClientQuoteForm({
             }),
           };
 
+      const editPayload = isCustomerQuoteEdit
+        ? (() => {
+            const customerPayload = {
+              ...updatePayload,
+              vin_number: formData.vin_number || null,
+            };
+            delete customerPayload.vin_numer;
+            delete customerPayload.ip_address;
+            return customerPayload;
+          })()
+        : updatePayload;
+
       console.log('Submitting quotation data:', isEditMode ? updatePayload : quotationData);
 
       const response = await fetch(
         isEditMode
-          ? (isJobEditMode ? `${baseUrl}/api/job-cards/${quoteId}` : `${baseUrl}/api/client-quotes/${quoteId}`)
+          ? (isJobEditMode ? `${baseUrl}/api/job-cards/${quoteId}` : `${baseUrl}/api/${editQuoteApi}/${quoteId}`)
           : `${baseUrl}/api/client-quotes`,
         {
         method: isEditMode ? (isJobEditMode ? 'PATCH' : 'PUT') : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(isEditMode ? updatePayload : quotationData),
+        body: JSON.stringify(isEditMode ? editPayload : quotationData),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
         const fallback = isEditMode
-          ? (isJobEditMode ? 'Failed to update job card' : 'Failed to update client quote')
+          ? `Failed to update ${updateContextLabel}`
           : 'Failed to create client quote';
         throw new Error(result.details ? `${result.error || fallback}: ${result.details}` : (result.error || fallback));
       }
@@ -1289,10 +1319,15 @@ export default function ClientQuoteForm({
       }
       
       if (isEditMode) {
-        toast.success(isJobEditMode ? 'Job updated successfully!' : 'Client quote updated successfully!', {
+        toast.success(
+          isJobEditMode
+            ? 'Job updated successfully!'
+            : (isCustomerQuoteEdit ? 'Customer quote updated successfully!' : 'Client quote updated successfully!'),
+          {
           description: `${isJobEditMode ? 'Job Number' : 'Quote Number'}: ${initialQuote?.job_number || ''}`.trim(),
           duration: 5000,
-        });
+          },
+        );
         if (onQuoteCreated) onQuoteCreated();
       } else {
         // Reset form data
@@ -1344,7 +1379,7 @@ export default function ClientQuoteForm({
       // Show error toast
       toast.error(
         mode === "edit"
-          ? (isJobEditMode ? 'Failed to update job card' : 'Failed to update quote')
+          ? `Failed to update ${updateContextLabel}`
           : 'Failed to create quote',
         {
         description: humanMessage || 'Please try again.',
