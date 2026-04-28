@@ -12,6 +12,8 @@ interface ProcessedStockItem {
   cost_excl_vat_zar: number;
   usd: number;
   stock_type: string;
+  serial_number?: string;
+  ip_address?: string;
 }
 
 // Helper function to map suppliers to stock types
@@ -257,6 +259,14 @@ export async function GET() {
 
     // Convert assigned parts to the expected format
     assignedParts.forEach((part: any, index: number) => {
+      const serialNumber = String(
+        part?.serial_number ||
+          part?.serialNumber ||
+          part?.ip_address ||
+          part?.ipAddress ||
+          "",
+      ).trim();
+
       processedStock.push({
         id: part.stock_id || `part-${index}`,
         quantity: (part.quantity || 1).toString(),
@@ -266,7 +276,9 @@ export async function GET() {
         supplier: part.supplier || 'JOB_PARTS',
         cost_excl_vat_zar: parseFloat(part.cost_per_unit || '0'),
         usd: 0,
-        stock_type: getStockTypeFromSupplier(part.supplier || 'JOB_PARTS')
+        stock_type: getStockTypeFromSupplier(part.supplier || 'JOB_PARTS'),
+        serial_number: serialNumber || undefined,
+        ip_address: serialNumber || undefined,
       });
     });
 

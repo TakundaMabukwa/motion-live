@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,6 +48,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [isQrScanning, setIsQrScanning] = useState(false);
   const [qrStream, setQrStream] = useState<MediaStream | null>(null);
   const [forceUpdate, setForceUpdate] = useState(false); // State to force re-render for video element
+  const [cameraZoom, setCameraZoom] = useState(1);
+  const [cameraZoomMin, setCameraZoomMin] = useState(1);
+  const [cameraZoomMax, setCameraZoomMax] = useState(1);
+  const [cameraZoomStep, setCameraZoomStep] = useState(0.1);
+  const [isCameraZoomSupported, setIsCameraZoomSupported] = useState(false);
   
   // Vehicle details state
   const [vehicleDetails, setVehicleDetails] = useState({
@@ -210,6 +215,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const beforePhotoInputRef = useRef<HTMLInputElement>(null);
+  const afterPhotoInputRef = useRef<HTMLInputElement>(null);
 
   const formatLocalDateTime = (date: Date = new Date()) => {
     const year = date.getFullYear();
@@ -591,6 +598,184 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     }
   };
 
+  const resetCameraZoomState = () => {
+    setIsCameraZoomSupported(false);
+    setCameraZoom(1);
+    setCameraZoomMin(1);
+    setCameraZoomMax(1);
+    setCameraZoomStep(0.1);
+  };
+
+  const initializeCameraZoom = async (stream: MediaStream) => {
+    const track = stream.getVideoTracks()[0];
+    if (!track) {
+      resetCameraZoomState();
+      return;
+    }
+
+    const trackWithZoom = track as MediaStreamTrack & {
+      getCapabilities?: () => {
+        zoom?: { min?: number; max?: number; step?: number };
+      };
+      getSettings?: () => { zoom?: number };
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+    };
+
+    const capabilities = trackWithZoom.getCapabilities?.();
+    const zoomCapabilities = capabilities?.zoom;
+
+    if (!zoomCapabilities) {
+      resetCameraZoomState();
+      return;
+    }
+
+    const min = Number(zoomCapabilities.min ?? 1);
+    const max = Number(zoomCapabilities.max ?? min);
+    const step = Number(zoomCapabilities.step ?? 0.1) || 0.1;
+    const initial = Number(trackWithZoom.getSettings?.()?.zoom ?? min);
+    const safeInitial = Math.min(max, Math.max(min, initial));
+
+    setCameraZoomMin(min);
+    setCameraZoomMax(max);
+    setCameraZoomStep(step);
+    setCameraZoom(safeInitial);
+    setIsCameraZoomSupported(max > min);
+
+    if (trackWithZoom.applyConstraints) {
+      try {
+        await trackWithZoom.applyConstraints({
+          advanced: [{ zoom: safeInitial }] as MediaTrackConstraintSet[],
+        });
+      } catch (zoomInitError) {
+        console.log('Camera zoom initialize failed:', zoomInitError);
+      }
+    }
+  };
+
+  const applyCameraZoom = async (nextZoom: number) => {
+    const stream = streamRef.current;
+    if (!stream) return;
+
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+
+    const trackWithZoom = track as MediaStreamTrack & {
+      applyConstraints?: (constraints: MediaTrackConstraints) => Promise<void>;
+      getCapabilities?: () => {
+        zoom?: { min?: number; max?: number };
+      };
+    };
+
+    const capabilities = trackWithZoom.getCapabilities?.();
+    const zoomCapabilities = capabilities?.zoom;
+    if (!zoomCapabilities || !trackWithZoom.applyConstraints) return;
+
+    const min = Number(zoomCapabilities.min ?? cameraZoomMin);
+    const max = Number(zoomCapabilities.max ?? cameraZoomMax);
+    const clampedZoom = Math.min(max, Math.max(min, nextZoom));
+
+    try {
+      await trackWithZoom.applyConstraints({
+        advanced: [{ zoom: clampedZoom }] as MediaTrackConstraintSet[],
+      });
+      setCameraZoom(clampedZoom);
+    } catch (zoomError) {
+      console.log('Camera zoom update failed:', zoomError);
+      toast.error('Zoom is not supported on this camera.');
+    }
+  };
+
+  const zoomInCamera = () => {
+    const step = cameraZoomStep > 0 ? cameraZoomStep : 0.1;
+    void applyCameraZoom(cameraZoom + step);
+  };
+
+  const zoomOutCamera = () => {
+    const step = cameraZoomStep > 0 ? cameraZoomStep : 0.1;
+    void applyCameraZoom(cameraZoom - step);
+  };
+
+  const readPhotoAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error('Could not read file'));
+      };
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsDataURL(file);
+    });
+
+  const addPhotosFromNativePicker = async (files: FileList | null, phase: 'before' | 'after') => {
+    if (!files || files.length === 0) return;
+
+    const maxAllowed = 30;
+    const existingCount = phase === 'before' ? beforePhotos.length : afterPhotos.length;
+    const remainingSlots = maxAllowed - existingCount;
+
+    if (remainingSlots <= 0) {
+      if (phase === 'before') {
+        setMaxPhotosReached(true);
+      } else {
+        setMaxAfterPhotosReached(true);
+      }
+      toast.error(`Maximum ${maxAllowed} photos allowed`);
+      return;
+    }
+
+    const imageFiles = Array.from(files)
+      .filter((file) => file.type.startsWith('image/'))
+      .slice(0, remainingSlots);
+
+    if (imageFiles.length === 0) {
+      toast.error('Please select image files only.');
+      return;
+    }
+
+    const photoDataList: string[] = [];
+    for (const file of imageFiles) {
+      try {
+        const dataUrl = await readPhotoAsDataUrl(file);
+        photoDataList.push(dataUrl);
+      } catch (fileError) {
+        console.error('Failed to read selected photo:', fileError);
+      }
+    }
+
+    if (photoDataList.length === 0) {
+      toast.error('No photos were added.');
+      return;
+    }
+
+    if (phase === 'before') {
+      setBeforePhotos((prev) => [...prev, ...photoDataList]);
+      if (existingCount + photoDataList.length >= maxAllowed) {
+        setMaxPhotosReached(true);
+      }
+    } else {
+      setAfterPhotos((prev) => [...prev, ...photoDataList]);
+      if (existingCount + photoDataList.length >= maxAllowed) {
+        setMaxAfterPhotosReached(true);
+      }
+    }
+
+    const suffix = photoDataList.length === 1 ? '' : 's';
+    toast.success(`${photoDataList.length} photo${suffix} added.`);
+  };
+
+  const handleBeforeNativePhotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    await addPhotosFromNativePicker(event.target.files, 'before');
+    event.target.value = '';
+  };
+
+  const handleAfterNativePhotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    await addPhotosFromNativePicker(event.target.files, 'after');
+    event.target.value = '';
+  };
+
   const startCamera = async () => {
     try {
       console.log('Starting camera...');
@@ -650,6 +835,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         console.log('Setting video srcObject and starting camera...');
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        await initializeCameraZoom(stream);
         
         // Wait for video to be ready
         videoRef.current.onloadedmetadata = () => {
@@ -723,6 +909,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       });
       streamRef.current = null;
     }
+    resetCameraZoomState();
     console.log('✅ Photo camera fully stopped');
   };
 
@@ -1887,39 +2074,103 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       style={{ display: streamRef.current ? 'block' : 'none' }}
                     />
                     <canvas ref={canvasRef} className="hidden" />
-                    
+                    <input
+                      ref={beforePhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      onChange={handleBeforeNativePhotoChange}
+                      className="hidden"
+                    />
+                     
                     {!streamRef.current && (
                       <div className="flex flex-col items-center justify-center h-64 text-center p-6">
                         <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
                           <Camera className="w-8 h-8 text-gray-400" />
                         </div>
                         <p className="text-gray-400 mb-4">Camera not accessible</p>
-                        <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
-                          Start Camera
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
+                            Start Camera
+                          </Button>
+                          <Button
+                            onClick={() => beforePhotoInputRef.current?.click()}
+                            variant="outline"
+                            className="border-slate-500 text-white hover:bg-slate-800"
+                          >
+                            Use Phone Camera
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
-                  
+                   
                   {streamRef.current && (
-                    <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                      <Button
-                        onClick={capturePhoto}
-                        disabled={maxPhotosReached}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      >
-                        {maxPhotosReached ? 'Max Photos (30)' : `Capture Photo (${beforePhotos.length}/30)`}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          stopCamera();
-                          setTimeout(() => startCamera(), 500);
-                        }}
-                        variant="outline"
-                        className="sm:w-auto"
-                      >
-                        Switch Camera
-                      </Button>
+                    <div className="space-y-3 mt-4">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button
+                          onClick={capturePhoto}
+                          disabled={maxPhotosReached}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700"
+                        >
+                          {maxPhotosReached ? 'Max Photos (30)' : `Capture Photo (${beforePhotos.length}/30)`}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            stopCamera();
+                            setTimeout(() => startCamera(), 500);
+                          }}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Switch Camera
+                        </Button>
+                        <Button
+                          onClick={() => beforePhotoInputRef.current?.click()}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Use Phone Camera
+                        </Button>
+                      </div>
+
+                      {isCameraZoomSupported ? (
+                        <div className="rounded-lg border border-gray-200 bg-white p-3">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={zoomOutCamera}
+                              variant="outline"
+                              className="h-8 w-8 p-0"
+                              disabled={cameraZoom <= cameraZoomMin}
+                            >
+                              -
+                            </Button>
+                            <input
+                              type="range"
+                              min={cameraZoomMin}
+                              max={cameraZoomMax}
+                              step={cameraZoomStep}
+                              value={cameraZoom}
+                              onChange={(event) => {
+                                void applyCameraZoom(Number(event.target.value));
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              onClick={zoomInCamera}
+                              variant="outline"
+                              className="h-8 w-8 p-0"
+                              disabled={cameraZoom >= cameraZoomMax}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-center text-xs text-gray-600">
+                            Zoom: {cameraZoom.toFixed(1)}x
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -2124,6 +2375,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       {technicianStock.map((item: any) => {
                         const itemId = String(item.id);
                         const checked = selectedEquipmentIds.includes(`stock:${itemId}`);
+                        const itemSerial = String(
+                          item?.serial_number ||
+                          item?.serialNumber ||
+                          item?.ip_address ||
+                          item?.ipAddress ||
+                          ''
+                        ).trim();
                         return (
                           <label
                             key={itemId}
@@ -2142,6 +2400,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                               <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-1">
                                 <span>Code: {item.code || 'N/A'}</span>
                                 <span>Supplier: {item.supplier || 'N/A'}</span>
+                                {itemSerial ? <span>Serial: {itemSerial}</span> : null}
                                 <span>Available: {parseInt(String(item.quantity || '0')) || 0}</span>
                               </div>
                             </div>
@@ -2264,39 +2523,103 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       style={{ display: streamRef.current ? 'block' : 'none' }}
                     />
                     <canvas ref={canvasRef} className="hidden" />
-                    
+                    <input
+                      ref={afterPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      onChange={handleAfterNativePhotoChange}
+                      className="hidden"
+                    />
+                     
                     {!streamRef.current && (
                       <div className="flex flex-col items-center justify-center h-64 text-center p-6">
                         <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-4">
                           <Camera className="w-8 h-8 text-gray-400" />
                         </div>
                         <p className="text-gray-400 mb-4">Camera not accessible</p>
-                        <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
-                          Start Camera
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
+                            Start Camera
+                          </Button>
+                          <Button
+                            onClick={() => afterPhotoInputRef.current?.click()}
+                            variant="outline"
+                            className="border-slate-500 text-white hover:bg-slate-800"
+                          >
+                            Use Phone Camera
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
-                  
+                   
                   {streamRef.current && (
-                    <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                      <Button
-                        onClick={captureAfterPhoto}
-                        disabled={maxAfterPhotosReached}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700"
-                      >
-                        {maxAfterPhotosReached ? 'Max Photos (30)' : `Capture Photo (${afterPhotos.length}/30)`}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          stopCamera();
-                          setTimeout(() => startCamera(), 500);
-                        }}
-                        variant="outline"
-                        className="sm:w-auto"
-                      >
-                        Switch Camera
-                      </Button>
+                    <div className="space-y-3 mt-4">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button
+                          onClick={captureAfterPhoto}
+                          disabled={maxAfterPhotosReached}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700"
+                        >
+                          {maxAfterPhotosReached ? 'Max Photos (30)' : `Capture Photo (${afterPhotos.length}/30)`}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            stopCamera();
+                            setTimeout(() => startCamera(), 500);
+                          }}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Switch Camera
+                        </Button>
+                        <Button
+                          onClick={() => afterPhotoInputRef.current?.click()}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Use Phone Camera
+                        </Button>
+                      </div>
+
+                      {isCameraZoomSupported ? (
+                        <div className="rounded-lg border border-gray-200 bg-white p-3">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={zoomOutCamera}
+                              variant="outline"
+                              className="h-8 w-8 p-0"
+                              disabled={cameraZoom <= cameraZoomMin}
+                            >
+                              -
+                            </Button>
+                            <input
+                              type="range"
+                              min={cameraZoomMin}
+                              max={cameraZoomMax}
+                              step={cameraZoomStep}
+                              value={cameraZoom}
+                              onChange={(event) => {
+                                void applyCameraZoom(Number(event.target.value));
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              onClick={zoomInCamera}
+                              variant="outline"
+                              className="h-8 w-8 p-0"
+                              disabled={cameraZoom >= cameraZoomMax}
+                            >
+                              +
+                            </Button>
+                          </div>
+                          <p className="mt-2 text-center text-xs text-gray-600">
+                            Zoom: {cameraZoom.toFixed(1)}x
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>
