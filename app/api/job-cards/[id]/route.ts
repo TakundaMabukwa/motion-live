@@ -36,13 +36,29 @@ export async function GET(
     }
 
     const { id } = await params;
+    const view = request.nextUrl.searchParams.get('view') || '';
+
+    const fcEditSelect =
+      'id, job_number, account_id, new_account_number, customer_name, customer_email, customer_phone, customer_address, contact_person, job_type, job_sub_type, job_description, purchase_type, decommission_date, annuity_end_date, move_to_role, move_to, vehicle_registration, vehicle_make, vehicle_model, vehicle_year, vin_numer, odormeter, quote_notes, quote_email_subject, quote_email_body, quote_email_footer, quotation_products, deinstall_vehicles, completion_notes, fc_note_acknowledged, status, job_status, role, escalation_role, escalation_source_role, created_at, updated_at';
+
+    const requestedSelect = view === 'fc-edit' ? fcEditSelect : '*';
 
     // Fetch the job card by ID
-    const { data: job, error: fetchError } = await supabase
+    let { data: job, error: fetchError } = await supabase
       .from('job_cards')
-      .select('*')
+      .select(requestedSelect)
       .eq('id', id)
       .single();
+
+    if (fetchError && view === 'fc-edit') {
+      const fallbackQuery = await supabase
+        .from('job_cards')
+        .select('*')
+        .eq('id', id)
+        .single();
+      job = fallbackQuery.data;
+      fetchError = fallbackQuery.error;
+    }
 
     if (fetchError) {
       console.error('Error fetching job card:', fetchError);

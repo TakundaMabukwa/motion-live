@@ -89,12 +89,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch completed jobs where role is 'fc' and job_status is 'Completed'.
+    // Fetch completed jobs where role is 'fc' and job_status is completed.
     const { data, error } = await supabase
       .from("job_cards")
       .select(COMPLETED_JOB_FIELDS)
       .eq("role", "fc")
-      .eq("job_status", "Completed")
+      .in("job_status", ["Completed", "completed"])
       .order("completion_date", { ascending: false });
 
     if (error) {

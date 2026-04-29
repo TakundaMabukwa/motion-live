@@ -17,7 +17,9 @@ export async function GET() {
     const { data, error } = await supabase
       .from("job_cards")
       .select("id")
-      .eq("escalation_role", "fc");
+      .eq("escalation_role", "fc")
+      .not("job_status", "in", "(\"Completed\",\"completed\")")
+      .not("status", "in", "(\"Completed\",\"completed\")");
 
     if (error) {
       return NextResponse.json(

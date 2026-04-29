@@ -610,6 +610,7 @@ export default function AccountsContent({ activeSection }) {
         },
         body: JSON.stringify({
           destination,
+          ...(destination === "fc" ? { preserveCompleted: true } : {}),
           ...(destination === "inv" ? { inventoryPlacement: "assign-parts" } : {}),
         }),
       });

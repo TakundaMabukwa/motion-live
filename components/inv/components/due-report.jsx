@@ -1342,8 +1342,8 @@ export function buildStatementView({
         ? getBillingMonthDisplayDate(invoice?.billing_month)
         : null;
     const sortDate =
-      billingMonthDate ||
       invoice?.invoice_date ||
+      billingMonthDate ||
       invoice?.created_at ||
       invoice?.billing_month ||
       statementMonthSource;

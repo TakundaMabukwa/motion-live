@@ -38,6 +38,7 @@ type RoleEscalationsPanelProps = {
   description?: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  hideCompletedJobs?: boolean;
   renderActions?: (job: EscalationJob) => ReactNode;
   moveOptions?: Array<{
     value: string;
@@ -82,6 +83,7 @@ export default function RoleEscalationsPanel({
   description = "Jobs moved into this role appear here first.",
   emptyTitle = "No escalations",
   emptyDescription = "Escalated jobs will appear here when they are moved into this role.",
+  hideCompletedJobs = true,
   renderActions,
   moveOptions = [],
 }: RoleEscalationsPanelProps) {
@@ -98,6 +100,9 @@ export default function RoleEscalationsPanel({
         escalation_role: role,
         limit: "5000",
       });
+      if (hideCompletedJobs) {
+        params.set("exclude_completed", "true");
+      }
 
       const response = await fetch(`/api/job-cards?${params.toString()}`, {
         cache: "no-store",
@@ -116,7 +121,7 @@ export default function RoleEscalationsPanel({
     } finally {
       setLoading(false);
     }
-  }, [role]);
+  }, [hideCompletedJobs, role]);
 
   useEffect(() => {
     fetchEscalations();

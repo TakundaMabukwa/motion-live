@@ -6,6 +6,7 @@ export async function PUT(request) {
     const {
       cost_code,
       validated,
+      billing_month,
       total_amount_locked,
       total_amount_locked_value,
     } = await request.json();
@@ -30,6 +31,18 @@ export async function PUT(request) {
     }
 
     const shouldLockTotal = typeof total_amount_locked === 'boolean';
+    const normalizedBillingMonth = (() => {
+      const raw = String(billing_month || '').trim();
+      if (!raw) return null;
+      if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
+      return null;
+    })();
+    const lockTimestamp = total_amount_locked
+      ? normalizedBillingMonth
+        ? `${normalizedBillingMonth}T00:00:00.000Z`
+        : new Date().toISOString()
+      : null;
 
     if (shouldLockTotal) {
       if (authError || !user) {
@@ -47,9 +60,7 @@ export async function PUT(request) {
         ? Number(total_amount_locked_value || 0)
         : null;
       updatePayload.total_amount_locked_by = total_amount_locked ? user.id : null;
-      updatePayload.total_amount_locked_at = total_amount_locked
-        ? new Date().toISOString()
-        : null;
+      updatePayload.total_amount_locked_at = lockTimestamp;
     }
 
     if (Object.keys(updatePayload).length === 0) {
@@ -78,7 +89,7 @@ export async function PUT(request) {
       const vehicleLockPayload = {
         amount_locked: total_amount_locked,
         amount_locked_by: total_amount_locked ? user.id : null,
-        amount_locked_at: total_amount_locked ? new Date().toISOString() : null,
+        amount_locked_at: lockTimestamp,
       };
 
       const duplicateUpdate = supabase

@@ -39,6 +39,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const getCurrentBillingMonth = () => {
   const now = new Date();
@@ -47,6 +48,36 @@ const getCurrentBillingMonth = () => {
 };
 
 const FC_BILLING_MONTH = getCurrentBillingMonth();
+
+const normalizeBillingMonthValue = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-01`;
+};
+
+const toMonthInputValue = (value) => {
+  const normalized = normalizeBillingMonthValue(value);
+  return normalized ? normalized.slice(0, 7) : "";
+};
+
+const formatInvoiceDate = (value) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "N/A";
+  return parsed.toLocaleDateString("en-GB");
+};
+
+const formatBillingMonthLabel = (value) => {
+  const normalized = normalizeBillingMonthValue(value);
+  if (!normalized) return "N/A";
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return normalized;
+  return parsed.toLocaleDateString("en-ZA", { month: "short", year: "numeric" });
+};
 
 const AddItemSearch = memo(function AddItemSearch({
   vehicleFieldsToAdd,
@@ -244,7 +275,6 @@ export default function ValidateVehiclesPage() {
   const [isLoadingInvoicePreview, setIsLoadingInvoicePreview] = useState(false);
   const [invoicePreviewCostCenter, setInvoicePreviewCostCenter] = useState(null);
   const [loggedInUserEmail, setLoggedInUserEmail] = useState("");
-  const [isRebuildingInvoice, setIsRebuildingInvoice] = useState(false);
   const invoicePreviewCacheRef = useRef(new Map());
   const [addItemState, setAddItemState] = useState({});
   const [vehicleSearch, setVehicleSearch] = useState("");
@@ -254,10 +284,17 @@ export default function ValidateVehiclesPage() {
   );
   const [costCenterSearch, setCostCenterSearch] = useState("");
   const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false);
+  const [invoiceViewTab, setInvoiceViewTab] = useState("annuity");
+  const [invoiceMonthFilter, setInvoiceMonthFilter] = useState(
+    toMonthInputValue(FC_BILLING_MONTH),
+  );
+  const [invoiceHistoryRows, setInvoiceHistoryRows] = useState([]);
+  const [loadingInvoiceHistory, setLoadingInvoiceHistory] = useState(false);
+  const [showJobCardInvoicePreview, setShowJobCardInvoicePreview] = useState(false);
+  const [jobCardInvoicePreview, setJobCardInvoicePreview] = useState(null);
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
-  const canRebuildInvoice = true;
   const lastVehiclesFetchKeyRef = useRef(null);
   const lastInitialCostCenterFetchRef = useRef(null);
   const hasLoadedPrefixCostCentersRef = useRef(false);
@@ -445,6 +482,48 @@ export default function ValidateVehiclesPage() {
 
   const currentCostCenterName = currentCostCenter?.company || costCode || "";
   const invoicePreviewTitle = currentCostCenterName || costCode || "";
+  const selectedBillingMonth = useMemo(() => {
+    const normalized = normalizeBillingMonthValue(
+      invoiceMonthFilter ? `${invoiceMonthFilter}-01` : FC_BILLING_MONTH,
+    );
+    return normalized || FC_BILLING_MONTH;
+  }, [invoiceMonthFilter]);
+  const costCenterLockedMonth = normalizeBillingMonthValue(
+    currentCostCenter?.total_amount_locked_at,
+  );
+  const isCostCenterLockedForSelectedMonth =
+    Boolean(currentCostCenter?.total_amount_locked) &&
+    Boolean(costCenterLockedMonth) &&
+    costCenterLockedMonth === selectedBillingMonth;
+
+  const selectedMonthInvoices = useMemo(() => {
+    const matchesBillingMonth = (invoice) => {
+      const invoiceMonth = normalizeBillingMonthValue(
+        invoice?.billing_month || invoice?.invoice_date || invoice?.created_at,
+      );
+      return invoiceMonth === selectedBillingMonth;
+    };
+
+    return (Array.isArray(invoiceHistoryRows) ? invoiceHistoryRows : [])
+      .filter(matchesBillingMonth)
+      .sort((left, right) => {
+        const leftTime = new Date(
+          String(left?.invoice_date || left?.created_at || left?.billing_month || 0),
+        ).getTime();
+        const rightTime = new Date(
+          String(right?.invoice_date || right?.created_at || right?.billing_month || 0),
+        ).getTime();
+        return rightTime - leftTime;
+      });
+  }, [invoiceHistoryRows, selectedBillingMonth]);
+
+  const jobCardInvoices = useMemo(
+    () =>
+      selectedMonthInvoices.filter(
+        (invoice) => String(invoice?.source_type || "").trim() === "job_card_invoice",
+      ),
+    [selectedMonthInvoices],
+  );
 
   useEffect(() => {
     const loadLoggedInUserEmail = async () => {
@@ -463,6 +542,59 @@ export default function ValidateVehiclesPage() {
   }, []);
 
   useEffect(() => {
+    setInvoiceMonthFilter(
+      toMonthInputValue(currentCostCenter?.billing_month || FC_BILLING_MONTH),
+    );
+  }, [costCode, currentCostCenter?.billing_month]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchInvoiceHistory = async () => {
+      if (!costCode) {
+        if (active) {
+          setInvoiceHistoryRows([]);
+          setLoadingInvoiceHistory(false);
+        }
+        return;
+      }
+
+      try {
+        if (active) setLoadingInvoiceHistory(true);
+        const query = new URLSearchParams({
+          accountNumber: costCode,
+          billingMonth: selectedBillingMonth,
+        });
+        const response = await fetch(`/api/invoices/account/history?${query.toString()}`, {
+          cache: "no-store",
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(result?.error || "Failed to fetch invoice history");
+        }
+
+        if (active) {
+          setInvoiceHistoryRows(Array.isArray(result?.invoices) ? result.invoices : []);
+        }
+      } catch (error) {
+        console.error("Error fetching FC invoice history:", error);
+        if (active) {
+          setInvoiceHistoryRows([]);
+          toast.error(error?.message || "Failed to load invoices");
+        }
+      } finally {
+        if (active) setLoadingInvoiceHistory(false);
+      }
+    };
+
+    fetchInvoiceHistory();
+    return () => {
+      active = false;
+    };
+  }, [costCode, selectedBillingMonth]);
+
+  useEffect(() => {
     const fetchVehicles = async () => {
       try {
         if (!costCode) {
@@ -471,7 +603,7 @@ export default function ValidateVehiclesPage() {
           return;
         }
 
-        const billingMonth = FC_BILLING_MONTH;
+        const billingMonth = selectedBillingMonth || FC_BILLING_MONTH;
         const requestKey = `${costCode}::${billingMonth}`;
         if (lastVehiclesFetchKeyRef.current === requestKey) {
           return;
@@ -498,7 +630,7 @@ export default function ValidateVehiclesPage() {
     };
 
     fetchVehicles();
-  }, [costCode]);
+  }, [costCode, selectedBillingMonth]);
 
   useEffect(() => {
     const fetchCurrentCostCenter = async () => {
@@ -883,7 +1015,7 @@ export default function ValidateVehiclesPage() {
       return;
     }
 
-    const billingMonth = String(currentCostCenter?.billing_month || FC_BILLING_MONTH).trim();
+    const billingMonth = String(selectedBillingMonth || FC_BILLING_MONTH).trim();
     const cacheKey = [String(costCode).trim().toUpperCase(), billingMonth || "current"].join("::");
 
     try {
@@ -1027,7 +1159,7 @@ export default function ValidateVehiclesPage() {
             totalAmount: Number(liveInvoice?.total_amount || 0),
             lineItems: liveLineItems,
             notes: storedInvoice?.notes || liveInvoice?.notes || null,
-            allowLockedRebuild: true,
+            allowLockedRebuild: false,
           }),
         });
 
@@ -1098,169 +1230,9 @@ export default function ValidateVehiclesPage() {
     }
   };
 
-  const handleRebuildInvoiceFromVehicles = async () => {
-    if (!invoicePreviewCostCenter?.accountNumber) {
-      toast.error("No invoice selected");
-      return;
-    }
-
-    try {
-      setIsRebuildingInvoice(true);
-      const billingMonth =
-        String(
-          invoicePreviewCostCenter?.billingMonth ||
-            invoicePreviewCostCenter?.invoiceData?.billing_month ||
-            currentCostCenter?.billing_month ||
-            FC_BILLING_MONTH,
-        ).trim() || FC_BILLING_MONTH;
-
-      const invoiceQuery = new URLSearchParams({
-        accountNumber: invoicePreviewCostCenter.accountNumber,
-        billingMonth,
-      });
-
-      const liveResponse = await fetch(
-        `/api/vehicles/invoice?${invoiceQuery.toString()}`,
-        { cache: "no-store" },
-      );
-      const liveResult = await liveResponse.json().catch(() => ({}));
-      const liveInvoice = liveResult?.invoiceData || null;
-
-      if (!liveResponse.ok || !liveInvoice) {
-        throw new Error(
-          liveResult?.error || "Failed to rebuild invoice from vehicles",
-        );
-      }
-
-      const liveLineItems = Array.isArray(
-        liveInvoice?.invoiceItems || liveInvoice?.invoice_items,
-      )
-        ? liveInvoice.invoiceItems || liveInvoice.invoice_items
-        : [];
-
-      const persistResponse = await fetch("/api/invoices/bulk-account", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          accountNumber: invoicePreviewCostCenter.accountNumber,
-          billingMonth,
-          companyName:
-            liveInvoice?.company_name ||
-            invoicePreviewCostCenter?.accountName ||
-            currentCostCenterName,
-          companyRegistrationNumber:
-            liveInvoice?.company_registration_number || null,
-          clientAddress: liveInvoice?.client_address || null,
-          customerVatNumber: liveInvoice?.customer_vat_number || null,
-          invoiceDate:
-            liveInvoice?.invoice_date || `${billingMonth}T00:00:00.000Z`,
-          subtotal: Number(liveInvoice?.subtotal || 0),
-          vatAmount: Number(liveInvoice?.vat_amount || 0),
-          discountAmount: Number(liveInvoice?.discount_amount || 0),
-          totalAmount: Number(liveInvoice?.total_amount || 0),
-          lineItems: liveLineItems,
-          notes: liveInvoice?.notes || "",
-          allowLockedRebuild: canRebuildInvoice,
-        }),
-      });
-
-      const persistResult = await persistResponse.json().catch(() => ({}));
-      const persistedInvoice = persistResult?.invoice || null;
-
-      if (!persistResponse.ok || !persistedInvoice) {
-        throw new Error(
-          persistResult?.error || "Failed to save rebuilt invoice",
-        );
-      }
-
-      const [refreshedStoredResponse, refreshedLiveResponse] = await Promise.all([
-        fetch(
-          `/api/invoices/bulk-account?accountNumber=${encodeURIComponent(
-            invoicePreviewCostCenter.accountNumber,
-          )}&billingMonth=${encodeURIComponent(billingMonth)}`,
-          { cache: "no-store" },
-        ),
-        fetch(`/api/vehicles/invoice?${invoiceQuery.toString()}`, {
-          cache: "no-store",
-        }),
-      ]);
-
-      let refreshedStoredInvoice = persistedInvoice;
-      if (refreshedStoredResponse.ok) {
-        const refreshedStoredResult = await refreshedStoredResponse
-          .json()
-          .catch(() => ({}));
-        refreshedStoredInvoice =
-          refreshedStoredResult?.invoice || refreshedStoredInvoice;
-      }
-
-      let refreshedLiveInvoice = liveInvoice;
-      if (refreshedLiveResponse.ok) {
-        const refreshedLiveResult = await refreshedLiveResponse
-          .json()
-          .catch(() => ({}));
-        refreshedLiveInvoice =
-          refreshedLiveResult?.invoiceData || refreshedLiveInvoice;
-      }
-
-      const persistedLineItems = Array.isArray(refreshedStoredInvoice?.line_items)
-        ? refreshedStoredInvoice.line_items
-        : liveLineItems;
-
-      const rebuiltPreviewPayload = {
-        ...invoicePreviewCostCenter,
-        bulkInvoice: refreshedStoredInvoice,
-        reference:
-          refreshedStoredInvoice?.invoice_number ||
-          invoicePreviewCostCenter?.reference ||
-          null,
-        invoiceNumber:
-          refreshedStoredInvoice?.invoice_number ||
-          invoicePreviewCostCenter?.invoiceNumber ||
-          null,
-        billingMonth:
-          String(
-            refreshedStoredInvoice?.billing_month ||
-              refreshedLiveInvoice?.billing_month ||
-              billingMonth,
-          ).trim() || billingMonth,
-        invoiceData: {
-          ...refreshedLiveInvoice,
-          ...refreshedStoredInvoice,
-          invoiceItems: persistedLineItems,
-          invoice_items: persistedLineItems,
-          company_name:
-            refreshedStoredInvoice?.company_name ||
-            refreshedLiveInvoice?.company_name ||
-            invoicePreviewTitle,
-        },
-      };
-
-      const cacheKey = [
-        String(invoicePreviewCostCenter.accountNumber).trim().toUpperCase(),
-        rebuiltPreviewPayload.billingMonth || "current",
-      ].join("::");
-      invoicePreviewCacheRef.current.set(cacheKey, rebuiltPreviewPayload);
-      setInvoicePreviewCostCenter(rebuiltPreviewPayload);
-      toast.success("Invoice rebuilt from vehicles");
-    } catch (error) {
-      console.error("Invoice rebuild error:", error);
-      toast.error(error?.message || "Failed to rebuild invoice");
-    } finally {
-      setIsRebuildingInvoice(false);
-    }
-  };
-
   const lockCostCenterTotal = async () => {
     if (!costCode) {
       toast.error("No cost center provided");
-      return;
-    }
-
-    if (currentCostCenter?.total_amount_locked) {
-      toast.info("This cost center total is already locked");
       return;
     }
 
@@ -1272,6 +1244,7 @@ export default function ValidateVehiclesPage() {
         body: JSON.stringify({
           cost_code: costCode,
           validated: Boolean(currentCostCenter?.validated),
+          billing_month: selectedBillingMonth,
           total_amount_locked: true,
           total_amount_locked_value: Number(filteredVehiclesGrandTotal.toFixed(2)),
         }),
@@ -1290,12 +1263,55 @@ export default function ValidateVehiclesPage() {
           option.cost_code === costCode ? { ...option, ...result } : option,
         ),
       );
-      toast.success("Cost center total locked successfully");
+      toast.success(
+        `Cost center total locked for ${formatBillingMonthLabel(selectedBillingMonth)}`,
+      );
     } catch (error) {
       toast.error("Failed to lock total amount: " + error.message);
     } finally {
       setLockingCostCenterTotal(false);
     }
+  };
+
+  const openJobCardInvoicePreview = (invoice) => {
+    const lineItems = Array.isArray(invoice?.invoice_items)
+      ? invoice.invoice_items
+      : Array.isArray(invoice?.line_items)
+        ? invoice.line_items
+        : [];
+    const resolvedBillingMonth =
+      normalizeBillingMonthValue(
+        invoice?.billing_month ||
+          selectedBillingMonth ||
+          invoice?.invoice_date ||
+          invoice?.created_at,
+      ) || selectedBillingMonth || FC_BILLING_MONTH;
+
+    const previewInvoice = {
+      ...invoice,
+      account_number: invoice?.account_number || costCode || null,
+      company_name:
+        invoice?.company_name ||
+        invoice?.client_name ||
+        currentCostCenterName ||
+        costCode ||
+        "N/A",
+      billing_month: resolvedBillingMonth,
+      invoice_date:
+        invoice?.invoice_date ||
+        invoice?.created_at ||
+        `${resolvedBillingMonth}T00:00:00.000Z`,
+      total_amount: Number(invoice?.total_amount || 0),
+      notes: "",
+      note: "",
+      quote_notes: "",
+      line_items: lineItems,
+      invoice_items: lineItems,
+      invoiceItems: lineItems,
+    };
+
+    setJobCardInvoicePreview(previewInvoice);
+    setShowJobCardInvoicePreview(true);
   };
 
   const handleNewVehicleChange = (field, value) => {
@@ -1698,27 +1714,62 @@ export default function ValidateVehiclesPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">
-                {validationMode ? "Validation Mode" : "Validate Vehicles"} -{" "}
-                {currentCostCenterName}
+                {invoiceViewTab === "annuity"
+                  ? `${validationMode ? "Validation Mode" : "Validate Vehicles"} - ${currentCostCenterName}`
+                  : `Job Card Invoices - ${currentCostCenterName}`}
               </h1>
-              <Button
-                size="sm"
-                variant={validationMode ? "default" : "outline"}
-                onClick={() => setValidationMode(!validationMode)}
-              >
-                {validationMode ? "ON" : "OFF"}
-              </Button>
+              {invoiceViewTab === "annuity" && (
+                <Button
+                  size="sm"
+                  variant={validationMode ? "default" : "outline"}
+                  onClick={() => setValidationMode(!validationMode)}
+                >
+                  {validationMode ? "ON" : "OFF"}
+                </Button>
+              )}
             </div>
-            <p className="text-sm text-gray-500">Minimal vehicle information</p>
+            <p className="text-sm text-gray-500">
+              {invoiceViewTab === "annuity"
+                ? "Minimal vehicle information"
+                : "Billing month filtered invoices linked to job cards"}
+            </p>
           </div>
         </div>
-        {!validationMode && (
+        {invoiceViewTab === "annuity" && !validationMode && (
           <Button onClick={() => setShowAddForm(!showAddForm)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Vehicle
           </Button>
         )}
       </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <Tabs
+          value={invoiceViewTab}
+          onValueChange={setInvoiceViewTab}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid w-full grid-cols-2 sm:w-[280px]">
+            <TabsTrigger value="annuity">Annuity</TabsTrigger>
+            <TabsTrigger value="job_cards">Job Cards</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="w-full sm:w-[180px]">
+          <Label htmlFor="invoiceMonthFilter" className="text-xs text-gray-500">
+            Billing Month
+          </Label>
+          <Input
+            id="invoiceMonthFilter"
+            type="month"
+            value={invoiceMonthFilter}
+            onChange={(event) => setInvoiceMonthFilter(event.target.value)}
+            className="mt-1 h-9 text-sm"
+          />
+        </div>
+      </div>
+
+      {invoiceViewTab === "annuity" ? (
+        <>
 
       {!validationMode && showAddForm && (
         <Card>
@@ -2037,7 +2088,7 @@ export default function ValidateVehiclesPage() {
                     )}
                     {isLoadingInvoicePreview ? "Loading Invoice..." : "View Invoice"}
                   </Button>
-                  {currentCostCenter?.total_amount_locked && (
+                  {isCostCenterLockedForSelectedMonth && (
                     <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                       <div className="font-semibold">Total locked</div>
                       <div className="mt-1 text-base font-semibold text-blue-950">
@@ -2061,20 +2112,18 @@ export default function ValidateVehiclesPage() {
                   )}
                   <Button
                     onClick={lockCostCenterTotal}
-                    disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
-                    variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
+                    disabled={lockingCostCenterTotal}
+                    variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
                     className="min-w-[170px]"
                   >
                     {lockingCostCenterTotal ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : currentCostCenter?.total_amount_locked ? (
+                    ) : isCostCenterLockedForSelectedMonth ? (
                       <Check className="mr-2 h-4 w-4" />
                     ) : (
                       <Lock className="mr-2 h-4 w-4" />
                     )}
-                    {currentCostCenter?.total_amount_locked
-                      ? "Total Locked"
-                      : "Lock Total"}
+                    Lock Total
                   </Button>
                 </div>
               </div>
@@ -2082,7 +2131,73 @@ export default function ValidateVehiclesPage() {
           </Card>
         </div>
       )}
-      {showInvoicePreview && invoicePreviewCostCenter && (
+        </>
+      ) : (
+        <div className="space-y-3">
+          {loadingInvoiceHistory ? (
+            <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading job card invoices...
+            </div>
+          ) : jobCardInvoices.length === 0 ? (
+            <div className="rounded-md border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-600">
+              No job card invoices found for {formatBillingMonthLabel(selectedBillingMonth)}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Date</th>
+                    <th className="px-3 py-2 text-left">Billing Month</th>
+                    <th className="px-3 py-2 text-left">Invoice Number</th>
+                    <th className="px-3 py-2 text-left">Account</th>
+                    <th className="px-3 py-2 text-left">Customer</th>
+                    <th className="px-3 py-2 text-right">Amount</th>
+                    <th className="px-3 py-2 text-left">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {jobCardInvoices.map((invoice) => (
+                    <tr key={`${invoice?.id || "row"}-${invoice?.invoice_number || "no-number"}`}>
+                      <td className="px-3 py-2">
+                        {formatInvoiceDate(invoice?.invoice_date || invoice?.created_at)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {formatBillingMonthLabel(
+                          invoice?.billing_month || invoice?.invoice_date || invoice?.created_at,
+                        )}
+                      </td>
+                      <td className="px-3 py-2 font-medium text-slate-900">
+                        {invoice?.invoice_number || "N/A"}
+                      </td>
+                      <td className="px-3 py-2">{invoice?.account_number || costCode || "N/A"}</td>
+                      <td className="px-3 py-2">{invoice?.company_name || invoice?.client_name || "N/A"}</td>
+                      <td className="px-3 py-2 text-right">
+                        {formatCurrency(Number(invoice?.total_amount || 0))}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-3 text-xs"
+                          onClick={() => openJobCardInvoicePreview(invoice)}
+                        >
+                          <FileText className="mr-1 h-3.5 w-3.5" />
+                          View / Print
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {invoiceViewTab === "annuity" && showInvoicePreview && invoicePreviewCostCenter && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="flex max-h-[95vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between gap-4 border-b border-gray-200 p-6">
@@ -2112,40 +2227,85 @@ export default function ValidateVehiclesPage() {
               <InvoiceReportComponent
                 costCenter={invoicePreviewCostCenter}
                 clientLegalName={invoicePreviewTitle}
-                invoiceData={invoicePreviewCostCenter.invoiceData}
+                invoiceData={{
+                  ...invoicePreviewCostCenter.invoiceData,
+                  notes: "",
+                  note: "",
+                  quote_notes: "",
+                }}
                 viewOnly
                 extraActions={
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={handleRebuildInvoiceFromVehicles}
-                      disabled={isRebuildingInvoice}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      {isRebuildingInvoice ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <FileText className="h-4 w-4" />
-                      )}
-                      Rebuild From Vehicles
-                    </Button>
-                    <Button
                       onClick={lockCostCenterTotal}
-                      disabled={lockingCostCenterTotal || currentCostCenter?.total_amount_locked}
-                      variant={currentCostCenter?.total_amount_locked ? "secondary" : "default"}
+                      disabled={lockingCostCenterTotal}
+                      variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
                       className="flex items-center gap-2"
                     >
                       {lockingCostCenterTotal ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : currentCostCenter?.total_amount_locked ? (
+                      ) : isCostCenterLockedForSelectedMonth ? (
                         <Check className="h-4 w-4" />
                       ) : (
                         <Lock className="h-4 w-4" />
                       )}
-                      {currentCostCenter?.total_amount_locked ? "Total Locked" : "Lock Total"}
+                      Lock Total
                     </Button>
                   </div>
                 }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showJobCardInvoicePreview && jobCardInvoicePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[95vh] w-full max-w-6xl flex-col rounded-lg bg-white shadow-xl">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-200 p-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Job Card Invoice - {jobCardInvoicePreview?.invoice_number || "N/A"}
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  View and print invoice for {jobCardInvoicePreview?.account_number || costCode}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowJobCardInvoicePreview(false);
+                    setJobCardInvoicePreview(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <InvoiceReportComponent
+                viewOnly
+                clientLegalName={
+                  jobCardInvoicePreview?.company_name ||
+                  currentCostCenterName ||
+                  jobCardInvoicePreview?.account_number
+                }
+                costCenter={{
+                  accountNumber: jobCardInvoicePreview?.account_number || costCode,
+                  billingMonth:
+                    jobCardInvoicePreview?.billing_month ||
+                    selectedBillingMonth ||
+                    FC_BILLING_MONTH,
+                }}
+                invoiceData={{
+                  ...jobCardInvoicePreview,
+                  notes: "",
+                  note: "",
+                  quote_notes: "",
+                }}
               />
             </div>
           </div>

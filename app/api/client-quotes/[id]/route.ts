@@ -7,6 +7,54 @@ function extractMissingColumnName(message?: string | null): string | null {
   return match?.[1] || null;
 }
 
+type QuoteLineItem = Record<string, unknown>;
+
+function parseQuoteLineItems(value: unknown): QuoteLineItem[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is QuoteLineItem => typeof item === 'object' && item !== null);
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is QuoteLineItem => typeof item === 'object' && item !== null);
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function getQuoteLineLabel(item: QuoteLineItem, index: number): string {
+  const candidates = [
+    item.name,
+    item.product,
+    item.product_name,
+    item.description,
+    item.code,
+    item.item_code,
+  ];
+
+  const firstLabel = candidates.find(
+    (value) => typeof value === 'string' && value.trim().length > 0,
+  );
+
+  return typeof firstLabel === 'string' && firstLabel.trim().length > 0
+    ? firstLabel.trim()
+    : `Item ${index + 1}`;
+}
+
+function buildProductContextMessage(productLabels: string[]): string | null {
+  if (!Array.isArray(productLabels) || productLabels.length === 0) return null;
+  if (productLabels.length <= 3) {
+    return `Affected products: ${productLabels.join(', ')}`;
+  }
+  return `Affected products: ${productLabels.slice(0, 3).join(', ')} (+${productLabels.length - 3} more)`;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -134,6 +182,8 @@ export async function PUT(
         normalize(clientQuote.job_sub_type).includes('decommission') ||
         normalize(clientQuote.job_description).includes('decommission');
       const isDecommissionJobCard = isDeinstall && isDecommission;
+      const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
+      const deinstallProductLabels = quotationProducts.map(getQuoteLineLabel);
 
       const destinationFromQuote = String(clientQuote.move_to_role || '').trim().toLowerCase();
       const destinationNormalized = String(destination || destinationFromQuote || 'none').trim().toLowerCase();
@@ -151,16 +201,28 @@ export async function PUT(
 
       const annuityEndDate = annuity_end_date || clientQuote.annuity_end_date || null;
       if (isDeinstall && !annuityEndDate) {
+        const productContext = buildProductContextMessage(deinstallProductLabels);
         return NextResponse.json(
-          { error: 'annuity_end_date is required for de-install quotes' },
+          {
+            error: 'Last Annuity Payment is required for de-install quotes',
+            missingField: 'annuity_end_date',
+            productLabels: deinstallProductLabels,
+            details: productContext || 'Add Last Annuity Payment before approving this quote.',
+          },
           { status: 400 }
         );
       }
 
       if (isDecommissionJobCard) {
         if (!annuityEndDate) {
+          const productContext = buildProductContextMessage(deinstallProductLabels);
           return NextResponse.json(
-            { error: 'annuity_end_date is required for decommission quotes' },
+            {
+              error: 'Last Annuity Payment is required for decommission quotes',
+              missingField: 'annuity_end_date',
+              productLabels: deinstallProductLabels,
+              details: productContext || 'Add Last Annuity Payment before approving this quote.',
+            },
             { status: 400 }
           );
         }
@@ -230,7 +292,13 @@ export async function PUT(
         quote_type: 'internal',
         
         // Pricing
-        quotation_products: clientQuote.quotation_products || [],
+        quotation_products:
+          isDeinstall && annuityEndDate
+            ? quotationProducts.map((line) => ({
+                ...line,
+                annuity_end_date: line.annuity_end_date || annuityEndDate,
+              }))
+            : clientQuote.quotation_products || [],
         quotation_subtotal: clientQuote.quotation_subtotal || 0,
         quotation_vat_amount: clientQuote.quotation_vat_amount || 0,
         quotation_total_amount: clientQuote.quotation_total_amount || 0,

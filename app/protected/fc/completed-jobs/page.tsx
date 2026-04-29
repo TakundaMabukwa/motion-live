@@ -229,6 +229,18 @@ const parseQuotationProducts = (value: unknown): QuotationProduct[] =>
       typeof item === "object" && item !== null,
   );
 
+const getQuotationProductKey = (
+  product: QuotationProduct,
+  index: number,
+  prefix = "product",
+): string => {
+  const idPart = toStringSafe(product.id || "").trim();
+  const namePart = toStringSafe(product.name || "").trim();
+  const categoryPart = toStringSafe(product.category || "").trim();
+  const base = idPart || namePart || categoryPart || "item";
+  return `${prefix}-${base}-${index}`;
+};
+
 const PRICE_FIELDS = [
   "cash_price",
   "rental_price",
@@ -409,6 +421,7 @@ export default function FCCompletedJobsPage() {
   >([]);
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [movingJobId, setMovingJobId] = useState<string | null>(null);
 
   const fetchCompletedJobs = async () => {
     try {
@@ -507,6 +520,67 @@ export default function FCCompletedJobsPage() {
     });
     setEditableQuotationProducts(quotationProducts);
     setShowEditDialog(true);
+  };
+
+  const handleMoveJob = async (job: CompletedJob, destination: string) => {
+    if (!job?.id || !destination) return;
+
+    const destinationLabel =
+      destination === "inv"
+        ? "Inventory"
+        : destination === "admin"
+          ? "Admin"
+          : destination === "accounts"
+            ? "Accounts"
+            : destination.toUpperCase();
+
+    setMovingJobId(job.id);
+    const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
+
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          destination,
+          ...(destination === "accounts" ? { preserveCompleted: true } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to move job to ${destinationLabel}`,
+        );
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success(`Job moved to ${destinationLabel}`);
+
+      setJobs((prev) => prev.filter((item) => item.id !== job.id));
+
+      if (selectedJob?.id === job.id) {
+        setShowDetails(false);
+        setSelectedJob(null);
+      }
+
+      if (editingJob?.id === job.id) {
+        setShowEditDialog(false);
+        setEditingJob(null);
+      }
+    } catch (error) {
+      console.error("Error moving FC completed job:", error);
+      toast.dismiss(loadingToast);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : `Failed to move job to ${destinationLabel}`,
+      );
+    } finally {
+      setMovingJobId(null);
+    }
   };
 
   const updateFormField = (field: keyof EditFormData, value: string) => {
@@ -1026,10 +1100,28 @@ export default function FCCompletedJobsPage() {
                               onClick={() => handleEditJob(job)}
                               size="sm"
                               className="w-full"
+                              disabled={movingJobId === job.id}
                             >
                               <Edit className="mr-2 h-4 w-4" />
                               Edit and Finalize
                             </Button>
+                            <Select
+                              disabled={movingJobId === job.id}
+                              onValueChange={(value) => handleMoveJob(job, value)}
+                            >
+                              <SelectTrigger className="h-8 w-full text-xs">
+                                <SelectValue
+                                  placeholder={
+                                    movingJobId === job.id ? "Moving..." : "Move to"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="accounts">Accounts</SelectItem>
+                                <SelectItem value="inv">Inventory</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </td>
                       </tr>
@@ -1348,10 +1440,7 @@ export default function FCCompletedJobsPage() {
                         <tbody className="divide-y divide-gray-200">
                           {selectedJobProducts.map((product, index) => (
                             <tr
-                              key={
-                                product.id ||
-                                `${product.name || "item"}-${index}`
-                              }
+                              key={getQuotationProductKey(product, index, "details")}
                             >
                               <td className="px-3 py-2 text-sm text-gray-900">
                                 <div className="font-medium">
@@ -1589,10 +1678,7 @@ export default function FCCompletedJobsPage() {
                             <tbody className="divide-y divide-gray-200">
                               {editingJobProducts.map((product, index) => (
                                 <tr
-                                  key={
-                                    product.id ||
-                                    `${product.name || "item"}-${index}`
-                                  }
+                                  key={getQuotationProductKey(product, index, "overview")}
                                 >
                                   <td className="px-3 py-2 text-sm text-gray-900">
                                     {product.name || "Unnamed item"}
@@ -1781,7 +1867,7 @@ export default function FCCompletedJobsPage() {
 
                               return (
                                 <div
-                                  key={product.id || `${product.name}-${index}`}
+                                  key={getQuotationProductKey(product, index, "pricing")}
                                   className="rounded-lg border bg-white p-4"
                                 >
                                   <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">

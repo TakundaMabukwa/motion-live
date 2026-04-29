@@ -7,6 +7,45 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 
+const EDIT_PAGE_CACHE_TTL_MS = 60 * 1000;
+const JOB_DETAILS_CACHE = new Map();
+const CUSTOMER_BY_ACCOUNT_CACHE = new Map();
+
+const getCachedJson = async (cache, key, fetcher, ttlMs = EDIT_PAGE_CACHE_TTL_MS) => {
+  const now = Date.now();
+  const cached = cache.get(key);
+
+  if (cached?.data && now - cached.fetchedAt < ttlMs) {
+    return cached.data;
+  }
+
+  if (cached?.promise) {
+    return cached.promise;
+  }
+
+  const pending = fetcher()
+    .then((data) => {
+      cache.set(key, {
+        data,
+        promise: null,
+        fetchedAt: Date.now(),
+      });
+      return data;
+    })
+    .catch((error) => {
+      cache.delete(key);
+      throw error;
+    });
+
+  cache.set(key, {
+    data: null,
+    promise: pending,
+    fetchedAt: now,
+  });
+
+  return pending;
+};
+
 export default function EditJobPage() {
   const router = useRouter();
   const params = useParams();
@@ -134,16 +173,21 @@ export default function EditJobPage() {
     const loadJob = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/job-cards/${jobId}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData?.error || "Failed to fetch job");
-        }
+        const resolvedJob = await getCachedJson(
+          JOB_DETAILS_CACHE,
+          String(jobId),
+          async () => {
+            const response = await fetch(`/api/job-cards/${jobId}?view=fc-edit`, {
+              cache: "no-store",
+            });
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData?.error || "Failed to fetch job");
+            }
+            return response.json();
+          },
+        );
 
-        const loadedJob = await response.json();
-        const resolvedJob = loadedJob;
         setJob(resolvedJob);
 
         const fallbackCustomerData = buildFallbackCustomerData(resolvedJob);
@@ -151,18 +195,29 @@ export default function EditJobPage() {
 
         setCustomer(fallbackCustomerData);
         setAccountInfo(fallbackAccountData);
+        setLoading(false);
 
         if (resolvedJob?.new_account_number) {
-          const customerResponse = await fetch(
-            `/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(resolvedJob.new_account_number)}`,
-            { cache: "no-store" },
-          );
+          getCachedJson(
+            CUSTOMER_BY_ACCOUNT_CACHE,
+            String(resolvedJob.new_account_number),
+            async () => {
+              const customerResponse = await fetch(
+                `/api/customers/fetch-by-account?accountNumber=${encodeURIComponent(resolvedJob.new_account_number)}`,
+                { cache: "no-store" },
+              );
 
-          if (customerResponse.ok) {
-            const customerPayload = await customerResponse.json();
-            const fetchedCustomer = customerPayload?.customer || null;
+              if (!customerResponse.ok) {
+                return null;
+              }
 
-            if (fetchedCustomer) {
+              const customerPayload = await customerResponse.json();
+              return customerPayload?.customer || null;
+            },
+          )
+            .then((fetchedCustomer) => {
+              if (!fetchedCustomer) return;
+
               setCustomer({
                 ...fallbackCustomerData,
                 ...fetchedCustomer,
@@ -213,14 +268,15 @@ export default function EditJobPage() {
                   fetchedCustomer.branch_person_name ||
                   fallbackAccountData.branch_person_name,
               });
-            }
-          }
+            })
+            .catch(() => {
+              // Keep fallback customer/account info when enrichment fails.
+            });
         }
       } catch (error) {
         toast.error("Failed to load job", {
           description: error.message || "Could not fetch job data.",
         });
-      } finally {
         setLoading(false);
       }
     };

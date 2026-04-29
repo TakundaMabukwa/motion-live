@@ -35,6 +35,51 @@ import { Badge } from "@/components/ui/badge";
 import { getVehiclesByAccountNumber } from "@/lib/actions/vehicles";
 import DeinstallationFlow from "./DeinstallationFlow";
 
+const PRODUCT_CACHE_TTL_MS = 5 * 60 * 1000;
+const PRODUCT_FILTERS_CACHE = {
+  data: null,
+  promise: null,
+  fetchedAt: 0,
+};
+const PRODUCT_ITEMS_CACHE = new Map();
+
+const normalizeJobTypeValue = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "recovery") return "recovery";
+  if (normalized.includes("deinstall") || normalized.includes("de-install")) {
+    return "deinstall";
+  }
+  if (normalized.includes("install")) {
+    return "install";
+  }
+  return normalized;
+};
+
+const normalizeJobSubTypeValue = (value, normalizedJobType) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+
+  if (normalizedJobType === "recovery") return "recovery";
+
+  if (normalizedJobType === "deinstall") {
+    if (normalized.includes("decommission")) return "decommission";
+    if (normalized.includes("de-install") || normalized.includes("deinstall")) {
+      return "de-install";
+    }
+  }
+
+  if (normalizedJobType === "install") {
+    if (normalized.includes("new") && normalized.includes("install")) return "new_install";
+    if (normalized.includes("reinstall") || normalized.includes("re-install")) {
+      return "reinstall";
+    }
+    if (normalized.includes("additional")) return "additional_install";
+  }
+
+  return normalized;
+};
+
 export default function ClientQuoteForm({
   customer,
   vehicles,
@@ -451,6 +496,14 @@ export default function ClientQuoteForm({
   useEffect(() => {
     if (mode !== "edit" || !initialQuote) return;
 
+    const normalizedJobType = normalizeJobTypeValue(
+      initialQuote.job_type || initialQuote.jobType,
+    );
+    const normalizedJobSubType = normalizeJobSubTypeValue(
+      initialQuote.job_sub_type || initialQuote.jobSubType,
+      normalizedJobType,
+    );
+
     const deserialize = (p) => ({
       id: p.id || `item-${Math.random().toString(36).slice(2)}`,
       name: p.name || p.product || p.description || "",
@@ -479,36 +532,74 @@ export default function ClientQuoteForm({
 
     setFormData((prev) => ({
       ...prev,
-      jobType: initialQuote.job_type || "",
-      jobSubType: initialQuote.job_sub_type || "",
-      description: initialQuote.job_description || "",
-      purchaseType: initialQuote.purchase_type || "purchase",
+      jobType: normalizedJobType,
+      jobSubType: normalizedJobSubType,
+      description: initialQuote.job_description || initialQuote.description || "",
+      purchaseType:
+        initialQuote.purchase_type || initialQuote.purchaseType || "purchase",
       customerName: initialQuote.customer_name || prev.customerName,
-      customerEmail: initialQuote.customer_email || prev.customerEmail,
+      customerEmail:
+        initialQuote.customer_email ||
+        initialQuote.email ||
+        prev.customerEmail,
       customerPhone: initialQuote.customer_phone || prev.customerPhone,
-      customerAddress: initialQuote.customer_address || prev.customerAddress,
-      contactPerson: initialQuote.contact_person || "",
-      decommissionDate: initialQuote.decommission_date || "",
-      annuityEndDate: initialQuote.annuity_end_date || "",
-      moveToRole: initialQuote.move_to_role || "",
-      vehicle_registration: initialQuote.vehicle_registration || "",
-      vehicle_make: initialQuote.vehicle_make || "",
-      vehicle_model: initialQuote.vehicle_model || "",
-      vehicle_year: initialQuote.vehicle_year ? String(initialQuote.vehicle_year) : "",
-      vin_number: initialQuote.vin_number || initialQuote.vin_numer || "",
-      odormeter: initialQuote.odormeter || "",
-      extraNotes: initialQuote.quote_notes || "",
-      emailSubject: initialQuote.quote_email_subject || prev.emailSubject,
-      emailBody: initialQuote.quote_email_body || prev.emailBody,
-      quoteFooter: initialQuote.quote_email_footer || prev.quoteFooter,
-      emailRecipients: initialQuote.customer_email ? [initialQuote.customer_email] : prev.emailRecipients,
+      customerAddress:
+        initialQuote.customer_address ||
+        initialQuote.customerAddress ||
+        initialQuote.address ||
+        prev.customerAddress,
+      contactPerson:
+        initialQuote.contact_person ||
+        initialQuote.branch_person_name ||
+        prev.contactPerson,
+      decommissionDate:
+        initialQuote.decommission_date || initialQuote.decommissionDate || "",
+      annuityEndDate:
+        initialQuote.annuity_end_date || initialQuote.annuityEndDate || "",
+      moveToRole:
+        initialQuote.move_to_role ||
+        initialQuote.moveToRole ||
+        initialQuote.move_to ||
+        "",
+      vehicle_registration:
+        initialQuote.vehicle_registration || initialQuote.vehicleRegistration || "",
+      vehicle_make: initialQuote.vehicle_make || initialQuote.vehicleMake || "",
+      vehicle_model: initialQuote.vehicle_model || initialQuote.vehicleModel || "",
+      vehicle_year:
+        initialQuote.vehicle_year || initialQuote.vehicleYear
+          ? String(initialQuote.vehicle_year || initialQuote.vehicleYear)
+          : "",
+      vin_number:
+        initialQuote.vin_number ||
+        initialQuote.vin_numer ||
+        initialQuote.vinNumber ||
+        "",
+      odormeter: initialQuote.odormeter || initialQuote.odometer || "",
+      extraNotes:
+        initialQuote.quote_notes || initialQuote.extra_notes || prev.extraNotes,
+      emailSubject:
+        initialQuote.quote_email_subject ||
+        initialQuote.email_subject ||
+        prev.emailSubject,
+      emailBody:
+        initialQuote.quote_email_body || initialQuote.email_body || prev.emailBody,
+      quoteFooter:
+        initialQuote.quote_email_footer ||
+        initialQuote.email_footer ||
+        prev.quoteFooter,
+      emailRecipients:
+        (Array.isArray(initialQuote.email_recipients) &&
+        initialQuote.email_recipients.length > 0
+          ? initialQuote.email_recipients
+          : null) ||
+        (initialQuote.customer_email ? [initialQuote.customer_email] : prev.emailRecipients),
     }));
 
     const existingItems = Array.isArray(initialQuote.quotation_products) ? initialQuote.quotation_products : [];
     setSelectedProducts(existingItems.map(deserialize));
-    setHasUserSelectedJobType(!!initialQuote.job_type);
+    setHasUserSelectedJobType(!!normalizedJobType);
 
-    if (initialQuote.job_type === "recovery") {
+    if (normalizedJobType === "recovery") {
       const firstRecoveryLine = existingItems[0] || {};
       const parsedHours =
         Number(
@@ -533,26 +624,53 @@ export default function ClientQuoteForm({
       });
     }
 
-    if (initialQuote.job_type === "deinstall" && Array.isArray(initialQuote.deinstall_vehicles)) {
+    if (normalizedJobType === "deinstall" && Array.isArray(initialQuote.deinstall_vehicles)) {
       setDeInstallData((prev) => ({
         ...prev,
-        selectedVehicles: initialQuote.deinstall_vehicles.map((v) => v.id).filter(Boolean),
+        selectedVehicles: initialQuote.deinstall_vehicles
+          .map((v) => v.id || v.vehicle_id)
+          .filter(Boolean),
       }));
     }
   }, [mode, initialQuote]);
 
-  const fetchFilters = async () => {
+  const fetchFilters = useCallback(async () => {
     try {
-      const res = await fetch('/api/product-items?filters=true');
-      if (res.ok) {
-        const data = await res.json();
-        setProductTypes(data.types || []);
-        setProductCategories(data.categories || []);
+      const now = Date.now();
+      const hasFreshCache =
+        PRODUCT_FILTERS_CACHE.data &&
+        now - PRODUCT_FILTERS_CACHE.fetchedAt < PRODUCT_CACHE_TTL_MS;
+      if (hasFreshCache) {
+        setProductTypes(PRODUCT_FILTERS_CACHE.data.types || []);
+        setProductCategories(PRODUCT_FILTERS_CACHE.data.categories || []);
+        return;
       }
+
+      if (!PRODUCT_FILTERS_CACHE.promise) {
+        PRODUCT_FILTERS_CACHE.promise = fetch('/api/product-items?filters=true')
+          .then(async (res) => {
+            if (!res.ok) {
+              throw new Error(`Failed to load filters: ${res.status}`);
+            }
+            const data = await res.json();
+            return {
+              types: data.types || [],
+              categories: data.categories || [],
+            };
+          });
+      }
+
+      const data = await PRODUCT_FILTERS_CACHE.promise;
+      PRODUCT_FILTERS_CACHE.data = data;
+      PRODUCT_FILTERS_CACHE.fetchedAt = Date.now();
+      setProductTypes(data.types || []);
+      setProductCategories(data.categories || []);
     } catch (error) {
       console.error('Failed to fetch filters:', error);
+    } finally {
+      PRODUCT_FILTERS_CACHE.promise = null;
     }
-  };
+  }, []);
 
   const fetchVehicleProducts = useCallback(async () => {
     if (!vehicles || vehicles.length === 0) {
@@ -621,14 +739,6 @@ export default function ClientQuoteForm({
     }
   }, [vehicles]);
 
-  // Fetch vehicles from vehicles_ip when job type changes to deinstall
-  useEffect(() => {
-    if (formData.jobType === 'deinstall' && accountInfo?.new_account_number) {
-      console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
-      fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
-    }
-  }, [formData.jobType, accountInfo?.new_account_number, fetchVehiclesFromIP]);
-
   useEffect(() => {
     if (formData.jobType !== "recovery") return;
 
@@ -650,11 +760,7 @@ export default function ClientQuoteForm({
   }, [formData.jobType, recoveryQuote.hours, recoveryQuote.amount, buildRecoveryProduct]);
 
   const fetchProductItems = useCallback(async () => {
-    // Skip if no filters are set and we already have products
-    if (selectedType === 'all' && selectedCategory === 'all' && !debouncedSearchTerm && productItems.length > 0) {
-      return;
-    }
-    
+    let cacheKey = "__all__";
     setLoadingProducts(true);
     setProductError(null);
     try {
@@ -662,39 +768,70 @@ export default function ClientQuoteForm({
       if (selectedType && selectedType !== 'all') params.append('type', selectedType);
       if (selectedCategory && selectedCategory !== 'all') params.append('category', selectedCategory);
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      const queryString = params.toString();
+      cacheKey = queryString || "__all__";
+      const now = Date.now();
+      const cachedEntry = PRODUCT_ITEMS_CACHE.get(cacheKey);
 
-      const response = await fetch(`/api/product-items?${params}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (
+        cachedEntry?.data &&
+        now - cachedEntry.fetchedAt < PRODUCT_CACHE_TTL_MS
+      ) {
+        setProductItems(cachedEntry.data);
+        return;
       }
-      const data = await response.json();
-      setProductItems(data.products || []);
+
+      if (!cachedEntry?.promise) {
+        const requestPromise = fetch(`/api/product-items?${queryString}`)
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return data.products || [];
+          });
+
+        PRODUCT_ITEMS_CACHE.set(cacheKey, {
+          data: null,
+          promise: requestPromise,
+          fetchedAt: now,
+        });
+      }
+
+      const freshProducts = await PRODUCT_ITEMS_CACHE.get(cacheKey).promise;
+      PRODUCT_ITEMS_CACHE.set(cacheKey, {
+        data: freshProducts,
+        promise: null,
+        fetchedAt: Date.now(),
+      });
+      setProductItems(freshProducts);
     } catch (err) {
       console.error('Error fetching product items:', err);
       setProductError('Failed to load products');
+      PRODUCT_ITEMS_CACHE.delete(cacheKey);
     } finally {
       setLoadingProducts(false);
     }
-  }, [selectedType, selectedCategory, debouncedSearchTerm, productItems.length]);
+  }, [selectedType, selectedCategory, debouncedSearchTerm]);
 
   // Effect for job type changes
   useEffect(() => {
-    // Only fetch when job type changes and user has actually selected a job type
-    if (formData.jobType === 'deinstall' && accountInfo?.new_account_number && hasUserSelectedJobType) {
+    if (!hasUserSelectedJobType) return;
+
+    if (formData.jobType === 'deinstall' && accountInfo?.new_account_number) {
       console.log('Job type changed to deinstall, fetching ALL vehicles from vehicles table');
-      fetchVehiclesFromIP(true); // Load ALL vehicles for de-installation
-    } else if (formData.jobType && formData.jobType !== 'deinstall' && formData.jobType !== 'recovery' && hasUserSelectedJobType) {
-      console.log('Job type changed to install, fetching product items');
-      fetchProductItems();
-    } else if (formData.jobType === 'deinstall' && !accountInfo?.new_account_number && hasUserSelectedJobType) {
+      fetchVehiclesFromIP(true);
+      return;
+    }
+
+    if (formData.jobType === 'deinstall' && !accountInfo?.new_account_number) {
       console.log('Job type is deinstall but no account number available yet');
     }
-  }, [formData.jobType, accountInfo?.new_account_number, hasUserSelectedJobType, fetchVehiclesFromIP, fetchProductItems]);
+  }, [formData.jobType, accountInfo?.new_account_number, hasUserSelectedJobType, fetchVehiclesFromIP]);
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType && formData.jobType !== 'recovery') {
+    if (formData.jobType && formData.jobType !== 'recovery' && formData.jobType !== 'deinstall') {
       fetchProductItems();
     }
   }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
@@ -1210,18 +1347,30 @@ export default function ClientQuoteForm({
         quotation_total_amount: totalAmount,
       };
 
-      const updatePayload = isJobEditMode
-        ? baseUpdatePayload
-        : {
-            ...baseUpdatePayload,
-            job_sub_type: formData.jobSubType || null,
-            move_to_role: formData.moveToRole || null,
-            ...(formData.jobType === "deinstall" && {
-              deinstall_vehicles: quotationData.deinstall_vehicles || [],
-              deinstall_stock_items: [],
-              stock_received: null,
-            }),
-          };
+      const initialQuoteHas = (field) =>
+        !!initialQuote &&
+        Object.prototype.hasOwnProperty.call(initialQuote, field);
+      const canWriteJobSubType = !isJobEditMode || initialQuoteHas("job_sub_type");
+      const canWriteMoveToRole = !isJobEditMode || initialQuoteHas("move_to_role");
+      const canWriteDeinstallVehicles =
+        !isJobEditMode || initialQuoteHas("deinstall_vehicles");
+      const canWriteDeinstallStockItems =
+        !isJobEditMode || initialQuoteHas("deinstall_stock_items");
+      const canWriteStockReceived =
+        !isJobEditMode || initialQuoteHas("stock_received");
+
+      const updatePayload = {
+        ...baseUpdatePayload,
+        ...(canWriteJobSubType ? { job_sub_type: formData.jobSubType || null } : {}),
+        ...(canWriteMoveToRole ? { move_to_role: formData.moveToRole || null } : {}),
+        ...(formData.jobType === "deinstall" && {
+          ...(canWriteDeinstallVehicles
+            ? { deinstall_vehicles: quotationData.deinstall_vehicles || [] }
+            : {}),
+          ...(canWriteDeinstallStockItems ? { deinstall_stock_items: [] } : {}),
+          ...(canWriteStockReceived ? { stock_received: null } : {}),
+        }),
+      };
 
       const editPayload = isCustomerQuoteEdit
         ? (() => {

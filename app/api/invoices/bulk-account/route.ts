@@ -233,14 +233,6 @@ const syncBulkInvoiceToAccountInvoices = async (
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const { searchParams } = new URL(request.url);
     const accountNumber = String(searchParams.get("accountNumber") || "").trim();
@@ -403,14 +395,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingInvoice = Array.isArray(existingInvoices)
+    const latestInvoiceForMonth = Array.isArray(existingInvoices)
       ? existingInvoices[0] || null
       : null;
 
-    if (existingInvoice?.invoice_locked && !canOverrideLockedInvoice) {
-      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, existingInvoice);
+    let lockedQuery = supabase
+      .from("bulk_account_invoices")
+      .select("*")
+      .eq("account_number", accountNumber)
+      .eq("invoice_locked", true)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    lockedQuery = billingMonth
+      ? lockedQuery.eq("billing_month", billingMonth)
+      : lockedQuery.is("billing_month", null);
+
+    const { data: lockedInvoices, error: lockedError } = await lockedQuery;
+
+    if (lockedError) {
+      return NextResponse.json(
+        { error: lockedError.message || "Failed to check locked invoice" },
+        { status: 500 },
+      );
+    }
+
+    const lockedInvoiceForPeriod = Array.isArray(lockedInvoices)
+      ? lockedInvoices[0] || null
+      : null;
+
+    if (lockedInvoiceForPeriod && !canOverrideLockedInvoice) {
+      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, lockedInvoiceForPeriod);
       return NextResponse.json({ invoice: lockedInvoice, reused: true, locked: true });
     }
+
+    // Prefer the locked-period invoice when it exists so we never allocate
+    // a new invoice number for a billing month that is already locked.
+    const existingInvoice = lockedInvoiceForPeriod || latestInvoiceForMonth;
 
     const payload = {
       account_number: accountNumber,
@@ -431,7 +452,7 @@ export async function POST(request: NextRequest) {
     if (existingInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
 
-      if (!hasRealInvoiceNumber(invoiceNumberToKeep)) {
+      if (!hasRealInvoiceNumber(invoiceNumberToKeep) && !existingInvoice?.invoice_locked) {
         const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
           "allocate_document_number",
           {

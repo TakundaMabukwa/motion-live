@@ -8,8 +8,7 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { id } = await params;
-    const { destination, note, inventoryPlacement, preserveCompleted } =
-      await request.json();
+    const { destination, note, preserveCompleted } = await request.json();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -42,7 +41,7 @@ export async function POST(
 
     const { data: currentJob, error: currentJobError } = await supabase
       .from("job_cards")
-      .select("role, move_to, completion_notes")
+      .select("role, move_to, completion_notes, status, job_status")
       .eq("id", id)
       .single();
 
@@ -53,23 +52,31 @@ export async function POST(
       );
     }
 
+    const sourceJobStatus = String(currentJob.job_status || "").trim().toLowerCase();
+    const sourceStatus = String(currentJob.status || "").trim().toLowerCase();
+    const sourceIsCompleted =
+      sourceJobStatus === "completed" || sourceStatus === "completed";
+
     const sourceRole = String(
       currentJob.role || currentJob.move_to || "",
     ).trim().toLowerCase() || null;
-    const escalationPayload =
-      targetRole === "accounts"
-        ? {
-            escalation_role: null,
-            escalation_source_role: null,
-            escalated_at: null,
-          }
-        : {
-            escalation_role: targetRole,
-            escalation_source_role: sourceRole,
-            escalated_at: new Date().toISOString(),
-          };
+    const shouldPreserveCompletedForFc =
+      targetRole === "fc" && (Boolean(preserveCompleted) || sourceIsCompleted);
+    const shouldMoveAsCompleted =
+      targetRole === "accounts" || shouldPreserveCompletedForFc;
+    const escalationPayload = shouldMoveAsCompleted
+      ? {
+          escalation_role: null,
+          escalation_source_role: null,
+          escalated_at: null,
+        }
+      : {
+          escalation_role: targetRole,
+          escalation_source_role: sourceRole,
+          escalated_at: new Date().toISOString(),
+        };
 
-    // Only Accounts should receive jobs as completed.
+    // Completed destinations (Accounts and FC with preserveCompleted=true) should avoid escalation.
     // Other role-to-role moves should stay active/pending and surface via escalations.
     if (["fc", "inv", "accounts"].includes(targetRole)) {
       let nextCompletionNotes: string | null | undefined;
@@ -82,29 +89,29 @@ export async function POST(
           : `[Move note to ${targetRole.toUpperCase()}]\n${trimmedNote}`;
       }
 
-      const completionPayload =
-        targetRole === "accounts"
-          ? {
-              role: "accounts",
-              move_to: "accounts",
-              status: "completed",
-              job_status: "Completed",
-              completion_date: new Date().toISOString(),
-              end_time: new Date().toISOString(),
-              ...escalationPayload,
-              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
-            }
-          : {
-              role: targetRole,
-              move_to: targetRole,
-              status: "pending",
-              job_status: "pending",
-              completion_date: null,
-              end_time: null,
-              ...escalationPayload,
-              ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
-              ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
-            };
+      const completionPayload = shouldMoveAsCompleted
+        ? {
+            role: targetRole,
+            move_to: targetRole,
+            status: "completed",
+            job_status: "Completed",
+            completion_date: new Date().toISOString(),
+            end_time: new Date().toISOString(),
+            ...escalationPayload,
+            ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
+            ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+          }
+        : {
+            role: targetRole,
+            move_to: targetRole,
+            status: "pending",
+            job_status: "pending",
+            completion_date: null,
+            end_time: null,
+            ...escalationPayload,
+            ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
+            ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
+          };
 
       const patchUrl = `${new URL(request.url).origin}/api/job-cards/${id}`;
       const patchResponse = await fetch(patchUrl, {
@@ -137,6 +144,8 @@ export async function POST(
         message:
           targetRole === "accounts"
             ? "Job moved to Accounts and marked as completed"
+            : shouldPreserveCompletedForFc
+              ? "Job moved to FC and kept in completed review queue"
             : `Job moved to ${targetRole.toUpperCase()} escalation queue`,
         job: patchBody,
       });

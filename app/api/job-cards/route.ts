@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * limit;
     const accountNumber = searchParams.get('account_number');
     const escalationRole = searchParams.get('escalation_role');
+    const excludeCompleted = String(searchParams.get('exclude_completed') || '').toLowerCase() === 'true';
     const view = searchParams.get('view') || '';
     const selectFields =
       view === 'fc-list'
@@ -72,6 +73,12 @@ export async function GET(request: NextRequest) {
 
     if (escalationRole) {
       query = query.eq('escalation_role', escalationRole);
+    }
+
+    if (excludeCompleted) {
+      query = query
+        .not('job_status', 'in', '("Completed","completed")')
+        .not('status', 'in', '("Completed","completed")');
     }
 
     query = query.range(offset, offset + limit - 1);
@@ -91,6 +98,12 @@ export async function GET(request: NextRequest) {
 
     if (escalationRole) {
       countQuery = countQuery.eq('escalation_role', escalationRole);
+    }
+
+    if (excludeCompleted) {
+      countQuery = countQuery
+        .not('job_status', 'in', '("Completed","completed")')
+        .not('status', 'in', '("Completed","completed")');
     }
 
     const { count } = await countQuery;

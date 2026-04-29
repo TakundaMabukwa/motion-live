@@ -73,6 +73,10 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const applyMode = process.argv.includes("--apply");
+const accountPrefixArg = process.argv.find((arg) => arg.startsWith("--account-prefix="));
+const accountPrefixFilter = accountPrefixArg
+  ? normalize(accountPrefixArg.split("=", 2)[1])
+  : "";
 
 function normalize(value) {
   return String(value ?? "").trim().toUpperCase();
@@ -105,6 +109,11 @@ function toNumber(value) {
 
 function roundCurrency(value) {
   return Number(toNumber(value).toFixed(2));
+}
+
+function matchesAccountPrefix(value) {
+  if (!accountPrefixFilter) return true;
+  return normalize(value).startsWith(accountPrefixFilter);
 }
 
 function normalizeCurrency(value) {
@@ -375,6 +384,7 @@ function buildOpeningPayload(record, residualBuckets, receiptSummary, nowIso) {
     overdue_120_plus_days: residualBuckets.overdue_120_plus_days,
     outstanding_balance: residualOutstanding,
     amount_due: residualOutstanding,
+    credit_amount: receiptSummary.totalCredits,
     payment_status: residualOutstanding > 0 ? "pending" : "paid",
     invoice_date: `${OPENING_BILLING_MONTH}T00:00:00.000Z`,
     due_date: OPENING_BILLING_MONTH,
@@ -382,6 +392,34 @@ function buildOpeningPayload(record, residualBuckets, receiptSummary, nowIso) {
     reference: record.account_fusion || record.account_solflo,
     last_updated: nowIso,
     age_analysis_imported_at: nowIso,
+  };
+}
+
+function applyCreditToBuckets(startBuckets, creditAmount) {
+  const buckets = cloneBuckets(startBuckets);
+  let remainingCredit = roundCurrency(creditAmount);
+
+  const consume = (key) => {
+    if (remainingCredit <= 0) return;
+    const available = roundCurrency(buckets[key]);
+    if (available <= 0) return;
+    const appliedAmount = Math.min(available, remainingCredit);
+    buckets[key] = roundCurrency(available - appliedAmount);
+    remainingCredit = roundCurrency(remainingCredit - appliedAmount);
+  };
+
+  [
+    "current_due",
+    "overdue_30_days",
+    "overdue_60_days",
+    "overdue_90_days",
+    "overdue_120_plus_days",
+  ].forEach(consume);
+
+  return {
+    buckets,
+    remainingCredit,
+    appliedAmount: roundCurrency(creditAmount - remainingCredit),
   };
 }
 
@@ -393,21 +431,22 @@ function buildCurrentPayload({
   receiptSummary,
   nowIso,
 }) {
-  const currentDue = roundCurrency(
+  const grossCurrentDue = roundCurrency(
     currentSource?.current_due ??
       currentSource?.balance_due ??
       currentSource?.due_amount ??
       0,
   );
-  const grossOutstanding = roundCurrency(
-    currentDue +
-      rolledBuckets.overdue_30_days +
-      rolledBuckets.overdue_60_days +
-      rolledBuckets.overdue_90_days +
-      rolledBuckets.overdue_120_plus_days,
-  );
-  const creditAmount = roundCurrency((currentSource?.credit_amount || 0) + totalCredits);
-  const outstandingBalance = roundCurrency(Math.max(0, grossOutstanding - creditAmount));
+  const grossBuckets = {
+    current_due: grossCurrentDue,
+    overdue_30_days: roundCurrency(rolledBuckets.overdue_30_days),
+    overdue_60_days: roundCurrency(rolledBuckets.overdue_60_days),
+    overdue_90_days: roundCurrency(rolledBuckets.overdue_90_days),
+    overdue_120_plus_days: roundCurrency(rolledBuckets.overdue_120_plus_days),
+  };
+  const carryForwardCredit = roundCurrency((currentSource?.credit_amount || 0) + totalCredits);
+  const creditedBuckets = applyCreditToBuckets(grossBuckets, carryForwardCredit);
+  const outstandingBalance = totalBuckets(creditedBuckets.buckets);
 
   return {
     company: currentSource?.company || record.client_name || null,
@@ -442,15 +481,15 @@ function buildCurrentPayload({
     currency: record.currency || currentSource?.currency || "ZAR",
     due_amount: roundCurrency(currentSource?.due_amount || 0),
     paid_amount: roundCurrency(currentSource?.paid_amount || 0),
-    balance_due: roundCurrency(currentSource?.balance_due || currentSource?.due_amount || 0),
-    current_due: currentDue,
-    overdue_30_days: rolledBuckets.overdue_30_days,
-    overdue_60_days: rolledBuckets.overdue_60_days,
-    overdue_90_days: rolledBuckets.overdue_90_days,
-    overdue_120_plus_days: rolledBuckets.overdue_120_plus_days,
+    balance_due: outstandingBalance,
+    current_due: creditedBuckets.buckets.current_due,
+    overdue_30_days: creditedBuckets.buckets.overdue_30_days,
+    overdue_60_days: creditedBuckets.buckets.overdue_60_days,
+    overdue_90_days: creditedBuckets.buckets.overdue_90_days,
+    overdue_120_plus_days: creditedBuckets.buckets.overdue_120_plus_days,
     outstanding_balance: outstandingBalance,
     amount_due: outstandingBalance,
-    credit_amount: creditAmount,
+    credit_amount: creditedBuckets.remainingCredit,
     payment_status:
       outstandingBalance > 0 ? currentSource?.payment_status || "pending" : "paid",
     invoice_date: currentSource?.invoice_date || `${CURRENT_BILLING_MONTH}T00:00:00.000Z`,
@@ -563,8 +602,12 @@ async function ensureMacsteelGroup(codes) {
 
 async function main() {
   const workbook = xlsx.readFile(WORKBOOK_PATH);
-  const openingRecords = parseOpeningSheet(getSheetRows(workbook, OPENING_SHEET));
-  const receipts = parseReceiptsSheet(getSheetRows(workbook, RECEIPTS_SHEET));
+  const openingRecords = parseOpeningSheet(getSheetRows(workbook, OPENING_SHEET)).filter((record) =>
+    matchesAccountPrefix(record.account_solflo),
+  );
+  const receipts = parseReceiptsSheet(getSheetRows(workbook, RECEIPTS_SHEET)).filter((receipt) =>
+    matchesAccountPrefix(receipt.account_solflo),
+  );
   const receiptMap = new Map();
   receipts.forEach((receipt) => {
     const key = normalize(receipt.account_solflo);
@@ -669,6 +712,7 @@ async function main() {
     codeOverrides: ACCOUNT_SOLFLO_OVERRIDES,
     workbookAccountCount: openingRecords.length,
     receiptCount: receipts.length,
+    accountPrefixFilter: accountPrefixFilter || null,
     insertedCostCenters: 0,
     appendedMacsteelCodes: 0,
     updatedOpeningRows: 0,
@@ -764,6 +808,7 @@ async function main() {
       residualBuckets,
       {
         totalApplied,
+        totalCredits,
         latestPaymentDate,
         latestPaymentAmount,
       },

@@ -416,6 +416,7 @@ export default function AccountsDashboard() {
             title="FC Escalations"
             emptyTitle="No FC escalations"
             emptyDescription="Jobs moved into FC will appear here first."
+            hideCompletedJobs
             moveOptions={[
               { value: "inv", label: "Inventory", payload: { inventoryPlacement: "assign-parts" } },
               { value: "admin", label: "Admin" },

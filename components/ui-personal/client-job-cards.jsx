@@ -207,6 +207,42 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     return parsedDate.toISOString().split('T')[0];
   };
 
+  const parseQuoteProducts = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getQuoteProductLabel = (product, index) => {
+    const firstText = [
+      product?.name,
+      product?.product,
+      product?.product_name,
+      product?.description,
+      product?.code,
+    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+
+    return firstText ? firstText.trim() : `Item ${index + 1}`;
+  };
+
+  const getQuoteProductLabels = (quote) =>
+    parseQuoteProducts(quote?.quotation_products).map((item, index) =>
+      getQuoteProductLabel(item, index),
+    );
+
+  const getProductContextDescription = (labels) => {
+    if (!Array.isArray(labels) || labels.length === 0) return '';
+    if (labels.length <= 3) return `Affected products: ${labels.join(', ')}`;
+    return `Affected products: ${labels.slice(0, 3).join(', ')} (+${labels.length - 3} more)`;
+  };
+
   const isDecommissionQuote = (quote) => {
     const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const jobType = normalize(quote?.job_type);
@@ -257,9 +293,19 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData?.error || 'Failed to approve quote';
+        const productLabels = Array.isArray(errorData?.productLabels)
+          ? errorData.productLabels.filter((label) => typeof label === 'string' && label.trim().length > 0)
+          : [];
+        const productContext = getProductContextDescription(productLabels);
+        const detailMessage =
+          errorData?.details && typeof errorData.details === 'string'
+            ? errorData.details
+            : '';
 
         toast.error('Failed to approve quote', {
-          description: errorMessage
+          description: [errorMessage, detailMessage, productContext]
+            .filter(Boolean)
+            .join('. ')
         });
         return false;
       }
@@ -305,7 +351,14 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     const requiresRouting = isDecommissionQuote(quotePendingApproval);
 
     if (!annuityEndDate) {
-      toast.error('Last Annuity Payment is required');
+      const productContext = getProductContextDescription(
+        getQuoteProductLabels(quotePendingApproval),
+      );
+      toast.error('Last Annuity Payment is required', {
+        description:
+          productContext ||
+          'Add the date before approving this quote.',
+      });
       return;
     }
 
@@ -381,6 +434,11 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   const pendingQuotes = clientQuotes.filter(q => q.status === 'pending').length;
   const draftQuotes = clientQuotes.filter(q => q.status === 'draft').length;
   const totalValue = clientQuotes.reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
+  const pendingApprovalProductLabels = getQuoteProductLabels(quotePendingApproval);
+  const pendingApprovalProductSummary =
+    pendingApprovalProductLabels.length > 0
+      ? pendingApprovalProductLabels.join(', ')
+      : 'the selected quote item';
 
   if (loading) {
     return (
@@ -668,8 +726,8 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
             <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
               Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span>{' '}
               {isDecommissionQuote(quotePendingApproval)
-                ? 'is a decommission job. Add Last Annuity Payment and choose where the new job card should go.'
-                : 'is a de-install quote. Add the Last Annuity Payment before approval.'}
+                ? `is a decommission job. Add Last Annuity Payment for ${pendingApprovalProductSummary} and choose where the new job card should go.`
+                : `is a de-install quote. Add Last Annuity Payment for ${pendingApprovalProductSummary} before approval.`}
             </div>
 
             <div className="space-y-2">
@@ -683,6 +741,9 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
                 onChange={(event) => setAnnuityEndDate(event.target.value)}
                 required
               />
+              <p className="text-xs text-gray-500">
+                This date applies to: {pendingApprovalProductSummary}.
+              </p>
             </div>
 
             {isDecommissionQuote(quotePendingApproval) && (

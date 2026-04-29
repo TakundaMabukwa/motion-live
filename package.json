@@ -5,6 +5,7 @@
     "build": "NODE_OPTIONS='--max-old-space-size=1536' UV_THREADPOOL_SIZE=1 next build",
     "start": "next start",
     "lint": "next lint",
+    "dryrun:fc-move-flow": "node scripts/fc-move-flow-dry-run.js",
     "import-inventory": "node scripts/import-inventory-excel.js",
     "import-cost-center-client-info": "node scripts/import-cost-center-client-info.js"
   },
