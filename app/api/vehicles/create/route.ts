@@ -35,7 +35,7 @@ const BILLABLE_VEHICLE_FIELDS = new Set([
   'total_rental', 'total_sub', 'software', 'additional_data'
 ]);
 
-function findPresentBillableVehicleFields(vehicleData: Record<string, any>) {
+function findPresentBillableVehicleFields(vehicleData: Record<string, unknown>) {
   return Object.keys(vehicleData).filter(key => 
     BILLABLE_VEHICLE_FIELDS.has(key) && 
     vehicleData[key] !== null && 
@@ -52,6 +52,90 @@ async function isBillingLocked(supabase: Awaited<ReturnType<typeof createClient>
     .single();
   return data?.is_locked || false;
 }
+
+const buildMirroredVehiclePayload = (
+  insertedVehicle: Record<string, unknown> | null | undefined,
+  sourcePayload: Record<string, unknown>,
+) => {
+  const payload = {
+    ...sourcePayload,
+    unique_id: insertedVehicle?.unique_id ?? sourcePayload?.unique_id ?? null,
+    new_account_number:
+      insertedVehicle?.new_account_number ?? sourcePayload?.new_account_number ?? null,
+    account_number:
+      insertedVehicle?.account_number ?? sourcePayload?.account_number ?? null,
+    company: insertedVehicle?.company ?? sourcePayload?.company ?? null,
+    reg: insertedVehicle?.reg ?? sourcePayload?.reg ?? null,
+    fleet_number:
+      insertedVehicle?.fleet_number ?? sourcePayload?.fleet_number ?? null,
+  };
+
+  if (!payload.account_number && payload.new_account_number) {
+    payload.account_number = payload.new_account_number;
+  }
+
+  delete payload.id;
+  delete payload.vehicle_validated;
+  delete payload.color;
+
+  return payload;
+};
+
+const findVehiclesMatches = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    uniqueId,
+    reg,
+    fleetNumber,
+  }: {
+    uniqueId: string;
+    reg: string;
+    fleetNumber: string;
+  },
+) => {
+  let matchedVehicles: Array<Record<string, unknown>> = [];
+
+  if (uniqueId) {
+    const { data: vehiclesByUniqueId, error: vehiclesByUniqueIdError } =
+      await supabase
+        .from('vehicles')
+        .select('id, unique_id, reg, fleet_number')
+        .eq('unique_id', uniqueId);
+
+    if (vehiclesByUniqueIdError) {
+      throw vehiclesByUniqueIdError;
+    }
+
+    matchedVehicles = vehiclesByUniqueId || [];
+  }
+
+  if (matchedVehicles.length === 0 && (reg || fleetNumber)) {
+    let vehiclesQuery = supabase
+      .from('vehicles')
+      .select('id, unique_id, reg, fleet_number');
+
+    if (reg && fleetNumber) {
+      vehiclesQuery = vehiclesQuery.or(
+        `reg.eq.${reg.replace(/,/g, '\\,')},fleet_number.eq.${fleetNumber.replace(/,/g, '\\,')}`,
+      );
+    } else if (reg) {
+      vehiclesQuery = vehiclesQuery.eq('reg', reg);
+    } else {
+      vehiclesQuery = vehiclesQuery.eq('fleet_number', fleetNumber);
+    }
+
+    const { data: vehiclesByIdentifier, error: vehiclesByIdentifierError } =
+      await vehiclesQuery;
+
+    if (vehiclesByIdentifierError) {
+      throw vehiclesByIdentifierError;
+    }
+
+    matchedVehicles = vehiclesByIdentifier || [];
+  }
+
+  return matchedVehicles;
+};
 
 export async function POST(request: Request) {
   try {
@@ -112,6 +196,52 @@ export async function POST(request: Request) {
       console.error('Error creating vehicle:', error);
       return NextResponse.json(
         { error: 'Failed to create vehicle', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    const uniqueId = String(data?.unique_id || '').trim();
+    const reg = String(data?.reg || '').trim();
+    const fleetNumber = String(data?.fleet_number || '').trim();
+    const mirroredPayload = buildMirroredVehiclePayload(data, normalizedVehicleData);
+
+    try {
+      const matchedVehicles = await findVehiclesMatches(supabase, {
+        uniqueId,
+        reg,
+        fleetNumber,
+      });
+
+      if (matchedVehicles.length > 0) {
+        const vehicleIds = matchedVehicles
+          .map((vehicle) => vehicle.id)
+          .filter((vehicleId) => vehicleId !== null && vehicleId !== undefined);
+
+        if (vehicleIds.length > 0) {
+          const { error: vehiclesUpdateError } = await supabase
+            .from('vehicles')
+            .update(mirroredPayload)
+            .in('id', vehicleIds);
+
+          if (vehiclesUpdateError) {
+            throw vehiclesUpdateError;
+          }
+        }
+      } else {
+        const { error: vehiclesInsertError } = await supabase
+          .from('vehicles')
+          .insert(mirroredPayload);
+
+        if (vehiclesInsertError) {
+          throw vehiclesInsertError;
+        }
+      }
+    } catch (mirrorError) {
+      console.error('Error mirroring created vehicle to vehicles table:', mirrorError);
+      const details =
+        mirrorError instanceof Error ? mirrorError.message : String(mirrorError);
+      return NextResponse.json(
+        { error: 'Failed to mirror vehicle create', details },
         { status: 500 }
       );
     }

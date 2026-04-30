@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim().toUpperCase();
-    const billingMonth = normalizeBillingMonth(body?.billingMonth);
+    const requestedBillingMonth = normalizeBillingMonth(body?.billingMonth);
     const amount = toNumber(body?.amount);
     const reference = String(body?.reference || "").trim() || null;
     const comment = String(body?.comment || "").trim() || null;
@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    const billingMonth = requestedBillingMonth;
 
     if (!accountNumber) {
       return NextResponse.json({ error: "accountNumber is required" }, { status: 400 });
@@ -107,13 +109,6 @@ export async function POST(request: NextRequest) {
 
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
     const paymentsMirror = Array.isArray(mirrorRows) ? mirrorRows[0] || null : null;
-
-    if (!invoice && !paymentsMirror) {
-      return NextResponse.json(
-        { error: "No billing record found for this account and period" },
-        { status: 404 },
-      );
-    }
 
     const bucketSource = paymentsMirror || {
       current_due: invoice?.balance_due ?? invoice?.total_amount ?? 0,
@@ -349,7 +344,7 @@ export async function POST(request: NextRequest) {
         account_invoice_id: updatedInvoice?.id || null,
         invoice_number: updatedInvoice?.invoice_number || null,
         reference: updatedInvoice?.invoice_number || null,
-        due_amount: toNumber(updatedInvoice?.total_amount || amount),
+        due_amount: toNumber(updatedInvoice?.total_amount || 0),
         paid_amount: toNumber(updatedInvoice?.paid_amount || 0),
         balance_due: bucketApplication.outstanding_balance,
         amount_due: bucketApplication.outstanding_balance,

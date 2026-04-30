@@ -298,17 +298,15 @@ export default function ClientCostCentersPage() {
   const [enteredAmount, setEnteredAmount] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentDate, setPaymentDate] = useState(getTodayDateInputValue());
-  const [creditNoteBillingMonth, setCreditNoteBillingMonth] = useState(ACCOUNTS_INVOICE_BILLING_MONTH);
+  const [creditNoteBillingMonth, setCreditNoteBillingMonth] = useState('');
   const [creditNoteDate, setCreditNoteDate] = useState(getTodayDateInputValue());
   const [creditNoteAmount, setCreditNoteAmount] = useState('');
   const [creditNoteReference, setCreditNoteReference] = useState('');
   const [creditNoteComment, setCreditNoteComment] = useState('');
-  const [creditNotePeriods, setCreditNotePeriods] = useState([]);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [processingCreditNote, setProcessingCreditNote] = useState(false);
   const [openInvoicesForPayment, setOpenInvoicesForPayment] = useState([]);
   const [loadingOpenInvoices, setLoadingOpenInvoices] = useState(false);
-  const [loadingCreditNotePeriods, setLoadingCreditNotePeriods] = useState(false);
   const [selectedPaymentInvoiceId, setSelectedPaymentInvoiceId] = useState(null);
   const [selectedPaymentTab, setSelectedPaymentTab] = useState('current');
   const [clientLegalName, setClientLegalName] = useState('');
@@ -3090,16 +3088,14 @@ export default function ClientCostCentersPage() {
   const closeCreditNoteModal = () => {
     setShowCreditNoteModal(false);
     setCreditNoteDetails(null);
-    setCreditNoteBillingMonth(ACCOUNTS_INVOICE_BILLING_MONTH);
+    setCreditNoteBillingMonth('');
     setCreditNoteDate(getTodayDateInputValue());
     setCreditNoteAmount('');
     setCreditNoteReference('');
     setCreditNoteComment('');
-    setCreditNotePeriods([]);
-    setLoadingCreditNotePeriods(false);
   };
 
-  const openCreditNoteModal = async (costCenter) => {
+  const openCreditNoteModal = (costCenter) => {
     const accountNumber = String(costCenter?.accountNumber || '').trim();
     if (!accountNumber) {
       toast({
@@ -3111,129 +3107,26 @@ export default function ClientCostCentersPage() {
     }
 
     setCreditNoteDetails(costCenter);
-    setCreditNoteBillingMonth(ACCOUNTS_INVOICE_BILLING_MONTH);
+    setCreditNoteBillingMonth('');
     setCreditNoteDate(getTodayDateInputValue());
     setCreditNoteAmount('');
     setCreditNoteReference('');
     setCreditNoteComment('');
-    setCreditNotePeriods([]);
     setShowCreditNoteModal(true);
-    setLoadingCreditNotePeriods(true);
-
-    try {
-      const selectedCostCenterOutstanding = Number(
-        costCenter?.dueAmount ??
-          costCenter?.amountDue ??
-          costCenter?.balanceDue ??
-          0,
-      );
-      const response = await fetch(
-        `/api/invoices/account/history?accountNumber=${encodeURIComponent(accountNumber)}`,
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to load billing periods');
-      }
-
-      const payload = await response.json();
-      const agingPeriods = Array.isArray(payload?.agingPeriods) ? payload.agingPeriods : [];
-      const periodsByMonth = new Map(
-        agingPeriods
-          .map((period) => [normalizeBillingMonthValue(period?.billing_month), period])
-          .filter(([billingMonth]) => Boolean(billingMonth)),
-      );
-
-      const marchSnapshot = periodsByMonth.get(
-        normalizeBillingMonthValue(ACCOUNTS_INVOICE_BILLING_MONTH),
-      );
-
-      const getDirectMonthAmount = (billingMonth, fallbackValue = 0) => {
-        const period = periodsByMonth.get(normalizeBillingMonthValue(billingMonth));
-        return Number(
-          period?.current_due ??
-            period?.due_amount ??
-            period?.balance_due ??
-            fallbackValue ??
-            0,
-        );
-      };
-
-      const periodRows = [
-        {
-          billingMonth: ACCOUNTS_INVOICE_BILLING_MONTH,
-          label: formatBillingMonthLabel(ACCOUNTS_INVOICE_BILLING_MONTH),
-          periodAmount: Number(
-            selectedCostCenterOutstanding ||
-              marchSnapshot?.due_amount ||
-              marchSnapshot?.balance_due ||
-              marchSnapshot?.current_due ||
-              0,
-          ),
-        },
-        {
-          billingMonth: '2026-02-01',
-          label: formatBillingMonthLabel('2026-02-01'),
-          periodAmount: getDirectMonthAmount('2026-02-01', marchSnapshot?.overdue_30_days || 0),
-        },
-        {
-          billingMonth: '2026-01-01',
-          label: formatBillingMonthLabel('2026-01-01'),
-          periodAmount: getDirectMonthAmount('2026-01-01', marchSnapshot?.overdue_60_days || 0),
-        },
-        {
-          billingMonth: '2025-12-01',
-          label: formatBillingMonthLabel('2025-12-01'),
-          periodAmount: getDirectMonthAmount('2025-12-01', marchSnapshot?.overdue_90_days || 0),
-        },
-      ];
-
-      const normalizedPeriods = periodRows.map((period) => ({
-        ...period,
-        balanceDue: Number(period.periodAmount || 0),
-        outstandingBalance: Number(period.periodAmount || 0),
-        invoiceNumber:
-          periodsByMonth.get(normalizeBillingMonthValue(period.billingMonth))?.invoice_number ||
-          marchSnapshot?.invoice_number ||
-          null,
-        currentDue: Number(marchSnapshot?.current_due || 0),
-        overdue30Days: Number(marchSnapshot?.overdue_30_days || 0),
-        overdue60Days: Number(marchSnapshot?.overdue_60_days || 0),
-        overdue90Days: Number(marchSnapshot?.overdue_90_days || 0),
-        overdue120PlusDays: Number(marchSnapshot?.overdue_120_plus_days || 0),
-      }));
-
-      const defaultBillingMonth =
-        normalizedPeriods.find(
-          (period) =>
-            normalizeBillingMonthValue(period?.billingMonth) ===
-            normalizeBillingMonthValue(ACCOUNTS_INVOICE_BILLING_MONTH),
-        )?.billingMonth ||
-        normalizedPeriods[0]?.billingMonth ||
-        ACCOUNTS_INVOICE_BILLING_MONTH;
-
-      setCreditNotePeriods(normalizedPeriods);
-      setCreditNoteBillingMonth(defaultBillingMonth);
-    } catch (error) {
-      console.error('Error loading credit note periods:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Unable to load periods',
-        description: error?.message || 'Failed to load billing periods for credit note.',
-      });
-    } finally {
-      setLoadingCreditNotePeriods(false);
-    }
   };
 
-  const selectedCreditNotePeriod = useMemo(
-    () =>
-      creditNotePeriods.find(
-        (period) =>
-          normalizeBillingMonthValue(period?.billingMonth) ===
-          normalizeBillingMonthValue(creditNoteBillingMonth),
-      ) || null,
-    [creditNoteBillingMonth, creditNotePeriods],
-  );
+  const selectedCreditNoteBillingMonth = useMemo(() => {
+    return normalizeBillingMonthValue(creditNoteBillingMonth);
+  }, [creditNoteBillingMonth]);
+
+  const selectedCreditNoteOutstanding = useMemo(() => {
+    return Number(
+      creditNoteDetails?.dueAmount ??
+        creditNoteDetails?.amountDue ??
+        creditNoteDetails?.balanceDue ??
+        0,
+    );
+  }, [creditNoteDetails]);
 
   const handleConfirmCreditNote = async () => {
     if (!creditNoteDetails?.accountNumber) {
@@ -3255,6 +3148,15 @@ export default function ClientCostCentersPage() {
       return;
     }
 
+    if (!selectedCreditNoteBillingMonth) {
+      toast({
+        variant: 'destructive',
+        title: 'Billing month required',
+        description: 'Select the billing month for this credit note.',
+      });
+      return;
+    }
+
     setProcessingCreditNote(true);
     try {
       const response = await fetch('/api/credit-notes', {
@@ -3264,7 +3166,7 @@ export default function ClientCostCentersPage() {
         },
         body: JSON.stringify({
           accountNumber: creditNoteDetails.accountNumber,
-          billingMonth: creditNoteBillingMonth,
+          billingMonth: selectedCreditNoteBillingMonth,
           creditNoteDate,
           amount: numericAmount,
           reference: creditNoteReference,
@@ -3279,7 +3181,7 @@ export default function ClientCostCentersPage() {
 
       toast({
         title: 'Credit note applied',
-        description: `${result?.creditNote?.credit_note_number || 'Credit note'} applied to ${creditNoteDetails.accountNumber} for ${formatBillingMonthLabel(creditNoteBillingMonth)}.`,
+        description: `${result?.creditNote?.credit_note_number || 'Credit note'} applied to ${creditNoteDetails.accountNumber} for ${formatBillingMonthLabel(selectedCreditNoteBillingMonth)}.`,
       });
 
       closeCreditNoteModal();
@@ -6272,47 +6174,21 @@ export default function ClientCostCentersPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="font-medium text-slate-700 text-sm">Age Analysis Period</label>
-                <div className="text-slate-500 text-sm">
-                  As at 31 March 2026
-                </div>
-                <div className="gap-3 grid grid-cols-1 md:grid-cols-2">
-                  {creditNotePeriods.map((period) => {
-                    const isSelected =
-                      normalizeBillingMonthValue(period?.billingMonth) ===
-                      normalizeBillingMonthValue(creditNoteBillingMonth);
-
-                    return (
-                      <button
-                        key={String(period?.billingMonth || period?.label || '')}
-                        type="button"
-                        onClick={() =>
-                          setCreditNoteBillingMonth(
-                            normalizeBillingMonthValue(period?.billingMonth) || ACCOUNTS_INVOICE_BILLING_MONTH,
-                          )
-                        }
-                        className={`rounded-lg border p-4 text-left transition-all ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-50 shadow-sm'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-semibold text-slate-900">{period?.label || 'Unknown period'}</div>
-                          </div>
-                          <div className="font-semibold text-slate-900">
-                            {formatCurrency(Number(period?.periodAmount || 0))}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Billing month *</label>
+                  <Input
+                    type="month"
+                    value={formatBillingMonthInput(creditNoteBillingMonth)}
+                    onChange={(e) =>
+                      setCreditNoteBillingMonth(
+                        normalizeBillingMonthValue(e.target.value) || '',
+                      )
+                    }
+                    disabled={processingCreditNote}
+                    required
+                  />
+                </div>
                 <div className="space-y-2">
                   <label className="font-medium text-slate-700 text-sm">Credit note date</label>
                   <Input
@@ -6359,15 +6235,17 @@ export default function ClientCostCentersPage() {
 
               <div className="gap-4 grid grid-cols-1 md:grid-cols-3 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
                 <div>
-                  <div className="text-blue-700">Period</div>
+                  <div className="text-blue-700">Billing Month</div>
                   <div className="font-semibold text-slate-900">
-                    {selectedCreditNotePeriod?.label || formatBillingMonthLabel(creditNoteBillingMonth)}
+                    {selectedCreditNoteBillingMonth
+                      ? formatBillingMonthLabel(selectedCreditNoteBillingMonth)
+                      : '-'}
                   </div>
                 </div>
                 <div>
                   <div className="text-blue-700">Current Outstanding</div>
                   <div className="font-semibold text-slate-900">
-                    {formatCurrency(Number(selectedCreditNotePeriod?.periodAmount || 0))}
+                    {formatCurrency(selectedCreditNoteOutstanding)}
                   </div>
                 </div>
                 <div>
@@ -6376,7 +6254,7 @@ export default function ClientCostCentersPage() {
                     {formatCurrency(
                       Math.max(
                         0,
-                        Number(selectedCreditNotePeriod?.periodAmount || 0) -
+                        Number(selectedCreditNoteOutstanding || 0) -
                           Number(String(creditNoteAmount || '').replace(/,/g, '')),
                       ),
                     )}
@@ -6389,7 +6267,7 @@ export default function ClientCostCentersPage() {
               <Button variant="outline" onClick={closeCreditNoteModal} disabled={processingCreditNote}>
                 Cancel
               </Button>
-              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote || loadingCreditNotePeriods}>
+              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote}>
                 {processingCreditNote ? 'Applying...' : 'Apply Credit Note'}
               </Button>
             </div>
