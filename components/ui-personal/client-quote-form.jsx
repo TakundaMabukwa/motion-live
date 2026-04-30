@@ -831,7 +831,7 @@ export default function ClientQuoteForm({
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType && formData.jobType !== 'recovery' && formData.jobType !== 'deinstall') {
+    if (formData.jobType && formData.jobType !== 'recovery') {
       fetchProductItems();
     }
   }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
