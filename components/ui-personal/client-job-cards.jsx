@@ -634,7 +634,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/protected/fc/quotes/${quote.id}/edit`)}
+                          onClick={() => router.push(`/protected/fc/quotes/${quote.id}/edit?source=client`)}
                           className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
                         >
                           <Edit className="w-4 h-4 mr-1" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,11 +10,17 @@ import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 export default function EditQuotePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const quoteId = params.id;
+  const sourceParam = String(searchParams.get("source") || "").toLowerCase();
+  const explicitSource =
+    sourceParam === "client" || sourceParam === "customer"
+      ? sourceParam
+      : null;
 
   const [loading, setLoading] = useState(true);
   const [quote, setQuote] = useState(null);
-  const [quoteSource, setQuoteSource] = useState("customer");
+  const [quoteSource, setQuoteSource] = useState(explicitSource || "customer");
   const [customer, setCustomer] = useState(null);
   const [accountInfo, setAccountInfo] = useState(null);
 
@@ -56,9 +62,11 @@ export default function EditQuotePage() {
           };
         };
 
-        const preferredSources = ["customer", "client"];
+        const preferredSources = explicitSource
+          ? [explicitSource]
+          : ["customer", "client"];
         let loadedQuote = null;
-        let loadedSource = "customer";
+        let loadedSource = explicitSource || "customer";
         let lastError = "Quote not found";
 
         for (const source of preferredSources) {
@@ -110,7 +118,7 @@ export default function EditQuotePage() {
     if (quoteId) {
       loadQuote();
     }
-  }, [quoteId]);
+  }, [quoteId, explicitSource]);
 
   if (loading) {
     return (

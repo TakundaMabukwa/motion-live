@@ -8,11 +8,12 @@ function extractMissingColumnName(message?: string | null): string | null {
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -24,8 +25,8 @@ export async function GET(
     const { data, error } = await supabase
       .from('customer_quotes')
       .select('*')
-      .eq('id', params.id)
-      .single();
+      .eq('id', id)
+      .maybeSingle();
 
     if (error) {
       console.error('Database error:', error);
@@ -33,6 +34,13 @@ export async function GET(
         error: 'Failed to fetch customer quote',
         details: error.message 
       }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Customer quote not found' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({
@@ -51,10 +59,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -124,9 +133,9 @@ export async function PUT(
       const updateResult = await supabase
         .from('customer_quotes')
         .update(updateAttemptPayload)
-        .eq('id', params.id)
+        .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       data = updateResult.data as Record<string, unknown> | null;
       error = updateResult.error as typeof error;
@@ -152,6 +161,13 @@ export async function PUT(
       }, { status: 500 });
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Customer quote not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Customer quote updated successfully',
@@ -168,11 +184,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -181,10 +198,12 @@ export async function DELETE(
     }
 
     // Delete the customer quote
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('customer_quotes')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
 
     if (error) {
       console.error('Database error:', error);
@@ -192,6 +211,13 @@ export async function DELETE(
         error: 'Failed to delete customer quote',
         details: error.message 
       }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Customer quote not found' },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({

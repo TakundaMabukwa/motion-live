@@ -182,6 +182,12 @@ export async function PUT(
         normalize(clientQuote.job_sub_type).includes('decommission') ||
         normalize(clientQuote.job_description).includes('decommission');
       const isDecommissionJobCard = isDeinstall && isDecommission;
+      const normalizedQuoteJobType = normalize(
+        clientQuote.job_type || clientQuote.quotation_job_type,
+      );
+      const isOnceOffItem =
+        normalizedQuoteJobType.includes('itembilling') ||
+        normalizedQuoteJobType.includes('onceoffitem');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
       const deinstallProductLabels = quotationProducts.map(getQuoteLineLabel);
 
@@ -253,6 +259,23 @@ export async function PUT(
           : routingDestination === 'accounts'
           ? { role: 'accounts', move_to: 'accounts', status: 'pending' }
           : { status: 'pending' };
+      const approvalTimestamp = new Date().toISOString();
+      const shouldAutoCompleteToAccounts = isOnceOffItem;
+      const jobCardLifecycleFields = shouldAutoCompleteToAccounts
+        ? {
+            status: 'completed',
+            job_status: 'Completed',
+            role: 'accounts' as const,
+            move_to: 'accounts' as const,
+            completion_date: approvalTimestamp,
+            end_time: approvalTimestamp,
+          }
+        : {
+            status: routingFields.status,
+            job_status: 'pending',
+            ...(routingFields.role ? { role: routingFields.role } : {}),
+            ...(routingFields.move_to ? { move_to: routingFields.move_to } : {}),
+          };
 
       // Create a copy of the client quote in job_cards table - don't move the original
       const jobCardData = {
@@ -260,10 +283,7 @@ export async function PUT(
         job_type: clientQuote.job_type || 'install',
         job_description: clientQuote.job_description || '',
         priority: clientQuote.priority || 'medium',
-        status: routingFields.status,
-        job_status: 'pending',
-        ...(routingFields.role ? { role: routingFields.role } : {}),
-        ...(routingFields.move_to ? { move_to: routingFields.move_to } : {}),
+        ...jobCardLifecycleFields,
         
         // Customer information
         customer_name: clientQuote.customer_name || '',
@@ -286,7 +306,7 @@ export async function PUT(
         
         // Quotation details
         quotation_number: `APPROVED-${clientQuote.job_number}`,
-        quote_date: clientQuote.quote_date || new Date().toISOString(),
+        quote_date: clientQuote.quote_date || approvalTimestamp,
         quote_expiry_date: clientQuote.quote_expiry_date || null,
         quote_status: 'approved',
         quote_type: 'internal',
@@ -380,7 +400,9 @@ export async function PUT(
 
       return NextResponse.json({
         success: true,
-        message: 'Client quote approved and copied to job cards successfully',
+        message: shouldAutoCompleteToAccounts
+          ? 'Client quote approved and moved to Accounts as a completed job card'
+          : 'Client quote approved and copied to job cards successfully',
         data: {
           jobCardId: jobCard.id,
           jobNumber: jobCard.job_number,

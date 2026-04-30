@@ -2169,9 +2169,25 @@ export default function AccountsContent({ activeSection }) {
         "",
     ).trim();
 
+  const isOnceOffItemJob = (job) => {
+    const normalize = (value) =>
+      String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+    const jobType = normalize(job?.job_type);
+    const quotationJobType = normalize(job?.quotation_job_type);
+    return (
+      jobType.includes("itembilling") ||
+      quotationJobType.includes("itembilling") ||
+      jobType.includes("onceoffitem") ||
+      quotationJobType.includes("onceoffitem")
+    );
+  };
+
   const buildCompletedJobInvoiceView = () => {
     if (!selectedJobForInvoice) return null;
 
+    const hideRegistrationColumns = isOnceOffItemJob(selectedJobForInvoice);
     const rawTotals = getInvoiceTotals(selectedJobForInvoice);
     const invoiceVehicles = getInvoiceVehicles(selectedJobForInvoice);
     const vehicleSummary =
@@ -2223,8 +2239,12 @@ export default function AccountsContent({ activeSection }) {
 
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
-                previousReg: product?.vehicle_plate || vehicleSummary || "N/A",
-                newReg: product?.vehicle_plate || vehicleSummary || "N/A",
+                previousReg: hideRegistrationColumns
+                  ? ""
+                  : product?.vehicle_plate || vehicleSummary || "N/A",
+                newReg: hideRegistrationColumns
+                  ? ""
+                  : product?.vehicle_plate || vehicleSummary || "N/A",
                 itemCode: chargeLine.label,
                 description:
                   product?.description || lineLabel || product?.category || "-",
@@ -2243,9 +2263,12 @@ export default function AccountsContent({ activeSection }) {
             .filter((item) => toNumber(item?.unit_price) > 0)
             .map((item, index) => ({
               key: `${item?.item_code || item?.description || "item"}-${index}`,
-              previousReg: item?.previous_reg || vehicleSummary || "N/A",
-              newReg:
-                item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+              previousReg: hideRegistrationColumns
+                ? ""
+                : item?.previous_reg || vehicleSummary || "N/A",
+              newReg: hideRegistrationColumns
+                ? ""
+                : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
               itemCode: item?.item_code || "Item",
               description: item?.description || "-",
               comments: item?.comments || "",
@@ -2258,8 +2281,8 @@ export default function AccountsContent({ activeSection }) {
         : [
             {
               key: "fallback-row",
-              previousReg: vehicleSummary || "N/A",
-              newReg: vehicleSummary || "N/A",
+              previousReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
+              newReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
               itemCode: selectedJobForInvoice.job_type || "Service",
               description:
                 selectedJobForInvoice.job_description || "Job completion",
@@ -2325,6 +2348,7 @@ export default function AccountsContent({ activeSection }) {
         invoiceFormData.notes ||
         selectedJobForInvoice.special_instructions ||
         "No special instructions.",
+      hideRegistrationColumns,
       totals,
       rows,
     };
@@ -2332,13 +2356,42 @@ export default function AccountsContent({ activeSection }) {
 
   const buildCompletedJobInvoiceHtml = (invoiceView) => {
     if (!invoiceView) return "";
+    const includeRegistrationColumns = !invoiceView.hideRegistrationColumns;
+    const lineTableColgroup = includeRegistrationColumns
+      ? `
+                <col style="width:10%" />
+                <col style="width:13%" />
+                <col style="width:15%" />
+                <col style="width:16%" />
+                <col style="width:10%" />
+                <col style="width:5%" />
+                <col style="width:8.5%" />
+                <col style="width:7%" />
+                <col style="width:5%" />
+                <col style="width:10.5%" />
+              `
+      : `
+                <col style="width:18%" />
+                <col style="width:24%" />
+                <col style="width:14%" />
+                <col style="width:6%" />
+                <col style="width:12%" />
+                <col style="width:8%" />
+                <col style="width:6%" />
+                <col style="width:12%" />
+              `;
+    const spacerColspan = includeRegistrationColumns ? 10 : 8;
 
     const rowsHtml = invoiceView.rows
       .map(
         (row) => `
           <tr>
-            <td>${escapeHtml(row.previousReg)}</td>
-            <td>${escapeHtml(row.newReg)}</td>
+            ${
+              includeRegistrationColumns
+                ? `<td>${escapeHtml(row.previousReg)}</td>
+            <td>${escapeHtml(row.newReg)}</td>`
+                : ""
+            }
             <td>${escapeHtml(row.itemCode)}</td>
             <td>${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.comments)}</td>
@@ -2464,21 +2517,16 @@ export default function AccountsContent({ activeSection }) {
             </table>
             <table class="line-table">
               <colgroup>
-                <col style="width:10%" />
-                <col style="width:13%" />
-                <col style="width:15%" />
-                <col style="width:16%" />
-                <col style="width:10%" />
-                <col style="width:5%" />
-                <col style="width:8.5%" />
-                <col style="width:7%" />
-                <col style="width:5%" />
-                <col style="width:10.5%" />
+                ${lineTableColgroup}
               </colgroup>
               <thead>
                 <tr>
-                  <th>Previous Reg</th>
-                  <th>New Reg</th>
+                  ${
+                    includeRegistrationColumns
+                      ? `<th>Previous Reg</th>
+                  <th>New Reg</th>`
+                      : ""
+                  }
                   <th>Item Code</th>
                   <th>Description</th>
                   <th>Comments</th>
@@ -2491,7 +2539,7 @@ export default function AccountsContent({ activeSection }) {
               </thead>
               <tbody>
                 ${rowsHtml}
-                <tr class="spacer"><td colspan="10"></td></tr>
+                <tr class="spacer"><td colspan="${spacerColspan}"></td></tr>
               </tbody>
             </table>
             <div class="bottom-row">

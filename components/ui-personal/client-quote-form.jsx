@@ -45,7 +45,16 @@ const PRODUCT_ITEMS_CACHE = new Map();
 
 const normalizeJobTypeValue = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
+  const collapsed = normalized.replace(/[\s_-]/g, "");
   if (!normalized) return "";
+  if (
+    collapsed === "itembilling" ||
+    collapsed === "onceoffitem" ||
+    collapsed === "onceoff" ||
+    normalized === "billing"
+  ) {
+    return "item_billing";
+  }
   if (normalized === "recovery") return "recovery";
   if (normalized.includes("deinstall") || normalized.includes("de-install")) {
     return "deinstall";
@@ -61,6 +70,7 @@ const normalizeJobSubTypeValue = (value, normalizedJobType) => {
   if (!normalized) return "";
 
   if (normalizedJobType === "recovery") return "recovery";
+  if (normalizedJobType === "item_billing") return "item_billing";
 
   if (normalizedJobType === "deinstall") {
     if (normalized.includes("decommission")) return "decommission";
@@ -180,7 +190,10 @@ export default function ClientQuoteForm({
     hours: "",
     amount: "",
   });
-
+  const [itemBillingQuote, setItemBillingQuote] = useState({
+    item: "",
+    amount: "",
+  });
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
     availableVehicles: vehicles || [],
@@ -428,6 +441,39 @@ export default function ClientQuoteForm({
     };
   }, [calculateRecoveryTotal, parseRecoveryAmount, parseRecoveryHours]);
 
+  const parseItemBillingAmount = useCallback((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }, []);
+
+  const buildItemBillingProduct = useCallback((itemValue, amountValue) => {
+    const billedItem = String(itemValue || "").trim();
+    const billedAmount = parseItemBillingAmount(amountValue);
+    return {
+      id: "item-billing-line",
+      name: billedItem || "Item Being Billed",
+      description: billedItem || "Item being billed",
+      type: "Service",
+      category: "Billing",
+      code: "ITEM-BILLED",
+      quantity: 1,
+      purchaseType: "service",
+      isLabour: true,
+      cashPrice: billedAmount,
+      cashDiscount: 0,
+      rentalPrice: 0,
+      rentalDiscount: 0,
+      installationPrice: 0,
+      installationDiscount: 0,
+      deInstallationPrice: 0,
+      deInstallationDiscount: 0,
+      subscriptionPrice: 0,
+      subscriptionDiscount: 0,
+      annuityEndDate: "",
+      detailValue: billedItem,
+    };
+  }, [parseItemBillingAmount]);
+
   const steps = [
     {
       id: 0,
@@ -621,6 +667,29 @@ export default function ClientQuoteForm({
       setRecoveryQuote({
         hours: parsedHours > 0 ? String(parsedHours) : "",
         amount: parsedRate > 0 ? String(parsedRate) : "",
+      });
+    }
+
+    if (normalizedJobType === "item_billing") {
+      const firstItem = existingItems[0] || {};
+      const billedItem = String(
+        firstItem.name ||
+        firstItem.description ||
+        firstItem.detail_value ||
+        firstItem.detailValue ||
+        "",
+      ).trim();
+      const billedAmount =
+        Number(
+          firstItem.total_price ||
+          firstItem.cash_price ||
+          firstItem.cashPrice ||
+          0
+        ) || 0;
+
+      setItemBillingQuote({
+        item: billedItem,
+        amount: billedAmount > 0 ? String(billedAmount) : "",
       });
     }
 
@@ -831,7 +900,7 @@ export default function ClientQuoteForm({
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType && formData.jobType !== 'recovery') {
+    if (formData.jobType && formData.jobType !== 'recovery' && formData.jobType !== 'item_billing') {
       fetchProductItems();
     }
   }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
@@ -1012,6 +1081,13 @@ export default function ClientQuoteForm({
 
         if (formData.jobType === 'recovery') {
           return Number(recoveryQuote.hours) > 0 && Number(recoveryQuote.amount) > 0;
+        }
+
+        if (formData.jobType === 'item_billing') {
+          return (
+            Boolean(String(itemBillingQuote.item || "").trim()) &&
+            Number(itemBillingQuote.amount) > 0
+          );
         }
         
         // For all non-deinstall jobs, require selected products
@@ -1226,6 +1302,8 @@ export default function ClientQuoteForm({
       const productsToSerialize =
         formData.jobType === "recovery"
           ? [buildRecoveryProduct(recoveryQuote.hours, recoveryQuote.amount)]
+          : formData.jobType === "item_billing"
+            ? [buildItemBillingProduct(itemBillingQuote.item, itemBillingQuote.amount)]
           : (selectedProducts || []);
 
       const quotationProducts = productsToSerialize.map(serializeProductForQuote);
@@ -1511,6 +1589,7 @@ export default function ClientQuoteForm({
         setCurrentStep(0);
         setSelectedProducts([]);
         setRecoveryQuote({ hours: "", amount: "" });
+        setItemBillingQuote({ item: "", amount: "" });
         setSearchTerm("");
         setSelectedType("all");
         setSelectedCategory("all");
@@ -1589,16 +1668,34 @@ export default function ClientQuoteForm({
                       setFormData(prev => ({
                         ...prev,
                         jobType: value,
-                        jobSubType: value === "recovery" ? "recovery" : "",
-                        purchaseType: value === "recovery" ? "purchase" : prev.purchaseType,
+                        jobSubType:
+                          value === "recovery"
+                            ? "recovery"
+                            : value === "item_billing"
+                              ? "item_billing"
+                              : "",
+                        purchaseType:
+                          value === "recovery" || value === "item_billing"
+                            ? "purchase"
+                            : prev.purchaseType,
                       }));
                       if (value === "recovery") {
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
+                        setItemBillingQuote({ item: "", amount: "" });
+                      } else if (value === "item_billing") {
+                        setSelectedProducts([]);
+                        setRecoveryQuote({ hours: "", amount: "" });
+                        setItemBillingQuote({ item: "", amount: "" });
                       } else {
                         setSelectedProducts((prev) =>
-                          (prev || []).filter((product) => product.id !== "recovery-line")
+                          (prev || []).filter(
+                            (product) =>
+                              product.id !== "recovery-line" &&
+                              product.id !== "item-billing-line"
+                          )
                         );
+                        setItemBillingQuote({ item: "", amount: "" });
                       }
                       setHasUserSelectedJobType(true);
                     }}
@@ -1610,6 +1707,7 @@ export default function ClientQuoteForm({
                       <SelectItem value="install">Installation</SelectItem>
                       <SelectItem value="deinstall">De-installation</SelectItem>
                       <SelectItem value="recovery">Recovery</SelectItem>
+                      <SelectItem value="item_billing">Once Off Item</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1638,6 +1736,8 @@ export default function ClientQuoteForm({
                           </>
                         ) : formData.jobType === 'recovery' ? (
                           <SelectItem value="recovery">Recovery</SelectItem>
+                        ) : formData.jobType === 'item_billing' ? (
+                          <SelectItem value="item_billing">Once Off Item</SelectItem>
                         ) : null}
                       </SelectContent>
                     </Select>
@@ -1886,8 +1986,51 @@ export default function ClientQuoteForm({
               </Card>
             )}
 
+            {formData.jobType === "item_billing" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Item Being Billed</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="itemBeingBilled">Item Being Billed *</Label>
+                      <Input
+                        id="itemBeingBilled"
+                        placeholder="Enter the item being billed"
+                        value={itemBillingQuote.item}
+                        onChange={(e) =>
+                          setItemBillingQuote((prev) => ({
+                            ...prev,
+                            item: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="itemBillingAmount">Amount *</Label>
+                      <Input
+                        id="itemBillingAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Enter amount"
+                        value={itemBillingQuote.amount}
+                        onChange={(e) =>
+                          setItemBillingQuote((prev) => ({
+                            ...prev,
+                            amount: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Product Selection */}
-            {formData.jobType && formData.jobType !== "recovery" && (
+            {formData.jobType && formData.jobType !== "recovery" && formData.jobType !== "item_billing" && (
               <Card>
                 <CardHeader>
                   <CardTitle>{formData.jobType === 'deinstall' ? 'Add Products' : 'Product Selection'}</CardTitle>
@@ -2108,7 +2251,7 @@ export default function ClientQuoteForm({
             )}
 
             {/* Selected Products */}
-            {formData.jobType !== "recovery" && (selectedProducts || []).length > 0 && (
+            {formData.jobType !== "recovery" && formData.jobType !== "item_billing" && (selectedProducts || []).length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Selected Products</CardTitle>
