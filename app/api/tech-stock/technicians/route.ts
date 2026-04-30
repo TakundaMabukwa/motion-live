@@ -10,8 +10,18 @@ type TechStockRow = {
 type UserRow = {
   id: string;
   email: string | null;
-  role: string | null;
+  role?: string | null;
   tech_admin?: boolean | null;
+  name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+};
+
+type TechnicianRow = {
+  id: string | number;
+  email: string | null;
+  name: string | null;
 };
 
 export async function GET() {
@@ -30,12 +40,14 @@ export async function GET() {
     const [
       { data: stockRows, error: stockError },
       { data: userRows, error: userError },
+      { data: technicianRows, error: technicianError },
     ] = await Promise.all([
       supabase
         .from("tech_stock")
         .select("id, technician_email, created_at")
         .not("technician_email", "is", null),
-      supabase.from("users").select("id, email, role, tech_admin"),
+      supabase.from("users").select("id, email, role, tech_admin, name, first_name, last_name, full_name"),
+      supabase.from("technicians").select("id, email, name"),
     ]);
 
     if (stockError) {
@@ -43,7 +55,14 @@ export async function GET() {
     }
 
     if (userError) {
-      return NextResponse.json({ error: userError.message }, { status: 500 });
+      console.warn("users query warning in tech-stock technicians:", userError.message);
+    }
+
+    if (technicianError) {
+      console.warn(
+        "technicians query warning in tech-stock technicians:",
+        technicianError.message,
+      );
     }
 
     const technicianMap = new Map<
@@ -52,23 +71,11 @@ export async function GET() {
         id: string | number;
         technician_email: string | null;
         created_at: string | null;
+        display_name: string | null;
       }
     >();
 
-    (userRows as UserRow[] | null)?.forEach((row) => {
-      const email = (row.email || "").trim().toLowerCase();
-      const role = (row.role || "").trim().toLowerCase();
-      const isTechnician =
-        role === "technician" || role === "tech" || Boolean(row.tech_admin);
-      if (!email || !isTechnician) return;
-
-      technicianMap.set(email, {
-        id: row.id,
-        technician_email: email,
-        created_at: null,
-      });
-    });
-
+    // Source-of-truth list: only technicians that exist in tech_stock.
     (stockRows as TechStockRow[] | null)?.forEach((row) => {
       const email = (row.technician_email || "").trim().toLowerCase();
       if (!email) return;
@@ -79,6 +86,7 @@ export async function GET() {
           id: row.id,
           technician_email: email,
           created_at: row.created_at || null,
+          display_name: null,
         });
         return;
       }
@@ -89,9 +97,53 @@ export async function GET() {
       });
     });
 
-    const technicians = Array.from(technicianMap.values()).sort((a, b) =>
-      (a.technician_email || "").localeCompare(b.technician_email || ""),
-    );
+    // Enrich only the stock-backed emails with names from technicians/users.
+    (technicianRows as TechnicianRow[] | null)?.forEach((row) => {
+      const email = String(row.email || "").trim().toLowerCase();
+      if (!email || !technicianMap.has(email)) return;
+
+      const existing = technicianMap.get(email);
+      const displayName = String(row.name || "").trim() || null;
+      if (!existing) return;
+
+      technicianMap.set(email, {
+        ...existing,
+        id: existing.id || row.id,
+        display_name: displayName || existing.display_name || null,
+      });
+    });
+
+    (userRows as UserRow[] | null)?.forEach((row) => {
+      const email = String(row.email || "").trim().toLowerCase();
+      if (!email || !technicianMap.has(email)) return;
+
+      const existing = technicianMap.get(email);
+      if (!existing) return;
+
+      const displayName = [
+        String(row.first_name || "").trim(),
+        String(row.last_name || "").trim(),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        || String(row.name || row.full_name || "").trim()
+        || null;
+
+      technicianMap.set(email, {
+        ...existing,
+        id: existing.id || row.id,
+        display_name: existing.display_name || displayName,
+      });
+    });
+
+    const technicians = Array.from(technicianMap.values()).sort((a, b) => {
+      const left = String(a.display_name || a.technician_email || "").toLowerCase();
+      const right = String(b.display_name || b.technician_email || "").toLowerCase();
+      if (left !== right) return left.localeCompare(right);
+      return String(a.technician_email || "").localeCompare(
+        String(b.technician_email || ""),
+      );
+    });
 
     return NextResponse.json({ technicians });
   } catch (error) {

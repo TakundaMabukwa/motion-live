@@ -120,9 +120,10 @@ interface ClientStockItem {
 }
 
 interface TechnicianStockRow {
-  id: number;
+  id: number | string;
   technician_email: string | null;
-  created_at: string;
+  created_at: string | null;
+  display_name?: string | null;
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -867,7 +868,8 @@ export default function InventoryPage() {
     if (!techStockSearchTerm) return true;
     const query = techStockSearchTerm.toLowerCase();
     const email = (tech.technician_email || "").toLowerCase();
-    return email.includes(query);
+    const displayName = (tech.display_name || "").toLowerCase();
+    return email.includes(query) || displayName.includes(query);
   });
 
   const filteredAddItemCategories = useMemo(() => {
@@ -4050,7 +4052,14 @@ export default function InventoryPage() {
                   className="hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 border-b border-gray-100 text-sm text-gray-900">
-                    {tech.technician_email || "N/A"}
+                    <div className="font-medium">
+                      {tech.display_name || tech.technician_email || "N/A"}
+                    </div>
+                    {tech.display_name && tech.technician_email ? (
+                      <div className="text-xs text-gray-500">
+                        {tech.technician_email}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 border-b border-gray-100 text-center">
                     <div className="flex items-center justify-center gap-2">
@@ -4221,6 +4230,7 @@ export default function InventoryPage() {
           processingNoPartsRequired={markingNoPartsRequired}
           allIpAddresses={allIpAddresses}
           allStockItems={allStockItems}
+          technicianOptions={techStockTechnicians}
         />
       )}
 

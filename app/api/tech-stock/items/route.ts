@@ -1,6 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const normalizeQuantity = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const parseLegacyStockObject = (rawStock: unknown) => {
+  if (!rawStock || typeof rawStock !== "object" || Array.isArray(rawStock)) {
+    return [];
+  }
+
+  const normalizedItems: Array<Record<string, unknown>> = [];
+  const stockRecord = rawStock as Record<string, unknown>;
+
+  const pushItem = (
+    supplier: string,
+    code: string,
+    rawItem: Record<string, unknown>,
+  ) => {
+    const quantity = normalizeQuantity(rawItem.count ?? rawItem.quantity ?? 0);
+    if (quantity <= 0) return;
+
+    const itemCode = String(code || "").trim();
+    const safeSupplier = String(supplier || "Technician Stock").trim();
+    const description =
+      String(rawItem.description || rawItem.name || itemCode).trim() || itemCode;
+    const itemId = `tech-${safeSupplier}-${itemCode}`;
+
+    normalizedItems.push({
+      id: itemId,
+      stock_id: itemId,
+      supplier: safeSupplier,
+      code: itemCode,
+      description,
+      stock_type: safeSupplier,
+      quantity,
+      available_stock: quantity,
+      status: "IN STOCK",
+      source: "tech_stock.stock",
+    });
+  };
+
+  Object.entries(stockRecord).forEach(([topKey, topValue]) => {
+    if (!topValue || typeof topValue !== "object" || Array.isArray(topValue)) {
+      return;
+    }
+
+    const topObject = topValue as Record<string, unknown>;
+    const isDirectItem =
+      Object.prototype.hasOwnProperty.call(topObject, "count") ||
+      Object.prototype.hasOwnProperty.call(topObject, "quantity") ||
+      Object.prototype.hasOwnProperty.call(topObject, "description");
+
+    if (isDirectItem) {
+      // Supports shape: { "CODE": { count, description } }
+      pushItem("Technician Stock", topKey, topObject);
+      return;
+    }
+
+    // Supports nested shape: { "SUPPLIER": { "CODE": { count, description } } }
+    Object.entries(topObject).forEach(([childCode, childValue]) => {
+      if (!childValue || typeof childValue !== "object" || Array.isArray(childValue)) {
+        return;
+      }
+      pushItem(topKey, childCode, childValue as Record<string, unknown>);
+    });
+  });
+
+  return normalizedItems;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -39,8 +109,9 @@ export async function GET(request: NextRequest) {
       const assignedParts = Array.isArray(row?.assigned_parts)
         ? row.assigned_parts
         : [];
-      const legacyStock = Array.isArray(row?.stock) ? row.stock : [];
-      return [...assignedParts, ...legacyStock];
+      const legacyStockArray = Array.isArray(row?.stock) ? row.stock : [];
+      const parsedStockObject = parseLegacyStockObject(row?.stock);
+      return [...assignedParts, ...legacyStockArray, ...parsedStockObject];
     });
 
     return NextResponse.json({

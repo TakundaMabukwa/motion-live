@@ -809,7 +809,11 @@ export default function AccountsContent({ activeSection }) {
       ...(field === "vehicleKey" || field === "vehicleText"
         ? { vehicle: false }
         : {}),
-      ...(field === "productItemId" ? { productItem: false } : {}),
+      ...(field === "productItemId"
+        ? { productItem: false, itemName: false, description: false }
+        : {}),
+      ...(field === "itemName" ? { itemName: false } : {}),
+      ...(field === "description" ? { description: false } : {}),
       ...(field === "unitPrice" ? { unitPrice: false } : {}),
     }));
     setInvoiceBuilderManualForm((prev) => {
@@ -855,6 +859,8 @@ export default function AccountsContent({ activeSection }) {
   const addInvoiceBuilderManualLine = () => {
     const unitPrice = toNumber(invoiceBuilderManualForm.unitPrice);
     const quantity = Math.max(1, toNumber(invoiceBuilderManualForm.quantity) || 1);
+    const enteredItemName = String(invoiceBuilderManualForm.itemName || "").trim();
+    const enteredDescription = String(invoiceBuilderManualForm.description || "").trim();
     const selectedProductItem = invoiceBuilderProductItems.find(
       (item) =>
         String(item?.id || "") ===
@@ -874,10 +880,14 @@ export default function AccountsContent({ activeSection }) {
       ? getInvoiceBuilderVehicleLabel(selectedVehicle)
       : typedVehicleText;
     const resolvedVehicleRegistration = selectedVehicle?.reg || typedVehicleText;
+    const hasSelectedProductItem = Boolean(selectedProductItem);
+    const hasFreeTextLine = enteredItemName.length > 0 || enteredDescription.length > 0;
     const nextErrors = {
       costCenter: !invoiceBuilderSelectedCostCenterCode,
       vehicle: !resolvedVehicleLabel,
-      productItem: !selectedProductItem,
+      productItem: !hasSelectedProductItem && !hasFreeTextLine,
+      itemName: !hasSelectedProductItem && !hasFreeTextLine,
+      description: !hasSelectedProductItem && !hasFreeTextLine,
       unitPrice: unitPrice <= 0,
     };
     const hasErrors = Object.values(nextErrors).some(Boolean);
@@ -919,19 +929,19 @@ export default function AccountsContent({ activeSection }) {
         vehicleKey: getInvoiceBuilderVehicleKey(selectedVehicle),
         vehicleRegistration: resolvedVehicleRegistration,
         vehicleLabel: resolvedVehicleLabel,
-        productItemId: selectedProductItem.id,
+        productItemId: selectedProductItem?.id || null,
         jobReferences: String(invoiceBuilderManualForm.jobReferences || "")
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean),
         itemName:
-          invoiceBuilderManualForm.itemName.trim() ||
-          selectedProductItem.product ||
+          enteredItemName ||
+          selectedProductItem?.product ||
           "Manual Item",
         description:
-          invoiceBuilderManualForm.description.trim() ||
-          selectedProductItem.description ||
-          selectedProductItem.category ||
+          enteredDescription ||
+          selectedProductItem?.description ||
+          selectedProductItem?.category ||
           "-",
         chargeType: invoiceBuilderManualForm.chargeType.trim() || "Manual",
         quantity,
@@ -3528,7 +3538,7 @@ export default function AccountsContent({ activeSection }) {
                         1. Quick Manual Invoice Lines
                       </div>
                       <div className="mt-1 text-sm text-slate-600">
-                        Choose the cost center, pick or type a vehicle, select an item, and add optional job references.
+                        Choose the cost center, pick or type a vehicle, then either select a product item or type a free-text line.
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-4 p-4">
@@ -3599,7 +3609,7 @@ export default function AccountsContent({ activeSection }) {
                         </div>
                         <div>
                           <Label className="text-xs font-medium text-slate-600">
-                            Product Item
+                            Product Item (Optional)
                           </Label>
                           <Popover
                             open={invoiceBuilderProductItemPickerOpen}
@@ -3634,7 +3644,7 @@ export default function AccountsContent({ activeSection }) {
                                       })()
                                     : invoiceBuilderProductItemsLoading
                                       ? "Loading items..."
-                                      : "Select product item"}
+                                      : "Select product item (optional)"}
                                 </span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
@@ -3805,7 +3815,12 @@ export default function AccountsContent({ activeSection }) {
                                 e.target.value,
                               )
                             }
-                            className="mt-1 h-12 text-base"
+                            className={`mt-1 h-12 text-base ${
+                              invoiceBuilderManualErrors.itemName
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : ""
+                            }`}
+                            placeholder="Type item name (free text allowed)"
                           />
                         </div>
                         <div>
@@ -3820,7 +3835,12 @@ export default function AccountsContent({ activeSection }) {
                                 e.target.value,
                               )
                             }
-                            className="mt-1 h-12 text-base"
+                            className={`mt-1 h-12 text-base ${
+                              invoiceBuilderManualErrors.description
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : ""
+                            }`}
+                            placeholder="Type description (free text allowed)"
                           />
                         </div>
                       </div>
@@ -3859,7 +3879,9 @@ export default function AccountsContent({ activeSection }) {
                           <div>
                             Item:{" "}
                             <span className="font-medium text-slate-900">
-                              {invoiceBuilderManualForm.itemName || "No product item selected"}
+                              {invoiceBuilderManualForm.itemName ||
+                                invoiceBuilderManualForm.description ||
+                                "No product item or free-text item entered"}
                             </span>
                           </div>
                           <div>

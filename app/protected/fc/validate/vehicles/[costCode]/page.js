@@ -79,6 +79,41 @@ const formatBillingMonthLabel = (value) => {
   return parsed.toLocaleDateString("en-ZA", { month: "short", year: "numeric" });
 };
 
+const parseBillingMonthsInput = (value) => {
+  const tokens = String(value || "")
+    .split(/[,;\n]+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const uniqueMonths = [];
+  const seen = new Set();
+  for (const token of tokens) {
+    const normalized = normalizeBillingMonthValue(token);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    uniqueMonths.push(normalized);
+  }
+  return uniqueMonths;
+};
+
+const buildPreviousBillingMonths = (anchorMonth, monthsCount) => {
+  const normalizedAnchor = normalizeBillingMonthValue(anchorMonth);
+  const count = Math.max(1, Number.parseInt(String(monthsCount || 1), 10) || 1);
+  if (!normalizedAnchor) return [];
+  const anchorDate = new Date(`${normalizedAnchor}T00:00:00.000Z`);
+  if (Number.isNaN(anchorDate.getTime())) return [normalizedAnchor];
+
+  const output = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const current = new Date(
+      Date.UTC(anchorDate.getUTCFullYear(), anchorDate.getUTCMonth() - offset, 1),
+    );
+    output.push(
+      `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-01`,
+    );
+  }
+  return output;
+};
+
 const AddItemSearch = memo(function AddItemSearch({
   vehicleFieldsToAdd,
   billingFieldsToAdd,
@@ -288,6 +323,8 @@ export default function ValidateVehiclesPage() {
   const [invoiceMonthFilter, setInvoiceMonthFilter] = useState(
     toMonthInputValue(FC_BILLING_MONTH),
   );
+  const [billingCycleMultiplier, setBillingCycleMultiplier] = useState("1");
+  const [billingMonthsCoveredInput, setBillingMonthsCoveredInput] = useState("");
   const [invoiceHistoryRows, setInvoiceHistoryRows] = useState([]);
   const [loadingInvoiceHistory, setLoadingInvoiceHistory] = useState(false);
   const [showJobCardInvoicePreview, setShowJobCardInvoicePreview] = useState(false);
@@ -413,6 +450,15 @@ export default function ValidateVehiclesPage() {
       }, 0),
     [filteredVehicles],
   );
+  const billingCycleMultiplierValue = useMemo(() => {
+    const parsed = Number.parseInt(String(billingCycleMultiplier || "").trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+    return Math.min(12, parsed);
+  }, [billingCycleMultiplier]);
+  const lockAmountForSelectedMonth = useMemo(
+    () => Number((filteredVehiclesGrandTotal * billingCycleMultiplierValue).toFixed(2)),
+    [filteredVehiclesGrandTotal, billingCycleMultiplierValue],
+  );
 
 
   const matchingCostCenters = useMemo(() => {
@@ -430,6 +476,11 @@ export default function ValidateVehiclesPage() {
           total_amount_locked_by: option?.total_amount_locked_by || null,
           total_amount_locked_by_email: option?.total_amount_locked_by_email || null,
           total_amount_locked_at: option?.total_amount_locked_at || null,
+          total_amount_locked_multiplier:
+            Number.parseInt(String(option?.total_amount_locked_multiplier || "1"), 10) || 1,
+          total_amount_locked_billing_months: Array.isArray(option?.total_amount_locked_billing_months)
+            ? option.total_amount_locked_billing_months
+            : [],
         });
       }
     }
@@ -488,6 +539,39 @@ export default function ValidateVehiclesPage() {
     );
     return normalized || FC_BILLING_MONTH;
   }, [invoiceMonthFilter]);
+  const defaultCoveredBillingMonths = useMemo(
+    () =>
+      buildPreviousBillingMonths(
+        selectedBillingMonth || FC_BILLING_MONTH,
+        billingCycleMultiplierValue,
+      ),
+    [selectedBillingMonth, billingCycleMultiplierValue],
+  );
+  const selectedCoveredBillingMonths = useMemo(() => {
+    const parsedMonths = parseBillingMonthsInput(billingMonthsCoveredInput);
+    if (parsedMonths.length > 0) return parsedMonths;
+    return defaultCoveredBillingMonths;
+  }, [billingMonthsCoveredInput, defaultCoveredBillingMonths]);
+  const selectedCoveredBillingMonthsLabel = useMemo(
+    () =>
+      selectedCoveredBillingMonths
+        .map((month) => formatBillingMonthLabel(month))
+        .join(", "),
+    [selectedCoveredBillingMonths],
+  );
+  const canLockForSelectedMonths = useMemo(() => {
+    const normalizedMonths = selectedCoveredBillingMonths
+      .map((month) => normalizeBillingMonthValue(month))
+      .filter(Boolean);
+    return (
+      normalizedMonths.length === billingCycleMultiplierValue &&
+      normalizedMonths.includes(selectedBillingMonth)
+    );
+  }, [
+    selectedCoveredBillingMonths,
+    billingCycleMultiplierValue,
+    selectedBillingMonth,
+  ]);
   const costCenterLockedMonth = normalizeBillingMonthValue(
     currentCostCenter?.total_amount_locked_at,
   );
@@ -546,6 +630,14 @@ export default function ValidateVehiclesPage() {
       toMonthInputValue(currentCostCenter?.billing_month || FC_BILLING_MONTH),
     );
   }, [costCode, currentCostCenter?.billing_month]);
+
+  useEffect(() => {
+    const defaultInput = defaultCoveredBillingMonths
+      .map((month) => toMonthInputValue(month))
+      .filter(Boolean)
+      .join(", ");
+    setBillingMonthsCoveredInput(defaultInput);
+  }, [selectedBillingMonth, billingCycleMultiplierValue, defaultCoveredBillingMonths]);
 
   useEffect(() => {
     let active = true;
@@ -1235,6 +1327,20 @@ export default function ValidateVehiclesPage() {
       toast.error("No cost center provided");
       return;
     }
+    const coveredMonths = selectedCoveredBillingMonths
+      .map((month) => normalizeBillingMonthValue(month))
+      .filter(Boolean);
+    const selectedMonthIsIncluded = coveredMonths.includes(selectedBillingMonth);
+    if (coveredMonths.length !== billingCycleMultiplierValue) {
+      toast.error(
+        `Specify exactly ${billingCycleMultiplierValue} billing month${billingCycleMultiplierValue > 1 ? "s" : ""} before locking`,
+      );
+      return;
+    }
+    if (!selectedMonthIsIncluded) {
+      toast.error("Covered billing months must include the selected Billing Month");
+      return;
+    }
 
     try {
       setLockingCostCenterTotal(true);
@@ -1246,7 +1352,9 @@ export default function ValidateVehiclesPage() {
           validated: Boolean(currentCostCenter?.validated),
           billing_month: selectedBillingMonth,
           total_amount_locked: true,
-          total_amount_locked_value: Number(filteredVehiclesGrandTotal.toFixed(2)),
+          total_amount_locked_value: lockAmountForSelectedMonth,
+          total_amount_locked_multiplier: billingCycleMultiplierValue,
+          total_amount_locked_billing_months: coveredMonths,
         }),
       });
 
@@ -1263,8 +1371,11 @@ export default function ValidateVehiclesPage() {
           option.cost_code === costCode ? { ...option, ...result } : option,
         ),
       );
+      const coveredMonthsLabel = coveredMonths
+        .map((month) => formatBillingMonthLabel(month))
+        .join(", ");
       toast.success(
-        `Cost center total locked for ${formatBillingMonthLabel(selectedBillingMonth)}`,
+        `Locked ${formatCurrency(lockAmountForSelectedMonth)} (${billingCycleMultiplierValue}x) for ${coveredMonthsLabel}`,
       );
     } catch (error) {
       toast.error("Failed to lock total amount: " + error.message);
@@ -1754,17 +1865,58 @@ export default function ValidateVehiclesPage() {
             <TabsTrigger value="job_cards">Job Cards</TabsTrigger>
           </TabsList>
         </Tabs>
-        <div className="w-full sm:w-[180px]">
-          <Label htmlFor="invoiceMonthFilter" className="text-xs text-gray-500">
-            Billing Month
-          </Label>
-          <Input
-            id="invoiceMonthFilter"
-            type="month"
-            value={invoiceMonthFilter}
-            onChange={(event) => setInvoiceMonthFilter(event.target.value)}
-            className="mt-1 h-9 text-sm"
-          />
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <div className="w-full sm:w-[180px]">
+            <Label htmlFor="invoiceMonthFilter" className="text-xs text-gray-500">
+              Billing Month
+            </Label>
+            <Input
+              id="invoiceMonthFilter"
+              type="month"
+              value={invoiceMonthFilter}
+              onChange={(event) => setInvoiceMonthFilter(event.target.value)}
+              className="mt-1 h-9 text-sm"
+            />
+          </div>
+          {invoiceViewTab === "annuity" && (
+            <>
+              <div className="w-full sm:w-[130px]">
+                <Label htmlFor="billingCycleMultiplier" className="text-xs text-gray-500">
+                  Billing X
+                </Label>
+                <Input
+                  id="billingCycleMultiplier"
+                  type="number"
+                  min="1"
+                  max="12"
+                  step="1"
+                  value={billingCycleMultiplier}
+                  onChange={(event) => {
+                    const digitsOnly = String(event.target.value || "").replace(/[^\d]/g, "");
+                    setBillingCycleMultiplier(digitsOnly);
+                  }}
+                  onBlur={() =>
+                    setBillingCycleMultiplier(String(billingCycleMultiplierValue))
+                  }
+                  className="mt-1 h-9 text-sm"
+                />
+              </div>
+              <div className="w-full sm:w-[300px]">
+                <Label htmlFor="billingMonthsCovered" className="text-xs text-gray-500">
+                  Billing Months Covered
+                </Label>
+                <Input
+                  id="billingMonthsCovered"
+                  value={billingMonthsCoveredInput}
+                  onChange={(event) =>
+                    setBillingMonthsCoveredInput(event.target.value)
+                  }
+                  className="mt-1 h-9 text-sm"
+                  placeholder="YYYY-MM, YYYY-MM"
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -2073,6 +2225,23 @@ export default function ValidateVehiclesPage() {
                   <p className="mt-1 text-sm text-gray-500">
                     Total total_rental_sub for the currently visible vehicles.
                   </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Lock amount ({billingCycleMultiplierValue}x):{" "}
+                    <span className="font-semibold text-slate-800">
+                      {formatCurrency(lockAmountForSelectedMonth)}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Covered months:{" "}
+                    <span className="font-semibold text-slate-800">
+                      {selectedCoveredBillingMonthsLabel || "None"}
+                    </span>
+                  </p>
+                  {!canLockForSelectedMonths && (
+                    <p className="mt-1 text-xs font-medium text-amber-700">
+                      Covered months must include {formatBillingMonthLabel(selectedBillingMonth)} and match {billingCycleMultiplierValue} month{billingCycleMultiplierValue > 1 ? "s" : ""}.
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col items-start gap-3 md:items-end">
                   <Button
@@ -2107,12 +2276,29 @@ export default function ValidateVehiclesPage() {
                             ? new Date(currentCostCenter.total_amount_locked_at).toLocaleString("en-ZA")
                             : "Pending"}
                         </div>
+                        <div>
+                          <span className="font-semibold">Billing X:</span>{" "}
+                          {Number.parseInt(
+                            String(currentCostCenter?.total_amount_locked_multiplier || "1"),
+                            10,
+                          ) || 1}
+                          x
+                        </div>
+                        <div>
+                          <span className="font-semibold">Covered Months:</span>{" "}
+                          {Array.isArray(currentCostCenter?.total_amount_locked_billing_months) &&
+                          currentCostCenter.total_amount_locked_billing_months.length > 0
+                            ? currentCostCenter.total_amount_locked_billing_months
+                                .map((month) => formatBillingMonthLabel(month))
+                                .join(", ")
+                            : formatBillingMonthLabel(selectedBillingMonth)}
+                        </div>
                       </div>
                     </div>
                   )}
                   <Button
                     onClick={lockCostCenterTotal}
-                    disabled={lockingCostCenterTotal}
+                    disabled={lockingCostCenterTotal || !canLockForSelectedMonths}
                     variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
                     className="min-w-[170px]"
                   >
@@ -2123,7 +2309,7 @@ export default function ValidateVehiclesPage() {
                     ) : (
                       <Lock className="mr-2 h-4 w-4" />
                     )}
-                    Lock Total
+                    Lock Total ({billingCycleMultiplierValue}x)
                   </Button>
                 </div>
               </div>
@@ -2238,7 +2424,7 @@ export default function ValidateVehiclesPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       onClick={lockCostCenterTotal}
-                      disabled={lockingCostCenterTotal}
+                      disabled={lockingCostCenterTotal || !canLockForSelectedMonths}
                       variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
                       className="flex items-center gap-2"
                     >
@@ -2249,7 +2435,7 @@ export default function ValidateVehiclesPage() {
                       ) : (
                         <Lock className="h-4 w-4" />
                       )}
-                      Lock Total
+                      Lock Total ({billingCycleMultiplierValue}x)
                     </Button>
                   </div>
                 }

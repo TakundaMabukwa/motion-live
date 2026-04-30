@@ -144,6 +144,20 @@ export default function AssignPartsModal({
   const [modalStockOwner, setModalStockOwner] = useState(stockOwner);
   const [visibleCount, setVisibleCount] = useState(120);
   const [localClientOptions, setLocalClientOptions] = useState(clientOptions);
+  const dedupedTechnicianOptions = useMemo(() => {
+    const map = new Map();
+    technicianOptions.forEach((tech) => {
+      const email = String(tech?.technician_email || "").trim().toLowerCase();
+      if (!email) return;
+      if (!map.has(email)) {
+        map.set(email, {
+          ...tech,
+          technician_email: email,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [technicianOptions]);
 
   const fetchInventoryItems = async () => {
     try {
@@ -997,12 +1011,14 @@ export default function AssignPartsModal({
                       className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select technician</option>
-                      {technicianOptions.map((tech) => (
+                      {dedupedTechnicianOptions.map((tech) => (
                         <option
                           key={tech.technician_email || tech.id}
                           value={tech.technician_email || ""}
                         >
-                          {tech.technician_email}
+                          {tech.display_name && tech.technician_email
+                            ? `${tech.display_name} (${tech.technician_email})`
+                            : tech.display_name || tech.technician_email}
                         </option>
                       ))}
                     </select>

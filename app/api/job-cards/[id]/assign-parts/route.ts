@@ -1,6 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const cloneStockMap = (value: unknown): Record<string, unknown> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+};
+
+const toSafePositiveQuantity = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const decrementStockEntry = (
+  entry: Record<string, unknown>,
+  quantity: number,
+) => {
+  const currentCount = Number(entry.count ?? entry.quantity ?? 0);
+  if (!Number.isFinite(currentCount)) return false;
+  entry.count = Math.max(0, currentCount - quantity);
+  return true;
+};
+
+const decrementTechnicianStock = (
+  rawStock: unknown,
+  selectedParts: Array<Record<string, unknown>>,
+) => {
+  const stockMap = cloneStockMap(rawStock);
+  if (Object.keys(stockMap).length === 0 || !Array.isArray(selectedParts)) {
+    return stockMap;
+  }
+
+  for (const part of selectedParts) {
+    const partCode = String(part?.code || "").trim();
+    const supplier = String(part?.supplier || "").trim();
+    const qty = toSafePositiveQuantity(part?.quantity);
+
+    if (!partCode) continue;
+
+    let decremented = false;
+
+    const topEntry = stockMap[partCode];
+    if (topEntry && typeof topEntry === "object" && !Array.isArray(topEntry)) {
+      decremented = decrementStockEntry(topEntry as Record<string, unknown>, qty);
+    }
+
+    if (!decremented && supplier) {
+      const supplierEntry = stockMap[supplier];
+      if (
+        supplierEntry &&
+        typeof supplierEntry === "object" &&
+        !Array.isArray(supplierEntry)
+      ) {
+        const supplierMap = supplierEntry as Record<string, unknown>;
+        const itemEntry = supplierMap[partCode];
+        if (itemEntry && typeof itemEntry === "object" && !Array.isArray(itemEntry)) {
+          decremented = decrementStockEntry(itemEntry as Record<string, unknown>, qty);
+        }
+      }
+    }
+
+    if (!decremented) {
+      for (const entryValue of Object.values(stockMap)) {
+        if (!entryValue || typeof entryValue !== "object" || Array.isArray(entryValue)) {
+          continue;
+        }
+        const supplierMap = entryValue as Record<string, unknown>;
+        const itemEntry = supplierMap[partCode];
+        if (itemEntry && typeof itemEntry === "object" && !Array.isArray(itemEntry)) {
+          if (decrementStockEntry(itemEntry as Record<string, unknown>, qty)) {
+            decremented = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return stockMap;
+};
+
 // Helper function to add parts to technician stock
 async function addPartsToTechnicianStock(supabase: any, technicianEmail: string, partsRequired: any[]) {
   try {
@@ -115,11 +197,12 @@ export async function PUT(request: NextRequest, { params }) {
 
       const { data: techStock } = await supabase
         .from('tech_stock')
-        .select('assigned_parts')
+        .select('assigned_parts, stock')
         .eq('technician_email', techEmail)
         .maybeSingle();
 
       const assignedParts = Array.isArray(techStock?.assigned_parts) ? [...techStock.assigned_parts] : [];
+      const updatedStock = decrementTechnicianStock(techStock?.stock, parts);
       const selectedParts = parts.map((part: any) => ({
         stockId: String(part?.stock_id || part?.id || ''),
         code: String(part?.code || ''),
@@ -147,7 +230,11 @@ export async function PUT(request: NextRequest, { params }) {
       await supabase
         .from('tech_stock')
         .upsert(
-          { technician_email: techEmail, assigned_parts: updatedAssignedParts },
+          {
+            technician_email: techEmail,
+            assigned_parts: updatedAssignedParts,
+            stock: updatedStock,
+          },
           { onConflict: 'technician_email' }
         );
     }

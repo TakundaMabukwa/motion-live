@@ -1,6 +1,29 @@
 ﻿import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+const normalizeBillingMonth = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, '0')}-01`;
+};
+
+const normalizeBillingMonthsArray = (value) => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const normalized = [];
+  for (const item of value) {
+    const month = normalizeBillingMonth(item);
+    if (!month || seen.has(month)) continue;
+    seen.add(month);
+    normalized.push(month);
+  }
+  return normalized;
+};
+
 export async function PUT(request) {
   try {
     const {
@@ -9,6 +32,8 @@ export async function PUT(request) {
       billing_month,
       total_amount_locked,
       total_amount_locked_value,
+      total_amount_locked_multiplier,
+      total_amount_locked_billing_months,
     } = await request.json();
 
     if (!cost_code) {
@@ -31,13 +56,18 @@ export async function PUT(request) {
     }
 
     const shouldLockTotal = typeof total_amount_locked === 'boolean';
-    const normalizedBillingMonth = (() => {
-      const raw = String(billing_month || '').trim();
-      if (!raw) return null;
-      if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw.slice(0, 7)}-01`;
-      return null;
-    })();
+    const normalizedBillingMonth = normalizeBillingMonth(billing_month);
+    const parsedMultiplier = Number.parseInt(
+      String(total_amount_locked_multiplier || '1').trim(),
+      10,
+    );
+    const normalizedMultiplier =
+      Number.isFinite(parsedMultiplier) && parsedMultiplier > 0
+        ? Math.min(parsedMultiplier, 12)
+        : 1;
+    const normalizedCoveredMonths = normalizeBillingMonthsArray(
+      total_amount_locked_billing_months,
+    );
     const lockTimestamp = total_amount_locked
       ? normalizedBillingMonth
         ? `${normalizedBillingMonth}T00:00:00.000Z`
