@@ -2176,18 +2176,54 @@ export default function AccountsContent({ activeSection }) {
         .replace(/[^a-z0-9]/g, "");
     const jobType = normalize(job?.job_type);
     const quotationJobType = normalize(job?.quotation_job_type);
-    return (
+    if (
       jobType.includes("itembilling") ||
       quotationJobType.includes("itembilling") ||
       jobType.includes("onceoffitem") ||
       quotationJobType.includes("onceoffitem")
-    );
+    ) {
+      return true;
+    }
+
+    const products = parseQuotationProducts(job?.quotation_products);
+    if (!products.length) {
+      return false;
+    }
+
+    return products.some((product) => {
+      const normalizedId = normalize(product?.id);
+      const normalizedCode = normalize(product?.code || product?.item_code);
+      const normalizedName = normalize(product?.name);
+      const normalizedDescription = normalize(product?.description);
+      const normalizedCategory = normalize(product?.category);
+      const normalizedType = normalize(product?.type);
+
+      const hasOnceOffMarker =
+        normalizedId.includes("itembilling") ||
+        normalizedId.includes("itembilled") ||
+        normalizedCode.includes("itembilled") ||
+        normalizedName.includes("onceoffitem") ||
+        normalizedDescription.includes("onceoffitem");
+
+      if (hasOnceOffMarker) {
+        return true;
+      }
+
+      return (
+        normalizedCategory === "billing" &&
+        normalizedType === "service" &&
+        Boolean(product?.is_labour)
+      );
+    });
   };
 
   const buildCompletedJobInvoiceView = () => {
     if (!selectedJobForInvoice) return null;
 
-    const hideRegistrationColumns = isOnceOffItemJob(selectedJobForInvoice);
+    const isOnceOffItemInvoice = isOnceOffItemJob(selectedJobForInvoice);
+    const hideRegistrationColumns = isOnceOffItemInvoice;
+    const hideItemCodeColumn = isOnceOffItemInvoice;
+    const hideAccountColumn = isOnceOffItemInvoice;
     const rawTotals = getInvoiceTotals(selectedJobForInvoice);
     const invoiceVehicles = getInvoiceVehicles(selectedJobForInvoice);
     const vehicleSummary =
@@ -2233,9 +2269,21 @@ export default function AccountsContent({ activeSection }) {
               const lineTotal = Number(
                 (chargeLine.subtotal + lineVat).toFixed(2),
               );
-              const productName =
-                product?.name || product?.item_code || "Item";
-              const lineLabel = `${productName} - ${chargeLine.label}`;
+              const productName = String(
+                product?.name || product?.item_code || "",
+              ).trim();
+              const lineLabel = productName
+                ? `${productName} - ${chargeLine.label}`
+                : chargeLine.label;
+              const productDescription = String(
+                product?.description || "",
+              ).trim();
+              const resolvedDescription =
+                productDescription ||
+                productName ||
+                lineLabel ||
+                product?.category ||
+                "-";
 
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
@@ -2246,8 +2294,7 @@ export default function AccountsContent({ activeSection }) {
                   ? ""
                   : product?.vehicle_plate || vehicleSummary || "N/A",
                 itemCode: chargeLine.label,
-                description:
-                  product?.description || lineLabel || product?.category || "-",
+                description: resolvedDescription,
                 comments: lineLabel,
                 qty: chargeLine.qty,
                 unitPrice: chargeLine.unitPrice,
@@ -2270,7 +2317,7 @@ export default function AccountsContent({ activeSection }) {
                 ? ""
                 : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
               itemCode: item?.item_code || "Item",
-              description: item?.description || "-",
+              description: item?.description || item?.item_code || "-",
               comments: item?.comments || "",
               qty: Math.max(1, toNumber(item?.quantity) || 1),
               unitPrice: toNumber(item?.unit_price),
@@ -2348,7 +2395,9 @@ export default function AccountsContent({ activeSection }) {
         invoiceFormData.notes ||
         selectedJobForInvoice.special_instructions ||
         "No special instructions.",
+      hideAccountColumn,
       hideRegistrationColumns,
+      hideItemCodeColumn,
       totals,
       rows,
     };
@@ -2356,8 +2405,22 @@ export default function AccountsContent({ activeSection }) {
 
   const buildCompletedJobInvoiceHtml = (invoiceView) => {
     if (!invoiceView) return "";
+    const includeAccountColumn = !invoiceView.hideAccountColumn;
     const includeRegistrationColumns = !invoiceView.hideRegistrationColumns;
-    const lineTableColgroup = includeRegistrationColumns
+    const includeItemCodeColumn = !invoiceView.hideItemCodeColumn;
+    const boxTableColgroup = includeAccountColumn
+      ? `
+                <col style="width:12.5%" />
+                <col style="width:40.5%" />
+                <col style="width:14%" />
+                <col style="width:33%" />
+              `
+      : `
+                <col style="width:57%" />
+                <col style="width:18%" />
+                <col style="width:25%" />
+              `;
+    const lineTableColgroup = includeRegistrationColumns && includeItemCodeColumn
       ? `
                 <col style="width:10%" />
                 <col style="width:13%" />
@@ -2370,17 +2433,42 @@ export default function AccountsContent({ activeSection }) {
                 <col style="width:5%" />
                 <col style="width:10.5%" />
               `
-      : `
-                <col style="width:18%" />
-                <col style="width:24%" />
+      : includeRegistrationColumns
+        ? `
+                <col style="width:11%" />
                 <col style="width:14%" />
-                <col style="width:6%" />
-                <col style="width:12%" />
+                <col style="width:20%" />
+                <col style="width:14%" />
+                <col style="width:6.5%" />
+                <col style="width:10.5%" />
+                <col style="width:8.5%" />
+                <col style="width:5.5%" />
+                <col style="width:10%" />
+              `
+        : includeItemCodeColumn
+          ? `
+                <col style="width:17%" />
+                <col style="width:23%" />
+                <col style="width:16%" />
                 <col style="width:8%" />
+                <col style="width:14%" />
+                <col style="width:10%" />
                 <col style="width:6%" />
-                <col style="width:12%" />
+                <col style="width:10%" />
+              `
+          : `
+                <col style="width:28%" />
+                <col style="width:24%" />
+                <col style="width:8%" />
+                <col style="width:14%" />
+                <col style="width:10%" />
+                <col style="width:6%" />
+                <col style="width:10%" />
               `;
-    const spacerColspan = includeRegistrationColumns ? 10 : 8;
+    const spacerColspan =
+      7 +
+      (includeRegistrationColumns ? 2 : 0) +
+      (includeItemCodeColumn ? 1 : 0);
 
     const rowsHtml = invoiceView.rows
       .map(
@@ -2392,7 +2480,11 @@ export default function AccountsContent({ activeSection }) {
             <td>${escapeHtml(row.newReg)}</td>`
                 : ""
             }
-            <td>${escapeHtml(row.itemCode)}</td>
+            ${
+              includeItemCodeColumn
+                ? `<td>${escapeHtml(row.itemCode)}</td>`
+                : ""
+            }
             <td>${escapeHtml(row.description)}</td>
             <td>${escapeHtml(row.comments)}</td>
             <td class="text-center">${escapeHtml(row.qty)}</td>
@@ -2493,14 +2585,15 @@ export default function AccountsContent({ activeSection }) {
             </div>
             <table class="box-table">
               <colgroup>
-                <col style="width:12.5%" />
-                <col style="width:40.5%" />
-                <col style="width:14%" />
-                <col style="width:33%" />
+                ${boxTableColgroup}
               </colgroup>
               <thead>
                 <tr>
-                  <th>Account</th>
+                  ${
+                    includeAccountColumn
+                      ? "<th>Account</th>"
+                      : ""
+                  }
                   <th>Your Reference</th>
                   <th>VAT %</th>
                   <th>Customer Vat Number</th>
@@ -2508,7 +2601,11 @@ export default function AccountsContent({ activeSection }) {
               </thead>
               <tbody>
                 <tr>
-                  <td>${escapeHtml(invoiceView.accountNumber)}</td>
+                  ${
+                    includeAccountColumn
+                      ? `<td>${escapeHtml(invoiceView.accountNumber)}</td>`
+                      : ""
+                  }
                   <td>${escapeHtml(invoiceView.clientName)}</td>
                   <td>VAT 15%</td>
                   <td>${escapeHtml(invoiceView.customerVatNumber)}</td>
@@ -2527,7 +2624,11 @@ export default function AccountsContent({ activeSection }) {
                   <th>New Reg</th>`
                       : ""
                   }
-                  <th>Item Code</th>
+                  ${
+                    includeItemCodeColumn
+                      ? "<th>Item Code</th>"
+                      : ""
+                  }
                   <th>Description</th>
                   <th>Comments</th>
                   <th class="text-center">Units</th>
