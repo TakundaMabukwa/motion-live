@@ -6,6 +6,11 @@ import {
   normalizeBillingMonth,
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
+import {
+  allocateTrackedInvoiceNumber,
+  markTrackedInvoiceFailed,
+  markTrackedInvoicePersisted,
+} from "@/lib/server/invoice-number-audit";
 
 const hasRealInvoiceNumber = (value: unknown) => {
   const normalized = String(value || "").trim().toUpperCase();
@@ -235,7 +240,9 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
 
     const { searchParams } = new URL(request.url);
-    const accountNumber = String(searchParams.get("accountNumber") || "").trim();
+    const accountNumber = String(searchParams.get("accountNumber") || "")
+      .trim()
+      .toUpperCase();
     const requestedBillingMonth = normalizeBillingMonth(searchParams.get("billingMonth"));
 
     if (!accountNumber) {
@@ -362,7 +369,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const accountNumber = String(body?.accountNumber || "").trim();
+    const accountNumber = String(body?.accountNumber || "")
+      .trim()
+      .toUpperCase();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
     const allowLockedRebuild = Boolean(body?.allowLockedRebuild);
@@ -451,24 +460,28 @@ export async function POST(request: NextRequest) {
 
     if (existingInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
+      let allocationAuditId: string | null = null;
 
       if (!hasRealInvoiceNumber(invoiceNumberToKeep) && !existingInvoice?.invoice_locked) {
-        const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-          "allocate_document_number",
-          {
-            sequence_name: "invoice",
-            prefix: "INV",
-          },
-        );
-
-        if (numberError || !allocatedInvoiceNumber) {
+        try {
+          const allocation = await allocateTrackedInvoiceNumber(supabase, {
+            source: "api/invoices/bulk-account",
+            userId: user.id,
+            requestKey: `${accountNumber}|${billingMonth || "none"}|existing`,
+            context: {
+              accountNumber,
+              billingMonth: billingMonth || null,
+              existingInvoiceId: existingInvoice.id,
+            },
+          });
+          invoiceNumberToKeep = allocation.invoiceNumber;
+          allocationAuditId = allocation.auditId;
+        } catch {
           return NextResponse.json(
-            { error: numberError?.message || "Failed to allocate invoice number" },
+            { error: "Failed to allocate invoice number" },
             { status: 500 },
           );
         }
-
-        invoiceNumberToKeep = allocatedInvoiceNumber;
       }
 
       const { data: updatedInvoice, error: updateError } = await supabase
@@ -482,10 +495,26 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (updateError) {
+        if (allocationAuditId && hasRealInvoiceNumber(invoiceNumberToKeep)) {
+          await markTrackedInvoiceFailed(supabase, {
+            auditId: allocationAuditId,
+            invoiceNumber: String(invoiceNumberToKeep),
+            errorMessage: updateError.message || "Failed to update bulk invoice",
+          });
+        }
         return NextResponse.json(
           { error: updateError.message || "Failed to update bulk invoice" },
           { status: 500 },
         );
+      }
+
+      if (allocationAuditId && hasRealInvoiceNumber(invoiceNumberToKeep)) {
+        await markTrackedInvoicePersisted(supabase, {
+          auditId: allocationAuditId,
+          invoiceNumber: String(invoiceNumberToKeep),
+          persistedTable: "bulk_account_invoices",
+          persistedInvoiceId: updatedInvoice.id,
+        });
       }
 
       try {
@@ -510,17 +539,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ invoice: enrichedInvoice, reused: true });
     }
 
-    const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-      "allocate_document_number",
-      {
-        sequence_name: "invoice",
-        prefix: "INV",
-      },
-    );
+    let allocatedInvoiceNumber = "";
+    let allocationAuditId: string | null = null;
 
-    if (numberError || !allocatedInvoiceNumber) {
+    try {
+      const allocation = await allocateTrackedInvoiceNumber(supabase, {
+        source: "api/invoices/bulk-account",
+        userId: user.id,
+        requestKey: `${accountNumber}|${billingMonth || "none"}|new`,
+        context: {
+          accountNumber,
+          billingMonth: billingMonth || null,
+        },
+      });
+      allocatedInvoiceNumber = allocation.invoiceNumber;
+      allocationAuditId = allocation.auditId;
+    } catch {
       return NextResponse.json(
-        { error: numberError?.message || "Failed to allocate invoice number" },
+        { error: "Failed to allocate invoice number" },
         { status: 500 },
       );
     }
@@ -536,11 +572,23 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
+      await markTrackedInvoiceFailed(supabase, {
+        auditId: allocationAuditId,
+        invoiceNumber: allocatedInvoiceNumber,
+        errorMessage: insertError.message || "Failed to create bulk invoice",
+      });
       return NextResponse.json(
         { error: insertError.message || "Failed to create bulk invoice" },
         { status: 500 },
       );
     }
+
+    await markTrackedInvoicePersisted(supabase, {
+      auditId: allocationAuditId,
+      invoiceNumber: allocatedInvoiceNumber,
+      persistedTable: "bulk_account_invoices",
+      persistedInvoiceId: insertedInvoice.id,
+    });
 
     try {
       await syncBulkInvoiceToAccountInvoices(supabase, {
@@ -581,7 +629,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const accountNumber = String(body?.accountNumber || "").trim();
+    const accountNumber = String(body?.accountNumber || "")
+      .trim()
+      .toUpperCase();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceNumber = body?.invoiceNumber === undefined ? null : String(body.invoiceNumber || "").trim();
     const customerVatNumber = body?.customerVatNumber === undefined ? null : String(body.customerVatNumber || "").trim();

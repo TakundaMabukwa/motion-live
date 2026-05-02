@@ -13,6 +13,11 @@ import {
   resolveAccountInvoice,
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
+import {
+  allocateTrackedInvoiceNumber,
+  markTrackedInvoiceFailed,
+  markTrackedInvoicePersisted,
+} from "@/lib/server/invoice-number-audit";
 
 const TOTAL_BILLING_COLUMNS = new Set([
   "total_rental_sub",
@@ -414,17 +419,29 @@ export async function POST(request: NextRequest) {
         outstandingAgingRow &&
         getTotalOutstandingDue(outstandingAgingRow) > 0
       ) {
-        const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-          "allocate_document_number",
-          {
-            sequence_name: "invoice",
-            prefix: "INV-",
-          },
-        );
+        let allocatedInvoiceNumber = "";
+        let allocationAuditId: string | null = null;
 
-        if (numberError || !allocatedInvoiceNumber) {
+        try {
+          const allocation = await allocateTrackedInvoiceNumber(supabase, {
+            source: "api/payments/process-payments:outstanding-auto-invoice",
+            userId: user?.id || null,
+            requestKey: `${normalizedAccountNumber}|${
+              normalizeBillingMonth(outstandingAgingRow.billing_month) ||
+              normalizedBillingMonth
+            }|outstanding`,
+            context: {
+              accountNumber: normalizedAccountNumber,
+              billingMonth:
+                normalizeBillingMonth(outstandingAgingRow.billing_month) ||
+                normalizedBillingMonth,
+            },
+          });
+          allocatedInvoiceNumber = allocation.invoiceNumber;
+          allocationAuditId = allocation.auditId;
+        } catch {
           return NextResponse.json(
-            { error: numberError?.message || "Failed to allocate invoice number" },
+            { error: "Failed to allocate invoice number" },
             { status: 500 },
           );
         }
@@ -467,11 +484,25 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (insertError) {
+          await markTrackedInvoiceFailed(supabase, {
+            auditId: allocationAuditId,
+            invoiceNumber: allocatedInvoiceNumber,
+            errorMessage:
+              insertError.message ||
+              "Failed to create invoice snapshot for payment",
+          });
           return NextResponse.json(
             { error: insertError.message || "Failed to create invoice snapshot for payment" },
             { status: 500 },
           );
         }
+
+        await markTrackedInvoicePersisted(supabase, {
+          auditId: allocationAuditId,
+          invoiceNumber: allocatedInvoiceNumber,
+          persistedTable: "account_invoices",
+          persistedInvoiceId: insertedInvoice.id,
+        });
         invoice = insertedInvoice;
       } else {
         const [
@@ -516,17 +547,24 @@ export async function POST(request: NextRequest) {
         const draft = buildDraftPaymentsFromVehicles(Array.from(vehicleMap.values())).get(normalizedAccountNumber);
 
         if (draft && Number(draft.due_amount || 0) > 0) {
-          const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-            "allocate_document_number",
-            {
-              sequence_name: "invoice",
-              prefix: "INV-",
-            },
-          );
+          let allocatedInvoiceNumber = "";
+          let allocationAuditId: string | null = null;
 
-          if (numberError || !allocatedInvoiceNumber) {
+          try {
+            const allocation = await allocateTrackedInvoiceNumber(supabase, {
+              source: "api/payments/process-payments:current-auto-invoice",
+              userId: user?.id || null,
+              requestKey: `${normalizedAccountNumber}|${normalizedBillingMonth}|current`,
+              context: {
+                accountNumber: normalizedAccountNumber,
+                billingMonth: normalizedBillingMonth,
+              },
+            });
+            allocatedInvoiceNumber = allocation.invoiceNumber;
+            allocationAuditId = allocation.auditId;
+          } catch {
             return NextResponse.json(
-              { error: numberError?.message || "Failed to allocate invoice number" },
+              { error: "Failed to allocate invoice number" },
               { status: 500 },
             );
           }
@@ -567,11 +605,25 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (insertError) {
+            await markTrackedInvoiceFailed(supabase, {
+              auditId: allocationAuditId,
+              invoiceNumber: allocatedInvoiceNumber,
+              errorMessage:
+                insertError.message ||
+                "Failed to create invoice snapshot for payment",
+            });
             return NextResponse.json(
               { error: insertError.message || "Failed to create invoice snapshot for payment" },
               { status: 500 },
             );
           }
+
+          await markTrackedInvoicePersisted(supabase, {
+            auditId: allocationAuditId,
+            invoiceNumber: allocatedInvoiceNumber,
+            persistedTable: "account_invoices",
+            persistedInvoiceId: insertedInvoice.id,
+          });
 
           await upsertPaymentsMirror(supabase, insertedInvoice);
           invoice = insertedInvoice;

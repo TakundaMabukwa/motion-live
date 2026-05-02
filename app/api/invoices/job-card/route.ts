@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  allocateTrackedInvoiceNumber,
+  markTrackedInvoiceFailed,
+  markTrackedInvoicePersisted,
+} from "@/lib/server/invoice-number-audit";
 
 const SYSTEM_LOCK_KEY = 'billing';
 
@@ -120,6 +125,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'jobCardId is required' }, { status: 400 });
     }
 
+    const { data: jobCard, error: jobCardError } = await supabase
+      .from('job_cards')
+      .select('id, new_account_number')
+      .eq('id', jobCardId)
+      .maybeSingle();
+
+    if (jobCardError) {
+      console.error('Error fetching job card for invoice creation:', jobCardError);
+      return NextResponse.json({ error: 'Failed to fetch job card' }, { status: 500 });
+    }
+
+    const resolvedAccountNumber = String(
+      accountNumber || jobCard?.new_account_number || '',
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!resolvedAccountNumber) {
+      return NextResponse.json(
+        {
+          error:
+            'Missing account number for invoice. Assign a cost center to this job card before generating an invoice.',
+        },
+        { status: 400 },
+      );
+    }
+
     const systemLock = await getSystemLock(supabase);
     const isSystemLocked = Boolean(systemLock?.is_locked);
     const lockReferenceDate =
@@ -148,7 +180,7 @@ export async function POST(request: NextRequest) {
       job_card_id: jobCardId,
       job_number: jobNumber || null,
       quotation_number: quotationNumber || null,
-      account_number: accountNumber || null,
+      account_number: resolvedAccountNumber,
       client_name: clientName || null,
       client_email: clientEmail || null,
       client_phone: clientPhone || null,
@@ -188,16 +220,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-      'allocate_document_number',
-      {
-        sequence_name: 'invoice',
-        prefix: 'INV',
-      },
-    );
+    let allocatedInvoiceNumber = '';
+    let allocationAuditId: string | null = null;
 
-    if (numberError || !allocatedInvoiceNumber) {
-      console.error('Error allocating invoice number:', numberError);
+    try {
+      const allocation = await allocateTrackedInvoiceNumber(supabase, {
+        source: 'api/invoices/job-card',
+        userId: user.id,
+        requestKey: jobCardId,
+        context: {
+          jobCardId,
+          jobNumber: jobNumber || null,
+          accountNumber: resolvedAccountNumber,
+        },
+      });
+      allocatedInvoiceNumber = allocation.invoiceNumber;
+      allocationAuditId = allocation.auditId;
+    } catch (allocationError) {
+      console.error('Error allocating invoice number:', allocationError);
       return NextResponse.json(
         { error: 'Failed to allocate invoice number' },
         { status: 500 },
@@ -223,13 +263,31 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (conflictingInvoice) {
+          await markTrackedInvoiceFailed(supabase, {
+            auditId: allocationAuditId,
+            invoiceNumber: allocatedInvoiceNumber,
+            errorMessage:
+              'Invoice insert conflicted with an existing row and reused existing invoice',
+          });
           return NextResponse.json({ invoice: conflictingInvoice, reused: true });
         }
       }
 
       console.error('Error inserting invoice:', insertError);
+      await markTrackedInvoiceFailed(supabase, {
+        auditId: allocationAuditId,
+        invoiceNumber: allocatedInvoiceNumber,
+        errorMessage: insertError.message || 'Failed to insert invoice',
+      });
       return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
     }
+
+    await markTrackedInvoicePersisted(supabase, {
+      auditId: allocationAuditId,
+      invoiceNumber: allocatedInvoiceNumber,
+      persistedTable: 'invoices',
+      persistedInvoiceId: insertedInvoice.id,
+    });
 
     return NextResponse.json({ invoice: insertedInvoice, reused: false });
   } catch (error) {

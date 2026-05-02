@@ -6,6 +6,11 @@ import {
   normalizeBillingMonth,
   upsertPaymentsMirror,
 } from "@/lib/server/account-invoice-payments";
+import {
+  allocateTrackedInvoiceNumber,
+  markTrackedInvoiceFailed,
+  markTrackedInvoicePersisted,
+} from "@/lib/server/invoice-number-audit";
 
 const SYSTEM_LOCK_KEY = "billing";
 
@@ -83,7 +88,9 @@ export async function GET(request: NextRequest) {
     const isSystemLocked = Boolean(systemLock?.is_locked);
 
     const { searchParams } = new URL(request.url);
-    const accountNumber = String(searchParams.get("accountNumber") || "").trim();
+    const accountNumber = String(searchParams.get("accountNumber") || "")
+      .trim()
+      .toUpperCase();
     const billingMonth = normalizeBillingMonth(searchParams.get("billingMonth"));
 
     if (!accountNumber) {
@@ -150,7 +157,9 @@ export async function POST(request: NextRequest) {
     const isSystemLocked = Boolean(systemLock?.is_locked);
 
     const body = await request.json();
-    const accountNumber = String(body?.accountNumber || "").trim();
+    const accountNumber = String(body?.accountNumber || "")
+      .trim()
+      .toUpperCase();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate =
       (isSystemLocked
@@ -162,7 +171,6 @@ export async function POST(request: NextRequest) {
       body?.invoiceDate ||
       getBillingInvoiceDate(billingMonth);
     const dueDate = body?.dueDate || defaultDueDate(invoiceDate);
-    const forceNew = Boolean(body?.forceNew);
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
       ? existingInvoices[0] || null
       : null;
 
-    if (existingInvoice && !forceNew) {
+    if (existingInvoice) {
       const financials = buildInvoiceFinancials({
         totalAmount: Number(body?.totalAmount ?? existingInvoice.total_amount ?? 0),
         paidAmount: existingInvoice.paid_amount ?? 0,
@@ -247,18 +255,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ invoice: updatedInvoice, reused: true });
     }
 
-    const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-      "allocate_document_number",
-      {
-        sequence_name: "invoice",
-        prefix: "INV",
-      },
-    );
+    let allocatedInvoiceNumber = "";
+    let allocationAuditId: string | null = null;
 
-    if (numberError || !allocatedInvoiceNumber) {
-      console.error("Failed to allocate invoice number:", numberError);
+    try {
+      const allocation = await allocateTrackedInvoiceNumber(supabase, {
+        source: "api/invoices/account",
+        userId: user.id,
+        requestKey: `${accountNumber}|${billingMonth || "none"}`,
+        context: {
+          accountNumber,
+          billingMonth: billingMonth || null,
+        },
+      });
+      allocatedInvoiceNumber = allocation.invoiceNumber;
+      allocationAuditId = allocation.auditId;
+    } catch (allocationError) {
+      console.error("Failed to allocate invoice number:", allocationError);
       return NextResponse.json(
-        { error: numberError?.message || "Failed to allocate invoice number" },
+        { error: "Failed to allocate invoice number" },
         { status: 500 },
       );
     }
@@ -293,15 +308,25 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("Failed to create account invoice:", insertError, payload);
+      await markTrackedInvoiceFailed(supabase, {
+        auditId: allocationAuditId,
+        invoiceNumber: allocatedInvoiceNumber,
+        errorMessage: insertError.message || "Failed to create account invoice",
+      });
       return NextResponse.json(
         { error: insertError.message || "Failed to create account invoice" },
         { status: 500 },
       );
     }
 
-    if (!forceNew) {
-      await upsertPaymentsMirror(supabase, insertedInvoice);
-    }
+    await markTrackedInvoicePersisted(supabase, {
+      auditId: allocationAuditId,
+      invoiceNumber: allocatedInvoiceNumber,
+      persistedTable: "account_invoices",
+      persistedInvoiceId: insertedInvoice.id,
+    });
+
+    await upsertPaymentsMirror(supabase, insertedInvoice);
 
     return NextResponse.json({ invoice: insertedInvoice, reused: false });
   } catch (error) {

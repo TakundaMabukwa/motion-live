@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { applyQuoteBilling } from '@/app/api/vehicles/apply-quote-billing/route';
 import { syncJobEquipmentToVehicles } from '@/app/api/vehicles/sync-job-equipment/route';
+import {
+  allocateTrackedInvoiceNumber,
+  markTrackedInvoiceFailed,
+  markTrackedInvoicePersisted,
+} from "@/lib/server/invoice-number-audit";
 
 const LOCK_KEY = 'billing';
 
@@ -152,6 +157,46 @@ const processQueuedJobCardInvoices = async (
       continue;
     }
 
+    const payload = row.payload || {};
+
+    const { data: jobCard, error: jobCardError } = await supabase
+      .from('job_cards')
+      .select('id, new_account_number, billing_statuses')
+      .eq('id', jobCardId)
+      .maybeSingle();
+
+    if (jobCardError) {
+      await supabase
+        .from('job_card_invoice_queue')
+        .update({
+          status: 'error',
+          error: jobCardError.message || 'Failed to fetch job card',
+          processed_at: new Date().toISOString(),
+          processed_by: userId,
+        })
+        .eq('id', row.id);
+      continue;
+    }
+
+    const resolvedAccountNumber = String(
+      payload.accountNumber || jobCard?.new_account_number || '',
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!resolvedAccountNumber) {
+      await supabase
+        .from('job_card_invoice_queue')
+        .update({
+          status: 'error',
+          error: 'Missing account number on queued invoice and job card',
+          processed_at: new Date().toISOString(),
+          processed_by: userId,
+        })
+        .eq('id', row.id);
+      continue;
+    }
+
     const { data: existingInvoice } = await supabase
       .from('invoices')
       .select('*')
@@ -172,22 +217,28 @@ const processQueuedJobCardInvoices = async (
       continue;
     }
 
-    const payload = row.payload || {};
+    let allocatedInvoiceNumber = '';
+    let allocationAuditId: string | null = null;
 
-    const { data: allocatedInvoiceNumber, error: numberError } = await supabase.rpc(
-      'allocate_document_number',
-      {
-        sequence_name: 'invoice',
-        prefix: 'INV-',
-      },
-    );
-
-    if (numberError || !allocatedInvoiceNumber) {
+    try {
+      const allocation = await allocateTrackedInvoiceNumber(supabase, {
+        source: 'api/system-lock:job-card-queue',
+        userId,
+        requestKey: String(row.id || jobCardId),
+        context: {
+          queueId: row.id || null,
+          jobCardId,
+          accountNumber: resolvedAccountNumber,
+        },
+      });
+      allocatedInvoiceNumber = allocation.invoiceNumber;
+      allocationAuditId = allocation.auditId;
+    } catch {
       await supabase
         .from('job_card_invoice_queue')
         .update({
           status: 'error',
-          error: numberError?.message || 'Failed to allocate invoice number',
+          error: 'Failed to allocate invoice number',
           processed_at: new Date().toISOString(),
           processed_by: userId,
         })
@@ -200,7 +251,7 @@ const processQueuedJobCardInvoices = async (
       job_card_id: jobCardId,
       job_number: payload.jobNumber || row.job_number || null,
       quotation_number: payload.quotationNumber || null,
-      account_number: payload.accountNumber || null,
+      account_number: resolvedAccountNumber,
       client_name: payload.clientName || null,
       client_email: payload.clientEmail || null,
       client_phone: payload.clientPhone || null,
@@ -224,6 +275,11 @@ const processQueuedJobCardInvoices = async (
       .single();
 
     if (insertError) {
+      await markTrackedInvoiceFailed(supabase, {
+        auditId: allocationAuditId,
+        invoiceNumber: allocatedInvoiceNumber,
+        errorMessage: insertError.message || 'Failed to create invoice',
+      });
       await supabase
         .from('job_card_invoice_queue')
         .update({
@@ -236,6 +292,13 @@ const processQueuedJobCardInvoices = async (
       continue;
     }
 
+    await markTrackedInvoicePersisted(supabase, {
+      auditId: allocationAuditId,
+      invoiceNumber: allocatedInvoiceNumber,
+      persistedTable: 'invoices',
+      persistedInvoiceId: insertedInvoice.id,
+    });
+
     await supabase
       .from('job_card_invoice_queue')
       .update({
@@ -247,12 +310,6 @@ const processQueuedJobCardInvoices = async (
       .eq('id', row.id);
 
     if (jobCardId) {
-      const { data: jobCard } = await supabase
-        .from('job_cards')
-        .select('billing_statuses')
-        .eq('id', jobCardId)
-        .maybeSingle();
-
       const currentStatuses =
         jobCard?.billing_statuses && typeof jobCard.billing_statuses === 'object'
           ? jobCard.billing_statuses
@@ -331,12 +388,16 @@ const processQueuedVehicleBilling = async (
         .eq('id', row.id);
 
       results.push({ id: row.id, status: 'processed', action_type: row.action_type });
-    } catch (queueError: any) {
+    } catch (queueError: unknown) {
+      const queueErrorMessage =
+        queueError instanceof Error
+          ? queueError.message
+          : 'Failed to process queued vehicle billing';
       await supabase
         .from('vehicle_billing_queue')
         .update({
           status: 'error',
-          error: queueError?.message || 'Failed to process queued vehicle billing',
+          error: queueErrorMessage,
           processed_at: new Date().toISOString(),
           processed_by: userId,
         })
@@ -346,7 +407,7 @@ const processQueuedVehicleBilling = async (
         id: row.id,
         status: 'error',
         action_type: row.action_type,
-        error: queueError?.message || 'Failed to process queued vehicle billing',
+        error: queueErrorMessage,
       });
     }
   }

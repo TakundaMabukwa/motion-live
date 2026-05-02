@@ -1018,7 +1018,6 @@ export default function AccountsContent({ activeSection }) {
     }));
 
     const payload = {
-      forceNew: true,
       accountNumber: invoiceBuilderSelectedCostCenterCode,
       billingMonth,
       companyName:
