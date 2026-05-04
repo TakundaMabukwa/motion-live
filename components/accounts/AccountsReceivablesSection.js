@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 import {
   ChevronDown,
   ChevronRight,
@@ -50,6 +51,24 @@ const formatMonthInputValue = (value) => {
 const monthValueToBillingMonth = (value) => {
   const raw = String(value || "").trim();
   return /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : "";
+};
+
+const formatDateForExport = (value) => {
+  const parsed = new Date(String(value || "").trim());
+  if (Number.isNaN(parsed.getTime())) return "";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
+};
+
+const formatDateTimeForExport = (value) => {
+  const parsed = new Date(value || Date.now());
+  if (Number.isNaN(parsed.getTime())) return "";
+  const date = formatDateForExport(parsed.toISOString());
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  return `${date} - ${hours}:${minutes}`;
 };
 
 const getStateTone = (state) => {
@@ -195,6 +214,13 @@ export default function AccountsReceivablesSection() {
   const [expandedAccounts, setExpandedAccounts] = useState({});
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showViewer, setShowViewer] = useState(false);
+  const [exportMeta, setExportMeta] = useState({
+    requestedBy: "",
+    requestedByEmail: "",
+    exportedAt: "",
+    organizationName: "Soltrack (PTY) LTD",
+    resolvedBillingMonth: "",
+  });
 
   const fetchReceivables = useCallback(async (billingMonthOverride = "") => {
     try {
@@ -239,6 +265,16 @@ export default function AccountsReceivablesSection() {
         setSelectedMonth(resolvedMonth);
       }
 
+      setExportMeta({
+        requestedBy: String(result?.requestedBy || "").trim(),
+        requestedByEmail: String(result?.requestedByEmail || "").trim(),
+        exportedAt: String(result?.exportedAt || "").trim(),
+        organizationName:
+          String(result?.organizationName || "").trim() || "Soltrack (PTY) LTD",
+        resolvedBillingMonth:
+          String(result?.resolvedBillingMonth || "").trim() || "",
+      });
+
       setHasLoadedOnce(true);
     } catch (error) {
       console.error("Error fetching receivables:", error);
@@ -271,6 +307,134 @@ export default function AccountsReceivablesSection() {
 
   const handleRefresh = () => {
     fetchReceivables(selectedMonth ? monthValueToBillingMonth(selectedMonth) : "");
+  };
+
+  const handleExportExcel = () => {
+    if (!Array.isArray(displayRows) || displayRows.length === 0) {
+      toast.error("No receivables available to export");
+      return;
+    }
+
+    const now = new Date();
+    const headingCompany =
+      String(exportMeta.organizationName || "").trim() || "Soltrack (PTY) LTD";
+    const exportUser =
+      String(exportMeta.requestedBy || exportMeta.requestedByEmail || "").trim() || "Unknown User";
+    const reportDate = formatDateForExport(now.toISOString());
+    const reportDateTime = formatDateTimeForExport(now.toISOString());
+
+    const rowsToExport = [
+      [`Debtors Age Analysis: [${headingCompany}] ${reportDate}`],
+      [headingCompany],
+      [],
+      [`User: ${exportUser}`],
+      [`Date & Time Exported: ${reportDateTime}`],
+      [`Exported Rows: ${displayRows.length}`],
+      [
+        "ACCOUNT",
+        "CLIENT",
+        "CONTACT",
+        "PHONE",
+        "EMAIL",
+        "ACCOUNT STATUS",
+        "PAYMENT TERMS",
+        "CATEGORY",
+        "POSTAL ADDRESS",
+        "CITY",
+        "REGION",
+        "COUNTRY",
+        "POST CODE",
+        "SOLUTIONS REP.",
+        "LAST PAYMENT DATE",
+        "LAST PAYMENT",
+        "AVG. DAYS TO PAY",
+        "DEBTOR NOTE",
+        "CREDIT LIMIT",
+        "CURRENCY",
+        "CURRENT",
+        "30 DAYS",
+        "60 DAYS",
+        "90 DAYS",
+        "120+ DAYS",
+        "OUTSTANDING BALANCE",
+      ],
+      ...displayRows.map((row) => [
+        row.accountNumber || "",
+        row.clientName || row.company || "",
+        row.contact || "",
+        row.phone || "",
+        row.email || "",
+        row.accountStatus || "",
+        row.paymentTerms || "",
+        row.category || "",
+        row.postalAddress || "",
+        row.city || "",
+        row.region || "",
+        row.country || "",
+        row.postCode || "",
+        row.solutionsRep || "",
+        formatDateForExport(row.lastPaymentDateForExport || row.lastPaymentDate),
+        Number(row.lastPaymentAmount || 0),
+        Number(row.avgDaysToPay || 0),
+        row.debtorNote || "",
+        Number(row.creditLimit || 0),
+        row.currency || "ZAR",
+        Number(row.openAnnuity || 0),
+        Number(row.days30 || 0),
+        Number(row.days60 || 0),
+        Number(row.days90 || 0),
+        Number(row.days120 || 0),
+        Number(row.totalAmount || 0),
+      ]),
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rowsToExport);
+    worksheet["!cols"] = [
+      { wch: 16 },
+      { wch: 34 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 30 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 44 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 26 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 20 },
+    ];
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 6 } },
+      { s: { r: 4, c: 0 }, e: { r: 4, c: 6 } },
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 6 } },
+    ];
+    worksheet["!autofilter"] = { ref: "A7:Z7" };
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Debtors Age");
+
+    const monthToken =
+      String(selectedMonth || exportMeta.resolvedBillingMonth || "")
+        .trim()
+        .slice(0, 7) || formatDateForExport(now.toISOString()).replaceAll("/", "-").slice(0, 7);
+    XLSX.writeFile(workbook, `Debtors_Age_Analysis_${monthToken}.xlsx`);
+    toast.success("Debtors age analysis exported");
   };
 
   const handleOpenClientJobs = (accountNumber, state) => {
@@ -327,17 +491,30 @@ export default function AccountsReceivablesSection() {
             Billing Month Receivables View
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={loading}
-          className="rounded-xl"
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {loading ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExportExcel}
+            disabled={loading || displayRows.length === 0}
+            className="rounded-xl"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export to Excel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="rounded-xl"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
