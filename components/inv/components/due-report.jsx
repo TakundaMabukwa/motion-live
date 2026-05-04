@@ -702,7 +702,18 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
     itemRows,
     totals,
     aging,
+    agingRows,
   } = statementView;
+
+  const statementAging = Array.isArray(agingRows) && agingRows.length >= 5
+    ? agingRows
+    : [
+        aging?.current || formatCurrency(0),
+        aging?.days30 || formatCurrency(0),
+        aging?.days60 || formatCurrency(0),
+        aging?.days90 || formatCurrency(0),
+        aging?.days120Plus || formatCurrency(0),
+      ];
 
   return `
     <div class="statement-page">
@@ -803,6 +814,35 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
                 `,
               )
               .join("")}
+          </tbody>
+        </table>
+
+        <div class="statement-section-title">Age Analysis</div>
+        <table class="statement-aging-table">
+          <colgroup>
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+            <col style="width: 20%" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Current</th>
+              <th>30 Days</th>
+              <th>70 Days</th>
+              <th>90 Days</th>
+              <th>120+ Days</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="col-right">${escapeHtml(statementAging[0] || formatCurrency(0))}</td>
+              <td class="col-right">${escapeHtml(statementAging[1] || formatCurrency(0))}</td>
+              <td class="col-right">${escapeHtml(statementAging[2] || formatCurrency(0))}</td>
+              <td class="col-right">${escapeHtml(statementAging[3] || formatCurrency(0))}</td>
+              <td class="col-right">${escapeHtml(statementAging[4] || formatCurrency(0))}</td>
+            </tr>
           </tbody>
         </table>
 
@@ -1619,11 +1659,22 @@ export function buildStatementView({
       ? toNumber(totalsFromRows.outstanding)
       : statementOutstandingFromMirror;
 
-  current = statementOutstandingTotal;
-  days30 = 0;
-  days60 = 0;
-  days90 = 0;
-  days120Plus = 0;
+  const agingBucketTotal = toNumber(current) + toNumber(days30) + toNumber(days60) + toNumber(days90) + toNumber(days120Plus);
+  if (agingBucketTotal <= 0.01 && statementOutstandingTotal > 0.01) {
+    current = statementOutstandingTotal;
+    days30 = 0;
+    days60 = 0;
+    days90 = 0;
+    days120Plus = 0;
+  }
+
+  const agingRows = [
+    formatCurrency(current),
+    formatCurrency(days30),
+    formatCurrency(days60),
+    formatCurrency(days90),
+    formatCurrency(days120Plus),
+  ];
 
   return {
     clientName,
@@ -1698,12 +1749,13 @@ export function buildStatementView({
       amountDue: formatCurrency(statementOutstandingTotal),
       outstanding: formatCurrency(statementOutstandingTotal),
     },
+    agingRows,
     aging: {
-      current: formatCurrency(current),
-      days30: formatCurrency(days30),
-      days60: formatCurrency(days60),
-      days90: formatCurrency(days90),
-      days120Plus: formatCurrency(days120Plus),
+      current: agingRows[0],
+      days30: agingRows[1],
+      days60: agingRows[2],
+      days90: agingRows[3],
+      days120Plus: agingRows[4],
     },
   };
 }

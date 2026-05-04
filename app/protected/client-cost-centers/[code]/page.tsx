@@ -2560,35 +2560,87 @@ export default function ClientCostCentersPage() {
     return { reportCostCenter, invoiceView };
   };
   const buildStatementWorkbook = (statementView, includeItems = false) => {
+    const parseMoney = (value) => {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      const raw = String(value ?? '').trim();
+      if (!raw || raw === '-') return null;
+      const normalized = raw
+        .replace(/^R\s*/i, '')
+        .replace(/\s/g, '')
+        .replace(/,/g, '');
+      const isNegativeWrapped = /^\(.*\)$/.test(normalized);
+      const numeric = Number.parseFloat(normalized.replace(/[()]/g, ''));
+      if (!Number.isFinite(numeric)) return null;
+      return isNegativeWrapped ? -numeric : numeric;
+    };
+
+    const statementAgingRows =
+      Array.isArray(statementView?.agingRows) && statementView.agingRows.length >= 5
+        ? statementView.agingRows
+        : [
+            statementView?.aging?.current || formatCurrency(0),
+            statementView?.aging?.days30 || formatCurrency(0),
+            statementView?.aging?.days60 || formatCurrency(0),
+            statementView?.aging?.days90 || formatCurrency(0),
+            statementView?.aging?.days120Plus || formatCurrency(0),
+          ];
+
+    const transactionRows = (Array.isArray(statementView?.rows) ? statementView.rows : []).map((row) => [
+      row?.date || '',
+      row?.client || statementView?.clientName || '',
+      row?.description || row?.invoiceNumber || 'Transaction',
+      parseMoney(row?.amount ?? row?.totalInvoiced),
+      parseMoney(row?.debit ?? row?.totalInvoiced),
+      parseMoney(row?.credit ?? row?.paid ?? row?.credited),
+      parseMoney(row?.outstanding),
+    ]);
+
+    const agingValues = statementAgingRows.map((value) => parseMoney(value) ?? 0);
+    const summaryTotals = {
+      totalInvoiced: parseMoney(statementView?.totals?.totalInvoiced) ?? 0,
+      paid: parseMoney(statementView?.totals?.paid) ?? 0,
+      credited: parseMoney(statementView?.totals?.credited) ?? 0,
+      outstanding: parseMoney(statementView?.totals?.outstanding) ?? 0,
+    };
+
     const rows = [
       ['DEBTOR STATEMENT'],
+      [String(statementView?.clientName || '').trim() || 'Client Statement'],
       [],
-      ['Client', statementView.clientName],
-      ['Account', statementView.accountNumber],
-      ['Statement Date', statementView.statementDate],
-      ['Company Reg', statementView.companyRegistrationNumber],
-      ['Customer VAT Number', statementView.customerVatNumber],
-      ['Address', statementView.clientAddress],
+      [
+        `Account: ${statementView?.accountNumber || '-'}`,
+        '',
+        '',
+        `Statement Date: ${statementView?.statementDate || '-'}`,
+        '',
+        `Period: ${statementView?.statementPeriod || '-'}`,
+        '',
+      ],
+      [
+        `Company Reg: ${statementView?.companyRegistrationNumber || '-'}`,
+        '',
+        '',
+        `Customer VAT: ${statementView?.customerVatNumber || '-'}`,
+        '',
+        'Currency: ZAR',
+        '',
+      ],
+      [`Address: ${statementView?.clientAddress || '-'}`],
       [],
-      ['Date', 'Client', 'Invoice Number', 'Total Invoiced', 'Paid', 'Credited', 'Outstanding'],
-      ...statementView.rows.map((row) => [
-        row.date,
-        row.client,
-        row.invoiceNumber,
-        row.totalInvoiced,
-        row.paid,
-        row.credited,
-        row.outstanding,
-      ]),
+      ['DATE', 'CLIENT', 'DESCRIPTION', 'AMOUNT', 'DEBIT', 'CREDIT', 'OUTSTANDING'],
+      ...transactionRows,
       [],
       ['AGE ANALYSIS'],
-      ['Current', '30 Days', '60 Days', '90 Days', '120+ Days'],
-      statementView.agingRows,
+      ['CURRENT', '30 DAYS', '70 DAYS', '90 DAYS', '120+ DAYS'],
+      agingValues,
       [],
-      ['Total Invoiced', statementView.totals.totalInvoiced],
-      ['Paid', statementView.totals.paid],
-      ['Credited', statementView.totals.credited],
-      ['Outstanding', statementView.totals.outstanding],
+      ['SUMMARY'],
+      ['Total Invoiced', summaryTotals.totalInvoiced],
+      ['Paid', summaryTotals.paid],
+      ['Credited', summaryTotals.credited],
+      ['Outstanding', summaryTotals.outstanding],
     ];
 
     if (includeItems && Array.isArray(statementView.itemRows) && statementView.itemRows.length > 0) {
@@ -2600,14 +2652,68 @@ export default function ClientCostCentersPage() {
           row.reg,
           row.fleetNumber,
           row.description,
-          row.unitPrice,
-          row.vatAmount,
-          row.totalIncl,
+          parseMoney(row.unitPrice),
+          parseMoney(row.vatAmount),
+          parseMoney(row.totalIncl),
         ]),
       );
     }
 
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const transactionHeaderRow = 7;
+    const transactionDataStartRow = transactionHeaderRow + 1;
+    const transactionDataEndRow = transactionDataStartRow + transactionRows.length - 1;
+    const ageAnalysisTitleRow = transactionDataEndRow + 2;
+    const ageAnalysisHeaderRow = ageAnalysisTitleRow + 1;
+    const ageAnalysisDataRow = ageAnalysisHeaderRow + 1;
+    const summaryTitleRow = ageAnalysisDataRow + 2;
+    const summaryTotalStartRow = summaryTitleRow + 1;
+
+    const moneyFormat = '#,##0.00';
+    const applyMoneyFormat = (rowIndex, colIndex) => {
+      const address = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+      if (!worksheet[address] || typeof worksheet[address].v !== 'number') return;
+      worksheet[address].z = moneyFormat;
+    };
+
+    for (let rowIndex = transactionDataStartRow; rowIndex <= transactionDataEndRow; rowIndex += 1) {
+      for (const colIndex of [3, 4, 5, 6]) {
+        applyMoneyFormat(rowIndex, colIndex);
+      }
+    }
+    for (const colIndex of [0, 1, 2, 3, 4]) {
+      applyMoneyFormat(ageAnalysisDataRow, colIndex);
+    }
+    for (let rowIndex = summaryTotalStartRow; rowIndex <= summaryTotalStartRow + 3; rowIndex += 1) {
+      applyMoneyFormat(rowIndex, 1);
+    }
+
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 30 },
+      { wch: 38 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 16 },
+    ];
+    worksheet['!rows'] = [
+      { hpt: 28 },
+      { hpt: 22 },
+    ];
+    worksheet['!merges'] = [
+      XLSX.utils.decode_range('A1:G1'),
+      XLSX.utils.decode_range('A2:G2'),
+      XLSX.utils.decode_range('A6:G6'),
+      XLSX.utils.decode_range(`A${ageAnalysisTitleRow + 1}:E${ageAnalysisTitleRow + 1}`),
+      XLSX.utils.decode_range(`A${summaryTitleRow + 1}:B${summaryTitleRow + 1}`),
+    ];
+    if (transactionRows.length > 0) {
+      worksheet['!autofilter'] = {
+        ref: `A${transactionHeaderRow + 1}:G${transactionDataEndRow + 1}`,
+      };
+    }
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Statement');
     return XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });

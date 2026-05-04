@@ -393,6 +393,9 @@ export default function InventoryPage() {
       toast.dismiss(loadingToast);
       toast.success(`Job successfully moved to ${destination}`);
       removeJobCardLocally(jobId);
+      if (destination.toLowerCase() === "fc") {
+        router.push("/protected/fc/completed-jobs");
+      }
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -430,6 +433,7 @@ export default function InventoryPage() {
       setShowMoveToFcDialog(false);
       setPendingMoveJobId(null);
       setMoveToFcNote("");
+      router.push("/protected/fc/completed-jobs");
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
