@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false }),
       supabase
         .from("job_cards")
-        .select("id, new_account_number, job_number, customer_name, vehicle_registration, quotation_products, quotation_total_amount, billing_statuses, completion_date, updated_at")
+        .select("id, new_account_number, job_number, order_number, customer_name, vehicle_registration, quotation_products, quotation_total_amount, billing_statuses, completion_date, updated_at")
         .in("new_account_number", accountNumbers),
       supabase
         .from("account_invoice_payments")
@@ -355,29 +355,39 @@ export async function GET(request: NextRequest) {
           (jobNumber && accountJobNumbers.includes(jobNumber))
         );
       })
-      .map((invoice) => ({
-        id: invoice.id,
-        account_number: invoice.account_number || accountNumber,
-        billing_month:
-          normalizeBillingMonthValue(invoice?.invoice_date) ||
-          normalizeBillingMonthValue(invoice?.created_at) ||
-          null,
-        invoice_number: invoice.invoice_number || null,
-        company_name: invoice.client_name || null,
-        invoice_date: invoice.invoice_date || null,
-        total_amount: Number(invoice.total_amount || invoice.subtotal || 0),
-        paid_amount: 0,
-        balance_due: Number(invoice.total_amount || invoice.subtotal || 0),
-        credit_amount: 0,
-        payment_status: "pending",
-        notes: invoice.notes || null,
-        created_at: invoice.created_at || null,
-        due_date: invoice.due_date || null,
-        job_card_id: invoice.job_card_id || null,
-        job_number: invoice.job_number || null,
-        invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
-        source_type: "job_card_invoice",
-      }));
+      .map((invoice) => {
+        const jobCardId = String(invoice?.job_card_id || "").trim();
+        const jobNumber = String(invoice?.job_number || "").trim();
+        const linkedJobCard =
+          jobCardById.get(jobCardId) ||
+          jobCardByNumber.get(jobNumber) ||
+          null;
+
+        return {
+          id: invoice.id,
+          account_number: invoice.account_number || accountNumber,
+          billing_month:
+            normalizeBillingMonthValue(invoice?.invoice_date) ||
+            normalizeBillingMonthValue(invoice?.created_at) ||
+            null,
+          invoice_number: invoice.invoice_number || null,
+          company_name: invoice.client_name || null,
+          invoice_date: invoice.invoice_date || null,
+          total_amount: Number(invoice.total_amount || invoice.subtotal || 0),
+          paid_amount: 0,
+          balance_due: Number(invoice.total_amount || invoice.subtotal || 0),
+          credit_amount: 0,
+          payment_status: "pending",
+          notes: invoice.notes || null,
+          created_at: invoice.created_at || null,
+          due_date: invoice.due_date || null,
+          job_card_id: invoice.job_card_id || null,
+          job_number: invoice.job_number || null,
+          order_number: linkedJobCard?.order_number || null,
+          invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
+          source_type: "job_card_invoice",
+        };
+      });
 
     const invoicedJobs = Array.from(
       new Map(
@@ -401,6 +411,7 @@ export async function GET(request: NextRequest) {
                   id: row?.id || null,
                   account_number: row?.new_account_number || null,
                   job_number: row?.job_number || null,
+                  order_number: row?.order_number || null,
                   customer_name: row?.customer_name || null,
                   vehicle_registration: row?.vehicle_registration || null,
                   quotation_products: Array.isArray(row?.quotation_products) ? row.quotation_products : [],
@@ -461,6 +472,7 @@ export async function GET(request: NextRequest) {
                 ),
                 invoice_number: invoice?.invoice_number || null,
                 invoice_date: invoice?.invoice_date || null,
+                order_number: linkedJobCard?.order_number || null,
               },
             ];
           }),

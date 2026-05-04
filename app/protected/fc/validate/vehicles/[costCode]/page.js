@@ -2233,6 +2233,7 @@ export default function ValidateVehiclesPage() {
                     <th className="px-3 py-2 text-left">Date</th>
                     <th className="px-3 py-2 text-left">Billing Month</th>
                     <th className="px-3 py-2 text-left">Invoice Number</th>
+                    <th className="px-3 py-2 text-left">Order Number</th>
                     <th className="px-3 py-2 text-left">Account</th>
                     <th className="px-3 py-2 text-left">Customer</th>
                     <th className="px-3 py-2 text-right">Amount</th>
@@ -2252,6 +2253,9 @@ export default function ValidateVehiclesPage() {
                       </td>
                       <td className="px-3 py-2 font-medium text-slate-900">
                         {invoice?.invoice_number || "N/A"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {invoice?.order_number || "N/A"}
                       </td>
                       <td className="px-3 py-2">{invoice?.account_number || costCode || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.company_name || invoice?.client_name || "N/A"}</td>
@@ -2351,6 +2355,9 @@ export default function ValidateVehiclesPage() {
                 </h3>
                 <p className="mt-1 text-sm text-gray-500">
                   View and print invoice for {jobCardInvoicePreview?.account_number || costCode}
+                  {jobCardInvoicePreview?.order_number
+                    ? ` | Order ${jobCardInvoicePreview.order_number}`
+                    : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2">

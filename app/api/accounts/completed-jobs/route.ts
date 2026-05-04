@@ -20,82 +20,38 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch completed jobs where role is 'accounts' and job_status is 'Completed' or 'Invoiced'
-    const baseQuery = () =>
-      supabase
-        .from("job_cards")
-        .select(
-          `
-          id,
-          job_number,
-          job_date,
-          end_time,
-          status,
-          job_type,
-          job_description,
-          customer_name,
-          customer_email,
-          vehicle_registration,
-          vehicle_make,
-          vehicle_model,
-          updated_at,
-          job_status,
-          quotation_products,
-          quotation_total_amount,
-          billing_statuses,
-          completion_notes,
-          completion_date,
-          new_account_number,
-          order_number,
-          invoiced_by
-        `,
-        )
-        .eq("role", "accounts")
-        .in("job_status", ["Completed", "completed", "Invoiced", "invoiced"]);
-
-    const buildFilteredQuery = () => {
-      let query = baseQuery();
-
-      if (invoiceState === "invoiced") {
-        query = query.in("job_status", ["Invoiced", "invoiced"]);
-      } else if (invoiceState === "not_invoiced") {
-        query = query.in("job_status", ["Completed", "completed"]);
-      }
-
-      if (search) {
-        const escapedSearch = search.replace(/[%_,]/g, "");
-        if (searchField === "job_number") {
-          query = query.ilike("job_number", `%${escapedSearch}%`);
-        } else {
-          query = query.or(
-            [
-              `job_number.ilike.%${escapedSearch}%`,
-              `customer_name.ilike.%${escapedSearch}%`,
-              `customer_email.ilike.%${escapedSearch}%`,
-            ].join(","),
-          );
-        }
-      }
-
-      return query.order("completion_date", { ascending: false });
-    };
-
-    const [jobsResult, invoicedCountResult, notInvoicedCountResult] =
-      await Promise.all([
-        buildFilteredQuery(),
-        supabase
-          .from("job_cards")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "accounts")
-          .in("job_status", ["Invoiced", "invoiced"]),
-        supabase
-          .from("job_cards")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "accounts")
-          .in("job_status", ["Completed", "completed"]),
-      ]);
-
-    const { data, error } = jobsResult;
+    // Fetch accounts-routed jobs and classify invoice state consistently.
+    // Some legacy rows have status="completed" but job_status not set to Completed.
+    const { data, error } = await supabase
+      .from("job_cards")
+      .select(
+        `
+        id,
+        job_number,
+        job_date,
+        end_time,
+        status,
+        job_type,
+        job_description,
+        customer_name,
+        customer_email,
+        vehicle_registration,
+        vehicle_make,
+        vehicle_model,
+        updated_at,
+        job_status,
+        quotation_products,
+        quotation_total_amount,
+        billing_statuses,
+        completion_notes,
+        completion_date,
+        new_account_number,
+        order_number,
+        invoiced_by
+      `,
+      )
+      .eq("role", "accounts")
+      .order("completion_date", { ascending: false });
 
     if (error) {
       console.error("Error fetching accounts completed jobs:", error);
@@ -105,9 +61,88 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const isInvoiceMarked = (job: Record<string, unknown>) => {
+      const billingStatuses =
+        typeof job?.billing_statuses === "object" && job?.billing_statuses !== null
+          ? (job.billing_statuses as Record<string, unknown>)
+          : {};
+      const invoiceStatus = billingStatuses.invoice;
+
+      if (invoiceStatus === true) return true;
+      if (invoiceStatus && typeof invoiceStatus === "object") {
+        const invoiceObj = invoiceStatus as Record<string, unknown>;
+        return Boolean(
+          invoiceObj.done === true ||
+            invoiceObj.invoice_id ||
+            invoiceObj.invoice_number ||
+            invoiceObj.reference,
+        );
+      }
+      return false;
+    };
+
+    const normalizedJobs = (data || []).map((job) => {
+      const normalizedJobStatus = String(job.job_status || "")
+        .trim()
+        .toLowerCase();
+      const normalizedStatus = String(job.status || "").trim().toLowerCase();
+      const isCompletedFamily =
+        normalizedJobStatus === "completed" ||
+        normalizedJobStatus === "invoiced" ||
+        normalizedStatus === "completed";
+      const isInvoiced = normalizedJobStatus === "invoiced" || isInvoiceMarked(job);
+
+      return {
+        job,
+        normalizedJobStatus,
+        isCompletedFamily,
+        isInvoiced,
+      };
+    });
+
+    const completedUniverse = normalizedJobs.filter((row) => row.isCompletedFamily);
+
+    const tabFilteredRows = completedUniverse.filter((row) => {
+      if (invoiceState === "invoiced") return row.isInvoiced;
+      if (invoiceState === "not_invoiced") return !row.isInvoiced;
+      return true;
+    });
+
+    const escapedSearch = search.replace(/[%_,]/g, "").toLowerCase();
+    const searchFilteredRows = tabFilteredRows.filter((row) => {
+      if (!escapedSearch) return true;
+
+      const jobNumber = String(row.job.job_number || "").toLowerCase();
+      if (searchField === "job_number") {
+        return jobNumber.includes(escapedSearch);
+      }
+
+      return [
+        row.job.job_number,
+        row.job.customer_name,
+        row.job.customer_email,
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(escapedSearch),
+      );
+    });
+
+    const counts = completedUniverse.reduce(
+      (acc, row) => {
+        if (row.isInvoiced) {
+          acc.invoiced += 1;
+        } else {
+          acc.notInvoiced += 1;
+        }
+        return acc;
+      },
+      { invoiced: 0, notInvoiced: 0 },
+    );
+
+    const filteredJobs = searchFilteredRows.map((row) => row.job);
+
     const invoicedByIds = Array.from(
       new Set(
-        (data || [])
+        filteredJobs
           .map((job) => job.invoiced_by)
           .filter((value) => typeof value === "string" && value.length > 0),
       ),
@@ -129,7 +164,7 @@ export async function GET(request: NextRequest) {
     const userEmailById = new Map((users || []).map((row) => [row.id, row.email]));
 
     // Transform the data to match the expected format
-    const transformedJobs = (data || []).map((job) => {
+    const transformedJobs = filteredJobs.map((job) => {
       const effectiveInvoicedBy = job.invoiced_by || null;
 
       return {
@@ -201,10 +236,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       jobs: transformedJobs,
       total: transformedJobs.length,
-      counts: {
-        invoiced: invoicedCountResult.count || 0,
-        notInvoiced: notInvoicedCountResult.count || 0,
-      },
+      counts,
     });
   } catch (error) {
     console.error("Error in accounts completed jobs GET:", error);

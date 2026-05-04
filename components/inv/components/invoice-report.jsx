@@ -710,6 +710,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
     clientAddress,
     companyRegistrationNumber,
     invoiceNumber,
+    orderNumber,
     invoiceDate,
     accountNumber,
     customerVatNumber,
@@ -749,6 +750,8 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
             <div className="invoice-meta-value">{invoiceNumber}</div>
             <div className="invoice-meta-label">Date:</div>
             <div className="invoice-meta-value">{invoiceDate}</div>
+            <div className="invoice-meta-label">Order Number:</div>
+            <div className="invoice-meta-value">{orderNumber}</div>
           </div>
         </div>
 
@@ -1030,6 +1033,14 @@ export function buildInvoiceView({
       costCenter?.invoiceNumber,
       costCenter?.invoice_number,
     ) || "PENDING";
+  const orderNumber =
+    String(
+      activeInvoiceData?.order_number ||
+        activeInvoiceData?.orderNumber ||
+        activeInvoiceData?.order_no ||
+        costCenter?.order_number ||
+        "",
+    ).trim() || "N/A";
   const companyRegistrationNumber = liveCompanyRegistrationNumber;
 
   const totals = {
@@ -1048,6 +1059,7 @@ export function buildInvoiceView({
     clientAddress,
     companyRegistrationNumber,
     invoiceNumber,
+    orderNumber,
     invoiceDate: formatDate(activeInvoiceData?.invoice_date || getBillingInvoiceDate(activeInvoiceData?.billing_month || costCenter?.billingMonth)),
     accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
     customerVatNumber: liveCustomerVatNumber,
@@ -1112,6 +1124,8 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
                     <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceNumber)}</div>
                   <div class="invoice-meta-label">Date:</div>
                   <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceDate)}</div>
+                  <div class="invoice-meta-label">Order Number:</div>
+                  <div class="invoice-meta-value">${escapeHtml(invoiceView.orderNumber || "N/A")}</div>
                 </div>
               </div>
               <table class="invoice-summary-table">
