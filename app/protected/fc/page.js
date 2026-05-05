@@ -50,6 +50,7 @@ export default function AccountsDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
   const [fromRiaPendingCount, setFromRiaPendingCount] = useState(0);
+  const [escalationActionJobId, setEscalationActionJobId] = useState(null);
   const lastCompaniesRefreshRef = useRef(0);
 
   const maybeRefreshCompanyGroups = async (force = false) => {
@@ -140,6 +141,59 @@ export default function AccountsDashboard() {
 
   const handleNewAccount = () => {
     router.push('/protected/fc/add-account');
+  };
+
+  const handleEscalationFinalize = async ({
+    job,
+    refreshEscalations,
+  }) => {
+    if (!job?.id) return;
+
+    const loadingToast = toast.loading(
+      "Opening Job Card Review finalize flow...",
+    );
+
+    try {
+      setEscalationActionJobId(job.id);
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          destination: "fc",
+          preserveCompleted: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(
+          errorBody?.error ||
+            errorBody?.details ||
+            "Failed to finalize escalated job",
+        );
+      }
+
+      toast.dismiss(loadingToast);
+      toast.success("Job finalized. Opening Job Card Review...");
+      if (typeof refreshEscalations === "function") {
+        await refreshEscalations();
+      }
+      router.push(
+        `/protected/fc/completed-jobs?jobId=${encodeURIComponent(job.id)}&openFinalize=1`,
+      );
+    } catch (error) {
+      console.error("Error finalizing escalated job:", error);
+      toast.dismiss(loadingToast);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to finalize escalated job",
+      );
+    } finally {
+      setEscalationActionJobId(null);
+    }
   };
 
   const resolveAccountNumbers = (group) => {
@@ -422,15 +476,32 @@ export default function AccountsDashboard() {
               { value: "admin", label: "Admin" },
               { value: "accounts", label: "Accounts" },
             ]}
-            renderActions={(job) => (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => router.push(`/protected/fc/jobs/${job.id}/edit`)}
-              >
-                Review
-              </Button>
-            )}
+            renderActions={(job, helpers) => {
+              const movingThisJob = helpers?.movingJobId === job.id;
+              const isFinalizing = escalationActionJobId === job.id;
+              const actionBusy = movingThisJob || isFinalizing;
+
+              return (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={actionBusy}
+                  onClick={() =>
+                    handleEscalationFinalize({
+                      job,
+                      refreshEscalations: helpers?.refresh,
+                    })
+                  }
+                >
+                  {isFinalizing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Edit and Finalize
+                </Button>
+              );
+            }}
           />
         );
 

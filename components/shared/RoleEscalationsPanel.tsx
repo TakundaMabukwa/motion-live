@@ -39,7 +39,13 @@ type RoleEscalationsPanelProps = {
   emptyTitle?: string;
   emptyDescription?: string;
   hideCompletedJobs?: boolean;
-  renderActions?: (job: EscalationJob) => ReactNode;
+  renderActions?: (
+    job: EscalationJob,
+    helpers: {
+      refresh: () => Promise<void>;
+      movingJobId: string | null;
+    },
+  ) => ReactNode;
   moveOptions?: Array<{
     value: string;
     label: string;
@@ -339,7 +345,12 @@ export default function RoleEscalationsPanel({
                               </SelectContent>
                             </Select>
                           ) : null}
-                          {renderActions ? renderActions(job) : null}
+                          {renderActions
+                            ? renderActions(job, {
+                                refresh: fetchEscalations,
+                                movingJobId,
+                              })
+                            : null}
                         </div>
                       </td>
                     </tr>

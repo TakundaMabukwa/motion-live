@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,6 +170,8 @@ type EditFormData = {
   special_instructions: string;
   customer_feedback: string;
 };
+
+type EditDialogTab = "overview" | "vehicle" | "pricing" | "finalize";
 
 const EMPTY_FORM_DATA: EditFormData = {
   vehicle_registration: "",
@@ -405,6 +407,8 @@ const getJobTypeColor = (jobType?: string | null): string => {
 
 export default function FCCompletedJobsPage() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const autoOpenedFinalizeJobRef = useRef<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [creatorFilter, setCreatorFilter] = useState("all");
   const [jobs, setJobs] = useState<CompletedJob[]>([]);
@@ -415,6 +419,7 @@ export default function FCCompletedJobsPage() {
   const [showDetails, setShowDetails] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingJob, setEditingJob] = useState<CompletedJob | null>(null);
+  const [editDialogTab, setEditDialogTab] = useState<EditDialogTab>("overview");
   const [formData, setFormData] = useState<EditFormData>(EMPTY_FORM_DATA);
   const [editableQuotationProducts, setEditableQuotationProducts] = useState<
     QuotationProduct[]
@@ -457,6 +462,19 @@ export default function FCCompletedJobsPage() {
     await fetchCompletedJobs();
   };
 
+  const requestedFinalizeJobId = useMemo(() => {
+    const jobId = toStringSafe(searchParams.get("jobId")).trim();
+    const openFinalize = toStringSafe(searchParams.get("openFinalize"))
+      .trim()
+      .toLowerCase();
+
+    if (!jobId) return "";
+    if (openFinalize && !["1", "true", "yes"].includes(openFinalize)) {
+      return "";
+    }
+    return jobId;
+  }, [searchParams]);
+
   const creatorOptions = useMemo(() => {
     return Array.from(new Set(fcUsers)).sort((a, b) => a.localeCompare(b));
   }, [fcUsers]);
@@ -491,7 +509,10 @@ export default function FCCompletedJobsPage() {
     setShowDetails(true);
   };
 
-  const handleEditJob = (job: CompletedJob) => {
+  const handleEditJob = (
+    job: CompletedJob,
+    initialTab: EditDialogTab = "overview",
+  ) => {
     const quotationProducts = parseQuotationProducts(job.quotation_products);
     const derivedTotals = buildTotalsFromQuotationProducts(quotationProducts);
     setEditingJob(job);
@@ -519,8 +540,30 @@ export default function FCCompletedJobsPage() {
       customer_feedback: toStringSafe(job.customer_feedback),
     });
     setEditableQuotationProducts(quotationProducts);
+    setEditDialogTab(initialTab);
     setShowEditDialog(true);
   };
+
+  useEffect(() => {
+    if (!requestedFinalizeJobId || loading) return;
+    if (autoOpenedFinalizeJobRef.current === requestedFinalizeJobId) return;
+
+    const matchedJob = jobs.find(
+      (job) =>
+        toStringSafe(job.id).trim() === requestedFinalizeJobId ||
+        toStringSafe(job.job_number).trim() === requestedFinalizeJobId,
+    );
+
+    if (!matchedJob) {
+      toast.error(
+        "Job not available in Job Card Review yet. Please refresh and try again.",
+      );
+      return;
+    }
+
+    autoOpenedFinalizeJobRef.current = requestedFinalizeJobId;
+    handleEditJob(matchedJob, "finalize");
+  }, [jobs, loading, requestedFinalizeJobId]);
 
   const handleMoveJob = async (job: CompletedJob, destination: string) => {
     if (!job?.id || !destination) return;
@@ -1591,7 +1634,13 @@ export default function FCCompletedJobsPage() {
 
           {editingJob && (
             <div className="space-y-6">
-              <Tabs defaultValue="overview" className="w-full">
+              <Tabs
+                value={editDialogTab}
+                onValueChange={(value) =>
+                  setEditDialogTab((value as EditDialogTab) || "overview")
+                }
+                className="w-full"
+              >
                 <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="vehicle">Vehicle and Site</TabsTrigger>
