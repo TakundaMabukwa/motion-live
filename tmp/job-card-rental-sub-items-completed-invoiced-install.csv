@@ -1,0 +1,338 @@
+job_id,job_number,job_status,status,job_type,quotation_job_type,move_to,role,quotation_total_amount,item_id,item_name,item_description,quantity,line_total,rental_price,subscription_price,rental_gross,subscription_gross,rental_plus_subscription
+dd0d4943-3810-46b8-8993-4b1435ba4a26,SOL-530578,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+d6e65540-40b8-48ba-b3a4-d594dbcb71ac,SOL-931061,Invoiced,completed,install,install,accounts,accounts,145.7,85229bd4-0b57-404a-8601-62e995567f3c,SMS,SMS,362,,0,0,0,0,0
+b218f3cf-38c3-4aa2-a11c-9ba7b7d998ec,SOL-575752,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+d4597479-9394-429f-90c4-4b2c8fe4f2f5,SOL-655602,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+d4597479-9394-429f-90c4-4b2c8fe4f2f5,SOL-655602,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+d4597479-9394-429f-90c4-4b2c8fe4f2f5,SOL-655602,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+2a538598-a2fa-4b11-83e5-6d8019ad31ae,SOL-563195,Invoiced,completed,install,install,fc,accounts,300,f0bd8884-89ac-4f5a-9b81-6c4eaa1e9dba,720652S - PFK - 720 DISP BLOW TUBE PACK OF 25,,3,,0,0,0,0,0
+7ea95ead-3a55-4cfc-942e-0627a0ce2b07,SOL-640337,Invoiced,completed,install,install,accounts,accounts,80.5,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,70,0,70,70
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,c4cb4357-8700-4077-89e5-91e26e6797ab,MTX-SPEAKER,MTX Speaker,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,bdccf314-bb34-4e32-8edb-fdc7277666f2,MTX-MC807I,IP CAMERA,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,Invoiced,completed,install,install,fc,accounts,17743,labour-1774435832429,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+809efecd-64ff-42e6-a93c-76b7b2212bc7,SOL-700196,Invoiced,completed,install,install,fc,accounts,140.3,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,2,0,2,2
+2c7ae182-3d13-41cc-b891-531a81fc9dfe,SOL-642708,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,4e24c876-51a6-4a8a-89a8-f1f36d58726c,VODACOM - SIM CARD,SIM CARD,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,34b369e6-534c-400d-b854-4429d0bc062b,MTX-MC820E,ROAD FACING ADAS CAM,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,bdccf314-bb34-4e32-8edb-fdc7277666f2,MTX-MC807I,IP CAMERA,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,f6ea50b5-6b60-4a2d-8a6b-15a2be9d4602,MTX-CABLE 10M / 10 METER EXT CABLE,10 Meter Extension Cable,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,66eab260-ffc2-4ae5-b6a9-bb137d282194,MTX-5M IPC 6 PIN / 5M IP CAMERA CABLE 6 PINS,5M IP Camera Cable 6 Pins,1,,0,0,0,0,0
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,Invoiced,completed,install,install,fc,accounts,20404.45,labour-1774435042618,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,0ad67cea-b946-478e-89b9-999a7d84e7b4,MTX - 832 - ROAD FACING CAM 1080P,Road Facing Camera 1080P,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,43007963-39ca-416c-98b4-a41843fff40d,MTX-MC808K,OUTSIDE SIDE VIEW CAM,2,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,labour-1776417405415,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,80,80,80,80,160
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,Invoiced,completed,install,install,fc,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+ba4e3c68-6180-41e5-bd60-319f2b0de16d,SOL-891458,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+dc1bd2f3-07d1-4a01-997e-c2167f6c9a8b,SOL-592627,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+ea3fd3f3-0440-49c8-a505-732b6bbaa5dd,SOL-280898,Invoiced,completed,install,install,fc,accounts,120,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+549760c3-77d0-4b06-8888-d93f1f2a5cfc,SOL-202925,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+8440670d-10ca-4e1c-a093-094ed9f2952c,SOL-579215,Invoiced,completed,install,install,accounts,accounts,665.85,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,17,79,17,79,96
+8440670d-10ca-4e1c-a093-094ed9f2952c,SOL-579215,Invoiced,completed,install,install,accounts,accounts,665.85,labour-1774423351771,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+e3437fd9-a093-45b8-968b-b697ee6f4b87,SOL-702563,Invoiced,completed,install,install,accounts,accounts,80.5,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,70,0,70,70
+78c7ab5e-1a31-49be-afa4-f9c14d0721b8,SOL-243153,Invoiced,completed,install,install,accounts,accounts,80.5,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,70,0,70,70
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,03e98975-aa9f-4af3-b184-7e48cec2b092,PANIC,,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,80,80,80,80,160
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,15c21dd7-384d-413b-b8df-8ed856fbcaa4,MTX-MC807I - IP CAMERA ROUND,IP Camera Round,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,0be72037-8983-4339-9325-e8ebf39e5b9f,MTX-MC820E / ROAD FACING ADAS CAM,Road Facing ADAS Camera,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,45d673e0-3f93-4076-b161-092de5bcaa0f,MTX-5M IPC 6 PIN,5M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,5f2dfcfa-8f7a-4ca7-8c03-0e77ace10b5e,5G CORP - SIM CARD,SIM CARD,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,c9b4aa21-5244-4465-aa13-6dd1ea76b70d,M2M Data Card,SUPPLIER: VODACOM | CODE: Vodacom Sim Card,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,labour-1773216738496,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,Invoiced,completed,install,install,accounts,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,6,6,6,6,12
+a584003f-8c14-4be5-8ed9-0e1303dff87c,SOL-542373,Invoiced,completed,install,install,accounts,accounts,16859,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+a584003f-8c14-4be5-8ed9-0e1303dff87c,SOL-542373,Invoiced,completed,install,install,accounts,accounts,16859,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+a584003f-8c14-4be5-8ed9-0e1303dff87c,SOL-542373,Invoiced,completed,install,install,accounts,accounts,16859,113f372f-0165-43ac-a8ae-f9ef63a3deb3,MTX-MC904 EU,MDVR MINI,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,80,80,80,80,160
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,bdccf314-bb34-4e32-8edb-fdc7277666f2,MTX-MC807I,IP CAMERA,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,34b369e6-534c-400d-b854-4429d0bc062b,MTX-MC820E,ROAD FACING ADAS CAM,1,,0,0,0,0,0
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,6,6,6,6,12
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,Invoiced,completed,install,install,accounts,accounts,17743,labour-1773220754746,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+895416e2-ed66-4852-8b29-31a461439935,SOL-781197,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,4e24c876-51a6-4a8a-89a8-f1f36d58726c,VODACOM - SIM CARD,SIM CARD,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,c4cb4357-8700-4077-89e5-91e26e6797ab,MTX-SPEAKER,MTX Speaker,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,66eab260-ffc2-4ae5-b6a9-bb137d282194,MTX-5M IPC 6 PIN / 5M IP CAMERA CABLE 6 PINS,5M IP Camera Cable 6 Pins,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,labour-1774432471401,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,bdccf314-bb34-4e32-8edb-fdc7277666f2,MTX-MC807I,IP CAMERA,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,34b369e6-534c-400d-b854-4429d0bc062b,MTX-MC820E,ROAD FACING ADAS CAM,1,,0,0,0,0,0
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,Invoiced,completed,install,install,fc,accounts,20404.45,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,4e24c876-51a6-4a8a-89a8-f1f36d58726c,VODACOM - SIM CARD,SIM CARD,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,0be72037-8983-4339-9325-e8ebf39e5b9f,MTX-MC820E / ROAD FACING ADAS CAM,Road Facing ADAS Camera,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,bdccf314-bb34-4e32-8edb-fdc7277666f2,MTX-MC807I,IP CAMERA,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,bcd9de6a-8810-4c55-9025-2a6ba4347638,MTX-SPEAKER,SPEAKER,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,5f2dfcfa-8f7a-4ca7-8c03-0e77ace10b5e,5G CORP - SIM CARD,SIM CARD,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,labour-1774430732898,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,Invoiced,completed,install,install,fc,accounts,20404.45,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+d7e5d01c-03df-4a33-83c5-84161be6e646,SOL-759415,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,80,80,80,80,160
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,15c21dd7-384d-413b-b8df-8ed856fbcaa4,MTX-MC807I - IP CAMERA ROUND,IP Camera Round,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,2,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,labour-1776418431533,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,45d673e0-3f93-4076-b161-092de5bcaa0f,MTX-5M IPC 6 PIN,5M IP CAMERA CABLE 6 PINS,2,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,0be72037-8983-4339-9325-e8ebf39e5b9f,MTX-MC820E / ROAD FACING ADAS CAM,Road Facing ADAS Camera,1,,0,0,0,0,0
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,Invoiced,completed,install,install,fc,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,-1,0,0,-1
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,4e24c876-51a6-4a8a-89a8-f1f36d58726c,VODACOM - SIM CARD,SIM CARD,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,528,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,1780a1d4-b489-4258-a199-b6668b24cd0e,MTX-MC904 EU / MDVR MINI - 4CH - NON AI,MDVR MINI 4 Channel Non-AI,1,,0,295,0,295,295
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,34b369e6-534c-400d-b854-4429d0bc062b,MTX-MC820E,ROAD FACING ADAS CAM,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,15c21dd7-384d-413b-b8df-8ed856fbcaa4,MTX-MC807I - IP CAMERA ROUND,IP Camera Round,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,66eab260-ffc2-4ae5-b6a9-bb137d282194,MTX-5M IPC 6 PIN / 5M IP CAMERA CABLE 6 PINS,5M IP Camera Cable 6 Pins,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,45d673e0-3f93-4076-b161-092de5bcaa0f,MTX-5M IPC 6 PIN,5M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,c4cb4357-8700-4077-89e5-91e26e6797ab,MTX-SPEAKER,MTX Speaker,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,labour-1774426982332,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,Invoiced,completed,install,install,fc,accounts,20404.45,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+8b809859-7664-4bea-a85a-d5c7b777d1d4,SOL-212181,Invoiced,completed,install,install,fc,accounts,586.5,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,60,0,60,60
+3d8de0a2-3150-49dd-80f6-e5c3eb1138d6,SOL-502311,Invoiced,completed,install,install,fc,accounts,106.92,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,17.92,89,17.92,89,106.92
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,Invoiced,completed,install,install,fc,accounts,1469,06ae912e-6545-4155-bccc-93940ded9eda,Software,Software,1,,0,200,0,200,200
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,Invoiced,completed,install,install,fc,accounts,1469,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,189,0,189,189
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,Invoiced,completed,install,install,fc,accounts,1469,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,235,295,235,295,530
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,Invoiced,completed,install,install,fc,accounts,1469,13980cf3-7fee-40cb-b906-1bf447e8d005,MTX-TF card,SD Card,1,,0,0,0,0,0
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,Invoiced,completed,install,install,fc,accounts,1469,labour-1776075423186,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,Invoiced,completed,install,install,fc,accounts,1469,06ae912e-6545-4155-bccc-93940ded9eda,Software,Software,1,,0,200,0,200,200
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,Invoiced,completed,install,install,fc,accounts,1469,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,189,0,189,189
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,Invoiced,completed,install,install,fc,accounts,1469,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,235,295,235,295,530
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,Invoiced,completed,install,install,fc,accounts,1469,13980cf3-7fee-40cb-b906-1bf447e8d005,MTX-TF card,SD Card,1,,0,0,0,0,0
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,Invoiced,completed,install,install,fc,accounts,1469,labour-1776075738161,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+ada74221-f353-49c3-a504-512f02062ff7,SOL-255582,Invoiced,completed,install,install,fc,accounts,339.25,dde96477-cf45-4dac-abc5-2b635b542fc1,Roaming,Cross Border Tracking,1,,0,295,0,295,295
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,113f372f-0165-43ac-a8ae-f9ef63a3deb3,MTX-MC904 EU,MDVR MINI,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,8565b9a1-0108-48fe-a6a0-7190a6bfbc6a,MTX-MC833 / DRIVER FACING CAM NO AI,Driver Facing Camera No AI,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,0ad67cea-b946-478e-89b9-999a7d84e7b4,MTX - 832 - ROAD FACING CAM 1080P,Road Facing Camera 1080P,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,43007963-39ca-416c-98b4-a41843fff40d,MTX-MC808K,OUTSIDE SIDE VIEW CAM,2,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,19802076-2d85-49b6-8297-edb524d7d79d,MTX-804I-REAR VIEW IPC CAMERA,Rear View IPC Camera,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,2,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,Invoiced,completed,install,install,fc,accounts,12510,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,1780a1d4-b489-4258-a199-b6668b24cd0e,MTX-MC904 EU / MDVR MINI - 4CH - NON AI,MDVR MINI 4 Channel Non-AI,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,8565b9a1-0108-48fe-a6a0-7190a6bfbc6a,MTX-MC833 / DRIVER FACING CAM NO AI,Driver Facing Camera No AI,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,0ad67cea-b946-478e-89b9-999a7d84e7b4,MTX - 832 - ROAD FACING CAM 1080P,Road Facing Camera 1080P,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,19802076-2d85-49b6-8297-edb524d7d79d,MTX-804I-REAR VIEW IPC CAMERA,Rear View IPC Camera,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,Invoiced,completed,install,install,fc,accounts,12508,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+3ad15359-9ec2-4211-abbd-fff0d77a055e,SOL-334409,Invoiced,completed,install,install,fc,accounts,1265,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+3ad15359-9ec2-4211-abbd-fff0d77a055e,SOL-334409,Invoiced,completed,install,install,fc,accounts,1265,1780a1d4-b489-4258-a199-b6668b24cd0e,MTX-MC904 EU / MDVR MINI - 4CH - NON AI,MDVR MINI 4 Channel Non-AI,1,,0,0,0,0,0
+068fa517-814a-4a4f-816d-ef2dbaaf821e,SOL-164333,Invoiced,completed,install,install,fc,accounts,0,42b87e7b-027f-4350-bce4-edacb21e671b,BREATHALOK,,1,,0,0,432,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,c9b4aa21-5244-4465-aa13-6dd1ea76b70d,M2M Data Card,SUPPLIER: VODACOM | CODE: Vodacom Sim Card,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,f3741375-e24e-41c1-ba59-cc40aab5045a,Panic Flush,Panic Button,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,113f372f-0165-43ac-a8ae-f9ef63a3deb3,MTX-MC904 EU,MDVR MINI,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,8565b9a1-0108-48fe-a6a0-7190a6bfbc6a,MTX-MC833 / DRIVER FACING CAM NO AI,Driver Facing Camera No AI,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,0ad67cea-b946-478e-89b9-999a7d84e7b4,MTX - 832 - ROAD FACING CAM 1080P,Road Facing Camera 1080P,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,43007963-39ca-416c-98b4-a41843fff40d,MTX-MC808K,OUTSIDE SIDE VIEW CAM,2,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,19802076-2d85-49b6-8297-edb524d7d79d,MTX-804I-REAR VIEW IPC CAMERA,Rear View IPC Camera,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,2,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,92d2edfa-31f8-4a74-b167-9b430185fcbe,720081-02 - 720 INTERLOCK SYSTEM - RSA LOCAL (AUTOWATCH),720 Interlock System - RSA Local (Autowatch),1,,0,0,0,0,0
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,Invoiced,completed,install,install,fc,accounts,24010,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+02051643-d592-49a9-b339-8076e3a7056e,SOL-156583,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+cbf02bb7-becc-4e69-a53e-53f3e3d54545,SOL-844225,Invoiced,completed,install,install,fc,accounts,295,dde96477-cf45-4dac-abc5-2b635b542fc1,Roaming,Cross Border Tracking,1,,0,295,0,195,295
+76a54f63-7f98-40de-88bf-208c1fe02002,SOL-709720,Invoiced,completed,install,install,fc,accounts,10995,42b87e7b-027f-4350-bce4-edacb21e671b,BREATHALOK,,1,,0,0,0,0,0
+1c4fc55e-78f5-4d2b-8d65-d5fa82b089c2,SOL-512085,Invoiced,completed,install,install,fc,accounts,137.97,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,Invoiced,completed,install,install,fc,accounts,1469,06ae912e-6545-4155-bccc-93940ded9eda,Software,Software,1,,0,200,0,200,200
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,Invoiced,completed,install,install,fc,accounts,1469,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,189,0,189,189
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,Invoiced,completed,install,install,fc,accounts,1469,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,235,295,235,295,530
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,Invoiced,completed,install,install,fc,accounts,1469,13980cf3-7fee-40cb-b906-1bf447e8d005,MTX-TF card,SD Card,1,,0,0,0,0,0
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,Invoiced,completed,install,install,fc,accounts,1469,labour-1776076442954,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+c8e60457-4c6f-4874-940a-6492291873b3,SOL-830555,Invoiced,completed,install,install,accounts,accounts,120,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,c9b4aa21-5244-4465-aa13-6dd1ea76b70d,M2M Data Card,SUPPLIER: VODACOM | CODE: Vodacom Sim Card,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,f3741375-e24e-41c1-ba59-cc40aab5045a,Panic Flush,Panic Button,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,113f372f-0165-43ac-a8ae-f9ef63a3deb3,MTX-MC904 EU,MDVR MINI,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,8565b9a1-0108-48fe-a6a0-7190a6bfbc6a,MTX-MC833 / DRIVER FACING CAM NO AI,Driver Facing Camera No AI,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,43007963-39ca-416c-98b4-a41843fff40d,MTX-MC808K,OUTSIDE SIDE VIEW CAM,2,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,0ad67cea-b946-478e-89b9-999a7d84e7b4,MTX - 832 - ROAD FACING CAM 1080P,Road Facing Camera 1080P,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,19802076-2d85-49b6-8297-edb524d7d79d,MTX-804I-REAR VIEW IPC CAMERA,Rear View IPC Camera,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,16cd170c-a774-4582-929f-4280cebefb6f,MTX - CABLE - 5M,5 Meter Cable,2,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,2,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,9f6e9bfd-14bf-446b-b3f3-fa2a4df2d336,MTX-10M IPC 6 PIN,10M IP CAMERA CABLE 6 PINS,1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,92d2edfa-31f8-4a74-b167-9b430185fcbe,720081-02 - 720 INTERLOCK SYSTEM - RSA LOCAL (AUTOWATCH),720 Interlock System - RSA Local (Autowatch),1,,0,0,0,0,0
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,Invoiced,completed,install,install,fc,accounts,24010,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+9c9c8605-73d6-4bec-be83-f2292c21c4ed,SOL-684822,Invoiced,completed,install,install,accounts,accounts,120,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+383bdff4-6700-4741-8a80-051a43975d7f,SOL-771005,Invoiced,completed,install,install,fc,accounts,684.25,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+98fb2b6a-7616-4503-86a6-b5ba1434ef2f,SOL-440825,Invoiced,completed,install,install,fc,accounts,11445,42b87e7b-027f-4350-bce4-edacb21e671b,BREATHALOK,,1,,0,0,0,0,0
+7ca99c93-87fd-43bf-8f3b-b33ee6299c3e,SOL-373947,Invoiced,completed,install,install,fc,accounts,450,96cd4940-8b8c-4ddc-bb6a-18d0d7db24a6,Labour,,1,,0,0,0,0,0
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,Invoiced,completed,install,install,fc,accounts,1469,06ae912e-6545-4155-bccc-93940ded9eda,Software,Software,1,,0,200,0,200,200
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,Invoiced,completed,install,install,fc,accounts,1469,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,189,0,189,189
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,Invoiced,completed,install,install,fc,accounts,1469,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,235,295,235,295,530
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,Invoiced,completed,install,install,fc,accounts,1469,13980cf3-7fee-40cb-b906-1bf447e8d005,MTX-TF card,SD Card,1,,0,0,0,0,0
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,Invoiced,completed,install,install,fc,accounts,1469,labour-1776076035618,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+4471a8dd-9ecb-4763-9121-10ad99432e1f,SOL-737553,Invoiced,completed,install,install,fc,accounts,684.25,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,-2,0,0,-2
+e9da6473-93fc-4754-80ee-8a1f8fbf2661,SOL-632738,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+9c94ddcd-6015-45e8-af04-0efbec7f565f,SOL-527276,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+8f6d72d6-08dc-42db-a7f0-0016500894e1,SOL-315408,Invoiced,completed,admin_created,install,fc,accounts,595,9090,Beame,Beame,1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,e8a9aac7-98fd-4a9f-b01e-d5a3670df4b3,MIX-4000,MIX-4000,1,,324,540,324,540,864
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,f2ed713a-78a0-431b-a400-d44367902825,440FT0073,FM Blue Driver Tag,1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,e2c4994e-5267-4698-8882-d0db4c3edc3f,440FT0599,FM GSM ANTENNA (PENTA-BAND GSM ANT),1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,b6ccf7bf-41a3-49af-bf7b-0592a6fd297a,440FT0694-1,FM GPS ANTENNA (FM GLONASS GPS ANT),1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,a7b7cbaf-363e-4669-a0f2-37548f6524a7,FM CODE PLUG HARNESS,FM CODE PLUG HARNESS,1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,73c4e3d3-4d99-425b-9ccd-26913e7164d1,FM MAIN HARNESS MP5,FM MAIN HARNESS MP5,1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,867a4f09-8083-4439-9970-624c977888bc,FM-SIM,FM Sim Card,1,,0,0,0,0,0
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,Invoiced,completed,install,install,fc,accounts,1670.92,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,17.92,89,17.92,89,106.92
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,06ae912e-6545-4155-bccc-93940ded9eda,Software,Software,1,,0,200,0,200,200
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,189,0,189,189
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,235,295,235,295,530
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,f3741375-e24e-41c1-ba59-cc40aab5045a,Panic Flush,Panic Button,1,,0,0,0,0,0
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,Invoiced,completed,install,install,fc,accounts,1469,labour-1775120387996,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+5cbbcb42-fd56-49e2-b5cf-295742220dc5,SOL-506862,Invoiced,completed,install,install,accounts,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+68b564ff-d560-490f-973c-68b9685de7b4,SOL-995120,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+ce4404c7-e286-43a6-80a7-6690739ab05d,JOB-1754928396962-95tzjqikr,Invoiced,completed,install,install,,accounts,3861.7,3b1ef2c1-f1ec-4e00-ace6-97ff02295262,"2.5"" SSD 480GB",480GB SD Memory Card,1,,132,0,132,0,132
+8b5001e9-a1c7-4d55-bda5-dc22345161b4,SOL-304758,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+3e89d83f-00b7-4629-87ef-c148491b7c7e,SOL-635581,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+ba8eb4b7-b8e2-47a2-8eb7-802ea98eb701,SOL-244000,Invoiced,completed,install,install,fc,accounts,138,e0ced9ec-c73c-42dc-b290-573522b42436,Additional Data,Additional Data,1,,0,0,0,0,0
+62037c40-aab7-4e20-b763-6bdaefc744a9,SOL-930914,Invoiced,completed,install,install,accounts,accounts,98.61,85229bd4-0b57-404a-8601-62e995567f3c,SMS,SMS,245,,0,0.35,0,0.35,0.35
+25e0a4cc-22c0-4eae-8c82-4926db23226e,SOL-257467,Invoiced,completed,install,install,fc,accounts,200,f0bd8884-89ac-4f5a-9b81-6c4eaa1e9dba,720652S - PFK - 720 DISP BLOW TUBE PACK OF 25,,2,,0,0,0,0,0
+f63af6dd-ac6b-4376-8d6e-9dede2c4c349,SOL-730788,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+4176317c-edd7-428f-9240-4da4c7aaf7ba,SOL-155877,Invoiced,completed,install,install,fc,accounts,586.5,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,60,0,60,60
+1a928d25-9245-4961-8558-258f04154eeb,SOL-689650,Invoiced,completed,install,install,fc,accounts,1761.8,b5bdde21-b25b-4433-852b-dfcb36b2a1cb,MTX – MTX-MC202X,MTX – MTX-MC202,1,,137,295,137,295,432
+1a928d25-9245-4961-8558-258f04154eeb,SOL-689650,Invoiced,completed,install,install,fc,accounts,1761.8,13980cf3-7fee-40cb-b906-1bf447e8d005,MTX-TF card,SD Card,1,,0,0,0,0,0
+1a928d25-9245-4961-8558-258f04154eeb,SOL-689650,Invoiced,completed,install,install,fc,accounts,1761.8,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,233a6aba-e005-4253-b05a-f9d0fe798a14,Skylink PRO 2G 3G 4G,SUPPLIER: ITURAN | CODE: P03STARLINK3G,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,4e24c876-51a6-4a8a-89a8-f1f36d58726c,VODACOM - SIM CARD,SIM CARD,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,80,0,80,80
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,2c6f7f90-02c9-42bf-bda9-260821deeef8,Industrial,Panic Button,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,0c94ec0e-5165-4d15-9aeb-eaa5c3f6a7df,Driver ID Keypad,Keypad Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,295ee1ea-be38-449a-8205-4ee8a7b047b0,BUZZER (24V 95dB 30 x 16mm PNL MNT WTH WIRES),SUPPLIER: N/A | CODE: BUZZER,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,c1180e2f-171a-4a4b-9855-4749a3465070,Sky-Can,Canbus integration,1,,0,6,0,6,6
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,e79d73dd-1c4d-4ecd-9cd1-4372ce6a56ad,STARLINK SPARE HARNESS,SUPPLIER: ITURAN | CODE: P05KITNZR,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,ad8db000-a62a-4c27-932b-c1d32c4b70af,MTX-MC904 EU / MDVR MINI -5CH - AI,MDVR MINI 5 Channel AI,1,,0,295,0,295,295
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,40f07ec2-cc03-4591-98ce-a1dce834b1f6,SIM CARD (CAMERA) CORPCONNECT,SUPPLIER: VODACOM | CODE: SIM 1GB PM,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,5fb00088-d77f-492b-9f9f-0dea878fea57,MTX-SD CARD / SD CARD 512GB,SD Card 512GB,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,8d040e30-26b5-488e-a127-137c721a5149,MTX-MC821B,DRIVER FACING A PILLAR,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,34b369e6-534c-400d-b854-4429d0bc062b,MTX-MC820E,ROAD FACING ADAS CAM,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,c9b32e54-6924-464a-826d-0035a433edd6,MTX-MC808K / OUTSIDE SIDE VIEW CAM,Outside Side View Camera,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,42162a67-3da9-4f6e-bf75-43b291746568,MTX-CABLE 10M,10 METER EXT CABLE,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,561184ab-d68c-4ec5-9350-7ad188725798,MTX-CABLE 5M,5 METER EXT CABLE,2,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,66eab260-ffc2-4ae5-b6a9-bb137d282194,MTX-5M IPC 6 PIN / 5M IP CAMERA CABLE 6 PINS,5M IP Camera Cable 6 Pins,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,c4cb4357-8700-4077-89e5-91e26e6797ab,MTX-SPEAKER,MTX Speaker,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,labour-1774433968500,Labour Charge,Manual labour charge,1,,0,0,0,0,0
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,52db6bd1-4512-480e-92fb-46945a4b06c9,Control Room - Superior,Eyes On Screen Monitoring - Includes Pre advices etc,1,,0,299,0,299,299
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,Invoiced,completed,install,install,fc,accounts,17743,6e6a2bf1-8197-4da0-af49-2a6f6cceff3e,Management and Consultant,Management and Consultant,1,,0,195,0,195,195
+1ddf5436-f332-46a8-9e63-4c9bc42cc8a7,SOL-311550,Invoiced,completed,install,install,fc,accounts,295,5de91661-874c-4efd-998a-d7bd2967f061,Driver ID Dallas Tag,Tag for Driver ID works with Skylink Pro only,1,,0,0,0,0,0
+96f40598-86ff-44ee-940a-0fb92ab28ba0,SOL-257121,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0
+d43c463a-23eb-4127-93c7-4831a78631f6,SOL-156772,Invoiced,completed,install,install,fc,accounts,595,24cd3dfe-9e9a-4837-a136-b325feb401f5,Beame Backup Unit,Wireless recovery unit only,1,,0,0,0,0,0

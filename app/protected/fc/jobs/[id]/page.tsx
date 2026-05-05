@@ -24,14 +24,17 @@ import {
   Wrench,
   CheckCircle2,
   Timer,
-  CreditCard
+  CreditCard,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface JobCard {
   id: string;
   job_number: string;
+  order_number?: string;
   job_type: string;
+  job_sub_type?: string;
   job_description: string;
   status: string;
   job_status: string;
@@ -59,8 +62,25 @@ interface JobCard {
   technician_phone: string;
   work_notes: string;
   completion_notes: string;
-  parts_required: any[];
+  parts_required: unknown[];
+  quotation_products?: unknown;
+  billing_statuses?: Record<string, unknown> | null;
 }
+
+type QuotationProduct = Record<string, unknown>;
+
+type BilledItem = {
+  id: string;
+  source: 'Quotation' | 'Invoice';
+  description: string;
+  code: string;
+  category: string;
+  purchaseType: string;
+  quantity: number;
+  unitExVat: number;
+  vatAmount: number;
+  totalInclVat: number;
+};
 
 export default function JobDetailsPage() {
   const params = useParams();
@@ -100,6 +120,177 @@ export default function JobDetailsPage() {
     }).format(amount || 0);
   };
 
+  const toFiniteNumber = (value: unknown): number => {
+    const parsed =
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number(value)
+          : NaN;
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const parseArrayValue = (value: unknown): unknown[] => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const parseQuotationProducts = (value: unknown): QuotationProduct[] =>
+    parseArrayValue(value).filter(
+      (item): item is QuotationProduct =>
+        typeof item === 'object' && item !== null,
+    );
+
+  const getFirstText = (...values: unknown[]): string =>
+    values
+      .map((value) => String(value || '').trim())
+      .find((value) => value.length > 0) || '';
+
+  const getQuotationUnitPrice = (product: QuotationProduct): number => {
+    const purchaseType = String(product.purchase_type || '').trim().toLowerCase();
+    const candidates =
+      purchaseType === 'rental'
+        ? [product.rental_price, product.unit_price_without_vat, product.unit_price, product.price]
+        : purchaseType === 'subscription'
+          ? [product.subscription_price, product.unit_price_without_vat, product.unit_price, product.price]
+          : purchaseType === 'installation'
+            ? [product.installation_price, product.unit_price_without_vat, product.unit_price, product.price]
+            : purchaseType === 'de-installation'
+              ? [product.de_installation_price, product.unit_price_without_vat, product.unit_price, product.price]
+              : [product.cash_price, product.unit_price_without_vat, product.unit_price, product.price];
+
+    for (const candidate of candidates) {
+      const value = toFiniteNumber(candidate);
+      if (value > 0) return value;
+    }
+    return 0;
+  };
+
+  const billedItems: BilledItem[] = (() => {
+    if (!job) return [];
+
+    const quotationItems = parseQuotationProducts(job.quotation_products).map((product, index) => {
+      const quantity = Math.max(1, toFiniteNumber(product.quantity) || 1);
+      const unitExVat = getQuotationUnitPrice(product);
+      const explicitVat = toFiniteNumber(product.vat_amount ?? product.vat);
+      const explicitTotal = toFiniteNumber(
+        product.total_incl_vat ??
+          product.total_including_vat ??
+          product.total_price ??
+          product.total,
+      );
+      const computedExVat = Number((quantity * unitExVat).toFixed(2));
+      const totalInclVat = explicitTotal > 0 ? explicitTotal : Number((computedExVat + explicitVat).toFixed(2));
+      const vatAmount =
+        explicitVat > 0
+          ? explicitVat
+          : Number(Math.max(totalInclVat - computedExVat, 0).toFixed(2));
+
+      return {
+        id: `quotation-${index}`,
+        source: 'Quotation' as const,
+        description:
+          getFirstText(
+            product.description,
+            product.name,
+            product.item_description,
+            product.product_name,
+            product.service_name,
+          ) || 'Quoted item',
+        code: getFirstText(product.code, product.item_code, product.sku),
+        category: getFirstText(product.category, product.product_category),
+        purchaseType: getFirstText(product.purchase_type, product.purchaseType),
+        quantity,
+        unitExVat,
+        vatAmount,
+        totalInclVat,
+      };
+    });
+
+    const parsedBillingStatuses =
+      typeof job.billing_statuses === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(job.billing_statuses) as Record<string, unknown>;
+            } catch {
+              return null;
+            }
+          })()
+        : (job.billing_statuses as Record<string, unknown> | null);
+
+    const billingInvoice =
+      parsedBillingStatuses &&
+      typeof parsedBillingStatuses.invoice === 'object' &&
+      parsedBillingStatuses.invoice !== null
+        ? (parsedBillingStatuses.invoice as Record<string, unknown>)
+        : null;
+
+    const invoiceItemsRaw = parseArrayValue(
+      billingInvoice?.line_items ??
+        billingInvoice?.items ??
+        billingInvoice?.products ??
+        null,
+    );
+
+    const invoiceItems = invoiceItemsRaw
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+      .map((item, index) => {
+        const quantity = Math.max(1, toFiniteNumber(item.quantity) || 1);
+        const unitExVat = toFiniteNumber(
+          item.unit_price_without_vat ??
+            item.unit_price ??
+            item.price,
+        );
+        const vatAmount = toFiniteNumber(item.vat_amount ?? item.vat);
+        const totalInclVat = toFiniteNumber(
+          item.total_including_vat ??
+            item.total_incl_vat ??
+            item.total ??
+            Number((quantity * unitExVat + vatAmount).toFixed(2)),
+        );
+
+        return {
+          id: `invoice-${index}`,
+          source: 'Invoice' as const,
+          description:
+            getFirstText(item.description, item.item_description, item.product_name) ||
+            'Billed item',
+          code: getFirstText(item.code, item.item_code, item.sku),
+          category: getFirstText(item.category, item.product_category),
+          purchaseType: getFirstText(item.purchase_type),
+          quantity,
+          unitExVat,
+          vatAmount,
+          totalInclVat,
+        };
+      });
+
+    return [...quotationItems, ...invoiceItems];
+  })();
+
+  const billedSummary = (() => {
+    const exVat = billedItems.reduce(
+      (sum, item) => sum + (Number.isFinite(item.unitExVat) ? item.unitExVat * item.quantity : 0),
+      0,
+    );
+    const vat = billedItems.reduce((sum, item) => sum + item.vatAmount, 0);
+    const total = billedItems.reduce((sum, item) => sum + item.totalInclVat, 0);
+    return {
+      count: billedItems.length,
+      exVat: Number(exVat.toFixed(2)),
+      vat: Number(vat.toFixed(2)),
+      total: Number(total.toFixed(2)),
+    };
+  })();
+
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString('en-ZA', {
@@ -124,6 +315,170 @@ export default function JobDetailsPage() {
       default:
         return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const escapeHtml = (value: unknown): string =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const handlePrintReport = () => {
+    if (!job) return;
+
+    const printWindow = window.open('', '_blank', 'width=1100,height=900');
+    if (!printWindow) {
+      toast.error('Please allow popups to print this job report.');
+      return;
+    }
+
+    const generatedAt = new Date().toLocaleString('en-ZA', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const billedRows =
+      billedItems.length > 0
+        ? billedItems
+            .map(
+              (item) => `
+                <tr>
+                  <td>${escapeHtml(item.description)}</td>
+                  <td>${escapeHtml(item.source)}</td>
+                  <td class="right">${escapeHtml(item.quantity)}</td>
+                  <td class="right">${escapeHtml(formatCurrency(item.unitExVat))}</td>
+                  <td class="right">${escapeHtml(formatCurrency(item.vatAmount))}</td>
+                  <td class="right">${escapeHtml(formatCurrency(item.totalInclVat))}</td>
+                </tr>
+              `,
+            )
+            .join('')
+        : `<tr><td colspan="6">No billed items found.</td></tr>`;
+
+    const partsRows =
+      Array.isArray(job.parts_required) && job.parts_required.length > 0
+        ? job.parts_required
+            .map((part, index) => {
+              const safePart =
+                typeof part === 'object' && part !== null ? (part as Record<string, unknown>) : {};
+              const name =
+                getFirstText(
+                  safePart.description,
+                  safePart.name,
+                  safePart.item_description,
+                  safePart.code,
+                ) || `Part ${index + 1}`;
+              const qty = toFiniteNumber(safePart.quantity) || 1;
+              return `
+                <tr>
+                  <td>${escapeHtml(name)}</td>
+                  <td class="right">${escapeHtml(qty)}</td>
+                </tr>
+              `;
+            })
+            .join('')
+        : `<tr><td colspan="2">No parts listed.</td></tr>`;
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Job Report - ${escapeHtml(job.job_number)}</title>
+          <style>
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { font-family: Arial, Helvetica, sans-serif; margin: 18px; color: #0f172a; }
+            h1 { margin: 0; font-size: 24px; }
+            h2 { margin: 14px 0 6px; font-size: 15px; }
+            .meta { color: #475569; font-size: 12px; margin-top: 6px; }
+            .pill-row { margin-top: 8px; }
+            .pill { display: inline-block; border: 1px solid #cbd5e1; border-radius: 999px; padding: 3px 10px; margin-right: 6px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { border: 1px solid #cbd5e1; padding: 7px 9px; font-size: 12px; vertical-align: top; }
+            th { background: #f8fafc; text-align: left; color: #1e293b; }
+            .right { text-align: right; }
+            .totals { margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px; }
+            .box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+            .notes { white-space: pre-wrap; word-break: break-word; }
+            @media print { body { margin: 10mm; } }
+          </style>
+        </head>
+        <body>
+          <h1>Job Card Report</h1>
+          <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
+          <div class="pill-row">
+            <span class="pill">Job: ${escapeHtml(job.job_number || 'N/A')}</span>
+            <span class="pill">Order: ${escapeHtml(job.order_number || 'N/A')}</span>
+            <span class="pill">Account: ${escapeHtml(job.new_account_number || 'N/A')}</span>
+            <span class="pill">Status: ${escapeHtml(job.job_status || job.status || 'N/A')}</span>
+          </div>
+
+          <h2>Job Details</h2>
+          <table>
+            <tr><th>Customer</th><td>${escapeHtml(job.customer_name || 'N/A')}</td><th>Contact Person</th><td>${escapeHtml((job as Record<string, unknown>).contact_person || 'N/A')}</td></tr>
+            <tr><th>Email</th><td>${escapeHtml(job.customer_email || 'N/A')}</td><th>Phone</th><td>${escapeHtml(job.customer_phone || 'N/A')}</td></tr>
+            <tr><th>Job Type</th><td>${escapeHtml(job.job_type || 'N/A')}</td><th>Sub Type</th><td>${escapeHtml(job.job_sub_type || 'N/A')}</td></tr>
+            <tr><th>Vehicle</th><td>${escapeHtml(job.vehicle_registration || 'N/A')}</td><th>Make/Model</th><td>${escapeHtml(`${job.vehicle_make || ''} ${job.vehicle_model || ''}`.trim() || 'N/A')}</td></tr>
+            <tr><th>Created</th><td>${escapeHtml(formatDate(job.created_at))}</td><th>Updated</th><td>${escapeHtml(formatDate(job.updated_at))}</td></tr>
+            <tr><th>Description</th><td colspan="3" class="notes">${escapeHtml(job.job_description || 'N/A')}</td></tr>
+          </table>
+
+          <h2>Billed Items</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Source</th>
+                <th class="right">Qty</th>
+                <th class="right">Unit Ex VAT</th>
+                <th class="right">VAT</th>
+                <th class="right">Total Incl</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${billedRows}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div class="box">Ex VAT: <strong>${escapeHtml(formatCurrency(billedSummary.exVat))}</strong></div>
+            <div class="box">VAT: <strong>${escapeHtml(formatCurrency(billedSummary.vat))}</strong></div>
+            <div class="box">Total Incl: <strong>${escapeHtml(formatCurrency(billedSummary.total || job.quotation_total_amount || 0))}</strong></div>
+          </div>
+
+          <h2>Parts Required</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Part</th>
+                <th class="right">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${partsRows}
+            </tbody>
+          </table>
+
+          <h2>Notes</h2>
+          <table>
+            <tr><th>Work Notes</th><td class="notes">${escapeHtml(job.work_notes || '-')}</td></tr>
+            <tr><th>Completion Notes</th><td class="notes">${escapeHtml(job.completion_notes || '-')}</td></tr>
+          </table>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   if (loading) {
@@ -171,6 +526,10 @@ export default function JobDetailsPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handlePrintReport}>
+                <Printer className="mr-2 w-4 h-4" />
+                Print Report
+              </Button>
               <Badge className={`${getStatusColor(job.job_status || job.status)} text-xs`}>
                 {job.job_status || job.status || 'Unknown'}
               </Badge>
@@ -187,7 +546,7 @@ export default function JobDetailsPage() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-4">
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
           <Card className="border-0 shadow-sm border-l-4 border-l-blue-400">
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
@@ -228,10 +587,24 @@ export default function JobDetailsPage() {
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-slate-500 font-medium">Parts</p>
-                  <p className="text-sm font-semibold text-violet-700">{job.parts_required?.length || 0}</p>
+                  <p className="text-xs text-slate-500 font-medium">Billed Items</p>
+                  <p className="text-sm font-semibold text-violet-700">{billedSummary.count}</p>
                 </div>
                 <Wrench className="w-5 h-5 text-violet-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm border-l-4 border-l-rose-400">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">Billed Total</p>
+                  <p className="text-sm font-semibold text-rose-700">
+                    {formatCurrency(billedSummary.total || job.quotation_total_amount || 0)}
+                  </p>
+                </div>
+                <CreditCard className="w-5 h-5 text-rose-500" />
               </div>
             </CardContent>
           </Card>
@@ -268,6 +641,10 @@ export default function JobDetailsPage() {
                     <div>
                       <label className="text-xs font-medium text-slate-500 uppercase">Quotation</label>
                       <p className="text-sm font-medium text-slate-900">{job.quotation_number || 'Not assigned'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 uppercase">Order Number</label>
+                      <p className="text-sm font-medium text-slate-900">{job.order_number || 'Not assigned'}</p>
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-500 uppercase">Priority</label>
@@ -381,6 +758,74 @@ export default function JobDetailsPage() {
                     <p className="text-sm font-medium text-slate-900">{job.vehicle_year || 'Not provided'}</p>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Billed Items */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="bg-rose-50 border-b pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold text-rose-800">
+                  <CreditCard className="w-4 h-4 text-rose-600" />
+                  Billed Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {billedItems.length === 0 ? (
+                  <div className="p-4 text-sm text-slate-500">
+                    No billed items found on this job card yet.
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Item</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Source</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Qty</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Unit Ex VAT</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">VAT</th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Total Incl</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white">
+                          {billedItems.map((item) => (
+                            <tr key={item.id} className="hover:bg-slate-50">
+                              <td className="px-3 py-2 align-top">
+                                <div className="text-sm font-medium text-slate-900">{item.description}</div>
+                                <div className="text-xs text-slate-500">
+                                  {[item.code, item.category, item.purchaseType].filter(Boolean).join(" | ") || "No extra detail"}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 align-top">
+                                <Badge variant={item.source === 'Invoice' ? 'default' : 'outline'} className="text-[11px]">
+                                  {item.source}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right text-sm text-slate-800">{item.quantity}</td>
+                              <td className="px-3 py-2 text-right text-sm text-slate-800">{formatCurrency(item.unitExVat)}</td>
+                              <td className="px-3 py-2 text-right text-sm text-slate-800">{formatCurrency(item.vatAmount)}</td>
+                              <td className="px-3 py-2 text-right text-sm font-semibold text-slate-900">{formatCurrency(item.totalInclVat)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="bg-slate-50 border-t px-4 py-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                        <div className="text-slate-600">
+                          Ex VAT: <span className="font-semibold text-slate-900">{formatCurrency(billedSummary.exVat)}</span>
+                        </div>
+                        <div className="text-slate-600">
+                          VAT: <span className="font-semibold text-slate-900">{formatCurrency(billedSummary.vat)}</span>
+                        </div>
+                        <div className="text-slate-600 sm:text-right">
+                          Total Incl: <span className="font-semibold text-slate-900">{formatCurrency(billedSummary.total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

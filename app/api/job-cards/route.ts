@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     const view = searchParams.get('view') || '';
     const selectFields =
       view === 'fc-list'
-        ? 'id, job_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
+        ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
         : '*';
 
     let query = supabase.from('job_cards').select(selectFields).order('created_at', { ascending: false });
@@ -180,6 +180,7 @@ export async function POST(request: NextRequest) {
       decommission_date: body.decommissionDate || body.decommission_date || null,
       annuity_end_date: body.annuityEndDate || body.annuity_end_date || null,
       due_date: body.dueDate || body.due_date || null,
+      order_number: body.order_number || body.orderNumber || null,
 
       vehicle_id: body.vehicleId || body.vehicle_id || null,
       vehicle_registration: body.vehicleRegistration || body.vehicle_registration || '',

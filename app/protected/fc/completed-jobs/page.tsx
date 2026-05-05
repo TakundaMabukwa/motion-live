@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -405,7 +405,7 @@ const getJobTypeColor = (jobType?: string | null): string => {
   }
 };
 
-export default function FCCompletedJobsPage() {
+function FCCompletedJobsPageContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const autoOpenedFinalizeJobRef = useRef<string | null>(null);
@@ -2334,5 +2334,23 @@ export default function FCCompletedJobsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function CompletedJobsFallback() {
+  return (
+    <div className="w-full px-6 py-6">
+      <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+        Loading completed job cards...
+      </div>
+    </div>
+  );
+}
+
+export default function FCCompletedJobsPage() {
+  return (
+    <Suspense fallback={<CompletedJobsFallback />}>
+      <FCCompletedJobsPageContent />
+    </Suspense>
   );
 }

@@ -31,8 +31,8 @@ import {
   MapPin,
   RefreshCw,
   MessageSquareText,
+  Printer,
 } from "lucide-react";
-import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
 import CreateCalibrationJobModal from '@/components/master/CreateCalibrationJobModal';
 import { toast } from "sonner";
 export default function AccountsDashboard() {
@@ -51,7 +51,387 @@ export default function AccountsDashboard() {
   const [activeTab, setActiveTab] = useState('global');
   const [fromRiaPendingCount, setFromRiaPendingCount] = useState(0);
   const [escalationActionJobId, setEscalationActionJobId] = useState(null);
+  const [printingEscalationJobId, setPrintingEscalationJobId] = useState(null);
   const lastCompaniesRefreshRef = useRef(0);
+
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const formatFieldLabel = (key) =>
+    String(key || "")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+  const formatJobValue = (key, value) => {
+    if (value === null || value === undefined) return "-";
+
+    if (typeof value === "boolean") {
+      return value ? "Yes" : "No";
+    }
+
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? String(value) : "-";
+    }
+
+    if (Array.isArray(value) || (typeof value === "object" && value !== null)) {
+      const safeJson = JSON.stringify(value, null, 2);
+      return safeJson && safeJson !== "[]" && safeJson !== "{}" ? safeJson : "-";
+    }
+
+    const raw = String(value).trim();
+    if (!raw) return "-";
+
+    if (/_at$|_date$|date|time/i.test(String(key || ""))) {
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleString("en-ZA", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+    }
+
+    return raw;
+  };
+
+  const buildEscalationPrintHtml = (job) => {
+    const parseArrayValue = (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+
+    const toNumber = (value) => {
+      const parsed = typeof value === "number" ? value : Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const getText = (...values) =>
+      values.map((value) => String(value || "").trim()).find((value) => value.length > 0) || "";
+
+    const quotationProducts = parseArrayValue(job?.quotation_products).filter(
+      (item) => item && typeof item === "object",
+    );
+
+    const billingStatuses =
+      typeof job?.billing_statuses === "string"
+        ? (() => {
+            try {
+              return JSON.parse(job.billing_statuses);
+            } catch {
+              return null;
+            }
+          })()
+        : job?.billing_statuses;
+
+    const billingInvoice =
+      billingStatuses && typeof billingStatuses === "object" && billingStatuses.invoice
+        ? billingStatuses.invoice
+        : null;
+
+    const invoiceItems = parseArrayValue(
+      billingInvoice?.line_items || billingInvoice?.items || billingInvoice?.products || [],
+    ).filter((item) => item && typeof item === "object");
+
+    const billedItems = [
+      ...quotationProducts.map((item, index) => {
+        const quantity = Math.max(1, toNumber(item.quantity) || 1);
+        const unitExVat = toNumber(
+          item.unit_price_without_vat ||
+            item.cash_price ||
+            item.rental_price ||
+            item.subscription_price ||
+            item.installation_price ||
+            item.de_installation_price ||
+            item.unit_price ||
+            item.price,
+        );
+        const vatAmount = toNumber(item.vat_amount || item.vat);
+        const totalInclVat = toNumber(
+          item.total_including_vat ||
+            item.total_incl_vat ||
+            item.total_price ||
+            item.total ||
+            Number((quantity * unitExVat + vatAmount).toFixed(2)),
+        );
+
+        return {
+          id: `quote-${index}`,
+          source: "Quotation",
+          description:
+            getText(
+              item.description,
+              item.name,
+              item.item_description,
+              item.product_name,
+            ) || "Quoted item",
+          quantity,
+          unitExVat,
+          vatAmount,
+          totalInclVat,
+        };
+      }),
+      ...invoiceItems.map((item, index) => {
+        const quantity = Math.max(1, toNumber(item.quantity) || 1);
+        const unitExVat = toNumber(
+          item.unit_price_without_vat || item.unit_price || item.price,
+        );
+        const vatAmount = toNumber(item.vat_amount || item.vat);
+        const totalInclVat = toNumber(
+          item.total_including_vat ||
+            item.total_incl_vat ||
+            item.total ||
+            Number((quantity * unitExVat + vatAmount).toFixed(2)),
+        );
+
+        return {
+          id: `invoice-${index}`,
+          source: "Invoice",
+          description:
+            getText(item.description, item.item_description, item.product_name) ||
+            "Billed item",
+          quantity,
+          unitExVat,
+          vatAmount,
+          totalInclVat,
+        };
+      }),
+    ];
+
+    const billedTotals = billedItems.reduce(
+      (summary, item) => ({
+        exVat: summary.exVat + item.unitExVat * item.quantity,
+        vat: summary.vat + item.vatAmount,
+        total: summary.total + item.totalInclVat,
+      }),
+      { exVat: 0, vat: 0, total: 0 },
+    );
+
+    const formatCurrency = (value) =>
+      `R ${Number(value || 0).toLocaleString("en-ZA", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+
+    const billedItemsSection =
+      billedItems.length > 0
+        ? `
+          <h2 class="section-title">Billed Items</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Source</th>
+                <th style="text-align:right;">Qty</th>
+                <th style="text-align:right;">Unit Ex VAT</th>
+                <th style="text-align:right;">VAT</th>
+                <th style="text-align:right;">Total Incl</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${billedItems
+                .map(
+                  (item) => `
+                    <tr>
+                      <td>${escapeHtml(item.description)}</td>
+                      <td>${escapeHtml(item.source)}</td>
+                      <td style="text-align:right;">${escapeHtml(String(item.quantity))}</td>
+                      <td style="text-align:right;">${escapeHtml(formatCurrency(item.unitExVat))}</td>
+                      <td style="text-align:right;">${escapeHtml(formatCurrency(item.vatAmount))}</td>
+                      <td style="text-align:right;">${escapeHtml(formatCurrency(item.totalInclVat))}</td>
+                    </tr>
+                  `,
+                )
+                .join("")}
+            </tbody>
+          </table>
+          <div class="totals">
+            <div>Ex VAT: <strong>${escapeHtml(formatCurrency(billedTotals.exVat))}</strong></div>
+            <div>VAT: <strong>${escapeHtml(formatCurrency(billedTotals.vat))}</strong></div>
+            <div>Total Incl: <strong>${escapeHtml(formatCurrency(billedTotals.total))}</strong></div>
+          </div>
+        `
+        : "";
+
+    const orderedKeys = [
+      "job_number",
+      "order_number",
+      "job_type",
+      "job_sub_type",
+      "job_status",
+      "status",
+      "priority",
+      "role",
+      "escalation_source_role",
+      "escalation_role",
+      "move_to_role",
+      "move_to",
+      "new_account_number",
+      "account_id",
+      "customer_name",
+      "customer_email",
+      "customer_phone",
+      "customer_address",
+      "contact_person",
+      "vehicle_registration",
+      "vehicle_make",
+      "vehicle_model",
+      "vehicle_year",
+      "vin_numer",
+      "odormeter",
+      "purchase_type",
+      "quote_type",
+      "quotation_number",
+      "quotation_total_amount",
+      "estimated_cost",
+      "actual_cost",
+      "estimated_duration_hours",
+      "job_date",
+      "due_date",
+      "completion_date",
+      "created_at",
+      "updated_at",
+      "job_description",
+      "special_instructions",
+      "work_notes",
+      "completion_notes",
+      "fc_note_acknowledged",
+      "parts_required",
+      "quotation_products",
+      "equipment_used",
+      "billing_statuses",
+      "deinstall_vehicles",
+    ];
+
+    const orderedEntries = [];
+    const consumed = new Set();
+    for (const key of orderedKeys) {
+      if (!Object.prototype.hasOwnProperty.call(job || {}, key)) continue;
+      const formatted = formatJobValue(key, job[key]);
+      if (formatted === "-") continue;
+      orderedEntries.push([key, formatted]);
+      consumed.add(key);
+    }
+
+    const extraEntries = Object.entries(job || {})
+      .filter(([key]) => !consumed.has(key))
+      .map(([key, value]) => [key, formatJobValue(key, value)])
+      .filter(([, value]) => value !== "-");
+
+    const rows = [...orderedEntries, ...extraEntries]
+      .map(([key, value]) => {
+        const isBlockValue = String(value).includes("\n") || String(value).length > 120;
+        const renderedValue = isBlockValue
+          ? `<pre>${escapeHtml(value)}</pre>`
+          : `<span>${escapeHtml(value)}</span>`;
+        return `
+          <tr>
+            <th>${escapeHtml(formatFieldLabel(key))}</th>
+            <td>${renderedValue}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const generatedAt = new Date().toLocaleString("en-ZA", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    return `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Job ${escapeHtml(job?.job_number || job?.id || "Details")}</title>
+          <style>
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body { font-family: Arial, Helvetica, sans-serif; margin: 20px; color: #0f172a; }
+            h1 { margin: 0; font-size: 24px; }
+            h2.section-title { margin: 18px 0 8px; font-size: 16px; }
+            .meta { margin-top: 6px; color: #334155; font-size: 12px; }
+            .pill { display: inline-block; margin-top: 8px; padding: 4px 10px; border: 1px solid #cbd5e1; border-radius: 999px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; font-size: 12px; }
+            th { width: 28%; text-align: left; background: #f8fafc; color: #1e293b; }
+            td { color: #0f172a; white-space: pre-wrap; word-break: break-word; }
+            pre { margin: 0; font-family: Consolas, Monaco, monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+            .totals { margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px; }
+            @media print { body { margin: 12mm; } }
+          </style>
+        </head>
+        <body>
+          <h1>FC Escalation Job Report</h1>
+          <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
+          <div class="pill">Job: ${escapeHtml(job?.job_number || "N/A")}</div>
+          <div class="pill">Account: ${escapeHtml(job?.new_account_number || "N/A")}</div>
+          <div class="pill">Customer: ${escapeHtml(job?.customer_name || "N/A")}</div>
+          ${billedItemsSection}
+          <table>
+            <tbody>
+              ${rows || `<tr><td colspan="2">No job data available.</td></tr>`}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+  };
+
+  const handleEscalationPrint = async (job) => {
+    if (!job?.id) return;
+
+    const printWindow = window.open("", "_blank", "width=1100,height=900");
+    if (!printWindow) {
+      toast.error("Please allow popups to print job reports.");
+      return;
+    }
+
+    setPrintingEscalationJobId(job.id);
+    printWindow.document.write("<html><body style='font-family:Arial,sans-serif;padding:16px;'>Loading job details...</body></html>");
+    printWindow.document.close();
+
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("Failed to load full job details for printing");
+      }
+
+      const fullJob = await response.json();
+      const printHtml = buildEscalationPrintHtml(fullJob || job);
+
+      printWindow.document.open();
+      printWindow.document.write(printHtml);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.onload = function onLoad() {
+        printWindow.print();
+      };
+    } catch (error) {
+      console.error("Error printing escalated job:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to print escalated job");
+      printWindow.close();
+    } finally {
+      setPrintingEscalationJobId(null);
+    }
+  };
 
   const maybeRefreshCompanyGroups = async (force = false) => {
     if (activeTab !== "companies") return;
@@ -479,27 +859,43 @@ export default function AccountsDashboard() {
             renderActions={(job, helpers) => {
               const movingThisJob = helpers?.movingJobId === job.id;
               const isFinalizing = escalationActionJobId === job.id;
-              const actionBusy = movingThisJob || isFinalizing;
+              const isPrinting = printingEscalationJobId === job.id;
+              const actionBusy = movingThisJob || isFinalizing || isPrinting;
 
               return (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={actionBusy}
-                  onClick={() =>
-                    handleEscalationFinalize({
-                      job,
-                      refreshEscalations: helpers?.refresh,
-                    })
-                  }
-                >
-                  {isFinalizing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                  )}
-                  Edit and Finalize
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={actionBusy}
+                    onClick={() => handleEscalationPrint(job)}
+                  >
+                    {isPrinting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Printer className="mr-2 h-4 w-4" />
+                    )}
+                    Print Job
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={actionBusy}
+                    onClick={() =>
+                      handleEscalationFinalize({
+                        job,
+                        refreshEscalations: helpers?.refresh,
+                      })
+                    }
+                  >
+                    {isFinalizing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                    )}
+                    Edit and Finalize
+                  </Button>
+                </>
               );
             }}
           />

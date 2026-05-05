@@ -306,9 +306,40 @@ export default function RoleEscalationsPanel({
                         {job.job_status || job.status || "N/A"}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        <div className="max-w-[260px] text-xs">
-                          <div className="line-clamp-2">
+                        <div className="max-w-[360px] space-y-1 text-xs">
+                          <div className="whitespace-pre-wrap break-words text-gray-800">
                             {job.job_description || "No description"}
+                          </div>
+                          <div className="text-gray-600">
+                            <span className="font-medium">Account:</span>{" "}
+                            {String(
+                              (job as Record<string, unknown>)?.new_account_number ||
+                                (job as Record<string, unknown>)?.account_id ||
+                                "N/A",
+                            )}
+                          </div>
+                          <div className="text-gray-600">
+                            <span className="font-medium">Job Type:</span>{" "}
+                            {String(
+                              (job as Record<string, unknown>)?.job_type ||
+                                (job as Record<string, unknown>)?.job_sub_type ||
+                                "N/A",
+                            )}
+                          </div>
+                          <div className="text-gray-600">
+                            <span className="font-medium">Contact:</span>{" "}
+                            {String(
+                              (job as Record<string, unknown>)?.contact_person ||
+                                (job as Record<string, unknown>)?.customer_phone ||
+                                (job as Record<string, unknown>)?.customer_email ||
+                                "N/A",
+                            )}
+                          </div>
+                          <div className="text-gray-600">
+                            <span className="font-medium">Order:</span>{" "}
+                            {String(
+                              (job as Record<string, unknown>)?.order_number || "N/A",
+                            )}
                           </div>
                           {hasAssignedParts(job.parts_required) ? (
                             <div className="mt-1 text-amber-700">

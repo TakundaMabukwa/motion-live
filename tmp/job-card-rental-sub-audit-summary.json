@@ -1,0 +1,21 @@
+{
+  "summary": {
+    "total_job_cards": 798,
+    "install_like": 637,
+    "completed_like": 474,
+    "invoiced_like": 176,
+    "has_rental_or_sub_columns": 552,
+    "has_positive_rental_or_sub_value": 284,
+    "completed_invoiced_install_with_columns": 70,
+    "completed_invoiced_install_with_positive_values": 29,
+    "completed_install_with_columns_not_invoiced": 176,
+    "completed_install_with_positive_values_not_invoiced": 151
+  },
+  "topExclusions": {
+    "not_install_like": 161,
+    "not_completed_like": 243,
+    "not_invoiced_like": 257,
+    "missing_columns_in_items": 67,
+    "no_positive_values": 108
+  }
+}

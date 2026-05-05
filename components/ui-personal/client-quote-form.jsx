@@ -365,6 +365,7 @@ export default function ClientQuoteForm({
     jobType: "",
     jobSubType: "",
     description: "",
+    orderNumber: "",
     purchaseType: "purchase", // "purchase" or "rental"
     customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
     customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
@@ -581,6 +582,8 @@ export default function ClientQuoteForm({
       jobType: normalizedJobType,
       jobSubType: normalizedJobSubType,
       description: initialQuote.job_description || initialQuote.description || "",
+      orderNumber:
+        initialQuote.order_number || initialQuote.orderNumber || "",
       purchaseType:
         initialQuote.purchase_type || initialQuote.purchaseType || "purchase",
       customerName: initialQuote.customer_name || prev.customerName,
@@ -1317,6 +1320,7 @@ export default function ClientQuoteForm({
         jobType: formData.jobType,
         jobSubType: formData.jobSubType,
         jobDescription: formData.description,
+        order_number: formData.orderNumber.trim() || null,
         purchaseType: formData.purchaseType,
         quotationJobType: formData.jobType,
         
@@ -1399,6 +1403,7 @@ export default function ClientQuoteForm({
       const baseUpdatePayload = {
         job_type: formData.jobType,
         job_description: formData.description,
+        order_number: formData.orderNumber.trim() || null,
         purchase_type: formData.purchaseType || "purchase",
         quotation_job_type: formData.jobType,
         customer_name: formData.customerName,
@@ -1562,6 +1567,7 @@ export default function ClientQuoteForm({
         jobType: "",
         jobSubType: "",
         description: "",
+        orderNumber: "",
         purchaseType: "purchase",
         customerName: accountInfo?.trading_name || customer?.trading_name || customer?.company || "",
         customerEmail: accountInfo?.branch_person_email || accountInfo?.email || customer?.branch_person_email || customer?.email || "",
@@ -1743,6 +1749,21 @@ export default function ClientQuoteForm({
                     </Select>
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="orderNumber">Order Number</Label>
+                <Input
+                  id="orderNumber"
+                  placeholder="Order number (optional)"
+                  value={formData.orderNumber}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      orderNumber: e.target.value,
+                    }))
+                  }
+                />
               </div>
 
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">

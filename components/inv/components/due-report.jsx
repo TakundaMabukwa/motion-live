@@ -109,6 +109,8 @@ const normalizeStatementDescription = (value, fallback = "") => {
   if (!raw) return fallback;
   if (raw.toUpperCase().includes("OPEN")) return fallback;
   if (raw.toUpperCase() === "IMPORT") return fallback;
+  // Ignore synthetic placeholder invoice labels like "Invoice 2026-03-01".
+  if (/^invoice\s+\d{4}-\d{2}(?:-\d{2})?$/i.test(raw)) return fallback;
   return raw;
 };
 
@@ -805,7 +807,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
                   <tr>
                     <td>${escapeHtml(row.date)}</td>
                     <td>${escapeHtml(row.client)}</td>
-                    <td>${escapeHtml(row.description)}</td>
+                    <td>${escapeHtml(normalizeStatementDescription(row.description, ""))}</td>
                     <td class="col-right">${escapeHtml(row.amount)}</td>
                     <td class="col-right">${escapeHtml(row.debit)}</td>
                     <td class="col-right">${escapeHtml(row.credit)}</td>
@@ -1394,7 +1396,7 @@ export function buildStatementView({
         String(invoice?.company_name || "").trim() ||
         String(invoice?.client_name || "").trim() ||
         clientName,
-      description: normalizeStatementDescription(invoice?.invoice_number, "invoice"),
+      description: normalizeStatementDescription(invoice?.invoice_number, ""),
       amount: formatCurrency(invoiceAmount),
       debit: formatCurrency(invoiceAmount),
       credit: "-",
@@ -1424,7 +1426,7 @@ export function buildStatementView({
         date: formatStatementTransactionDate(sortDate),
         sortDate,
         client: String(job?.customer_name || clientName || "").trim() || clientName,
-        description: normalizeStatementDescription(job?.invoice_number, "invoice"),
+        description: normalizeStatementDescription(job?.invoice_number, ""),
         amount: formatCurrency(invoiceAmount),
         debit: formatCurrency(invoiceAmount),
         credit: "-",
@@ -1463,10 +1465,8 @@ export function buildStatementView({
         period?.billing_month ||
         period?.last_updated ||
         statementMonthSource;
-      const description = normalizeStatementDescription(
-        period?.invoice_number,
-        `Invoice ${period?.billing_month || ""}`.trim(),
-      );
+      // Do not fabricate an invoice label from billing month when no real invoice number exists.
+      const description = normalizeStatementDescription(period?.invoice_number, "");
       return {
         date: formatStatementTransactionDate(sortDate),
         sortDate,
@@ -1701,7 +1701,7 @@ export function buildStatementView({
     rows: rowsForStatement.map((row) => ({
       date: row.date,
       client: row.client,
-      description: row.description,
+      description: normalizeStatementDescription(row.description, ""),
       amount: row.amount,
       debit: row.debit,
       credit: row.credit,
