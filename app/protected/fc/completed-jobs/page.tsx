@@ -789,6 +789,14 @@ function FCCompletedJobsPageContent() {
         special_instructions: formData.special_instructions.trim() || null,
         customer_feedback: formData.customer_feedback.trim() || null,
         role: "accounts",
+        move_to: "accounts",
+        status: "completed",
+        job_status: "Completed",
+        completion_date: new Date().toISOString(),
+        end_time: new Date().toISOString(),
+        escalation_role: null,
+        escalation_source_role: null,
+        escalated_at: null,
         updated_by: "fc",
       };
 
