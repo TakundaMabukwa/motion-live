@@ -11,6 +11,16 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const normalizePaymentStatus = (value: unknown) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "pending";
+  if (normalized.includes("partial")) return "partial";
+  if (normalized === "paid" || normalized.includes("fully_paid")) return "paid";
+  if (normalized === "pending" || normalized === "unpaid") return "pending";
+  // Guard against legacy values like "overdue" that violate current constraint.
+  return "pending";
+};
+
 const normalizeEventTimestamp = (value: unknown, fallback = new Date().toISOString()) => {
   const raw = String(value || "").trim();
   if (!raw) {
@@ -55,6 +65,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "accountNumber is required" }, { status: 400 });
     }
 
+    if (accountNumber.includes(",")) {
+      return NextResponse.json(
+        { error: "Credit notes can only be applied to a single account number at a time." },
+        { status: 400 },
+      );
+    }
+
     if (!billingMonth) {
       return NextResponse.json({ error: "billingMonth is required" }, { status: 400 });
     }
@@ -78,7 +95,7 @@ export async function POST(request: NextRequest) {
     const [
       { data: invoiceRows, error: invoiceError },
       { data: mirrorRows, error: mirrorError },
-      { data: costCenterRow, error: costCenterError },
+      { data: costCenterRows, error: costCenterError },
     ] = await Promise.all([
       supabase
         .from("account_invoices")
@@ -98,7 +115,7 @@ export async function POST(request: NextRequest) {
         .from("cost_centers")
         .select("cost_code, company, legal_name, vat_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code")
         .eq("cost_code", accountNumber)
-        .maybeSingle(),
+        .limit(1),
     ]);
 
     if (invoiceError || mirrorError || costCenterError) {
@@ -109,6 +126,7 @@ export async function POST(request: NextRequest) {
 
     const invoice = Array.isArray(invoiceRows) ? invoiceRows[0] || null : null;
     const paymentsMirror = Array.isArray(mirrorRows) ? mirrorRows[0] || null : null;
+    const costCenterRow = Array.isArray(costCenterRows) ? costCenterRows[0] || null : null;
 
     const bucketSource = paymentsMirror || {
       current_due: invoice?.balance_due ?? invoice?.total_amount ?? 0,
@@ -291,7 +309,7 @@ export async function POST(request: NextRequest) {
         ? "paid"
         : effectiveMirrorPaid > 0
           ? "partial"
-          : String(paymentsMirror?.payment_status || updatedInvoice?.payment_status || "pending");
+          : normalizePaymentStatus(paymentsMirror?.payment_status || updatedInvoice?.payment_status || "pending");
 
     if (paymentsMirror?.id) {
       const { error: mirrorUpdateError } = await supabase

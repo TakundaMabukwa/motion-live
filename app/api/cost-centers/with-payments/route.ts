@@ -72,6 +72,7 @@ export async function GET(request: Request) {
       `)
       .in('cost_code', codes)
       .order('billing_month', { ascending: false })
+      .order('last_updated', { ascending: false })
       .order('due_date', { ascending: false });
 
     const { data: accountInvoices, error: invoicesError } = await supabase
@@ -134,10 +135,13 @@ export async function GET(request: Request) {
     }
 
     const paymentByCodeAndMonth = new Map();
+    const getPaymentRowTime = (row: Record<string, unknown> | null | undefined) =>
+      new Date(String(row?.last_updated || row?.invoice_date || row?.billing_month || 0)).getTime();
     (payments || []).forEach((payment) => {
       if (!payment?.cost_code) return;
       const paymentKey = `${payment.cost_code}|${payment.billing_month || ''}`;
-      if (!paymentByCodeAndMonth.has(paymentKey)) {
+      const existingPayment = paymentByCodeAndMonth.get(paymentKey);
+      if (!existingPayment || getPaymentRowTime(payment) > getPaymentRowTime(existingPayment)) {
         paymentByCodeAndMonth.set(paymentKey, payment);
       }
     });

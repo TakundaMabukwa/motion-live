@@ -667,6 +667,7 @@ export default function ClientCostCentersPage() {
         '2nd_month': 0,
         '3rd_month': 0,
         amount_due: Number((payment.outstanding_balance ?? payment.balance_due) || 0),
+        credit_amount: Number(payment.credit_amount || 0),
         monthly_amount: Number(payment.due_amount || 0),
         payment_status: payment.payment_status,
         billing_month: payment.billing_month,
@@ -1837,7 +1838,10 @@ export default function ClientCostCentersPage() {
       costCenters[accountNumber].dueAmount = Math.max(costCenters[accountNumber].dueAmount, vehicle.total_ex_vat || 0);
       costCenters[accountNumber].paidAmount = (vehicle.total_ex_vat || 0) - (vehicle.amount_due || 0);
       costCenters[accountNumber].balanceDue = vehicle.amount_due || 0;
-      costCenters[accountNumber].creditAmount = Number(vehicle.credit_amount || 0);
+      costCenters[accountNumber].creditAmount = Math.max(
+        Number(costCenters[accountNumber].creditAmount || 0),
+        Number(vehicle.credit_amount || 0),
+      );
       costCenters[accountNumber].paymentStatus = vehicle.payment_status || 'pending';
       costCenters[accountNumber].accountInvoiceId =
         vehicle.account_invoice_id || costCenters[accountNumber].accountInvoiceId || null;

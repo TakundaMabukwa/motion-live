@@ -223,6 +223,85 @@ const normalizePaymentTimestamp = (value: unknown) => {
   return parsed.toISOString();
 };
 
+const createOverpaymentCreditNote = async ({
+  supabase,
+  accountNumber,
+  billingMonth,
+  accountInvoiceId,
+  clientName,
+  amount,
+  creditNoteDate,
+  paymentReference,
+  paymentId,
+  createdBy,
+  createdByEmail,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  accountNumber: string;
+  billingMonth: string;
+  accountInvoiceId: string | null;
+  clientName: string;
+  amount: number;
+  creditNoteDate: string;
+  paymentReference: string | null;
+  paymentId: string | null;
+  createdBy: string | null;
+  createdByEmail: string | null;
+}) => {
+  if (!(amount > 0)) {
+    return { creditNoteNumber: null, error: null };
+  }
+
+  const normalizedBillingMonth = normalizeBillingMonth(billingMonth);
+  if (!normalizedBillingMonth) {
+    return { creditNoteNumber: null, error: "Invalid billing month for credit note" };
+  }
+
+  const { data: allocatedCreditNoteNumber, error: numberError } = await supabase.rpc(
+    "allocate_document_number",
+    {
+      sequence_name: "credit_note",
+      prefix: "CN-",
+    },
+  );
+
+  if (numberError || !allocatedCreditNoteNumber) {
+    return {
+      creditNoteNumber: null,
+      error: numberError?.message || "Failed to allocate credit note number",
+    };
+  }
+
+  const { error: insertError } = await supabase.from("credit_notes").insert({
+    credit_note_number: allocatedCreditNoteNumber,
+    account_number: accountNumber,
+    client_name: clientName,
+    billing_month_applies_to: normalizedBillingMonth,
+    credit_note_date: creditNoteDate,
+    amount: Number(amount.toFixed(2)),
+    applied_amount: 0,
+    unapplied_amount: Number(amount.toFixed(2)),
+    reference: paymentReference,
+    comment: paymentId
+      ? `Auto-created from payment over-allocation (payment ${paymentId})`
+      : "Auto-created from payment over-allocation",
+    reason: "Auto-created from payment over-allocation",
+    status: "available",
+    account_invoice_id: accountInvoiceId,
+    created_by: createdBy,
+    created_by_email: createdByEmail,
+  });
+
+  if (insertError) {
+    return {
+      creditNoteNumber: null,
+      error: insertError.message || "Failed to create overpayment credit note",
+    };
+  }
+
+  return { creditNoteNumber: String(allocatedCreditNoteNumber), error: null };
+};
+
 const buildOutstandingInvoiceItems = (agingRow: Record<string, unknown>) => {
   const rows = [
     { description: "Current Due", amount: Number(agingRow.current_due || 0) },
@@ -766,9 +845,21 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        let priorMirrorCreditAmount = 0;
+        if (normalizedPaymentPeriodType === "outstanding" && outstandingAgingRow) {
+          priorMirrorCreditAmount = Number(outstandingAgingRow.credit_amount || 0);
+        } else {
+          const { data: priorMirrorRows } = await supabase
+            .from("payments_")
+            .select("credit_amount")
+            .eq("account_invoice_id", invoice.id)
+            .order("last_updated", { ascending: false })
+            .limit(1);
+          priorMirrorCreditAmount = Number(priorMirrorRows?.[0]?.credit_amount || 0);
+        }
+
         if (normalizedPaymentPeriodType === "outstanding" && outstandingAgingRow) {
           const agedAllocation = applyOutstandingPaymentToBuckets(outstandingAgingRow, amount);
-          const currentCreditAmount = Number(outstandingAgingRow.credit_amount || 0);
           const outstandingDueAmount = getTotalOutstandingDue(outstandingAgingRow);
           const nextPaidAmount = Math.min(
             outstandingDueAmount,
@@ -790,9 +881,7 @@ export async function POST(request: NextRequest) {
               overdue_90_days: agedAllocation.overdue_90_days,
               overdue_120_plus_days: agedAllocation.overdue_120_plus_days,
               outstanding_balance: agedAllocation.outstanding_balance,
-              credit_amount: Number(
-                (currentCreditAmount + Math.max(0, creditAmount)).toFixed(2),
-              ),
+              credit_amount: Number(Math.max(0, creditAmount).toFixed(2)),
               payment_status:
                 agedAllocation.outstanding_balance <= 0 && agedAllocation.current_due <= 0
                   ? "paid"
@@ -814,11 +903,45 @@ export async function POST(request: NextRequest) {
           });
         }
 
+        let creditNoteNumber: string | null = null;
+        let creditNoteError: string | null = null;
+        const incrementalCreditAmount = Math.max(
+          0,
+          Number((Math.max(0, creditAmount) - Math.max(0, priorMirrorCreditAmount)).toFixed(2)),
+        );
+
+        if (incrementalCreditAmount > 0) {
+          const overpaymentCreditResult = await createOverpaymentCreditNote({
+            supabase,
+            accountNumber: String(updatedInvoice.account_number || invoice.account_number || "").trim().toUpperCase(),
+            billingMonth:
+              normalizeBillingMonth(updatedInvoice.billing_month) ||
+              normalizeBillingMonth(invoice.billing_month) ||
+              normalizeBillingMonth(payment.billingMonth) ||
+              "",
+            accountInvoiceId: String(updatedInvoice.id || invoice.id || "") || null,
+            clientName:
+              String(updatedInvoice.company_name || invoice.company_name || invoice.account_number || "").trim() ||
+              String(invoice.account_number || "").trim(),
+            amount: incrementalCreditAmount,
+            creditNoteDate: insertedPayment.payment_date || normalizedPaymentDate,
+            paymentReference: insertedPayment.payment_reference || null,
+            paymentId: insertedPayment.id || null,
+            createdBy: user?.id || null,
+            createdByEmail: user?.email || null,
+          });
+
+          creditNoteNumber = overpaymentCreditResult.creditNoteNumber;
+          creditNoteError = overpaymentCreditResult.error;
+        }
+
         results.push({
           accountNumber: invoice.account_number,
           amount,
           success: true,
           creditAmount,
+          creditNoteNumber,
+          creditNoteError,
           payment: {
             ...updatedInvoice,
             account_invoice_id: updatedInvoice.id,

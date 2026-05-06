@@ -26,6 +26,18 @@ const toNumber = (value) => {
   return Number.isFinite(amount) ? amount : 0;
 };
 
+const getCreditNoteEffectiveAmount = (creditNote) => {
+  const totalAmount = Math.max(0, toNumber(creditNote?.amount));
+  if (totalAmount > 0) return totalAmount;
+
+  const appliedAmount = Math.max(0, toNumber(creditNote?.applied_amount));
+  const unappliedAmount = Math.max(0, toNumber(creditNote?.unapplied_amount));
+  const combinedAmount = appliedAmount + unappliedAmount;
+
+  if (combinedAmount > 0) return combinedAmount;
+  return appliedAmount;
+};
+
 const formatAmount = (amount) =>
   toNumber(amount).toLocaleString("en-ZA", {
     minimumFractionDigits: 2,
@@ -288,6 +300,51 @@ const isInvoiceOnOrBeforeBillingMonth = (billingMonth, invoice) => {
     normalizedBillingMonth,
     invoice?.billing_month,
     invoice?.invoice_date || invoice?.created_at,
+  );
+};
+
+const getCreditNoteDateValue = (creditNote) =>
+  String(creditNote?.credit_note_date || creditNote?.created_at || "").trim();
+
+const isCreditNoteWithinStatementMonth = (billingMonth, creditNote) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const creditNoteDateValue = getCreditNoteDateValue(creditNote);
+  if (!creditNoteDateValue) return false;
+
+  return isWithinBillingMonth(
+    normalizedBillingMonth,
+    creditNoteDateValue,
+    creditNoteDateValue,
+  );
+};
+
+const isCreditNoteBeforeStatementMonth = (billingMonth, creditNote) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return false;
+
+  const creditNoteDateValue = getCreditNoteDateValue(creditNote);
+  if (!creditNoteDateValue) return false;
+
+  return isBeforeBillingMonth(
+    normalizedBillingMonth,
+    creditNoteDateValue,
+    creditNoteDateValue,
+  );
+};
+
+const isCreditNoteOnOrBeforeStatementMonth = (billingMonth, creditNote) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const creditNoteDateValue = getCreditNoteDateValue(creditNote);
+  if (!creditNoteDateValue) return false;
+
+  return isOnOrBeforeBillingMonth(
+    normalizedBillingMonth,
+    creditNoteDateValue,
+    creditNoteDateValue,
   );
 };
 
@@ -1066,11 +1123,7 @@ export function buildStatementView({
   const filteredCreditNotes = creditNotes.filter(
     (creditNote) =>
       statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
-      isWithinBillingMonth(
-        targetBillingMonth,
-        creditNote?.billing_month_applies_to,
-        creditNote?.credit_note_date || creditNote?.created_at,
-      ),
+      isCreditNoteWithinStatementMonth(targetBillingMonth, creditNote),
   );
 
   const primaryStatementAccountNumber = String(costCenter?.accountNumber || "").trim();
@@ -1401,11 +1454,7 @@ export function buildStatementView({
   const priorCreditNotes = creditNotes.filter(
     (creditNote) =>
       statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
-      isBeforeBillingMonth(
-        targetBillingMonth,
-        creditNote?.billing_month_applies_to,
-        creditNote?.credit_note_date || creditNote?.created_at,
-      ),
+      isCreditNoteBeforeStatementMonth(targetBillingMonth, creditNote),
   );
 
   const priorInvoiceTotal = priorInvoiceHistory.reduce(
@@ -1417,7 +1466,7 @@ export function buildStatementView({
     0,
   );
   const priorCreditTotal = priorCreditNotes.reduce(
-    (sum, creditNote) => sum + toNumber(creditNote?.applied_amount ?? creditNote?.amount),
+    (sum, creditNote) => sum + getCreditNoteEffectiveAmount(creditNote),
     0,
   );
   const openingNetFromLedger = roundMoneyValue(
@@ -1467,8 +1516,7 @@ export function buildStatementView({
     filteredPaymentHistory.reduce((sum, payment) => sum + toNumber(payment?.amount), 0),
   );
   const creditNoteTotal = filteredCreditNotes.reduce(
-    (sum, creditNote) =>
-      sum + toNumber(creditNote?.applied_amount ?? creditNote?.amount),
+    (sum, creditNote) => sum + getCreditNoteEffectiveAmount(creditNote),
     0,
   );
   const statementCreditedAmountFallback = Math.max(
@@ -1622,11 +1670,10 @@ export function buildStatementView({
   });
 
   const creditLedgerRows = filteredCreditNotes.map((creditNote) => {
-    const creditAmount = toNumber(creditNote?.applied_amount ?? creditNote?.amount);
+    const creditAmount = getCreditNoteEffectiveAmount(creditNote);
     const sortDate =
       creditNote?.credit_note_date ||
       creditNote?.created_at ||
-      creditNote?.billing_month_applies_to ||
       paymentDateSource;
     return {
       date: formatStatementTransactionDate(sortDate),
@@ -1783,11 +1830,7 @@ export function buildStatementView({
     .filter(
       (creditNote) =>
         statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
-        isOnOrBeforeBillingMonth(
-          targetBillingMonth,
-          creditNote?.billing_month_applies_to,
-          creditNote?.credit_note_date || creditNote?.created_at,
-        ),
+        isCreditNoteOnOrBeforeStatementMonth(targetBillingMonth, creditNote),
     )
     .sort((left, right) =>
       sortTransactionDatesAsc(
@@ -1881,7 +1924,7 @@ export function buildStatementView({
 
     creditNotesThroughStatement.forEach((creditNote) => {
       let remainingAmount = applyToLinkedInvoice(
-        creditNote?.applied_amount ?? creditNote?.amount,
+        getCreditNoteEffectiveAmount(creditNote),
         creditNote?.account_invoice_id,
         creditNote?.invoice_number,
       );

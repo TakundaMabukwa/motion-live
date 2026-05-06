@@ -70,6 +70,24 @@ const isOnOrBeforeBillingMonth = (
   return fallback.getTime() <= cutoff.getTime();
 };
 
+const isCreditNoteOnOrBeforeBillingMonth = (
+  billingMonth: string,
+  creditNote: Record<string, unknown> | null | undefined,
+) => {
+  if (!billingMonth) return true;
+
+  const creditNoteDateValue = normalizeDateValue(
+    creditNote?.credit_note_date || creditNote?.created_at,
+  );
+  if (!creditNoteDateValue) return false;
+
+  return isOnOrBeforeBillingMonth(
+    billingMonth,
+    creditNoteDateValue,
+    creditNoteDateValue,
+  );
+};
+
 const isAccountStyleInvoice = (invoice: Record<string, unknown> | null | undefined) => {
   const sourceType = String(invoice?.source_type || "").trim();
   return sourceType === "account_invoice" || sourceType === "bulk_account_invoice";
@@ -647,12 +665,8 @@ export async function GET(request: NextRequest) {
         return outstanding > 0 || bucketTotal > 0 || creditAmount > 0;
       });
 
-    const filteredCreditNotes = (Array.isArray(creditNotes) ? creditNotes : []).filter((creditNote) =>
-      isOnOrBeforeBillingMonth(
-        billingMonth,
-        creditNote?.billing_month_applies_to,
-        creditNote?.credit_note_date || creditNote?.created_at,
-      ),
+    const filteredCreditNotes = (Array.isArray(creditNotes) ? creditNotes : []).filter(
+      (creditNote) => isCreditNoteOnOrBeforeBillingMonth(billingMonth, creditNote),
     );
 
     return NextResponse.json({
