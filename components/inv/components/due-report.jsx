@@ -275,6 +275,88 @@ const isInvoiceBeforeBillingMonth = (billingMonth, invoice) => {
   );
 };
 
+const isInvoiceOnOrBeforeBillingMonth = (billingMonth, invoice) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const normalizedInvoiceBillingMonth = normalizeBillingMonthValue(invoice?.billing_month);
+  if (isAccountStyleInvoice(invoice) && normalizedInvoiceBillingMonth) {
+    return normalizedInvoiceBillingMonth <= normalizedBillingMonth;
+  }
+
+  return isOnOrBeforeBillingMonth(
+    normalizedBillingMonth,
+    invoice?.billing_month,
+    invoice?.invoice_date || invoice?.created_at,
+  );
+};
+
+const roundMoneyValue = (value) => Number((toNumber(value) || 0).toFixed(2));
+
+const getInvoiceDueDateOrDefault = (invoice) => {
+  const rawDueDate = String(invoice?.due_date || "").trim();
+  if (rawDueDate) {
+    const parsed = new Date(rawDueDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  const rawInvoiceDate = String(
+    invoice?.invoice_date || invoice?.created_at || invoice?.billing_month || "",
+  ).trim();
+  if (!rawInvoiceDate) {
+    return null;
+  }
+
+  const parsedInvoiceDate = new Date(rawInvoiceDate);
+  if (Number.isNaN(parsedInvoiceDate.getTime())) {
+    return null;
+  }
+
+  const fallbackDueDate = new Date(parsedInvoiceDate);
+  fallbackDueDate.setDate(fallbackDueDate.getDate() + 30);
+  return fallbackDueDate;
+};
+
+const normalizeAgingBucketsToTarget = (buckets, targetOutstanding) => {
+  const normalized = {
+    current: Math.max(0, roundMoneyValue(buckets?.current)),
+    days30: Math.max(0, roundMoneyValue(buckets?.days30)),
+    days60: Math.max(0, roundMoneyValue(buckets?.days60)),
+    days90: Math.max(0, roundMoneyValue(buckets?.days90)),
+    days120Plus: Math.max(0, roundMoneyValue(buckets?.days120Plus)),
+  };
+  const target = Math.max(0, roundMoneyValue(targetOutstanding));
+  const total =
+    normalized.current +
+    normalized.days30 +
+    normalized.days60 +
+    normalized.days90 +
+    normalized.days120Plus;
+
+  if (total <= target + 0.01) {
+    const delta = roundMoneyValue(target - total);
+    if (delta > 0) {
+      normalized.current = roundMoneyValue(normalized.current + delta);
+    }
+    return normalized;
+  }
+
+  let overflow = roundMoneyValue(total - target);
+  const reduceKeys = ["days120Plus", "days90", "days60", "days30", "current"];
+  reduceKeys.forEach((key) => {
+    if (overflow <= 0.01) return;
+    const available = normalized[key];
+    if (available <= 0) return;
+    const deduction = Math.min(available, overflow);
+    normalized[key] = roundMoneyValue(available - deduction);
+    overflow = roundMoneyValue(overflow - deduction);
+  });
+
+  return normalized;
+};
+
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -832,7 +914,7 @@ export function StatementDocument({ statementView, showItemBreakdown = false }) 
             <tr>
               <th>Current</th>
               <th>30 Days</th>
-              <th>70 Days</th>
+              <th>60 Days</th>
               <th>90 Days</th>
               <th>120+ Days</th>
             </tr>
@@ -1326,26 +1408,43 @@ export function buildStatementView({
       ),
   );
 
-  const openingBalanceFromLedger = Math.max(
+  const priorInvoiceTotal = priorInvoiceHistory.reduce(
+    (sum, invoice) => sum + toNumber(invoice?.total_amount),
     0,
-    priorInvoiceHistory.reduce((sum, invoice) => sum + toNumber(invoice?.total_amount), 0) -
-      priorPaymentHistory.reduce((sum, payment) => sum + toNumber(payment?.amount), 0) -
-      priorCreditNotes.reduce(
-        (sum, creditNote) => sum + toNumber(creditNote?.applied_amount ?? creditNote?.amount),
-        0,
-      ),
   );
+  const priorPaymentTotal = priorPaymentHistory.reduce(
+    (sum, payment) => sum + toNumber(payment?.amount),
+    0,
+  );
+  const priorCreditTotal = priorCreditNotes.reduce(
+    (sum, creditNote) => sum + toNumber(creditNote?.applied_amount ?? creditNote?.amount),
+    0,
+  );
+  const openingNetFromLedger = roundMoneyValue(
+    priorInvoiceTotal - priorPaymentTotal - priorCreditTotal,
+  );
+  const openingBalanceFromLedger = Math.max(0, openingNetFromLedger);
+  const openingCreditFromLedger = Math.max(0, -openingNetFromLedger);
   const hasPriorAging = latestPriorAgingByAccount.size > 0;
-  const openingBalance = hasPriorAging
-    ? openingBalanceFromAging
-    : openingBalanceFromLedger;
-  const openingCreditAmount = hasPriorAging ? openingCreditFromAging : 0;
-  const shouldShowOpeningBalanceRow =
-    hasPriorAging ||
-    openingBalance > 0 ||
+  const hasPriorLedgerActivity =
     priorInvoiceHistory.length > 0 ||
     priorPaymentHistory.length > 0 ||
     priorCreditNotes.length > 0;
+  const openingBalance = hasPriorLedgerActivity
+    ? openingBalanceFromLedger
+    : hasPriorAging
+      ? openingBalanceFromAging
+      : 0;
+  const openingCreditAmount = hasPriorLedgerActivity
+    ? openingCreditFromLedger
+    : hasPriorAging
+      ? openingCreditFromAging
+      : 0;
+  const shouldShowOpeningBalanceRow =
+    hasPriorLedgerActivity ||
+    hasPriorAging ||
+    openingBalance > 0 ||
+    openingCreditAmount > 0;
 
   const matchedStatementPayments = filteredPaymentHistory
     .map((payment) => ({
@@ -1659,13 +1758,201 @@ export function buildStatementView({
       ? toNumber(totalsFromRows.outstanding)
       : statementOutstandingFromMirror;
 
-  const agingBucketTotal = toNumber(current) + toNumber(days30) + toNumber(days60) + toNumber(days90) + toNumber(days120Plus);
-  if (agingBucketTotal <= 0.01 && statementOutstandingTotal > 0.01) {
-    current = statementOutstandingTotal;
-    days30 = 0;
-    days60 = 0;
-    days90 = 0;
-    days120Plus = 0;
+  const invoicesThroughStatement = invoiceHistory.filter(
+    (invoice) =>
+      statementAccountNumberSet.has(String(invoice?.account_number || "").trim()) &&
+      isInvoiceOnOrBeforeBillingMonth(targetBillingMonth, invoice),
+  );
+  const paymentsThroughStatement = paymentHistory
+    .filter(
+      (payment) =>
+        statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
+        isOnOrBeforeBillingMonth(
+          targetBillingMonth,
+          payment?.billing_month,
+          payment?.payment_date || payment?.created_at,
+        ),
+    )
+    .sort((left, right) =>
+      sortTransactionDatesAsc(
+        left?.payment_date || left?.created_at || "",
+        right?.payment_date || right?.created_at || "",
+      ),
+    );
+  const creditNotesThroughStatement = creditNotes
+    .filter(
+      (creditNote) =>
+        statementAccountNumberSet.has(String(creditNote?.account_number || "").trim()) &&
+        isOnOrBeforeBillingMonth(
+          targetBillingMonth,
+          creditNote?.billing_month_applies_to,
+          creditNote?.credit_note_date || creditNote?.created_at,
+        ),
+    )
+    .sort((left, right) =>
+      sortTransactionDatesAsc(
+        left?.credit_note_date || left?.created_at || "",
+        right?.credit_note_date || right?.created_at || "",
+      ),
+    );
+
+  const hasDynamicAgingSource =
+    invoicesThroughStatement.length > 0 ||
+    paymentsThroughStatement.length > 0 ||
+    creditNotesThroughStatement.length > 0;
+
+  if (hasDynamicAgingSource) {
+    const invoiceAgingRows = invoicesThroughStatement
+      .map((invoice) => ({
+        id: String(invoice?.id || "").trim(),
+        invoiceNumber: String(invoice?.invoice_number || "").trim(),
+        issueDate:
+          invoice?.invoice_date || invoice?.created_at || invoice?.billing_month || statementMonthSource,
+        dueDate: getInvoiceDueDateOrDefault(invoice),
+        remaining: Math.max(0, roundMoneyValue(invoice?.total_amount)),
+      }))
+      .filter((row) => row.remaining > 0.01)
+      .sort((left, right) => sortTransactionDatesAsc(left.issueDate, right.issueDate));
+
+    const invoiceById = new Map();
+    const invoicesByNumber = new Map();
+    invoiceAgingRows.forEach((row) => {
+      if (row.id) {
+        invoiceById.set(row.id, row);
+      }
+      if (row.invoiceNumber) {
+        const currentRows = invoicesByNumber.get(row.invoiceNumber) || [];
+        currentRows.push(row);
+        invoicesByNumber.set(row.invoiceNumber, currentRows);
+      }
+    });
+
+    const applyToRow = (row, amount) => {
+      const normalizedAmount = Math.max(0, roundMoneyValue(amount));
+      if (!row || normalizedAmount <= 0 || row.remaining <= 0) {
+        return normalizedAmount;
+      }
+      const applied = Math.min(row.remaining, normalizedAmount);
+      row.remaining = roundMoneyValue(row.remaining - applied);
+      return roundMoneyValue(normalizedAmount - applied);
+    };
+
+    const applyToOldestOutstanding = (amount) => {
+      let remainingAmount = Math.max(0, roundMoneyValue(amount));
+      if (remainingAmount <= 0) return 0;
+      invoiceAgingRows.forEach((row) => {
+        if (remainingAmount <= 0.01) return;
+        remainingAmount = applyToRow(row, remainingAmount);
+      });
+      return remainingAmount;
+    };
+
+    const applyToLinkedInvoice = (amount, invoiceId, invoiceNumber) => {
+      let remainingAmount = Math.max(0, roundMoneyValue(amount));
+      if (remainingAmount <= 0) return 0;
+
+      const normalizedId = String(invoiceId || "").trim();
+      if (normalizedId && invoiceById.has(normalizedId)) {
+        remainingAmount = applyToRow(invoiceById.get(normalizedId), remainingAmount);
+      }
+
+      const normalizedInvoiceNumber = String(invoiceNumber || "").trim();
+      if (remainingAmount > 0.01 && normalizedInvoiceNumber && invoicesByNumber.has(normalizedInvoiceNumber)) {
+        const matchingRows = invoicesByNumber.get(normalizedInvoiceNumber) || [];
+        matchingRows.forEach((row) => {
+          if (remainingAmount <= 0.01) return;
+          remainingAmount = applyToRow(row, remainingAmount);
+        });
+      }
+
+      return remainingAmount;
+    };
+
+    paymentsThroughStatement.forEach((payment) => {
+      let remainingAmount = applyToLinkedInvoice(
+        payment?.amount,
+        payment?.account_invoice_id,
+        payment?.invoice_number,
+      );
+      if (remainingAmount > 0.01) {
+        remainingAmount = applyToOldestOutstanding(remainingAmount);
+      }
+    });
+
+    creditNotesThroughStatement.forEach((creditNote) => {
+      let remainingAmount = applyToLinkedInvoice(
+        creditNote?.applied_amount ?? creditNote?.amount,
+        creditNote?.account_invoice_id,
+        creditNote?.invoice_number,
+      );
+      if (remainingAmount > 0.01) {
+        remainingAmount = applyToOldestOutstanding(remainingAmount);
+      }
+    });
+
+    const statementAsAtRaw = getStatementAsAtDate(statementMonthSource);
+    const statementAsAtDate = new Date(`${statementAsAtRaw}T00:00:00`);
+    const asAtDate = Number.isNaN(statementAsAtDate.getTime()) ? normalizedToday : statementAsAtDate;
+    asAtDate.setHours(0, 0, 0, 0);
+
+    let dynamicCurrent = 0;
+    let dynamic30 = 0;
+    let dynamic60 = 0;
+    let dynamic90 = 0;
+    let dynamic120Plus = 0;
+
+    invoiceAgingRows.forEach((row) => {
+      const remaining = Math.max(0, roundMoneyValue(row.remaining));
+      if (remaining <= 0.01) return;
+
+      const dueDate = row.dueDate instanceof Date ? new Date(row.dueDate) : null;
+      if (!dueDate || Number.isNaN(dueDate.getTime())) {
+        dynamicCurrent += remaining;
+        return;
+      }
+
+      dueDate.setHours(0, 0, 0, 0);
+      const daysOverdue = Math.floor((asAtDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysOverdue <= 0) {
+        dynamicCurrent += remaining;
+      } else if (daysOverdue <= 30) {
+        dynamic30 += remaining;
+      } else if (daysOverdue <= 60) {
+        dynamic60 += remaining;
+      } else if (daysOverdue <= 90) {
+        dynamic90 += remaining;
+      } else {
+        dynamic120Plus += remaining;
+      }
+    });
+
+    const normalizedDynamicAging = normalizeAgingBucketsToTarget(
+      {
+        current: dynamicCurrent,
+        days30: dynamic30,
+        days60: dynamic60,
+        days90: dynamic90,
+        days120Plus: dynamic120Plus,
+      },
+      statementOutstandingTotal,
+    );
+
+    current = normalizedDynamicAging.current;
+    days30 = normalizedDynamicAging.days30;
+    days60 = normalizedDynamicAging.days60;
+    days90 = normalizedDynamicAging.days90;
+    days120Plus = normalizedDynamicAging.days120Plus;
+  } else {
+    const agingBucketTotal =
+      toNumber(current) + toNumber(days30) + toNumber(days60) + toNumber(days90) + toNumber(days120Plus);
+    if (agingBucketTotal <= 0.01 && statementOutstandingTotal > 0.01) {
+      current = statementOutstandingTotal;
+      days30 = 0;
+      days60 = 0;
+      days90 = 0;
+      days120Plus = 0;
+    }
   }
 
   const agingRows = [
