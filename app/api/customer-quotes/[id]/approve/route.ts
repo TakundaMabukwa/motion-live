@@ -3,10 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
+    const { id } = await params;
     
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -40,7 +41,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('customer_quotes')
       .update(updatePayload)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 

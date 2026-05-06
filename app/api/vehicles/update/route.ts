@@ -76,11 +76,14 @@ export async function PUT(request) {
     const { id, unique_id, ...updateData } = vehicleData;
     const identifier = unique_id || id;
     const identifierField = unique_id ? 'unique_id' : 'id';
-    const { data: existingVehicle, error: existingVehicleError } = await supabase
+    let lookupField = identifierField;
+    let lookupValue = identifier;
+    const { data: foundVehicle, error: existingVehicleError } = await supabase
       .from('vehicles_duplicate')
       .select('id, unique_id, vehicle_validated')
       .eq(identifierField, identifier)
       .maybeSingle();
+    let existingVehicle = foundVehicle;
 
     if (existingVehicleError) {
       console.error('Error finding existing vehicle before update:', {
@@ -95,10 +98,52 @@ export async function PUT(request) {
     }
 
     if (!existingVehicle) {
-      return NextResponse.json(
-        { error: 'Vehicle not found' },
-        { status: 404 }
-      );
+      const fallbackReg = String(updateData?.reg || '').trim();
+      const fallbackFleetNumber = String(updateData?.fleet_number || '').trim();
+
+      if (fallbackReg || fallbackFleetNumber) {
+        let fallbackQuery = supabase
+          .from('vehicles_duplicate')
+          .select('id, unique_id, vehicle_validated')
+          .limit(1);
+
+        if (fallbackReg && fallbackFleetNumber) {
+          fallbackQuery = fallbackQuery.or(
+            `reg.eq.${fallbackReg.replace(/,/g, '\\,')},fleet_number.eq.${fallbackFleetNumber.replace(/,/g, '\\,')}`
+          );
+        } else if (fallbackReg) {
+          fallbackQuery = fallbackQuery.eq('reg', fallbackReg);
+        } else {
+          fallbackQuery = fallbackQuery.eq('fleet_number', fallbackFleetNumber);
+        }
+
+        const { data: fallbackRows, error: fallbackError } = await fallbackQuery;
+        if (fallbackError) {
+          console.error('Error finding fallback vehicle before update:', {
+            error: fallbackError,
+            fallbackReg,
+            fallbackFleetNumber,
+          });
+          return NextResponse.json(
+            { error: 'Failed to update vehicle', details: fallbackError.message },
+            { status: 500 }
+          );
+        }
+
+        const fallbackVehicle = Array.isArray(fallbackRows) ? fallbackRows[0] : null;
+        if (fallbackVehicle) {
+          existingVehicle = fallbackVehicle;
+          lookupField = 'id';
+          lookupValue = fallbackVehicle.id;
+        }
+      }
+
+      if (!existingVehicle) {
+        return NextResponse.json(
+          { error: 'Vehicle not found' },
+          { status: 404 }
+        );
+      }
     }
 
     const billingLocked = await isBillingLocked(supabase);
@@ -144,16 +189,28 @@ export async function PUT(request) {
       delete updateData.cost_code;
     }
 
-    console.log('Updating vehicle:', { identifier, identifierField, hasUpdateData: Object.keys(updateData).length });
+    console.log('Updating vehicle:', {
+      identifier,
+      identifierField,
+      lookupField,
+      lookupValue,
+      hasUpdateData: Object.keys(updateData).length,
+    });
 
     const { data, error } = await supabase
       .from('vehicles_duplicate')
       .update(updateData)
-      .eq(identifierField, identifier)
+      .eq(lookupField, lookupValue)
       .select();
 
     if (error) {
-      console.error('Error updating vehicle:', { error, identifier, identifierField });
+      console.error('Error updating vehicle:', {
+        error,
+        identifier,
+        identifierField,
+        lookupField,
+        lookupValue,
+      });
       return NextResponse.json(
         { error: 'Failed to update vehicle', details: error.message },
         { status: 500 }

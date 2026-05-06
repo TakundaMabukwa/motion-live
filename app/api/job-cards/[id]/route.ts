@@ -257,28 +257,52 @@ export async function PATCH(
           console.log(`Deducting stock for technician: ${currentJob.technician_phone} (ID: ${currentJob.assigned_technician_id})`);
           await deductTechnicianStock(currentJob.technician_phone, currentJob.parts_required, currentJob.assigned_technician_id);
         }
-        
-        // Then call the add-vehicle endpoint internally (it will check job type)
-        const addVehicleResponse = await fetch(`${request.nextUrl.origin}/api/job-cards/${id}/add-vehicle`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': request.headers.get('Authorization') || '',
-            'Cookie': request.headers.get('Cookie') || ''
-          },
-          body: JSON.stringify({})
-        });
 
-        if (addVehicleResponse.ok) {
-          const addVehicleResult = await addVehicleResponse.json();
-          console.log('Job completion processed:', addVehicleResult.message);
-        } else {
-          console.error('Failed to process job completion:', await addVehicleResponse.text());
-        }
+        // Handle vehicle addition directly (avoid internal API-to-API round-trip).
+        await addVehicleToInventoryIfInstall(updatedJob);
       } catch (error) {
         console.error('Error processing job completion:', error);
         // Don't fail the job completion if vehicle processing fails
       }
+    }
+
+    async function addVehicleToInventoryIfInstall(jobCard: any) {
+      const jobType = String(jobCard?.job_type || '').toLowerCase();
+      const isInstallJob = jobType === 'install' || jobType === 'installation';
+
+      if (!isInstallJob) {
+        console.log('Job completion processed: Job completed successfully. Vehicle not added to inventory (not an install job)');
+        return;
+      }
+
+      const vehicleData = {
+        reg: jobCard.vehicle_registration || '',
+        vin: jobCard.vehicle_chassis || jobCard.vin_numer || '',
+        make: jobCard.vehicle_make || '',
+        model: jobCard.vehicle_model || '',
+        year: jobCard.vehicle_year?.toString() || '',
+        colour: jobCard.vehicle_colour || 'Unknown',
+        company: jobCard.customer_name || 'Unknown Company',
+        new_account_number: jobCard.new_account_number || `JOB-${jobCard.job_number}`,
+        branch: null,
+        fleet_number: null,
+        engine: null,
+        skylink_trailer_unit_ip: jobCard.ip_address || null,
+        total_rental_sub: jobCard.quotation_total_amount || 0,
+        total_rental: jobCard.quotation_subtotal || 0,
+        total_sub: jobCard.quotation_vat_amount || 0
+      };
+
+      const { error: vehiclesError } = await supabase
+        .from('vehicles')
+        .insert([vehicleData]);
+
+      if (vehiclesError) {
+        console.error('Failed to process job completion: Failed to add vehicle to inventory', vehiclesError);
+        return;
+      }
+
+      console.log('Job completion processed: Install job completed - Vehicle successfully added to vehicles table');
     }
 
     // Function to deduct stock from technician's boot stock

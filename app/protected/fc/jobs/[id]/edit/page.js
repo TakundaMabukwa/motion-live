@@ -102,6 +102,11 @@ export default function EditJobPage() {
       return;
     }
 
+    if (source === "escalations") {
+      router.push("/protected/fc?tab=escalations");
+      return;
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
@@ -118,6 +123,12 @@ export default function EditJobPage() {
   const handleJobSaved = () => {
     if (source === "from-ria") {
       router.push("/protected/fc?tab=from-ria");
+      router.refresh();
+      return;
+    }
+
+    if (source === "escalations") {
+      router.push("/protected/fc?tab=escalations");
       router.refresh();
       return;
     }
@@ -177,7 +188,7 @@ export default function EditJobPage() {
           JOB_DETAILS_CACHE,
           String(jobId),
           async () => {
-            const response = await fetch(`/api/job-cards/${jobId}?view=fc-edit`, {
+            const response = await fetch(`/api/job-cards/${jobId}`, {
               cache: "no-store",
             });
             if (!response.ok) {

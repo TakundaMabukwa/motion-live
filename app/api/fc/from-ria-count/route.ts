@@ -14,9 +14,9 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    const { count, error } = await supabase
       .from("job_cards")
-      .select("id")
+      .select("id", { count: "exact", head: true })
       .eq("escalation_role", "fc")
       .not("job_status", "in", "(\"Completed\",\"completed\")")
       .not("status", "in", "(\"Completed\",\"completed\")");
@@ -28,7 +28,7 @@ export async function GET() {
       );
     }
 
-    const pendingCount = (data || []).length;
+    const pendingCount = Number(count || 0);
 
     return NextResponse.json({ pendingCount });
   } catch (error) {

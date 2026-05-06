@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     const escalationRole = searchParams.get('escalation_role');
     const excludeCompleted = String(searchParams.get('exclude_completed') || '').toLowerCase() === 'true';
     const view = searchParams.get('view') || '';
+    const includeCount = String(searchParams.get('include_count') || 'true').toLowerCase() !== 'false';
     const selectFields =
       view === 'fc-list'
         ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
@@ -90,30 +91,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch job cards' }, { status: 500 });
     }
 
-    let countQuery = supabase.from('job_cards').select('*', { count: 'exact', head: true });
+    let count: number | null = null;
 
-    if (accountNumber) {
-      countQuery = countQuery.eq('new_account_number', accountNumber);
+    if (includeCount) {
+      let countQuery = supabase.from('job_cards').select('id', { count: 'exact', head: true });
+
+      if (accountNumber) {
+        countQuery = countQuery.eq('new_account_number', accountNumber);
+      }
+
+      if (escalationRole) {
+        countQuery = countQuery.eq('escalation_role', escalationRole);
+      }
+
+      if (excludeCompleted) {
+        countQuery = countQuery
+          .not('job_status', 'in', '("Completed","completed")')
+          .not('status', 'in', '("Completed","completed")');
+      }
+
+      const countResult = await countQuery;
+      count = countResult.count ?? 0;
     }
-
-    if (escalationRole) {
-      countQuery = countQuery.eq('escalation_role', escalationRole);
-    }
-
-    if (excludeCompleted) {
-      countQuery = countQuery
-        .not('job_status', 'in', '("Completed","completed")')
-        .not('status', 'in', '("Completed","completed")');
-    }
-
-    const { count } = await countQuery;
 
     return NextResponse.json({
       job_cards: data || [],
-      count: count || 0,
+      count: includeCount ? count || 0 : null,
       page,
       limit,
-      total_pages: Math.ceil((count || 0) / limit),
+      total_pages: includeCount ? Math.ceil((count || 0) / limit) : null,
     });
   } catch (error) {
     console.error('Error in job cards GET:', error);

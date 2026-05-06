@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,16 +18,12 @@ import {
   ArrowLeft,
   Save,
   X,
-  Building2,
-  FileText,
-  ExternalLink,
-  CheckCircle,
 } from "lucide-react";
 import Link from "next/link";
+import FCSectionNav from "@/components/fc/FCSectionNav";
 
 export default function AddAccountPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -200,54 +195,7 @@ export default function AddAccountPage() {
       </div>
 
       {/* Main Navigation */}
-      <div className="mb-6 border-gray-200 border-b">
-        <nav className="flex space-x-8">
-          {[
-            {
-              id: "accounts",
-              label: "Accounts",
-              icon: Building2,
-              href: "/protected/fc",
-            },
-            {
-              id: "quotes",
-              label: "Quotes",
-              icon: FileText,
-              href: "/protected/fc/quotes",
-            },
-            {
-              id: "external-quotation",
-              label: "External Quotation",
-              icon: ExternalLink,
-              href: "/protected/fc/external-quotation",
-            },
-            {
-              id: "completed-jobs",
-              label: "Job Card Review",
-              icon: CheckCircle,
-              href: "/protected/fc/completed-jobs",
-            },
-          ].map((navItem) => {
-            const Icon = navItem.icon;
-            const isActive = pathname === navItem.href;
-
-            return (
-              <Link
-                key={navItem.id}
-                href={navItem.href}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  isActive
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{navItem.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+      <FCSectionNav />
 
       {/* Form */}
       <form onSubmit={handleSubmit}>

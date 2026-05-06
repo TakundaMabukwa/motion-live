@@ -471,6 +471,32 @@ function AccountDetailPageContent() {
                   selectedVehicle={selectedVehicle}
                   onVehicleSelect={handleVehicleSelect}
                   accountNumber={customer?.new_account_number}
+                  onVehicleUpdated={(updatedVehicle) => {
+                    setVehicles((prev) =>
+                      prev.map((row) => {
+                        const sameById = row.id === updatedVehicle.id;
+                        const sameByUniqueId =
+                          !!row.unique_id &&
+                          !!updatedVehicle.unique_id &&
+                          row.unique_id === updatedVehicle.unique_id;
+                        return sameById || sameByUniqueId
+                          ? { ...row, ...updatedVehicle }
+                          : row;
+                      }),
+                    );
+
+                    setSelectedVehicle((prev) => {
+                      if (!prev) return prev;
+                      const sameById = prev.id === updatedVehicle.id;
+                      const sameByUniqueId =
+                        !!prev.unique_id &&
+                        !!updatedVehicle.unique_id &&
+                        prev.unique_id === updatedVehicle.unique_id;
+                      return sameById || sameByUniqueId
+                        ? { ...prev, ...updatedVehicle }
+                        : prev;
+                    });
+                  }}
                 />
 
                 {/* Pagination Controls */}

@@ -15,9 +15,16 @@ interface VehicleCardsProps {
   selectedVehicle?: Vehicle | null;
   onVehicleSelect?: (vehicle: Vehicle) => void;
   accountNumber?: string;
+  onVehicleUpdated?: (vehicle: Vehicle) => void;
 }
 
-export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelect, accountNumber }: VehicleCardsProps) {
+export default function VehicleCards({
+  vehicles,
+  selectedVehicle,
+  onVehicleSelect,
+  accountNumber,
+  onVehicleUpdated,
+}: VehicleCardsProps) {
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
   const [selectedVehicleForTracking, setSelectedVehicleForTracking] = useState<Vehicle | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,6 +139,11 @@ export default function VehicleCards({ vehicles, selectedVehicle, onVehicleSelec
           onClose={() => setTrackingModalOpen(false)}
           vehicle={selectedVehicleForTracking}
           accountNumber={accountNumber}
+          onVehicleUpdated={(updatedVehicle) => {
+            setSelectedVehicleForTracking(updatedVehicle);
+            onVehicleSelect?.(updatedVehicle);
+            onVehicleUpdated?.(updatedVehicle);
+          }}
         />
       )}
     </div>

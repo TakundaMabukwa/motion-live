@@ -32,6 +32,7 @@ interface VehicleDetailsModalProps {
   onClose: () => void;
   vehicle: Vehicle;
   accountNumber: string;
+  onVehicleUpdated?: (vehicle: Vehicle) => void;
 }
 
 type TabType = 'vehicle-info' | 'equipment' | 'finances';
@@ -40,7 +41,8 @@ export default function VehicleDetailsModal({
   isOpen, 
   onClose, 
   vehicle,
-  accountNumber
+  accountNumber,
+  onVehicleUpdated,
 }: VehicleDetailsModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('vehicle-info');
   const [editing, setEditing] = useState(false);
@@ -63,14 +65,66 @@ export default function VehicleDetailsModal({
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Here you would implement the save functionality
-      // For now, just simulate a save
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast.success('Vehicle data saved successfully!');
+      const rowId = formData.id ?? vehicle.id;
+      const rowUniqueId = formData.unique_id ?? vehicle.unique_id;
+
+      if (!rowId && !rowUniqueId) {
+        throw new Error("Vehicle identifier is missing");
+      }
+
+      const normalize = (value: unknown) => {
+        if (value === null || value === undefined) return "";
+        return String(value);
+      };
+
+      const updates: Record<string, unknown> = {};
+      for (const [key, nextValue] of Object.entries(formData)) {
+        if (key === "id" || key === "created_at") continue;
+        const prevValue = (vehicle as unknown as Record<string, unknown>)[key];
+        if (normalize(prevValue) !== normalize(nextValue)) {
+          updates[key] = nextValue === "" ? null : nextValue;
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        toast.info("No changes to save.");
+        setEditing(false);
+        return;
+      }
+
+      const response = await fetch("/api/vehicles/update", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: rowId,
+          unique_id: rowUniqueId || undefined,
+          ...updates,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          result?.details || result?.error || "Failed to save vehicle changes",
+        );
+      }
+
+      const updatedVehicle = {
+        ...vehicle,
+        ...(result || {}),
+      } as Vehicle;
+
+      setFormData(updatedVehicle);
+      onVehicleUpdated?.(updatedVehicle);
+      toast.success("Vehicle data saved successfully!");
       setEditing(false);
     } catch (error) {
       console.error('Error saving vehicle data:', error);
-      toast.error('Failed to save vehicle data');
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save vehicle data",
+      );
     } finally {
       setLoading(false);
     }

@@ -12,10 +12,6 @@ function normalizeText(value: unknown) {
     .replace(/\s+/g, " ");
 }
 
-function normalizeKey(value: unknown) {
-  return normalizeText(value).toLowerCase();
-}
-
 function buildCostCodePrefix(value: string) {
   const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const prefix = cleaned.slice(0, 4);
@@ -69,20 +65,21 @@ async function tolerantInsertSingle(
   return { data: null, error: { message: "Insert failed after retries" } };
 }
 
-async function tolerantUpsert(
+async function tolerantUpdateWhere(
   supabase: any,
   table: string,
   payload: Record<string, unknown>,
-  onConflict: string,
+  column: string,
+  value: unknown,
 ) {
-  const upsertPayload = { ...payload };
+  const updatePayload = { ...payload };
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const result = await supabase
       .from(table)
-      .upsert(upsertPayload, { onConflict })
-      .select("*")
-      .single();
+      .update(updatePayload)
+      .eq(column, value)
+      .select("*");
 
     if (!result.error) {
       return result;
@@ -92,26 +89,34 @@ async function tolerantUpsert(
     if (
       result.error.code === "PGRST204" &&
       missingColumn &&
-      Object.prototype.hasOwnProperty.call(upsertPayload, missingColumn)
+      Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)
     ) {
-      delete upsertPayload[missingColumn];
+      delete updatePayload[missingColumn];
       continue;
     }
 
     return result;
   }
 
-  return { data: null, error: { message: "Upsert failed after retries" } };
+  return { data: null, error: { message: "Update failed after retries" } };
 }
 
 async function findExistingCostCode(supabase: any, costCode: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("cost_centers")
     .select("*")
     .ilike("cost_code", costCode)
-    .maybeSingle();
+    .limit(1);
 
-  return data || null;
+  if (error) {
+    throw new Error(`Failed to read cost center: ${error.message}`);
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return null;
+  }
+
+  return data[0] || null;
 }
 
 async function allocateCostCode(supabase: any, clientName: string) {
@@ -280,15 +285,35 @@ export async function ensureExternalClientSetup(
     client_info_match_source: "external_quote_created",
   };
 
-  const { error: costCenterError } = await tolerantUpsert(
-    supabase,
-    "cost_centers",
-    costCenterPayload,
-    "cost_code",
-  );
+  // Some environments do not have a unique constraint on cost_centers.cost_code,
+  // so ON CONFLICT upsert fails. Use update-by-cost_code and fallback insert.
+  const { data: updatedCostCenters, error: costCenterUpdateError } =
+    await tolerantUpdateWhere(
+      supabase,
+      "cost_centers",
+      costCenterPayload,
+      "cost_code",
+      costCode,
+    );
 
-  if (costCenterError) {
-    throw new Error(`Failed to create cost center: ${costCenterError.message}`);
+  if (costCenterUpdateError) {
+    throw new Error(
+      `Failed to update existing cost center: ${costCenterUpdateError.message}`,
+    );
+  }
+
+  if (!Array.isArray(updatedCostCenters) || updatedCostCenters.length === 0) {
+    const { error: costCenterInsertError } = await tolerantInsertSingle(
+      supabase,
+      "cost_centers",
+      costCenterPayload,
+    );
+
+    if (costCenterInsertError) {
+      throw new Error(
+        `Failed to create cost center: ${costCenterInsertError.message}`,
+      );
+    }
   }
 
   const vehicleReg =

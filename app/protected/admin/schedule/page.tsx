@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -10,8 +10,11 @@ import {
   User,
   Calendar,
   Package,
+  Car,
+  FileText,
   Phone,
   Mail,
+  Loader2,
   CheckCircle,
   XCircle,
   RefreshCw,
@@ -92,7 +95,10 @@ export function AdminScheduleContent({
   const [jobs, setJobs] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [selectedJobFull, setSelectedJobFull] = useState(null);
   const [jobDetailsOpen, setJobDetailsOpen] = useState(false);
+  const [jobDetailsLoading, setJobDetailsLoading] = useState(false);
+  const jobDetailsRequestSeq = useRef(0);
   const [teamAvailability, setTeamAvailability] = useState({});
   const [currentTime, setCurrentTime] = useState(new Date());
   const [technicianColors, setTechnicianColors] = useState({});
@@ -373,6 +379,61 @@ export function AdminScheduleContent({
     }
   };
 
+  const safeParseArray = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const formatDateDisplay = (value) => {
+    if (!value) return "N/A";
+    try {
+      return new Date(value).toLocaleDateString();
+    } catch {
+      return String(value);
+    }
+  };
+
+  const formatCurrency = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "R 0.00";
+    return `R ${n.toFixed(2)}`;
+  };
+
+  const fetchFullJobDetails = async (jobId) => {
+    const requestSeq = jobDetailsRequestSeq.current + 1;
+    jobDetailsRequestSeq.current = requestSeq;
+    setJobDetailsLoading(true);
+    try {
+      const response = await fetch(`/api/job-cards/${jobId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch full job details (${response.status})`);
+      }
+      const fullJob = await response.json();
+      if (requestSeq === jobDetailsRequestSeq.current) {
+        setSelectedJobFull(fullJob);
+      }
+    } catch (error) {
+      console.error("Error fetching full job details from schedule:", error);
+      toast.error("Failed to load full job details");
+      if (requestSeq === jobDetailsRequestSeq.current) {
+        setSelectedJobFull(null);
+      }
+    } finally {
+      if (requestSeq === jobDetailsRequestSeq.current) {
+        setJobDetailsLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     fetchJobs();
     // Set today as selected date
@@ -463,11 +524,31 @@ export function AdminScheduleContent({
 
   const handleJobClick = (job) => {
     setSelectedJob(job);
+    setSelectedJobFull(null);
     setJobDetailsOpen(true);
+    if (job?.id) {
+      fetchFullJobDetails(job.id);
+    }
   };
 
   const selectedEvents = jobs[selectedDate] || [];
   const days = getDaysInMonth(currentDate);
+  const activeJob = selectedJobFull || {};
+  const selectedParts = safeParseArray(activeJob.parts_required);
+  const selectedQuoteItems = safeParseArray(activeJob.quotation_products);
+  const selectedSubtotal = Number(
+    activeJob.quotation_subtotal ??
+      selectedJob?.subtotal ??
+      selectedJob?.totalAmount ??
+      activeJob.estimated_cost ??
+      0,
+  );
+  const selectedTotal = Number(
+    activeJob.quotation_total_amount ??
+      selectedJob?.totalAmount ??
+      activeJob.estimated_cost ??
+      0,
+  );
 
   return (
     <div
@@ -860,13 +941,297 @@ export function AdminScheduleContent({
       </div>
 
       {/* Job Details Dialog */}
-      <Dialog open={jobDetailsOpen} onOpenChange={setJobDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+      <Dialog
+        open={jobDetailsOpen}
+        onOpenChange={(open) => {
+          setJobDetailsOpen(open);
+          if (!open) {
+            jobDetailsRequestSeq.current += 1;
+            setJobDetailsLoading(false);
+            setSelectedJobFull(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-bold text-xl">Job Details</DialogTitle>
           </DialogHeader>
           {selectedJob && (
             <div className="space-y-6">
+              {jobDetailsLoading && (
+                <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 border border-blue-200 rounded-md text-blue-700 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading full job details...
+                </div>
+              )}
+
+              {selectedJobFull && (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 border rounded-lg">
+                    <div className="flex md:flex-row flex-col md:justify-between md:items-start gap-3">
+                      <div>
+                        <p className="text-gray-500 text-sm">Job Number</p>
+                        <h2 className="font-bold text-gray-900 text-2xl">
+                          {activeJob.job_number ||
+                            selectedJob.jobNumber ||
+                            selectedJob.id ||
+                            "N/A"}
+                        </h2>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge
+                          className={getPriorityColor(
+                            activeJob.priority || selectedJob.priority,
+                          )}
+                        >
+                          {(activeJob.priority || selectedJob.priority || "N/A").toUpperCase()}
+                        </Badge>
+                        <Badge variant="outline" className="font-semibold">
+                          {String(activeJob.status || selectedJob.status || "N/A")
+                            .replaceAll("_", " ")
+                            .toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="gap-4 grid grid-cols-1 lg:grid-cols-3">
+                    <div className="space-y-4 lg:col-span-1">
+                      <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
+                        <h3 className="flex items-center gap-2 mb-3 font-semibold text-blue-900 text-lg">
+                          <User className="w-5 h-5" />
+                          Customer
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <p className="font-medium text-base">
+                            {activeJob.customer_name || selectedJob.customerName || "N/A"}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-blue-600" />
+                            {activeJob.customer_email || selectedJob.customerEmail || "N/A"}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Phone className="w-4 h-4 text-blue-600" />
+                            {activeJob.customer_phone || selectedJob.customerPhone || "N/A"}
+                          </p>
+                          {(activeJob.customer_address || selectedJob.customerAddress) && (
+                            <p className="flex items-start gap-2">
+                              <MapPin className="mt-0.5 w-4 h-4 text-blue-600" />
+                              {activeJob.customer_address || selectedJob.customerAddress}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-emerald-50 p-4 border border-emerald-200 rounded-lg">
+                        <h3 className="flex items-center gap-2 mb-3 font-semibold text-emerald-900 text-lg">
+                          <Car className="w-5 h-5" />
+                          Vehicle
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <p>
+                            <strong>Reg:</strong>{" "}
+                            {activeJob.vehicle_registration ||
+                              selectedJob.vehicleRegistration ||
+                              "N/A"}
+                          </p>
+                          <p>
+                            <strong>Make/Model:</strong>{" "}
+                            {[activeJob.vehicle_make, activeJob.vehicle_model]
+                              .filter(Boolean)
+                              .join(" ") || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Year:</strong> {activeJob.vehicle_year || "N/A"}
+                          </p>
+                          <p>
+                            <strong>VIN:</strong> {activeJob.vin_numer || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Odometer:</strong> {activeJob.odormeter || "N/A"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 lg:col-span-2">
+                      <div className="bg-purple-50 p-4 border border-purple-200 rounded-lg">
+                        <h3 className="flex items-center gap-2 mb-3 font-semibold text-purple-900 text-lg">
+                          <Calendar className="w-5 h-5" />
+                          Job and Schedule
+                        </h3>
+                        <div className="gap-3 grid grid-cols-1 md:grid-cols-2 text-sm">
+                          <p>
+                            <strong>Type:</strong>{" "}
+                            {activeJob.job_type || selectedJob.jobType || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Sub Type:</strong> {activeJob.job_sub_type || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Date:</strong>{" "}
+                            {formatDateDisplay(activeJob.job_date || selectedJob.date)}
+                          </p>
+                          <p>
+                            <strong>Due Date:</strong> {formatDateDisplay(activeJob.due_date)}
+                          </p>
+                          <p>
+                            <strong>Time:</strong>{" "}
+                            {selectedJob.time ||
+                              (activeJob.start_time
+                                ? String(activeJob.start_time).match(/(\d{2}:\d{2})/)?.[1]
+                                : null) ||
+                              "N/A"}
+                          </p>
+                          <p>
+                            <strong>Duration:</strong>{" "}
+                            {activeJob.estimated_duration_hours
+                              ? `${activeJob.estimated_duration_hours}h`
+                              : "N/A"}
+                          </p>
+                          <p>
+                            <strong>Technician:</strong>{" "}
+                            {activeJob.technician_name || selectedJob.technician || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Technician Contact:</strong>{" "}
+                            {activeJob.technician_phone ||
+                              selectedJob.technicianEmail ||
+                              "N/A"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-4 border rounded-lg">
+                        <h3 className="flex items-center gap-2 mb-3 font-semibold text-lg">
+                          <Package className="w-5 h-5" />
+                          Assigned Parts ({selectedParts.length})
+                        </h3>
+                        {selectedParts.length === 0 ? (
+                          <p className="text-gray-500 text-sm">
+                            No assigned parts on this job.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="py-2 text-left">Description</th>
+                                  <th className="py-2 text-left">Qty</th>
+                                  <th className="py-2 text-left">Code</th>
+                                  <th className="py-2 text-left">Supplier</th>
+                                  <th className="py-2 text-right">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedParts.map((part, index) => (
+                                  <tr
+                                    key={`${part.code || "part"}-${index}`}
+                                    className="border-b last:border-0"
+                                  >
+                                    <td className="py-2">
+                                      {part.description || part.name || "N/A"}
+                                    </td>
+                                    <td className="py-2">{part.quantity ?? 1}</td>
+                                    <td className="py-2">{part.code || "N/A"}</td>
+                                    <td className="py-2">{part.supplier || "N/A"}</td>
+                                    <td className="py-2 text-right">
+                                      {formatCurrency(
+                                        part.total_cost ??
+                                          part.line_total ??
+                                          part.cost_per_unit ??
+                                          0,
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-white p-4 border rounded-lg">
+                        <h3 className="flex items-center gap-2 mb-3 font-semibold text-lg">
+                          <FileText className="w-5 h-5" />
+                          Quotation Items ({selectedQuoteItems.length})
+                        </h3>
+                        {selectedQuoteItems.length === 0 ? (
+                          <p className="text-gray-500 text-sm">
+                            No quotation items captured.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="py-2 text-left">Item</th>
+                                  <th className="py-2 text-left">Qty</th>
+                                  <th className="py-2 text-right">Line Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {selectedQuoteItems.map((item, index) => (
+                                  <tr
+                                    key={`${item.id || "quote-item"}-${index}`}
+                                    className="border-b last:border-0"
+                                  >
+                                    <td className="py-2">
+                                      {item.name || item.description || "N/A"}
+                                    </td>
+                                    <td className="py-2">{item.quantity ?? 1}</td>
+                                    <td className="py-2 text-right">
+                                      {formatCurrency(
+                                        item.line_total ??
+                                          item.total_cost ??
+                                          item.cash_price ??
+                                          0,
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        <div className="gap-2 grid grid-cols-1 sm:grid-cols-2 mt-4 text-sm">
+                          <p>
+                            <strong>Subtotal:</strong> {formatCurrency(selectedSubtotal)}
+                          </p>
+                          <p>
+                            <strong>Total:</strong> {formatCurrency(selectedTotal)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-4 border rounded-lg">
+                        <h3 className="mb-3 font-semibold text-lg">Notes</h3>
+                        <div className="space-y-3 text-sm">
+                          <p>
+                            <strong>Description:</strong>{" "}
+                            {activeJob.job_description ||
+                              selectedJob.productName ||
+                              "N/A"}
+                          </p>
+                          <p>
+                            <strong>Work Notes:</strong> {activeJob.work_notes || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Completion Notes:</strong>{" "}
+                            {activeJob.completion_notes || "N/A"}
+                          </p>
+                          <p>
+                            <strong>Special Instructions:</strong>{" "}
+                            {activeJob.special_instructions || "N/A"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={selectedJobFull ? "hidden" : ""}>
               {/* Customer Information */}
               <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
                 <h3 className="flex items-center gap-2 mb-3 font-semibold text-blue-900 text-lg">
@@ -990,6 +1355,7 @@ export function AdminScheduleContent({
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           )}
         </DialogContent>
@@ -1133,8 +1499,7 @@ export function AdminScheduleContent({
                                         color: job.technicianColor,
                                       }}
                                       onClick={() => {
-                                        setSelectedJob(job);
-                                        setJobDetailsOpen(true);
+                                        handleJobClick(job);
                                         setTechnicianPopupOpen(false);
                                       }}
                                     >
@@ -1203,8 +1568,7 @@ export function AdminScheduleContent({
                           key={index}
                           className="hover:bg-gray-50 hover:shadow-md p-3 border border-gray-200 rounded-lg transition-all duration-200 cursor-pointer"
                           onClick={() => {
-                            setSelectedJob(job);
-                            setJobDetailsOpen(true);
+                            handleJobClick(job);
                             setTechnicianPopupOpen(false);
                           }}
                         >

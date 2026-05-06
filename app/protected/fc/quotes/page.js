@@ -1,24 +1,18 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   FileText,
   Filter,
   ChevronDown,
   Trash2,
-  Calendar,
-  DollarSign,
   CheckCircle,
   Clock,
-  Search,
-  Download,
   RefreshCw,
-  User,
-  Building2,
   Check,
   AlertCircle,
-  ExternalLink,
   Eye,
   X,
   Edit
@@ -29,12 +23,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
+import FCSectionNav from "@/components/fc/FCSectionNav";
 import { toast } from "sonner";
 
 export default function QuotesDashboard() {
+  const router = useRouter();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -59,6 +53,20 @@ export default function QuotesDashboard() {
     vehicle_make: "",
     vehicle_model: "",
   });
+
+  const getQuoteStatus = useCallback((quote) => {
+    const raw = String(
+      quote?.job_status || quote?.status || quote?.quote_status || "draft",
+    )
+      .trim()
+      .toLowerCase();
+    return raw || "draft";
+  }, []);
+
+  const isApprovedQuote = useCallback(
+    (quote) => getQuoteStatus(quote) === "approved",
+    [getQuoteStatus],
+  );
 
   // Fetch quotes from the API
   const fetchQuotes = useCallback(async () => {
@@ -99,11 +107,11 @@ export default function QuotesDashboard() {
     
     // Apply status filter
     if (selectedFilter !== "all") {
-      filtered = filtered.filter(quote => quote.job_status === selectedFilter);
+      filtered = filtered.filter((quote) => getQuoteStatus(quote) === selectedFilter);
     }
     
     return filtered;
-  }, [quotes, searchTerm, selectedFilter]);
+  }, [quotes, searchTerm, selectedFilter, getQuoteStatus]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -483,6 +491,18 @@ export default function QuotesDashboard() {
     setIsViewModalOpen(true);
   };
 
+  const handleEditQuote = useCallback(
+    (quote) => {
+      if (!quote?.id) return;
+      if (isApprovedQuote(quote)) {
+        toast.info("Approved quotes cannot be edited.");
+        return;
+      }
+      router.push(`/protected/fc/quotes/${quote.id}/edit?source=customer`);
+    },
+    [isApprovedQuote, router],
+  );
+
   const closeViewModal = () => {
     setIsViewModalOpen(false);
     setSelectedQuote(null);
@@ -490,15 +510,14 @@ export default function QuotesDashboard() {
 
   // Calculate statistics
   const totalQuotes = quotes.length;
-  const pendingQuotes = quotes.filter(q => q.job_status === 'pending').length;
-  const approvedQuotes = quotes.filter(q => q.job_status === 'approved').length;
-  const declinedQuotes = quotes.filter(q => q.job_status === 'rejected').length;
-  const totalValue = quotes.reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
+  const pendingQuotes = quotes.filter((q) => getQuoteStatus(q) === "pending").length;
+  const approvedQuotes = quotes.filter((q) => getQuoteStatus(q) === "approved").length;
+  const declinedQuotes = quotes.filter((q) => getQuoteStatus(q) === "rejected").length;
   const approvedValue = quotes
-    .filter(q => q.job_status === 'approved')
+    .filter((q) => getQuoteStatus(q) === "approved")
     .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
   const declinedValue = quotes
-    .filter(q => q.job_status === 'rejected')
+    .filter((q) => getQuoteStatus(q) === "rejected")
     .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
 
   if (loading) {
@@ -524,41 +543,6 @@ export default function QuotesDashboard() {
     );
   }
 
-  // Main navigation component
-  const MainNavigation = () => {
-    const pathname = window.location.pathname;
-    return (
-      <div className="mb-6 border-gray-200 border-b">
-        <nav className="flex space-x-8">
-          {[
-            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc' },
-            { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes' },
-            { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation' },
-            { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs' }
-          ].map((navItem) => {
-            const Icon = navItem.icon;
-            const isActive = pathname === navItem.href;
-            
-            return (
-              <Link
-                key={navItem.id}
-                href={navItem.href}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  isActive
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{navItem.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6 p-6">
       <DashboardHeader
@@ -573,7 +557,7 @@ export default function QuotesDashboard() {
       />
 
       {/* Main Navigation */}
-      <MainNavigation />
+      <FCSectionNav />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -726,8 +710,8 @@ export default function QuotesDashboard() {
                     <TableCell>{formatVehicleRegistration(quote.vehicle_registration)}</TableCell>
                     <TableCell>{formatDate(quote.quote_date)}</TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(quote.job_status || 'draft')}>
-                        {getStatusText(quote.job_status)}
+                      <Badge className={getStatusColor(getQuoteStatus(quote))}>
+                        {getStatusText(getQuoteStatus(quote))}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -741,12 +725,12 @@ export default function QuotesDashboard() {
                           <Eye className="w-4 h-4 mr-1" />
                           View
                         </Button>
-                        {quote.job_status !== 'approved' && (
+                        {!isApprovedQuote(quote) && (
                           <>
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => window.location.href = `/protected/fc/quotes/${quote.id}/edit?source=customer`}
+                              onClick={() => handleEditQuote(quote)}
                               className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
                             >
                               <Edit className="w-4 h-4 mr-1" />
@@ -781,7 +765,7 @@ export default function QuotesDashboard() {
                             </Button>
                           </>
                         )}
-                        {quote.job_status === 'approved' && (
+                        {isApprovedQuote(quote) && (
                           <Badge className="bg-green-100 text-green-800">
                             Approved
                           </Badge>

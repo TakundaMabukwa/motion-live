@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,12 +32,22 @@ import {
   RefreshCw,
   MessageSquareText,
   Printer,
+  Eye,
 } from "lucide-react";
 import CreateCalibrationJobModal from '@/components/master/CreateCalibrationJobModal';
 import { toast } from "sonner";
+
+const FC_TAB_IDS = ["global", "companies", "client-info", "escalations"];
+
+const normalizeFcTab = (value) => {
+  const raw = String(value || "").trim().toLowerCase();
+  return FC_TAB_IDS.includes(raw) ? raw : null;
+};
+
 export default function AccountsDashboard() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { 
     companyGroups, 
     contactInfo, 
@@ -50,7 +60,6 @@ export default function AccountsDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState('global');
   const [fromRiaPendingCount, setFromRiaPendingCount] = useState(0);
-  const [escalationActionJobId, setEscalationActionJobId] = useState(null);
   const [printingEscalationJobId, setPrintingEscalationJobId] = useState(null);
   const lastCompaniesRefreshRef = useRef(0);
 
@@ -447,6 +456,47 @@ export default function AccountsDashboard() {
     lastCompaniesRefreshRef.current = Date.now();
   };
 
+  const setActiveTabWithPersistence = useCallback(
+    (nextTab) => {
+      const normalized = normalizeFcTab(nextTab) || "global";
+      setActiveTab(normalized);
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("fc_active_tab", normalized);
+      }
+
+      const params = new URLSearchParams(searchParams.toString());
+      if (normalized === "global") {
+        params.delete("tab");
+      } else {
+        params.set("tab", normalized);
+      }
+
+      const nextQuery = params.toString();
+      const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+      router.replace(nextUrl, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  useEffect(() => {
+    const queryTab = normalizeFcTab(searchParams.get("tab"));
+    const storedTab =
+      typeof window !== "undefined"
+        ? normalizeFcTab(window.localStorage.getItem("fc_active_tab"))
+        : null;
+
+    const resolvedTab = queryTab || storedTab || "global";
+
+    if (resolvedTab !== activeTab) {
+      setActiveTab(resolvedTab);
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("fc_active_tab", resolvedTab);
+    }
+  }, [activeTab, searchParams]);
+
 
 
   // Initial load
@@ -479,6 +529,8 @@ export default function AccountsDashboard() {
   }, [activeTab, isDataLoaded, fetchCompanyGroups]);
 
   useEffect(() => {
+    if (activeTab !== 'escalations') return;
+
     const fetchFromRiaPendingCount = async () => {
       try {
         const response = await fetch('/api/fc/from-ria-count', { cache: 'no-store' });
@@ -495,10 +547,9 @@ export default function AccountsDashboard() {
     };
 
     fetchFromRiaPendingCount();
-
     const intervalId = window.setInterval(fetchFromRiaPendingCount, 30000);
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [activeTab]);
 
   const visibleCompanyGroups = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -525,54 +576,37 @@ export default function AccountsDashboard() {
 
   const handleEscalationFinalize = async ({
     job,
-    refreshEscalations,
   }) => {
     if (!job?.id) return;
 
-    const loadingToast = toast.loading(
-      "Opening Job Card Review finalize flow...",
-    );
-
     try {
-      setEscalationActionJobId(job.id);
-      const response = await fetch(`/api/job-cards/${job.id}/move`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          destination: "fc",
-          preserveCompleted: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(
-          errorBody?.error ||
-            errorBody?.details ||
-            "Failed to finalize escalated job",
-        );
-      }
-
-      toast.dismiss(loadingToast);
-      toast.success("Job finalized. Opening Job Card Review...");
-      if (typeof refreshEscalations === "function") {
-        await refreshEscalations();
-      }
       router.push(
-        `/protected/fc/completed-jobs?jobId=${encodeURIComponent(job.id)}&openFinalize=1`,
+        `/protected/fc/completed-jobs?jobId=${encodeURIComponent(job.id)}&openFinalize=1&embedded=1`,
       );
     } catch (error) {
       console.error("Error finalizing escalated job:", error);
-      toast.dismiss(loadingToast);
       toast.error(
         error instanceof Error
           ? error.message
           : "Failed to finalize escalated job",
       );
-    } finally {
-      setEscalationActionJobId(null);
+    }
+  };
+
+  const handleEscalationViewJob = async ({ job }) => {
+    if (!job?.id) return;
+
+    try {
+      router.push(
+        `/protected/fc/jobs/${encodeURIComponent(job.id)}/edit?source=escalations`,
+      );
+    } catch (error) {
+      console.error("Error opening escalated job editor:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to open job editor",
+      );
     }
   };
 
@@ -858,13 +892,26 @@ export default function AccountsDashboard() {
             ]}
             renderActions={(job, helpers) => {
               const movingThisJob = helpers?.movingJobId === job.id;
-              const isFinalizing = escalationActionJobId === job.id;
               const isPrinting = printingEscalationJobId === job.id;
-              const actionBusy = movingThisJob || isFinalizing || isPrinting;
+              const actionBusy = movingThisJob || isPrinting;
 
               return (
-                <>
+                <div className="ml-auto flex w-full max-w-[148px] flex-col gap-1.5">
                   <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start"
+                    disabled={actionBusy}
+                    onClick={() =>
+                      handleEscalationViewJob({
+                        job,
+                      })
+                    }
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    View Job
+                  </Button>
+                  {/* <Button
                     size="sm"
                     variant="outline"
                     disabled={actionBusy}
@@ -876,10 +923,11 @@ export default function AccountsDashboard() {
                       <Printer className="mr-2 h-4 w-4" />
                     )}
                     Print Job
-                  </Button>
+                  </Button> */}
                   <Button
                     size="sm"
                     variant="secondary"
+                    className="w-full justify-start"
                     disabled={actionBusy}
                     onClick={() =>
                       handleEscalationFinalize({
@@ -888,14 +936,10 @@ export default function AccountsDashboard() {
                       })
                     }
                   >
-                    {isFinalizing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                    )}
+                    <CheckCircle className="mr-2 h-4 w-4" />
                     Edit and Finalize
                   </Button>
-                </>
+                </div>
               );
             }}
           />
@@ -962,14 +1006,11 @@ export default function AccountsDashboard() {
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'client-info', label: 'Client Info', icon: Users, type: 'tab' },
             { id: 'escalations', label: 'Escalations', icon: MessageSquareText, type: 'tab' },
-            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link', hideOnGlobal: true, hideOnClients: true },
+            { id: 'accounts', label: 'Accounts', icon: Building2, href: '/protected/fc', type: 'link' },
             { id: 'quotes', label: 'Quotes', icon: FileText, href: '/protected/fc/quotes', type: 'link' },
             { id: 'external-quotation', label: 'External Quotation', icon: ExternalLink, href: '/protected/fc/external-quotation', type: 'link' },
             { id: 'completed-jobs', label: 'Job Card Review', icon: CheckCircle, href: '/protected/fc/completed-jobs', type: 'link' }
-          ].filter(navItem => 
-            !(navItem.hideOnGlobal && activeTab === 'global') &&
-            !(navItem.hideOnClients && activeTab === 'companies')
-          ).map((navItem) => {
+          ].map((navItem) => {
             const Icon = navItem.icon;
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
@@ -982,7 +1023,7 @@ export default function AccountsDashboard() {
                 <button
                   key={navItem.id}
                   type="button"
-                  onClick={() => setActiveTab(navItem.id)}
+                  onClick={() => setActiveTabWithPersistence(navItem.id)}
                   className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                     isActive
                       ? 'border-blue-500 text-blue-600'
@@ -1004,6 +1045,7 @@ export default function AccountsDashboard() {
               <Link
                 key={navItem.id}
                 href={navItem.href}
+                prefetch={false}
                 className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   isActive
                     ? 'border-blue-500 text-blue-600'

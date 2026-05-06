@@ -1,8 +1,7 @@
 "use client";
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,17 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Building2,
   Calendar,
   Car,
   CheckCircle,
   CheckCircle2,
   Clock,
-  DollarSign,
   Edit,
-  ExternalLink,
   Eye,
-  FileText,
   Mail,
   Package,
   Phone,
@@ -43,6 +38,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
+import FCSectionNav from "@/components/fc/FCSectionNav";
 
 type QuotationProduct = {
   id?: string;
@@ -406,7 +402,7 @@ const getJobTypeColor = (jobType?: string | null): string => {
 };
 
 function FCCompletedJobsPageContent() {
-  const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const autoOpenedFinalizeJobRef = useRef<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -427,6 +423,26 @@ function FCCompletedJobsPageContent() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+
+  const isEmbedded = useMemo(() => {
+    const embedded = toStringSafe(searchParams.get("embedded"))
+      .trim()
+      .toLowerCase();
+    return ["1", "true", "yes"].includes(embedded);
+  }, [searchParams]);
+
+  const requestedFinalizeJobId = useMemo(() => {
+    const jobId = toStringSafe(searchParams.get("jobId")).trim();
+    const openFinalize = toStringSafe(searchParams.get("openFinalize"))
+      .trim()
+      .toLowerCase();
+
+    if (!jobId) return "";
+    if (openFinalize && !["1", "true", "yes"].includes(openFinalize)) {
+      return "";
+    }
+    return jobId;
+  }, [searchParams]);
 
   const fetchCompletedJobs = async () => {
     try {
@@ -453,27 +469,50 @@ function FCCompletedJobsPageContent() {
     }
   };
 
+  const fetchEmbeddedFinalizeJob = async (jobId: string) => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `/api/job-cards/${encodeURIComponent(jobId)}?view=fc-edit`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch finalize job details");
+      }
+      const job = await response.json();
+      setJobs(job ? [job] : []);
+      setFcUsers([]);
+    } catch (error) {
+      console.error("Error fetching embedded finalize job:", error);
+      toast.error("Failed to load finalize modal");
+      setJobs([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
+    if (isEmbedded) {
+      if (!requestedFinalizeJobId) {
+        setLoading(false);
+        return;
+      }
+      fetchEmbeddedFinalizeJob(requestedFinalizeJobId);
+      return;
+    }
+
     fetchCompletedJobs();
-  }, []);
+  }, [isEmbedded, requestedFinalizeJobId]);
 
   const refreshJobs = async () => {
     setRefreshing(true);
+    if (isEmbedded && requestedFinalizeJobId) {
+      await fetchEmbeddedFinalizeJob(requestedFinalizeJobId);
+      return;
+    }
     await fetchCompletedJobs();
   };
-
-  const requestedFinalizeJobId = useMemo(() => {
-    const jobId = toStringSafe(searchParams.get("jobId")).trim();
-    const openFinalize = toStringSafe(searchParams.get("openFinalize"))
-      .trim()
-      .toLowerCase();
-
-    if (!jobId) return "";
-    if (openFinalize && !["1", "true", "yes"].includes(openFinalize)) {
-      return "";
-    }
-    return jobId;
-  }, [searchParams]);
 
   const creatorOptions = useMemo(() => {
     return Array.from(new Set(fcUsers)).sort((a, b) => a.localeCompare(b));
@@ -555,15 +594,17 @@ function FCCompletedJobsPageContent() {
     );
 
     if (!matchedJob) {
-      toast.error(
-        "Job not available in Job Card Review yet. Please refresh and try again.",
-      );
+      if (!isEmbedded) {
+        toast.error(
+          "Job not available in Job Card Review yet. Please refresh and try again.",
+        );
+      }
       return;
     }
 
     autoOpenedFinalizeJobRef.current = requestedFinalizeJobId;
     handleEditJob(matchedJob, "finalize");
-  }, [jobs, loading, requestedFinalizeJobId]);
+  }, [isEmbedded, jobs, loading, requestedFinalizeJobId]);
 
   const handleMoveJob = async (job: CompletedJob, destination: string) => {
     if (!job?.id || !destination) return;
@@ -807,11 +848,26 @@ function FCCompletedJobsPageContent() {
       toast.success(
         `Job ${editingJob.job_number || editingJob.id} finalized successfully`,
       );
+      if (typeof window !== "undefined") {
+        const message = {
+          type: "fc-finalize-complete",
+          jobId: editingJob.id,
+        };
+        const hasParentWindow = window.parent && window.parent !== window;
+        const hasOpenerWindow = Boolean(window.opener);
+        window.parent?.postMessage(message, window.location.origin);
+        window.opener?.postMessage(message, window.location.origin);
+        if (!hasParentWindow && !hasOpenerWindow && isEmbedded) {
+          router.push("/protected/fc?tab=escalations");
+        }
+      }
       setShowEditDialog(false);
       setEditingJob(null);
       setFormData(EMPTY_FORM_DATA);
       setEditableQuotationProducts([]);
-      fetchCompletedJobs();
+      if (!isEmbedded) {
+        fetchCompletedJobs();
+      }
     } catch (error) {
       console.error("Error finalizing job:", error);
       const message =
@@ -832,8 +888,32 @@ function FCCompletedJobsPageContent() {
     [editingJob],
   );
 
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setShowEditDialog(open);
+    if (!open && isEmbedded && typeof window !== "undefined") {
+      const message = {
+        type: "fc-finalize-close",
+        jobId: editingJob?.id || null,
+      };
+      const hasParentWindow = window.parent && window.parent !== window;
+      const hasOpenerWindow = Boolean(window.opener);
+      window.parent?.postMessage(message, window.location.origin);
+      window.opener?.postMessage(message, window.location.origin);
+      if (!hasParentWindow && !hasOpenerWindow) {
+        router.push("/protected/fc?tab=escalations");
+      }
+    }
+  };
+
   return (
-    <div className="w-full px-6 py-6">
+    <div className={isEmbedded ? "w-full p-0" : "w-full px-6 py-6"}>
+      {isEmbedded && loading ? (
+        <div className="flex min-h-[60vh] items-center justify-center text-sm text-gray-500">
+          Loading finalize modal...
+        </div>
+      ) : null}
+      {!isEmbedded && (
+        <>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Job Card Review</h1>
@@ -849,54 +929,7 @@ function FCCompletedJobsPageContent() {
         </Button>
       </div>
 
-      <div className="mb-6 border-b border-gray-200">
-        <nav className="flex space-x-8">
-          {[
-            {
-              id: "accounts",
-              label: "Accounts",
-              icon: Building2,
-              href: "/protected/fc",
-            },
-            {
-              id: "quotes",
-              label: "Quotes",
-              icon: FileText,
-              href: "/protected/fc/quotes",
-            },
-            {
-              id: "external-quotation",
-              label: "External Quotation",
-              icon: ExternalLink,
-              href: "/protected/fc/external-quotation",
-            },
-            {
-              id: "completed-jobs",
-              label: "Job Card Review",
-              icon: CheckCircle,
-              href: "/protected/fc/completed-jobs",
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className={`flex items-center space-x-2 border-b-2 px-1 py-4 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+      <FCSectionNav />
 
       <Card className="mb-6">
         <CardContent className="p-4">
@@ -1622,8 +1655,10 @@ function FCCompletedJobsPageContent() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+      <Dialog open={showEditDialog} onOpenChange={handleEditDialogOpenChange}>
         <DialogContent className="max-h-[92vh] max-w-[96vw] overflow-y-auto xl:max-w-6xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1892,7 +1927,7 @@ function FCCompletedJobsPageContent() {
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-lg">
-                        <DollarSign className="h-5 w-5" />
+                        
                         Pricing, Quote and Notes
                       </CardTitle>
                     </CardHeader>

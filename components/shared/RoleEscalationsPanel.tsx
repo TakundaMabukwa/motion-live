@@ -5,7 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, RefreshCw } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpDown,
+  CheckCircle2,
+  Clock3,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -64,24 +72,55 @@ const formatRoleLabel = (value: unknown) => {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
-const formatDateTime = (value: unknown) => {
-  const raw = String(value || "").trim();
-  if (!raw) return "N/A";
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-
-  return parsed.toLocaleString("en-ZA", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
 const hasAssignedParts = (partsRequired: unknown) =>
   Array.isArray(partsRequired) && partsRequired.length > 0;
+
+const normalizeStatus = (job: EscalationJob) =>
+  String(job.job_status || job.status || "").trim().toLowerCase();
+
+const getStatusClasses = (status: string) => {
+  if (status.includes("urgent") || status.includes("critical")) {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+  if (
+    status.includes("processing") ||
+    status.includes("assigned") ||
+    status.includes("in progress")
+  ) {
+    return "border-blue-200 bg-blue-50 text-blue-700";
+  }
+  if (status.includes("pending") || status.includes("new")) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  if (
+    status.includes("resolved") ||
+    status.includes("complete") ||
+    status.includes("closed")
+  ) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-700";
+};
+
+const formatEscalatedDate = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) return { date: "N/A", time: "" };
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return { date: raw, time: "" };
+
+  return {
+    date: parsed.toLocaleDateString("en-ZA", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+    time: parsed.toLocaleTimeString("en-ZA", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  };
+};
 
 export default function RoleEscalationsPanel({
   role,
@@ -104,7 +143,9 @@ export default function RoleEscalationsPanel({
       setLoading(true);
       const params = new URLSearchParams({
         escalation_role: role,
-        limit: "5000",
+        view: "fc-list",
+        include_count: "false",
+        limit: "1000",
       });
       if (hideCompletedJobs) {
         params.set("exclude_completed", "true");
@@ -207,24 +248,101 @@ export default function RoleEscalationsPanel({
     );
   }, [jobs, searchTerm]);
 
+  const metrics = useMemo(() => {
+    const now = Date.now();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const activeEscalations = jobs.length;
+    let totalWaitHours = 0;
+    let waitSamples = 0;
+    let pending = 0;
+    let processing = 0;
+    let flagged = 0;
+    let resolvedToday = 0;
+
+    for (const job of jobs) {
+      const status = normalizeStatus(job);
+      if (status.includes("pending") || status.includes("new")) pending += 1;
+      if (
+        status.includes("processing") ||
+        status.includes("assigned") ||
+        status.includes("in progress")
+      ) {
+        processing += 1;
+      }
+
+      const priority = String((job as Record<string, unknown>)?.priority || "")
+        .trim()
+        .toLowerCase();
+      const description = String(job.job_description || "").toLowerCase();
+      if (
+        priority.includes("high") ||
+        priority.includes("urgent") ||
+        priority.includes("critical") ||
+        description.includes("urgent") ||
+        description.includes("critical")
+      ) {
+        flagged += 1;
+      }
+
+      const escalatedAt = new Date(
+        String(job.escalated_at || job.updated_at || job.created_at || ""),
+      );
+      if (!Number.isNaN(escalatedAt.getTime())) {
+        totalWaitHours += (now - escalatedAt.getTime()) / (1000 * 60 * 60);
+        waitSamples += 1;
+      }
+
+      if (
+        status.includes("resolved") ||
+        status.includes("complete") ||
+        status.includes("closed")
+      ) {
+        const statusDate = new Date(String(job.updated_at || job.created_at || ""));
+        if (!Number.isNaN(statusDate.getTime()) && statusDate >= startOfToday) {
+          resolvedToday += 1;
+        }
+      }
+    }
+
+    const avgWaitHours = waitSamples > 0 ? totalWaitHours / waitSamples : 0;
+
+    return {
+      activeEscalations,
+      avgWaitHours,
+      pending,
+      processing,
+      flagged,
+      resolvedToday,
+    };
+  }, [jobs]);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
-          <p className="mt-1 text-sm text-gray-600">{description}</p>
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+            {title}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">{description}</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative min-w-[280px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               placeholder="Search escalations..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              className="pl-10"
+              className="h-9 border-slate-200 pl-10 text-sm"
             />
           </div>
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="h-9 border-slate-200"
+          >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
             />
@@ -233,13 +351,80 @@ export default function RoleEscalationsPanel({
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Active</span>
+              <Activity className="h-3.5 w-3.5" />
+            </div>
+            <p className="text-xl font-bold leading-none text-slate-900">
+              {metrics.activeEscalations}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Avg Wait</span>
+              <Clock3 className="h-3.5 w-3.5" />
+            </div>
+            <p className="text-xl font-bold leading-none text-slate-900">
+              {metrics.avgWaitHours.toFixed(1)}h
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Pending
+            </div>
+            <p className="text-xl font-bold leading-none text-slate-900">
+              {metrics.pending}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Processing
+            </div>
+            <p className="text-xl font-bold leading-none text-slate-900">
+              {metrics.processing}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Flagged</span>
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <p className="text-xl font-bold leading-none text-amber-700">
+              {metrics.flagged}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-3">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <span>Resolved Today</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <p className="text-xl font-bold leading-none text-emerald-700">
+              {metrics.resolvedToday}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="border-b border-slate-100 pb-3">
           <CardTitle className="text-base">
             {formatRoleLabel(role)} Escalations ({filteredJobs.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
             <div className="py-10 text-center text-sm text-gray-500">
               Loading escalations...
@@ -250,106 +435,150 @@ export default function RoleEscalationsPanel({
               <p className="mt-1 text-sm text-gray-500">{emptyDescription}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+            <div className="overflow-x-hidden">
+              <table className="w-full table-fixed border-collapse text-xs">
                 <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
-                      Job
+                  <tr className="border-b border-slate-200 bg-slate-50/80">
+                    <th className="w-[12%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        Job ID <ArrowUpDown className="h-3 w-3" />
+                      </span>
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[14%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       Customer
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[11%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       Vehicle
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[8%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       From
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[11%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       Escalated
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[10%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-gray-500">
+                    <th className="w-[19%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
                       Details
                     </th>
-                    <th className="px-4 py-3 text-right font-medium text-gray-500">
+                    <th className="w-[15%] px-2 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredJobs.map((job) => (
-                    <tr key={job.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">
+                    <tr
+                      key={job.id}
+                      className="border-b border-slate-100 align-top hover:bg-slate-50/60"
+                    >
+                      <td className="px-2 py-2">
+                        <div className="font-semibold text-slate-900">
                           {job.job_number || "N/A"}
                         </div>
+                        <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                          {String(
+                            (job as Record<string, unknown>)?.new_account_number ||
+                              (job as Record<string, unknown>)?.account_id ||
+                              "No account",
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {job.customer_name || "N/A"}
+                      <td className="px-2 py-2 text-slate-700">
+                        <div className="truncate font-medium text-slate-900">
+                          {job.customer_name || "N/A"}
+                        </div>
+                        <div className="truncate text-[11px] text-slate-500">
+                          {String(
+                            (job as Record<string, unknown>)?.contact_person ||
+                              (job as Record<string, unknown>)?.customer_phone ||
+                              (job as Record<string, unknown>)?.customer_email ||
+                              "No contact",
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {job.vehicle_registration || "N/A"}
+                      <td className="px-2 py-2 text-slate-700">
+                        <div className="font-medium text-slate-900">
+                          {job.vehicle_registration || "N/A"}
+                        </div>
+                        <div className="truncate text-[11px] text-slate-500">
+                          {String(
+                            (job as Record<string, unknown>)?.vehicle_make || "",
+                          )}{" "}
+                          {String(
+                            (job as Record<string, unknown>)?.vehicle_model || "",
+                          )}
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="outline">
+                      <td className="px-2 py-2">
+                        <Badge
+                          variant="outline"
+                          className="h-5 rounded-sm px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                        >
                           {formatRoleLabel(job.escalation_source_role)}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {formatDateTime(job.escalated_at || job.updated_at || job.created_at)}
+                      <td className="px-2 py-2 text-slate-700">
+                        {(() => {
+                          const dateInfo = formatEscalatedDate(
+                            job.escalated_at || job.updated_at || job.created_at,
+                          );
+                          return (
+                            <>
+                              <div className="font-medium text-slate-900">
+                                {dateInfo.date}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {dateInfo.time}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {job.job_status || job.status || "N/A"}
+                      <td className="px-2 py-2 text-slate-700">
+                        {(() => {
+                          const label = String(
+                            job.job_status || job.status || "N/A",
+                          );
+                          const tone = getStatusClasses(label.toLowerCase());
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold ${tone}`}
+                            >
+                              {label}
+                            </Badge>
+                          );
+                        })()}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        <div className="max-w-[360px] space-y-1 text-xs">
-                          <div className="whitespace-pre-wrap break-words text-gray-800">
-                            {job.job_description || "No description"}
-                          </div>
-                          <div className="text-gray-600">
-                            <span className="font-medium">Account:</span>{" "}
-                            {String(
-                              (job as Record<string, unknown>)?.new_account_number ||
-                                (job as Record<string, unknown>)?.account_id ||
-                                "N/A",
-                            )}
-                          </div>
-                          <div className="text-gray-600">
-                            <span className="font-medium">Job Type:</span>{" "}
+                      <td className="px-2 py-2 text-slate-700">
+                        <div className="space-y-0.5 text-[11px] leading-4">
+                          <div className="truncate font-medium text-slate-900">
                             {String(
                               (job as Record<string, unknown>)?.job_type ||
                                 (job as Record<string, unknown>)?.job_sub_type ||
-                                "N/A",
+                                "General",
                             )}
                           </div>
-                          <div className="text-gray-600">
-                            <span className="font-medium">Contact:</span>{" "}
-                            {String(
-                              (job as Record<string, unknown>)?.contact_person ||
-                                (job as Record<string, unknown>)?.customer_phone ||
-                                (job as Record<string, unknown>)?.customer_email ||
-                                "N/A",
-                            )}
+                          <div className="truncate text-slate-600">
+                            {job.job_description || "No description"}
                           </div>
-                          <div className="text-gray-600">
-                            <span className="font-medium">Order:</span>{" "}
+                          <div className="truncate text-slate-500">
+                            Order:{" "}
                             {String(
                               (job as Record<string, unknown>)?.order_number || "N/A",
                             )}
                           </div>
                           {hasAssignedParts(job.parts_required) ? (
-                            <div className="mt-1 text-amber-700">
-                              Assigned parts included
+                            <div className="text-amber-700">
+                              Parts assigned
                             </div>
                           ) : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="px-2 py-2 text-right">
+                        <div className="flex flex-col items-end gap-1.5">
                           {moveOptions.length > 0 ? (
                             <Select
                               disabled={movingJobId === job.id}
@@ -360,7 +589,7 @@ export default function RoleEscalationsPanel({
                                 handleMoveJob(job, value, selectedOption?.payload || {});
                               }}
                             >
-                              <SelectTrigger className="w-[140px]">
+                              <SelectTrigger className="h-8 w-full max-w-[148px] text-[11px]">
                                 <SelectValue
                                   placeholder={
                                     movingJobId === job.id ? "Moving..." : "Move to"
