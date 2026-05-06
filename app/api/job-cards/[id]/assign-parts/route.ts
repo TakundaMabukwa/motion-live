@@ -256,6 +256,12 @@ export async function PUT(request: NextRequest, { params }) {
     const updateData = {
       parts_required: parts,
       qr_code: qrCodeUrl,
+      role: "admin",
+      status: "admin_created",
+      job_status: "pending",
+      escalation_role: null,
+      escalation_source_role: null,
+      escalated_at: null,
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };
@@ -293,7 +299,9 @@ export async function PUT(request: NextRequest, { params }) {
     }
 
     return NextResponse.json({
-      message: (finalTechnicianEmail ? 'Parts and technician assigned successfully' : 'Parts assigned successfully') + techStockMessage,
+      message: (finalTechnicianEmail
+        ? 'Parts and technician assigned successfully. Job moved to Admin.'
+        : 'Parts assigned successfully. Job moved to Admin.') + techStockMessage,
       job: updatedJob,
       qr_code: qrCodeUrl
     });
