@@ -204,11 +204,20 @@ export async function PUT(request: NextRequest) {
     // Get job parts before updating
     const { data: jobData } = await supabase
       .from('job_cards')
-      .select('parts_required, role, move_to')
+      .select('parts_required, role, move_to, job_type')
       .eq('id', jobId)
       .single();
     
     console.log(`[JOB ASSIGNMENT] Job ${jobId} data:`, jobData);
+    const normalizedJobType = String(jobData?.job_type || '').trim().toLowerCase();
+    const hasRole = String(jobData?.role || '').trim().length > 0;
+    const routingUpdate =
+      normalizedJobType === 'admin_created'
+        ? {
+            role: hasRole ? jobData.role : 'admin',
+            move_to: 'tech',
+          }
+        : {};
 
     // Update the job card with technician assignment and scheduling
     const updateData = {
@@ -222,6 +231,7 @@ export async function PUT(request: NextRequest) {
       escalation_role: null,
       escalation_source_role: null,
       escalated_at: null,
+      ...routingUpdate,
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };

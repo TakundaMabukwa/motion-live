@@ -19,7 +19,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     console.log('Job ID:', jobId);
     console.log('Request body:', JSON.stringify(body, null, 2));
     
-    const { technician_id, technician_name, technician_email, assignment_date, assignment_notes } = body;
+    const { technician_id, technician_name, assignment_date, assignment_notes } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -73,6 +73,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Validate assignment date
     const assignmentDateTime = assignment_date || new Date().toISOString();
     const assignmentDate = new Date(assignmentDateTime);
+    const normalizedJobType = String(jobCard.job_type || '').trim().toLowerCase();
+    const hasRole = String(jobCard.role || '').trim().length > 0;
+    const routingUpdate =
+      normalizedJobType === 'admin_created'
+        ? {
+            role: hasRole ? jobCard.role : 'admin',
+            move_to: 'tech',
+          }
+        : {};
     
     if (isNaN(assignmentDate.getTime())) {
       return NextResponse.json({ error: 'Invalid assignment date' }, { status: 400 });
@@ -85,6 +94,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       technician_phone: finalTechnicianEmail, // Using email as phone since that's what the field stores
       updated_at: new Date().toISOString(),
       updated_by: user.id,
+      ...routingUpdate,
       // Add assignment details to work_notes
       work_notes: assignment_notes ? 
         `Technician assigned: ${technician_name} (${finalTechnicianEmail}) on ${assignmentDateTime}. ${assignment_notes}` :

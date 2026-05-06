@@ -368,6 +368,8 @@ export default function CreateJobModal({
         priority: 'medium',
         status: 'pending',
         job_status: 'Pending',
+        role: 'admin',
+        move_to: 'admin',
         
         // Customer information
         customer_name: customerInfo.customer_name,

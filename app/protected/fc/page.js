@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "@/components/shared/DashboardHeader";
@@ -44,7 +44,7 @@ const normalizeFcTab = (value) => {
   return FC_TAB_IDS.includes(raw) ? raw : null;
 };
 
-export default function AccountsDashboard() {
+function AccountsDashboardContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -1064,5 +1064,24 @@ export default function AccountsDashboard() {
       {renderContent()}
 
     </div>
+  );
+}
+
+export default function AccountsDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 p-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <Loader2 className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+              <p className="text-gray-600">Loading dashboard...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <AccountsDashboardContent />
+    </Suspense>
   );
 }

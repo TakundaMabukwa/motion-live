@@ -135,7 +135,12 @@ export async function POST(request: NextRequest) {
     const normalizedQuoteType = String(body.quoteType || body.quote_type || '').trim().toLowerCase();
     const normalizedJobType = String(body.jobType || body.job_type || 'install').trim().toLowerCase();
     const isCalibrationJob = normalizedJobType === 'calibration';
+    const isAdminCreatedJob = normalizedJobType === 'admin_created';
     const isExternalQuote = !body.repair && normalizedQuoteType === 'external';
+    const requestedRole = String(body.role || '').trim();
+    const requestedMoveTo = String(body.move_to || body.moveTo || '').trim();
+    const resolvedRole = requestedRole || (isAdminCreatedJob ? 'admin' : null);
+    const resolvedMoveTo = requestedMoveTo || (isAdminCreatedJob ? 'admin' : null);
 
     let resolvedNewAccountNumber = body.newAccountNumber || body.new_account_number || null;
 
@@ -173,8 +178,8 @@ export async function POST(request: NextRequest) {
       priority: body.priority || 'medium',
       status: body.status || 'draft',
       job_status: body.job_status || 'created',
-      role: body.role || null,
-      move_to: body.move_to || null,
+      role: resolvedRole,
+      move_to: resolvedMoveTo,
 
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
       new_account_number: resolvedNewAccountNumber,
@@ -247,7 +252,7 @@ export async function POST(request: NextRequest) {
       job_number: effectiveRepairFlag ? body.job_number || jobNumber : jobNumber,
     };
 
-    let insertQuery = supabase
+    const insertQuery = supabase
       .from('job_cards')
       .insert([jobCardData])
       .select('id, job_number, customer_name, job_type, status, created_at')
