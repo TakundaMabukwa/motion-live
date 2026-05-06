@@ -8,7 +8,7 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { id } = await params;
-    const { destination, note, preserveCompleted } = await request.json();
+    const { destination, note, preserveCompleted, bypassEscalation } = await request.json();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -63,7 +63,8 @@ export async function POST(
     const isInventorySourceRole =
       sourceRole === "inv" || sourceRole === "inventory";
     const shouldRouteDirectToAdminAwaiting =
-      targetRole === "admin" && isInventorySourceRole;
+      targetRole === "admin" &&
+      (isInventorySourceRole || Boolean(bypassEscalation));
     const shouldPreserveCompletedForFc =
       targetRole === "fc" && (Boolean(preserveCompleted) || sourceIsCompleted);
     const shouldMoveAsCompleted =

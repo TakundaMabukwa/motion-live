@@ -949,7 +949,10 @@ export default function InventoryPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ destination: "admin" }),
+        body: JSON.stringify({
+          destination: "admin",
+          bypassEscalation: true,
+        }),
       });
 
       if (!response.ok) {
