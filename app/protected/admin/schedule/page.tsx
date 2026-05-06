@@ -408,6 +408,64 @@ export function AdminScheduleContent({
     return `R ${n.toFixed(2)}`;
   };
 
+  const extractSerialNumbers = (part) => {
+    if (!part || typeof part !== "object") return [];
+
+    const record = part as Record<string, unknown>;
+    const values: string[] = [];
+
+    const appendValue = (candidate) => {
+      if (candidate === null || candidate === undefined) return;
+
+      if (Array.isArray(candidate)) {
+        candidate.forEach((item) => appendValue(item));
+        return;
+      }
+
+      if (typeof candidate === "object") {
+        const nested = candidate as Record<string, unknown>;
+        appendValue(
+          nested.serial_number ??
+            nested.serialNumber ??
+            nested.serial_no ??
+            nested.serial ??
+            nested.ip_address ??
+            nested.ipAddress ??
+            nested.item_serial,
+        );
+        return;
+      }
+
+      const normalized = String(candidate).trim();
+      if (!normalized) return;
+
+      normalized
+        .split(/[\n,;]+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .forEach((value) => values.push(value));
+    };
+
+    appendValue(record.serial_number);
+    appendValue(record.serialNumber);
+    appendValue(record.serial_no);
+    appendValue(record.serialNo);
+    appendValue(record.serial);
+    appendValue(record.item_serial);
+    appendValue(record.unit_serial_number);
+    appendValue(record.stock_serial);
+    appendValue(record.ip_address);
+    appendValue(record.ipAddress);
+    appendValue(record.serial_numbers);
+    appendValue(record.serialNumbers);
+    appendValue(record.assigned_serial_numbers);
+    appendValue(record.ip_addresses);
+    appendValue(record.inventory_item);
+    appendValue(record.inventory_items);
+
+    return Array.from(new Set(values));
+  };
+
   const fetchFullJobDetails = async (jobId) => {
     const requestSeq = jobDetailsRequestSeq.current + 1;
     jobDetailsRequestSeq.current = requestSeq;
@@ -1119,7 +1177,7 @@ export function AdminScheduleContent({
                                   <th className="py-2 text-left">Description</th>
                                   <th className="py-2 text-left">Qty</th>
                                   <th className="py-2 text-left">Code</th>
-                                  <th className="py-2 text-left">Supplier</th>
+                                  <th className="py-2 text-left">Serial Number(s)</th>
                                   <th className="py-2 text-right">Amount</th>
                                 </tr>
                               </thead>
@@ -1134,7 +1192,13 @@ export function AdminScheduleContent({
                                     </td>
                                     <td className="py-2">{part.quantity ?? 1}</td>
                                     <td className="py-2">{part.code || "N/A"}</td>
-                                    <td className="py-2">{part.supplier || "N/A"}</td>
+                                    <td className="py-2">
+                                      {(() => {
+                                        const serials = extractSerialNumbers(part);
+                                        if (serials.length === 0) return "N/A";
+                                        return serials.join(", ");
+                                      })()}
+                                    </td>
                                     <td className="py-2 text-right">
                                       {formatCurrency(
                                         part.total_cost ??
