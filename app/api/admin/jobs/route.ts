@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
          vehicle_make,
          vehicle_model,
          vehicle_year,
+         assigned_technician_id,
          technician_name,
          technician_phone,
          job_location,
@@ -100,6 +101,15 @@ export async function GET(request: NextRequest) {
       Array.isArray(parts) && parts.length > 0
     );
 
+    const hasTechnicianAssigned = (job: {
+      technician_name?: string | null;
+      assigned_technician_id?: string | null;
+    }) => {
+      const technicianName = String(job.technician_name || '').trim();
+      const assignedTechnicianId = String(job.assigned_technician_id || '').trim();
+      return technicianName.length > 0 || assignedTechnicianId.length > 0;
+    };
+
     const isAdminRoutedJob = (job: {
       role?: string | null;
       move_to?: string | null;
@@ -136,7 +146,8 @@ export async function GET(request: NextRequest) {
       due_date: job.due_date,
       start_time: job.start_time,
       end_time: job.end_time,
-      status: job.job_status || job.status,
+      status: job.status || job.job_status,
+      job_status: job.job_status || job.status,
       job_type: job.job_type,
       job_description: job.job_description,
       priority: job.priority,
@@ -148,6 +159,7 @@ export async function GET(request: NextRequest) {
       vehicle_make: job.vehicle_make,
       vehicle_model: job.vehicle_model,
       vehicle_year: job.vehicle_year,
+      assigned_technician_id: job.assigned_technician_id,
       technician_name: job.technician_name,
       technician_phone: job.technician_phone, // This contains the email
       job_location: job.job_location,
@@ -186,7 +198,11 @@ export async function GET(request: NextRequest) {
         if (isCompletedJob(job)) return false;
         if (isEscalatedToAdmin(job)) return false;
         if (isEscalatedAwayFromAdmin(job)) return false;
-        return hasPartsRequired(job.parts_required) || isAdminRoutedJob(job);
+        return (
+          hasPartsRequired(job.parts_required) ||
+          isAdminRoutedJob(job) ||
+          hasTechnicianAssigned(job)
+        );
       });
     } else if (status === 'completed') {
       transformedJobs = transformedJobs.filter((job) => isCompletedJob(job));
