@@ -213,6 +213,8 @@ export default function RoleEscalationsPanel({
       toast.success(
         destination === "accounts"
           ? "Job moved to Accounts completed flow"
+          : destination === "admin"
+            ? "Job moved to Admin awaiting technician queue"
           : `Job moved to ${formatRoleLabel(destination)} escalations`,
       );
       await fetchEscalations();

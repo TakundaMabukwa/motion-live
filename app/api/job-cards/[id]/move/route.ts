@@ -60,11 +60,17 @@ export async function POST(
     const sourceRole = String(
       currentJob.role || currentJob.move_to || "",
     ).trim().toLowerCase() || null;
+    const isInventorySourceRole =
+      sourceRole === "inv" || sourceRole === "inventory";
+    const shouldRouteDirectToAdminAwaiting =
+      targetRole === "admin" && isInventorySourceRole;
     const shouldPreserveCompletedForFc =
       targetRole === "fc" && (Boolean(preserveCompleted) || sourceIsCompleted);
     const shouldMoveAsCompleted =
       targetRole === "accounts" || shouldPreserveCompletedForFc;
-    const escalationPayload = shouldMoveAsCompleted
+    const shouldBypassEscalation =
+      shouldMoveAsCompleted || shouldRouteDirectToAdminAwaiting;
+    const escalationPayload = shouldBypassEscalation
       ? {
           escalation_role: null,
           escalation_source_role: null,
@@ -169,7 +175,9 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Job moved to ${destination}`,
+      message: shouldRouteDirectToAdminAwaiting
+        ? "Job moved to Admin awaiting technician queue"
+        : `Job moved to ${destination}`,
       job: data,
     });
   } catch (error: unknown) {
