@@ -1221,8 +1221,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusColor = (status?: string | null) => {
+    switch ((status || "").toLowerCase()) {
       case "pending":
         return "bg-yellow-100 text-yellow-800";
       case "in_progress":
@@ -1238,7 +1238,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority?: string | null) => {
     switch (priority?.toLowerCase()) {
       case "high":
         return "bg-red-100 text-red-800 border-red-200";
@@ -1253,6 +1253,19 @@ export default function AdminDashboard() {
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
+  };
+
+  const formatUpperLabel = (
+    value: string | null | undefined,
+    fallback = "N/A",
+  ) => {
+    const normalized = String(value || "").trim();
+    return normalized ? normalized.toUpperCase() : fallback;
+  };
+
+  const formatStatusLabel = (status: string | null | undefined) => {
+    const normalized = String(status || "").trim();
+    return normalized ? normalized.replace(/_/g, " ").toUpperCase() : "UNKNOWN";
   };
 
   const getJobContextLabel = (jobType?: string) => {
@@ -2410,10 +2423,10 @@ export default function AdminDashboard() {
                     </h3>
                     <div className="flex gap-2">
                       <Badge className={getPriorityColor(selectedJob.priority)}>
-                        {selectedJob.priority.toUpperCase()}
+                        {formatUpperLabel(selectedJob.priority, "MEDIUM")}
                       </Badge>
                       <Badge className={getStatusColor(selectedJob.status)}>
-                        {selectedJob.status.toUpperCase()}
+                        {formatStatusLabel(selectedJob.status)}
                       </Badge>
                     </div>
                   </div>
@@ -2818,12 +2831,12 @@ export default function AdminDashboard() {
                   <div className="flex flex-col items-end">
                     <div className="flex items-start gap-2 flex-wrap">
                       <Badge className={getStatusColor(selectedJob.status)}>
-                        {selectedJob.status.replace("_", " ").toUpperCase()}
+                        {formatStatusLabel(selectedJob.status)}
                       </Badge>
                       <Badge
                         className={`${getPriorityColor(selectedJob.priority)} border font-semibold`}
                       >
-                        {selectedJob.priority.toUpperCase()}
+                        {formatUpperLabel(selectedJob.priority, "MEDIUM")}
                       </Badge>
                       {selectedJob.parts_required &&
                         selectedJob.parts_required.length > 0 && (

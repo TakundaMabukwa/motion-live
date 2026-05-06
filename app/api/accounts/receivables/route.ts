@@ -86,16 +86,6 @@ const getBillingMonthRange = (billingMonth: string) => {
   return { start, end };
 };
 
-const getPreviousBillingMonth = (billingMonth: string | null | undefined) => {
-  const normalized = normalizeBillingMonth(billingMonth);
-  if (!normalized) return null;
-
-  const date = new Date(`${normalized}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setMonth(date.getMonth() - 1);
-  return normalizeBillingMonth(date.toISOString()) || null;
-};
-
 const isInBillingMonth = (value: unknown, billingMonth: string) => {
   const raw = String(value || "").trim();
   if (!raw) return false;
@@ -122,43 +112,6 @@ const getLockMonth = async (supabase: Awaited<ReturnType<typeof createClient>>) 
   }
 
   return getOperationalBillingMonthKey();
-};
-
-const getLatestMeaningfulMirrorMonth = async (
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  maxBillingMonth?: string | null,
-) => {
-  let query = supabase
-    .from("payments_")
-    .select(
-      `
-      billing_month,
-      current_due,
-      overdue_30_days,
-      overdue_60_days,
-      overdue_90_days,
-      overdue_120_plus_days,
-      outstanding_balance,
-      paid_amount,
-      credit_amount,
-      last_updated
-    `,
-    )
-    .order("billing_month", { ascending: false })
-    .order("last_updated", { ascending: false, nullsFirst: false })
-    .limit(2000);
-
-  if (maxBillingMonth) {
-    query = query.lte("billing_month", maxBillingMonth);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    throw error;
-  }
-
-  const firstMeaningfulRow = (data || []).find((row) => hasMeaningfulAgeAnalysis(row));
-  return normalizeBillingMonth(firstMeaningfulRow?.billing_month) || null;
 };
 
 const buildPaymentState = ({
@@ -213,6 +166,14 @@ const hasMeaningfulAgeAnalysis = (row: Record<string, unknown> | null | undefine
   toNumber(row?.credit_amount) > 0.01;
 
 const AGE_ROLLOVER_REFERENCE = "AGE-ROLLFORWARD";
+
+const chunkArray = <T,>(items: T[], size: number) => {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+};
 
 const isMissingRelationError = (error: unknown, relationName: string) => {
   const code = String((error as { code?: unknown })?.code || "").trim().toUpperCase();
@@ -370,14 +331,8 @@ export async function GET(request: NextRequest) {
     }
 
     const activeBillingMonth = await getLockMonth(supabase);
-    const latestMirrorBillingMonth = await getLatestMeaningfulMirrorMonth(
-      supabase,
-      activeBillingMonth,
-    );
     const resolvedBillingMonth =
       requestedBillingMonth ||
-      latestMirrorBillingMonth ||
-      getPreviousBillingMonth(activeBillingMonth) ||
       activeBillingMonth;
     const { start: billingMonthStart, end: billingMonthEnd } =
       getBillingMonthRange(resolvedBillingMonth);
@@ -395,7 +350,6 @@ export async function GET(request: NextRequest) {
     }
 
     const [
-      { data: costCenters, error: costCentersError },
       { data: mirrorRows, error: mirrorError },
       { data: accountInvoices, error: accountInvoicesError },
       { data: bulkInvoices, error: bulkInvoicesError },
@@ -403,27 +357,53 @@ export async function GET(request: NextRequest) {
       { data: creditNotes, error: creditNotesError },
     ] = await Promise.all([
       supabase
-        .from("cost_centers")
+        .from("payments_")
         .select(
           `
-          cost_code,
+          id,
           company,
-          legal_name,
-          contact_name,
+          cost_code,
+          account_invoice_id,
+          invoice_number,
+          reference,
+          due_amount,
+          amount_due,
+          balance_due,
+          invoice_date,
+          due_date,
+          payment_status,
+          current_due,
+          overdue_30_days,
+          overdue_60_days,
+          overdue_90_days,
+          overdue_120_plus_days,
+          outstanding_balance,
+          paid_amount,
+          credit_amount,
+          billing_month,
+          last_updated,
+          client_name,
+          client_contact,
           email,
-          postal_address_1,
-          postal_address_2,
-          postal_address_3,
-          physical_area,
-          physical_code
+          postal_address,
+          city,
+          post_code,
+          solutions_rep,
+          last_payment_date,
+          last_payment,
+          avg_days_to_pay,
+          debtor_note,
+          credit_limit,
+          currency,
+          phone,
+          account_status,
+          payment_terms,
+          category,
+          region,
+          country
         `,
         )
-        .order("cost_code", { ascending: true }),
-      supabase
-        .from("payments_")
-        .select("*")
-        .lte("billing_month", resolvedBillingMonth)
-        .order("billing_month", { ascending: false })
+        .eq("billing_month", resolvedBillingMonth)
         .order("last_updated", { ascending: false, nullsFirst: false }),
       supabase
         .from("account_invoices")
@@ -506,7 +486,6 @@ export async function GET(request: NextRequest) {
     ]);
 
     const firstError =
-      costCentersError ||
       mirrorError ||
       accountInvoicesError ||
       bulkInvoicesError ||
@@ -537,25 +516,6 @@ export async function GET(request: NextRequest) {
         postCode: string | null;
       }
     >();
-
-    (costCenters || []).forEach((costCenter) => {
-      const key = normalizeKey(costCenter.cost_code);
-      if (!key) return;
-      costCenterInfoByAccount.set(key, {
-        company: String(costCenter.company || "").trim() || null,
-        legalName: String(costCenter.legal_name || "").trim() || null,
-        contactName: String(costCenter.contact_name || "").trim() || null,
-        email: String(costCenter.email || "").trim() || null,
-        postalAddress:
-          composePostalAddress(
-            costCenter.postal_address_1,
-            costCenter.postal_address_2,
-            costCenter.postal_address_3,
-          ) || null,
-        city: String(costCenter.physical_area || "").trim() || null,
-        postCode: String(costCenter.physical_code || "").trim() || null,
-      });
-    });
 
     const mirrorByAccount = new Map<string, Record<string, unknown>>();
     const mirrorRowsByAccount = new Map<string, Record<string, unknown>[]>();
@@ -653,13 +613,65 @@ export async function GET(request: NextRequest) {
     });
 
     const accountKeys = new Set<string>([
-      ...Array.from(costCenterInfoByAccount.keys()),
       ...Array.from(mirrorByAccount.keys()),
       ...Array.from(accountInvoicesByAccount.keys()),
       ...Array.from(bulkInvoicesByAccount.keys()),
       ...Array.from(paymentStatsByAccount.keys()),
       ...Array.from(creditStatsByAccount.keys()),
     ]);
+
+    const accountNumbers = Array.from(accountKeys);
+
+    if (accountNumbers.length > 0) {
+      const accountChunks = chunkArray(accountNumbers, 250);
+      const costCenterResponses = await Promise.all(
+        accountChunks.map((chunk) =>
+          supabase
+            .from("cost_centers")
+            .select(
+              `
+              cost_code,
+              company,
+              legal_name,
+              contact_name,
+              email,
+              postal_address_1,
+              postal_address_2,
+              postal_address_3,
+              physical_area,
+              physical_code
+            `,
+            )
+            .in("cost_code", chunk),
+        ),
+      );
+
+      for (const response of costCenterResponses) {
+        if (response.error) {
+          console.error("Error fetching receivables cost centers:", response.error);
+          continue;
+        }
+
+        (response.data || []).forEach((costCenter) => {
+          const key = normalizeKey(costCenter.cost_code);
+          if (!key) return;
+          costCenterInfoByAccount.set(key, {
+            company: String(costCenter.company || "").trim() || null,
+            legalName: String(costCenter.legal_name || "").trim() || null,
+            contactName: String(costCenter.contact_name || "").trim() || null,
+            email: String(costCenter.email || "").trim() || null,
+            postalAddress:
+              composePostalAddress(
+                costCenter.postal_address_1,
+                costCenter.postal_address_2,
+                costCenter.postal_address_3,
+              ) || null,
+            city: String(costCenter.physical_area || "").trim() || null,
+            postCode: String(costCenter.physical_code || "").trim() || null,
+          });
+        });
+      }
+    }
 
     const jobStatsByAccount = new Map<
       string,
@@ -671,32 +683,39 @@ export async function GET(request: NextRequest) {
       }
     >();
 
-    const accountNumbers = Array.from(accountKeys);
     if (accountNumbers.length > 0) {
-      const { data: jobCards, error: jobCardsError } = await supabase
-        .from("job_cards")
-        .select(
-          `
-          id,
-          new_account_number,
-          status,
-          job_status,
-          job_date,
-          completion_date,
-          end_time,
-          created_at,
-          updated_at,
-          quotation_products,
-          quotation_total_amount,
-          estimated_cost
-        `,
-        )
-        .in("new_account_number", accountNumbers);
+      const jobCardChunks = chunkArray(accountNumbers, 250);
+      const jobCardResponses = await Promise.all(
+        jobCardChunks.map((chunk) =>
+          supabase
+            .from("job_cards")
+            .select(
+              `
+              id,
+              new_account_number,
+              status,
+              job_status,
+              job_date,
+              completion_date,
+              end_time,
+              created_at,
+              updated_at,
+              quotation_products,
+              quotation_total_amount,
+              estimated_cost
+            `,
+            )
+            .in("new_account_number", chunk),
+        ),
+      );
 
-      if (jobCardsError) {
-        console.error("Error fetching receivables job cards:", jobCardsError);
-      } else {
-        (jobCards || []).forEach((job) => {
+      for (const response of jobCardResponses) {
+        if (response.error) {
+          console.error("Error fetching receivables job cards:", response.error);
+          continue;
+        }
+
+        (response.data || []).forEach((job) => {
           const accountKey = normalizeKey(job.new_account_number);
           if (!accountKey) return;
 
