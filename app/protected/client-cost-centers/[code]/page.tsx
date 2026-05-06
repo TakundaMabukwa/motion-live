@@ -3216,8 +3216,13 @@ export default function ClientCostCentersPage() {
       return;
     }
 
+    const defaultBillingMonth =
+      normalizeBillingMonthValue(costCenter?.billingMonth) ||
+      currentBillingMonthKey ||
+      ACCOUNTS_INVOICE_BILLING_MONTH;
+
     setCreditNoteDetails(costCenter);
-    setCreditNoteBillingMonth('');
+    setCreditNoteBillingMonth(defaultBillingMonth);
     setCreditNoteDate(getTodayDateInputValue());
     setCreditNoteAmount('');
     setCreditNoteReference('');
@@ -3226,8 +3231,13 @@ export default function ClientCostCentersPage() {
   };
 
   const selectedCreditNoteBillingMonth = useMemo(() => {
-    return normalizeBillingMonthValue(creditNoteBillingMonth);
-  }, [creditNoteBillingMonth]);
+    return (
+      normalizeBillingMonthValue(creditNoteBillingMonth) ||
+      normalizeBillingMonthValue(creditNoteDetails?.billingMonth) ||
+      currentBillingMonthKey ||
+      ACCOUNTS_INVOICE_BILLING_MONTH
+    );
+  }, [creditNoteBillingMonth, creditNoteDetails?.billingMonth, currentBillingMonthKey]);
 
   const selectedCreditNoteOutstanding = useMemo(() => {
     return Number(
@@ -3261,8 +3271,8 @@ export default function ClientCostCentersPage() {
     if (!selectedCreditNoteBillingMonth) {
       toast({
         variant: 'destructive',
-        title: 'Billing month required',
-        description: 'Select the billing month for this credit note.',
+        title: 'Credit note failed',
+        description: 'Unable to determine the billing month for this credit note.',
       });
       return;
     }
@@ -3291,7 +3301,7 @@ export default function ClientCostCentersPage() {
 
       toast({
         title: 'Credit note applied',
-        description: `${result?.creditNote?.credit_note_number || 'Credit note'} applied to ${creditNoteDetails.accountNumber} for ${formatBillingMonthLabel(selectedCreditNoteBillingMonth)}.`,
+        description: `${result?.creditNote?.credit_note_number || 'Credit note'} applied to ${creditNoteDetails.accountNumber}.`,
       });
 
       closeCreditNoteModal();
@@ -6286,20 +6296,6 @@ export default function ClientCostCentersPage() {
 
               <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="font-medium text-slate-700 text-sm">Billing month *</label>
-                  <Input
-                    type="month"
-                    value={formatBillingMonthInput(creditNoteBillingMonth)}
-                    onChange={(e) =>
-                      setCreditNoteBillingMonth(
-                        normalizeBillingMonthValue(e.target.value) || '',
-                      )
-                    }
-                    disabled={processingCreditNote}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
                   <label className="font-medium text-slate-700 text-sm">Credit note date</label>
                   <Input
                     type="date"
@@ -6309,7 +6305,7 @@ export default function ClientCostCentersPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="font-medium text-slate-700 text-sm">Amount</label>
+                  <label className="font-medium text-slate-700 text-sm">Amount (Ex VAT)</label>
                   <Input
                     type="number"
                     min="0"
@@ -6319,6 +6315,9 @@ export default function ClientCostCentersPage() {
                     disabled={processingCreditNote}
                     placeholder="0.00"
                   />
+                  <p className="text-slate-500 text-xs">
+                    Note: Credit note amount is captured ex-VAT.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="font-medium text-slate-700 text-sm">Reference</label>
@@ -6343,15 +6342,7 @@ export default function ClientCostCentersPage() {
                 />
               </div>
 
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-3 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
-                <div>
-                  <div className="text-blue-700">Billing Month</div>
-                  <div className="font-semibold text-slate-900">
-                    {selectedCreditNoteBillingMonth
-                      ? formatBillingMonthLabel(selectedCreditNoteBillingMonth)
-                      : '-'}
-                  </div>
-                </div>
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
                 <div>
                   <div className="text-blue-700">Current Outstanding</div>
                   <div className="font-semibold text-slate-900">

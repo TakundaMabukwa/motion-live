@@ -710,6 +710,8 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
     clientAddress,
     companyRegistrationNumber,
     invoiceNumber,
+    documentTitle,
+    documentNumberLabel,
     orderNumber,
     invoiceDate,
     accountNumber,
@@ -735,7 +737,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
         </div>
 
         <div className="invoice-rule" />
-        <div className="invoice-title">Tax Invoice</div>
+        <div className="invoice-title">{documentTitle}</div>
 
         <div className="invoice-party-row">
           <div className="invoice-client-block">
@@ -746,7 +748,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
             <div className="invoice-client-address">{clientAddress}</div>
           </div>
           <div className="invoice-meta">
-            <div className="invoice-meta-label">TAX INVOICE :</div>
+            <div className="invoice-meta-label">{documentNumberLabel} :</div>
             <div className="invoice-meta-value">{invoiceNumber}</div>
             <div className="invoice-meta-label">Date:</div>
             <div className="invoice-meta-value">{invoiceDate}</div>
@@ -960,6 +962,8 @@ export function buildInvoiceView({
   clientLegalName,
   costCenter,
   editableNotes,
+  documentTitle = "Tax Invoice",
+  documentNumberLabel = "TAX INVOICE",
 }) {
   const items = Array.isArray(activeInvoiceData?.invoiceItems)
     ? activeInvoiceData.invoiceItems
@@ -1059,6 +1063,8 @@ export function buildInvoiceView({
     clientAddress,
     companyRegistrationNumber,
     invoiceNumber,
+    documentTitle,
+    documentNumberLabel,
     orderNumber,
     invoiceDate: formatDate(activeInvoiceData?.invoice_date || getBillingInvoiceDate(activeInvoiceData?.billing_month || costCenter?.billingMonth)),
     accountNumber: costCenter?.accountNumber || activeInvoiceData?.account_number || "",
@@ -1070,6 +1076,8 @@ export function buildInvoiceView({
 }
 
 export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
+  const documentTitle = String(invoiceView?.documentTitle || "Tax Invoice");
+  const documentNumberLabel = String(invoiceView?.documentNumberLabel || "TAX INVOICE");
   const rowMarkup =
     invoiceView.rows
       .map(
@@ -1095,7 +1103,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>Invoice - ${escapeHtml(invoiceView.accountNumber)}</title>
+          <title>${escapeHtml(documentTitle)} - ${escapeHtml(invoiceView.accountNumber)}</title>
           <style>${buildInvoiceStyles()}</style>
         </head>
         <body>
@@ -1112,7 +1120,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
                 </div>
               </div>
                 <div class="invoice-rule"></div>
-                <div class="invoice-title">Tax Invoice</div>
+                <div class="invoice-title">${escapeHtml(documentTitle)}</div>
                 <div class="invoice-party-row">
                   <div class="invoice-client-block">
                     <div class="invoice-client-name">${escapeHtml(invoiceView.clientName)}</div>
@@ -1120,7 +1128,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
                     <div class="invoice-client-address">${escapeHtml(invoiceView.clientAddress)}</div>
                   </div>
                   <div class="invoice-meta">
-                    <div class="invoice-meta-label">TAX INVOICE :</div>
+                    <div class="invoice-meta-label">${escapeHtml(documentNumberLabel)} :</div>
                     <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceNumber)}</div>
                   <div class="invoice-meta-label">Date:</div>
                   <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceDate)}</div>
@@ -1245,6 +1253,8 @@ export default function InvoiceReportComponent({
   onInvoiceGenerated,
   viewOnly = false,
   extraActions = null,
+  documentTitle = "Tax Invoice",
+  documentNumberLabel = "TAX INVOICE",
 }) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
@@ -1375,8 +1385,18 @@ export default function InvoiceReportComponent({
         clientLegalName,
         costCenter,
         editableNotes,
+        documentTitle,
+        documentNumberLabel,
       }),
-    [activeInvoiceData, clientLegalName, costCenter, customerInfo, editableNotes],
+    [
+      activeInvoiceData,
+      clientLegalName,
+      costCenter,
+      customerInfo,
+      editableNotes,
+      documentTitle,
+      documentNumberLabel,
+    ],
   );
 
   const getPrintableHtml = () => buildInvoicePrintableHtml({ logoUrl, invoiceView });

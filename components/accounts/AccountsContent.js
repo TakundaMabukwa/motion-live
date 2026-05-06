@@ -56,6 +56,7 @@ import OrdersContent from "./OrdersContent";
 import PurchasesContent from "./PurchasesContent";
 import AccountsClientsSection from "./AccountsClientsSection";
 import AccountsInvoicesSection from "./AccountsInvoicesSection";
+import AccountsCreditNotesSection from "./AccountsCreditNotesSection";
 import AccountsJobPoolSection from "./AccountsJobPoolSection";
 import AccountsReceivablesSection from "./AccountsReceivablesSection";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -3026,6 +3027,10 @@ export default function AccountsContent({ activeSection }) {
 
   if (activeSection === "invoices") {
     return <AccountsInvoicesSection />;
+  }
+
+  if (activeSection === "credit-notes") {
+    return <AccountsCreditNotesSection />;
   }
 
   if (activeSection === "purchases") {
