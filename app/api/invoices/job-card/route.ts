@@ -7,6 +7,7 @@ import {
 } from "@/lib/server/invoice-number-audit";
 
 const SYSTEM_LOCK_KEY = 'billing';
+const BUSINESS_TIME_ZONE = 'Africa/Johannesburg';
 
 const getSystemLock = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -45,7 +46,31 @@ const getLockMonthEndInvoiceDate = (
   const month = parsed.getMonth();
   const lastDay = new Date(year, month + 1, 0).getDate();
   const invoiceDay = Math.min(30, lastDay);
-  return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
+  const lockMonthDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(invoiceDay).padStart(2, '0')}`;
+  return new Date(`${lockMonthDate}T12:00:00+02:00`).toISOString();
+};
+
+const getBusinessDateString = (value?: unknown) => {
+  const raw = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const parsed = raw ? new Date(raw) : new Date();
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+};
+
+const toBusinessMiddayIso = (value?: unknown) => {
+  const businessDate = getBusinessDateString(value);
+  return new Date(`${businessDate}T12:00:00+02:00`).toISOString();
 };
 
 export async function GET(request: NextRequest) {
@@ -154,16 +179,16 @@ export async function POST(request: NextRequest) {
 
     const systemLock = await getSystemLock(supabase);
     const isSystemLocked = Boolean(systemLock?.is_locked);
+    const businessNowInvoiceDate = toBusinessMiddayIso();
     const lockReferenceDate =
       invoiceDate ||
       dueDate ||
-      new Date().toISOString();
+      businessNowInvoiceDate;
     const resolvedInvoiceDate =
       (isSystemLocked
         ? getLockMonthEndInvoiceDate(systemLock?.lock_date, lockReferenceDate)
         : null) ||
-      invoiceDate ||
-      new Date().toISOString();
+      (invoiceDate ? toBusinessMiddayIso(invoiceDate) : businessNowInvoiceDate);
 
     const { data: existingInvoice, error: existingError } = await supabase
       .from('invoices')

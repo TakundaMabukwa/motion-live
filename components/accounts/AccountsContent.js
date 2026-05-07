@@ -70,7 +70,6 @@ export default function AccountsContent({ activeSection }) {
   ];
   const [customers, setCustomers] = useState([]);
   const [allCustomers, setAllCustomers] = useState([]);
-  const [paymentData, setPaymentData] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
@@ -191,8 +190,8 @@ export default function AccountsContent({ activeSection }) {
     const month = parsed.getMonth();
     const lastDay = new Date(year, month + 1, 0).getDate();
     const invoiceDay = Math.min(30, lastDay);
-
-    return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
+    const lockMonthDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(invoiceDay).padStart(2, "0")}`;
+    return new Date(`${lockMonthDate}T12:00:00+02:00`).toISOString();
   };
 
   // Check if payment is due (after 21st of month)
@@ -261,13 +260,11 @@ export default function AccountsContent({ activeSection }) {
 
         if (loadMore) {
           setCustomers((prev) => [...prev, ...data.companyGroups]);
-          setPaymentData({ ...paymentData, ...data.paymentData });
           setPage(currentPage);
           setHasMore(data.companyGroups.length === 50);
         } else {
           setCustomers(data.companyGroups);
           setAllCustomers(data.companyGroups);
-          setPaymentData(data.paymentData || {});
           setPage(1);
           setHasMore(data.companyGroups.length === 50);
         }
@@ -652,6 +649,13 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
+  const getLocalDateInputValue = (dateValue = new Date()) => {
+    const localDate = new Date(
+      dateValue.getTime() - dateValue.getTimezoneOffset() * 60000,
+    );
+    return localDate.toISOString().slice(0, 10);
+  };
+
   const handleInvoiceClient = async (job) => {
     const latestJob = await fetchLatestJobCard(job);
     setSelectedJobForInvoice(latestJob);
@@ -665,9 +669,9 @@ export default function AccountsContent({ activeSection }) {
       clientPhone: latestJob.customer_phone || "",
       clientAddress: latestJob.customer_address || "",
       paymentTerms: "30 days",
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0], // 30 days from now
+      dueDate: getLocalDateInputValue(
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      ), // 30 days from now (local date)
       notes: "",
     });
     setShowInvoiceModal(true);
@@ -2748,6 +2752,22 @@ export default function AccountsContent({ activeSection }) {
     console.log("Dashboard section active, selectedAccount:", selectedAccount);
     console.log("Customers data:", customers);
 
+    const dashboardGroups = allCustomers.length > 0 ? allCustomers : customers;
+    const dashboardSummary = dashboardGroups.reduce(
+      (acc, group) => {
+        const monthly = Number(group?.totalMonthlyAmount || 0);
+        const amountDue = Number(group?.totalAmountDue || 0);
+        const vehicles = Number(group?.vehicleCount || 0);
+
+        return {
+          totalMonthly: acc.totalMonthly + (Number.isFinite(monthly) ? monthly : 0),
+          totalAmountDue: acc.totalAmountDue + (Number.isFinite(amountDue) ? amountDue : 0),
+          totalVehicles: acc.totalVehicles + (Number.isFinite(vehicles) ? vehicles : 0),
+        };
+      },
+      { totalMonthly: 0, totalAmountDue: 0, totalVehicles: 0 },
+    );
+
     if (selectedAccount) {
       console.log(
         "Showing internal dashboard for account:",
@@ -2790,7 +2810,7 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">
-                {customers.length}
+                {dashboardGroups.length}
               </div>
               <p className="text-xs text-muted-foreground">
                 Active company groups
@@ -2807,12 +2827,7 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(
-                  customers.reduce((sum, customer) => {
-                    const paymentInfo = paymentData[customer.id];
-                    return sum + (paymentInfo?.totalDue || 0);
-                  }, 0),
-                )}
+                {formatCurrency(dashboardSummary.totalMonthly)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Full monthly amounts due
@@ -2829,12 +2844,7 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(
-                  customers.reduce((sum, customer) => {
-                    const paymentInfo = paymentData[customer.id];
-                    return sum + (paymentInfo?.totalBalance || 0);
-                  }, 0),
-                )}
+                {formatCurrency(dashboardSummary.totalAmountDue)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Outstanding amounts
@@ -2851,7 +2861,7 @@ export default function AccountsContent({ activeSection }) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-purple-600">
-                {customers.reduce((sum, c) => sum + (c.vehicleCount || 0), 0)}
+                {dashboardSummary.totalVehicles}
               </div>
               <p className="text-xs text-muted-foreground">Fleet size</p>
             </CardContent>
@@ -2948,10 +2958,6 @@ export default function AccountsContent({ activeSection }) {
             ) : (
               <div className="space-y-4">
                 {customers.map((customer, index) => {
-                  const paymentInfo = paymentData[customer.id] || {};
-                  const totalDue = paymentInfo.totalDue || 0;
-                  const totalBalance = paymentInfo.totalBalance || 0;
-
                   return (
                     <div
                       key={customer.id || index}
@@ -2972,16 +2978,6 @@ export default function AccountsContent({ activeSection }) {
                             {customer.vehicleCount || 0} vehicles -{" "}
                             {customer.uniqueClientCount || 0} clients
                           </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-red-600">
-                            {formatCurrency(totalDue)}
-                          </div>
-                          <p className="text-xs text-gray-500">Monthly</p>
-                          <div className="text-sm font-medium text-orange-600">
-                            {formatCurrency(totalBalance)}
-                          </div>
-                          <p className="text-xs text-gray-500">Amount Due</p>
                         </div>
                       </div>
                     </div>
