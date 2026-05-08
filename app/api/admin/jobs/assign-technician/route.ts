@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { appendAssignedPartsToTechnicianStock } from '@/lib/server/tech-stock-assignment';
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_ONLY_RE = /^\d{2}:\d{2}$/;
+
+const normalizeEmail = (value: unknown) =>
+  String(value || '').trim().toLowerCase();
+
+const isEmailLike = (value: string) =>
+  Boolean(value) && value.includes('@') && !value.includes(' ');
+
+const splitCsvValues = (value: unknown) =>
+  String(value || '')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
 
 function normalizeDatePart(rawDate: string): string {
   const dateStr = String(rawDate || '').trim();
@@ -43,36 +56,21 @@ async function addPartsToTechnicianStock(
   try {
     console.log(`[PARTS ASSIGNMENT] Starting parts assignment for technician: ${technicianEmail}`);
     console.log(`[PARTS ASSIGNMENT] Parts to assign:`, JSON.stringify(partsRequired, null, 2));
-
-    // Get existing technician stock
-    const { data: techStock } = await supabase
-      .from('tech_stock')
-      .select('assigned_parts')
-      .eq('technician_email', technicianEmail)
-      .maybeSingle();
-
-    const currentParts = techStock?.assigned_parts || [];
-
-    // Simply copy the parts_required array as-is, preserving all details
-    const newParts = [...currentParts, ...partsRequired];
-
-    // Update or insert technician stock
-    const { error } = await supabase
-      .from('tech_stock')
-      .upsert({
-        technician_email: technicianEmail,
-        assigned_parts: newParts
-      }, {
-        onConflict: 'technician_email'
-      });
-
-    if (error) {
-      console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
-      return { success: false, error };
-    } else {
-      console.log(`[PARTS ASSIGNMENT] SUCCESS: Added ${partsRequired.length} parts`);
-      return { success: true, totalParts: newParts.length, partsAdded: partsRequired.length };
+    const result = await appendAssignedPartsToTechnicianStock(
+      supabase,
+      technicianEmail,
+      partsRequired,
+    );
+    if (!result.success) {
+      console.error(`[PARTS ASSIGNMENT] ERROR:`, result.error);
+      return { success: false, error: result.error };
     }
+    console.log(`[PARTS ASSIGNMENT] SUCCESS: Added ${partsRequired.length} parts`);
+    return {
+      success: true,
+      totalParts: result.totalParts,
+      partsAdded: partsRequired.length,
+    };
   } catch (error) {
     console.error(`[PARTS ASSIGNMENT] ERROR:`, error);
     return { success: false, error };
@@ -90,7 +88,15 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { jobId, technicianName, jobDate, startTime, endTime, override = false } = body;
+    const {
+      jobId,
+      technicianName,
+      technicianEmail,
+      jobDate,
+      startTime,
+      endTime,
+      override = false,
+    } = body;
 
     if (!jobId || !technicianName || !jobDate) {
       return NextResponse.json({ 
@@ -98,13 +104,58 @@ export async function PUT(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Always generate email from technician name and store in technician_phone field
-    const emailName = technicianName
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '.')
-      .replace(/[^a-z0-9.]/g, '');
-    const finalTechnicianEmail = `${emailName}@soltrack.co.za`;
+    const explicitEmails = splitCsvValues(technicianEmail)
+      .map((email) => normalizeEmail(email))
+      .filter((email) => isEmailLike(email));
+
+    let resolvedEmails = [...new Set(explicitEmails)];
+
+    if (resolvedEmails.length === 0) {
+      const requestedNames = splitCsvValues(technicianName);
+
+      for (const requestedName of requestedNames) {
+        const { data: technicianRows, error: technicianLookupError } = await supabase
+          .from('technicians')
+          .select('email')
+          .ilike('name', requestedName)
+          .limit(1);
+
+        if (technicianLookupError) {
+          console.warn(
+            `Technician email lookup failed for "${requestedName}":`,
+            technicianLookupError.message,
+          );
+          continue;
+        }
+
+        const lookupEmail = normalizeEmail(technicianRows?.[0]?.email);
+        if (isEmailLike(lookupEmail)) {
+          resolvedEmails.push(lookupEmail);
+        }
+      }
+
+      resolvedEmails = [...new Set(resolvedEmails)];
+    }
+
+    if (resolvedEmails.length === 0) {
+      const requestedNames = splitCsvValues(technicianName);
+      if (requestedNames.length > 1) {
+        return NextResponse.json(
+          { error: 'Technician email is required when assigning multiple technicians' },
+          { status: 400 },
+        );
+      }
+
+      const emailName = String(technicianName || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '.')
+        .replace(/[^a-z0-9.]/g, '');
+      resolvedEmails = [`${emailName}@soltrack.co.za`];
+    }
+
+    const technicianPhoneValue = resolvedEmails.join(', ');
+    const finalTechnicianEmail = resolvedEmails[0];
 
     // Build proper timestamp strings for start_time/end_time if provided
     const datePart = normalizeDatePart(jobDate);
@@ -223,7 +274,7 @@ export async function PUT(request: NextRequest) {
     const updateData = {
       assigned_technician_id: user.id, // Store the user ID who made the assignment
       technician_name: technicianName,
-      technician_phone: finalTechnicianEmail, // Store generated email in technician_phone field
+      technician_phone: technicianPhoneValue,
       job_date: datePart,
       start_time: startDateTime,
       end_time: endDateTime,
@@ -255,7 +306,11 @@ export async function PUT(request: NextRequest) {
     let partsMessage = '';
     if (jobData?.parts_required && Array.isArray(jobData.parts_required) && jobData.parts_required.length > 0) {
       console.log(`[JOB ASSIGNMENT] Job ${jobId} has ${jobData.parts_required.length} parts required`);
-      const result = await addPartsToTechnicianStock(supabase, finalTechnicianEmail, jobData.parts_required);
+      const result = await addPartsToTechnicianStock(
+        supabase,
+        finalTechnicianEmail,
+        jobData.parts_required,
+      );
       
       if (result?.success) {
         partsMessage = ` Parts transferred: ${result.partsAdded} parts added to technician stock.`;

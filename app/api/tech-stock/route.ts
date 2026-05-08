@@ -1,11 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+const normalizeEmail = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { searchParams } = new URL(request.url);
-    const email = searchParams.get('email');
+    const email = normalizeEmail(searchParams.get('email'));
 
     if (!email) {
       return NextResponse.json({ error: 'Email parameter is required' }, { status: 400 });
@@ -14,7 +19,8 @@ export async function GET(request: NextRequest) {
     const { data: stockData, error } = await supabase
       .from('tech_stock')
       .select('*')
-      .eq('technician_email', email);
+      .ilike('technician_email', email)
+      .order('id', { ascending: true });
 
     if (error) {
       console.error('Error fetching tech stock:', error);
@@ -39,25 +45,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { technician_email, stock } = body;
+    const { stock } = body;
+    const technicianEmail = normalizeEmail(body?.technician_email);
 
-    if (!technician_email || !stock) {
+    if (!technicianEmail || !stock) {
       return NextResponse.json({ error: 'Technician email and stock data are required' }, { status: 400 });
     }
 
-    // Check if record exists
-    const { data: existingRecord, error: fetchError } = await supabase
+    // Check if record exists (case-insensitive)
+    const { data: existingRows, error: fetchError } = await supabase
       .from('tech_stock')
-      .select('*')
-      .eq('technician_email', technician_email)
-      .single();
+      .select('id, technician_email')
+      .ilike('technician_email', technicianEmail)
+      .order('id', { ascending: true })
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error fetching tech stock:', fetchError);
+      return NextResponse.json({ error: 'Failed to lookup tech stock' }, { status: 500 });
+    }
+
+    const existingRecord = Array.isArray(existingRows) ? existingRows[0] : null;
 
     if (existingRecord) {
       // Update existing record
       const { data: updatedRecord, error: updateError } = await supabase
         .from('tech_stock')
-        .update({ stock })
-        .eq('technician_email', technician_email)
+        .update({ stock, technician_email: technicianEmail })
+        .eq('id', existingRecord.id)
         .select('*')
         .single();
 
@@ -71,7 +86,7 @@ export async function POST(request: NextRequest) {
       // Create new record
       const { data: newRecord, error: insertError } = await supabase
         .from('tech_stock')
-        .insert({ technician_email, stock })
+        .insert({ technician_email: technicianEmail, stock })
         .select('*')
         .single();
 

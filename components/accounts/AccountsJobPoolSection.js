@@ -11,6 +11,7 @@ const ROLE_COLUMNS = [
   { key: "admin", label: "ADMIN" },
   { key: "tech", label: "TECH" },
   { key: "accounts", label: "ACCOUNTS" },
+  { key: "unassigned", label: "UNASSIGNED" },
 ];
 
 const getAgeTone = (days) => {
@@ -98,6 +99,7 @@ export default function AccountsJobPoolSection() {
     admin: 0,
     tech: 0,
     accounts: 0,
+    unassigned: 0,
   });
   const [totals, setTotals] = useState({
     fc: 0,
@@ -105,6 +107,7 @@ export default function AccountsJobPoolSection() {
     admin: 0,
     tech: 0,
     accounts: 0,
+    unassigned: 0,
   });
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -135,6 +138,7 @@ export default function AccountsJobPoolSection() {
           admin: 0,
           tech: 0,
           accounts: 0,
+          unassigned: 0,
         },
       );
       setTotals(
@@ -144,6 +148,7 @@ export default function AccountsJobPoolSection() {
           admin: 0,
           tech: 0,
           accounts: 0,
+          unassigned: 0,
         },
       );
       setHasLoadedOnce(true);
@@ -223,7 +228,7 @@ export default function AccountsJobPoolSection() {
             {String(jobs.length).padStart(2, "0")}
           </div>
           <div className="mt-1 text-sm text-slate-500">
-            Active across FC, Inventory, Admin, Tech, and Accounts
+            Active across FC, Inventory, Admin, Tech, Accounts, and Unassigned
           </div>
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 shadow-sm">
@@ -253,8 +258,8 @@ export default function AccountsJobPoolSection() {
       </div>
 
       <div className="overflow-x-auto rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="min-w-[1180px]">
-          <div className="grid grid-cols-5 border-b border-slate-200 bg-slate-50">
+        <div className="min-w-[1380px]">
+          <div className="grid grid-cols-6 border-b border-slate-200 bg-slate-50">
             {ROLE_COLUMNS.map((role) => {
               const roleJobs = groupedJobs[role.key] || [];
               const bucketSummary = buildAgeBucketSummary(roleJobs);
@@ -308,7 +313,7 @@ export default function AccountsJobPoolSection() {
             })}
           </div>
 
-          <div className="grid grid-cols-5 border-b border-slate-200 bg-white">
+          <div className="grid grid-cols-6 border-b border-slate-200 bg-white">
             {ROLE_COLUMNS.map((role) => (
               <div
                 key={`${role.key}-subheader`}
@@ -322,7 +327,7 @@ export default function AccountsJobPoolSection() {
             ))}
           </div>
 
-          <div className="grid grid-cols-5">
+          <div className="grid grid-cols-6">
             {loading && !hasLoadedOnce
               ? ROLE_COLUMNS.map((role) => renderColumnSkeleton(role.key))
               : ROLE_COLUMNS.map((role) => {

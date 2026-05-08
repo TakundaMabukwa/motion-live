@@ -97,14 +97,15 @@ export async function GET(request: NextRequest) {
       .from('invoices')
       .select('*')
       .eq('job_card_id', jobCardId)
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (error) {
       console.error('Error fetching job card invoice:', error);
       return NextResponse.json({ error: 'Failed to fetch invoice' }, { status: 500 });
     }
 
-    return NextResponse.json({ invoice: data || null });
+    return NextResponse.json({ invoice: Array.isArray(data) ? data[0] || null : null });
   } catch (error) {
     console.error('Error in invoice job-card GET:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -152,7 +153,9 @@ export async function POST(request: NextRequest) {
 
     const { data: jobCard, error: jobCardError } = await supabase
       .from('job_cards')
-      .select('id, new_account_number')
+      .select(
+        'id, role, status, job_status, new_account_number, completion_date, end_time, updated_at, job_date',
+      )
       .eq('id', jobCardId)
       .maybeSingle();
 
@@ -190,16 +193,28 @@ export async function POST(request: NextRequest) {
         : null) ||
       (invoiceDate ? toBusinessMiddayIso(invoiceDate) : businessNowInvoiceDate);
 
-    const { data: existingInvoice, error: existingError } = await supabase
+    const { data: existingInvoices, error: existingError } = await supabase
       .from('invoices')
       .select('*')
       .eq('job_card_id', jobCardId)
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (existingError) {
       console.error('Error checking existing invoice:', existingError);
-      return NextResponse.json({ error: 'Failed to check existing invoice' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'Failed to check existing invoice',
+          details: existingError.message || null,
+          code: existingError.code || null,
+        },
+        { status: 500 },
+      );
     }
+
+    const existingInvoice = Array.isArray(existingInvoices)
+      ? existingInvoices[0] || null
+      : null;
 
     const payload = {
       job_card_id: jobCardId,
@@ -235,7 +250,14 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         console.error('Error updating invoice:', updateError);
-        return NextResponse.json({ error: 'Failed to refresh invoice' }, { status: 500 });
+        return NextResponse.json(
+          {
+            error: 'Failed to refresh invoice',
+            details: updateError.message || null,
+            code: updateError.code || null,
+          },
+          { status: 500 },
+        );
       }
 
       return NextResponse.json({
@@ -281,11 +303,16 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        const { data: conflictingInvoice } = await supabase
+        const { data: conflictingInvoices } = await supabase
           .from('invoices')
           .select('*')
           .eq('job_card_id', jobCardId)
-          .maybeSingle();
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const conflictingInvoice = Array.isArray(conflictingInvoices)
+          ? conflictingInvoices[0] || null
+          : null;
 
         if (conflictingInvoice) {
           await markTrackedInvoiceFailed(supabase, {
@@ -304,7 +331,14 @@ export async function POST(request: NextRequest) {
         invoiceNumber: allocatedInvoiceNumber,
         errorMessage: insertError.message || 'Failed to insert invoice',
       });
-      return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: 'Failed to create invoice',
+          details: insertError.message || null,
+          code: insertError.code || null,
+        },
+        { status: 500 },
+      );
     }
 
     await markTrackedInvoicePersisted(supabase, {

@@ -28,29 +28,21 @@ export default function DashboardTabs({
     );
   }
 
-  // Dynamically calculate grid columns based on number of tabs
-  const getGridCols = (tabCount: number) => {
-    if (tabCount <= 4) return 'grid-cols-4';
-    if (tabCount <= 5) return 'grid-cols-5';
-    if (tabCount <= 6) return 'grid-cols-6';
-    return 'grid-cols-7'; // For 7+ tabs
-  };
-
   return (
     <Tabs 
-      defaultValue={activeTab || tabs[0]?.value || ''} 
+      value={activeTab || tabs[0]?.value || ''} 
       onValueChange={onTabChange}
       className="w-full"
     >
-      <TabsList className={`grid ${getGridCols(tabs.length)} bg-white border w-full overflow-x-auto`}>
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 border bg-white p-1">
         {tabs.map((item) => (
           <TabsTrigger 
             key={item.value}
             value={item.value} 
-            className="flex items-center space-x-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 whitespace-nowrap"
+            className="flex shrink-0 items-center space-x-2 whitespace-nowrap data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600"
           >
             {item.icon && <item.icon className="w-4 h-4" />}
-            <span className={tabs.length > 4 ? 'text-xs' : ''}>{item.label}</span>
+            <span className={tabs.length > 6 ? 'text-xs' : ''}>{item.label}</span>
           </TabsTrigger>
         ))}
       </TabsList>

@@ -43,6 +43,23 @@ const normalizeSearchValue = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
+const isCleanTechnicianEmail = (value) => {
+  const email = String(value || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return false;
+  const [localPart] = email.split("@");
+  if (!localPart) return false;
+  return !localPart.includes(".");
+};
+
+const resolveSerialNumber = (item) =>
+  String(
+    item?.serial_number ||
+      item?.serial ||
+      item?.serialNumber ||
+      item?.ip_address ||
+      "",
+  ).trim();
+
 const isSubsequenceMatch = (needle, haystack) => {
   if (!needle || !haystack) return false;
   let needleIndex = 0;
@@ -148,6 +165,7 @@ export default function AssignPartsModal({
     const map = new Map();
     technicianOptions.forEach((tech) => {
       const email = String(tech?.technician_email || "").trim().toLowerCase();
+      if (!isCleanTechnicianEmail(email)) return;
       if (!email) return;
       if (!map.has(email)) {
         map.set(email, {
@@ -211,7 +229,12 @@ export default function AssignPartsModal({
               supplier: item.supplier || "Technician Stock",
               stock_type: item.stock_type || item.code || "",
               quantity: item.quantity || 1,
-              serial_number: item.serial_number || item.ip_address || "",
+              serial_number:
+                item.serial_number ||
+                item.serial ||
+                item.serialNumber ||
+                item.ip_address ||
+                "",
               status: "IN STOCK",
               category_code: item.code || "",
               category_description: item.description || item.code || "",
@@ -281,7 +304,7 @@ export default function AssignPartsModal({
       const existingParts = jobCard.parts_required.map((part) => ({
         stock_id: part.stock_id || part.id,
         description: String(part.description || ""),
-        serial_number: String(part.serial_number || ""),
+        serial_number: resolveSerialNumber(part),
         code: String(part.code || ""),
         supplier: String(part.supplier || ""),
         quantity: part.quantity || 1,
@@ -429,7 +452,7 @@ export default function AssignPartsModal({
         .toLowerCase()
         .trim();
 
-      const serial = String(item.serial_number || "");
+      const serial = resolveSerialNumber(item);
       const categoryDescription = String(item.category?.description || "");
       const categoryCode = String(
         item.category_code || item.category?.code || "",
@@ -492,7 +515,7 @@ export default function AssignPartsModal({
       return;
     }
 
-    let serialNumber = item.serial_number || "";
+    let serialNumber = resolveSerialNumber(item);
 
     // If no serial number, fetch an available one from inventory_items for this category
     if (!serialNumber && item.category_code) {
@@ -773,9 +796,9 @@ export default function AssignPartsModal({
                               <span className="text-gray-600 truncate flex-1">
                                 {part.description || part.name}
                               </span>
-                              {part.serial_number && (
+                              {resolveSerialNumber(part) && (
                                 <span className="font-mono text-blue-600">
-                                  {part.serial_number}
+                                  {resolveSerialNumber(part)}
                                 </span>
                               )}
                             </div>
@@ -1165,9 +1188,9 @@ export default function AssignPartsModal({
                                 "No description"}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                              {item.serial_number ? (
+                              {resolveSerialNumber(item) ? (
                                 <Badge className="bg-green-100 text-green-800 text-xs">
-                                  S/N: {item.serial_number}
+                                  S/N: {resolveSerialNumber(item)}
                                 </Badge>
                               ) : (
                                 <Badge className="bg-blue-100 text-blue-800 text-xs">
@@ -1242,9 +1265,9 @@ export default function AssignPartsModal({
                                 {part.description}
                               </div>
                               <div className="flex items-center gap-2 mt-1">
-                                {part.serial_number ? (
+                                {resolveSerialNumber(part) ? (
                                   <Badge className="bg-green-100 text-green-800 text-xs">
-                                    S/N: {part.serial_number}
+                                    S/N: {resolveSerialNumber(part)}
                                   </Badge>
                                 ) : (
                                   <Badge className="bg-yellow-100 text-yellow-800 text-xs">
@@ -1368,7 +1391,7 @@ export default function AssignPartsModal({
                         {part.description}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {part.serial_number}
+                        {resolveSerialNumber(part)}
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs">

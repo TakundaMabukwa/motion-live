@@ -75,6 +75,33 @@ const formatRoleLabel = (value: unknown) => {
 const hasAssignedParts = (partsRequired: unknown) =>
   Array.isArray(partsRequired) && partsRequired.length > 0;
 
+const parsePartsRequired = (value: unknown): Array<Record<string, unknown>> => {
+  if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getPartSerial = (part: Record<string, unknown>) =>
+  String(
+    part?.serial_number ?? part?.serial ?? part?.serialNumber ?? part?.ip_address ?? "",
+  )
+    .trim();
+
+const getPartsSerialPreview = (partsRequired: unknown) => {
+  const parts = parsePartsRequired(partsRequired);
+  const serials = parts
+    .map((part) => getPartSerial(part))
+    .filter(Boolean);
+  return serials.slice(0, 2);
+};
+
 const normalizeStatus = (job: EscalationJob) =>
   String(job.job_status || job.status || "").trim().toLowerCase();
 
@@ -573,9 +600,19 @@ export default function RoleEscalationsPanel({
                             )}
                           </div>
                           {hasAssignedParts(job.parts_required) ? (
-                            <div className="text-amber-700">
-                              Parts assigned
-                            </div>
+                            <>
+                              <div className="text-amber-700">
+                                Parts assigned ({parsePartsRequired(job.parts_required).length})
+                              </div>
+                              {getPartsSerialPreview(job.parts_required).map((serial, serialIndex) => (
+                                <div
+                                  key={`${job.id}-serial-${serialIndex}`}
+                                  className="truncate text-[10px] text-slate-500"
+                                >
+                                  S/N: {serial}
+                                </div>
+                              ))}
+                            </>
                           ) : null}
                         </div>
                       </td>

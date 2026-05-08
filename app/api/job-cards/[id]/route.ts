@@ -8,7 +8,77 @@ const OPTIONAL_JOB_CARD_COLUMNS = [
   'new_serial_number',
 ] as const;
 
-function stripOptionalJobCardColumns<T extends Record<string, any>>(payload: T): T {
+const MOVE_TO_ROLE_ALLOWED = new Set(['inv', 'admin', 'accounts', 'none']);
+
+function normalizeMoveToRole(value: unknown): string | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const aliasMap: Record<string, string> = {
+    inv: 'inv',
+    inventory: 'inv',
+    admin: 'admin',
+    accounts: 'accounts',
+    account: 'accounts',
+    none: 'none',
+    null: 'none',
+  };
+
+  const normalized = aliasMap[raw] ?? raw;
+  return MOVE_TO_ROLE_ALLOWED.has(normalized) ? normalized : null;
+}
+
+function resolvePartSerial(value: Record<string, unknown>): string {
+  return String(
+    value?.serial_number ??
+      value?.serial ??
+      value?.serialNumber ??
+      value?.ip_address ??
+      '',
+  ).trim();
+}
+
+function normalizePartRecord(value: unknown): Record<string, unknown> {
+  const part =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? ({ ...(value as Record<string, unknown>) } as Record<string, unknown>)
+      : {};
+
+  const serialNumber = resolvePartSerial(part);
+
+  return {
+    ...part,
+    description: String(
+      (part as Record<string, unknown>).description ??
+        (part as Record<string, unknown>).name ??
+        (part as Record<string, unknown>).item_description ??
+        (part as Record<string, unknown>).code ??
+        'Item',
+    ).trim(),
+    code: String(
+      (part as Record<string, unknown>).code ??
+        (part as Record<string, unknown>).category_code ??
+        '',
+    ).trim(),
+    quantity: Math.max(
+      1,
+      Number(
+        (part as Record<string, unknown>).quantity ??
+          (part as Record<string, unknown>).count ??
+          1,
+      ) || 1,
+    ),
+    serial_number: serialNumber,
+    ip_address: String((part as Record<string, unknown>).ip_address ?? '').trim(),
+  };
+}
+
+function normalizePartArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((part) => normalizePartRecord(part));
+}
+
+function stripOptionalJobCardColumns<T extends Record<string, unknown>>(payload: T): T {
   const next = { ...payload };
   for (const column of OPTIONAL_JOB_CARD_COLUMNS) {
     delete next[column];
@@ -113,12 +183,31 @@ export async function PATCH(
       updated_by: user.id
     };
 
+    if (Array.isArray(updateData.parts_required)) {
+      updateData.parts_required = normalizePartArray(updateData.parts_required);
+    }
+
+    if (Array.isArray(updateData.equipment_used)) {
+      updateData.equipment_used = normalizePartArray(updateData.equipment_used);
+    }
+
+    // Keep move_to_role constrained-safe on every update.
+    // This auto-fixes legacy rows that still carry invalid values (e.g. "fc").
+    const requestedMoveToRole =
+      body.move_to_role ??
+      body.moveToRole ??
+      body.move_to ??
+      body.moveTo ??
+      currentJob?.move_to_role ??
+      null;
+    updateData.move_to_role = normalizeMoveToRole(requestedMoveToRole);
+
     delete updateData.transfer_equipment_from_assigned_parts;
 
     // Optional flow: move selected equipment from tech_stock.assigned_parts onto this job card.
     if (transferEquipmentFromAssignedParts && Array.isArray(body.equipment_used)) {
       try {
-        const selectedEquipment = body.equipment_used as any[];
+        const selectedEquipment = normalizePartArray(body.equipment_used);
 
         if (selectedEquipment.length > 0) {
           const technicianEmailForTransfer =
@@ -136,14 +225,20 @@ export async function PATCH(
             } else {
               const assignedParts = Array.isArray(techStock?.assigned_parts) ? [...techStock.assigned_parts] : [];
               const updatedAssignedParts = [...assignedParts];
-              const transferredParts: any[] = [];
+              const transferredParts: Record<string, unknown>[] = [];
 
               const selectedStockIds = new Set(
-                selectedEquipment.map((item: any) => String(item?.stock_id || item?.id || ''))
+                selectedEquipment.map(
+                  (item: Record<string, unknown>) =>
+                    String(item?.stock_id || item?.id || ''),
+                )
               );
 
               const selectedKeys = new Set(
-                selectedEquipment.map((item: any) => `${String(item?.code || '')}::${String(item?.supplier || '')}`)
+                selectedEquipment.map(
+                  (item: Record<string, unknown>) =>
+                    `${String(item?.code || '')}::${String(item?.supplier || '')}`,
+                )
               );
 
               for (let i = 0; i < updatedAssignedParts.length; i += 1) {
@@ -218,6 +313,7 @@ export async function PATCH(
       updateData.assigned_technician_id = null;
       updateData.technician_name = null;
       updateData.technician_phone = null;
+      updateData.move_to_role = null;
     }
 
     // Update the job card

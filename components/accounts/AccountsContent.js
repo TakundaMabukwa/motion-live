@@ -163,6 +163,12 @@ export default function AccountsContent({ activeSection }) {
   const [billingActionLoading, setBillingActionLoading] = useState({});
   const [movingJobId, setMovingJobId] = useState(null);
   const [systemLock, setSystemLock] = useState(null);
+  const [completedJobsLock, setCompletedJobsLock] = useState(null);
+  const [completedJobsLockMonth, setCompletedJobsLockMonth] = useState("");
+  const [updatingCompletedJobsLock, setUpdatingCompletedJobsLock] =
+    useState(false);
+  const [annuitySelectableItems, setAnnuitySelectableItems] = useState([]);
+  const [selectedAnnuityItemKeys, setSelectedAnnuityItemKeys] = useState([]);
 
   // Payment totals state
   const [paymentTotals, setPaymentTotals] = useState(null);
@@ -192,6 +198,22 @@ export default function AccountsContent({ activeSection }) {
     const invoiceDay = Math.min(30, lastDay);
     const lockMonthDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(invoiceDay).padStart(2, "0")}`;
     return new Date(`${lockMonthDate}T12:00:00+02:00`).toISOString();
+  };
+
+  const lockDateInputFromValue = (dateValue) => {
+    const raw = String(dateValue || "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "";
+  };
+
+  const formatLockMonth = (dateValue) => {
+    const raw = String(dateValue || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "N/A";
+    const parsed = new Date(`${raw}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return raw;
+    return parsed.toLocaleDateString("en-ZA", {
+      month: "short",
+      year: "numeric",
+    });
   };
 
   // Check if payment is due (after 21st of month)
@@ -314,6 +336,24 @@ export default function AccountsContent({ activeSection }) {
     };
   }, []);
 
+  const fetchCompletedJobsLock = useCallback(async () => {
+    try {
+      const response = await fetch("/api/accounts/completed-jobs-lock", {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json();
+      const lock = payload?.lock || null;
+      setCompletedJobsLock(lock);
+      setCompletedJobsLockMonth(lockDateInputFromValue(lock?.lock_date));
+    } catch (error) {
+      console.error("Error fetching completed jobs lock:", error);
+    }
+  }, []);
+
   // Real-time search filtering
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -370,12 +410,71 @@ export default function AccountsContent({ activeSection }) {
           notInvoiced: 0,
         },
       );
+      if (data?.completedJobsLock) {
+        setCompletedJobsLock(data.completedJobsLock);
+        setCompletedJobsLockMonth(
+          lockDateInputFromValue(data.completedJobsLock?.lock_date),
+        );
+      } else {
+        setCompletedJobsLock(null);
+      }
       setCompletedJobsHasLoadedOnce(true);
     } catch (error) {
       console.error("Error fetching completed jobs:", error);
       toast.error("Failed to load completed jobs");
     } finally {
       setCompletedJobsLoading(false);
+    }
+  };
+
+  const handleCompletedJobsLockToggle = async () => {
+    const shouldLock = !Boolean(completedJobsLock?.is_locked);
+
+    if (shouldLock && !completedJobsLockMonth) {
+      toast.error("Select an exact lock date before locking completed jobs.");
+      return;
+    }
+
+    try {
+      setUpdatingCompletedJobsLock(true);
+
+      const response = await fetch("/api/accounts/completed-jobs-lock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          isLocked: shouldLock,
+          lockDate: completedJobsLockMonth,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          payload?.error || "Failed to update completed jobs lock",
+        );
+      }
+
+      setCompletedJobsLock(payload?.lock || null);
+      setCompletedJobsLockMonth(lockDateInputFromValue(payload?.lock?.lock_date));
+
+      toast.success(
+        shouldLock
+          ? `Completed jobs locked from ${formatLockMonth(payload?.lock?.lock_date)}`
+          : "Completed jobs unlocked",
+      );
+
+      await fetchCompletedJobs(completedJobsInvoiceTab);
+    } catch (error) {
+      console.error("Error updating completed jobs lock:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update completed jobs lock",
+      );
+    } finally {
+      setUpdatingCompletedJobsLock(false);
     }
   };
 
@@ -524,9 +623,10 @@ export default function AccountsContent({ activeSection }) {
   // Fetch completed jobs when section changes
   useEffect(() => {
     if (activeSection === "completed-jobs") {
+      fetchCompletedJobsLock();
       fetchCompletedJobs(completedJobsInvoiceTab);
     }
-  }, [activeSection]);
+  }, [activeSection, fetchCompletedJobsLock]);
 
   useEffect(() => {
     if (activeSection !== "completed-jobs") {
@@ -658,10 +758,13 @@ export default function AccountsContent({ activeSection }) {
 
   const handleInvoiceClient = async (job) => {
     const latestJob = await fetchLatestJobCard(job);
+    const annuityItems = getAnnuitySelectionItems(latestJob);
     setSelectedJobForInvoice(latestJob);
     setGeneratedInvoice(null);
     setStoredInvoiceRecord(null);
     setSelectedCostCenterInfo(null);
+    setAnnuitySelectableItems(annuityItems);
+    setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
     // Pre-fill form with available job data
     setInvoiceFormData({
       clientName: latestJob.customer_name || "",
@@ -1109,9 +1212,12 @@ export default function AccountsContent({ activeSection }) {
         return;
       }
 
+      const annuityItems = getAnnuitySelectionItems(latestJob);
       setSelectedJobForInvoice(latestJob);
       setStoredInvoiceRecord(invoice);
       setSelectedCostCenterInfo(null);
+      setAnnuitySelectableItems(annuityItems);
+      setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
       setGeneratedInvoice({
         invoiceNumber: invoice.invoice_number,
         jobNumber: invoice.job_number || latestJob.job_number,
@@ -1231,11 +1337,18 @@ export default function AccountsContent({ activeSection }) {
         }),
       });
 
+      const invoiceCreateResult = await invoiceCreateResponse
+        .json()
+        .catch(() => ({}));
+
       if (!invoiceCreateResponse.ok) {
-        throw new Error("Failed to create invoice");
+        throw new Error(
+          invoiceCreateResult?.details ||
+            invoiceCreateResult?.error ||
+            "Failed to create invoice",
+        );
       }
 
-      const invoiceCreateResult = await invoiceCreateResponse.json();
       const invoiceRecord = invoiceCreateResult?.invoice;
       const invoiceNumber = invoiceRecord?.invoice_number;
 
@@ -1263,6 +1376,10 @@ export default function AccountsContent({ activeSection }) {
         const products = parseQuotationProducts(
           selectedJobForInvoice.quotation_products,
         );
+        const selectedAnnuityKeys = new Set(selectedAnnuityItemKeys);
+        const selectedAnnuityProducts = annuitySelectableItems
+          .filter((item) => selectedAnnuityKeys.has(item.key))
+          .map((item) => item.product);
         if (products.length > 0) {
           const billingResponse = await fetch(
             "/api/vehicles/apply-quote-billing",
@@ -1279,6 +1396,8 @@ export default function AccountsContent({ activeSection }) {
                 quotation_number: selectedJobForInvoice.quotation_number,
                 invoice_number: invoiceNumber,
                 quotation_products: products,
+                selected_annuity_products: selectedAnnuityProducts,
+                selected_annuity_item_keys: Array.from(selectedAnnuityKeys),
                 vehicle_registration:
                   selectedJobForInvoice.vehicle_registration,
                 vehicle_make: selectedJobForInvoice.vehicle_make,
@@ -1463,6 +1582,24 @@ export default function AccountsContent({ activeSection }) {
     setStoredInvoiceRecord(null);
     setSelectedJobForInvoice(null);
     setSelectedCostCenterInfo(null);
+    setAnnuitySelectableItems([]);
+    setSelectedAnnuityItemKeys([]);
+  };
+
+  const toggleAnnuityItemSelection = (itemKey) => {
+    setSelectedAnnuityItemKeys((prev) =>
+      prev.includes(itemKey)
+        ? prev.filter((value) => value !== itemKey)
+        : [...prev, itemKey],
+    );
+  };
+
+  const selectAllAnnuityItems = () => {
+    setSelectedAnnuityItemKeys(annuitySelectableItems.map((item) => item.key));
+  };
+
+  const clearAllAnnuityItems = () => {
+    setSelectedAnnuityItemKeys([]);
   };
 
   useEffect(() => {
@@ -1679,6 +1816,84 @@ export default function AccountsContent({ activeSection }) {
       }
     }
     return [];
+  };
+
+  const getRecurringChargeAmount = (product, priceKey, grossKey) => {
+    const priceAmount = toNumber(product?.[priceKey]);
+    if (priceAmount > 0) return priceAmount;
+    const grossAmount = toNumber(product?.[grossKey]);
+    if (grossAmount > 0) return grossAmount;
+    return 0;
+  };
+
+  const getAnnuitySelectionKey = (product) => {
+    const parts = [
+      product?.id,
+      product?.code,
+      product?.item_code,
+      product?.name,
+      product?.description,
+      product?.type,
+      product?.category,
+      product?.vehicle_plate,
+      product?.vehicle_id,
+      product?.rental_price,
+      product?.rental_gross,
+      product?.subscription_price,
+      product?.subscription_gross,
+      product?.quantity,
+    ];
+
+    return parts
+      .map((value) =>
+        String(value ?? "")
+          .trim()
+          .toLowerCase(),
+      )
+      .join("|");
+  };
+
+  const getAnnuitySelectionItems = (job) => {
+    const products = parseQuotationProducts(job?.quotation_products);
+
+    return products
+      .map((product, index) => {
+        const rentalAmount = getRecurringChargeAmount(
+          product,
+          "rental_price",
+          "rental_gross",
+        );
+        const subscriptionAmount = getRecurringChargeAmount(
+          product,
+          "subscription_price",
+          "subscription_gross",
+        );
+
+        if (rentalAmount <= 0 && subscriptionAmount <= 0) {
+          return null;
+        }
+
+        const quantity = Math.max(1, toNumber(product?.quantity) || 1);
+
+        return {
+          key: getAnnuitySelectionKey(product),
+          product,
+          quantity,
+          rentalAmount,
+          subscriptionAmount,
+          name:
+            product?.name ||
+            product?.product ||
+            product?.description ||
+            `Item ${index + 1}`,
+          vehiclePlate:
+            product?.vehicle_plate ||
+            job?.vehicle_registration ||
+            job?.temporary_registration ||
+            "N/A",
+        };
+      })
+      .filter(Boolean);
   };
 
   const getProductUnitPrice = (product) => {
@@ -3078,23 +3293,49 @@ export default function AccountsContent({ activeSection }) {
   if (activeSection === "completed-jobs") {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Completed Job Cards
-          </h2>
-          <Button
-            onClick={() =>
-              fetchCompletedJobs(
-                completedJobsInvoiceTab,
-              )
-            }
-            variant="outline"
-            size="sm"
-            disabled={completedJobsLoading}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            {completedJobsLoading ? "Loading..." : "Refresh"}
-          </Button>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Completed Job Cards
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {completedJobsLock?.is_locked
+                ? `Locked from ${formatLockMonth(completedJobsLock?.lock_date)}. Jobs finalized after this date are hidden.`
+                : "Unlocked. Newly finalized FC jobs will continue appearing here."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              value={completedJobsLockMonth}
+              onChange={(event) =>
+                setCompletedJobsLockMonth(String(event.target.value || ""))
+              }
+              className="h-9 w-[180px]"
+              disabled={updatingCompletedJobsLock}
+            />
+            <Button
+              onClick={handleCompletedJobsLockToggle}
+              variant={completedJobsLock?.is_locked ? "secondary" : "outline"}
+              size="sm"
+              disabled={updatingCompletedJobsLock}
+            >
+              {updatingCompletedJobsLock ? "Saving..." : completedJobsLock?.is_locked ? "Unlock" : "Lock"}
+            </Button>
+            <Button
+              onClick={() =>
+                fetchCompletedJobs(
+                  completedJobsInvoiceTab,
+                )
+              }
+              variant="outline"
+              size="sm"
+              disabled={completedJobsLoading}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              {completedJobsLoading ? "Loading..." : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         {completedJobsLoading && !completedJobsHasLoadedOnce ? (
@@ -4675,6 +4916,87 @@ export default function AccountsContent({ activeSection }) {
                       </p>
                     </div>
                   </div>
+                </div>
+
+                <div className="bg-emerald-50 p-4 rounded-lg">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Annuity Items (Rental / Subscription)
+                    </h3>
+                    {annuitySelectableItems.length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={selectAllAnnuityItems}
+                          disabled={generatedInvoice}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={clearAllAnnuityItems}
+                          disabled={generatedInvoice}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                  {annuitySelectableItems.length === 0 ? (
+                    <p className="mt-3 text-sm text-gray-600">
+                      No rental/subscription quotation items found on this job.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm text-gray-600">
+                        Selected {selectedAnnuityItemKeys.length} of{" "}
+                        {annuitySelectableItems.length} item(s) to add to annuity
+                        in <strong>vehicles</strong> and{" "}
+                        <strong>vehicles_duplicate</strong>.
+                      </p>
+                      <div className="mt-3 max-h-60 space-y-2 overflow-y-auto pr-1">
+                        {annuitySelectableItems.map((item) => {
+                          const isSelected = selectedAnnuityItemKeys.includes(
+                            item.key,
+                          );
+                          return (
+                            <label
+                              key={item.key}
+                              className="flex cursor-pointer items-start gap-3 rounded-md border bg-white p-3"
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-1 h-4 w-4"
+                                checked={isSelected}
+                                disabled={generatedInvoice}
+                                onChange={() =>
+                                  toggleAnnuityItemSelection(item.key)
+                                }
+                              />
+                              <div className="flex-1 text-sm">
+                                <p className="font-medium text-gray-900">
+                                  {item.name}
+                                </p>
+                                <p className="text-gray-600">
+                                  Vehicle: {item.vehiclePlate} | Qty:{" "}
+                                  {item.quantity}
+                                </p>
+                                <p className="text-gray-600">
+                                  Subscription:{" "}
+                                  {formatCurrency(item.subscriptionAmount)} | Rental:{" "}
+                                  {formatCurrency(item.rentalAmount)}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Client Information Form */}

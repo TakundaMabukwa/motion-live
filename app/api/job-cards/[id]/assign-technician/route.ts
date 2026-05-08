@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+const normalizeEmail = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
+const extractFirstEmail = (value: unknown) => {
+  const first = String(value || '')
+    .split(',')
+    .map((token) => token.trim())
+    .find(Boolean);
+  return normalizeEmail(first || '');
+};
+
+const isEmailLike = (value: string) =>
+  Boolean(value) && value.includes('@') && !value.includes(' ');
+
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = await createClient();
@@ -19,7 +35,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     console.log('Job ID:', jobId);
     console.log('Request body:', JSON.stringify(body, null, 2));
     
-    const { technician_id, technician_name, assignment_date, assignment_notes } = body;
+    const { technician_id, technician_name, technician_email, assignment_date, assignment_notes } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
@@ -29,19 +45,39 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Technician ID and name are required' }, { status: 400 });
     }
 
-    // Always generate email from technician name and store in technician_phone field
-    const emailName = technician_name
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '.')
-      .replace(/[^a-z0-9.]/g, '');
-    let finalTechnicianEmail = `${emailName}@soltrack.co.za`;
+    let finalTechnicianEmail = extractFirstEmail(technician_email);
+
+    if (!isEmailLike(finalTechnicianEmail) && technician_id) {
+      const { data: technicianRow } = await supabase
+        .from('technicians')
+        .select('email')
+        .eq('id', technician_id)
+        .maybeSingle();
+      finalTechnicianEmail = extractFirstEmail(technicianRow?.email);
+    }
+
+    if (!isEmailLike(finalTechnicianEmail)) {
+      if (String(technician_name || '').includes(',')) {
+        return NextResponse.json(
+          { error: 'Technician email is required when assigning multiple technicians' },
+          { status: 400 },
+        );
+      }
+
+      const emailName = String(technician_name || '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '.')
+        .replace(/[^a-z0-9.]/g, '');
+      finalTechnicianEmail = `${emailName}@soltrack.co.za`;
+    }
     
     // Truncate to 50 characters to fit technician_phone field limit
     if (finalTechnicianEmail.length > 50) {
       const domain = '@soltrack.co.za';
       const maxNameLength = 50 - domain.length;
-      const truncatedName = emailName.substring(0, maxNameLength);
+      const rawLocal = finalTechnicianEmail.split('@')[0] || '';
+      const truncatedName = rawLocal.substring(0, maxNameLength);
       finalTechnicianEmail = `${truncatedName}${domain}`;
     }
     

@@ -1,14 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const TRACKED_ROLE_KEYS = ["fc", "inv", "admin", "tech", "accounts"];
+const TRACKED_ROLE_KEYS = [
+  "fc",
+  "inv",
+  "admin",
+  "tech",
+  "accounts",
+  "unassigned",
+] as const;
+const CLOSED_STATUSES = new Set([
+  "completed",
+  "invoiced",
+  "closed",
+  "cancelled",
+  "canceled",
+]);
 
-const normalizeRole = (role: string | null | undefined) => {
-  const raw = String(role || "").trim().toLowerCase();
-  if (raw === "technician" || raw === "tech") return "tech";
-  if (TRACKED_ROLE_KEYS.includes(raw)) return raw;
-  return raw || "unassigned";
+const ROLE_ALIASES: Record<string, (typeof TRACKED_ROLE_KEYS)[number]> = {
+  fc: "fc",
+  "field coordinator": "fc",
+  field_coordinator: "fc",
+  "field-coordinator": "fc",
+  inv: "inv",
+  inventory: "inv",
+  admin: "admin",
+  administrator: "admin",
+  tech: "tech",
+  technician: "tech",
+  accounts: "accounts",
+  account: "accounts",
+  unassigned: "unassigned",
 };
+
+const normalizeToken = (value: string | null | undefined) =>
+  String(value || "").trim().toLowerCase();
+
+const normalizeRole = (role: string | null | undefined) =>
+  ROLE_ALIASES[normalizeToken(role)] || null;
+
+const isClosedJob = (job: {
+  status?: string | null;
+  job_status?: string | null;
+}) =>
+  CLOSED_STATUSES.has(normalizeToken(job.job_status)) ||
+  CLOSED_STATUSES.has(normalizeToken(job.status));
+
+const deriveBoardRole = (job: {
+  escalation_role?: string | null;
+  move_to?: string | null;
+  role?: string | null;
+  status?: string | null;
+}) =>
+  normalizeRole(job.escalation_role) ||
+  normalizeRole(job.move_to) ||
+  (["admin_created", "moved_to_admin"].includes(normalizeToken(job.status))
+    ? "admin"
+    : null) ||
+  normalizeRole(job.role) ||
+  "unassigned";
 
 const getAgeDays = (value: string | null | undefined) => {
   if (!value) return 0;
@@ -96,6 +146,8 @@ export async function GET(request: NextRequest) {
         vehicle_registration,
         vehicle_make,
         vehicle_model,
+        escalation_role,
+        move_to,
         role,
         status,
         job_status,
@@ -109,11 +161,10 @@ export async function GET(request: NextRequest) {
         estimated_cost,
         actual_cost,
         created_at,
+        assigned_technician_id,
         updated_at
       `,
       )
-      .in("role", ["fc", "inv", "admin", "accounts", "tech", "technician"])
-      .not("job_status", "in", '("Completed","completed","Invoiced","invoiced")')
       .order("updated_at", { ascending: true });
 
     if (search) {
@@ -139,6 +190,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const openJobs = (data || []).filter((job) => !isClosedJob(job));
+
     const counts = TRACKED_ROLE_KEYS.reduce<Record<string, number>>(
       (accumulator, roleKey) => {
         accumulator[roleKey] = 0;
@@ -154,13 +207,16 @@ export async function GET(request: NextRequest) {
       {},
     );
 
-    const jobs = (data || []).map((job) => {
-      const normalizedRole = normalizeRole(job.role);
-      const hasTechnician = String(job.technician_name || "").trim().length > 0;
+    const jobs = openJobs.map((job) => {
+      const normalizedRole = deriveBoardRole(job);
+      const hasTechnician =
+        String(job.technician_name || "").trim().length > 0 ||
+        String(job.assigned_technician_id || "").trim().length > 0;
       const jobValue = getJobValue(job);
 
       if (
         normalizedRole !== "tech" &&
+        !(normalizedRole === "unassigned" && hasTechnician) &&
         Object.prototype.hasOwnProperty.call(counts, normalizedRole)
       ) {
         counts[normalizedRole] += 1;

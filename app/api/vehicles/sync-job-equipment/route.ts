@@ -501,7 +501,11 @@ function buildVehicleUpdate(
   return { update: { [mapping.field]: null }, warning: null };
 }
 
-async function getVehiclesForJob(supabase: any, job: Record<string, any>) {
+async function getVehiclesForJob(
+  supabase: any,
+  job: Record<string, any>,
+  tableName: "vehicles" | "vehicles_duplicate" = "vehicles",
+) {
   const regs = getVehicleRegs(job);
   if (!regs.length) return [];
 
@@ -510,7 +514,7 @@ async function getVehiclesForJob(supabase: any, job: Record<string, any>) {
   const orCondition = regFilters.join(",");
 
   const { data, error } = await supabase
-    .from("vehicles")
+    .from(tableName)
     .select("*")
     .or(orCondition);
   if (error) throw new Error(error.message);
@@ -529,6 +533,7 @@ async function createVehicleForJob(
   supabase: any,
   job: Record<string, any>,
   regOverride?: string,
+  tableName: "vehicles" | "vehicles_duplicate" = "vehicles",
 ) {
   const regs = getVehicleRegs(job);
   const reg = String(
@@ -565,7 +570,7 @@ async function createVehicleForJob(
   };
 
   const { data, error } = await supabase
-    .from("vehicles")
+    .from(tableName)
     .insert(insertData)
     .select("*")
     .single();
@@ -577,10 +582,11 @@ async function createVehicleForJob(
   return data;
 }
 
-export async function syncJobEquipmentToVehicles(
+const syncJobEquipmentToTable = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   job: Record<string, any>,
-) {
+  tableName: "vehicles" | "vehicles_duplicate",
+) => {
   if (!job?.id) {
     throw new Error("job is required");
   }
@@ -596,7 +602,7 @@ export async function syncJobEquipmentToVehicles(
       : "install";
 
   let createdVehicleId: number | null = null;
-  let vehicles = await getVehiclesForJob(supabase, job);
+  let vehicles = await getVehiclesForJob(supabase, job, tableName);
   const vehicleRegs = getVehicleRegs(job);
 
   if (jobType === "install") {
@@ -620,7 +626,12 @@ export async function syncJobEquipmentToVehicles(
         .trim()
         .toLowerCase()}|${costCode.toLowerCase()}`;
       if (!reg || existingRegKeys.has(regKey)) continue;
-      const createdVehicle = await createVehicleForJob(supabase, job, reg);
+      const createdVehicle = await createVehicleForJob(
+        supabase,
+        job,
+        reg,
+        tableName,
+      );
       if (createdVehicleId == null) {
         createdVehicleId = createdVehicle?.id ?? null;
       }
@@ -630,13 +641,13 @@ export async function syncJobEquipmentToVehicles(
   }
 
   if (!vehicles.length && jobType === "install") {
-    const createdVehicle = await createVehicleForJob(supabase, job);
+    const createdVehicle = await createVehicleForJob(supabase, job, undefined, tableName);
     createdVehicleId = createdVehicle?.id ?? null;
     vehicles = [createdVehicle];
   }
 
   if (!vehicles.length) {
-    throw new Error("No matching vehicle rows found in vehicles");
+    throw new Error(`No matching vehicle rows found in ${tableName}`);
   }
 
   const sourceItems = [
@@ -717,7 +728,7 @@ export async function syncJobEquipmentToVehicles(
     }
 
     const { error: updateError } = await supabase
-      .from("vehicles")
+      .from(tableName)
       .update(updateData)
       .eq("id", vehicle.id);
 
@@ -734,6 +745,30 @@ export async function syncJobEquipmentToVehicles(
     updated,
     warnings,
     createdVehicleId,
+  };
+};
+
+export async function syncJobEquipmentToVehicles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  job: Record<string, any>,
+) {
+  const primaryResult = await syncJobEquipmentToTable(supabase, job, "vehicles");
+  const mirrorResult = await syncJobEquipmentToTable(
+    supabase,
+    job,
+    "vehicles_duplicate",
+  );
+
+  return {
+    success: true,
+    mode: primaryResult.mode,
+    updated: primaryResult.updated,
+    warnings: [...primaryResult.warnings, ...mirrorResult.warnings],
+    createdVehicleId: primaryResult.createdVehicleId,
+    mirror: {
+      updated: mirrorResult.updated,
+      createdVehicleId: mirrorResult.createdVehicleId,
+    },
   };
 }
 

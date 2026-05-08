@@ -100,6 +100,7 @@ export async function POST(
         ? {
             role: targetRole,
             move_to: targetRole,
+            move_to_role: null,
             status: "completed",
             job_status: "Completed",
             completion_date: new Date().toISOString(),
@@ -111,6 +112,7 @@ export async function POST(
         : {
             role: targetRole,
             move_to: targetRole,
+            move_to_role: null,
             status: "pending",
             job_status: "pending",
             completion_date: null,
@@ -164,6 +166,7 @@ export async function POST(
         status: `moved_to_${targetRole}`,
         role: targetRole,
         move_to: targetRole,
+        move_to_role: null,
         ...escalationPayload,
       })
       .eq("id", id)

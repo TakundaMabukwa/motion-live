@@ -16,6 +16,10 @@ interface Part {
   available_stock?: number;
   date_added?: string;
   boot_stock?: string; // Add boot_stock indicator field
+  serial_number?: string;
+  ip_address?: string;
+  serial?: string;
+  serialNumber?: string;
 }
 
 interface JobCard {
@@ -125,6 +129,23 @@ interface TechnicianStockRow {
   created_at: string | null;
   display_name?: string | null;
 }
+
+interface GlobalStockSearchResult {
+  result_id: string;
+  source: "inventory" | "client_stock" | "technician_stock";
+  source_label: string;
+  reference: string;
+  code: string;
+  description: string;
+  quantity: number;
+  status: string;
+  bin: string;
+  owner: string;
+  serial_number?: string | null;
+  supplier?: string | null;
+  technician_email?: string | null;
+  cost_code?: string | null;
+}
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -186,6 +207,19 @@ const normalizeSearchValue = (value: unknown) =>
   String(value || "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
+
+const resolveSerialNumber = (value: Record<string, unknown> | null | undefined) =>
+  String(
+    value?.serial_number ?? value?.serial ?? value?.serialNumber ?? value?.ip_address ?? "",
+  ).trim();
+
+const isCleanTechnicianEmail = (value: unknown) => {
+  const email = String(value || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) return false;
+  const [localPart] = email.split("@");
+  if (!localPart) return false;
+  return !localPart.includes(".");
+};
 
 const isSubsequenceMatch = (needle: string, haystack: string) => {
   if (!needle || !haystack) return false;
@@ -355,6 +389,18 @@ export default function InventoryPage() {
   >([]);
   const [techStockLoading, setTechStockLoading] = useState(false);
   const [techStockSearchTerm, setTechStockSearchTerm] = useState("");
+  const [globalStockSearchTerm, setGlobalStockSearchTerm] = useState("");
+  const [globalStockSearchLoading, setGlobalStockSearchLoading] =
+    useState(false);
+  const [globalStockSearchResults, setGlobalStockSearchResults] = useState<
+    GlobalStockSearchResult[]
+  >([]);
+  const [globalStockSearchCounts, setGlobalStockSearchCounts] = useState({
+    inventory: 0,
+    client_stock: 0,
+    technician_stock: 0,
+    total: 0,
+  });
   const [showAssignTechStock, setShowAssignTechStock] = useState(false);
   const [selectedTechForAssign, setSelectedTechForAssign] =
     useState<TechnicianStockRow | null>(null);
@@ -393,9 +439,6 @@ export default function InventoryPage() {
       toast.dismiss(loadingToast);
       toast.success(`Job successfully moved to ${destination}`);
       removeJobCardLocally(jobId);
-      if (destination.toLowerCase() === "fc") {
-        router.push("/protected/fc/completed-jobs");
-      }
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -433,7 +476,6 @@ export default function InventoryPage() {
       setShowMoveToFcDialog(false);
       setPendingMoveJobId(null);
       setMoveToFcNote("");
-      router.push("/protected/fc/completed-jobs");
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage =
@@ -485,6 +527,35 @@ export default function InventoryPage() {
       fetchTechnicianStockList();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "inventory-search") return;
+
+    const query = globalStockSearchTerm.trim();
+    if (query.length < 2) {
+      setGlobalStockSearchResults([]);
+      setGlobalStockSearchCounts({
+        inventory: 0,
+        client_stock: 0,
+        technician_stock: 0,
+        total: 0,
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    const debounceTimer = setTimeout(() => {
+      fetchGlobalStockSearch(query, {
+        silent: true,
+        signal: controller.signal,
+      });
+    }, 220);
+
+    return () => {
+      clearTimeout(debounceTimer);
+      controller.abort();
+    };
+  }, [activeTab, globalStockSearchTerm]);
 
   // Debug: Log current activeTab
   console.log("Current activeTab:", activeTab);
@@ -584,12 +655,81 @@ export default function InventoryPage() {
       }
 
       const data = await response.json();
-      setTechStockTechnicians(data.technicians || []);
+      const technicians = Array.isArray(data.technicians)
+        ? data.technicians.filter((tech: TechnicianStockRow) =>
+            isCleanTechnicianEmail(tech?.technician_email),
+          )
+        : [];
+      setTechStockTechnicians(technicians);
     } catch (error) {
       console.error("Error fetching technician stock list:", error);
       toast.error("Failed to load technician stock");
     } finally {
       setTechStockLoading(false);
+    }
+  };
+
+  const fetchGlobalStockSearch = async (
+    rawTerm?: string,
+    options?: { silent?: boolean; signal?: AbortSignal },
+  ) => {
+    const searchValue = String(
+      rawTerm !== undefined ? rawTerm : globalStockSearchTerm,
+    ).trim();
+
+    if (searchValue.length < 2) {
+      setGlobalStockSearchResults([]);
+      setGlobalStockSearchCounts({
+        inventory: 0,
+        client_stock: 0,
+        technician_stock: 0,
+        total: 0,
+      });
+      return;
+    }
+
+    const silent = options?.silent === true;
+
+    try {
+      if (!silent) {
+        setGlobalStockSearchLoading(true);
+      }
+
+      const response = await fetch(
+        `/api/inventory-search/global?q=${encodeURIComponent(searchValue)}&limit=220`,
+        {
+          signal: options?.signal,
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || "Failed to search stock bins");
+      }
+
+      const payload = await response.json();
+      setGlobalStockSearchResults(
+        Array.isArray(payload?.results) ? payload.results : [],
+      );
+      setGlobalStockSearchCounts({
+        inventory: Number(payload?.counts?.inventory || 0),
+        client_stock: Number(payload?.counts?.client_stock || 0),
+        technician_stock: Number(payload?.counts?.technician_stock || 0),
+        total: Number(payload?.counts?.total || 0),
+      });
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") {
+        return;
+      }
+      console.error("Error searching global stock bins:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to search stock bins",
+      );
+    } finally {
+      if (!silent) {
+        setGlobalStockSearchLoading(false);
+      }
     }
   };
 
@@ -869,6 +1009,7 @@ export default function InventoryPage() {
   });
 
   const filteredTechStockTechnicians = techStockTechnicians.filter((tech) => {
+    if (!isCleanTechnicianEmail(tech?.technician_email)) return false;
     if (!techStockSearchTerm) return true;
     const query = techStockSearchTerm.toLowerCase();
     const email = (tech.technician_email || "").toLowerCase();
@@ -1050,9 +1191,13 @@ export default function InventoryPage() {
 
         // Make sure parts_required is properly structured before sending to Supabase
         const cleanPartsData = updateData.parts_required.map((part: Part) => {
+          const normalizedSerial = resolveSerialNumber(
+            part as unknown as Record<string, unknown>,
+          );
           // Create a clean object with only the properties we need
           // Make sure all values are proper JSON-serializable types
           return {
+            ...part,
             description: String(part.description || ""),
             quantity: Number(part.quantity || 0),
             code: String(part.code || ""),
@@ -1063,6 +1208,8 @@ export default function InventoryPage() {
             available_stock: Number(part.available_stock || 0),
             date_added: String(part.date_added || ""),
             boot_stock: String(part.boot_stock || ""), // Ensure boot_stock is included
+            serial_number: normalizedSerial,
+            ip_address: String(part.ip_address || ""),
           };
         });
 
@@ -2814,14 +2961,21 @@ export default function InventoryPage() {
                         {job.parts_required?.slice(0, 2).map((part, index) => (
                           <div
                             key={index}
-                            className="flex justify-between text-gray-600 text-xs"
+                            className="flex flex-col gap-0.5 text-gray-600 text-xs"
                           >
-                            <span className="font-medium">
-                              • {part.description}
-                            </span>
-                            <span className="text-green-600 ml-2 font-medium">
-                              Qty: {part.quantity}
-                            </span>
+                            <div className="flex justify-between gap-2">
+                              <span className="font-medium">
+                                - {part.description}
+                              </span>
+                              <span className="text-green-600 ml-2 font-medium">
+                                Qty: {part.quantity}
+                              </span>
+                            </div>
+                            {resolveSerialNumber(part as Record<string, unknown>) && (
+                              <span className="text-[11px] text-gray-500">
+                                S/N: {resolveSerialNumber(part as Record<string, unknown>)}
+                              </span>
+                            )}
                           </div>
                         ))}
                         {job.parts_required?.length > 2 && (
@@ -3752,6 +3906,182 @@ export default function InventoryPage() {
     </div>
   );
 
+  const inventorySearchContent = (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h3 className="text-2xl font-semibold text-gray-900">
+            Inventory Search
+          </h3>
+          <p className="text-sm text-gray-600">
+            Global lookup across Soltrack stock, client stock, and technician
+            stock bins.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">
+            {globalStockSearchCounts.total} matches
+          </Badge>
+          <Button
+            onClick={() => fetchGlobalStockSearch()}
+            variant="outline"
+            size="sm"
+            disabled={globalStockSearchLoading}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${globalStockSearchLoading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
+        <Input
+          placeholder="Search serial, code, description, supplier, bin, account, or technician..."
+          value={globalStockSearchTerm}
+          onChange={(event) => setGlobalStockSearchTerm(event.target.value)}
+          className="bg-white pl-10"
+        />
+      </div>
+
+      {globalStockSearchTerm.trim().length < 2 ? (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-sm text-gray-600">
+          Type at least 2 characters to search all stock bins.
+        </div>
+      ) : globalStockSearchLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-sm text-gray-600">
+            Searching stock bins...
+          </span>
+        </div>
+      ) : globalStockSearchResults.length === 0 ? (
+        <div className="rounded-lg border border-gray-200 bg-white py-10 text-center text-sm text-gray-600">
+          No stock matches found.
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card className="border-blue-100">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium tracking-wide text-blue-700 uppercase">
+                  Soltrack Inventory
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-blue-900">
+                  {globalStockSearchCounts.inventory}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-indigo-100">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium tracking-wide text-indigo-700 uppercase">
+                  Client Stock
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-indigo-900">
+                  {globalStockSearchCounts.client_stock}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-purple-100">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium tracking-wide text-purple-700 uppercase">
+                  Technician Stock
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-purple-900">
+                  {globalStockSearchCounts.technician_stock}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Source
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Reference
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Serial / IP
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Item
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Qty
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Bin / Owner
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalStockSearchResults.map((item) => (
+                  <tr
+                    key={item.result_id}
+                    className="border-b border-gray-100 align-top hover:bg-gray-50"
+                  >
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant="outline"
+                        className={
+                          item.source === "client_stock"
+                            ? "border-indigo-200 text-indigo-700"
+                            : item.source === "technician_stock"
+                              ? "border-purple-200 text-purple-700"
+                              : "border-blue-200 text-blue-700"
+                        }
+                      >
+                        {item.source_label}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {item.reference}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-700">
+                      {item.serial_number || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <div className="font-medium text-gray-900">{item.code}</div>
+                      <div className="text-xs text-gray-600">
+                        {item.description || "No description"}
+                      </div>
+                      {item.supplier ? (
+                        <div className="text-xs text-gray-500">
+                          Supplier: {item.supplier}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge variant="outline" className="text-xs">
+                        {item.quantity}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <div>{item.bin}</div>
+                      <div className="text-xs text-gray-500">{item.owner}</div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {item.status || "N/A"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const clientStockContent = (
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
@@ -4171,6 +4501,12 @@ export default function InventoryPage() {
       label: "Stock Take",
       icon: ClipboardList,
       content: stockTakeContent,
+    },
+    {
+      value: "inventory-search",
+      label: "Inventory Search",
+      icon: Search,
+      content: inventorySearchContent,
     },
     {
       value: "client-stock",
@@ -6137,3 +6473,5 @@ export default function InventoryPage() {
     </div>
   );
 }
+
+

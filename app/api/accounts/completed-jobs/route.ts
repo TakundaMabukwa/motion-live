@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+const COMPLETED_JOBS_LOCK_KEY = "completed_jobs_invoicing";
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -18,6 +20,40 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: completedJobsLock } = await supabase
+      .from("accounts_completed_jobs_locks")
+      .select("is_locked, lock_date, locked_at")
+      .eq("lock_key", COMPLETED_JOBS_LOCK_KEY)
+      .maybeSingle();
+
+    const lockDateRaw = String(completedJobsLock?.lock_date || "").trim();
+    const lockTimestampRaw = String(completedJobsLock?.locked_at || "").trim();
+    const isCompletedJobsLocked =
+      Boolean(completedJobsLock?.is_locked) &&
+      (Boolean(lockTimestampRaw) || /^\d{4}-\d{2}-\d{2}$/.test(lockDateRaw));
+
+    let completedJobsCutoffExclusiveIso: string | null = null;
+    if (isCompletedJobsLocked) {
+      const lockedAt = new Date(lockTimestampRaw);
+      if (!Number.isNaN(lockedAt.getTime())) {
+        completedJobsCutoffExclusiveIso = lockedAt.toISOString();
+      } else {
+        const [year, month, day] = lockDateRaw.split("-").map((part) => Number(part));
+        if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+          // Fallback: if locked_at is missing, use end-of-day lock_date (+02).
+          const localLockMidnightUtc = new Date(
+            Date.UTC(year, month - 1, day, 0 - 2, 0, 0),
+          );
+          if (!Number.isNaN(localLockMidnightUtc.getTime())) {
+            const nextDayUtc = new Date(
+              localLockMidnightUtc.getTime() + 24 * 60 * 60 * 1000,
+            );
+            completedJobsCutoffExclusiveIso = nextDayUtc.toISOString();
+          }
+        }
+      }
     }
 
     // Fetch accounts-routed jobs and classify invoice state consistently.
@@ -100,7 +136,24 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const completedUniverse = normalizedJobs.filter((row) => row.isCompletedFamily);
+    const completedUniverse = normalizedJobs.filter((row) => {
+      if (!row.isCompletedFamily) return false;
+      if (!completedJobsCutoffExclusiveIso) return true;
+
+      const referenceDateRaw = String(
+        row.job.completion_date ||
+          row.job.end_time ||
+          row.job.updated_at ||
+          row.job.job_date ||
+          "",
+      ).trim();
+
+      if (!referenceDateRaw) return false;
+      const referenceDate = new Date(referenceDateRaw);
+      if (Number.isNaN(referenceDate.getTime())) return false;
+
+      return referenceDate.toISOString() < completedJobsCutoffExclusiveIso;
+    });
 
     const tabFilteredRows = completedUniverse.filter((row) => {
       if (invoiceState === "invoiced") return row.isInvoiced;
@@ -237,6 +290,12 @@ export async function GET(request: NextRequest) {
       jobs: transformedJobs,
       total: transformedJobs.length,
       counts,
+      completedJobsLock: {
+        is_locked: Boolean(completedJobsLock?.is_locked),
+        lock_date: lockDateRaw || null,
+        locked_at: lockTimestampRaw || null,
+        cutoff_exclusive: completedJobsCutoffExclusiveIso,
+      },
     });
   } catch (error) {
     console.error("Error in accounts completed jobs GET:", error);

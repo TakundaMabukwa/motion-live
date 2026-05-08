@@ -16,6 +16,11 @@ interface ProcessedStockItem {
   ip_address?: string;
 }
 
+const normalizeEmail = (value: unknown) =>
+  String(value || '')
+    .trim()
+    .toLowerCase();
+
 // Helper function to map suppliers to stock types
 function getStockTypeFromSupplier(supplier: string): string {
   const supplierTypeMap: { [key: string]: string } = {
@@ -239,11 +244,12 @@ export async function GET() {
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const technicianEmail = normalizeEmail(user.email);
 
     const { data: technicianStock, error } = await supabase
       .from('tech_stock')
       .select('assigned_parts, stock, technician_email')
-      .eq('technician_email', user.email)
+      .ilike('technician_email', technicianEmail)
       .maybeSingle();
 
     if (error) {
@@ -270,7 +276,7 @@ export async function GET() {
       processedStock.push({
         id: part.stock_id || `part-${index}`,
         quantity: (part.quantity || 1).toString(),
-        technician_email: user.email!,
+        technician_email: technicianEmail,
         code: part.code || part.serial_number || 'N/A',
         description: part.description || 'No description available',
         supplier: part.supplier || 'JOB_PARTS',
@@ -300,7 +306,7 @@ export async function GET() {
             processedStock.push({
               id: `${supplier}-${supplier}-0`,
               quantity: String(count),
-              technician_email: user.email!,
+              technician_email: technicianEmail,
               code: supplier || 'N/A',
               description: (maybeDirectItem as any)?.description || 'No description available',
               supplier: supplier || 'JOB_PARTS',
@@ -319,7 +325,7 @@ export async function GET() {
           processedStock.push({
             id: `${supplier}-${itemCode}-${index}`,
             quantity: String(count),
-            technician_email: user.email!,
+            technician_email: technicianEmail,
             code: itemCode || 'N/A',
             description: itemData?.description || 'No description available',
             supplier: supplier || 'JOB_PARTS',
@@ -331,7 +337,7 @@ export async function GET() {
       });
     }
 
-    console.log(`Processed ${processedStock.length} assigned parts for technician ${user.email}`);
+    console.log(`Processed ${processedStock.length} assigned parts for technician ${technicianEmail}`);
 
     return NextResponse.json({ 
       stock: processedStock,
@@ -356,12 +362,13 @@ export async function PATCH(request: Request) {
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const technicianEmail = normalizeEmail(user.email);
 
     // Fetch existing technician stock
     const { data: technicianStock, error } = await supabase
       .from('tech_stock')
-      .select('stock')
-      .eq('technician_email', user.email)
+      .select('id, stock')
+      .ilike('technician_email', technicianEmail)
       .maybeSingle();
 
     if (error) {
@@ -394,8 +401,8 @@ export async function PATCH(request: Request) {
     // Try to update existing tech_stock row for this technician
     const { data: updatedRows, error: updateError } = await supabase
       .from('tech_stock')
-      .update({ stock: stockData })
-      .eq('technician_email', user.email)
+      .update({ stock: stockData, technician_email: technicianEmail })
+      .eq('id', technicianStock?.id || -1)
       .select();
 
     if (updateError) {
@@ -407,7 +414,7 @@ export async function PATCH(request: Request) {
       // No existing row; insert a new one
       const { error: insertError } = await supabase
         .from('tech_stock')
-        .insert({ technician_email: user.email!, stock: stockData });
+        .insert({ technician_email: technicianEmail, stock: stockData });
 
       if (insertError) {
         console.error('Error inserting technician stock:', insertError);

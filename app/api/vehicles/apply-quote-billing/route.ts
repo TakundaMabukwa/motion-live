@@ -619,6 +619,32 @@ const getRecurringChargeSpecs = (item: any, jobType: "install" | "deinstall") =>
   return specs;
 };
 
+const normalizeSelectionValue = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const buildAnnuitySelectionKey = (item: any) => {
+  const parts = [
+    item?.id,
+    item?.code,
+    item?.item_code,
+    item?.name,
+    item?.description,
+    item?.type,
+    item?.category,
+    item?.vehicle_plate,
+    item?.vehicle_id,
+    item?.rental_price,
+    item?.rental_gross,
+    item?.subscription_price,
+    item?.subscription_gross,
+    item?.quantity,
+  ];
+
+  return parts.map(normalizeSelectionValue).join("|");
+};
+
 const getOnceOffChargeSpecs = (item: any, jobType: "install" | "deinstall") => {
   const specs: Array<{ amount: number; chargeType: string }> = [];
   const purchaseType = getNormalizedPurchaseType(item);
@@ -819,6 +845,194 @@ const pickBillingColumn = (
   return null;
 };
 
+const applyQuoteBillingToTable = async (
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    tableName,
+    itemsByReg,
+    costCode,
+    customerName,
+    vehicleMake,
+    vehicleModel,
+    vehicleYear,
+    jobType,
+    jobCardId,
+    quotationNumber,
+    invoiceNumber,
+    annuitySelectionKeySet,
+    enforceAnnuitySelection,
+  }: {
+    tableName: "vehicles" | "vehicles_duplicate";
+    itemsByReg: Map<string, any[]>;
+    costCode: string;
+    customerName: string | null;
+    vehicleMake: string | null;
+    vehicleModel: string | null;
+    vehicleYear: string | null;
+    jobType: "install" | "deinstall";
+    jobCardId: string | null;
+    quotationNumber: string | null;
+    invoiceNumber: string | null;
+    annuitySelectionKeySet: Set<string>;
+    enforceAnnuitySelection: boolean;
+  },
+) => {
+  let created = 0;
+  let updated = 0;
+  const skipped: any[] = [];
+
+  const selectColumns = "*";
+
+  for (const [reg, itemsForReg] of itemsByReg.entries()) {
+    const { data: existingRows, error: findError } = await supabase
+      .from(tableName)
+      .select(selectColumns)
+      .ilike("reg", reg)
+      .limit(20);
+
+    if (findError) {
+      throw new Error(`Failed to check ${tableName}: ${findError.message}`);
+    }
+
+    const matchingRows = Array.isArray(existingRows) ? existingRows : [];
+    const existing =
+      matchingRows.find((row) => {
+        const rowNewAccount = String(row?.new_account_number || "").trim();
+        const rowAccount = String(row?.account_number || "").trim();
+        return rowNewAccount === costCode || rowAccount === costCode;
+      }) || null;
+
+    if (!existing && jobType === "deinstall") {
+      skipped.push({ reason: "vehicle_not_found_for_deinstall", reg, table: tableName });
+      continue;
+    }
+
+    const currentVehicle = existing || {
+      reg,
+      company: customerName,
+      new_account_number: costCode,
+      account_number: costCode,
+      make: vehicleMake,
+      model: vehicleModel,
+      year: vehicleYear,
+      once_off_fees: [],
+    };
+
+    const columnUpdates: Record<string, any> = {};
+    const onceOffFees: Array<Record<string, any>> = [];
+    for (const item of itemsForReg) {
+      const vehicleState = { ...currentVehicle, ...columnUpdates };
+      const canApplyRecurring =
+        !enforceAnnuitySelection ||
+        annuitySelectionKeySet.has(buildAnnuitySelectionKey(item));
+      const recurringSpecs = canApplyRecurring
+        ? getRecurringChargeSpecs(item, jobType)
+        : [];
+
+      for (const spec of recurringSpecs) {
+        const column = pickBillingColumn(item, vehicleState, columnUpdates, {
+          preferSub: spec.preferSub,
+          preferRental: spec.preferRental,
+          mode: jobType,
+        });
+
+        if (!column) {
+          skipped.push({ reason: "no_column_match", item, reg, table: tableName });
+          continue;
+        }
+
+        columnUpdates[column] = jobType === "deinstall" ? 0 : spec.amount;
+      }
+
+      for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {
+        onceOffFees.push(
+          buildOnceOffFeeEntry(item, feeSpec.amount, feeSpec.chargeType, {
+            jobCardId,
+            quotationNumber,
+            invoiceNumber,
+            reg,
+            jobType,
+          }),
+        );
+      }
+    }
+
+    const hasRecurringUpdates = Object.keys(columnUpdates).length > 0;
+    const hasOnceOffUpdates = onceOffFees.length > 0;
+
+    if (!hasRecurringUpdates && !hasOnceOffUpdates) {
+      continue;
+    }
+
+    if (!existing) {
+      const insertData: Record<string, any> = {
+        reg,
+        company: customerName,
+        new_account_number: costCode,
+        account_number: costCode,
+        make: vehicleMake,
+        model: vehicleModel,
+        year: vehicleYear,
+        once_off_fees: onceOffFees,
+      };
+
+      for (const [column, value] of Object.entries(columnUpdates)) {
+        insertData[column] = value;
+      }
+
+      Object.assign(insertData, recalculateVehicleTotals(insertData));
+
+      const { error: insertError } = await supabase
+        .from(tableName)
+        .insert(insertData);
+
+      if (insertError) {
+        throw new Error(`Failed to insert ${tableName} billing: ${insertError.message}`);
+      }
+
+      created += 1;
+      continue;
+    }
+
+    const updateData: Record<string, any> = {};
+    if (!existing.new_account_number) {
+      updateData.new_account_number = costCode;
+    }
+    if (!existing.account_number) {
+      updateData.account_number = costCode;
+    }
+
+    for (const [column, value] of Object.entries(columnUpdates)) {
+      updateData[column] = value;
+    }
+
+    if (hasOnceOffUpdates) {
+      updateData.once_off_fees = mergeOnceOffFees(existing.once_off_fees, onceOffFees);
+    }
+
+    Object.assign(
+      updateData,
+      recalculateVehicleTotals({
+        ...existing,
+        ...updateData,
+      }),
+    );
+
+    const { error: updateError } = await supabase
+      .from(tableName)
+      .update(updateData)
+      .eq("id", existing.id);
+
+    if (updateError) {
+      throw new Error(`Failed to update ${tableName} billing: ${updateError.message}`);
+    }
+
+    updated += 1;
+  }
+
+  return { created, updated, skipped };
+};
+
 export const applyQuoteBilling = async (
   supabase: Awaited<ReturnType<typeof createClient>>,
   body: any,
@@ -833,6 +1047,25 @@ export const applyQuoteBilling = async (
   const quotationProducts = Array.isArray(body?.quotation_products)
     ? body.quotation_products
     : [];
+  const selectedAnnuityProducts = Array.isArray(body?.selected_annuity_products)
+    ? body.selected_annuity_products
+    : [];
+  const selectedAnnuityItemKeys = Array.isArray(body?.selected_annuity_item_keys)
+    ? body.selected_annuity_item_keys
+    : [];
+  const hasAnnuitySelectionPayload =
+    Array.isArray(body?.selected_annuity_products) ||
+    Array.isArray(body?.selected_annuity_item_keys);
+  const annuitySelectionKeySet = new Set<string>();
+  for (const item of selectedAnnuityProducts) {
+    annuitySelectionKeySet.add(buildAnnuitySelectionKey(item));
+  }
+  for (const key of selectedAnnuityItemKeys) {
+    const normalized = normalizeSelectionValue(key);
+    if (normalized) {
+      annuitySelectionKeySet.add(normalized);
+    }
+  }
   const fallbackReg = (
     body?.vehicle_registration ||
     body?.temporary_registration ||
@@ -891,150 +1124,41 @@ export const applyQuoteBilling = async (
 
   let created = 0;
   let updated = 0;
+  const primaryResult = await applyQuoteBillingToTable(supabase, {
+    tableName: "vehicles",
+    itemsByReg,
+    costCode,
+    customerName,
+    vehicleMake,
+    vehicleModel,
+    vehicleYear,
+    jobType,
+    jobCardId,
+    quotationNumber,
+    invoiceNumber,
+    annuitySelectionKeySet,
+    enforceAnnuitySelection: hasAnnuitySelectionPayload,
+  });
+  created = primaryResult.created;
+  updated = primaryResult.updated;
+  skipped.push(...primaryResult.skipped);
 
-  const selectColumns = "*";
-
-  for (const [reg, itemsForReg] of itemsByReg.entries()) {
-    const { data: existingRows, error: findError } = await supabase
-      .from("vehicles")
-      .select(selectColumns)
-      .ilike("reg", reg)
-      .limit(20);
-
-    if (findError) {
-      throw new Error(`Failed to check vehicles: ${findError.message}`);
-    }
-
-    const matchingRows = Array.isArray(existingRows) ? existingRows : [];
-    const existing =
-      matchingRows.find((row) => {
-        const rowNewAccount = String(row?.new_account_number || "").trim();
-        const rowAccount = String(row?.account_number || "").trim();
-        return rowNewAccount === costCode || rowAccount === costCode;
-      }) || null;
-
-    if (!existing && jobType === "deinstall") {
-      skipped.push({ reason: "vehicle_not_found_for_deinstall", reg });
-      continue;
-    }
-
-    const currentVehicle = existing || {
-      reg,
-      company: customerName,
-      new_account_number: costCode,
-      account_number: costCode,
-      make: vehicleMake,
-      model: vehicleModel,
-      year: vehicleYear,
-      once_off_fees: [],
-    };
-
-    const columnUpdates: Record<string, any> = {};
-    const onceOffFees: Array<Record<string, any>> = [];
-    for (const item of itemsForReg) {
-      const vehicleState = { ...currentVehicle, ...columnUpdates };
-      const recurringSpecs = getRecurringChargeSpecs(item, jobType);
-
-      for (const spec of recurringSpecs) {
-        const column = pickBillingColumn(item, vehicleState, columnUpdates, {
-          preferSub: spec.preferSub,
-          preferRental: spec.preferRental,
-          mode: jobType,
-        });
-
-        if (!column) {
-          skipped.push({ reason: "no_column_match", item, reg });
-          continue;
-        }
-
-        columnUpdates[column] = jobType === "deinstall" ? 0 : spec.amount;
-      }
-
-      for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {
-        onceOffFees.push(
-          buildOnceOffFeeEntry(item, feeSpec.amount, feeSpec.chargeType, {
-            jobCardId,
-            quotationNumber,
-            invoiceNumber,
-            reg,
-            jobType,
-          }),
-        );
-      }
-    }
-
-    const hasRecurringUpdates = Object.keys(columnUpdates).length > 0;
-    const hasOnceOffUpdates = onceOffFees.length > 0;
-
-    if (!hasRecurringUpdates && !hasOnceOffUpdates) {
-      continue;
-    }
-
-    if (!existing) {
-      const insertData: Record<string, any> = {
-        reg,
-        company: customerName,
-        new_account_number: costCode,
-        account_number: costCode,
-        make: vehicleMake,
-        model: vehicleModel,
-        year: vehicleYear,
-        once_off_fees: onceOffFees,
-      };
-
-      for (const [column, value] of Object.entries(columnUpdates)) {
-        insertData[column] = value;
-      }
-
-      Object.assign(insertData, recalculateVehicleTotals(insertData));
-
-      const { error: insertError } = await supabase
-        .from("vehicles")
-        .insert(insertData);
-
-      if (insertError) {
-        throw new Error(`Failed to insert vehicle billing: ${insertError.message}`);
-      }
-
-      created += 1;
-      continue;
-    }
-
-    const updateData: Record<string, any> = {};
-    if (!existing.new_account_number) {
-      updateData.new_account_number = costCode;
-    }
-    if (!existing.account_number) {
-      updateData.account_number = costCode;
-    }
-
-    for (const [column, value] of Object.entries(columnUpdates)) {
-      updateData[column] = value;
-    }
-
-    if (hasOnceOffUpdates) {
-      updateData.once_off_fees = mergeOnceOffFees(existing.once_off_fees, onceOffFees);
-    }
-
-    Object.assign(
-      updateData,
-      recalculateVehicleTotals({
-        ...existing,
-        ...updateData,
-      }),
-    );
-
-    const { error: updateError } = await supabase
-      .from("vehicles")
-      .update(updateData)
-      .eq("id", existing.id);
-
-    if (updateError) {
-      throw new Error(`Failed to update vehicle billing: ${updateError.message}`);
-    }
-
-    updated += 1;
-  }
+  const mirrorResult = await applyQuoteBillingToTable(supabase, {
+    tableName: "vehicles_duplicate",
+    itemsByReg,
+    costCode,
+    customerName,
+    vehicleMake,
+    vehicleModel,
+    vehicleYear,
+    jobType,
+    jobCardId,
+    quotationNumber,
+    invoiceNumber,
+    annuitySelectionKeySet,
+    enforceAnnuitySelection: hasAnnuitySelectionPayload,
+  });
+  skipped.push(...mirrorResult.skipped);
 
   return {
     success: true,
@@ -1042,6 +1166,8 @@ export const applyQuoteBilling = async (
     mode: jobType,
     created,
     updated,
+    mirror_created: mirrorResult.created,
+    mirror_updated: mirrorResult.updated,
     skipped,
   };
 };
