@@ -6,6 +6,8 @@ const normalizeCode = (value: unknown) =>
     .trim()
     .toUpperCase();
 
+const toBoolean = (value: unknown) => value === true;
+
 type CostCenterRow = {
   total_amount_locked_by?: string | null;
   [key: string]: unknown;
@@ -14,6 +16,16 @@ type CostCenterRow = {
 type UserRow = {
   id: string;
   email: string | null;
+};
+
+const getOperationalCode = (row: CostCenterRow) => normalizeCode(row?.cost_center_code);
+
+const getEffectiveCode = (row: CostCenterRow) => {
+  const operationalCode = getOperationalCode(row);
+  if (toBoolean(row?.operational) && operationalCode) {
+    return operationalCode;
+  }
+  return normalizeCode(row?.cost_code);
 };
 
 async function attachLockedByEmails(
@@ -133,19 +145,50 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const costCentersByCode = new Map<string, CostCenterRow>();
+    const rowsByAccountCode = new Map<string, CostCenterRow[]>();
     for (const center of [...(exactCostCenters || []), ...prefixCostCenters]) {
       const normalizedCode = normalizeCode(center?.cost_code);
       if (!normalizedCode) continue;
       if (!accountNumbers.includes(normalizedCode)) continue;
-      if (!costCentersByCode.has(normalizedCode)) {
-        costCentersByCode.set(normalizedCode, center);
-      }
+      const existing = rowsByAccountCode.get(normalizedCode) || [];
+      existing.push(center);
+      rowsByAccountCode.set(normalizedCode, existing);
     }
 
-    const costCenters = accountNumbers
-      .map((code) => costCentersByCode.get(code))
-      .filter(Boolean);
+    const costCenters: CostCenterRow[] = [];
+    for (const accountCode of accountNumbers) {
+      const rowsForCode = rowsByAccountCode.get(accountCode) || [];
+      if (rowsForCode.length === 0) continue;
+
+      const operationalRows = rowsForCode.filter(
+        (row) => toBoolean(row?.operational) && getOperationalCode(row),
+      );
+
+      if (operationalRows.length > 0) {
+        const seenOperationalCodes = new Set<string>();
+        for (const row of operationalRows.sort((a, b) =>
+          getEffectiveCode(a).localeCompare(getEffectiveCode(b)),
+        )) {
+          const opCode = getOperationalCode(row);
+          if (!opCode || seenOperationalCodes.has(opCode)) continue;
+          seenOperationalCodes.add(opCode);
+          costCenters.push(row);
+        }
+        continue;
+      }
+
+      const fallback = rowsForCode
+        .slice()
+        .sort((a, b) => {
+          const aTime = new Date(String(a?.created_at || 0)).getTime();
+          const bTime = new Date(String(b?.created_at || 0)).getTime();
+          return aTime - bTime;
+        })[0];
+
+      if (fallback) {
+        costCenters.push(fallback);
+      }
+    }
 
     const normalizedFoundCodes = new Set(
       (costCenters || [])
@@ -202,12 +245,16 @@ export async function GET(request: NextRequest) {
     }
 
     const enrichedCostCenters = await attachLockedByEmails(supabase, filledCostCenters);
+    const finalCostCenters = enrichedCostCenters.map((row) => ({
+      ...row,
+      effective_cost_code: getEffectiveCode(row),
+    }));
 
     console.log(`Found ${costCenters?.length || 0} real cost centers and ${missingCodes.length} fallback cost centers for account numbers:`, accountNumbers);
 
     return NextResponse.json({ 
       success: true,
-      costCenters: enrichedCostCenters,
+      costCenters: finalCostCenters,
       accountNumbers: accountNumbers,
       matchedCount: costCenters?.length || 0,
       requestedCount: accountNumbers.length,

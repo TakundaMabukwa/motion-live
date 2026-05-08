@@ -3,6 +3,30 @@ import { createClient } from "@/lib/supabase/server";
 
 const normalizeSearch = (value: unknown) => String(value || "").trim();
 
+const normalizeMonthParam = (value: unknown) => {
+  const raw = String(value || "").trim();
+  return /^\d{4}-\d{2}$/.test(raw) ? raw : null;
+};
+
+const getMonthKeyFromValue = (value: unknown) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  // Fast path for plain YYYY-MM / YYYY-MM-DD values.
+  const plainDateMatch = raw.match(/^(\d{4}-\d{2})(?:-\d{2})?$/);
+  if (plainDateMatch) {
+    return plainDateMatch[1];
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const year = parsed.getUTCFullYear();
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -17,6 +41,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = normalizeSearch(searchParams.get("search"));
+    const month = normalizeMonthParam(searchParams.get("month"));
     const fetchAll = ["1", "true", "yes"].includes(
       String(searchParams.get("all") || "").trim().toLowerCase(),
     );
@@ -53,9 +78,17 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = Array.isArray(invoices) ? invoices : [];
+    const monthFilteredRows = month
+      ? rows.filter((invoice) => {
+          const billingMonth = getMonthKeyFromValue(invoice?.billing_month);
+          const invoiceMonth = getMonthKeyFromValue(invoice?.invoice_date);
+          return billingMonth === month || invoiceMonth === month;
+        })
+      : rows;
+
     const accountNumbers = Array.from(
       new Set(
-        rows
+        monthFilteredRows
           .map((invoice) => String(invoice?.account_number || "").trim())
           .filter(Boolean),
       ),
@@ -82,7 +115,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const invoicesWithCustomerInfo = rows.map((invoice) => {
+    const invoicesWithCustomerInfo = monthFilteredRows.map((invoice) => {
       const accountNumber = String(invoice?.account_number || "").trim();
       const costCenter = costCentersByCode.get(accountNumber.toUpperCase()) || null;
       const costCenterAddress = [
@@ -117,7 +150,10 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ invoices: invoicesWithCustomerInfo });
+    return NextResponse.json({
+      invoices: invoicesWithCustomerInfo,
+      filters: { month },
+    });
   } catch (error) {
     console.error("Unexpected error in accounts invoices GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

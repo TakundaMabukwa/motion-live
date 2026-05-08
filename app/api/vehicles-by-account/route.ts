@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const accountNumber = searchParams.get('account_number');
+    const lookupMode = (searchParams.get('lookup_mode') || '').trim().toLowerCase();
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '30');
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
     }
 
-    console.log('Fetching vehicles for account number:', accountNumber, 'page:', page, 'limit:', limit);
+    console.log('Fetching vehicles for account number:', accountNumber, 'lookup mode:', lookupMode || 'default', 'page:', page, 'limit:', limit);
 
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
@@ -28,8 +29,13 @@ export async function GET(request: NextRequest) {
     // Build the query with pagination - only match exact cost code
     let query = supabase
       .from('vehicles')
-      .select('*', { count: 'exact' })
-      .or(`new_account_number.eq.${accountNumber},account_number.eq.${accountNumber}`);
+      .select('*', { count: 'exact' });
+
+    if (lookupMode === 'cost_center_code') {
+      query = query.eq('cost_center_code', accountNumber);
+    } else {
+      query = query.or(`new_account_number.eq.${accountNumber},account_number.eq.${accountNumber}`);
+    }
 
     // Apply pagination and ordering
     query = query
@@ -257,7 +263,10 @@ export async function GET(request: NextRequest) {
       controlroom: vehicle.controlroom || '',
       total_rental: vehicle.total_rental || 0,
       total_sub: vehicle.total_sub || 0,
-      total_rental_sub: vehicle.total_rental_sub || 0
+      total_rental_sub: vehicle.total_rental_sub || 0,
+      cost_center_code: vehicle.cost_center_code || '',
+      site_allocated: vehicle.site_allocated || '',
+      operational: vehicle.operational === true
     })) || [];
 
     const totalPages = Math.ceil((count || 0) / limit);

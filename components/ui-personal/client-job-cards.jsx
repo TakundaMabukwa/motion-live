@@ -62,6 +62,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   const [quotePendingApproval, setQuotePendingApproval] = useState(null);
   const [annuityEndDate, setAnnuityEndDate] = useState("");
   const [approvalDestination, setApprovalDestination] = useState("");
+  const [approvalOrderNumber, setApprovalOrderNumber] = useState("");
 
   // Fetch client quotes from the client_quotes table, filtered by account number
   const fetchClientQuotes = useCallback(async () => {
@@ -243,11 +244,13 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     return `Affected products: ${labels.slice(0, 3).join(', ')} (+${labels.length - 3} more)`;
   };
 
+  const normalizeJobToken = (value) =>
+    String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
   const isDecommissionQuote = (quote) => {
-    const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const jobType = normalize(quote?.job_type);
-    const jobSubType = normalize(quote?.job_sub_type);
-    const description = normalize(quote?.job_description);
+    const jobType = normalizeJobToken(quote?.job_type);
+    const jobSubType = normalizeJobToken(quote?.job_sub_type);
+    const description = normalizeJobToken(quote?.job_description);
 
     return (
       jobType.includes('deinstall') &&
@@ -258,11 +261,17 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   };
 
   const isDeinstallQuote = (quote) => {
-    const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const jobType = normalize(quote?.job_type);
-    const quotationJobType = normalize(quote?.quotation_job_type);
+    const jobType = normalizeJobToken(quote?.job_type);
+    const quotationJobType = normalizeJobToken(quote?.quotation_job_type);
 
     return jobType.includes('deinstall') || quotationJobType.includes('deinstall');
+  };
+
+  const isCalibrationQuote = (quote) => {
+    const jobType = normalizeJobToken(quote?.job_type);
+    const quotationJobType = normalizeJobToken(quote?.quotation_job_type);
+
+    return jobType.includes('calibration') || quotationJobType.includes('calibration');
   };
 
   const resetApproveModalState = () => {
@@ -270,10 +279,11 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     setQuotePendingApproval(null);
     setAnnuityEndDate('');
     setApprovalDestination('');
+    setApprovalOrderNumber('');
   };
 
   const approveQuote = async (quote, options = {}) => {
-    const { annuityDate = '', destination = 'none' } = options;
+    const { annuityDate = '', destination = 'none', orderNumber = '' } = options;
 
     try {
       setApprovingQuote(quote.id);
@@ -286,6 +296,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
         body: JSON.stringify({
           action: 'approve',
           annuity_end_date: annuityDate || undefined,
+          order_number: orderNumber || undefined,
           destination
         }),
       });
@@ -330,11 +341,24 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   };
 
   const handleApproveQuote = async (quote) => {
+    const calibrationQuote = isCalibrationQuote(quote);
+    const existingOrderNumber = String(quote?.order_number || '').trim();
+
     if (isDeinstallQuote(quote)) {
       const requiresRouting = isDecommissionQuote(quote);
       setQuotePendingApproval(quote);
       setAnnuityEndDate(toDateInputValue(quote.annuity_end_date || quote.decommission_date));
       setApprovalDestination(requiresRouting ? (quote.move_to_role || '') : 'none');
+      setApprovalOrderNumber(existingOrderNumber);
+      setIsApproveModalOpen(true);
+      return;
+    }
+
+    if (calibrationQuote && !existingOrderNumber) {
+      setQuotePendingApproval(quote);
+      setAnnuityEndDate('');
+      setApprovalDestination('none');
+      setApprovalOrderNumber('');
       setIsApproveModalOpen(true);
       return;
     }
@@ -343,14 +367,19 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       return;
     }
 
-    await approveQuote(quote, { destination: 'none' });
+    await approveQuote(quote, {
+      destination: 'none',
+      orderNumber: existingOrderNumber,
+    });
   };
 
   const handleConfirmModalApproval = async () => {
     if (!quotePendingApproval) return;
     const requiresRouting = isDecommissionQuote(quotePendingApproval);
+    const calibrationQuote = isCalibrationQuote(quotePendingApproval);
+    const normalizedOrderNumber = String(approvalOrderNumber || '').trim();
 
-    if (!annuityEndDate) {
+    if (isDeinstallQuote(quotePendingApproval) && !annuityEndDate) {
       const productContext = getProductContextDescription(
         getQuoteProductLabels(quotePendingApproval),
       );
@@ -367,9 +396,15 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       return;
     }
 
+    if (calibrationQuote && !normalizedOrderNumber) {
+      toast.error('Order Number is required for calibration approval');
+      return;
+    }
+
     const success = await approveQuote(quotePendingApproval, {
       annuityDate: annuityEndDate,
-      destination: requiresRouting ? approvalDestination : 'none'
+      destination: requiresRouting ? approvalDestination : 'none',
+      orderNumber: normalizedOrderNumber,
     });
 
     if (success) {
@@ -439,6 +474,13 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     pendingApprovalProductLabels.length > 0
       ? pendingApprovalProductLabels.join(', ')
       : 'the selected quote item';
+  const pendingApprovalIsCalibration = isCalibrationQuote(quotePendingApproval);
+  const pendingApprovalIsDeinstall = isDeinstallQuote(quotePendingApproval);
+  const pendingApprovalIsDecommission = isDecommissionQuote(quotePendingApproval);
+  const pendingApprovalHasOrderNumber =
+    String(quotePendingApproval?.order_number || '').trim().length > 0;
+  const pendingApprovalNeedsOrderNumber =
+    pendingApprovalIsCalibration && !pendingApprovalHasOrderNumber;
 
   if (loading) {
     return (
@@ -711,12 +753,14 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
         </Card>
       )}
 
-      {/* De-install / Decommission Approval Modal */}
+      {/* Quote Approval Modal */}
       <Dialog open={isApproveModalOpen} onOpenChange={handleApproveModalOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {isDecommissionQuote(quotePendingApproval)
+              {pendingApprovalNeedsOrderNumber
+                ? 'Approve Calibration Quote'
+                : pendingApprovalIsDecommission
                 ? 'Approve Quote and Route Job Card'
                 : 'Approve De-install Quote'}
             </DialogTitle>
@@ -725,28 +769,48 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
           <div className="space-y-4">
             <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
               Quote <span className="font-semibold">{quotePendingApproval?.job_number}</span>{' '}
-              {isDecommissionQuote(quotePendingApproval)
+              {pendingApprovalNeedsOrderNumber
+                ? 'is a calibration quote. Add the Order Number before approval.'
+                : pendingApprovalIsDecommission
                 ? `is a decommission job. Add Last Annuity Payment for ${pendingApprovalProductSummary} and choose where the new job card should go.`
                 : `is a de-install quote. Add Last Annuity Payment for ${pendingApprovalProductSummary} before approval.`}
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
-                Last Annuity Payment <span className="text-red-600">*</span>
-              </label>
-              <Input
-                id="annuity-end-date"
-                type="date"
-                value={annuityEndDate}
-                onChange={(event) => setAnnuityEndDate(event.target.value)}
-                required
-              />
-              <p className="text-xs text-gray-500">
-                This date applies to: {pendingApprovalProductSummary}.
-              </p>
-            </div>
+            {pendingApprovalNeedsOrderNumber && (
+              <div className="space-y-2">
+                <label htmlFor="approval-order-number" className="text-sm font-medium text-gray-700">
+                  Order Number <span className="text-red-600">*</span>
+                </label>
+                <Input
+                  id="approval-order-number"
+                  type="text"
+                  placeholder="Enter order number"
+                  value={approvalOrderNumber}
+                  onChange={(event) => setApprovalOrderNumber(event.target.value)}
+                  required
+                />
+              </div>
+            )}
 
-            {isDecommissionQuote(quotePendingApproval) && (
+            {pendingApprovalIsDeinstall && (
+              <div className="space-y-2">
+                <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
+                  Last Annuity Payment <span className="text-red-600">*</span>
+                </label>
+                <Input
+                  id="annuity-end-date"
+                  type="date"
+                  value={annuityEndDate}
+                  onChange={(event) => setAnnuityEndDate(event.target.value)}
+                  required
+                />
+                <p className="text-xs text-gray-500">
+                  This date applies to: {pendingApprovalProductSummary}.
+                </p>
+              </div>
+            )}
+
+            {pendingApprovalIsDecommission && (
               <div className="space-y-2">
                 <label htmlFor="job-routing-destination" className="text-sm font-medium text-gray-700">
                   Route Job Card To <span className="text-red-600">*</span>
@@ -782,8 +846,9 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
                 onClick={handleConfirmModalApproval}
                 disabled={
                   Boolean(approvingQuote) ||
-                  !annuityEndDate ||
-                  (isDecommissionQuote(quotePendingApproval) && !approvalDestination)
+                  (pendingApprovalNeedsOrderNumber && !String(approvalOrderNumber || '').trim()) ||
+                  (pendingApprovalIsDeinstall && !annuityEndDate) ||
+                  (pendingApprovalIsDecommission && !approvalDestination)
                 }
               >
                 {approvingQuote ? (

@@ -13,6 +13,10 @@ import { createClient } from '@/lib/supabase/client';
 type CostCenter = {
   id: string;
   cost_code: string;
+  cost_center_code?: string | null;
+  cost_center_name?: string | null;
+  site_allocated?: string | null;
+  operational?: boolean | null;
   company: string;
 };
 
@@ -55,7 +59,7 @@ export default function CreateCalibrationJobModal() {
         const supabase = createClient();
         const { data, error } = await supabase
           .from('cost_centers')
-          .select('id, cost_code, company')
+          .select('id, cost_code, cost_center_code, cost_center_name, site_allocated, operational, company')
           .order('cost_code', { ascending: true });
 
         if (error) {
@@ -155,22 +159,27 @@ export default function CreateCalibrationJobModal() {
     setSubmitting(true);
     try {
 
-      const response = await fetch('/api/job-cards', {
+      const selectedCostCenterName =
+        selectedCostCenter.cost_center_name ||
+        selectedCostCenter.site_allocated ||
+        selectedCostCenter.company ||
+        selectedCostCenter.cost_code;
+
+      const response = await fetch('/api/client-quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repair: true,
-          job_type: 'calibration',
+          jobType: 'calibration',
+          jobSubType: 'calibration',
+          jobDescription: `Calibration quote for ${selectedCostCenterName}`,
           customerName: selectedCostCenter.company,
-          customer_name: selectedCostCenter.company,
           new_account_number: selectedCostCenter.cost_code,
-          status: 'completed',
-          job_status: 'Completed',
-          priority: 'medium',
-          role: 'accounts',
-          move_to: 'accounts',
-          job_date: new Date().toISOString(),
-          completion_date: new Date().toISOString(),
+          accountNumber: selectedCostCenter.cost_code,
+          cost_center_code: selectedCostCenter.cost_center_code || null,
+          cost_center_name: selectedCostCenterName,
+          status: 'pending',
+          jobStatus: 'pending',
+          quoteStatus: 'draft',
           quotationSubtotal: subtotalAmount,
           quotationProducts: vehicles.map((vehicle, index) => ({
             id: vehicle.id || `${selectedCostCenter.cost_code}-${index}` ,
@@ -193,21 +202,25 @@ export default function CreateCalibrationJobModal() {
           quotationJobType: 'calibration',
           purchaseType: 'purchase',
           quoteType: 'internal',
+          quoteEmailSubject: `Calibration quotation for ${selectedCostCenterName}`,
+          quoteEmailBody: `Please find attached calibration quotation for ${selectedCostCenterName}.`,
+          quoteEmailFooter: '',
+          quoteNotes: '',
         }),
       });
 
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result?.error || 'Failed to create calibration job');
+        throw new Error(result?.error || 'Failed to create calibration quote');
       }
 
       toast.success(
-        `Calibration job ${result?.data?.job_number || ''} created. ${result?.calibrationVehicleCount || 0} vehicles flagged.`,
+        `Calibration quote ${result?.data?.job_number || ''} created and queued for approval.`,
       );
       handleClose();
     } catch (error) {
-      console.error('Error creating calibration job:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create calibration job');
+      console.error('Error creating calibration quote:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create calibration quote');
     } finally {
       setSubmitting(false);
     }
@@ -218,14 +231,14 @@ export default function CreateCalibrationJobModal() {
       <DialogTrigger asChild>
         <Button className="bg-blue-600 hover:bg-blue-700">
           <Target className="mr-2 h-4 w-4" />
-          Create Calibration Job
+          Create Calibration Quote
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wrench className="h-5 w-5" />
-            Calibration Job
+            Calibration Quote
           </DialogTitle>
         </DialogHeader>
 
@@ -296,16 +309,20 @@ export default function CreateCalibrationJobModal() {
           </div>
 
           <div className="rounded-lg border bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            This calibration job will be created straight into Accounts as a completed job card. The invoice subtotal is calculated as amount per vehicle x number of vehicles on the selected cost center.
+            This creates a normal pending calibration quote (not auto-approved). The subtotal is calculated as amount per vehicle x number of vehicles on the selected cost center.
           </div>
 
           {selectedCostCenter ? (
             <div className="rounded-lg border bg-blue-50 px-4 py-3 text-sm text-blue-900">
-              Creating this job will mark all vehicles with
+              Vehicles will only be marked for calibration after quote approval. Selected account:
               {' '}
-              <span className="font-semibold">new_account_number = {selectedCostCenter.cost_code}</span>
-              {' '}
-              as calibration vehicles in both vehicle tables.
+              <span className="font-semibold">{selectedCostCenter.cost_code}</span>
+              {selectedCostCenter.cost_center_code ? (
+                <>
+                  {' '}| Site code:{' '}
+                  <span className="font-semibold">{selectedCostCenter.cost_center_code}</span>
+                </>
+              ) : null}
             </div>
           ) : null}
 
@@ -320,7 +337,7 @@ export default function CreateCalibrationJobModal() {
                   Creating...
                 </>
               ) : (
-                'Create Calibration Job'
+                'Create Calibration Quote'
               )}
             </Button>
           </div>

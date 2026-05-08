@@ -759,6 +759,7 @@ export default function AccountsContent({ activeSection }) {
   const handleInvoiceClient = async (job) => {
     const latestJob = await fetchLatestJobCard(job);
     const annuityItems = getAnnuitySelectionItems(latestJob);
+    const calibrationClientName = resolveCalibrationClientName(latestJob);
     setSelectedJobForInvoice(latestJob);
     setGeneratedInvoice(null);
     setStoredInvoiceRecord(null);
@@ -767,7 +768,10 @@ export default function AccountsContent({ activeSection }) {
     setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
     // Pre-fill form with available job data
     setInvoiceFormData({
-      clientName: latestJob.customer_name || "",
+      clientName:
+        (isCalibrationJob(latestJob) && calibrationClientName) ||
+        latestJob.customer_name ||
+        "",
       clientEmail: latestJob.customer_email || "",
       clientPhone: latestJob.customer_phone || "",
       clientAddress: latestJob.customer_address || "",
@@ -1232,8 +1236,13 @@ export default function AccountsContent({ activeSection }) {
           dueDate: invoice.due_date || "",
         },
       });
+      const calibrationStoredClientName = resolveCalibrationClientName(latestJob);
       setInvoiceFormData({
-        clientName: invoice.client_name || latestJob.customer_name || "",
+        clientName:
+          (isCalibrationJob(latestJob) && calibrationStoredClientName) ||
+          invoice.client_name ||
+          latestJob.customer_name ||
+          "",
         clientEmail: invoice.client_email || latestJob.customer_email || "",
         clientPhone: invoice.client_phone || latestJob.customer_phone || "",
         clientAddress: invoice.client_address || latestJob.customer_address || "",
@@ -1421,6 +1430,32 @@ export default function AccountsContent({ activeSection }) {
           if (billingResult?.queued) {
             deferredActions.push("quotation billing");
           }
+          const noColumnMatches = Array.isArray(billingResult?.skipped)
+            ? billingResult.skipped.filter(
+                (entry) => entry?.reason === "no_column_match",
+              )
+            : [];
+          if (noColumnMatches.length > 0) {
+            const labels = Array.from(
+              new Set(
+                noColumnMatches
+                  .map(
+                    (entry) =>
+                      entry?.item?.name ||
+                      entry?.item?.product ||
+                      entry?.item?.item_code ||
+                      entry?.item?.code ||
+                      "Item",
+                  )
+                  .filter(Boolean),
+              ),
+            );
+            const preview = labels.slice(0, 4).join(", ");
+            const remainder = labels.length > 4 ? ` +${labels.length - 4} more` : "";
+            syncWarnings.push(
+              `Unmapped annuity items (${noColumnMatches.length}): ${preview}${remainder}`,
+            );
+          }
         }
       }
 
@@ -1499,7 +1534,7 @@ export default function AccountsContent({ activeSection }) {
                 unitPrice,
                 total: unitPrice * qty,
                 vehicleRegistration:
-                  selectedJobForInvoice.vehicle_registration || "N/A",
+                  getInvoiceVehicleRegistrationDisplay(selectedJobForInvoice),
               };
             })
           : [
@@ -1509,7 +1544,7 @@ export default function AccountsContent({ activeSection }) {
                 unitPrice: totals.subtotal,
                 total: totals.subtotal,
                 vehicleRegistration:
-                  selectedJobForInvoice.vehicle_registration || "N/A",
+                  getInvoiceVehicleRegistrationDisplay(selectedJobForInvoice),
               },
             ];
 
@@ -2268,6 +2303,21 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getInvoiceVehicles = (job) => {
+    const calibrationInvoice = isCalibrationJob(job);
+    if (calibrationInvoice) {
+      const make = (job?.vehicle_make || "").trim();
+      const model = (job?.vehicle_model || "").trim();
+      return [
+        {
+          reg: "N/A",
+          make: make || null,
+          model: model || null,
+          year: job?.vehicle_year || null,
+          company: resolveCalibrationClientName(job, selectedCostCenterInfo) || job?.customer_name || null,
+        },
+      ];
+    }
+
     const products = parseQuotationProducts(job?.quotation_products);
     const plates = products
       .map((product) => product?.vehicle_plate)
@@ -2275,15 +2325,7 @@ export default function AccountsContent({ activeSection }) {
         (plate) => typeof plate === "string" && plate.trim().length > 0,
       )
       .map((plate) => plate.trim());
-    const fallbackReg =
-      job?.vehicle_registration?.trim() ||
-      job?.temporary_registration?.trim() ||
-      buildTemporaryRegistration(
-        job?.id,
-        job?.job_number,
-        job?.quotation_number,
-        job?.new_account_number,
-      );
+    const fallbackReg = getInvoiceRegistrationFallback(job);
     const regs = Array.from(new Set([...plates, fallbackReg].filter(Boolean)));
     const make = (job?.vehicle_make || "").trim();
     const model = (job?.vehicle_model || "").trim();
@@ -2297,6 +2339,18 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getInvoiceVehiclePayloads = (job) => {
+    if (isCalibrationJob(job)) {
+      return [
+        {
+          reg: "N/A",
+          make: job?.vehicle_make || null,
+          model: job?.vehicle_model || null,
+          year: job?.vehicle_year || null,
+          company: resolveCalibrationClientName(job, selectedCostCenterInfo) || job?.customer_name || null,
+        },
+      ];
+    }
+
     const products = parseQuotationProducts(job?.quotation_products);
     const plates = products
       .map((product) => product?.vehicle_plate)
@@ -2304,15 +2358,7 @@ export default function AccountsContent({ activeSection }) {
         (plate) => typeof plate === "string" && plate.trim().length > 0,
       )
       .map((plate) => plate.trim());
-    const fallbackReg =
-      job?.vehicle_registration?.trim() ||
-      job?.temporary_registration?.trim() ||
-      buildTemporaryRegistration(
-        job?.id,
-        job?.job_number,
-        job?.quotation_number,
-        job?.new_account_number,
-      );
+    const fallbackReg = getInvoiceRegistrationFallback(job);
     const regs = Array.from(new Set([...plates, fallbackReg].filter(Boolean)));
 
     return regs.map((reg) => ({
@@ -2388,13 +2434,69 @@ export default function AccountsContent({ activeSection }) {
         "",
     ).trim();
 
+  const normalizeJobToken = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const isCalibrationJob = (job) => {
+    if (!job) return false;
+    const jobType = normalizeJobToken(job?.job_type);
+    const quotationJobType = normalizeJobToken(job?.quotation_job_type);
+    const jobSubType = normalizeJobToken(job?.job_sub_type);
+    return (
+      jobType.includes("calibration") ||
+      quotationJobType.includes("calibration") ||
+      jobSubType.includes("calibration")
+    );
+  };
+
+  const resolveCalibrationSiteName = (job, costCenterInfo = null) =>
+    String(
+      job?.cost_center_name ||
+        costCenterInfo?.cost_center_name ||
+        costCenterInfo?.site_allocated ||
+        "",
+    ).trim();
+
+  const resolveCalibrationClientName = (job, costCenterInfo = null) => {
+    const company = String(
+      costCenterInfo?.company ||
+        costCenterInfo?.legal_name ||
+        job?.customer_name ||
+        "",
+    ).trim();
+    const siteName = resolveCalibrationSiteName(job, costCenterInfo);
+
+    if (company && siteName) {
+      const normalizedCompany = company.toLowerCase();
+      const normalizedSite = siteName.toLowerCase();
+      if (normalizedCompany.includes(normalizedSite)) return company;
+      return `${company} - ${siteName}`;
+    }
+
+    return company || siteName || "";
+  };
+
+  const getInvoiceRegistrationFallback = (job) =>
+    String(
+      job?.vehicle_registration?.trim() ||
+        job?.temporary_registration?.trim() ||
+        buildTemporaryRegistration(
+          job?.id,
+          job?.job_number,
+          job?.quotation_number,
+          job?.new_account_number,
+        ) ||
+        "N/A",
+    ).trim();
+
+  const getInvoiceVehicleRegistrationDisplay = (job) =>
+    isCalibrationJob(job) ? "N/A" : getInvoiceRegistrationFallback(job);
+
   const isOnceOffItemJob = (job) => {
-    const normalize = (value) =>
-      String(value || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
-    const jobType = normalize(job?.job_type);
-    const quotationJobType = normalize(job?.quotation_job_type);
+    const jobType = normalizeJobToken(job?.job_type);
+    const quotationJobType = normalizeJobToken(job?.quotation_job_type);
     if (
       jobType.includes("itembilling") ||
       quotationJobType.includes("itembilling") ||
@@ -2410,12 +2512,12 @@ export default function AccountsContent({ activeSection }) {
     }
 
     return products.some((product) => {
-      const normalizedId = normalize(product?.id);
-      const normalizedCode = normalize(product?.code || product?.item_code);
-      const normalizedName = normalize(product?.name);
-      const normalizedDescription = normalize(product?.description);
-      const normalizedCategory = normalize(product?.category);
-      const normalizedType = normalize(product?.type);
+      const normalizedId = normalizeJobToken(product?.id);
+      const normalizedCode = normalizeJobToken(product?.code || product?.item_code);
+      const normalizedName = normalizeJobToken(product?.name);
+      const normalizedDescription = normalizeJobToken(product?.description);
+      const normalizedCategory = normalizeJobToken(product?.category);
+      const normalizedType = normalizeJobToken(product?.type);
 
       const hasOnceOffMarker =
         normalizedId.includes("itembilling") ||
@@ -2439,6 +2541,7 @@ export default function AccountsContent({ activeSection }) {
   const buildCompletedJobInvoiceView = () => {
     if (!selectedJobForInvoice) return null;
 
+    const isCalibrationInvoice = isCalibrationJob(selectedJobForInvoice);
     const isOnceOffItemInvoice = isOnceOffItemJob(selectedJobForInvoice);
     const hideRegistrationColumns = isOnceOffItemInvoice;
     const hideItemCodeColumn = isOnceOffItemInvoice;
@@ -2471,6 +2574,21 @@ export default function AccountsContent({ activeSection }) {
       lockedPreviewInvoiceDate ||
       new Date().toISOString();
     const orderNumber = selectedJobForInvoice.order_number || "N/A";
+    const calibrationClientName = resolveCalibrationClientName(
+      selectedJobForInvoice,
+      selectedCostCenterInfo,
+    );
+    const defaultClientName =
+      selectedCostCenterInfo?.company ||
+      selectedCostCenterInfo?.legal_name ||
+      storedInvoiceRecord?.client_name ||
+      invoiceFormData.clientName ||
+      selectedJobForInvoice.customer_name ||
+      "N/A";
+    const effectiveClientName =
+      isCalibrationInvoice && calibrationClientName
+        ? calibrationClientName
+        : defaultClientName;
 
     const rows = rawTotals.products.length > 0
         ? rawTotals.products.flatMap((product, index) => {
@@ -2508,10 +2626,14 @@ export default function AccountsContent({ activeSection }) {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
                 previousReg: hideRegistrationColumns
                   ? ""
-                  : product?.vehicle_plate || vehicleSummary || "N/A",
+                  : isCalibrationInvoice
+                    ? "N/A"
+                    : product?.vehicle_plate || vehicleSummary || "N/A",
                 newReg: hideRegistrationColumns
                   ? ""
-                  : product?.vehicle_plate || vehicleSummary || "N/A",
+                  : isCalibrationInvoice
+                    ? "N/A"
+                    : product?.vehicle_plate || vehicleSummary || "N/A",
                 itemCode: chargeLine.label,
                 description: resolvedDescription,
                 comments: lineLabel,
@@ -2531,10 +2653,14 @@ export default function AccountsContent({ activeSection }) {
               key: `${item?.item_code || item?.description || "item"}-${index}`,
               previousReg: hideRegistrationColumns
                 ? ""
-                : item?.previous_reg || vehicleSummary || "N/A",
+                : isCalibrationInvoice
+                  ? "N/A"
+                  : item?.previous_reg || vehicleSummary || "N/A",
               newReg: hideRegistrationColumns
                 ? ""
-                : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+                : isCalibrationInvoice
+                  ? "N/A"
+                  : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
               itemCode: item?.item_code || "Item",
               description: item?.description || item?.item_code || "-",
               comments: item?.comments || "",
@@ -2547,8 +2673,16 @@ export default function AccountsContent({ activeSection }) {
         : [
             {
               key: "fallback-row",
-              previousReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
-              newReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
+              previousReg: hideRegistrationColumns
+                ? ""
+                : isCalibrationInvoice
+                  ? "N/A"
+                  : vehicleSummary || "N/A",
+              newReg: hideRegistrationColumns
+                ? ""
+                : isCalibrationInvoice
+                  ? "N/A"
+                  : vehicleSummary || "N/A",
               itemCode: selectedJobForInvoice.job_type || "Service",
               description:
                 selectedJobForInvoice.job_description || "Job completion",
@@ -2575,13 +2709,7 @@ export default function AccountsContent({ activeSection }) {
       invoiceNumber,
       invoiceDate: formatDate(invoiceDate),
       orderNumber,
-      clientName:
-        selectedCostCenterInfo?.company ||
-        selectedCostCenterInfo?.legal_name ||
-        storedInvoiceRecord?.client_name ||
-        invoiceFormData.clientName ||
-        selectedJobForInvoice.customer_name ||
-        "N/A",
+      clientName: effectiveClientName,
       clientEmail:
         storedInvoiceRecord?.client_email ||
         invoiceFormData.clientEmail ||
@@ -4906,7 +5034,7 @@ export default function AccountsContent({ activeSection }) {
                     <div>
                       <span className="text-gray-600">Vehicle:</span>
                       <p className="font-medium">
-                        {selectedJobForInvoice.vehicle_registration || "N/A"}
+                        {getInvoiceVehicleRegistrationDisplay(selectedJobForInvoice)}
                       </p>
                     </div>
                     <div>

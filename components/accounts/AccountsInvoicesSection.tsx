@@ -78,10 +78,11 @@ export default function AccountsInvoicesSection() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<AccountInvoiceRow | null>(null);
   const [showViewer, setShowViewer] = useState(false);
 
-  const fetchInvoices = async (search = "") => {
+  const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
       const isRefresh = !loading;
       if (isRefresh) {
@@ -94,6 +95,9 @@ export default function AccountsInvoicesSection() {
       query.set("all", "1");
       if (search.trim()) {
         query.set("search", search.trim());
+      }
+      if (month.trim()) {
+        query.set("month", month.trim());
       }
 
       const response = await fetch(`/api/accounts/invoices?${query.toString()}`, {
@@ -117,8 +121,8 @@ export default function AccountsInvoicesSection() {
   };
 
   useEffect(() => {
-    fetchInvoices();
-  }, []);
+    fetchInvoices(searchTerm, selectedMonth);
+  }, [selectedMonth]);
 
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -142,7 +146,7 @@ export default function AccountsInvoicesSection() {
   );
 
   const handleRefresh = async () => {
-    await fetchInvoices(searchTerm);
+    await fetchInvoices(searchTerm, selectedMonth);
   };
 
   const handleOpenInvoice = (invoice: AccountInvoiceRow) => {
@@ -207,19 +211,35 @@ export default function AccountsInvoicesSection() {
         <CardHeader>
           <CardTitle className="text-lg">Search Invoices</CardTitle>
           <p className="text-gray-600 text-sm">
-            Search by invoice number, account number, company, or VAT number
+            Search by invoice number, account number, company, or VAT number, and filter by month
           </p>
         </CardHeader>
         <CardContent>
-          <div className="relative">
-            <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+          <div className="gap-3 grid grid-cols-1 md:grid-cols-[1fr_220px_auto]">
+            <div className="relative">
+              <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+              <Input
+                type="text"
+                placeholder="Search invoices..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="pl-10"
+              />
+            </div>
             <Input
-              type="text"
-              placeholder="Search invoices..."
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="pl-10"
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              max={new Date().toISOString().slice(0, 7)}
             />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSelectedMonth("")}
+              disabled={!selectedMonth}
+            >
+              Clear Month
+            </Button>
           </div>
         </CardContent>
       </Card>

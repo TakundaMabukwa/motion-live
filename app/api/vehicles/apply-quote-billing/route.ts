@@ -131,6 +131,9 @@ const BILLABLE_COLUMNS = [
   "total_sub",
   "software",
   "additional_data",
+  "driver_app",
+  "mtx_mc202x_rental",
+  "mtx_mc202x_sub",
 ];
 
 const BILLABLE_SET = new Set(BILLABLE_COLUMNS);
@@ -154,6 +157,7 @@ const SERVICE_ONLY_FIELDS = new Set([
   "epilite_software_development",
   "software",
   "additional_data",
+  "driver_app",
 ]);
 const TOTAL_FIELDS = new Set(["total_rental", "total_sub", "total_rental_sub"]);
 
@@ -169,10 +173,18 @@ const GROUPED_FIELD_BASES = new Set([
 const DIRECT_ALIASES: Record<string, string> = {
   skylink_trailer_unit: "skylink_trailer_unit",
   sky_on_batt_ign_unit: "sky_on_batt_ign_unit",
+  starlink_onbatt: "sky_on_batt_ign_unit",
+  p03onbatignaumicrosim: "sky_on_batt_ign_unit",
   skylink_voice_kit: "skylink_voice_kit",
   sky_scout_12v: "sky_scout_12v",
   sky_scout_24v: "sky_scout_24v",
   skylink_pro: "skylink_pro",
+  p03starlink3g: "skylink_pro",
+  skylink_motorbike: "skylink_pro",
+  skylink_obd: "skylink_pro",
+  p08obdsafety: "skylink_pro",
+  p08scooter: "skylink_pro",
+  skylite: "skylink_pro",
   skyspy: "skyspy",
   skylink_sim_card_no: "skylink_sim_card_no",
   skylink_data_number: "skylink_data_number",
@@ -188,10 +200,20 @@ const DIRECT_ALIASES: Record<string, string> = {
   cia: "cia",
   fm_unit: "fm_unit",
   sim_card_number: "sim_card_number",
+  sms: "additional_data",
   data_number: "data_number",
   gps: "gps",
   gsm: "gsm",
   main_fm_harness: "main_fm_harness",
+  beame_1: "beame_1",
+  beame_2: "beame_2",
+  beame_3: "beame_3",
+  beame_4: "beame_4",
+  beame_5: "beame_5",
+  fuel_probe_1: "fuel_probe_1",
+  fuel_probe_2: "fuel_probe_2",
+  fm3316: "fm_unit",
+  mix_4000: "fm_unit",
   tpiece: "tpiece",
   idata: "idata",
   _7m_harness_for_probe: "_7m_harness_for_probe",
@@ -214,6 +236,10 @@ const DIRECT_ALIASES: Record<string, string> = {
   vw502f_road_facing_camera: "vw502f_road_facing_camera",
   vw306_dvr_road_facing_for_4ch_8ch: "vw306_dvr_road_facing_for_4ch_8ch",
   vw306m_a2_dash_cam: "vw306m_a2_dash_cam",
+  vw400_dome_1: "vw400_dome_1",
+  vw400_dome_2: "vw400_dome_2",
+  vw300_dakkie_dome_1: "vw300_dakkie_dome_1",
+  vw300_dakkie_dome_2: "vw300_dakkie_dome_2",
   dms01_driver_facing: "dms01_driver_facing",
   adas_02_road_facing: "adas_02_road_facing",
   vw100ip_driver_facing_ip: "vw100ip_driver_facing_ip",
@@ -231,6 +257,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   breathaloc: "breathaloc",
   pfk_road_facing: "pfk_road_facing",
   pfk_driver_facing: "pfk_driver_facing",
+  pfk_dome_1: "pfk_dome_1",
+  pfk_dome_2: "pfk_dome_2",
   pfk_5m: "pfk_5m",
   pfk_10m: "pfk_10m",
   pfk_15m: "pfk_15m",
@@ -303,6 +331,10 @@ const SLOT_FAMILIES: Record<string, string[]> = buildSlotFamilies(
 );
 
 const SPECIAL_BILLING_MAP: Record<string, { rental?: string; sub?: string }> = {
+  sky_on_batt_ign_unit: {
+    rental: "sky_on_batt_ign_rental",
+    sub: "sky_on_batt_sub",
+  },
   fuel_probe_1: { rental: "single_probe_rental", sub: "single_probe_sub" },
   fuel_probe_2: { rental: "dual_probe_rental", sub: "dual_probe_sub" },
   tag: { rental: "tag_rental" },
@@ -489,15 +521,58 @@ const getBillingColumnForField = (
   return null;
 };
 
+const getFamilySlotOrder = (familyKey: string, item: any, slots: string[]) => {
+  if (familyKey !== "fuel_probe") {
+    return slots;
+  }
+
+  const context = [
+    item?.id,
+    item?.item_id,
+    item?.code,
+    item?.item_code,
+    item?.name,
+    item?.product,
+    item?.description,
+  ]
+    .map((value) => toColumnKey(String(value || "")))
+    .filter(Boolean)
+    .join(" ");
+
+  const hasDualHint =
+    context.includes("dual") ||
+    context.includes("two_tank") ||
+    context.includes("2_tank");
+  const hasSingleHint =
+    context.includes("single") ||
+    context.includes("one_tank") ||
+    context.includes("1_tank");
+
+  if (hasDualHint && slots.includes("fuel_probe_2")) {
+    return ["fuel_probe_2", ...slots.filter((slot) => slot !== "fuel_probe_2")];
+  }
+
+  if (hasSingleHint && slots.includes("fuel_probe_1")) {
+    return ["fuel_probe_1", ...slots.filter((slot) => slot !== "fuel_probe_1")];
+  }
+
+  return slots;
+};
+
 const pickFamilySlotForBilling = (
   vehicle: Record<string, any>,
+  item: any,
   familyKey: string,
   preferSub: boolean,
   preferRental: boolean,
   currentUpdates: Record<string, number>,
   mode: "install" | "deinstall",
 ) => {
-  const slots = SLOT_FAMILIES[familyKey] || [];
+  const slots = getFamilySlotOrder(
+    familyKey,
+    item,
+    SLOT_FAMILIES[familyKey] || [],
+  );
   if (!slots.length) return null;
 
   if (mode === "install") {
@@ -832,6 +907,7 @@ const pickBillingColumn = (
   if (mapping?.kind === "family") {
     const familyColumn = pickFamilySlotForBilling(
       vehicle,
+      item,
       mapping.field,
       preferSub,
       preferRental,
@@ -941,7 +1017,19 @@ const applyQuoteBillingToTable = async (
           continue;
         }
 
-        columnUpdates[column] = jobType === "deinstall" ? 0 : spec.amount;
+        if (jobType === "deinstall") {
+          columnUpdates[column] = 0;
+          continue;
+        }
+
+        const currentColumnValue = Number(columnUpdates[column] ?? 0);
+        if (Number.isFinite(currentColumnValue) && currentColumnValue > 0) {
+          columnUpdates[column] = Number(
+            (currentColumnValue + spec.amount).toFixed(2),
+          );
+        } else {
+          columnUpdates[column] = spec.amount;
+        }
       }
 
       for (const feeSpec of getOnceOffChargeSpecs(item, jobType)) {

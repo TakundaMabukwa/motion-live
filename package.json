@@ -6,6 +6,8 @@
     "start": "next start",
     "lint": "next lint",
     "dryrun:fc-move-flow": "node scripts/fc-move-flow-dry-run.js",
+    "dryrun:vehicles-recurring-backfill": "node scripts/backfill-vehicles-recurring-from-csv.js --dry-run",
+    "apply:vehicles-recurring-backfill": "node scripts/backfill-vehicles-recurring-from-csv.js --apply",
     "import-inventory": "node scripts/import-inventory-excel.js",
     "import-cost-center-client-info": "node scripts/import-cost-center-client-info.js"
   },

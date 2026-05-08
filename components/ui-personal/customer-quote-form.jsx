@@ -698,6 +698,14 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
         accountId: accountInfo?.id,
         accountNumber: getAccountNumber(),
         new_account_number: getAccountNumber(), // Explicitly set new_account_number for client_quotes table
+        cost_center_code:
+          accountInfo?.cost_center_code ||
+          accountInfo?.operational_cost_center_code ||
+          null,
+        cost_center_name:
+          accountInfo?.cost_center_name ||
+          accountInfo?.operational_cost_center_name ||
+          null,
         
         // Quotation products with detailed pricing
         quotationProducts: quotationProducts,

@@ -8,9 +8,11 @@ const OPTIONAL_JOB_CARD_COLUMNS = [
   'vehicle_colour',
   'old_serial_number',
   'new_serial_number',
+  'cost_center_code',
+  'cost_center_name',
 ] as const;
 
-function stripOptionalJobCardColumns<T extends Record<string, any>>(payload: T): T {
+function stripOptionalJobCardColumns<T extends Record<string, unknown>>(payload: T): T {
   const next = { ...payload };
   for (const column of OPTIONAL_JOB_CARD_COLUMNS) {
     delete next[column];
@@ -22,6 +24,16 @@ function isMissingOptionalJobCardColumn(message?: string | null): boolean {
   if (!message) return false;
   const normalized = message.toLowerCase();
   return OPTIONAL_JOB_CARD_COLUMNS.some((column) => normalized.includes(column));
+}
+
+function stripOptionalColumnsFromSelect(selectFields: string): string {
+  if (!selectFields || selectFields.trim() === '*') return selectFields;
+  const stripped = selectFields
+    .split(',')
+    .map((field) => field.trim())
+    .filter(Boolean)
+    .filter((field) => !(OPTIONAL_JOB_CARD_COLUMNS as readonly string[]).includes(field));
+  return stripped.length > 0 ? stripped.join(', ') : '*';
 }
 
 function generateSolJobNumber(): string {
@@ -38,6 +50,123 @@ function createAdminClient() {
   }
 
   return createServiceClient(supabaseUrl, serviceRoleKey);
+}
+
+type CostCenterLookupRow = {
+  cost_code?: string | null;
+  cost_center_code?: string | null;
+  cost_center_name?: string | null;
+  site_allocated?: string | null;
+  company?: string | null;
+  operational?: boolean | null;
+  created_at?: string | null;
+};
+
+function toTrimmedString(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function normalizeCode(value: unknown): string {
+  return toTrimmedString(value).toUpperCase();
+}
+
+function normalizeName(value: unknown): string {
+  return toTrimmedString(value).toLowerCase();
+}
+
+function pickCostCenterName(row: CostCenterLookupRow | null | undefined): string | null {
+  const explicitName = toTrimmedString(row?.cost_center_name);
+  if (explicitName) return explicitName;
+  const siteName = toTrimmedString(row?.site_allocated);
+  if (siteName) return siteName;
+  const companyName = toTrimmedString(row?.company);
+  return companyName || null;
+}
+
+async function resolveCostCenterContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    accountNumber,
+    requestedCostCenterCode,
+    requestedCostCenterName,
+  }: {
+    accountNumber?: unknown;
+    requestedCostCenterCode?: unknown;
+    requestedCostCenterName?: unknown;
+  },
+): Promise<{ costCenterCode: string | null; costCenterName: string | null }> {
+  let resolvedCode = normalizeCode(requestedCostCenterCode) || null;
+  let resolvedName = toTrimmedString(requestedCostCenterName) || null;
+  const normalizedAccount = normalizeCode(accountNumber);
+
+  const maybeApplyRow = (row: CostCenterLookupRow | null | undefined) => {
+    if (!row) return;
+    const rowCode = normalizeCode(row.cost_center_code);
+    if (!resolvedCode && rowCode) {
+      resolvedCode = rowCode;
+    }
+    if (!resolvedName) {
+      resolvedName = pickCostCenterName(row);
+    }
+  };
+
+  try {
+    const codeLookupCandidates = [...new Set([resolvedCode, normalizedAccount].filter(Boolean))];
+    for (const candidate of codeLookupCandidates) {
+      const { data: byCodeRow, error: byCodeError } = await supabase
+        .from('cost_centers')
+        .select('cost_code, cost_center_code, cost_center_name, site_allocated, company, operational, created_at')
+        .ilike('cost_center_code', candidate)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (byCodeError) {
+        console.warn('Skipping cost center code lookup due to error:', byCodeError.message);
+        continue;
+      }
+
+      if (byCodeRow) {
+        maybeApplyRow(byCodeRow as CostCenterLookupRow);
+        return { costCenterCode: resolvedCode, costCenterName: resolvedName };
+      }
+    }
+
+    if (normalizedAccount) {
+      const { data: byAccountRows, error: byAccountError } = await supabase
+        .from('cost_centers')
+        .select('cost_code, cost_center_code, cost_center_name, site_allocated, company, operational, created_at')
+        .ilike('cost_code', normalizedAccount)
+        .order('created_at', { ascending: true });
+
+      if (byAccountError) {
+        console.warn('Skipping account cost center lookup due to error:', byAccountError.message);
+      } else if (Array.isArray(byAccountRows) && byAccountRows.length > 0) {
+        const requestedNameNormalized = normalizeName(resolvedName);
+        const rows = byAccountRows as CostCenterLookupRow[];
+        const byNameMatch = requestedNameNormalized
+          ? rows.find((row) => normalizeName(pickCostCenterName(row)) === requestedNameNormalized)
+          : null;
+        const operationalRows = rows.filter(
+          (row) => row.operational === true && normalizeCode(row.cost_center_code),
+        );
+
+        const chosenRow =
+          byNameMatch ||
+          (operationalRows.length === 1 ? operationalRows[0] : null) ||
+          (rows.length === 1 ? rows[0] : null);
+
+        maybeApplyRow(chosenRow);
+      }
+    }
+  } catch (error) {
+    console.warn(
+      'Failed to resolve cost center context for job card create:',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return { costCenterCode: resolvedCode, costCenterName: resolvedName };
 }
 
 export async function GET(request: NextRequest) {
@@ -63,28 +192,35 @@ export async function GET(request: NextRequest) {
     const includeCount = String(searchParams.get('include_count') || 'true').toLowerCase() !== 'false';
     const selectFields =
       view === 'fc-list'
-        ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
+        ? 'id, job_number, order_number, customer_name, customer_email, customer_address, job_type, vehicle_registration, quotation_products, completion_notes, fc_note_acknowledged, role, move_to, status, job_status, created_at, updated_at, account_id, new_account_number, cost_center_code, cost_center_name, escalation_role, escalation_source_role, escalated_at, parts_required, job_description'
         : '*';
 
-    let query = supabase.from('job_cards').select(selectFields).order('created_at', { ascending: false });
+    const runListQuery = async (fields: string) => {
+      let query = supabase.from('job_cards').select(fields).order('created_at', { ascending: false });
 
-    if (accountNumber) {
-      query = query.eq('new_account_number', accountNumber);
+      if (accountNumber) {
+        query = query.eq('new_account_number', accountNumber);
+      }
+
+      if (escalationRole) {
+        query = query.eq('escalation_role', escalationRole);
+      }
+
+      if (excludeCompleted) {
+        query = query
+          .not('job_status', 'in', '("Completed","completed")')
+          .not('status', 'in', '("Completed","completed")');
+      }
+
+      return query.range(offset, offset + limit - 1);
+    };
+
+    let { data, error } = await runListQuery(selectFields);
+
+    if (error && isMissingOptionalJobCardColumn(error.message)) {
+      const fallbackSelect = stripOptionalColumnsFromSelect(selectFields);
+      ({ data, error } = await runListQuery(fallbackSelect));
     }
-
-    if (escalationRole) {
-      query = query.eq('escalation_role', escalationRole);
-    }
-
-    if (excludeCompleted) {
-      query = query
-        .not('job_status', 'in', '("Completed","completed")')
-        .not('status', 'in', '("Completed","completed")');
-    }
-
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching job cards:', error);
@@ -149,6 +285,16 @@ export async function POST(request: NextRequest) {
       resolvedNewAccountNumber = externalClientSetup.costCode;
     }
 
+    const { costCenterCode, costCenterName } = await resolveCostCenterContext(supabase, {
+      accountNumber: resolvedNewAccountNumber,
+      requestedCostCenterCode: body.cost_center_code ?? body.costCenterCode,
+      requestedCostCenterName:
+        body.cost_center_name ??
+        body.costCenterName ??
+        body.site_allocated ??
+        body.siteAllocated,
+    });
+
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substr(2, 9);
     const quotationNumber = `QUOTE-${timestamp}-${randomSuffix}`;
@@ -183,6 +329,8 @@ export async function POST(request: NextRequest) {
 
       account_id: body.accountId && body.accountId !== 'null' ? body.accountId : null,
       new_account_number: resolvedNewAccountNumber,
+      cost_center_code: costCenterCode,
+      cost_center_name: costCenterName,
       customer_name: body.customerName || body.customer_name || '',
       customer_email: body.customerEmail || body.customer_email || '',
       customer_phone: body.customerPhone || body.customer_phone || '',

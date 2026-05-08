@@ -42,6 +42,10 @@ interface CostCenter {
   created_at: string;
   cost_code: string;
   company: string;
+  operational?: boolean;
+  cost_center_code?: string | null;
+  effective_cost_code?: string | null;
+  site_allocated?: string | null;
 }
 
 interface VehicleSummary {
@@ -58,6 +62,86 @@ interface DeleteModalState {
   cost_code: string;
   company: string;
 }
+
+const normalizeCode = (value: unknown) =>
+  String(value || "")
+    .trim()
+    .toUpperCase();
+
+const getCenterCode = (center: CostCenter) => {
+  const operationalCode = normalizeCode(center?.cost_center_code);
+  if (center?.operational && operationalCode) {
+    return operationalCode;
+  }
+
+  const effective = normalizeCode(center?.effective_cost_code);
+  if (effective) return effective;
+
+  return normalizeCode(center?.cost_code);
+};
+
+const getCenterDisplayLabel = (center: CostCenter) => {
+  const siteName = String(center?.site_allocated || "").trim();
+  if (center?.operational && siteName) {
+    const code = getCenterCode(center);
+    return code ? `${siteName} (${code})` : siteName;
+  }
+
+  return getCenterCode(center);
+};
+
+const resolveOperationalAwareCenters = (rows: CostCenter[]) => {
+  const grouped = new Map<string, CostCenter[]>();
+  for (const row of rows || []) {
+    const accountCode = normalizeCode(row?.cost_code);
+    if (!accountCode) continue;
+    const bucket = grouped.get(accountCode) || [];
+    bucket.push(row);
+    grouped.set(accountCode, bucket);
+  }
+
+  const resolved: CostCenter[] = [];
+  for (const [accountCode, groupRows] of grouped.entries()) {
+    const operationalRows = groupRows.filter(
+      (row) => Boolean(row?.operational) && normalizeCode(row?.cost_center_code),
+    );
+
+    if (operationalRows.length > 0) {
+      const seenOperationalCodes = new Set<string>();
+      const sortedOperational = operationalRows
+        .slice()
+        .sort((a, b) => getCenterCode(a).localeCompare(getCenterCode(b)));
+
+      for (const row of sortedOperational) {
+        const code = getCenterCode(row);
+        if (!code || seenOperationalCodes.has(code)) continue;
+        seenOperationalCodes.add(code);
+        resolved.push({
+          ...row,
+          effective_cost_code: code,
+        });
+      }
+      continue;
+    }
+
+    const first = groupRows
+      .slice()
+      .sort((a, b) => {
+        const aTime = new Date(String(a?.created_at || 0)).getTime();
+        const bTime = new Date(String(b?.created_at || 0)).getTime();
+        return aTime - bTime;
+      })[0];
+
+    if (first) {
+      resolved.push({
+        ...first,
+        effective_cost_code: getCenterCode(first) || accountCode,
+      });
+    }
+  }
+
+  return resolved.sort((a, b) => getCenterCode(a).localeCompare(getCenterCode(b)));
+};
 
 function ClientCostCentersContent() {
   const router = useRouter();
@@ -223,15 +307,15 @@ function ClientCostCentersContent() {
       );
       console.log("📋 [COST CENTERS] Cost centers data:", data.costCenters);
 
-      const fetchedCenters = Array.isArray(data?.costCenters)
-        ? data.costCenters
+      const fetchedCenters: CostCenter[] = Array.isArray(data?.costCenters)
+        ? (data.costCenters as CostCenter[])
         : Array.isArray(data)
-          ? data
+          ? (data as CostCenter[])
           : [];
 
-      const resolvedCenters =
+      const prefixScopedCenters =
         isSingleAccount && prefix
-          ? fetchedCenters.filter((center: any) =>
+          ? fetchedCenters.filter((center) =>
               String(center?.cost_code || "")
                 .trim()
                 .toUpperCase()
@@ -239,12 +323,17 @@ function ClientCostCentersContent() {
             )
           : fetchedCenters;
 
+      const resolvedCenters = resolveOperationalAwareCenters(prefixScopedCenters);
       setCostCenters(resolvedCenters);
 
       if (isSingleAccount && resolvedCenters.length > 0) {
-        const expandedAccounts = resolvedCenters
-          .map((center: any) => String(center?.cost_code || "").trim())
-          .filter(Boolean);
+        const expandedAccounts = [
+          ...new Set(
+            resolvedCenters
+              .map((center) => normalizeCode(center?.cost_code))
+              .filter(Boolean),
+          ),
+        ];
 
         if (expandedAccounts.length > 0) {
           setAccountNumbers(expandedAccounts);
@@ -732,7 +821,7 @@ function ClientCostCentersContent() {
                       <div className="flex justify-center items-center">
                         <div>
                           <div className="font-medium text-gray-900">
-                            {costCenter.cost_code}
+                            {getCenterDisplayLabel(costCenter)}
                           </div>
                         </div>
                       </div>
@@ -743,24 +832,45 @@ function ClientCostCentersContent() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() =>
-                              router.push(
-                                `/protected/fc/accounts/${costCenter.cost_code}`,
-                              )
-                            }
+                            onClick={() => {
+                              const effectiveCode = getCenterCode(costCenter);
+                              const siteName = String(
+                                costCenter?.site_allocated || "",
+                              ).trim();
+                              if (costCenter.operational) {
+                                const params = new URLSearchParams({
+                                  lookup: "cost_center_code",
+                                });
+                                if (siteName) {
+                                  params.set("site", siteName);
+                                }
+                                const accountCode = normalizeCode(costCenter?.cost_code);
+                                if (accountCode) {
+                                  params.set("account", accountCode);
+                                }
+                                router.push(
+                                  `/protected/fc/accounts/${effectiveCode}?${params.toString()}`,
+                                );
+                                return;
+                              }
+
+                              router.push(`/protected/fc/accounts/${effectiveCode}`);
+                            }}
                             className="hover:bg-blue-50 text-blue-600 hover:text-blue-700"
                           >
                             View
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDeleteModal(costCenter)}
-                            className="hover:bg-red-50 text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="mr-1 w-4 h-4" />
-                            Delete
-                          </Button>
+                          {!costCenter.operational && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDeleteModal(costCenter)}
+                              className="hover:bg-red-50 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="mr-1 w-4 h-4" />
+                              Delete
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>

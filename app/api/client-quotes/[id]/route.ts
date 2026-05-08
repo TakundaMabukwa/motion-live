@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 
 function extractMissingColumnName(message?: string | null): string | null {
   if (!message) return null;
@@ -53,6 +54,17 @@ function buildProductContextMessage(productLabels: string[]): string | null {
     return `Affected products: ${productLabels.join(', ')}`;
   }
   return `Affected products: ${productLabels.slice(0, 3).join(', ')} (+${productLabels.length - 3} more)`;
+}
+
+function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createServiceClient(supabaseUrl, serviceRoleKey);
 }
 
 export async function GET(
@@ -154,7 +166,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { action, annuity_end_date, destination } = body;
+    const { action, annuity_end_date, destination, order_number } = body;
     const { id } = await params;
 
     if (action === 'approve') {
@@ -185,11 +197,16 @@ export async function PUT(
       const normalizedQuoteJobType = normalize(
         clientQuote.job_type || clientQuote.quotation_job_type,
       );
+      const isCalibration = normalizedQuoteJobType.includes('calibration');
       const isOnceOffItem =
         normalizedQuoteJobType.includes('itembilling') ||
         normalizedQuoteJobType.includes('onceoffitem');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
       const deinstallProductLabels = quotationProducts.map(getQuoteLineLabel);
+      const providedOrderNumber = String(order_number || '').trim();
+      const existingOrderNumber = String(clientQuote.order_number || '').trim();
+      const resolvedOrderNumber = providedOrderNumber || existingOrderNumber;
+      const calibrationCostCenterCode = String(clientQuote.cost_center_code || '').trim();
 
       const destinationFromQuote = String(clientQuote.move_to_role || '').trim().toLowerCase();
       const destinationNormalized = String(destination || destinationFromQuote || 'none').trim().toLowerCase();
@@ -241,6 +258,28 @@ export async function PUT(
         }
       }
 
+      if (isCalibration && !resolvedOrderNumber) {
+        return NextResponse.json(
+          {
+            error: 'Order Number is required for calibration quotes',
+            missingField: 'order_number',
+            details: 'Please capture an order number before approving this calibration quote.',
+          },
+          { status: 400 },
+        );
+      }
+
+      if (isCalibration && !calibrationCostCenterCode) {
+        return NextResponse.json(
+          {
+            error: 'Cost center code is required for calibration quotes',
+            missingField: 'cost_center_code',
+            details: 'The calibration quote has no site cost center code, so vehicles could not be flagged.',
+          },
+          { status: 400 },
+        );
+      }
+
       const decommissionDate = clientQuote.decommission_date || null;
       const resolvedMoveToRole = isDecommissionJobCard && destinationNormalized !== 'none'
         ? destinationNormalized
@@ -260,7 +299,8 @@ export async function PUT(
           ? { role: 'accounts', move_to: 'accounts', status: 'pending' }
           : { status: 'pending' };
       const approvalTimestamp = new Date().toISOString();
-      const shouldAutoCompleteToAccounts = isOnceOffItem;
+      const shouldRouteDecommission = isDecommissionJobCard && routingDestination !== 'none';
+      const shouldAutoCompleteToAccounts = isOnceOffItem || !shouldRouteDecommission;
       const jobCardLifecycleFields = shouldAutoCompleteToAccounts
         ? {
             status: 'completed',
@@ -276,6 +316,37 @@ export async function PUT(
             ...(routingFields.role ? { role: routingFields.role } : {}),
             ...(routingFields.move_to ? { move_to: routingFields.move_to } : {}),
           };
+
+      let calibrationVehicleCount = 0;
+      if (isCalibration && calibrationCostCenterCode) {
+        const adminSupabase = createAdminClient() || supabase;
+        const [vehiclesResult, duplicateVehiclesResult] = await Promise.all([
+          adminSupabase
+            .from('vehicles')
+            .update({ calibration: true })
+            .eq('cost_center_code', calibrationCostCenterCode)
+            .select('id', { count: 'exact' }),
+          adminSupabase
+            .from('vehicles_duplicate')
+            .update({ calibration: true })
+            .eq('cost_center_code', calibrationCostCenterCode)
+            .select('id', { count: 'exact' }),
+        ]);
+
+        const calibrationError = vehiclesResult.error || duplicateVehiclesResult.error;
+        if (calibrationError) {
+          console.error('Error updating calibration flags during quote approval:', calibrationError);
+          return NextResponse.json(
+            {
+              error: 'Failed to update calibration vehicles',
+              details: calibrationError.message,
+            },
+            { status: 500 },
+          );
+        }
+
+        calibrationVehicleCount = Number(vehiclesResult.count || 0);
+      }
 
       // Create a copy of the client quote in job_cards table - don't move the original
       const jobCardData = {
@@ -293,8 +364,11 @@ export async function PUT(
         contact_person: clientQuote.contact_person || '',
         decommission_date: decommissionDate,
         annuity_end_date: annuityEndDate,
+        order_number: resolvedOrderNumber || null,
         account_id: clientQuote.account_id,
         new_account_number: clientQuote.new_account_number, // Copy the new_account_number field
+        cost_center_code: clientQuote.cost_center_code || null,
+        cost_center_name: clientQuote.cost_center_name || null,
         
         // Vehicle information
         vehicle_registration: clientQuote.vehicle_registration || '',
@@ -364,6 +438,7 @@ export async function PUT(
         job_status: 'approved',
         decommission_date: decommissionDate,
         annuity_end_date: annuityEndDate,
+        order_number: resolvedOrderNumber || clientQuote.order_number || null,
         move_to_role: resolvedMoveToRole || clientQuote.move_to_role || null,
         updated_at: new Date().toISOString(),
         updated_by: user.id
@@ -406,7 +481,8 @@ export async function PUT(
         data: {
           jobCardId: jobCard.id,
           jobNumber: jobCard.job_number,
-          originalQuoteId: id
+          originalQuoteId: id,
+          calibrationVehicleCount,
         }
       });
     }
@@ -462,6 +538,7 @@ export async function PUT(
       'vehicle_year',
       'vin_number',
       'odormeter',
+      'order_number',
       'quote_notes',
       'quote_email_subject',
       'quote_email_body',
@@ -474,6 +551,8 @@ export async function PUT(
       'quote_status',
       'job_status',
       'new_account_number',
+      'cost_center_code',
+      'cost_center_name',
       'account_id',
       'special_instructions',
       'work_notes'

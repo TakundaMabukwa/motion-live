@@ -64,6 +64,11 @@ function AccountDetailPageContent() {
   const router = useRouter();
   const accountId = params.id;
   const tab = searchParams.get("tab") || "dashboard";
+  const lookupMode = searchParams.get("lookup") || "";
+  const operationalSiteName = String(searchParams.get("site") || "").trim();
+  const sourceAccountNumber = String(searchParams.get("account") || "")
+    .trim()
+    .toUpperCase();
 
   const [customer, setCustomer] = useState(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -88,13 +93,14 @@ function AccountDetailPageContent() {
 
   useEffect(() => {
     if (accountId) {
-      if (lastLoadedAccountRef.current === String(accountId)) {
+      const loadContextKey = `${String(accountId)}::${lookupMode}::${operationalSiteName}::${sourceAccountNumber}`;
+      if (lastLoadedAccountRef.current === loadContextKey) {
         return;
       }
-      lastLoadedAccountRef.current = String(accountId);
+      lastLoadedAccountRef.current = loadContextKey;
       fetchCustomerData();
     }
-  }, [accountId]);
+  }, [accountId, lookupMode, operationalSiteName, sourceAccountNumber]);
 
   useEffect(() => {
     // Fetch vehicles when page changes (including page 1)
@@ -118,12 +124,33 @@ function AccountDetailPageContent() {
   const fetchCustomerData = async () => {
     try {
       // Since accountId is now a cost code (like DATA-0001), create a customer object from it
+      const accountPrefix = String(accountId || "").split("-")[0] || "";
+      const isOperationalLookup = lookupMode === "cost_center_code";
+      const effectiveAccountNumber =
+        isOperationalLookup && sourceAccountNumber
+          ? sourceAccountNumber
+          : String(accountId || "");
+      const displayName =
+        isOperationalLookup && operationalSiteName
+          ? operationalSiteName
+          : accountPrefix;
+
       const customerData = {
         id: accountId,
-        new_account_number: accountId,
-        company: accountId.split("-")[0], // Extract prefix (e.g., "DATA" from "DATA-0001")
-        legal_name: `${accountId.split("-")[0]} Cost Center`,
-        trading_name: `${accountId.split("-")[0]} Cost Center`,
+        new_account_number: effectiveAccountNumber,
+        cost_center_code: isOperationalLookup ? String(accountId || "") : null,
+        cost_center_name: operationalSiteName || null,
+        operational_cost_center_code: isOperationalLookup
+          ? String(accountId || "")
+          : null,
+        operational_cost_center_name: operationalSiteName || null,
+        company: displayName, // Show site name for operational lookup context
+        legal_name: isOperationalLookup
+          ? displayName
+          : `${accountPrefix} Cost Center`,
+        trading_name: isOperationalLookup
+          ? displayName
+          : `${accountPrefix} Cost Center`,
         email: null,
         cell_no: null,
         switchboard: null,
@@ -153,7 +180,7 @@ function AccountDetailPageContent() {
   };
 
   const fetchVehicles = async (page: number = 1) => {
-    const requestKey = `vehicles-${accountId}-${page}`;
+    const requestKey = `vehicles-${accountId}-${lookupMode || "default"}-${sourceAccountNumber || "none"}-${page}`;
 
     // Check if request is already in progress
     if (activeRequests.has(requestKey)) {
@@ -175,10 +202,19 @@ function AccountDetailPageContent() {
       setVehiclesLoading(true);
 
       // Use the account-specific vehicles API endpoint with pagination
-      const response = await fetch(
-        `/api/vehicles-by-account?account_number=${encodeURIComponent(accountId)}&page=${page}&limit=30`,
-        { cache: "no-store" },
-      );
+      const vehicleParams = new URLSearchParams({
+        account_number: String(accountId),
+        page: String(page),
+        limit: "30",
+      });
+
+      if (lookupMode) {
+        vehicleParams.set("lookup_mode", lookupMode);
+      }
+
+      const response = await fetch(`/api/vehicles-by-account?${vehicleParams.toString()}`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -678,7 +714,11 @@ function AccountDetailPageContent() {
     <div className="space-y-6 p-6">
       <DashboardHeader
         title={customer.company || customer.trading_name || customer.legal_name}
-        subtitle={`Account #${customer.new_account_number || accountId}`}
+        subtitle={
+          lookupMode === "cost_center_code" && operationalSiteName
+            ? `Site: ${operationalSiteName} (${accountId})`
+            : `Account #${customer.new_account_number || accountId}`
+        }
         icon={Building}
         actionButton={{
           label: "Main Dashboard",

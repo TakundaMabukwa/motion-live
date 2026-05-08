@@ -42,6 +42,7 @@ const PRODUCT_FILTERS_CACHE = {
   fetchedAt: 0,
 };
 const PRODUCT_ITEMS_CACHE = new Map();
+const VAT_RATE = 0.15;
 
 const normalizeJobTypeValue = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -56,6 +57,7 @@ const normalizeJobTypeValue = (value) => {
     return "item_billing";
   }
   if (normalized === "recovery") return "recovery";
+  if (normalized.includes("calibration")) return "calibration";
   if (normalized.includes("deinstall") || normalized.includes("de-install")) {
     return "deinstall";
   }
@@ -71,6 +73,7 @@ const normalizeJobSubTypeValue = (value, normalizedJobType) => {
 
   if (normalizedJobType === "recovery") return "recovery";
   if (normalizedJobType === "item_billing") return "item_billing";
+  if (normalizedJobType === "calibration") return "calibration";
 
   if (normalizedJobType === "deinstall") {
     if (normalized.includes("decommission")) return "decommission";
@@ -192,6 +195,9 @@ export default function ClientQuoteForm({
   });
   const [itemBillingQuote, setItemBillingQuote] = useState({
     item: "",
+    amount: "",
+  });
+  const [calibrationQuote, setCalibrationQuote] = useState({
     amount: "",
   });
   // De-install specific state
@@ -475,6 +481,45 @@ export default function ClientQuoteForm({
     };
   }, [parseItemBillingAmount]);
 
+  const parseCalibrationAmount = useCallback((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+  }, []);
+
+  const buildCalibrationProduct = useCallback(
+    (amountValue) => {
+      const amountExVat = parseCalibrationAmount(amountValue);
+      return {
+        id: "calibration-line",
+        name: "Calibration",
+        description:
+          amountExVat > 0
+            ? `Calibration - R${amountExVat.toFixed(2)} ex VAT`
+            : "Calibration",
+        type: "Service",
+        category: "Calibration",
+        code: "CALIBRATION",
+        quantity: 1,
+        purchaseType: "purchase",
+        isLabour: true,
+        isCalibration: true,
+        cashPrice: amountExVat,
+        cashDiscount: 0,
+        rentalPrice: 0,
+        rentalDiscount: 0,
+        installationPrice: 0,
+        installationDiscount: 0,
+        deInstallationPrice: 0,
+        deInstallationDiscount: 0,
+        subscriptionPrice: 0,
+        subscriptionDiscount: 0,
+        annuityEndDate: "",
+        detailValue: "",
+      };
+    },
+    [parseCalibrationAmount],
+  );
+
   const steps = [
     {
       id: 0,
@@ -552,7 +597,11 @@ export default function ClientQuoteForm({
     );
 
     const deserialize = (p) => ({
-      id: p.id || `item-${Math.random().toString(36).slice(2)}`,
+      id:
+        p.id ||
+        (normalizedJobType === "calibration"
+          ? "calibration-line"
+          : `item-${Math.random().toString(36).slice(2)}`),
       name: p.name || p.product || p.description || "",
       description: p.description || "",
       type: p.type || "",
@@ -575,6 +624,7 @@ export default function ClientQuoteForm({
       annuityEndDate: p.annuity_end_date || p.annuityEndDate || "",
       vehicleId: p.vehicle_id || null,
       vehiclePlate: p.vehicle_plate || null,
+      isCalibration: normalizedJobType === "calibration",
     });
 
     setFormData((prev) => ({
@@ -693,6 +743,32 @@ export default function ClientQuoteForm({
       setItemBillingQuote({
         item: billedItem,
         amount: billedAmount > 0 ? String(billedAmount) : "",
+      });
+    }
+
+    if (normalizedJobType === "calibration") {
+      const firstItem = existingItems[0] || {};
+      const parsedQuantity =
+        Number(
+          firstItem.quantity ||
+          firstItem.detail_value ||
+          firstItem.detailValue ||
+          0,
+        ) || 0;
+      const parsedTotal =
+        Number(
+          firstItem.total_price ||
+          firstItem.cash_price ||
+          firstItem.cashPrice ||
+          0,
+        ) || 0;
+      const amountPerVehicle =
+        parsedQuantity > 0
+          ? Number((parsedTotal / parsedQuantity).toFixed(2))
+          : parsedTotal;
+
+      setCalibrationQuote({
+        amount: amountPerVehicle > 0 ? String(amountPerVehicle) : "",
       });
     }
 
@@ -831,6 +907,31 @@ export default function ClientQuoteForm({
     });
   }, [formData.jobType, recoveryQuote.hours, recoveryQuote.amount, buildRecoveryProduct]);
 
+  useEffect(() => {
+    if (formData.jobType !== "calibration") return;
+
+    const hasAmount = parseCalibrationAmount(calibrationQuote.amount) > 0;
+    if (!hasAmount) {
+      setSelectedProducts((prev) =>
+        (prev || []).filter((product) => product.id !== "calibration-line"),
+      );
+      return;
+    }
+
+    const calibrationProduct = buildCalibrationProduct(calibrationQuote.amount);
+    setSelectedProducts((prev) => {
+      const remainingProducts = (prev || []).filter(
+        (product) => product.id !== "calibration-line",
+      );
+      return [calibrationProduct, ...remainingProducts];
+    });
+  }, [
+    formData.jobType,
+    calibrationQuote.amount,
+    buildCalibrationProduct,
+    parseCalibrationAmount,
+  ]);
+
   const fetchProductItems = useCallback(async () => {
     let cacheKey = "__all__";
     setLoadingProducts(true);
@@ -903,7 +1004,12 @@ export default function ClientQuoteForm({
 
   // Separate effect for product filters
   useEffect(() => {
-    if (formData.jobType && formData.jobType !== 'recovery' && formData.jobType !== 'item_billing') {
+    if (
+      formData.jobType &&
+      formData.jobType !== 'recovery' &&
+      formData.jobType !== 'item_billing' &&
+      formData.jobType !== 'calibration'
+    ) {
       fetchProductItems();
     }
   }, [formData.jobType, selectedType, selectedCategory, debouncedSearchTerm, fetchProductItems]);
@@ -1063,6 +1169,11 @@ export default function ClientQuoteForm({
     return selectedProducts.reduce((total, product) => total + getProductTotal(product), 0);
   }, [selectedProducts, getProductTotal]);
 
+  const calibrationAmountExVat = useMemo(
+    () => parseCalibrationAmount(calibrationQuote.amount),
+    [calibrationQuote.amount, parseCalibrationAmount],
+  );
+
   const canProceed = () => {
     switch (currentStep) {
       case 0:
@@ -1091,6 +1202,10 @@ export default function ClientQuoteForm({
             Boolean(String(itemBillingQuote.item || "").trim()) &&
             Number(itemBillingQuote.amount) > 0
           );
+        }
+
+        if (formData.jobType === 'calibration') {
+          return calibrationAmountExVat > 0;
         }
         
         // For all non-deinstall jobs, require selected products
@@ -1307,12 +1422,14 @@ export default function ClientQuoteForm({
           ? [buildRecoveryProduct(recoveryQuote.hours, recoveryQuote.amount)]
           : formData.jobType === "item_billing"
             ? [buildItemBillingProduct(itemBillingQuote.item, itemBillingQuote.amount)]
+            : formData.jobType === "calibration"
+              ? [buildCalibrationProduct(calibrationQuote.amount)]
           : (selectedProducts || []);
 
       const quotationProducts = productsToSerialize.map(serializeProductForQuote);
       const subtotal = quotationProducts.reduce((sum, product) => sum + (product.total_price || 0), 0);
 
-      const vatAmount = subtotal * 0.15; // 15% VAT
+      const vatAmount = subtotal * VAT_RATE;
       const totalAmount = subtotal + vatAmount;
 
       const quotationData = {
@@ -1344,6 +1461,16 @@ export default function ClientQuoteForm({
         
         // Account information (for internal quotes)
         new_account_number: accountInfo?.new_account_number || customer?.new_account_number || null,
+        cost_center_code:
+          accountInfo?.cost_center_code ||
+          customer?.cost_center_code ||
+          accountInfo?.operational_cost_center_code ||
+          null,
+        cost_center_name:
+          accountInfo?.cost_center_name ||
+          customer?.cost_center_name ||
+          accountInfo?.operational_cost_center_name ||
+          null,
         
         // De-install specific data - capture selected vehicles and their details with parts being removed
         ...(formData.jobType === 'deinstall' && {
@@ -1428,6 +1555,16 @@ export default function ClientQuoteForm({
         quotation_subtotal: subtotal,
         quotation_vat_amount: vatAmount,
         quotation_total_amount: totalAmount,
+        cost_center_code:
+          accountInfo?.cost_center_code ||
+          customer?.cost_center_code ||
+          accountInfo?.operational_cost_center_code ||
+          null,
+        cost_center_name:
+          accountInfo?.cost_center_name ||
+          customer?.cost_center_name ||
+          accountInfo?.operational_cost_center_name ||
+          null,
       };
 
       const initialQuoteHas = (field) =>
@@ -1596,6 +1733,7 @@ export default function ClientQuoteForm({
         setSelectedProducts([]);
         setRecoveryQuote({ hours: "", amount: "" });
         setItemBillingQuote({ item: "", amount: "" });
+        setCalibrationQuote({ amount: "" });
         setSearchTerm("");
         setSelectedType("all");
         setSelectedCategory("all");
@@ -1679,29 +1817,44 @@ export default function ClientQuoteForm({
                             ? "recovery"
                             : value === "item_billing"
                               ? "item_billing"
+                              : value === "calibration"
+                                ? "calibration"
                               : "",
                         purchaseType:
-                          value === "recovery" || value === "item_billing"
+                          value === "recovery" || value === "item_billing" || value === "calibration"
                             ? "purchase"
                             : prev.purchaseType,
+                        description:
+                          value === "calibration" && !String(prev.description || "").trim()
+                            ? "Calibration"
+                            : prev.description,
                       }));
                       if (value === "recovery") {
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
                         setItemBillingQuote({ item: "", amount: "" });
+                        setCalibrationQuote({ amount: "" });
                       } else if (value === "item_billing") {
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
                         setItemBillingQuote({ item: "", amount: "" });
+                        setCalibrationQuote({ amount: "" });
+                      } else if (value === "calibration") {
+                        setSelectedProducts([]);
+                        setRecoveryQuote({ hours: "", amount: "" });
+                        setItemBillingQuote({ item: "", amount: "" });
+                        setCalibrationQuote({ amount: "" });
                       } else {
                         setSelectedProducts((prev) =>
                           (prev || []).filter(
                             (product) =>
                               product.id !== "recovery-line" &&
-                              product.id !== "item-billing-line"
+                              product.id !== "item-billing-line" &&
+                              product.id !== "calibration-line"
                           )
                         );
                         setItemBillingQuote({ item: "", amount: "" });
+                        setCalibrationQuote({ amount: "" });
                       }
                       setHasUserSelectedJobType(true);
                     }}
@@ -1714,6 +1867,7 @@ export default function ClientQuoteForm({
                       <SelectItem value="deinstall">De-installation</SelectItem>
                       <SelectItem value="recovery">Recovery</SelectItem>
                       <SelectItem value="item_billing">Once Off Item</SelectItem>
+                      <SelectItem value="calibration">Calibration</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1744,6 +1898,8 @@ export default function ClientQuoteForm({
                           <SelectItem value="recovery">Recovery</SelectItem>
                         ) : formData.jobType === 'item_billing' ? (
                           <SelectItem value="item_billing">Once Off Item</SelectItem>
+                        ) : formData.jobType === 'calibration' ? (
+                          <SelectItem value="calibration">Calibration</SelectItem>
                         ) : null}
                       </SelectContent>
                     </Select>
@@ -2050,8 +2206,35 @@ export default function ClientQuoteForm({
               </Card>
             )}
 
+            {formData.jobType === "calibration" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Calibration Quote Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2 max-w-md">
+                    <Label htmlFor="calibrationAmountExVat">Amount Ex VAT *</Label>
+                    <Input
+                      id="calibrationAmountExVat"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter amount ex VAT"
+                      value={calibrationQuote.amount}
+                      onChange={(e) =>
+                        setCalibrationQuote((prev) => ({
+                          ...prev,
+                          amount: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Product Selection */}
-            {formData.jobType && formData.jobType !== "recovery" && formData.jobType !== "item_billing" && (
+            {formData.jobType && formData.jobType !== "recovery" && formData.jobType !== "item_billing" && formData.jobType !== "calibration" && (
               <Card>
                 <CardHeader>
                   <CardTitle>{formData.jobType === 'deinstall' ? 'Add Products' : 'Product Selection'}</CardTitle>
@@ -2272,7 +2455,7 @@ export default function ClientQuoteForm({
             )}
 
             {/* Selected Products */}
-            {formData.jobType !== "recovery" && formData.jobType !== "item_billing" && (selectedProducts || []).length > 0 && (
+            {formData.jobType !== "recovery" && formData.jobType !== "item_billing" && formData.jobType !== "calibration" && (selectedProducts || []).length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>Selected Products</CardTitle>
