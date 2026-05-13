@@ -89,13 +89,15 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch completed jobs where role is 'fc'.
-    // Some rows are legacy and only have status='completed', so include both fields.
+    // Fetch FC-bound jobs for review (case-insensitive at DB level).
+    // Include both:
+    // 1) role='fc' (normal path), and
+    // 2) move_to='fc' (legacy / partially moved records).
+    // Completion is checked in code so we can handle inconsistent casing/spacing.
     const { data, error } = await supabase
       .from("job_cards")
       .select(COMPLETED_JOB_FIELDS)
-      .eq("role", "fc")
-      .or("job_status.eq.Completed,job_status.eq.completed,status.eq.Completed,status.eq.completed")
+      .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc")
       .order("completion_date", { ascending: false });
 
     if (error) {
@@ -106,9 +108,23 @@ export async function GET() {
       );
     }
 
-    const jobs = (data || []).filter(
-      (job) => String(job.escalation_role || "").toLowerCase() !== "fc",
-    );
+    const normalizeToken = (value: unknown) =>
+      String(value || "").trim().toLowerCase();
+
+    const jobs = (data || []).filter((job) => {
+      const status = normalizeToken(job.status);
+      const jobStatus = normalizeToken(job.job_status);
+      const role = normalizeToken(job.role);
+      const moveTo = normalizeToken(job.move_to);
+      const escalationRole = normalizeToken(job.escalation_role);
+      const isCompleted = status === "completed" || jobStatus === "completed";
+
+      const belongsToFcReview =
+        role === "fc" || moveTo === "fc" || escalationRole === "fc";
+      if (!belongsToFcReview) return false;
+      if (!isCompleted) return false;
+      return true;
+    });
     const creatorIds = Array.from(
       new Set(
         jobs
