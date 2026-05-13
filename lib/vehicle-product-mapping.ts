@@ -116,7 +116,7 @@ const PRODUCT_MAPPING_RULES: ProductMappingRule[] = [
   { kind: "direct", field: "adas_02_road_facing", aliases: ["road_facing_adas_camera", "road_facing_adas_cam", "pdc_camera"], ids: ["701686b7-e764-48e8-a7e7-dfc4f3e9d3c7"], category: ["camera_equipment", "dashcam"] },
   { kind: "direct", field: "dms01_driver_facing", aliases: ["driver_facing_camera_no_ai", "driver_facing_a_pillar", "dashcam_cab_facing"], category: ["camera_equipment", "dashcam"] },
   { kind: "direct", field: "a2_dash_cam", aliases: ["dashcam_forward_facing"], category: ["dashcam"] },
-  { kind: "direct", field: "mtx_mc202x", aliases: ["mtx_mtx_mc202x", "mtx_mc202x", "mtx_mc202_eu", "4g_dashcam_mc202"], ids: ["b5bdde21-b25b-4433-852b-dfcb36b2a1cb", "3017be68-7cde-49a2-a54b-a9967b530e47"], type: ["mtx_camera"], category: ["camera_equipment"] },
+  { kind: "direct", field: "mtx_mc202x", aliases: ["mtx_mtx_mc202x", "mtx_mc202x", "mtx_mc202_eu", "4g_dashcam_mc202", "mtx_mc401", "4g_dashcam_4ch"], ids: ["b5bdde21-b25b-4433-852b-dfcb36b2a1cb", "3017be68-7cde-49a2-a54b-a9967b530e47", "9d89891d-9075-4417-916a-7b55c1c425fb"], type: ["mtx_camera"], category: ["camera_equipment"] },
   { kind: "direct", field: "main_fm_harness", aliases: ["starlink_spare_harness"], category: ["module"] },
   { kind: "direct", field: "corpconnect_sim_no", aliases: ["sim_card_camera_corpconnect"], category: ["sim"] },
   { kind: "direct", field: "corpconnect_data_no", aliases: ["m2m_data_card"], category: ["sim"] },

@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "mode": "dry-run",
+    "csv": "C:\\Users\\mabuk\\Desktop\\Dashboards\\motion-live\\tmp\\no-reg-no-vehicle-match-recurring-lines-from-jobcards.csv",
+    "invoice_filter_size": 0,
+    "job_filter_size": 41,
+    "source_rows": 2,
+    "selected_rows": 2,
+    "recurring_rows": 2,
+    "vehicle_plans": 4,
+    "updated_rows": 4,
+    "created_rows": 0,
+    "skipped_rows": 0
+  },
+  "skips": [],
+  "preview": [
+    {
+      "table": "vehicles",
+      "reg": "TEMP40883",
+      "account_number": "ENER-0001",
+      "row_id": 132264,
+      "created": false,
+      "source_groups": [
+        "SOL-930914|ENER-0001|"
+      ],
+      "updates": {
+        "additional_data": 0.7
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 0.35
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP40883",
+      "account_number": "ENER-0001",
+      "row_id": 132105,
+      "created": false,
+      "source_groups": [
+        "SOL-930914|ENER-0001|"
+      ],
+      "updates": {
+        "additional_data": 0.7
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 0.35
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TEMP80320",
+      "account_number": "EDGE-0001",
+      "row_id": 132343,
+      "created": false,
+      "source_groups": [
+        "SOL-457225|EDGE-0001|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP80320",
+      "account_number": "EDGE-0001",
+      "row_id": 132171,
+      "created": false,
+      "source_groups": [
+        "SOL-457225|EDGE-0001|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    }
+  ]
+}

@@ -1,0 +1,358 @@
+id,job_number,status,job_status,account,reg,state,match_mode,invoice_done,completion_date
+ea5a1d54-cf27-482b-9934-f163734c332e,SOL-128558,completed,Invoiced,DCCT-0001,DATA -UPLOAD - B876BBA,missing,account-only-no-reg-match,true,2026-05-12T10:26:34.255+00:00
+880301b4-870c-439f-bf82-c69527682eb5,SOL-738912,completed,Invoiced,MNFU-0001,ML51ZVGP,matched,account+reg,true,2026-05-11T13:11:07.889+00:00
+8378cac3-ccd1-4fdf-a9e0-36b4f6131864,SOL-563366,completed,Invoiced,SGMO-0008,KY94JSGP,missing,reg-account-mismatch,true,2026-05-11T11:27:17.872+00:00
+d7c92c87-6f80-4b7d-85a8-02caf517a219,SOL-432046,completed,Invoiced,HITA-0001,,missing,no-reg,true,2026-05-08T13:14:48.441+00:00
+2a6fdbbb-26e8-47e1-961d-b0987bbbbe15,SOL-437932,completed,Invoiced,HITA-0001,MS53KYGP,matched,account+reg,true,2026-05-08T12:06:11.784+00:00
+4fbe8a6a-9ce4-4a8c-a98f-26ad3af07ce7,SOL-447800,completed,Invoiced,MACS-0023,VLK687GP,missing,no-vehicle-match,true,2026-05-11T07:10:53.569507+00:00
+06026a28-d544-4ffe-a40d-872f8d6d1131,SOL-250018,completed,Invoiced,EDGE-0008,TEMP007102,matched,account+reg,true,2026-05-08T06:23:23.554352+00:00
+e2c388cf-72ef-469a-a61d-6225e90d00cf,SOL-294370,completed,Invoiced,ALST-0001,,missing,no-reg,true,2026-05-07T10:19:03.110127+00:00
+f81a7b00-d24f-4ef6-abec-b5b46588c1b8,SOL-651530,completed,Invoiced,EPSC-0002,DATA UPLOAD - JF74YXGP,missing,account-only-no-reg-match,true,2026-05-11T11:48:16.663+00:00
+d8a3ea46-3dba-4034-b0a3-fa569de5e6ae,SOL-390568,completed,Invoiced,MACS-0024,CY313187 - T313,missing,account-only-no-reg-match,true,2026-05-08T10:33:03.369348+00:00
+9de8cbf2-f5da-4757-a6e4-3ad9f6b11a9b,SOL-398788,completed,Invoiced,MACS-0024,CY128560 - T310,missing,account-only-no-reg-match,true,2026-05-08T10:34:12.00272+00:00
+4edb47c5-a3fb-4dd3-b743-36f62d0b9724,SOL-138082,completed,Invoiced,MACS-0024,CY156073,matched,account+reg,true,2026-05-08T10:33:46.442078+00:00
+598ab30c-1a31-414b-b5fc-9dc1b11c3312,SOL-325091,completed,Invoiced,MACS-0037,CY433480,missing,no-vehicle-match,true,2026-05-08T10:02:38.770363+00:00
+a75081c0-2ab7-41e7-8701-ab270616dac4,SOL-163703,completed,Invoiced,MACS-0025,BG90DHZN,missing,no-vehicle-match,true,2026-05-08T11:17:11.194+00:00
+420e4208-f0b6-42bf-9daa-95700f70026d,SOL-192903,completed,Invoiced,MACS-0025,BG90DHZN,missing,no-vehicle-match,true,2026-05-08T11:16:33.645216+00:00
+22ee3a72-5c36-4e8d-82aa-1b46ef9a2446,SOL-414485,completed,Invoiced,EDGE-0008,CF208819,matched,account+reg,true,2026-05-08T09:22:34.611234+00:00
+a8f7f0c5-f7d6-4260-be78-a800b1e13353,SOL-391751,completed,Invoiced,EDGE-0008,VDV222WP,matched,account+reg,true,2026-05-08T09:20:19.715579+00:00
+d8373104-14cf-4437-b839-41d6e87cf111,SOL-617357,completed,Invoiced,WACA-0001,KC31RGGP - CAN AND BUZZER INSTALL,missing,no-vehicle-match,true,2026-05-08T09:22:41.972801+00:00
+bf4fac81-9c83-4476-8154-df21de6c43d4,SOL-341372,completed,Invoiced,FUSP-0001,HV97GMGP,matched,account+reg,true,2026-05-07T12:58:29.719787+00:00
+308164bd-0e8a-4f75-aef4-705046c178d2,SOL-731271,completed,Invoiced,EDGE-0008,CF217086,matched,account+reg,true,2026-05-08T09:14:17.142711+00:00
+c1edae2e-6072-4249-a49d-a4819d2b2ec4,SOL-825729,completed,Invoiced,DCCT-0001,NEW DASHCAM INSTALL - MD36TGGP,matched,account+reg,true,2026-05-08T09:15:09.305563+00:00
+d6dec133-a8fa-4691-92f5-84be11f216f2,SOL-655523,completed,Invoiced,DCCT-0001,NEW DASH INSTAALL - LW02LZGP,matched,account+reg,true,2026-05-08T09:15:33.953202+00:00
+cdc19ea2-13ca-4e57-92b6-5f09d9730911,SOL-861668,completed,Invoiced,TACI-0001,B557BXN,matched,account+reg,true,2026-05-07T13:48:49.160683+00:00
+dc7e2b5f-bbeb-4634-a547-d38decd26aa9,SOL-420987,completed,Invoiced,MACS-0026,JM47FKGP,matched,account+reg,true,2026-05-07T11:42:30.887+00:00
+3c581958-8197-4c29-b3a7-e6336972f4db,SOL-973317,completed,Invoiced,MACS-0026,JM47FKGP,matched,account+reg,true,2026-05-07T09:43:31.297546+00:00
+95dcc882-aac9-4c9b-9df1-08a2f1453311,SOL-526962,completed,Invoiced,EDGE-0008,CF79009,matched,account+reg,true,2026-05-08T09:08:27.585+00:00
+5e560c69-323f-4788-8498-94f441559801,SOL-389706,completed,Invoiced,ALST-0001,CH835580,matched,account+reg,true,2026-05-12T05:16:50.280649+00:00
+f125ac71-32f0-4c62-a050-b50e9d00cc47,SOL-625531,completed,Invoiced,ALST-0001,CH835877,matched,account+reg,true,2026-05-12T05:17:39.808955+00:00
+2055a5a3-0b9e-4b55-b35a-8c31d475d915,SOL-171883,completed,Invoiced,ALST-0001,CH835579,matched,account+reg,true,2026-05-12T05:18:19.833652+00:00
+90158539-a3f4-49fd-ad1c-258332212ec6,SOL-845455,completed,Invoiced,EDGE-0008,CF264572,matched,account+reg,true,2026-05-08T09:08:17.079+00:00
+0c73c22c-6d23-4031-9e7f-dcbaa10b59b7,SOL-355216,completed,Invoiced,EDGE-0008,CF265883,matched,account+reg,true,2026-05-08T09:08:01.339+00:00
+0e58b86f-c55d-4c52-a368-4884a55d4991,SOL-481775,completed,Invoiced,EDGE-0008,CF330213,matched,account+reg,true,2026-05-08T09:08:10.035+00:00
+be27f449-20a5-4fb9-b993-9005aa752d6f,SOL-308570,completed,Invoiced,EDGE-0008,TEMP994491,matched,account+reg,true,2026-05-08T09:07:57.867+00:00
+a7a762f9-b3c7-408e-a10a-60c8a5fde477,SOL-256797,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-05-05T06:36:05.454828+00:00
+40592b37-a100-4ae0-b72d-205f5efd5a7b,SOL-202262,completed,Invoiced,EDGE-0019,CK39697,missing,account-only-no-reg-match,true,2026-05-05T06:36:05.458613+00:00
+36f01492-eed1-41be-a156-35a2b2a952bf,SOL-855098,completed,Invoiced,EDGE-0019,CK34389,missing,account-only-no-reg-match,true,2026-05-05T06:36:03.461203+00:00
+5e2706e2-5414-415b-b8db-07cd44288cfe,SOL-951286,completed,Invoiced,AVVA-0001,LR72ZSGP,matched,account+reg,true,2026-05-05T10:48:25.935261+00:00
+835c057e-a89e-4f07-9ed4-a65d62678355,SOL-248390,completed,Invoiced,EDGE-0019,CK47049,missing,account-only-no-reg-match,true,2026-05-04T12:31:03.429987+00:00
+de95355a-0876-48b6-a7c4-940055a306b7,SOL-787902,completed,Invoiced,EDGE-0019,CM01BTZN,missing,account-only-no-reg-match,true,2026-05-04T12:31:05.044776+00:00
+c734c8d0-d7b0-48a2-bcd5-62b99d002e7f,SOL-408584,completed,Invoiced,EDGE-0019,CK34389,missing,account-only-no-reg-match,true,2026-05-04T12:31:09.121073+00:00
+532da3d3-f3b7-45b3-9f78-7673d4f8caba,SOL-111319,completed,Invoiced,EDGE-0019,CK31983,missing,account-only-no-reg-match,true,2026-05-04T12:31:25.036125+00:00
+ee9e77ae-ef5d-4222-ba25-68ccabd842ca,SOL-526549,completed,Invoiced,EDGE-0019,CK47049,missing,account-only-no-reg-match,true,2026-05-04T12:31:30.357095+00:00
+abcbecbd-8104-4db2-a013-45eec50f4474,SOL-768816,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-05-04T12:31:36.111536+00:00
+bec6bd2d-a509-4037-ba84-351431aa4412,SOL-281508,completed,Invoiced,TTEX-0001,,missing,no-reg,true,2026-05-04T11:09:22.263+00:00
+0dd10bc8-89b4-4c94-b4c5-26a84964d860,SOL-716441,completed,Invoiced,TTFM-0001,,missing,no-reg,true,2026-05-04T11:04:53.033+00:00
+a01a56b9-7f00-4c19-9eff-4d7656e7dd1c,SOL-979367,completed,Invoiced,TTLI-0001,,missing,no-reg,true,2026-05-04T10:57:59.675+00:00
+81a1c8a5-59ba-4013-964c-b8a638469ca1,SOL-881439,completed,Invoiced,TLOG-0001,,missing,no-reg,true,2026-05-04T10:46:26.163+00:00
+428d9821-b67f-43e5-a81d-f0cd32aa8380,SOL-689847,completed,Invoiced,TLOG-0001,NA,missing,account-only-no-reg-match,true,2026-05-04T10:28:11.219+00:00
+972a51a7-809c-4ffb-936c-1c16b6254f6a,SOL-115558,completed,Invoiced,NOVU-0001,BV62VBGP,matched,account+reg,true,2026-05-04T11:13:34.391057+00:00
+9cb1b2a8-be44-4afa-8b5f-402dab58cbf2,SOL-689737,completed,Invoiced,HITA-0001,,missing,no-reg,true,2026-04-30T13:42:10.835+00:00
+a190a93a-f95a-4738-b8d0-a6a343e8f4bd,SOL-417776,completed,Invoiced,TTEX-0001,,missing,no-reg,true,2026-04-30T13:36:56.204+00:00
+35769aff-b0c1-4de1-8cb3-b3be07111763,SOL-960887,completed,Invoiced,TTFM-0001,,missing,no-reg,true,2026-04-30T13:35:06.876+00:00
+39a0f693-47ef-4400-b687-25afd9fd97be,SOL-663404,completed,Invoiced,TTLI-0001,,missing,no-reg,true,2026-04-30T13:33:37.508+00:00
+ca556f63-ba37-4cc1-977b-876b1fd9ffb2,SOL-788317,completed,Invoiced,TLOG-0001,,missing,no-reg,true,2026-04-30T13:31:36.753+00:00
+f0ccbb84-c32d-4547-adfe-7f4d5b30a530,SOL-559683,completed,Invoiced,LECO-0001,,missing,no-reg,true,2026-04-30T13:26:27.483+00:00
+d6e65540-40b8-48ba-b3a4-d594dbcb71ac,SOL-931061,completed,Invoiced,ENER-0001,,missing,no-reg,true,2026-04-30T12:24:17.80985+00:00
+a4a407d5-118f-460b-93bb-202da039867a,SOL-111660,completed,Invoiced,AUMA-0001,MW25XKGP,matched,account+reg,true,2026-05-08T11:40:10.173845+00:00
+ce9e387d-ec66-4f66-9b6d-fb7f3a7c4ff8,SOL-157603,completed,Invoiced,AUMA-0001,HP07HJGP,matched,account+reg,true,2026-05-08T11:40:15.866373+00:00
+bca7cd5a-090b-4c27-b488-2abf673ebffd,SOL-294857,completed,Invoiced,MIXT-0001,HX05FRVGP,missing,account-only-no-reg-match,true,2026-05-08T06:50:45.092016+00:00
+633d1271-e85e-4e6a-879a-f1584bd41e13,SOL-632922,completed,Invoiced,MIXT-0001,BF89XTGP ,matched,account+reg,true,2026-05-08T06:50:56.326329+00:00
+8c983188-a27e-4af9-bd87-b754780de4af,SOL-386693,completed,Invoiced,MIXT-0001,WNG310GP,matched,account+reg,true,2026-05-08T06:57:33.746645+00:00
+d9e317d5-d3f6-43ab-a117-ec72d6befebe,SOL-594909,completed,Invoiced,MIXT-0001,JS84NRGP,matched,account+reg,true,2026-05-08T06:56:43.063662+00:00
+c92e6342-b628-4c1c-b9b9-a209a68e9b2d,SOL-745310,completed,Invoiced,MIXT-0001,BK55SZN,matched,account+reg,true,2026-05-08T06:56:16.702854+00:00
+f14cb50d-b758-4f02-bf5f-657247569f61,SOL-318944,completed,Invoiced,MIXT-0001,NR35018,missing,account-only-no-reg-match,true,2026-05-08T06:51:32.420062+00:00
+1d0cba7b-d349-4228-ab3f-0dfb2805b8e6,SOL-741254,completed,Invoiced,AVIS-0001,LJ81FXGP,missing,reg-account-mismatch,true,2026-05-05T06:19:57.479273+00:00
+bd8d9857-5a73-4bad-a6fd-9d08bba62117,SOL-567489,completed,Invoiced,PRCR-0001,CHDB8904,matched,account+reg,true,2026-05-06T06:32:20.5452+00:00
+7148af5e-8d99-4d3c-888f-1cad77173723,SOL-171851,completed,Invoiced,AVIS-0001,LC37LYGP,missing,reg-account-mismatch,true,2026-05-06T06:34:16.269533+00:00
+2567b6ed-4743-43d0-be45-93448ee2970a,SOL-274654,completed,Invoiced,AVIS-0001,LP36PNGP,missing,reg-account-mismatch,true,2026-05-06T06:35:50.344228+00:00
+fc9d721a-34c7-4082-b8c9-cf8ac3eb90a8,SOL-651559,completed,Invoiced,AVIS-0001,LP36PPGP,missing,reg-account-mismatch,true,2026-05-06T06:36:31.910238+00:00
+60d6884b-b75e-4b72-a101-dae5f146d3ad,SOL-450346,completed,Invoiced,DONB-0001,VYJ790GP,matched,account+reg,true,2026-05-11T06:57:15.098829+00:00
+59e0d885-cc31-4a0e-ae8e-40dff72bab3b,SOL-809108,completed,Invoiced,AVIS-0001,KW06LZGP,missing,reg-account-mismatch,true,2026-05-06T06:37:44.291469+00:00
+fcc8de80-a009-4f12-8ab2-d95daacba896,SOL-741400,completed,Invoiced,AVIS-0001,LC37LYGP,missing,reg-account-mismatch,true,2026-05-06T06:37:03.263538+00:00
+77333b73-5e6f-4751-898b-0f17175dbefc,SOL-827447,completed,Invoiced,AVIS-0001,KZ35BJGP,missing,no-vehicle-match,true,2026-05-06T06:38:56.319288+00:00
+2ae5a0ad-3b88-4774-9e04-b102364c3e96,SOL-205845,completed,Invoiced,AVIS-0001,LH53ZTGP,missing,reg-account-mismatch,true,2026-05-06T06:39:45.195288+00:00
+9b457d1b-826c-49ea-9ac8-1c69653da637,SOL-703753,completed,Invoiced,EDGE-0004,LM23LRGP,matched,account+reg,true,2026-05-06T06:39:21.685552+00:00
+7afba628-54af-4bd6-b716-0b4407ad5294,SOL-182636,completed,Invoiced,EDGE-0031,DLTB85WP,matched,account+reg,true,2026-05-06T06:39:31.810422+00:00
+fc3aac55-9085-4ca4-8c71-8c5f36efc48b,SOL-610343,completed,Invoiced,EDGE-0018,CAA540504,matched,account+reg,true,2026-05-06T06:39:42.214111+00:00
+f65c8f56-b5ef-4c33-adbd-05b9939d527c,SOL-509726,completed,Invoiced,EDGE-0018,CAA540501,matched,account+reg,true,2026-05-06T06:40:04.130533+00:00
+7966b9a1-22d9-4b7e-827f-bcc6e0682213,SOL-943955,completed,Invoiced,EDGE-0018,CAA485180,matched,account+reg,true,2026-05-06T06:40:12.251381+00:00
+8734e8b5-c875-4f72-b52c-e7269341c774,SOL-725643,completed,Invoiced,EDGE-0018,CAA330323,matched,account+reg,true,2026-05-06T06:40:21.287671+00:00
+88cd130a-71f3-4fd0-9b06-2234dcca96ce,SOL-495571,completed,Invoiced,TACI-0001,B413BOT,matched,account+reg,true,2026-05-07T09:03:46.386409+00:00
+4736e570-8b24-4d88-8f0a-d2089ba6c114,SOL-137849,completed,Invoiced,EPSC-0002,DATA UPLOAD - MW90NSGP,missing,account-only-no-reg-match,true,2026-05-08T09:16:44.843312+00:00
+0e52d60a-a635-4efb-a641-33bebc72ee7b,SOL-337799,completed,Invoiced,EDGE-0005,KB74YMGP,matched,account+reg,true,2026-05-06T06:40:38.735892+00:00
+a955be1b-810d-43ae-9da0-7d573babfca6,SOL-432967,completed,Invoiced,EDGE-0005,CY32YVGP,matched,account+reg,true,2026-05-06T06:40:47.004678+00:00
+488ecfcf-a47f-4f9d-9ce5-8af56f6c09a5,SOL-645863,completed,Invoiced,EDGE-0005,FP49KRGP,matched,account+reg,true,2026-05-06T06:40:54.540657+00:00
+333c5573-68f8-49ea-a08d-ede3e19c913f,SOL-294155,completed,Invoiced,PRCR-0001,KXH512MP - CB26,missing,account-only-no-reg-match,true,2026-05-06T09:18:52.386425+00:00
+d472b83c-457d-45be-98d6-9ef38962438a,SOL-152976,completed,Invoiced,PRCR-0001,KVR581MP - CB02,missing,account-only-no-reg-match,true,2026-05-06T09:19:07.518808+00:00
+44cf6605-3cb1-4c4d-ab50-a10fd2f98478,SOL-290962,completed,Invoiced,PRCR-0001,KVR598MP - CB10,missing,account-only-no-reg-match,true,2026-05-06T09:19:24.802891+00:00
+93ce606f-60fe-4409-9b0d-cdf6d67b986f,SOL-431577,completed,Invoiced,EDGE-0019,CK47049,missing,account-only-no-reg-match,true,2026-04-24T12:13:29.783111+00:00
+9a84338f-929d-476d-b090-75d5a1c6c7d4,SOL-905690,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-04-24T12:09:39.02037+00:00
+cb9a8cd8-7e2c-4df8-a55f-f2beff549b44,SOL-822348,completed,Invoiced,EDGE-0019,CK34389,missing,account-only-no-reg-match,true,2026-04-24T12:00:59.018923+00:00
+c9e34c60-ca62-4f12-bfd9-b4d34121cb26,SOL-101383,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-04-24T11:53:40.732357+00:00
+abf50c92-5f69-45ba-8b88-33dd6c438e64,SOL-392090,completed,Invoiced,EDGE-0019,CK46883,missing,account-only-no-reg-match,true,2026-04-24T11:23:14.348639+00:00
+f556de03-a896-4c8d-993d-00399f2a50d8,SOL-908623,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-04-24T11:13:43.656072+00:00
+ed30f7af-7c6a-4a62-9ab7-1507f4686428,SOL-985789,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-04-24T11:15:18.634965+00:00
+13bf267f-1150-4189-8199-e180a98c2fdc,SOL-264676,completed,Invoiced,EDGE-0019,CK30393,missing,account-only-no-reg-match,true,2026-04-24T10:49:21.04341+00:00
+c68c3c31-ca33-4178-bc95-1ab6426ebfde,SOL-499193,completed,Invoiced,EDGE-0019,CK55039,missing,account-only-no-reg-match,true,2026-04-24T10:44:32.052467+00:00
+c35dcb6a-48f1-418e-859e-4a3388c3f034,SOL-340385,completed,Invoiced,EDGE-0019,CK47049,missing,account-only-no-reg-match,true,2026-04-24T10:44:33.504819+00:00
+4887af0d-a9df-48f0-910f-993080dcca05,SOL-274554,completed,Invoiced,EDGE-0019,CK47049,missing,account-only-no-reg-match,true,2026-04-24T10:44:37.822436+00:00
+d4597479-9394-429f-90c4-4b2c8fe4f2f5,SOL-655602,completed,Invoiced,MAYS-0001,data upload - MAY003,missing,no-vehicle-match,true,2026-04-29T10:00:52.949+00:00
+b218f3cf-38c3-4aa2-a11c-9ba7b7d998ec,SOL-575752,completed,Invoiced,EPSC-0002,data upload - JF74YXGP,missing,account-only-no-reg-match,true,2026-04-23T13:24:39.96011+00:00
+5ab285a2-cdc7-44ab-982f-9ce93c4ffa0e,SOL-448270,completed,Invoiced,VISV-0001,KP78BDGP,matched,account+reg,true,2026-05-06T06:40:59.653896+00:00
+591fee59-bd38-463c-8c94-333e6056d957,SOL-763761,completed,Invoiced,PETE-0001,JRM011MP,matched,account+reg,true,2026-05-07T08:52:05.863257+00:00
+1ffae612-a2f3-4f4b-bc9b-8427e11f34ed,SOL-869000,completed,Invoiced,EDGE-0015,JS42MNGP ,missing,account-only-no-reg-match,true,2026-05-06T06:41:01.67+00:00
+88e8c0fb-8979-4172-83d0-52c062c590c9,SOL-262840,completed,Invoiced,EDGE-0015,LB39NNGP,matched,account+reg,true,2026-05-06T06:41:20.093127+00:00
+5d824382-c16d-4dea-8024-ac2bc5b910ca,SOL-301483,completed,Invoiced,HITA-0001,MC80WYGP,matched,account+reg,true,2026-05-07T08:44:32.945475+00:00
+4fdd0426-7e25-44b5-9358-be0e417ff462,SOL-860477,completed,Invoiced,HITA-0001,MC80PTGP,matched,account+reg,true,2026-05-07T08:43:53.375292+00:00
+1cda7ed7-ff21-4d23-8684-b90f31842358,SOL-311761,completed,Invoiced,TTEX-0001,PANIC INSTALLS,missing,account-only-no-reg-match,true,2026-05-06T06:51:32.38611+00:00
+f65473bc-f34f-42e5-9994-a12687244f74,SOL-584374,completed,Invoiced,TTEX-0001,PANIC INSTALLS,missing,account-only-no-reg-match,true,2026-05-06T08:17:06.671409+00:00
+99e3c53d-463f-439b-9197-cc85a6c3628a,SOL-386165,completed,Invoiced,TTEX-0001,PANIC INSTALLS,missing,account-only-no-reg-match,true,2026-05-06T09:19:40.300899+00:00
+2eb6ab1f-0a69-404a-aaff-b2f115f38d91,SOL-776721,completed,Invoiced,TTLI-0001,PANIC INSTALLS,missing,no-vehicle-match,true,2026-05-06T09:19:57.239457+00:00
+873afa63-f6fc-424f-b6a5-a89c546441de,SOL-489882,completed,Invoiced,TTLI-0001,PANIC INSTALLS,missing,no-vehicle-match,true,2026-05-06T09:20:14.731942+00:00
+dd0d4943-3810-46b8-8993-4b1435ba4a26,SOL-530578,completed,Invoiced,EPSC-0002,DATA UPLOAD - JF74YXGP,missing,account-only-no-reg-match,true,2026-04-22T10:07:36.770857+00:00
+9759aec9-579d-443d-8d7f-4df0c1530b92,SOL-419019,completed,Invoiced,HITA-0001,LL73BNGP,matched,account+reg,true,2026-05-07T08:43:21.064267+00:00
+d8d22787-893e-49fb-963f-d320791b82f6,SOL-211735,completed,Invoiced,HITA-0001,LM39CMGP,matched,account+reg,true,2026-05-07T08:42:50.69727+00:00
+43a677e9-13da-4c81-ad61-3372b735bad3,SOL-590089,completed,Invoiced,HITA-0001,MC38BXGP,matched,account+reg,true,2026-05-07T08:42:08.841087+00:00
+4210d851-47f4-4001-9e9c-47dec05130e9,SOL-299581,completed,Invoiced,HITA-0001,MC79XGGP,matched,account+reg,true,2026-05-07T08:41:37.604106+00:00
+da23fc6f-68f5-4955-8e83-bec675d9db72,SOL-955805,completed,Invoiced,HITA-0001,LL73HXGP,matched,account+reg,true,2026-05-07T08:40:34.630691+00:00
+2da64996-9fe8-4713-af2c-12e69bab85ba,SOL-414997,completed,Invoiced,HITA-0001,LJ64KHGP,matched,account+reg,true,2026-05-07T08:39:45.843579+00:00
+c5fd6e6f-7e3a-46fd-a5ab-f5b193f0fc2a,SOL-208304,completed,Invoiced,,BW52GHGP,missing,no-account+no-reg-match,true,2026-04-21T12:38:08.357473+00:00
+f9e72ca2-7cd8-457b-8b8e-962c55781f6a,SOL-814655,completed,Invoiced,HITA-0001,KV34FHGP,matched,account+reg,true,2026-05-07T08:38:37.584232+00:00
+b56e4034-76e8-4bf7-b60d-c601c69ab18e,SOL-586561,completed,Invoiced,HITA-0001,KB11JZGP,matched,account+reg,true,2026-05-07T08:37:59.677757+00:00
+b6069a62-649d-49fc-8711-64f578a482ea,SOL-529538,completed,Invoiced,HITA-0001,KT69JSGP,matched,account+reg,true,2026-05-07T08:37:22.433251+00:00
+00e210f3-be13-449f-9ccc-c43150b6329d,SOL-797876,completed,Invoiced,TTLI-0001,LDG422MP - LH33,missing,no-vehicle-match,true,2026-05-06T09:20:42.384546+00:00
+71bc8f28-d485-4411-a16b-845eb41d65a7,SOL-300309,completed,Invoiced,TTLI-0001,JJT993FS - PLS241,missing,no-vehicle-match,true,2026-05-06T09:21:00.109477+00:00
+38e85793-6be4-4028-88cd-7628aac78f79,SOL-527893,completed,Invoiced,TTLI-0001,JGK731FS - LH41,missing,no-vehicle-match,true,2026-05-06T09:21:19.081258+00:00
+64efe6b9-2ba8-4d56-bc02-98562236f3d3,SOL-333168,completed,Invoiced,TLOG-0001,JGV565FS - PD117,missing,account-only-no-reg-match,true,2026-05-06T09:21:42.459656+00:00
+32b0d740-36f6-40db-b143-b63764908c1a,SOL-694841,completed,Invoiced,TLOG-0001,LDG351MP - FM13,missing,account-only-no-reg-match,true,2026-05-06T09:21:58.982168+00:00
+84ebfb60-490c-4cc5-a892-8123cbe38b7b,SOL-120044,completed,Invoiced,TLOG-0001,LCM197MP - RH32,missing,account-only-no-reg-match,true,2026-05-06T09:22:27.994072+00:00
+797e0a2a-e402-403f-b22a-9f44c8c77785,SOL-365876,completed,Invoiced,TLOG-0001,JFP880FS - RH35,missing,account-only-no-reg-match,true,2026-05-06T09:23:33.450906+00:00
+5cbbcb42-fd56-49e2-b5cf-295742220dc5,SOL-506862,completed,Invoiced,EPSC-0002,DATA UPLOAD  - JF74XHGP,missing,account-only-no-reg-match,true,2026-04-20T11:44:24.469373+00:00
+d7e5d01c-03df-4a33-83c5-84161be6e646,SOL-759415,completed,Invoiced,EPSC-0002,DATA UPLOAD - MK88RHGP,missing,account-only-no-reg-match,true,2026-04-20T11:44:34.808407+00:00
+d272e187-c60e-4426-a53a-61ec44d19429,SOL-879118,completed,Invoiced,,FV95JVGP AS35,missing,no-account+no-reg-match,true,2026-04-20T10:03:43.151645+00:00
+e7cd3eaf-1c5c-434d-bcb3-0fa303c30f6f,SOL-652782,completed,Invoiced,,JW62RGGP AS48,missing,no-account+no-reg-match,true,2026-04-20T09:59:27.412202+00:00
+08cd5009-5846-43cd-a2aa-6b957cdca259,SOL-284928,completed,Invoiced,,LX61SDGP,matched,reg-only-no-account,true,2026-03-20T23:59:59+00:00
+abb8568c-9e1b-4e68-9e55-5600cd86f33f,SOL-179490,completed,Invoiced,,KV53YWGP,matched,reg-only-no-account,true,2026-03-20T23:59:59+00:00
+9c9c8605-73d6-4bec-be83-f2292c21c4ed,SOL-684822,completed,Invoiced,EPSC-0002,DATA UPLOAD - JF74YJGP,missing,reg-account-mismatch,true,2026-04-20T11:44:14.138+00:00
+c8e60457-4c6f-4874-940a-6492291873b3,SOL-830555,completed,Invoiced,EPSC-0002,DATA UPLOAD - HY74XFGP,missing,account-only-no-reg-match,true,2026-04-20T11:44:16.4+00:00
+bf8f3e41-bf04-481d-9bbe-5db855f94901,SOL-583972,completed,Invoiced,EPSC-0001,Data Upload - KY69YNGP,missing,account-only-no-reg-match,true,2026-05-11T11:52:04.544926+00:00
+203530fc-b344-4a1b-a818-9c94b55d056a,SOL-703273,completed,Invoiced,EPSC-0001,NEW INSTALLATION - MW90NFGP,matched,account+reg,true,2026-03-19T23:59:59+00:00
+ebeb5dbb-d55d-40a2-8114-bb45f3f34d17,SOL-316750,completed,Invoiced,EPSC-0001,NEW INSTALLATION - MW90LYGP,matched,account+reg,true,2026-03-19T23:59:59+00:00
+d43c463a-23eb-4127-93c7-4831a78631f6,SOL-156772,completed,Invoiced,ALST-0001,KB27GLGP,missing,account-only-no-reg-match,true,2026-04-20T09:56:38.407284+00:00
+549760c3-77d0-4b06-8888-d93f1f2a5cfc,SOL-202925,completed,Invoiced,ALST-0001,JZ78PGGP,missing,account-only-no-reg-match,true,2026-04-20T05:39:33.201937+00:00
+9c94ddcd-6015-45e8-af04-0efbec7f565f,SOL-527276,completed,Invoiced,ALST-0001,JY60PZGP,missing,account-only-no-reg-match,true,2026-04-20T08:23:49.658124+00:00
+f63af6dd-ac6b-4376-8d6e-9dede2c4c349,SOL-730788,completed,Invoiced,ALST-0001,JP33GVGP,missing,account-only-no-reg-match,true,2026-04-20T08:26:28.953405+00:00
+e9da6473-93fc-4754-80ee-8a1f8fbf2661,SOL-632738,completed,Invoiced,ALST-0001,JX75VDGP,missing,account-only-no-reg-match,true,2026-04-20T10:01:20.851487+00:00
+215f09a5-f173-464b-9f0b-d14b459df72f,SOL-156797,completed,Invoiced,,LP36PTGP,matched,reg-only-no-account,true,2026-03-17T23:59:59+00:00
+2ec71751-5aba-4849-82c7-42009ae5f1a9,SOL-248476,completed,Invoiced,JOHA-0001,NFL751L,missing,account-only-no-reg-match,true,2026-03-20T23:59:59+00:00
+63aaadd2-2dcf-4315-96ef-fc222f23fdf2,SOL-643076,completed,Invoiced,MACS-0032,CSK852NC,matched,account+reg,true,2026-05-11T09:44:49.977994+00:00
+1ddf5436-f332-46a8-9e63-4c9bc42cc8a7,SOL-311550,completed,Invoiced,MACS-0029,DRIVER TAG 7988,missing,account-only-no-reg-match,true,2026-03-16T23:59:59+00:00
+7ea95ead-3a55-4cfc-942e-0627a0ce2b07,SOL-640337,completed,Invoiced,EDGE-0047,TEMPKA0269,matched,account+reg,true,2026-04-22T06:24:13.754+00:00
+fc0df04f-018d-49e5-9e67-7ac878ee1233,SOL-597188,completed,Invoiced,EDGE-0047,TEMPKA0006,matched,account+reg,true,2026-05-08T09:08:42.845+00:00
+96f40598-86ff-44ee-940a-0fb92ab28ba0,SOL-257121,completed,Invoiced,MACS-0029,DSH908L,matched,account+reg,true,2026-04-17T04:17:54.737984+00:00
+135a407b-ec74-4cca-9335-d88f3e3ae420,SOL-433074,completed,Invoiced,,LH37,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+25e0a4cc-22c0-4eae-8c82-4926db23226e,SOL-257467,completed,Invoiced,HITA-0001,Nelspruit Service	2006-0222,missing,account-only-no-reg-match,true,2026-04-20T05:06:12.147842+00:00
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,completed,Invoiced,SEVE-0001,F44 - MX65HCGP,matched,account+reg,true,2026-04-17T05:01:47.991892+00:00
+3581938b-3cfb-4856-a9c9-e631cdb1c528,SOL-925203,completed,Invoiced,EPSC-0001,DATA UPLOAD - JF68FMGP,missing,account-only-no-reg-match,true,2026-05-08T09:17:43.627211+00:00
+ea3fd3f3-0440-49c8-a505-732b6bbaa5dd,SOL-280898,completed,Invoiced,EPSC-0001,DATA UPLOAD - HW67VCGP,missing,account-only-no-reg-match,false,2026-04-14T10:23:15.993674+00:00
+0b6da8c6-9f7f-4f16-adf7-2950c7f98d7c,SOL-567001,completed,Invoiced,,MC80PTGP,matched,reg-only-no-account,true,2026-03-14T23:59:59+00:00
+03b79942-e0c0-493f-8620-ceef57ed0441,SOL-149110,completed,Invoiced,,CHX007 - KT67DJGP,missing,no-account+no-reg-match,true,2026-03-14T23:59:59+00:00
+08fcccc3-bcd5-4d44-9d1c-fb834d41ad86,SOL-762183,completed,Invoiced,,WHV829GP,missing,no-account+no-reg-match,true,2026-03-14T23:59:59+00:00
+79cf8d4e-545d-4267-b3b7-2cf77fea3212,SOL-746809,completed,Invoiced,TTFM-0001,FM15 - LDR059MP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+7fb14e9d-a8c2-40bd-b441-c15f1ad2a58c,SOL-189423,completed,Invoiced,,LH35,missing,no-account+no-reg-match,true,2026-03-13T23:59:59+00:00
+ee7ed4e2-6c29-4307-b92c-56f1c246bd0e,SOL-997920,completed,Invoiced,TLOG-0001,PLS243 - KSF074MP,matched,account+reg,true,2026-03-13T23:59:59+00:00
+87ecb9a8-cfdb-4c87-904a-008d6bf11b43,SOL-161414,completed,Invoiced,TLOG-0001,RH29 - JGW967FS,matched,account+reg,true,2026-03-13T23:59:59+00:00
+f125e558-279a-44bd-9f22-fa7e8deed57a,SOL-602270,completed,Invoiced,,LH20,missing,no-account+no-reg-match,true,2026-03-13T23:59:59+00:00
+a562b77b-1cc1-4925-a5f2-73e5cf8ee47e,SOL-416474,completed,Invoiced,TLOG-0001,JFP866FS - RH41,matched,account+reg,true,2026-03-13T23:59:59+00:00
+790fde48-cfcc-4d89-8fb4-0a2119415b77,SOL-880384,completed,Invoiced,,JT23ZFGP,matched,reg-only-no-account,true,2026-03-13T23:59:59+00:00
+eb42139e-7d80-4833-a7a7-4b65f89a3f9e,SOL-711630,completed,Invoiced,,MC34GTGP,matched,reg-only-no-account,true,2026-03-14T23:59:59+00:00
+23c99938-5063-4f0b-8340-7c1b3909a0cc,SOL-850597,completed,Invoiced,EDGE-0008,TEMP047058,matched,account+reg,true,2026-05-06T06:42:11.346161+00:00
+12819bdc-fa44-48f2-a431-9ba0451bc5fe,SOL-525299,completed,Invoiced,EDGE-0004,LB83XNGP,matched,account+reg,true,2026-05-06T08:26:57.790866+00:00
+78c7ab5e-1a31-49be-afa4-f9c14d0721b8,SOL-243153,completed,Invoiced,EDGE-0047,TEMP827183,matched,account+reg,true,2026-04-22T06:24:25.482419+00:00
+e3437fd9-a093-45b8-968b-b697ee6f4b87,SOL-702563,completed,Invoiced,EDGE-0047,TEMPKA0013,matched,account+reg,true,2026-04-22T06:24:29.499777+00:00
+0446f468-9afb-48b0-a525-581e46c1574b,SOL-645483,completed,Invoiced,TACI-0001,MX85VFGP,matched,account+reg,true,2026-05-05T13:27:04.535+00:00
+7ef43269-dbfc-40b6-a15f-344cb7511a28,SOL-820952,completed,Invoiced,THES-0002,KFW283MP,matched,account+reg,true,2026-05-07T12:29:28.217+00:00
+f9c5dfde-4b29-4d43-bc6c-8d0572111405,SOL-797426,completed,Invoiced,THES-0002,KCY462MP ,matched,account+reg,true,2026-05-07T12:31:01.017+00:00
+280e3dbc-e89e-4bdc-aac3-2b88a425b503,SOL-882375,completed,Invoiced,THES-0002,LMR027MP,matched,account+reg,true,2026-05-07T12:32:27.91+00:00
+599fc4e8-1be9-4d0d-9c76-1144fb975abe,SOL-389492,completed,Invoiced,,KGZ428NW,matched,reg-only-no-account,true,2026-04-29T12:02:25.823963+00:00
+2bc5472c-e385-4038-85b0-1e3297271d6e,SOL-967225,completed,Invoiced,HITA-0001,MS60GNGP,matched,account+reg,true,2026-03-14T23:59:59+00:00
+edc88ad9-bf98-4a4f-8526-287ff6c9c4b8,SOL-971082,completed,Invoiced,HITA-0001,MS53LVGP,matched,account+reg,true,2026-05-07T07:36:08.419117+00:00
+9f888da1-7605-4682-9c4f-4954ecb0afef,SOL-336671,completed,Invoiced,HITA-0001,MS53JXGP,matched,account+reg,true,2026-05-07T07:33:30.413833+00:00
+fa07a065-6f9f-449c-b0f7-f1c3266f1085,SOL-762340,completed,Invoiced,HITA-0001,MS53JSGP,matched,account+reg,true,2026-05-07T07:32:49.306753+00:00
+e251a9ff-5df3-4e76-add5-4c906161614a,SOL-229301,completed,Invoiced,HITA-0001,MS60GJGP,matched,account+reg,true,2026-05-07T07:31:40.734936+00:00
+55ceb3e2-d5e9-4093-97ea-a350936b6443,SOL-169108,completed,Invoiced,HITA-0001,MS53LSGP,matched,account+reg,true,2026-05-07T07:31:17.034762+00:00
+78854208-8bd8-41b8-9076-39381979c840,SOL-629999,completed,Invoiced,HITA-0001,MS60GZGP,matched,account+reg,true,2026-05-06T14:26:42.871338+00:00
+0768e95a-6b83-499a-bb04-6c98705eb1eb,SOL-528223,completed,Invoiced,HITA-0001,MS53KTGP,matched,account+reg,true,2026-05-06T14:25:01.392298+00:00
+17f1136d-f0b7-48ac-8739-167f169c77ff,SOL-113547,completed,Invoiced,HITA-0001,MS53KMGP,matched,account+reg,true,2026-05-06T14:24:02.862132+00:00
+e35f08f4-5268-47cf-a25c-f7ce1032f483,SOL-843065,completed,Invoiced,HITA-0001,MS53MHGP,matched,account+reg,true,2026-05-06T14:23:27.917204+00:00
+47bf1a91-46d2-404f-b449-6dfb710cc964,SOL-394104,completed,Invoiced,TTEX-0001,JHD696FS - EX52,matched,account+reg,true,2026-03-17T23:59:59+00:00
+6ff3f54d-6369-4365-a1a7-34da96111547,SOL-921444,completed,Invoiced,,LN20ZXGP,matched,reg-only-no-account,true,2026-03-01T23:59:59+00:00
+5829bc4a-112a-4c0c-999b-2bbb92853b7e,SOL-922077,completed,Invoiced,PRCR-0001,CAA383307,missing,account-only-no-reg-match,true,2026-04-15T08:45:12.437+00:00
+ee835821-19de-4a35-a55f-bd224a5362d1,SOL-650972,completed,Invoiced,,CB47 - CASH,missing,no-account+no-reg-match,true,2026-03-01T23:59:59+00:00
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,completed,Invoiced,HITA-0001,MS80SKGP,missing,account-only-no-reg-match,true,2026-03-15T23:59:59+00:00
+0b70e666-c8c2-40e9-9353-3a442feb0ea7,SOL-445098,completed,Invoiced,HITA-0001,LL73FPGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+3ad15359-9ec2-4211-abbd-fff0d77a055e,SOL-334409,completed,Invoiced,HITA-0001,JHK098GP,matched,account+reg,true,2026-03-31T23:59:59+00:00
+895416e2-ed66-4852-8b29-31a461439935,SOL-781197,completed,Invoiced,EPSC-0001,DATA UPLOAD - KY69YNGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+3e89d83f-00b7-4629-87ef-c148491b7c7e,SOL-635581,completed,Invoiced,EPSC-0001,DATA UPLOAD - JF74XHGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+8b5001e9-a1c7-4d55-bda5-dc22345161b4,SOL-304758,completed,Invoiced,EPSC-0001,DATA UPLOAD - HW67VCGP,missing,account-only-no-reg-match,false,2026-03-31T11:40:07.073842+00:00
+2c7ae182-3d13-41cc-b891-531a81fc9dfe,SOL-642708,completed,Invoiced,EPSC-0001,DATA UPLOAD - MK88RHGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+dc1bd2f3-07d1-4a01-997e-c2167f6c9a8b,SOL-592627,completed,Invoiced,EPSC-0001,DATA UPLOAD - JF74YJGP,matched,account+reg,false,2026-03-31T11:40:26.261833+00:00
+944b6418-cef4-4eea-9066-ff7091a68f96,SOL-409838,completed,Invoiced,THES-0002,DN20DHGP,matched,account+reg,true,2026-05-07T13:28:24.632+00:00
+049f6d8d-4bbf-48e5-8c46-2ffe6f0cb930,SOL-631000,completed,Invoiced,THES-0002,JK89MVGP ,matched,account+reg,true,2026-05-07T12:57:09.935719+00:00
+adbd4430-9403-405a-a413-782e7a0d52bf,SOL-932955,completed,Invoiced,THES-0002,JH57ZDGP ,matched,account+reg,true,2026-05-07T13:28:38.821+00:00
+910b496e-6141-4d72-8832-667745fabfd5,SOL-156995,completed,Invoiced,THES-0002,KY79LGGP ,matched,account+reg,true,2026-05-07T13:28:46.095+00:00
+9b099005-bea1-4064-b0c2-6c51969eab81,SOL-302337,completed,Invoiced,THES-0002,LS97SFGP,matched,account+reg,true,2026-05-07T13:28:52.589+00:00
+1c4fc55e-78f5-4d2b-8d65-d5fa82b089c2,SOL-512085,completed,Invoiced,MAYS-0001,MAY007,missing,no-vehicle-match,true,2026-03-31T23:59:59+00:00
+68b564ff-d560-490f-973c-68b9685de7b4,SOL-995120,completed,Invoiced,MAYS-0001,DATA UPLOAD - MAY002,missing,no-vehicle-match,true,2026-03-31T23:59:59+00:00
+ba8eb4b7-b8e2-47a2-8eb7-802ea98eb701,SOL-244000,completed,Invoiced,MAYS-0001,DATA UPLOAD - MAY509,missing,no-vehicle-match,true,2026-03-31T23:59:59+00:00
+02051643-d592-49a9-b339-8076e3a7056e,SOL-156583,completed,Invoiced,MAYS-0001,MAY009,missing,no-vehicle-match,true,2026-03-31T23:59:59+00:00
+7a3245d8-7da2-4ae3-9e1b-703c4b04bc9c,SOL-212942,completed,Invoiced,MACS-0003,BT68VJGP,missing,no-vehicle-match,true,2026-03-14T23:59:59+00:00
+4471a8dd-9ecb-4763-9121-10ad99432e1f,SOL-737553,completed,Invoiced,MACS-0026,BX41BHGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+555fe556-7ae1-42e8-a894-a758bed22e8f,SOL-986357,completed,Invoiced,MACS-0026,BX41BHGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+383bdff4-6700-4741-8a80-051a43975d7f,SOL-771005,completed,Invoiced,MACS-0026,BF61FSGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+485d6f0d-bc3c-4b01-a5af-c0d42329064e,SOL-911463,completed,Invoiced,MACS-0026,BF61FSGP,missing,account-only-no-reg-match,true,2026-03-31T23:59:59+00:00
+62037c40-aab7-4e20-b763-6bdaefc744a9,SOL-930914,completed,Invoiced,ENER-0001,,missing,no-reg,true,2026-03-20T23:59:59+00:00
+1bdce10d-e2ce-443c-ac0f-3ead71c07409,SOL-201389,completed,Invoiced,,CHX011 - LJ64LZGP,missing,no-account+no-reg-match,true,2026-03-30T23:59:59+00:00
+b081e6c6-bdac-4f33-81ca-bc5dc3377930,SOL-415784,completed,Invoiced,,HP97MHGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+ba4e3c68-6180-41e5-bd60-319f2b0de16d,SOL-891458,completed,Invoiced,EPSC-0001,HW67VCGP DATA UPLOAD,missing,account-only-no-reg-match,false,2026-03-31T10:21:52.511001+00:00
+0300428a-c066-47ef-993d-854fb341f815,SOL-955597,completed,Invoiced,,CY76597 - T292,missing,no-account+no-reg-match,true,2026-03-16T23:59:59+00:00
+7e2a2200-49e8-4053-aac1-c334e7c78272,SOL-204545,completed,Invoiced,TACI-0001,B580BUK,matched,account+reg,true,2026-05-11T10:41:07.393786+00:00
+887cf95a-6cfe-4c2f-91e5-5121a84058bf,SOL-864660,completed,Invoiced,TACI-0001,LN28KHGP,matched,account+reg,true,2026-05-11T12:40:09.235919+00:00
+7114b6cc-50d5-4308-b534-c65de9c42c6d,SOL-355666,completed,Invoiced,TACI-0001,LK46ZRGP,matched,account+reg,true,2026-05-11T12:37:24.461673+00:00
+c0dfea0a-b704-4540-847f-99fdab7bdda0,SOL-244100,completed,Invoiced,TACI-0001,MH57JTGP,matched,account+reg,true,2026-05-11T12:37:54.981608+00:00
+aa98caee-10f7-447d-94c4-f19618b81441,SOL-512213,completed,Invoiced,,ZVN779GP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+32655df6-e4b1-45e2-9fa6-45651e9acd80,SOL-660293,completed,Invoiced,,FNV362GP,matched,reg-only-no-account,true,2026-03-30T23:59:59+00:00
+e89f7cc6-a9fc-4b3d-8410-b933e4df9bba,SOL-225777,completed,Invoiced,,CB56 - RENTAL,missing,no-account+no-reg-match,true,2026-03-30T23:59:59+00:00
+672e393b-9bdb-456c-b06a-61c32262e6e1,SOL-793635,completed,Invoiced,,KF92LHGP,matched,reg-only-no-account,true,2026-03-30T23:59:59+00:00
+e0db39d7-03ab-4876-bd32-9631572c5854,SOL-131541,completed,Invoiced,,CB58 - CASH,missing,no-account+no-reg-match,true,2026-03-30T23:59:59+00:00
+6d7b3017-31e3-4868-8164-9aded250b004,SOL-781974,completed,Invoiced,,CB51 - RENTAL,missing,no-account+no-reg-match,true,2026-03-30T23:59:59+00:00
+a2561bb8-b869-4376-b2f0-2805199129e3,SOL-775981,completed,Invoiced,,KRZ533NW,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+26889ea6-f13e-45f7-8bc2-920a0e828de6,SOL-550391,completed,Invoiced,,KRZ537NW,matched,reg-only-no-account,true,2026-03-30T23:59:59+00:00
+67da75fe-e33a-455e-bfa0-3616223b6394,SOL-392650,completed,Invoiced,,KL14KGGP,missing,no-account+no-reg-match,true,2026-03-30T23:59:59+00:00
+204b2c3b-7206-40c5-92ca-1ced5e4ff510,SOL-389237,completed,Invoiced,,CHS037 - KS15VNGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+f00ba9e3-5b4a-41aa-822b-6e59bec9ac45,SOL-824319,completed,Invoiced,,CHC042,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+ff81899d-96da-4246-8401-e05dc09c18ca,SOL-446445,completed,Invoiced,,CHX043 - KT69JSGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+d4d17789-8a78-4509-bfe2-db626aa54540,SOL-724271,completed,Invoiced,,CHC048 - LJ64KPGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+ad7aef54-8110-4ae3-aace-51f70f8c5b52,SOL-201190,completed,Invoiced,,MC37LLGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+4023fb9a-a0d2-438e-9f5a-5e1d2fef1c88,SOL-810488,completed,Invoiced,,JF15ZSGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+af3fa884-79f3-4f05-aac5-a9c0b2fece49,SOL-818354,completed,Invoiced,,CHX088 - MC37JMGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+ae56f646-00e1-4ede-9990-f434a3847f08,SOL-572556,completed,Invoiced,,CHX057 - HX44NNGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+2e66f7c5-79ff-406a-8a38-19c84edda8af,SOL-918902,completed,Invoiced,,CHX043 - KT69JSGP,missing,no-account+no-reg-match,true,2026-03-28T23:59:59+00:00
+eb817f7e-c498-435b-be10-55d6fe4969be,SOL-426702,completed,Invoiced,,CHX043 - KT69JSGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+4c024c53-cadf-4328-a339-48b4f9271cca,SOL-908121,completed,Invoiced,,JF15YRGP,matched,reg-only-no-account,true,2026-03-15T23:59:59+00:00
+4b37e7cf-4a39-4d13-8f81-250522a38e9d,SOL-996652,completed,Invoiced,,JF15YRGP,matched,reg-only-no-account,true,2026-03-15T23:59:59+00:00
+24b8f19c-5cb2-46d9-ae91-980209ac279a,SOL-163618,completed,Invoiced,,JFN713MP,matched,reg-only-no-account,true,2026-03-15T23:59:59+00:00
+b74c2bcd-fb9d-4176-84bf-bc5cc666a00d,SOL-878189,completed,Invoiced,,BN50JGGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+7e70e8f7-d1da-46ae-82ec-251d35e9d944,SOL-330225,completed,Invoiced,,HCM001 - HX44NHGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+f15d9113-5b17-401c-9cf9-5dee02d60a99,SOL-145077,completed,Invoiced,,KZ43BWGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+fc9ad001-5f8e-43dd-97ea-dfa11d3c7972,SOL-944192,completed,Invoiced,,HCM003 - KW22TNGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+67827c0e-c1de-4d15-a4ed-c837889ef7e1,SOL-313883,completed,Invoiced,,MC34MJGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+5637506b-8d2f-4525-9f2b-7a50c938d186,SOL-731207,completed,Invoiced,,FT05NRGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+1916eed7-7f7f-4f59-bfb1-999dea746182,SOL-814689,completed,Invoiced,,HXK403FS,matched,reg-only-no-account,true,2026-03-15T23:59:59+00:00
+a8f719b2-1115-4891-bf5d-4766bcf74fbe,SOL-981033,completed,Invoiced,,CHS044 - KS15SZGP,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+8eafa912-3f41-4369-b671-5b27796a1516,SOL-832186,completed,Invoiced,,CHS024 - JJ01DNGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+08e7b097-ccf0-45e9-9560-b8eb3ba541db,SOL-218824,completed,Invoiced,,CHS051 - MC80TZGP,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+3cbe4135-6a2d-42c3-9d78-3bb3fe8223c2,SOL-649734,completed,Invoiced,,MC80TFGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+041f7ee8-6fb1-4a9e-8440-3c3cd95f17e3,SOL-266354,completed,Invoiced,,CB63HLGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+c1d234e1-fe12-4dc2-8f43-bcb6325b5afd,SOL-170108,completed,Invoiced,,CB41 - CASH,missing,no-account+no-reg-match,true,2026-03-31T23:59:59+00:00
+c35a5a68-1bd6-48c9-89b5-b57e71457721,SOL-520778,completed,Invoiced,,JF15YRGP,matched,reg-only-no-account,true,2026-03-31T23:59:59+00:00
+415664a0-5cac-4f4c-b2a3-214d8c6dbc03,SOL-431272,completed,Invoiced,,KY69YNGP,matched,reg-only-no-account,true,2026-03-28T23:59:59+00:00
+904fdd91-ce9d-4628-87f3-dee1197a537f,SOL-200647,completed,Invoiced,,CB43 - CASH,missing,no-account+no-reg-match,true,2026-03-28T23:59:59+00:00
+c9795807-09c4-4d13-b259-ee03b27618d2,SOL-437212,completed,Invoiced,,CB62 - RENTAL,missing,no-account+no-reg-match,true,2026-03-15T23:59:59+00:00
+3fc511fa-39b3-43f6-b1b6-69bc8d1b8974,SOL-820881,completed,Invoiced,AVVA-0001,LL58BMGP,matched,account+reg,true,2026-05-06T09:36:31.893236+00:00
+7e44a14f-e148-47c6-be6e-cdd6ecfae3ca,SOL-790665,completed,Invoiced,AVVA-0001,LJ75MMGP,matched,account+reg,true,2026-05-06T09:26:10.483595+00:00
+809efecd-64ff-42e6-a93c-76b7b2212bc7,SOL-700196,completed,Invoiced,EPSC-0001,DATA UPLOAD - JF74YJGP,matched,account+reg,false,2026-03-30T08:11:19.092818+00:00
+a61a7776-a54b-46cd-945e-4d6b7fb89199,SOL-237638,completed,Invoiced,AVVA-0001,LJ81GFGP,matched,account+reg,true,2026-05-06T09:36:13.862547+00:00
+6d05283b-3996-47d9-833f-81075da6b76d,SOL-587402,completed,Invoiced,AVVA-0001,LL41SZGP,matched,account+reg,true,2026-05-06T09:35:51.997165+00:00
+eded2ece-28f8-4b1e-b7c8-c9e7fd89bade,SOL-315345,completed,Invoiced,AVVA-0001,LJ43GNGP,missing,account-only-no-reg-match,true,2026-05-06T09:35:36.431741+00:00
+01524b60-d756-471f-b4e5-97f92f8f721f,SOL-763923,completed,Invoiced,AVVA-0001,LF90KFGP,matched,account+reg,true,2026-05-06T09:35:19.297288+00:00
+3b052a20-9829-40a3-86a6-12ca8cb2e9a0,SOL-245680,completed,Invoiced,AVVA-0001,LM21LJGP,missing,account-only-no-reg-match,true,2026-05-06T09:35:01.619127+00:00
+3c2f61fa-05db-4acc-b4da-da8201b3b397,SOL-707513,completed,Invoiced,AVVA-0001,LJ43FLGP,matched,account+reg,true,2026-05-06T09:34:15.176047+00:00
+442c3690-aed6-42b5-a6d3-10f484d06b82,SOL-555971,completed,Invoiced,AVVA-0001,LK35LMGP,matched,account+reg,true,2026-05-06T09:30:12.383759+00:00
+09a080cc-9195-42cd-9b2d-71325b99bc75,SOL-732843,completed,Invoiced,AVVA-0001,LN47SMGP,matched,account+reg,true,2026-05-06T09:29:21.926184+00:00
+8a83c2db-946c-401d-a907-f3f006bf9257,SOL-583341,completed,Invoiced,EPSC-0001,DATA UPLOAD - JF74XGGP,missing,account-only-no-reg-match,true,2026-05-08T09:18:39.121552+00:00
+a584003f-8c14-4be5-8ed9-0e1303dff87c,SOL-542373,completed,Invoiced,HITA-0001,LM60FPGP,matched,account+reg,true,2026-03-27T23:59:59+00:00
+2f2a6c38-3b8f-4217-b72e-d05cfee1fdb6,SOL-276758,completed,Invoiced,HITA-0001,MS53MMGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+563d441c-e93b-4f14-87ed-7e8e1d44211e,SOL-883393,completed,Invoiced,EPSC-0001,NEW INSTALL - MW90KFGP,matched,account+reg,true,2026-03-16T23:59:59+00:00
+272418ed-d7f2-4571-ad76-29788ad6bcaf,SOL-351666,completed,Invoiced,HITA-0001,MS53MPGP,matched,account+reg,true,2026-05-06T14:22:10.891017+00:00
+e1d05a09-4480-4fba-85e0-8b14bc287236,SOL-555167,completed,Invoiced,HITA-0001,MS53LFGP,matched,account+reg,true,2026-05-06T14:19:05.050981+00:00
+3b264ec6-eeed-4934-843d-fae55f6077cf,SOL-395418,completed,Invoiced,EPSC-0001,NEW INSTALL - MW90MWGP,matched,account+reg,true,2026-03-31T23:59:59+00:00
+27091dbf-a665-4a74-80b3-960b3093655b,SOL-980865,completed,Invoiced,EPSC-0001,NEW INSTALL - MW90LPGP,matched,account+reg,true,2026-03-16T23:59:59+00:00
+915d883e-186b-4c44-871b-ecc620c5cd8d,SOL-614737,completed,Invoiced,EPSC-0001,NEW INSTALL - MW90MRGP,matched,account+reg,true,2026-03-30T23:59:59+00:00
+de749a2e-3b2a-44e2-a4d0-d2e4bbe3bdd2,SOL-342575,completed,Invoiced,EPSC-0001,NEW INSTALL  - MW90JPGP,matched,account+reg,true,2026-03-31T23:59:59+00:00
+4b9c9b25-f92d-4a4c-8e39-31b45ce16cc9,SOL-532635,completed,Invoiced,EPSC-0001,MW90LDGP,matched,account+reg,true,2026-03-31T23:59:59+00:00
+5e4c2d92-6c9a-476f-bf39-b053ecc54b7d,SOL-325333,completed,Invoiced,EPSC-0001,MW90NMGP,matched,account+reg,true,2026-03-16T23:59:59+00:00
+8440670d-10ca-4e1c-a093-094ed9f2952c,SOL-579215,completed,Invoiced,GOEA-0001,LL22CSGP,matched,account+reg,true,2026-04-22T12:10:29.378+00:00
+2a538598-a2fa-4b11-83e5-6d8019ad31ae,SOL-563195,completed,Invoiced,HITA-0001,National Transport Logistics	1000-0302,missing,account-only-no-reg-match,true,2026-03-15T23:59:59+00:00
+8f6d72d6-08dc-42db-a7f0-0016500894e1,SOL-315408,completed,Invoiced,ALST-0001,KM89YXGP,missing,account-only-no-reg-match,true,2026-03-17T23:59:59+00:00
+7ca99c93-87fd-43bf-8f3b-b33ee6299c3e,SOL-373947,completed,Invoiced,ANGE-0001,FN85FKGP,missing,no-vehicle-match,true,2026-03-15T23:59:59+00:00
+76a54f63-7f98-40de-88bf-208c1fe02002,SOL-709720,completed,Invoiced,ANGE-0001,FN85FKGP,missing,no-vehicle-match,true,2026-03-15T23:59:59+00:00
+117df8f7-5937-409b-9551-db47f3e0d24d,SOL-989640,completed,Invoiced,ANGE-0001,YMM294GP,missing,no-vehicle-match,true,2026-04-21T09:51:56.28389+00:00
+cad2ee4a-f75c-4c94-8c13-bf86de603c47,SOL-489044,completed,Invoiced,ANGE-0001,YMM294GP,missing,no-vehicle-match,true,2026-04-21T09:52:27.644417+00:00
+98fb2b6a-7616-4503-86a6-b5ba1434ef2f,SOL-440825,completed,Invoiced,ANGE-0001,LT00JNGP,missing,no-vehicle-match,true,2026-03-15T23:59:59+00:00
+40410318-bf33-4438-a566-8ccd990e50b3,SOL-903185,completed,Invoiced,AVVA-0001,LC76BFGP,missing,account-only-no-reg-match,true,2026-05-06T09:29:40.884136+00:00
+3186873c-d981-4f7c-9a27-2549f58deeb7,SOL-588580,completed,Invoiced,AVVA-0001,KW56VJGP,missing,account-only-no-reg-match,true,2026-03-02T23:59:59+00:00
+0b833e2f-c9ca-4ad8-b406-045b94d36845,SOL-319023,completed,Invoiced,AVVA-0001,LP36PSGP,matched,account+reg,true,2026-03-02T23:59:59+00:00
+df8a5b73-cb00-4591-98a8-b51ecea600c9,SOL-940716,completed,Invoiced,AVVA-0001,KY33FDGP,missing,account-only-no-reg-match,true,2026-03-02T23:59:59+00:00
+74e38422-9072-42f8-869b-87df303581fe,SOL-417957,completed,Invoiced,AVVA-0001,KR53NXGP,missing,account-only-no-reg-match,true,2026-05-06T09:29:05.905983+00:00
+cac0886a-5683-4b11-85fe-daccb319951c,SOL-746549,completed,Invoiced,AVVA-0001,KY73FKGP,missing,account-only-no-reg-match,true,2026-03-02T23:59:59+00:00
+4c94deaf-5f68-485d-a86d-a2f28715cd9e,SOL-702585,completed,Invoiced,AVVA-0001,LC75YXGP,missing,account-only-no-reg-match,true,2026-03-02T23:59:59+00:00
+97b3bee5-6688-4995-ab32-583f690bac5f,SOL-283346,completed,Invoiced,AVVA-0001,LV37LVGP,matched,account+reg,true,2026-03-02T23:59:59+00:00
+ca8faa77-2d51-488c-9af9-b6bf5f58742e,SOL-619736,completed,Invoiced,AVVA-0001,LV37MWGP,matched,account+reg,true,2026-03-02T23:59:59+00:00
+bae31af6-de85-4af8-8000-defa09d74115,SOL-216818,completed,Invoiced,EDGE-0005,LD39DBGP,matched,account+reg,true,2026-05-06T08:28:12.737024+00:00
+068fa517-814a-4a4f-816d-ef2dbaaf821e,SOL-164333,completed,Invoiced,,YMM494GP,missing,no-account+no-reg-match,true,2026-03-16T23:59:59+00:00
+394c2d82-9ca9-48fb-8689-6ae3856326de,SOL-862167,completed,Invoiced,,ZGY467GP,missing,no-account+no-reg-match,true,2026-03-20T23:59:59+00:00
+f2866eb1-eb09-4e40-9b51-f448367a82c4,SOL-358749,completed,Invoiced,,BH47JSGP,missing,no-account+no-reg-match,true,2026-03-20T23:59:59+00:00
+0803cbbd-e3bc-4e1a-8f3f-9c25ef153a18,SOL-679174,completed,Invoiced,,JJ04NRGP,missing,no-account+no-reg-match,true,2026-03-20T23:59:59+00:00
+5b533341-0ec9-42bd-9e43-c7640e5bf65e,SOL-952136,completed,Invoiced,,DD53DXGP,missing,no-account+no-reg-match,true,2026-03-20T23:59:59+00:00
+ada74221-f353-49c3-a504-512f02062ff7,SOL-255582,completed,Invoiced,TRIA-0001,KP20RXGP,matched,account+reg,true,2026-03-19T23:59:59+00:00
+cbf02bb7-becc-4e69-a53e-53f3e3d54545,SOL-844225,completed,Invoiced,TRIA-0001,KJ77DKGP,matched,account+reg,true,2026-03-18T23:59:59+00:00
+0c68041b-8368-4e1a-8783-d0a99ece7ce9,SOL-668144,completed,Invoiced,PRCR-0001,KVR594MP - CB08,missing,account-only-no-reg-match,true,2026-05-06T09:28:42.789627+00:00
+c62d1204-39e2-40c2-ab9e-dc236d3a9c59,SOL-114900,completed,Invoiced,PRCR-0001,KVR582MP - CB03,missing,account-only-no-reg-match,true,2026-04-15T08:45:26.463+00:00
+dcc49e87-c846-4e5b-9300-1bd74dea250b,SOL-847507,completed,Invoiced,PRCR-0001,KVR593MP - CB07,missing,account-only-no-reg-match,true,2026-03-14T23:59:59+00:00
+978e6c6e-ded6-4d32-938b-fbdc6ca374ac,SOL-886289,completed,Invoiced,AVVA-0001,LL58BKGP,matched,account+reg,true,2026-03-02T23:59:59+00:00
+ecab6388-1098-4b3b-a534-c9ac189b4e25,SOL-349110,completed,Invoiced,AVVA-0001,LJ62GSGP,matched,account+reg,true,2026-05-06T09:28:00.854742+00:00
+dfcf9d08-038a-4f24-a5e6-a17410d86398,SOL-276056,completed,Invoiced,AVVA-0001,KX82RJGP,missing,account-only-no-reg-match,true,2026-05-06T09:27:34.294154+00:00
+40dada2b-b645-4514-8d14-8c4cee5926a7,SOL-796438,completed,Invoiced,EPSC-0001,MW90NSGP,matched,account+reg,true,2026-03-16T23:59:59+00:00
+b96aa311-8586-4133-a03e-0bdcecf257ea,SOL-532422,completed,Invoiced,,LJN458NW,matched,reg-only-no-account,true,2026-03-12T23:59:59+00:00
+82c67cd2-8628-41d8-8447-799ae3d11630,SOL-512195,completed,Invoiced,,YXX694GP,matched,reg-only-no-account,true,2026-03-12T23:59:59+00:00
+4176317c-edd7-428f-9240-4da4c7aaf7ba,SOL-155877,completed,Invoiced,ACTE-0001,JJK 609MP,matched,account+reg,true,2026-03-19T23:59:59+00:00
+8b809859-7664-4bea-a85a-d5c7b777d1d4,SOL-212181,completed,Invoiced,ACTE-0001,JST022MP,matched,account+reg,true,2026-03-19T23:59:59+00:00
+1a928d25-9245-4961-8558-258f04154eeb,SOL-689650,completed,Invoiced,MACS-0022,HS85CMGP,matched,account+reg,true,2026-03-01T23:59:59+00:00
+af288ffa-4048-4ebc-8346-35c1abd25dcd,JOB-1769083474648-05xn1jxgf,completed,Invoiced,,FW16TWGP - CHS017,missing,no-account+no-reg-match,true,2026-04-21T07:58:25.458647+00:00
+e98cff95-beed-4817-987e-a3c9e51f53cf,SOL-289786,completed,Invoiced,EDGE-0004,TEMP795693,matched,account+reg,true,2026-05-06T08:43:47.966943+00:00
+969b1ffe-87d7-4d9e-a361-d92dc2c9f84d,SOL-611855,completed,Invoiced,EDGE-0004,TEMP019013,matched,account+reg,true,2026-05-06T08:41:16.812167+00:00
+50165a66-51b5-4108-bb8e-66af06da4fad,SOL-149026,completed,Invoiced,EDGE-0004,MD30BBGP,matched,account+reg,true,2026-05-06T08:38:45.563428+00:00
+67d7fb8f-d93d-4c6e-b4a0-06b91812f61b,SOL-380130,completed,Invoiced,EDGE-0008,CF329893,matched,account+reg,true,2026-05-06T08:37:14.062087+00:00
+16003aef-815a-4894-b8bb-5f01abaa3d6e,SOL-898815,completed,Invoiced,EDGE-0033,CY441378,matched,account+reg,true,2026-05-06T08:35:49.143828+00:00
+3d8de0a2-3150-49dd-80f6-e5c3eb1138d6,SOL-502311,completed,Invoiced,FAIT-0001,MP71TSGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+b6992e4e-a1e7-47be-9e90-b6788006f940,SOL-960994,completed,Invoiced,AVIS-0001,LJ75LRGP,missing,no-vehicle-match,true,2026-04-15T05:51:21.95+00:00
+523c0933-e7bd-4d82-8b28-008ecf3faafe,SOL-431687,completed,Invoiced,AVIS-0001,LH71ZNGP,missing,reg-account-mismatch,true,2026-04-15T05:49:47.911+00:00
+ce4404c7-e286-43a6-80a7-6690739ab05d,JOB-1754928396962-95tzjqikr,completed,Invoiced,,AB56CDGP,missing,no-account+no-reg-match,true,2026-03-01T23:59:59+00:00
+8d041ca6-cbf3-42c4-baa0-b67d4abe5de4,SOL-536213,completed,Completed,HITA-0001,,missing,no-reg,true,2026-04-30T10:00:00+00:00
+492c0ae7-6bac-4a1e-9abd-0576b0d70c87,SOL-704027,completed,Completed,ALST-0001,JZ88CYGP,missing,account-only-no-reg-match,true,2026-05-07T09:54:25.186197+00:00
+52ff7f5d-5791-4d48-9990-209700bd2d02,SOL-458691,completed,Completed,MACS-0029,DSH908L,matched,account+reg,true,2026-05-07T12:01:30.189202+00:00
+830e819b-28c4-426d-abe1-fef25c5b2602,SOL-834611,completed,Completed,MACS-0003,BT68VJGP,missing,no-vehicle-match,true,2026-03-14T23:59:59+00:00
+30162c5b-0d4a-4d71-ac2e-83cac4d182d8,SOL-587296,completed,Completed,,KB45JMGP,missing,no-account+no-reg-match,true,2026-03-21T23:59:59+00:00
+21e9d797-0811-4f2b-b4b8-029e47a71ea8,SOL-365736,completed,Completed,TACI-0001,LT57WLGP ,matched,account+reg,true,2026-05-11T12:35:30.863+00:00
+9984949f-9933-49b0-8ee2-5521c54ef688,SOL-806007,pending,pending,MAGO-0001,BK92RJGP,matched,account+reg,true,
+1b2ac40d-c829-4884-8ad5-303f8cd78156,SOL-938092,completed,Completed,,JF68WWGP,matched,reg-only-no-account,true,2026-04-30T12:21:37.061+00:00
+f617b4d3-f834-414b-8e74-d406bc6be097,SOL-701980,completed,Completed,HITA-0001,MS53MCGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+48ac49de-ee05-471b-88f2-c4d897aae86b,SOL-928170,completed,Completed,HITA-0001,MS53LYGP,missing,account-only-no-reg-match,true,2026-03-15T23:59:59+00:00
+59e4b3d0-0dab-416f-b041-ab52d885c9da,SOL-439691,completed,Completed,HITA-0001,MS53LJGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+c7df63e8-6268-40a0-8922-3907c2225c9a,SOL-504254,completed,Completed,HITA-0001,MS53JZGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+318ed34a-98e3-4e0e-927f-a5790b6c8913,SOL-385155,completed,Completed,HITA-0001,MS53MTGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+c2aa9683-0de3-4bcf-bff3-7f10a3f247a9,SOL-183317,completed,Completed,HITA-0001,MS53MKGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+6be90565-9cbb-43ad-b860-0ad34486481c,SOL-878699,completed,Completed,HITA-0001,MS53KHGP,matched,account+reg,true,2026-03-15T23:59:59+00:00
+719e0a53-1e14-4cc8-8c79-275f59981f32,SOL-424827,completed,Completed,ANGE-0001,LK19JHGP,missing,no-vehicle-match,true,2026-03-15T23:59:59+00:00
+57ac4e17-11aa-48f0-b7f7-8e5c7548cf30,SOL-732202,completed,Completed,ALST-0001,N/A,matched,account+reg,true,2026-04-30T12:24:42.684+00:00
+39d09228-cec1-4407-924e-1d383fe6d916,SOL-926199,completed,Completed,,ZVN779GP,missing,no-account+no-reg-match,true,2026-03-12T09:05:05.64866+00:00
+b91d6b30-516a-4668-afcc-abdc4c9a9b3a,SOL-102024,completed,Completed,EDGE-0017,CA270479,matched,account+reg,true,2026-05-12T09:19:36.234632+00:00
+226d3028-ac0b-49b1-af1a-0c58b37d334d,SOL-760653,completed,Completed,MACS-0022,TOYOTA,matched,account+reg,true,2026-03-15T23:59:59+00:00
+616b186d-7208-4eea-bac1-3f6748ea104a,SOL-776312,completed,Completed,EDGE-0005,TEMPJT68705,matched,account+reg,true,2026-03-19T09:18:32.198+00:00
+00638217-e9e1-449f-a8af-fdb861f551fa,SOL-623042,pending,pending,EDGE-0005,LCW704NW,matched,account+reg,true,
+6fff3162-b12f-4659-b158-7c000a424a00,SOL-457225,completed,Completed,EDGE-0001,,missing,no-reg,true,2026-03-15T23:59:59+00:00
+8364080b-3a38-4ec0-ab5c-db5f5d855353,JOB-1754983990908-jv74w752n,completed,Completed,,AB56CDGP,missing,no-account+no-reg-match,true,2026-04-12T22:11:39.664239+00:00
+efffae80-c18b-48bf-8043-b5b3a9ea5beb,JOB-1754983842269-ls95urb0r,completed,Completed,,gdjd,missing,no-account+no-reg-match,true,2026-04-21T07:49:27.647322+00:00

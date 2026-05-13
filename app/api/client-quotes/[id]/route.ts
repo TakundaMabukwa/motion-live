@@ -198,9 +198,6 @@ export async function PUT(
         clientQuote.job_type || clientQuote.quotation_job_type,
       );
       const isCalibration = normalizedQuoteJobType.includes('calibration');
-      const isOnceOffItem =
-        normalizedQuoteJobType.includes('itembilling') ||
-        normalizedQuoteJobType.includes('onceoffitem');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
       const deinstallProductLabels = quotationProducts.map(getQuoteLineLabel);
       const providedOrderNumber = String(order_number || '').trim();
@@ -300,7 +297,8 @@ export async function PUT(
           : { status: 'pending' };
       const approvalTimestamp = new Date().toISOString();
       const shouldRouteDecommission = isDecommissionJobCard && routingDestination !== 'none';
-      const shouldAutoCompleteToAccounts = isOnceOffItem || !shouldRouteDecommission;
+      const shouldAutoCompleteToAccounts = isCalibration && !shouldRouteDecommission;
+      const shouldRouteToInventory = !shouldRouteDecommission && !shouldAutoCompleteToAccounts;
       const jobCardLifecycleFields = shouldAutoCompleteToAccounts
         ? {
             status: 'completed',
@@ -309,6 +307,13 @@ export async function PUT(
             move_to: 'accounts' as const,
             completion_date: approvalTimestamp,
             end_time: approvalTimestamp,
+          }
+        : shouldRouteToInventory
+        ? {
+            status: 'pending',
+            job_status: 'pending',
+            role: 'inv' as const,
+            move_to: 'inv' as const,
           }
         : {
             status: routingFields.status,
@@ -476,7 +481,9 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         message: shouldAutoCompleteToAccounts
-          ? 'Client quote approved and moved to Accounts as a completed job card'
+          ? 'Calibration quote approved and moved to Accounts'
+          : shouldRouteToInventory
+          ? 'Client quote approved and moved to Inventory (Assign Parts)'
           : 'Client quote approved and copied to job cards successfully',
         data: {
           jobCardId: jobCard.id,

@@ -1,0 +1,384 @@
+{
+  "summary": {
+    "targets": 41,
+    "ids_with_jobs": 41,
+    "processed": 41,
+    "created_vehicles": 20,
+    "created_vehicles_duplicate": 35,
+    "existed_vehicles": 21,
+    "existed_vehicles_duplicate": 6,
+    "skipped_missing_account": 0,
+    "generated_temp_reg": 16
+  },
+  "details": [
+    {
+      "job_number": "SOL-432046",
+      "account": "HITA-0001",
+      "reg": "TEMP90892",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-447800",
+      "account": "MACS-0023",
+      "reg": "VLK687GP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-294370",
+      "account": "ALST-0001",
+      "reg": "TEMP32676",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-325091",
+      "account": "MACS-0037",
+      "reg": "CY433480",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-163703",
+      "account": "MACS-0025",
+      "reg": "BG90DHZN",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-192903",
+      "account": "MACS-0025",
+      "reg": "BG90DHZN",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-617357",
+      "account": "WACA-0001",
+      "reg": "KC31RGGP - CAN AND BUZZER INSTALL",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-281508",
+      "account": "TTEX-0001",
+      "reg": "TEMP66045",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-716441",
+      "account": "TTFM-0001",
+      "reg": "TEMP50110",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-979367",
+      "account": "TTLI-0001",
+      "reg": "TEMP14192",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-881439",
+      "account": "TLOG-0001",
+      "reg": "TEMP42295",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-689737",
+      "account": "HITA-0001",
+      "reg": "TEMP78997",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-417776",
+      "account": "TTEX-0001",
+      "reg": "TEMP26954",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-960887",
+      "account": "TTFM-0001",
+      "reg": "TEMP89976",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-663404",
+      "account": "TTLI-0001",
+      "reg": "TEMP81771",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-788317",
+      "account": "TLOG-0001",
+      "reg": "TEMP84405",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-559683",
+      "account": "LECO-0001",
+      "reg": "TEMP14221",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-931061",
+      "account": "ENER-0001",
+      "reg": "TEMP12291",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-827447",
+      "account": "AVIS-0001",
+      "reg": "KZ35BJGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-655602",
+      "account": "MAYS-0001",
+      "reg": "data upload - MAY003",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-776721",
+      "account": "TTLI-0001",
+      "reg": "PANIC INSTALLS",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-489882",
+      "account": "TTLI-0001",
+      "reg": "PANIC INSTALLS",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-797876",
+      "account": "TTLI-0001",
+      "reg": "LDG422MP - LH33",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-300309",
+      "account": "TTLI-0001",
+      "reg": "JJT993FS - PLS241",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-527893",
+      "account": "TTLI-0001",
+      "reg": "JGK731FS - LH41",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-512085",
+      "account": "MAYS-0001",
+      "reg": "MAY007",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-995120",
+      "account": "MAYS-0001",
+      "reg": "DATA UPLOAD - MAY002",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-244000",
+      "account": "MAYS-0001",
+      "reg": "DATA UPLOAD - MAY509",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-156583",
+      "account": "MAYS-0001",
+      "reg": "MAY009",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-212942",
+      "account": "MACS-0003",
+      "reg": "BT68VJGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-930914",
+      "account": "ENER-0001",
+      "reg": "TEMP40883",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-373947",
+      "account": "ANGE-0001",
+      "reg": "FN85FKGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-709720",
+      "account": "ANGE-0001",
+      "reg": "FN85FKGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-989640",
+      "account": "ANGE-0001",
+      "reg": "YMM294GP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-489044",
+      "account": "ANGE-0001",
+      "reg": "YMM294GP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-440825",
+      "account": "ANGE-0001",
+      "reg": "LT00JNGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-960994",
+      "account": "AVIS-0001",
+      "reg": "LJ75LRGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-536213",
+      "account": "HITA-0001",
+      "reg": "TEMP15409",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-834611",
+      "account": "MACS-0003",
+      "reg": "BT68VJGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": false,
+      "created_vehicles_duplicate": false
+    },
+    {
+      "job_number": "SOL-424827",
+      "account": "ANGE-0001",
+      "reg": "LK19JHGP",
+      "match_mode": "no-vehicle-match",
+      "used_temp_reg": false,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    },
+    {
+      "job_number": "SOL-457225",
+      "account": "EDGE-0001",
+      "reg": "TEMP80320",
+      "match_mode": "no-reg",
+      "used_temp_reg": true,
+      "created_vehicles": true,
+      "created_vehicles_duplicate": true
+    }
+  ]
+}

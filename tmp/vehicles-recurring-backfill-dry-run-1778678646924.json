@@ -1,0 +1,71 @@
+{
+  "summary": {
+    "mode": "dry-run",
+    "csv": "C:\\Users\\mabuk\\Desktop\\Dashboards\\motion-live\\tmp\\job-card-rental-sub-items-completed-invoiced-install.csv",
+    "invoice_filter_size": 0,
+    "job_filter_size": 191,
+    "source_rows": 337,
+    "selected_rows": 54,
+    "recurring_rows": 4,
+    "vehicle_plans": 2,
+    "updated_rows": 2,
+    "created_rows": 1,
+    "skipped_rows": 2
+  },
+  "skips": [
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "SOL-164333",
+      "invoice_number": null,
+      "item_name": "BREATHALOK"
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "JOB-1754928396962-95tzjqikr",
+      "invoice_number": null,
+      "item_name": "2.5\" SSD 480GB"
+    }
+  ],
+  "preview": [
+    {
+      "table": "vehicles",
+      "reg": "F44 - MX65HCGP",
+      "account_number": "SEVE-0001",
+      "row_id": 132296,
+      "created": false,
+      "source_groups": [
+        "SOL-998233||"
+      ],
+      "updates": {
+        "fm_unit_sub": 540,
+        "fm_unit_rental": 324,
+        "beame_1_sub": 89,
+        "beame_1_rental": 17.92
+      },
+      "totals_delta": {
+        "rental": 341.92,
+        "sub": 629
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "F44 - MX65HCGP",
+      "account_number": "SEVE-0001",
+      "row_id": null,
+      "created": true,
+      "source_groups": [
+        "SOL-998233||"
+      ],
+      "updates": {
+        "fm_unit_sub": 540,
+        "fm_unit_rental": 324,
+        "beame_1_sub": 89,
+        "beame_1_rental": 17.92
+      },
+      "totals_delta": {
+        "rental": 341.92,
+        "sub": 629
+      }
+    }
+  ]
+}

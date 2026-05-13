@@ -320,15 +320,19 @@ function pickFamilyBaseField(row, familyKey, preferSub, preferRental) {
   const slots = SLOT_FAMILIES[familyKey] || [];
   if (!slots.length) return null;
 
-  const withInstalledValue = slots.find((slot) => String(row[slot] || "").trim());
-  if (withInstalledValue) return withInstalledValue;
+  // For installs, always fill the next open slot first (beame_1 -> beame_2 -> ...).
+  const firstEmptySlot = slots.find((slot) => !String(row[slot] || "").trim());
+  if (firstEmptySlot) return firstEmptySlot;
 
   const withExistingBilling = slots.find((slot) => {
     const billingColumn = getBillingColumnForField(row, slot, preferSub, preferRental);
     if (!billingColumn) return false;
-    return toNumber(row[billingColumn]) > 0;
+    return toNumber(row[billingColumn]) <= 0;
   });
   if (withExistingBilling) return withExistingBilling;
+
+  const withInstalledValue = slots.find((slot) => String(row[slot] || "").trim());
+  if (withInstalledValue) return withInstalledValue;
 
   return slots[0];
 }

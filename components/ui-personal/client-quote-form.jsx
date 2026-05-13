@@ -93,6 +93,14 @@ const normalizeJobSubTypeValue = (value, normalizedJobType) => {
   return normalized;
 };
 
+const createCalibrationEntry = (overrides = {}) => ({
+  id: `calibration-entry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  vehicle: "",
+  amount: "",
+  vehicleId: null,
+  ...overrides,
+});
+
 export default function ClientQuoteForm({
   customer,
   vehicles,
@@ -198,7 +206,7 @@ export default function ClientQuoteForm({
     amount: "",
   });
   const [calibrationQuote, setCalibrationQuote] = useState({
-    amount: "",
+    entries: [createCalibrationEntry()],
   });
   // De-install specific state
   const [deInstallData, setDeInstallData] = useState({
@@ -487,15 +495,20 @@ export default function ClientQuoteForm({
   }, []);
 
   const buildCalibrationProduct = useCallback(
-    (amountValue) => {
-      const amountExVat = parseCalibrationAmount(amountValue);
+    (entry, index) => {
+      const vehiclePlate = String(entry?.vehicle || "").trim();
+      const amountExVat = parseCalibrationAmount(entry?.amount);
       return {
-        id: "calibration-line",
+        id: `calibration-line-${index + 1}`,
         name: "Calibration",
         description:
-          amountExVat > 0
-            ? `Calibration - R${amountExVat.toFixed(2)} ex VAT`
-            : "Calibration",
+          amountExVat > 0 && vehiclePlate
+            ? `Calibration - ${vehiclePlate} - R${amountExVat.toFixed(2)} ex VAT`
+            : amountExVat > 0
+              ? `Calibration - R${amountExVat.toFixed(2)} ex VAT`
+              : vehiclePlate
+                ? `Calibration - ${vehiclePlate}`
+                : "Calibration",
         type: "Service",
         category: "Calibration",
         code: "CALIBRATION",
@@ -514,10 +527,26 @@ export default function ClientQuoteForm({
         subscriptionPrice: 0,
         subscriptionDiscount: 0,
         annuityEndDate: "",
-        detailValue: "",
+        detailValue: vehiclePlate,
+        vehiclePlate,
+        vehicleId: entry?.vehicleId || null,
       };
     },
     [parseCalibrationAmount],
+  );
+
+  const buildCalibrationProductsFromEntries = useCallback(
+    (entries) =>
+      (Array.isArray(entries) ? entries : [])
+        .map((entry, index) => ({
+          entry,
+          index,
+          vehiclePlate: String(entry?.vehicle || "").trim(),
+          amountExVat: parseCalibrationAmount(entry?.amount),
+        }))
+        .filter(({ vehiclePlate, amountExVat }) => vehiclePlate && amountExVat > 0)
+        .map(({ entry, index }) => buildCalibrationProduct(entry, index)),
+    [buildCalibrationProduct, parseCalibrationAmount],
   );
 
   const steps = [
@@ -747,28 +776,39 @@ export default function ClientQuoteForm({
     }
 
     if (normalizedJobType === "calibration") {
-      const firstItem = existingItems[0] || {};
-      const parsedQuantity =
-        Number(
-          firstItem.quantity ||
-          firstItem.detail_value ||
-          firstItem.detailValue ||
-          0,
-        ) || 0;
-      const parsedTotal =
-        Number(
-          firstItem.total_price ||
-          firstItem.cash_price ||
-          firstItem.cashPrice ||
-          0,
-        ) || 0;
-      const amountPerVehicle =
-        parsedQuantity > 0
-          ? Number((parsedTotal / parsedQuantity).toFixed(2))
-          : parsedTotal;
+      const calibrationEntries = existingItems
+        .map((item, index) => {
+          const vehicle = String(
+            item.vehicle_plate ||
+              item.detail_value ||
+              item.detailValue ||
+              "",
+          ).trim();
+          const amount =
+            Number(
+              item.cash_price ||
+                item.cashPrice ||
+                item.total_price ||
+                item.price ||
+                0,
+            ) || 0;
+
+          if (!vehicle && amount <= 0) return null;
+
+          return createCalibrationEntry({
+            id: item.id || `calibration-entry-${index + 1}`,
+            vehicle,
+            amount: amount > 0 ? String(amount) : "",
+            vehicleId: item.vehicle_id || null,
+          });
+        })
+        .filter(Boolean);
 
       setCalibrationQuote({
-        amount: amountPerVehicle > 0 ? String(amountPerVehicle) : "",
+        entries:
+          calibrationEntries.length > 0
+            ? calibrationEntries
+            : [createCalibrationEntry()],
       });
     }
 
@@ -910,27 +950,87 @@ export default function ClientQuoteForm({
   useEffect(() => {
     if (formData.jobType !== "calibration") return;
 
-    const hasAmount = parseCalibrationAmount(calibrationQuote.amount) > 0;
-    if (!hasAmount) {
+    const calibrationProducts = buildCalibrationProductsFromEntries(
+      calibrationQuote.entries,
+    );
+
+    if (calibrationProducts.length === 0) {
       setSelectedProducts((prev) =>
-        (prev || []).filter((product) => product.id !== "calibration-line"),
+        (prev || []).filter(
+          (product) => !String(product?.id || "").startsWith("calibration-line"),
+        ),
       );
       return;
     }
 
-    const calibrationProduct = buildCalibrationProduct(calibrationQuote.amount);
     setSelectedProducts((prev) => {
       const remainingProducts = (prev || []).filter(
-        (product) => product.id !== "calibration-line",
+        (product) => !String(product?.id || "").startsWith("calibration-line"),
       );
-      return [calibrationProduct, ...remainingProducts];
+      return [...calibrationProducts, ...remainingProducts];
     });
   }, [
     formData.jobType,
-    calibrationQuote.amount,
-    buildCalibrationProduct,
-    parseCalibrationAmount,
+    calibrationQuote.entries,
+    buildCalibrationProductsFromEntries,
   ]);
+
+  const calibrationVehicleOptions = useMemo(() => {
+    const sourceVehicles = Array.isArray(vehicles) ? vehicles : [];
+    const seen = new Set();
+
+    const options = sourceVehicles
+      .map((vehicle) => {
+        const reg = String(
+          vehicle?.reg ||
+            vehicle?.new_registration ||
+            vehicle?.fleet_number ||
+            "",
+        ).trim();
+
+        if (!reg) return null;
+
+        const key = reg.toLowerCase();
+        if (seen.has(key)) return null;
+        seen.add(key);
+
+        return {
+          value: reg,
+          vehicleId: vehicle?.id || null,
+          label: reg,
+        };
+      })
+      .filter(Boolean);
+
+    return options;
+  }, [vehicles]);
+
+  const updateCalibrationEntry = useCallback((entryId, patch) => {
+    setCalibrationQuote((prev) => ({
+      ...prev,
+      entries: (Array.isArray(prev?.entries) ? prev.entries : []).map((entry) =>
+        entry.id === entryId ? { ...entry, ...patch } : entry,
+      ),
+    }));
+  }, []);
+
+  const addCalibrationEntry = useCallback(() => {
+    setCalibrationQuote((prev) => ({
+      ...prev,
+      entries: [...(Array.isArray(prev?.entries) ? prev.entries : []), createCalibrationEntry()],
+    }));
+  }, []);
+
+  const removeCalibrationEntry = useCallback((entryId) => {
+    setCalibrationQuote((prev) => {
+      const currentEntries = Array.isArray(prev?.entries) ? prev.entries : [];
+      const remainingEntries = currentEntries.filter((entry) => entry.id !== entryId);
+      return {
+        ...prev,
+        entries: remainingEntries.length > 0 ? remainingEntries : [createCalibrationEntry()],
+      };
+    });
+  }, []);
 
   const fetchProductItems = useCallback(async () => {
     let cacheKey = "__all__";
@@ -1169,10 +1269,23 @@ export default function ClientQuoteForm({
     return selectedProducts.reduce((total, product) => total + getProductTotal(product), 0);
   }, [selectedProducts, getProductTotal]);
 
-  const calibrationAmountExVat = useMemo(
-    () => parseCalibrationAmount(calibrationQuote.amount),
-    [calibrationQuote.amount, parseCalibrationAmount],
-  );
+  const calibrationQuoteTotals = useMemo(() => {
+    const validEntries = (Array.isArray(calibrationQuote.entries) ? calibrationQuote.entries : [])
+      .map((entry) => ({
+        vehicle: String(entry?.vehicle || "").trim(),
+        amount: parseCalibrationAmount(entry?.amount),
+      }))
+      .filter((entry) => entry.vehicle && entry.amount > 0);
+
+    const subtotal = validEntries.reduce((sum, entry) => sum + entry.amount, 0);
+
+    return {
+      validEntries,
+      subtotal,
+      vat: subtotal * VAT_RATE,
+      total: subtotal * (1 + VAT_RATE),
+    };
+  }, [calibrationQuote.entries, parseCalibrationAmount]);
 
   const canProceed = () => {
     switch (currentStep) {
@@ -1205,7 +1318,7 @@ export default function ClientQuoteForm({
         }
 
         if (formData.jobType === 'calibration') {
-          return calibrationAmountExVat > 0;
+          return calibrationQuoteTotals.validEntries.length > 0;
         }
         
         // For all non-deinstall jobs, require selected products
@@ -1423,7 +1536,7 @@ export default function ClientQuoteForm({
           : formData.jobType === "item_billing"
             ? [buildItemBillingProduct(itemBillingQuote.item, itemBillingQuote.amount)]
             : formData.jobType === "calibration"
-              ? [buildCalibrationProduct(calibrationQuote.amount)]
+              ? buildCalibrationProductsFromEntries(calibrationQuote.entries)
           : (selectedProducts || []);
 
       const quotationProducts = productsToSerialize.map(serializeProductForQuote);
@@ -1733,7 +1846,7 @@ export default function ClientQuoteForm({
         setSelectedProducts([]);
         setRecoveryQuote({ hours: "", amount: "" });
         setItemBillingQuote({ item: "", amount: "" });
-        setCalibrationQuote({ amount: "" });
+        setCalibrationQuote({ entries: [createCalibrationEntry()] });
         setSearchTerm("");
         setSelectedType("all");
         setSelectedCategory("all");
@@ -1833,28 +1946,28 @@ export default function ClientQuoteForm({
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
                         setItemBillingQuote({ item: "", amount: "" });
-                        setCalibrationQuote({ amount: "" });
+                        setCalibrationQuote({ entries: [createCalibrationEntry()] });
                       } else if (value === "item_billing") {
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
                         setItemBillingQuote({ item: "", amount: "" });
-                        setCalibrationQuote({ amount: "" });
+                        setCalibrationQuote({ entries: [createCalibrationEntry()] });
                       } else if (value === "calibration") {
                         setSelectedProducts([]);
                         setRecoveryQuote({ hours: "", amount: "" });
                         setItemBillingQuote({ item: "", amount: "" });
-                        setCalibrationQuote({ amount: "" });
+                        setCalibrationQuote({ entries: [createCalibrationEntry()] });
                       } else {
                         setSelectedProducts((prev) =>
                           (prev || []).filter(
                             (product) =>
                               product.id !== "recovery-line" &&
                               product.id !== "item-billing-line" &&
-                              product.id !== "calibration-line"
+                              !String(product?.id || "").startsWith("calibration-line")
                           )
                         );
                         setItemBillingQuote({ item: "", amount: "" });
-                        setCalibrationQuote({ amount: "" });
+                        setCalibrationQuote({ entries: [createCalibrationEntry()] });
                       }
                       setHasUserSelectedJobType(true);
                     }}
@@ -2212,22 +2325,93 @@ export default function ClientQuoteForm({
                   <CardTitle>Calibration Quote Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2 max-w-md">
-                    <Label htmlFor="calibrationAmountExVat">Amount Ex VAT *</Label>
-                    <Input
-                      id="calibrationAmountExVat"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Enter amount ex VAT"
-                      value={calibrationQuote.amount}
-                      onChange={(e) =>
-                        setCalibrationQuote((prev) => ({
-                          ...prev,
-                          amount: e.target.value,
-                        }))
-                      }
-                    />
+                  <datalist id="calibrationVehicleOptions">
+                    {calibrationVehicleOptions.map((option) => (
+                      <option key={option.value} value={option.value} />
+                    ))}
+                  </datalist>
+
+                  <div className="space-y-3">
+                    {(Array.isArray(calibrationQuote.entries) ? calibrationQuote.entries : []).map((entry, index) => (
+                      <div
+                        key={entry.id}
+                        className="gap-3 grid grid-cols-1 md:grid-cols-[1fr_180px_auto] p-3 border rounded-lg"
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor={`calibrationVehicle-${entry.id}`}>
+                            Vehicle {index + 1} *
+                          </Label>
+                          <Input
+                            id={`calibrationVehicle-${entry.id}`}
+                            list="calibrationVehicleOptions"
+                            placeholder="Enter or select vehicle registration"
+                            value={entry.vehicle}
+                            onChange={(e) => {
+                              const nextVehicle = e.target.value;
+                              const matchedOption = calibrationVehicleOptions.find(
+                                (option) =>
+                                  option.value.toLowerCase() === nextVehicle.trim().toLowerCase(),
+                              );
+                              updateCalibrationEntry(entry.id, {
+                                vehicle: nextVehicle,
+                                vehicleId: matchedOption?.vehicleId || null,
+                              });
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`calibrationAmount-${entry.id}`}>
+                            Amount Ex VAT *
+                          </Label>
+                          <Input
+                            id={`calibrationAmount-${entry.id}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={entry.amount}
+                            onChange={(e) =>
+                              updateCalibrationEntry(entry.id, { amount: e.target.value })
+                            }
+                          />
+                        </div>
+
+                        <div className="flex md:items-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => removeCalibrationEntry(entry.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-1 w-4 h-4" />
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" onClick={addCalibrationEntry}>
+                      <Plus className="mr-1 w-4 h-4" />
+                      Add Vehicle Amount
+                    </Button>
+                  </div>
+
+                  <div className="gap-4 grid grid-cols-1 md:grid-cols-3 p-3 bg-gray-50 rounded-md text-sm">
+                    <div>
+                      <p className="text-gray-500">Subtotal Ex VAT</p>
+                      <p className="font-semibold">R{calibrationQuoteTotals.subtotal.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">VAT</p>
+                      <p className="font-semibold">R{calibrationQuoteTotals.vat.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Total Incl VAT</p>
+                      <p className="font-semibold">R{calibrationQuoteTotals.total.toFixed(2)}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

@@ -1,0 +1,1149 @@
+{
+  "summary": {
+    "mode": "apply",
+    "csv": "C:\\Users\\mabuk\\Desktop\\Dashboards\\motion-live\\tmp\\missing-reg-recurring-lines-from-jobcards.csv",
+    "invoice_filter_size": 0,
+    "job_filter_size": 191,
+    "source_rows": 62,
+    "selected_rows": 62,
+    "recurring_rows": 62,
+    "vehicle_plans": 58,
+    "updated_rows": 58,
+    "created_rows": 33,
+    "skipped_rows": 7
+  },
+  "skips": [
+    {
+      "reason": "no_billing_column",
+      "table": "vehicles",
+      "job_number": "SOL-738912",
+      "invoice_number": "",
+      "account_number": "MNFU-0001",
+      "reg": "ML51ZVGP",
+      "item_id": "40f07ec2-cc03-4591-98ce-a1dce834b1f6",
+      "item_name": "SIM CARD (CAMERA) CORPCONNECT",
+      "base_field": "corpconnect_sim_no",
+      "charge": "rental",
+      "amount": 128
+    },
+    {
+      "reason": "no_billing_column",
+      "table": "vehicles_duplicate",
+      "job_number": "SOL-738912",
+      "invoice_number": "",
+      "account_number": "MNFU-0001",
+      "reg": "ML51ZVGP",
+      "item_id": "40f07ec2-cc03-4591-98ce-a1dce834b1f6",
+      "item_name": "SIM CARD (CAMERA) CORPCONNECT",
+      "base_field": "corpconnect_sim_no",
+      "charge": "rental",
+      "amount": 128
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "SOL-164333",
+      "invoice_number": null,
+      "item_name": "BREATHALOK"
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "JOB-1754928396962-95tzjqikr",
+      "invoice_number": null,
+      "item_name": "2.5\" SSD 480GB"
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "JOB-1754983842269-ls95urb0r",
+      "invoice_number": null,
+      "item_name": "1M Fuel Harness"
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "JOB-1754983842269-ls95urb0r",
+      "invoice_number": null,
+      "item_name": "3M Fuel Harness"
+    },
+    {
+      "reason": "missing_job_or_account",
+      "job_number": "JOB-1754983990908-jv74w752n",
+      "invoice_number": null,
+      "item_name": "Skylink Pro"
+    }
+  ],
+  "preview": [
+    {
+      "table": "vehicles",
+      "reg": "TEMP047058",
+      "account_number": "EDGE-0008",
+      "row_id": 132113,
+      "created": false,
+      "source_groups": [
+        "SOL-850597|EDGE-0008|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP047058",
+      "account_number": "EDGE-0008",
+      "row_id": 132108,
+      "created": true,
+      "source_groups": [
+        "SOL-850597|EDGE-0008|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "F44 - MX65HCGP",
+      "account_number": "SEVE-0001",
+      "row_id": 132296,
+      "created": false,
+      "source_groups": [
+        "SOL-998233|SEVE-0001|"
+      ],
+      "updates": {
+        "fm_unit_sub": 540,
+        "fm_unit_rental": 324,
+        "beame_1_sub": 89,
+        "beame_1_rental": 17.92
+      },
+      "totals_delta": {
+        "rental": 341.92,
+        "sub": 629
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "F44 - MX65HCGP",
+      "account_number": "SEVE-0001",
+      "row_id": 132109,
+      "created": true,
+      "source_groups": [
+        "SOL-998233|SEVE-0001|"
+      ],
+      "updates": {
+        "fm_unit_sub": 540,
+        "fm_unit_rental": 324,
+        "beame_1_sub": 89,
+        "beame_1_rental": 17.92
+      },
+      "totals_delta": {
+        "rental": 341.92,
+        "sub": 629
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "CHDB8904",
+      "account_number": "PRCR-0001",
+      "row_id": 132123,
+      "created": false,
+      "source_groups": [
+        "SOL-567489|PRCR-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295,
+        "mtx_mc202x_rental": 216
+      },
+      "totals_delta": {
+        "rental": 216,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "CHDB8904",
+      "account_number": "PRCR-0001",
+      "row_id": 132110,
+      "created": true,
+      "source_groups": [
+        "SOL-567489|PRCR-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295,
+        "mtx_mc202x_rental": 216
+      },
+      "totals_delta": {
+        "rental": 216,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "ML51ZVGP",
+      "account_number": "MNFU-0001",
+      "row_id": 132293,
+      "created": false,
+      "source_groups": [
+        "SOL-738912|MNFU-0001|"
+      ],
+      "updates": {
+        "_4ch_mdvr_sub": 295,
+        "_4ch_mdvr_rental": 543,
+        "adas_02_road_facing_rental": 55,
+        "dms01_driver_facing_rental": 99,
+        "_5m_cable_for_camera_4pin_rental": 16,
+        "_10m_cable_for_camera_4pin_rental": 26,
+        "sky_ican_rental": 53,
+        "beame_1_sub": 89,
+        "beame_1_rental": 31,
+        "single_probe_sub": 22,
+        "single_probe_rental": 658,
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 226,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 1707,
+        "sub": 900
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "ML51ZVGP",
+      "account_number": "MNFU-0001",
+      "row_id": 132111,
+      "created": true,
+      "source_groups": [
+        "SOL-738912|MNFU-0001|"
+      ],
+      "updates": {
+        "_4ch_mdvr_sub": 295,
+        "_4ch_mdvr_rental": 543,
+        "adas_02_road_facing_rental": 55,
+        "dms01_driver_facing_rental": 99,
+        "_5m_cable_for_camera_4pin_rental": 16,
+        "_10m_cable_for_camera_4pin_rental": 26,
+        "sky_ican_rental": 53,
+        "beame_1_sub": 89,
+        "beame_1_rental": 31,
+        "single_probe_sub": 22,
+        "single_probe_rental": 658,
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 226,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 1707,
+        "sub": 900
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TEMP007102",
+      "account_number": "EDGE-0008",
+      "row_id": 132222,
+      "created": false,
+      "source_groups": [
+        "SOL-250018|EDGE-0008|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP007102",
+      "account_number": "EDGE-0008",
+      "row_id": 132112,
+      "created": true,
+      "source_groups": [
+        "SOL-250018|EDGE-0008|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "CH835877",
+      "account_number": "ALST-0001",
+      "row_id": 132268,
+      "created": false,
+      "source_groups": [
+        "SOL-625531|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "CH835877",
+      "account_number": "ALST-0001",
+      "row_id": 132113,
+      "created": true,
+      "source_groups": [
+        "SOL-625531|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "CH835579",
+      "account_number": "ALST-0001",
+      "row_id": 132267,
+      "created": false,
+      "source_groups": [
+        "SOL-171883|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "CH835579",
+      "account_number": "ALST-0001",
+      "row_id": 132114,
+      "created": true,
+      "source_groups": [
+        "SOL-171883|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "NEW DASH INSTAALL - LW02LZGP",
+      "account_number": "DCCT-0001",
+      "row_id": 132142,
+      "created": false,
+      "source_groups": [
+        "SOL-655523|DCCT-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "NEW DASH INSTAALL - LW02LZGP",
+      "account_number": "DCCT-0001",
+      "row_id": 132115,
+      "created": true,
+      "source_groups": [
+        "SOL-655523|DCCT-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "NEW DASHCAM INSTALL - MD36TGGP",
+      "account_number": "DCCT-0001",
+      "row_id": 132143,
+      "created": false,
+      "source_groups": [
+        "SOL-825729|DCCT-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "NEW DASHCAM INSTALL - MD36TGGP",
+      "account_number": "DCCT-0001",
+      "row_id": 132116,
+      "created": true,
+      "source_groups": [
+        "SOL-825729|DCCT-0001|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "MW25XKGP",
+      "account_number": "AUMA-0001",
+      "row_id": 132077,
+      "created": false,
+      "source_groups": [
+        "SOL-111660|AUMA-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 740.37
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 740.37
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "MW25XKGP",
+      "account_number": "AUMA-0001",
+      "row_id": 132117,
+      "created": true,
+      "source_groups": [
+        "SOL-111660|AUMA-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 740.37
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 740.37
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "B413BOT",
+      "account_number": "TACI-0001",
+      "row_id": 132209,
+      "created": false,
+      "source_groups": [
+        "SOL-495571|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "beame_1_sub": 89,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 583
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "B413BOT",
+      "account_number": "TACI-0001",
+      "row_id": 132118,
+      "created": true,
+      "source_groups": [
+        "SOL-495571|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "beame_1_sub": 89,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 583
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "CH835580",
+      "account_number": "ALST-0001",
+      "row_id": 132270,
+      "created": false,
+      "source_groups": [
+        "SOL-389706|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "CH835580",
+      "account_number": "ALST-0001",
+      "row_id": 132119,
+      "created": true,
+      "source_groups": [
+        "SOL-389706|ALST-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "single_probe_sub": 22,
+        "beame_1_sub": 89,
+        "consultancy": 75,
+        "after_hours": 55
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 540
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "B557BXN",
+      "account_number": "TACI-0001",
+      "row_id": 132129,
+      "created": false,
+      "source_groups": [
+        "SOL-861668|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 322.92,
+        "beame_1_sub": 96.12,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 614.04
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "B557BXN",
+      "account_number": "TACI-0001",
+      "row_id": 132120,
+      "created": true,
+      "source_groups": [
+        "SOL-861668|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 322.92,
+        "beame_1_sub": 96.12,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 614.04
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TEMPKA0006",
+      "account_number": "EDGE-0047",
+      "row_id": 132320,
+      "created": true,
+      "source_groups": [
+        "SOL-597188|EDGE-0047|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMPKA0006",
+      "account_number": "EDGE-0047",
+      "row_id": 132121,
+      "created": true,
+      "source_groups": [
+        "SOL-597188|EDGE-0047|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "LB83XNGP",
+      "account_number": "EDGE-0004",
+      "row_id": 132132,
+      "created": false,
+      "source_groups": [
+        "SOL-525299|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "LB83XNGP",
+      "account_number": "EDGE-0004",
+      "row_id": 132122,
+      "created": true,
+      "source_groups": [
+        "SOL-525299|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "MX85VFGP",
+      "account_number": "TACI-0001",
+      "row_id": 132321,
+      "created": true,
+      "source_groups": [
+        "SOL-645483|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_trailer_unit_rental": 299,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 299,
+        "sub": 195
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "MX85VFGP",
+      "account_number": "TACI-0001",
+      "row_id": 132123,
+      "created": true,
+      "source_groups": [
+        "SOL-645483|TACI-0001|"
+      ],
+      "updates": {
+        "skylink_trailer_unit_rental": 299,
+        "roaming": 195
+      },
+      "totals_delta": {
+        "rental": 299,
+        "sub": 195
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "N/A",
+      "account_number": "ALST-0001",
+      "row_id": 132091,
+      "created": false,
+      "source_groups": [
+        "SOL-732202|ALST-0001|"
+      ],
+      "updates": {
+        "software": 35000
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 35000
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "N/A",
+      "account_number": "ALST-0001",
+      "row_id": 132124,
+      "created": true,
+      "source_groups": [
+        "SOL-732202|ALST-0001|"
+      ],
+      "updates": {
+        "software": 35000
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 35000
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "KFW283MP",
+      "account_number": "THES-0002",
+      "row_id": 132214,
+      "created": false,
+      "source_groups": [
+        "SOL-820952|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "KFW283MP",
+      "account_number": "THES-0002",
+      "row_id": 132125,
+      "created": true,
+      "source_groups": [
+        "SOL-820952|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "MD30BBGP",
+      "account_number": "EDGE-0004",
+      "row_id": 132136,
+      "created": false,
+      "source_groups": [
+        "SOL-149026|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "MD30BBGP",
+      "account_number": "EDGE-0004",
+      "row_id": 132126,
+      "created": true,
+      "source_groups": [
+        "SOL-149026|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TEMP795693",
+      "account_number": "EDGE-0004",
+      "row_id": 132141,
+      "created": false,
+      "source_groups": [
+        "SOL-289786|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP795693",
+      "account_number": "EDGE-0004",
+      "row_id": 132127,
+      "created": true,
+      "source_groups": [
+        "SOL-289786|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TOYOTA",
+      "account_number": "MACS-0022",
+      "row_id": 132322,
+      "created": true,
+      "source_groups": [
+        "SOL-760653|MACS-0022|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295,
+        "mtx_mc202x_rental": 137
+      },
+      "totals_delta": {
+        "rental": 137,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TOYOTA",
+      "account_number": "MACS-0022",
+      "row_id": 132128,
+      "created": true,
+      "source_groups": [
+        "SOL-760653|MACS-0022|"
+      ],
+      "updates": {
+        "mtx_mc202x_sub": 295,
+        "mtx_mc202x_rental": 137
+      },
+      "totals_delta": {
+        "rental": 137,
+        "sub": 295
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "TEMP019013",
+      "account_number": "EDGE-0004",
+      "row_id": 132138,
+      "created": false,
+      "source_groups": [
+        "SOL-611855|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "TEMP019013",
+      "account_number": "EDGE-0004",
+      "row_id": 132129,
+      "created": true,
+      "source_groups": [
+        "SOL-611855|EDGE-0004|"
+      ],
+      "updates": {
+        "beame_1_sub": 89,
+        "beame_1_rental": 23
+      },
+      "totals_delta": {
+        "rental": 23,
+        "sub": 89
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "JH57ZDGP",
+      "account_number": "THES-0002",
+      "row_id": 132212,
+      "created": false,
+      "source_groups": [
+        "SOL-932955|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "JH57ZDGP",
+      "account_number": "THES-0002",
+      "row_id": 132130,
+      "created": true,
+      "source_groups": [
+        "SOL-932955|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "LCW704NW",
+      "account_number": "EDGE-0005",
+      "row_id": 132323,
+      "created": true,
+      "source_groups": [
+        "SOL-623042|EDGE-0005|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "LCW704NW",
+      "account_number": "EDGE-0005",
+      "row_id": 132131,
+      "created": true,
+      "source_groups": [
+        "SOL-623042|EDGE-0005|"
+      ],
+      "updates": {
+        "beame_1_sub": 70
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 70
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "KCY462MP",
+      "account_number": "THES-0002",
+      "row_id": 132213,
+      "created": false,
+      "source_groups": [
+        "SOL-797426|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "KCY462MP",
+      "account_number": "THES-0002",
+      "row_id": 132132,
+      "created": true,
+      "source_groups": [
+        "SOL-797426|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "LMR027MP",
+      "account_number": "THES-0002",
+      "row_id": 132218,
+      "created": false,
+      "source_groups": [
+        "SOL-882375|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "LMR027MP",
+      "account_number": "THES-0002",
+      "row_id": 132133,
+      "created": true,
+      "source_groups": [
+        "SOL-882375|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "KY79LGGP",
+      "account_number": "THES-0002",
+      "row_id": 132215,
+      "created": false,
+      "source_groups": [
+        "SOL-156995|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "KY79LGGP",
+      "account_number": "THES-0002",
+      "row_id": 132134,
+      "created": true,
+      "source_groups": [
+        "SOL-156995|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "DN20DHGP",
+      "account_number": "THES-0002",
+      "row_id": 132216,
+      "created": false,
+      "source_groups": [
+        "SOL-409838|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 569
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 569
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "DN20DHGP",
+      "account_number": "THES-0002",
+      "row_id": 132135,
+      "created": true,
+      "source_groups": [
+        "SOL-409838|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 569
+      },
+      "totals_delta": {
+        "rental": 0,
+        "sub": 569
+      }
+    },
+    {
+      "table": "vehicles",
+      "reg": "LS97SFGP",
+      "account_number": "THES-0002",
+      "row_id": 132217,
+      "created": false,
+      "source_groups": [
+        "SOL-302337|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    },
+    {
+      "table": "vehicles_duplicate",
+      "reg": "LS97SFGP",
+      "account_number": "THES-0002",
+      "row_id": 132136,
+      "created": true,
+      "source_groups": [
+        "SOL-302337|THES-0002|"
+      ],
+      "updates": {
+        "skylink_pro_sub": 299,
+        "skylink_pro_rental": 270
+      },
+      "totals_delta": {
+        "rental": 270,
+        "sub": 299
+      }
+    }
+  ]
+}

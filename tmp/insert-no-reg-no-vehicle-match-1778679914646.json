@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "targets": 41,
+    "processed": 0,
+    "created_vehicles": 0,
+    "created_vehicles_duplicate": 0,
+    "existed_vehicles": 0,
+    "existed_vehicles_duplicate": 0,
+    "skipped_missing_account": 0,
+    "generated_temp_reg": 0
+  },
+  "details": []
+}
