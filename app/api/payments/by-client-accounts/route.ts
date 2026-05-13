@@ -5,10 +5,27 @@ import {
   buildInvoiceFinancials,
   calculateOverdueBuckets,
   getOperationalBillingMonthKey,
+  normalizeBillingMonth,
   normalizeAgingBucketsToOutstanding,
 } from '@/lib/server/account-invoice-payments';
 
 const roundCurrency = (value: unknown) => Number(Number(value || 0).toFixed(2));
+
+const resolveLockBillingMonth = (
+  lockDate: unknown,
+  requestedBillingMonth: string | null,
+) => {
+  const normalizedLockMonth = normalizeBillingMonth(lockDate);
+  if (!normalizedLockMonth) {
+    return null;
+  }
+
+  const targetYear = String(
+    normalizeBillingMonth(requestedBillingMonth) || normalizedLockMonth,
+  ).slice(0, 4);
+  const targetMonth = String(normalizedLockMonth).slice(5, 7);
+  return `${targetYear}-${targetMonth}-01`;
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,10 +69,27 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = await createClient();
-    const currentBillingMonthKey =
+    const normalizedRequestedBillingMonth =
       requestedBillingMonth && /^\d{4}-\d{2}(?:-\d{2})?$/.test(requestedBillingMonth)
         ? `${requestedBillingMonth.slice(0, 7)}-01`
         : getOperationalBillingMonthKey();
+
+    const { data: systemLockRows, error: systemLockError } = await supabase
+      .from('system_locks')
+      .select('is_locked, lock_date, created_at')
+      .eq('lock_key', 'billing')
+      .limit(1);
+
+    if (systemLockError) {
+      console.warn('Failed to read system_locks in by-client-accounts route:', systemLockError);
+    }
+
+    const systemLock = !systemLockError && Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
+    const lockBillingMonth =
+      Boolean(systemLock?.is_locked)
+        ? resolveLockBillingMonth(systemLock?.lock_date, normalizedRequestedBillingMonth)
+        : null;
+    const currentBillingMonthKey = lockBillingMonth || normalizedRequestedBillingMonth;
 
     const [
       { data: paymentsMirrorRows, error: paymentsMirrorError },

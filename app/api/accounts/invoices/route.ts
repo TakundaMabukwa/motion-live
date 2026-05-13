@@ -27,6 +27,16 @@ const getMonthKeyFromValue = (value: unknown) => {
   return `${year}-${month}`;
 };
 
+const buildInvoiceMergeKey = (invoice: Record<string, unknown>) => {
+  const invoiceNumber = String(invoice?.invoice_number || "").trim().toUpperCase();
+  if (invoiceNumber) return `inv:${invoiceNumber}`;
+  const fallbackId = String(invoice?.id || "").trim();
+  if (fallbackId) return `id:${fallbackId}`;
+  const account = String(invoice?.account_number || "").trim().toUpperCase();
+  const invoiceDate = String(invoice?.invoice_date || invoice?.created_at || "").trim();
+  return `fallback:${account}:${invoiceDate}`;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -60,13 +70,6 @@ export async function GET(request: NextRequest) {
 
     query = fetchAll ? query.range(0, 9999) : query.limit(limit);
 
-    if (search) {
-      const escaped = search.replace(/[%_]/g, "\\$&");
-      query = query.or(
-        `invoice_number.ilike.%${escaped}%,account_number.ilike.%${escaped}%,company_name.ilike.%${escaped}%,customer_vat_number.ilike.%${escaped}%,company_registration_number.ilike.%${escaped}%`,
-      );
-    }
-
     const { data: invoices, error } = await query;
 
     if (error) {
@@ -77,14 +80,87 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rows = Array.isArray(invoices) ? invoices : [];
+    const accountRows = Array.isArray(invoices)
+      ? (invoices as Record<string, unknown>[])
+      : [];
+
+    let jobCardInvoiceQuery = supabase
+      .from("invoices")
+      .select(
+        "id, account_number, invoice_number, invoice_date, total_amount, client_name, client_address, line_items, notes, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .order("invoice_date", { ascending: false, nullsFirst: false });
+
+    jobCardInvoiceQuery = fetchAll
+      ? jobCardInvoiceQuery.range(0, 9999)
+      : jobCardInvoiceQuery.limit(limit);
+
+    const { data: jobCardInvoices, error: jobCardInvoicesError } = await jobCardInvoiceQuery;
+
+    if (jobCardInvoicesError) {
+      console.error("Failed to fetch job-card invoices for accounts invoices:", jobCardInvoicesError);
+    }
+
+    const normalizedJobCardInvoices = (Array.isArray(jobCardInvoices)
+      ? (jobCardInvoices as Record<string, unknown>[])
+      : []
+    ).map((invoice) => {
+      const invoiceMonthKey = getMonthKeyFromValue(invoice?.invoice_date || invoice?.created_at);
+      return {
+        id: `job-card-${String(invoice?.id || "").trim()}`,
+        account_number: String(invoice?.account_number || "").trim() || null,
+        billing_month: invoiceMonthKey ? `${invoiceMonthKey}-01` : null,
+        invoice_number: String(invoice?.invoice_number || "").trim() || null,
+        invoice_date: String(invoice?.invoice_date || "").trim() || null,
+        total_amount: Number(invoice?.total_amount || 0),
+        paid_amount: 0,
+        balance_due: Number(invoice?.total_amount || 0),
+        payment_status: "pending",
+        company_name: String(invoice?.client_name || "").trim() || null,
+        customer_vat_number: null,
+        company_registration_number: null,
+        client_address: String(invoice?.client_address || "").trim() || null,
+        line_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
+        notes: String(invoice?.notes || "").trim() || null,
+        created_at: String(invoice?.created_at || "").trim() || null,
+      };
+    });
+
+    const mergedByInvoiceKey = new Map<string, Record<string, unknown>>();
+    for (const row of accountRows) {
+      mergedByInvoiceKey.set(buildInvoiceMergeKey(row), row);
+    }
+
+    for (const row of normalizedJobCardInvoices) {
+      const key = buildInvoiceMergeKey(row);
+      if (!mergedByInvoiceKey.has(key)) {
+        mergedByInvoiceKey.set(key, row);
+      }
+    }
+
+    const mergedRows = Array.from(mergedByInvoiceKey.values());
+
+    const searchFilteredRows = search
+      ? mergedRows.filter((invoice) => {
+          const needle = search.toLowerCase();
+          return [
+            invoice?.invoice_number,
+            invoice?.account_number,
+            invoice?.company_name,
+            invoice?.customer_vat_number,
+            invoice?.company_registration_number,
+          ].some((value) => String(value || "").toLowerCase().includes(needle));
+        })
+      : mergedRows;
+
     const monthFilteredRows = month
-      ? rows.filter((invoice) => {
+      ? searchFilteredRows.filter((invoice) => {
           const billingMonth = getMonthKeyFromValue(invoice?.billing_month);
           const invoiceMonth = getMonthKeyFromValue(invoice?.invoice_date);
           return billingMonth === month || invoiceMonth === month;
         })
-      : rows;
+      : searchFilteredRows;
 
     const accountNumbers = Array.from(
       new Set(

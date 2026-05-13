@@ -396,7 +396,10 @@ export default function AccountsContent({ activeSection }) {
       const params = new URLSearchParams();
       params.set("invoiceState", invoiceState);
 
-      const response = await fetch(`/api/accounts/completed-jobs?${params.toString()}`);
+      const response = await fetch(
+        `/api/accounts/completed-jobs?${params.toString()}`,
+        { cache: "no-store" },
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch completed jobs");
@@ -488,7 +491,10 @@ export default function AccountsContent({ activeSection }) {
         params.set("searchField", "job_number");
       }
 
-      const response = await fetch(`/api/accounts/completed-jobs?${params.toString()}`);
+      const response = await fetch(
+        `/api/accounts/completed-jobs?${params.toString()}`,
+        { cache: "no-store" },
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch job cards for invoice builder");
       }
@@ -736,7 +742,10 @@ export default function AccountsContent({ activeSection }) {
     if (!job?.id) return job;
 
     try {
-      const response = await fetch(`/api/job-cards/${encodeURIComponent(job.id)}`);
+      const response = await fetch(
+        `/api/job-cards/${encodeURIComponent(job.id)}`,
+        { cache: "no-store" },
+      );
       if (!response.ok) {
         return job;
       }
@@ -1201,6 +1210,7 @@ export default function AccountsContent({ activeSection }) {
       const latestJob = await fetchLatestJobCard(job);
       const response = await fetch(
         `/api/invoices/job-card?jobCardId=${encodeURIComponent(job.id)}`,
+        { cache: "no-store" },
       );
 
       if (!response.ok) {
@@ -1273,6 +1283,11 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const hasStoredInvoice = (job) => {
+    const topLevelInvoiceNumber = String(job?.invoice_number || "").trim();
+    if (topLevelInvoiceNumber) return true;
+    const inlineInvoiceNumber = String(job?.invoice?.invoice_number || "").trim();
+    if (inlineInvoiceNumber) return true;
+
     const invoiceStatus = job?.billing_statuses?.invoice;
     return Boolean(
       invoiceStatus &&
@@ -2021,6 +2036,10 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getBillingStatusValue = (job, key) => {
+    if (key === "invoice" && hasStoredInvoice(job)) {
+      return true;
+    }
+
     const raw = job?.billing_statuses?.[key];
     if (raw === true) return true;
     if (raw && typeof raw === "object" && raw.done === true) return true;
@@ -2028,6 +2047,12 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getBillingInvoiceNumber = (job, key = "invoice") => {
+    const topLevelInvoiceNumber = String(job?.invoice_number || "").trim();
+    if (topLevelInvoiceNumber) return topLevelInvoiceNumber;
+
+    const inlineInvoiceNumber = String(job?.invoice?.invoice_number || "").trim();
+    if (inlineInvoiceNumber) return inlineInvoiceNumber;
+
     const raw = job?.billing_statuses?.[key];
     if (raw && typeof raw === "object") {
       return String(raw.invoice_number || raw.reference || "").trim();

@@ -679,7 +679,7 @@ export async function GET(request: NextRequest) {
     const accountNumber = searchParams.get('accountNumber');
     const sourceAccountNumber =
       String(searchParams.get('sourceAccountNumber') || accountNumber || '').trim();
-    const billingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
+    const requestedBillingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
     const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
     const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
     if (!accountNumber) {
@@ -700,11 +700,17 @@ export async function GET(request: NextRequest) {
     const isSystemLocked = Boolean(systemLock?.is_locked);
     const lockDate = systemLock?.lock_date || null;
     const normalizedRequestedBillingMonth =
-      typeof billingMonth === 'string' && billingMonth.trim()
-        ? normalizeBillingMonth(billingMonth)
+      typeof requestedBillingMonth === 'string' && requestedBillingMonth.trim()
+        ? normalizeBillingMonth(requestedBillingMonth)
         : null;
+    const normalizedLockBillingMonth =
+      isSystemLocked && lockDate ? normalizeBillingMonth(lockDate) : null;
+    const effectiveBillingMonth =
+      isSystemLocked && normalizedLockBillingMonth
+        ? normalizedLockBillingMonth
+        : normalizedRequestedBillingMonth;
     const isSystemLockedForBillingMonth =
-      isSystemLocked && isLockAppliedToBillingMonth(lockDate, normalizedRequestedBillingMonth);
+      isSystemLocked && isLockAppliedToBillingMonth(lockDate, effectiveBillingMonth);
 
     const resolveLockedInvoiceDate = (rawLockDate: string | null, fallbackBillingMonth: string | null) => {
       const normalizedLockMonth = rawLockDate ? normalizeBillingMonth(rawLockDate) : null;
@@ -731,7 +737,7 @@ export async function GET(request: NextRequest) {
     // Calculate end of month from lock_date for vehicle cutoff
     const billingCutoffDate =
       isSystemLockedForBillingMonth && lockDate
-        ? resolveLockedInvoiceDate(lockDate, normalizedRequestedBillingMonth)
+        ? resolveLockedInvoiceDate(lockDate, effectiveBillingMonth)
         : null;
 
     let storedInvoiceQuery = supabase
@@ -741,8 +747,8 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    storedInvoiceQuery = billingMonth
-      ? storedInvoiceQuery.eq('billing_month', billingMonth)
+    storedInvoiceQuery = effectiveBillingMonth
+      ? storedInvoiceQuery.eq('billing_month', effectiveBillingMonth)
       : storedInvoiceQuery;
 
     const { data: storedInvoiceRows, error: storedInvoiceError } = await storedInvoiceQuery;
@@ -979,8 +985,8 @@ export async function GET(request: NextRequest) {
           .in('account_number', groupAccounts)
           .order('created_at', { ascending: false });
 
-        groupedStoredInvoicesQuery = billingMonth
-          ? groupedStoredInvoicesQuery.eq('billing_month', billingMonth)
+        groupedStoredInvoicesQuery = effectiveBillingMonth
+          ? groupedStoredInvoicesQuery.eq('billing_month', effectiveBillingMonth)
           : groupedStoredInvoicesQuery;
 
         const { data: groupedStoredInvoices, error: groupedStoredInvoicesError } =
@@ -1004,7 +1010,7 @@ export async function GET(request: NextRequest) {
             ...group,
             reference: groupStoredInvoice?.invoice_number || '',
             accountInvoiceId: groupStoredInvoice?.id || null,
-            billingMonth: groupStoredInvoice?.billing_month || billingMonth,
+            billingMonth: groupStoredInvoice?.billing_month || effectiveBillingMonth,
             paidAmount: Number(groupStoredInvoice?.paid_amount || 0),
             balanceDue:
               Number(
@@ -1132,7 +1138,7 @@ export async function GET(request: NextRequest) {
       account_number: accountNumber,
       source_account_number: sourceAccountNumber,
       billing_group: billingGroup || null,
-      billing_month: billingMonth,
+      billing_month: effectiveBillingMonth,
       invoice_date: invoiceDate,
       invoice_number: storedInvoice?.invoice_number || '',
       client_address: clientAddress,

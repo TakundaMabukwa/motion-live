@@ -105,7 +105,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch invoice' }, { status: 500 });
     }
 
-    return NextResponse.json({ invoice: Array.isArray(data) ? data[0] || null : null });
+    let invoice = Array.isArray(data) ? data[0] || null : null;
+
+    if (!invoice) {
+      const { data: jobCardMeta, error: jobCardMetaError } = await supabase
+        .from('job_cards')
+        .select('job_number')
+        .eq('id', jobCardId)
+        .maybeSingle();
+
+      if (jobCardMetaError) {
+        console.error('Error fetching job card metadata for invoice lookup:', jobCardMetaError);
+      } else {
+        const jobNumber = String(jobCardMeta?.job_number || '').trim();
+        if (jobNumber) {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('invoices')
+            .select('*')
+            .eq('job_number', jobNumber)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (fallbackError) {
+            console.error('Error fetching fallback invoice by job number:', fallbackError);
+          } else {
+            invoice = Array.isArray(fallbackData) ? fallbackData[0] || null : null;
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ invoice });
   } catch (error) {
     console.error('Error in invoice job-card GET:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

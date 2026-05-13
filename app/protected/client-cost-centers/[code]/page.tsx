@@ -805,6 +805,7 @@ export default function ClientCostCentersPage() {
         buildCostCenterInfoMap(accountNumbers),
       ]);
       if (!response.ok) {
+        setLoading(false);
         return false;
       }
 
@@ -849,17 +850,22 @@ export default function ClientCostCentersPage() {
     const rawCode = String(decodedCode || '');
     const firstAccount = rawCode.split(',')[0]?.trim() || rawCode;
     const prefix = firstAccount.split('-')[0] || firstAccount;
-    if (!prefix) return false;
+    if (!prefix) {
+      setLoading(false);
+      return false;
+    }
 
     try {
       const response = await fetch(`/api/cost-centers/with-payments?prefix=${encodeURIComponent(prefix)}`);
       if (!response.ok) {
+        setLoading(false);
         return false;
       }
 
       const data = await response.json();
       const centers = Array.isArray(data?.costCenters) ? data.costCenters : [];
       if (centers.length === 0) {
+        setLoading(false);
         return false;
       }
 
@@ -951,6 +957,7 @@ export default function ClientCostCentersPage() {
       if ((decodedCode || '').includes(',')) {
         fetchPaymentsByAccountsList().then((loaded) => {
           if (loaded) return;
+          fetchClientDataWithPaymentsFocus();
         });
         return;
       }
@@ -1156,7 +1163,11 @@ export default function ClientCostCentersPage() {
             fetch(
               `/api/payments/by-account?accountNumber=${encodeURIComponent(row.accountNumber)}${row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''}`,
             ),
-            fetch(`/api/invoices/account/history?accountNumber=${encodeURIComponent(row.accountNumber)}`),
+            fetch(
+              `/api/invoices/account/history?accountNumber=${encodeURIComponent(row.accountNumber)}${
+                row.billingMonth ? `&billingMonth=${encodeURIComponent(row.billingMonth)}` : ''
+              }`,
+            ),
           ]);
 
           let bulkInvoice = null;
@@ -4481,6 +4492,8 @@ export default function ClientCostCentersPage() {
       const payment = paymentData.payment || {};
       const historyResponse = await fetch(
         `/api/invoices/account/history?accountNumber=${encodeURIComponent(costCenter.accountNumber)}${
+          costCenter.billingMonth ? `&billingMonth=${encodeURIComponent(costCenter.billingMonth)}` : ""
+        }${
           statementAccountNumbers.length > 0 ? `&accountNumbers=${encodeURIComponent(statementAccountNumbers.join(","))}` : ""
         }`,
       );
@@ -4936,17 +4949,20 @@ export default function ClientCostCentersPage() {
       }
 
       const rebuiltInvoiceData = normalizeBatchInvoiceAllInvoiceData(payload.invoiceData);
+      const persistedBillingMonth = String(
+        rebuiltInvoiceData?.billing_month || billingMonth,
+      ).trim() || billingMonth;
 
       const persistResponse = await fetch('/api/invoices/bulk-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           accountNumber: selectedCostCenterForInvoice.accountNumber,
-          billingMonth,
+          billingMonth: persistedBillingMonth,
           invoiceDate:
             rebuiltInvoiceData?.invoice_date ||
             selectedCostCenterForInvoice?.invoiceDate ||
-            getMonthEndInvoiceDate(billingMonth),
+            getMonthEndInvoiceDate(persistedBillingMonth),
           companyName: rebuiltInvoiceData?.company_name || null,
           companyRegistrationNumber: rebuiltInvoiceData?.company_registration_number || null,
           clientAddress: rebuiltInvoiceData?.client_address || null,
@@ -4986,7 +5002,7 @@ export default function ClientCostCentersPage() {
         prev
           ? {
               ...prev,
-              billingMonth,
+              billingMonth: persistedBillingMonth,
               invoiceDate: mergedInvoiceData?.invoice_date || prev.invoiceDate,
               bulkInvoice: persistedInvoice,
               invoiceData: mergedInvoiceData,
@@ -5013,7 +5029,7 @@ export default function ClientCostCentersPage() {
                 ),
                 paidAmount: Number(item.paidAmount || 0),
                 paymentStatus: 'pending',
-                billingMonth,
+                billingMonth: persistedBillingMonth,
                 invoiceDate: mergedInvoiceData?.invoice_date || item.invoiceDate,
                 reference:
                   persistedInvoice?.invoice_number ||

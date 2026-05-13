@@ -15,6 +15,22 @@ const toNumeric = (value: unknown) => {
 
 const roundMoney = (value: unknown) => Number(toNumeric(value).toFixed(2));
 
+const resolveLockBillingMonth = (
+  lockDate: unknown,
+  requestedBillingMonth: string | null,
+) => {
+  const normalizedLockMonth = normalizeBillingMonth(lockDate);
+  if (!normalizedLockMonth) {
+    return null;
+  }
+
+  const targetYear = String(
+    normalizeBillingMonth(requestedBillingMonth) || normalizedLockMonth,
+  ).slice(0, 4);
+  const targetMonth = String(normalizedLockMonth).slice(5, 7);
+  return `${targetYear}-${targetMonth}-01`;
+};
+
 const uniqueAccountNumbers = (values: unknown[]) =>
   Array.from(
     new Set(
@@ -228,9 +244,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const currentBillingMonth = billingMonth || getOperationalBillingMonthKey();
-
     const supabase = await createClient();
+    const normalizedRequestedBillingMonth = billingMonth || getOperationalBillingMonthKey();
+
+    const { data: systemLockRows, error: systemLockError } = await supabase
+      .from('system_locks')
+      .select('is_locked, lock_date, created_at')
+      .eq('lock_key', 'billing')
+      .limit(1);
+
+    if (systemLockError) {
+      console.warn('Failed to read system_locks in by-account route:', systemLockError);
+    }
+
+    const systemLock = !systemLockError && Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
+    const lockedBillingMonth =
+      Boolean(systemLock?.is_locked)
+        ? resolveLockBillingMonth(systemLock?.lock_date, normalizedRequestedBillingMonth)
+        : null;
+    const currentBillingMonth = lockedBillingMonth || normalizedRequestedBillingMonth;
 
     const [
       { data: invoiceRows, error: invoiceError },

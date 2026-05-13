@@ -51,9 +51,6 @@ const resolveLockBillingMonth = (
   return `${targetYear}-${targetMonth}-01`;
 };
 
-const shouldUseActiveLockMonth = (requestedBillingMonth: string | null) =>
-  !normalizeBillingMonth(requestedBillingMonth);
-
 const buildAddress = (source?: Record<string, unknown> | null) =>
   [
     source?.physical_address_1,
@@ -267,9 +264,10 @@ export async function GET(request: NextRequest) {
 
     const systemLock = Array.isArray(systemLockRows) ? systemLockRows[0] || null : null;
     const lockedBillingMonth =
-      Boolean(systemLock?.is_locked) && shouldUseActiveLockMonth(requestedBillingMonth)
+      Boolean(systemLock?.is_locked)
         ? resolveLockBillingMonth(systemLock?.lock_date, requestedBillingMonth)
         : null;
+    const effectiveBillingMonth = lockedBillingMonth || requestedBillingMonth || null;
 
     const fetchInvoiceForBillingMonth = async (targetBillingMonth: string | null) => {
       let query = supabase
@@ -309,28 +307,16 @@ export async function GET(request: NextRequest) {
     };
 
     let rawInvoice = null;
-    let resolvedBillingMonth = requestedBillingMonth || null;
+    let resolvedBillingMonth = effectiveBillingMonth;
 
     try {
-      rawInvoice = await fetchInvoiceForBillingMonth(requestedBillingMonth || null);
+      rawInvoice = await fetchInvoiceForBillingMonth(effectiveBillingMonth);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch bulk account invoice";
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
-    if (!rawInvoice && lockedBillingMonth && lockedBillingMonth !== requestedBillingMonth) {
-      try {
-        rawInvoice = await fetchInvoiceForBillingMonth(lockedBillingMonth);
-        if (rawInvoice) {
-          resolvedBillingMonth = lockedBillingMonth;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to fetch locked-period bulk invoice";
-        return NextResponse.json({ error: message }, { status: 500 });
-      }
-    }
-
-    if (!rawInvoice) {
+    if (!rawInvoice && !lockedBillingMonth) {
       try {
         rawInvoice = await fetchLatestInvoiceForAccount();
         if (rawInvoice) {

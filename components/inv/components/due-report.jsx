@@ -306,6 +306,69 @@ const isInvoiceOnOrBeforeBillingMonth = (billingMonth, invoice) => {
 const getCreditNoteDateValue = (creditNote) =>
   String(creditNote?.credit_note_date || creditNote?.created_at || "").trim();
 
+const getPaymentDateValue = (payment) =>
+  String(payment?.payment_date || payment?.created_at || "").trim();
+
+const isPaymentWithinStatementMonth = (billingMonth, payment) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const paymentDateValue = getPaymentDateValue(payment);
+  if (paymentDateValue) {
+    return isWithinBillingMonth(
+      normalizedBillingMonth,
+      paymentDateValue,
+      paymentDateValue,
+    );
+  }
+
+  return isWithinBillingMonth(
+    normalizedBillingMonth,
+    payment?.billing_month,
+    null,
+  );
+};
+
+const isPaymentBeforeStatementMonth = (billingMonth, payment) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return false;
+
+  const paymentDateValue = getPaymentDateValue(payment);
+  if (paymentDateValue) {
+    return isBeforeBillingMonth(
+      normalizedBillingMonth,
+      paymentDateValue,
+      paymentDateValue,
+    );
+  }
+
+  return isBeforeBillingMonth(
+    normalizedBillingMonth,
+    payment?.billing_month,
+    null,
+  );
+};
+
+const isPaymentOnOrBeforeStatementMonth = (billingMonth, payment) => {
+  const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
+  if (!normalizedBillingMonth) return true;
+
+  const paymentDateValue = getPaymentDateValue(payment);
+  if (paymentDateValue) {
+    return isOnOrBeforeBillingMonth(
+      normalizedBillingMonth,
+      paymentDateValue,
+      paymentDateValue,
+    );
+  }
+
+  return isOnOrBeforeBillingMonth(
+    normalizedBillingMonth,
+    payment?.billing_month,
+    null,
+  );
+};
+
 const isCreditNoteWithinStatementMonth = (billingMonth, creditNote) => {
   const normalizedBillingMonth = normalizeBillingMonthValue(billingMonth);
   if (!normalizedBillingMonth) return true;
@@ -1113,11 +1176,7 @@ export function buildStatementView({
   const filteredPaymentHistory = paymentHistory.filter(
     (payment) =>
       statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
-      isWithinBillingMonth(
-        targetBillingMonth,
-        payment?.billing_month,
-        payment?.payment_date || payment?.created_at,
-      ),
+      isPaymentWithinStatementMonth(targetBillingMonth, payment),
   );
 
   const filteredCreditNotes = creditNotes.filter(
@@ -1426,15 +1485,6 @@ export function buildStatementView({
     }
   });
 
-  const openingBalanceFromAging = Array.from(latestPriorAgingByAccount.values()).reduce(
-    (sum, period) => sum + Math.max(0, toNumber(period?.outstanding_balance)),
-    0,
-  );
-  const openingCreditFromAging = Array.from(latestPriorAgingByAccount.values()).reduce(
-    (sum, period) => sum + Math.max(0, toNumber(period?.credit_amount)),
-    0,
-  );
-
   const priorInvoiceHistory = invoiceHistory.filter(
     (invoice) =>
       statementAccountNumberSet.has(String(invoice?.account_number || "").trim()) &&
@@ -1444,11 +1494,7 @@ export function buildStatementView({
   const priorPaymentHistory = paymentHistory.filter(
     (payment) =>
       statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
-      isBeforeBillingMonth(
-        targetBillingMonth,
-        payment?.billing_month,
-        payment?.payment_date || payment?.created_at,
-      ),
+      isPaymentBeforeStatementMonth(targetBillingMonth, payment),
   );
 
   const priorCreditNotes = creditNotes.filter(
@@ -1457,41 +1503,96 @@ export function buildStatementView({
       isCreditNoteBeforeStatementMonth(targetBillingMonth, creditNote),
   );
 
-  const priorInvoiceTotal = priorInvoiceHistory.reduce(
-    (sum, invoice) => sum + toNumber(invoice?.total_amount),
-    0,
-  );
-  const priorPaymentTotal = priorPaymentHistory.reduce(
-    (sum, payment) => sum + toNumber(payment?.amount),
-    0,
-  );
-  const priorCreditTotal = priorCreditNotes.reduce(
-    (sum, creditNote) => sum + getCreditNoteEffectiveAmount(creditNote),
-    0,
-  );
-  const openingNetFromLedger = roundMoneyValue(
-    priorInvoiceTotal - priorPaymentTotal - priorCreditTotal,
-  );
-  const openingBalanceFromLedger = Math.max(0, openingNetFromLedger);
-  const openingCreditFromLedger = Math.max(0, -openingNetFromLedger);
+  const priorInvoiceByAccount = new Map();
+  priorInvoiceHistory.forEach((invoice) => {
+    const accountNumber = String(invoice?.account_number || "").trim();
+    if (!accountNumber) return;
+    priorInvoiceByAccount.set(
+      accountNumber,
+      toNumber(priorInvoiceByAccount.get(accountNumber)) + toNumber(invoice?.total_amount),
+    );
+  });
+
+  const priorPaymentByAccount = new Map();
+  priorPaymentHistory.forEach((payment) => {
+    const accountNumber = String(payment?.account_number || "").trim();
+    if (!accountNumber) return;
+    priorPaymentByAccount.set(
+      accountNumber,
+      toNumber(priorPaymentByAccount.get(accountNumber)) + toNumber(payment?.amount),
+    );
+  });
+
+  const priorCreditByAccount = new Map();
+  priorCreditNotes.forEach((creditNote) => {
+    const accountNumber = String(creditNote?.account_number || "").trim();
+    if (!accountNumber) return;
+    priorCreditByAccount.set(
+      accountNumber,
+      toNumber(priorCreditByAccount.get(accountNumber)) + getCreditNoteEffectiveAmount(creditNote),
+    );
+  });
+
+  let openingBalance = 0;
+  let openingCreditAmount = 0;
+  let hasOpeningCarryForward = false;
+
+  statementAccountNumbers.forEach((accountNumberRaw) => {
+    const accountNumber = String(accountNumberRaw || "").trim();
+    if (!accountNumber) return;
+
+    const priorAgingSnapshot = latestPriorAgingByAccount.get(accountNumber) || null;
+    if (priorAgingSnapshot) {
+      const snapshotOutstanding =
+        Math.max(
+          0,
+          toNumber(priorAgingSnapshot?.outstanding_balance) ||
+            toNumber(priorAgingSnapshot?.balance_due) ||
+            (toNumber(priorAgingSnapshot?.current_due) +
+              toNumber(priorAgingSnapshot?.overdue_30_days) +
+              toNumber(priorAgingSnapshot?.overdue_60_days) +
+              toNumber(priorAgingSnapshot?.overdue_90_days) +
+              toNumber(priorAgingSnapshot?.overdue_120_plus_days)),
+        );
+      const snapshotCredit = Math.max(
+        0,
+        toNumber(priorAgingSnapshot?.credit_amount),
+      );
+
+      openingBalance += snapshotOutstanding;
+      openingCreditAmount += snapshotCredit;
+      hasOpeningCarryForward = hasOpeningCarryForward || snapshotOutstanding > 0 || snapshotCredit > 0;
+      return;
+    }
+
+    // Fallback: reconstruct carry-forward only when we do not have a prior aging snapshot for the account.
+    const priorNetForAccount = roundMoneyValue(
+      toNumber(priorInvoiceByAccount.get(accountNumber)) -
+        toNumber(priorPaymentByAccount.get(accountNumber)) -
+        toNumber(priorCreditByAccount.get(accountNumber)),
+    );
+
+    if (priorNetForAccount > 0) {
+      openingBalance += priorNetForAccount;
+      hasOpeningCarryForward = true;
+    } else if (priorNetForAccount < 0) {
+      openingCreditAmount += Math.abs(priorNetForAccount);
+      hasOpeningCarryForward = true;
+    }
+  });
+
+  openingBalance = roundMoneyValue(openingBalance);
+  openingCreditAmount = roundMoneyValue(openingCreditAmount);
+
   const hasPriorAging = latestPriorAgingByAccount.size > 0;
   const hasPriorLedgerActivity =
     priorInvoiceHistory.length > 0 ||
     priorPaymentHistory.length > 0 ||
     priorCreditNotes.length > 0;
-  const openingBalance = hasPriorLedgerActivity
-    ? openingBalanceFromLedger
-    : hasPriorAging
-      ? openingBalanceFromAging
-      : 0;
-  const openingCreditAmount = hasPriorLedgerActivity
-    ? openingCreditFromLedger
-    : hasPriorAging
-      ? openingCreditFromAging
-      : 0;
   const shouldShowOpeningBalanceRow =
-    hasPriorLedgerActivity ||
+    hasOpeningCarryForward ||
     hasPriorAging ||
+    hasPriorLedgerActivity ||
     openingBalance > 0 ||
     openingCreditAmount > 0;
 
@@ -1519,12 +1620,51 @@ export function buildStatementView({
     (sum, creditNote) => sum + getCreditNoteEffectiveAmount(creditNote),
     0,
   );
+  const isLikelyFusionImportedInvoice = (invoice) =>
+    String(invoice?.notes || "")
+      .toLowerCase()
+      .includes("fusion inv");
+
+  const shouldExcludeSettledImportedInvoiceFromStatement = (invoice) => {
+    const invoiceAmount = Math.max(0, toNumber(invoice?.total_amount));
+    if (invoiceAmount <= 0.01) return true;
+
+    const status = String(invoice?.payment_status || "").trim().toLowerCase();
+    const isSettledStatus = status === "paid" || status === "settled";
+    const balanceDue = Math.max(0, toNumber(invoice?.balance_due));
+    const paidAmount = Math.max(0, toNumber(invoice?.paid_amount));
+
+    return (
+      isLikelyFusionImportedInvoice(invoice) &&
+      isSettledStatus &&
+      balanceDue <= 0.01 &&
+      paidAmount <= 0.01
+    );
+  };
+
+  const invoiceCreditAdjustmentTotal = filteredInvoiceHistory.reduce((sum, invoice) => {
+    const hasExplicitCreditNote = filteredCreditNotes.some((creditNote) => {
+      const invoiceNumber = String(invoice?.invoice_number || "").trim();
+      const creditNoteInvoiceNumber = String(creditNote?.invoice_number || "").trim();
+      const creditNoteReference = String(creditNote?.reference || "").trim();
+      return (
+        Boolean(invoiceNumber) &&
+        (invoiceNumber === creditNoteInvoiceNumber || invoiceNumber === creditNoteReference)
+      );
+    });
+
+    if (hasExplicitCreditNote) return sum;
+    return sum + Math.max(0, toNumber(invoice?.credit_amount));
+  }, 0);
   const statementCreditedAmountFallback = Math.max(
     toNumber(paymentData?.statement_credit_amount ?? creditedAmount),
     creditNoteTotal,
+    invoiceCreditAdjustmentTotal,
   );
 
-  const invoiceLedgerRows = filteredInvoiceHistory.map((invoice) => {
+  const invoiceLedgerRows = filteredInvoiceHistory
+    .filter((invoice) => !shouldExcludeSettledImportedInvoiceFromStatement(invoice))
+    .map((invoice) => {
     const invoiceAmount = toNumber(invoice?.total_amount);
     const billingMonthDate =
       isAccountStyleInvoice(invoice) && normalizeBillingMonthValue(invoice?.billing_month)
@@ -1669,32 +1809,80 @@ export function buildStatementView({
     };
   });
 
-  const creditLedgerRows = filteredCreditNotes.map((creditNote) => {
-    const creditAmount = getCreditNoteEffectiveAmount(creditNote);
-    const sortDate =
-      creditNote?.credit_note_date ||
-      creditNote?.created_at ||
-      paymentDateSource;
-    return {
-      date: formatStatementTransactionDate(sortDate),
-      sortDate,
-      client: clientName,
-      description: [
-        "Credit Note",
-        creditNote?.credit_note_number || creditNote?.reference || creditNote?.reason || "",
-      ]
-        .filter(Boolean)
-        .join(" - "),
-      amount: formatCurrency(creditAmount),
-      debit: "-",
-      credit: formatCurrency(creditAmount),
-      amountValue: creditAmount,
-      debitValue: 0,
-      creditValue: creditAmount,
-      outstandingValue: 0,
-      isCreditNote: true,
-    };
-  });
+  const creditLedgerRows = [
+    ...filteredCreditNotes.map((creditNote) => {
+      const creditAmount = getCreditNoteEffectiveAmount(creditNote);
+      const sortDate =
+        creditNote?.credit_note_date ||
+        creditNote?.created_at ||
+        paymentDateSource;
+      return {
+        date: formatStatementTransactionDate(sortDate),
+        sortDate,
+        client: clientName,
+        description: [
+          "Credit Note",
+          creditNote?.credit_note_number || creditNote?.reference || creditNote?.reason || "",
+        ]
+          .filter(Boolean)
+          .join(" - "),
+        amount: formatCurrency(creditAmount),
+        debit: "-",
+        credit: formatCurrency(creditAmount),
+        amountValue: creditAmount,
+        debitValue: 0,
+        creditValue: creditAmount,
+        outstandingValue: 0,
+        isCreditNote: true,
+      };
+    }),
+    ...filteredInvoiceHistory
+      .map((invoice) => {
+        const creditAmount = Math.max(0, toNumber(invoice?.credit_amount));
+        if (creditAmount <= 0.01) return null;
+
+        const hasExplicitCreditNote = filteredCreditNotes.some((creditNote) => {
+          const invoiceNumber = String(invoice?.invoice_number || "").trim();
+          const creditNoteInvoiceNumber = String(creditNote?.invoice_number || "").trim();
+          const creditNoteReference = String(creditNote?.reference || "").trim();
+          return (
+            Boolean(invoiceNumber) &&
+            (invoiceNumber === creditNoteInvoiceNumber || invoiceNumber === creditNoteReference)
+          );
+        });
+        if (hasExplicitCreditNote) return null;
+
+        const sortDate =
+          invoice?.invoice_date ||
+          invoice?.created_at ||
+          paymentDateSource;
+
+        return {
+          date: formatStatementTransactionDate(sortDate),
+          sortDate,
+          client:
+            String(invoice?.company_name || "").trim() ||
+            String(invoice?.client_name || "").trim() ||
+            clientName,
+          description: [
+            "Credit Note",
+            normalizeStatementDescription(invoice?.invoice_number, "Imported credit adjustment"),
+          ]
+            .filter(Boolean)
+            .join(" - "),
+          amount: formatCurrency(creditAmount),
+          debit: "-",
+          credit: formatCurrency(creditAmount),
+          amountValue: creditAmount,
+          debitValue: 0,
+          creditValue: creditAmount,
+          outstandingValue: 0,
+          isCreditNote: true,
+          isCreditAdjustment: true,
+        };
+      })
+      .filter(Boolean),
+  ];
 
   const allStatementInvoiceRows = [
     ...invoiceLedgerRows,
@@ -1814,11 +2002,7 @@ export function buildStatementView({
     .filter(
       (payment) =>
         statementAccountNumberSet.has(String(payment?.account_number || "").trim()) &&
-        isOnOrBeforeBillingMonth(
-          targetBillingMonth,
-          payment?.billing_month,
-          payment?.payment_date || payment?.created_at,
-        ),
+        isPaymentOnOrBeforeStatementMonth(targetBillingMonth, payment),
     )
     .sort((left, right) =>
       sortTransactionDatesAsc(

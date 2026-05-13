@@ -1,0 +1,185 @@
+id,job_number,account,reg,status,job_status,completion_date,rental_total,subscription_total,has_rental,has_subscription,bucket
+396080e1-affe-4781-b0e0-c8f051727cca,SOL-427833,TEST-0001,TEMP-0001,completed,Completed,2026-05-06T03:32:15.048496+00:00,0,0,false,false,none
+dd0d4943-3810-46b8-8993-4b1435ba4a26,SOL-530578,EPSC-0002,DATA UPLOAD - JF74YXGP,completed,Invoiced,2026-04-22T10:07:36.770857+00:00,0,0,false,false,none
+57ac4e17-11aa-48f0-b7f7-8e5c7548cf30,SOL-732202,ALST-0001,N/A,completed,Completed,2026-04-30T12:24:42.684+00:00,0,35000,false,true,subscription_only
+b218f3cf-38c3-4aa2-a11c-9ba7b7d998ec,SOL-575752,EPSC-0002,data upload - JF74YXGP,completed,Invoiced,2026-04-23T13:24:39.96011+00:00,0,0,false,false,none
+ec075cd1-f320-4463-b4b3-919c7fb7379c,SOL-158270,TLOG-0001,KSD191MP - EX33,completed,Completed,2026-04-19T16:51:40.471221+00:00,235,684,true,true,both
+9c94ddcd-6015-45e8-af04-0efbec7f565f,SOL-527276,ALST-0001,JY60PZGP,completed,Invoiced,2026-04-20T08:23:49.658124+00:00,0,0,false,false,none
+d4597479-9394-429f-90c4-4b2c8fe4f2f5,SOL-655602,MAYS-0001,data upload - MAY003,completed,Invoiced,2026-04-29T10:00:52.949+00:00,0,0,false,false,none
+2a538598-a2fa-4b11-83e5-6d8019ad31ae,SOL-563195,HITA-0001,National Transport Logistics	1000-0302,completed,Invoiced,2026-03-15T23:59:59+00:00,0,0,false,false,none
+23c99938-5063-4f0b-8340-7c1b3909a0cc,SOL-850597,EDGE-0008,TEMP047058,completed,Invoiced,2026-05-06T06:42:11.346161+00:00,0,70,false,true,subscription_only
+e8514db6-794d-43b5-b38a-2bd5ec36283f,SOL-213812,TTEX-0001,PANIC INSTALLS ,completed,Completed,2026-05-07T05:18:25.08703+00:00,0,0,false,false,none
+7ef43269-dbfc-40b6-a15f-344cb7511a28,SOL-820952,THES-0002,KFW283MP,completed,Invoiced,2026-05-07T12:29:28.217+00:00,270,299,true,true,both
+50165a66-51b5-4108-bb8e-66af06da4fad,SOL-149026,EDGE-0004,MD30BBGP,completed,Invoiced,2026-05-06T08:38:45.563428+00:00,23,70,true,true,both
+1e02a079-786a-4d64-81e9-5316a646f288,SOL-844034,EPSC-0001,HY74XFGP  - 0713052928,completed,Completed,2026-04-17T09:20:07.35+00:00,0,0,false,false,none
+e98cff95-beed-4817-987e-a3c9e51f53cf,SOL-289786,EDGE-0004,TEMP795693,completed,Invoiced,2026-05-06T08:43:47.966943+00:00,23,70,true,true,both
+2c7ae182-3d13-41cc-b891-531a81fc9dfe,SOL-642708,EPSC-0001,DATA UPLOAD - MK88RHGP,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+8a83c2db-946c-401d-a907-f3f006bf9257,SOL-583341,EPSC-0001,DATA UPLOAD - JF74XGGP,completed,Invoiced,2026-05-08T09:18:39.121552+00:00,0,0,false,false,none
+c91a3355-add0-41b3-aed6-c5b46b61e5c5,SOL-879463,,CH153520,completed,Completed,2026-05-07T05:16:31.66266+00:00,0,698.42,false,true,subscription_only
+f81a7b00-d24f-4ef6-abec-b5b46588c1b8,SOL-651530,EPSC-0002,DATA UPLOAD - JF74YXGP,completed,Invoiced,2026-05-11T11:48:16.663+00:00,0,0,false,false,none
+21b9947a-ba1d-4721-a6cd-ff85683e5f09,SOL-949960,ACTE-0001,JJK 614MP,completed,Completed,2026-03-19T10:44:50.767978+00:00,0,60,false,true,subscription_only
+608e2f0b-734c-474c-a4f9-0a98bb173472,SOL-576177,ARGO-0001,CH998657,completed,Completed,2026-05-12T14:27:10.900686+00:00,0,369,false,true,subscription_only
+1cda7ed7-ff21-4d23-8684-b90f31842358,SOL-311761,TTEX-0001,PANIC INSTALLS,completed,Invoiced,2026-05-06T06:51:32.38611+00:00,0,0,false,false,none
+489bf4b0-0942-4a90-8c8d-f4f1ca6058ae,SOL-364436,ARGO-0001,CH999115,completed,Completed,2026-05-12T14:27:34.859912+00:00,0,369,false,true,subscription_only
+0ba3164a-a39f-4cee-b0c5-68bb12b26866,SOL-813804,SEVE-0001,F44 - MX65HCGP,completed,Completed,2026-04-17T04:58:01.100344+00:00,17.92,629,true,true,both
+cad2ee4a-f75c-4c94-8c13-bf86de603c47,SOL-489044,ANGE-0001,YMM294GP,completed,Invoiced,2026-04-21T09:52:27.644417+00:00,0,0,false,false,none
+6dfc4ca6-6034-46b5-99f7-a710f4a2ff6f,SOL-998233,SEVE-0001,F44 - MX65HCGP,completed,Invoiced,2026-04-17T05:01:47.991892+00:00,341.92,629,true,true,both
+bd8d9857-5a73-4bad-a6fd-9d08bba62117,SOL-567489,PRCR-0001,CHDB8904,completed,Invoiced,2026-05-06T06:32:20.5452+00:00,216,295,true,true,both
+99e3c53d-463f-439b-9197-cc85a6c3628a,SOL-386165,TTEX-0001,PANIC INSTALLS,completed,Invoiced,2026-05-06T09:19:40.300899+00:00,0,0,false,false,none
+2eb6ab1f-0a69-404a-aaff-b2f115f38d91,SOL-776721,TTLI-0001,PANIC INSTALLS,completed,Invoiced,2026-05-06T09:19:57.239457+00:00,0,0,false,false,none
+880301b4-870c-439f-bf82-c69527682eb5,SOL-738912,MNFU-0001,ML51ZVGP,completed,Invoiced,2026-05-11T13:11:07.889+00:00,1976,900,true,true,both
+f65473bc-f34f-42e5-9994-a12687244f74,SOL-584374,TTEX-0001,PANIC INSTALLS,completed,Invoiced,2026-05-06T08:17:06.671409+00:00,0,0,false,false,none
+ba4e3c68-6180-41e5-bd60-319f2b0de16d,SOL-891458,EPSC-0001,HW67VCGP DATA UPLOAD,completed,Invoiced,2026-03-31T10:21:52.511001+00:00,0,0,false,false,none
+ea3fd3f3-0440-49c8-a505-732b6bbaa5dd,SOL-280898,EPSC-0001,DATA UPLOAD - HW67VCGP,completed,Invoiced,2026-04-14T10:23:15.993674+00:00,0,0,false,false,none
+1a7f6e93-b29a-44e3-9367-09fbd212a434,SOL-871288,ACTE-0001,HCR 054MP,completed,Completed,2026-03-19T08:08:31.83857+00:00,0,60,false,true,subscription_only
+00e210f3-be13-449f-9ccc-c43150b6329d,SOL-797876,TTLI-0001,LDG422MP - LH33,completed,Invoiced,2026-05-06T09:20:42.384546+00:00,0,0,false,false,none
+549760c3-77d0-4b06-8888-d93f1f2a5cfc,SOL-202925,ALST-0001,JZ78PGGP,completed,Invoiced,2026-04-20T05:39:33.201937+00:00,0,0,false,false,none
+32b0d740-36f6-40db-b143-b63764908c1a,SOL-694841,TLOG-0001,LDG351MP - FM13,completed,Invoiced,2026-05-06T09:21:58.982168+00:00,0,0,false,false,none
+71bc8f28-d485-4411-a16b-845eb41d65a7,SOL-300309,TTLI-0001,JJT993FS - PLS241,completed,Invoiced,2026-05-06T09:21:00.109477+00:00,0,0,false,false,none
+38e85793-6be4-4028-88cd-7628aac78f79,SOL-527893,TTLI-0001,JGK731FS - LH41,completed,Invoiced,2026-05-06T09:21:19.081258+00:00,0,0,false,false,none
+64efe6b9-2ba8-4d56-bc02-98562236f3d3,SOL-333168,TLOG-0001,JGV565FS - PD117,completed,Invoiced,2026-05-06T09:21:42.459656+00:00,0,0,false,false,none
+06026a28-d544-4ffe-a40d-872f8d6d1131,SOL-250018,EDGE-0008,TEMP007102,completed,Invoiced,2026-05-08T06:23:23.554352+00:00,0,70,false,true,subscription_only
+797e0a2a-e402-403f-b22a-9f44c8c77785,SOL-365876,TLOG-0001,JFP880FS - RH35,completed,Invoiced,2026-05-06T09:23:33.450906+00:00,0,0,false,false,none
+895416e2-ed66-4852-8b29-31a461439935,SOL-781197,EPSC-0001,DATA UPLOAD - KY69YNGP,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+d7e5d01c-03df-4a33-83c5-84161be6e646,SOL-759415,EPSC-0002,DATA UPLOAD - MK88RHGP,completed,Invoiced,2026-04-20T11:44:34.808407+00:00,0,0,false,false,none
+d174db55-a9cb-456a-ab45-b0b58a6a0a6d,SOL-580616,ACTE-0001,LCX 062MP,completed,Completed,2026-03-19T08:27:37.490766+00:00,0,60,false,true,subscription_only
+658da23b-f906-4bc1-a3d2-6b92c6159f6f,SOL-559160,HITA-0001,MS80SKGP,completed,Invoiced,2026-03-15T23:59:59+00:00,0,0,false,false,none
+068fa517-814a-4a4f-816d-ef2dbaaf821e,SOL-164333,,YMM494GP,completed,Invoiced,2026-03-16T23:59:59+00:00,432,0,true,false,rental_only
+02051643-d592-49a9-b339-8076e3a7056e,SOL-156583,MAYS-0001,MAY009,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+76a54f63-7f98-40de-88bf-208c1fe02002,SOL-709720,ANGE-0001,FN85FKGP,completed,Invoiced,2026-03-15T23:59:59+00:00,0,0,false,false,none
+1c4fc55e-78f5-4d2b-8d65-d5fa82b089c2,SOL-512085,MAYS-0001,MAY007,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+c8e60457-4c6f-4874-940a-6492291873b3,SOL-830555,EPSC-0002,DATA UPLOAD - HY74XFGP,completed,Invoiced,2026-04-20T11:44:16.4+00:00,0,0,false,false,none
+98fb2b6a-7616-4503-86a6-b5ba1434ef2f,SOL-440825,ANGE-0001,LT00JNGP,completed,Invoiced,2026-03-15T23:59:59+00:00,0,0,false,false,none
+7ca99c93-87fd-43bf-8f3b-b33ee6299c3e,SOL-373947,ANGE-0001,FN85FKGP,completed,Invoiced,2026-03-15T23:59:59+00:00,0,0,false,false,none
+226d3028-ac0b-49b1-af1a-0c58b37d334d,SOL-760653,MACS-0022,TOYOTA,completed,Completed,2026-03-15T23:59:59+00:00,137,295,true,true,both
+e9da6473-93fc-4754-80ee-8a1f8fbf2661,SOL-632738,ALST-0001,JX75VDGP,completed,Invoiced,2026-04-20T10:01:20.851487+00:00,0,0,false,false,none
+5cbbcb42-fd56-49e2-b5cf-295742220dc5,SOL-506862,EPSC-0002,DATA UPLOAD  - JF74XHGP,completed,Invoiced,2026-04-20T11:44:24.469373+00:00,0,0,false,false,none
+f125ac71-32f0-4c62-a050-b50e9d00cc47,SOL-625531,ALST-0001,CH835877,completed,Invoiced,2026-05-12T05:17:39.808955+00:00,0,539,false,true,subscription_only
+84ebfb60-490c-4cc5-a892-8123cbe38b7b,SOL-120044,TLOG-0001,LCM197MP - RH32,completed,Invoiced,2026-05-06T09:22:27.994072+00:00,0,0,false,false,none
+969b1ffe-87d7-4d9e-a361-d92dc2c9f84d,SOL-611855,EDGE-0004,TEMP019013,completed,Invoiced,2026-05-06T08:41:16.812167+00:00,23,70,true,true,both
+68b564ff-d560-490f-973c-68b9685de7b4,SOL-995120,MAYS-0001,DATA UPLOAD - MAY002,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+2055a5a3-0b9e-4b55-b35a-8c31d475d915,SOL-171883,ALST-0001,CH835579,completed,Invoiced,2026-05-12T05:18:19.833652+00:00,-1,540,false,true,subscription_only
+ce4404c7-e286-43a6-80a7-6690739ab05d,JOB-1754928396962-95tzjqikr,,AB56CDGP,completed,Invoiced,2026-03-01T23:59:59+00:00,132,0,true,false,rental_only
+31908a6a-e4d2-4438-9c0f-8878723792c6,SOL-765220,TLOG-0001,JJT994FS - PLS242,completed,Completed,2026-04-19T16:55:17.911994+00:00,235,684,true,true,both
+8b5001e9-a1c7-4d55-bda5-dc22345161b4,SOL-304758,EPSC-0001,DATA UPLOAD - HW67VCGP,completed,Invoiced,2026-03-31T11:40:07.073842+00:00,0,0,false,false,none
+3e89d83f-00b7-4629-87ef-c148491b7c7e,SOL-635581,EPSC-0001,DATA UPLOAD - JF74XHGP,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+ba8eb4b7-b8e2-47a2-8eb7-802ea98eb701,SOL-244000,MAYS-0001,DATA UPLOAD - MAY509,completed,Invoiced,2026-03-31T23:59:59+00:00,0,0,false,false,none
+e9b20360-86b2-4ad7-9ce8-815dee92594f,SOL-524749,ACTE-0001,HJB791L,completed,Completed,2026-04-17T03:42:06.076322+00:00,0,60,false,true,subscription_only
+d6dec133-a8fa-4691-92f5-84be11f216f2,SOL-655523,DCCT-0001,NEW DASH INSTAALL - LW02LZGP,completed,Invoiced,2026-05-08T09:15:33.953202+00:00,0,295,false,true,subscription_only
+873afa63-f6fc-424f-b6a5-a89c546441de,SOL-489882,TTLI-0001,PANIC INSTALLS,completed,Invoiced,2026-05-06T09:20:14.731942+00:00,0,0,false,false,none
+c1edae2e-6072-4249-a49d-a4819d2b2ec4,SOL-825729,DCCT-0001,NEW DASHCAM INSTALL - MD36TGGP,completed,Invoiced,2026-05-08T09:15:09.305563+00:00,0,295,false,true,subscription_only
+d8373104-14cf-4437-b839-41d6e87cf111,SOL-617357,WACA-0001,KC31RGGP - CAN AND BUZZER INSTALL,completed,Invoiced,2026-05-08T09:22:41.972801+00:00,0,0,false,false,none
+a4a407d5-118f-460b-93bb-202da039867a,SOL-111660,AUMA-0001,MW25XKGP,completed,Invoiced,2026-05-08T11:40:10.173845+00:00,0,740.37,false,true,subscription_only
+719e0a53-1e14-4cc8-8c79-275f59981f32,SOL-424827,ANGE-0001,LK19JHGP,completed,Completed,2026-03-15T23:59:59+00:00,0,0,false,false,none
+036b859b-011e-4bcb-b992-cd6b114d411c,SOL-704813,TACI-0001,MX85TNGP,completed,Completed,2026-04-13T09:33:16.22772+00:00,0,614.04,false,true,subscription_only
+48ac49de-ee05-471b-88f2-c4d897aae86b,SOL-928170,HITA-0001,MS53LYGP,completed,Completed,2026-03-15T23:59:59+00:00,0,0,false,false,none
+6ce83b45-5eb2-4aac-a6ba-a02ea2f298a9,SOL-757744,PRCR-0001,CB12,completed,Completed,2026-04-15T11:52:28.519103+00:00,0,299,false,true,subscription_only
+a9d9199a-31b3-42df-8a6a-dcd8859bb261,SOL-196293,ADVE-0001,CN32070,assigned,Completed,2026-04-30T11:57:24.249+00:00,0,358,false,true,subscription_only
+88cd130a-71f3-4fd0-9b06-2234dcca96ce,SOL-495571,TACI-0001,B413BOT,completed,Invoiced,2026-05-07T09:03:46.386409+00:00,0,583,false,true,subscription_only
+5e560c69-323f-4788-8498-94f441559801,SOL-389706,ALST-0001,CH835580,completed,Invoiced,2026-05-12T05:16:50.280649+00:00,0,540,false,true,subscription_only
+bf8f3e41-bf04-481d-9bbe-5db855f94901,SOL-583972,EPSC-0001,Data Upload - KY69YNGP,completed,Invoiced,2026-05-11T11:52:04.544926+00:00,0,0,false,false,none
+adbd4430-9403-405a-a413-782e7a0d52bf,SOL-932955,THES-0002,JH57ZDGP ,completed,Invoiced,2026-05-07T13:28:38.821+00:00,270,299,true,true,both
+492c0ae7-6bac-4a1e-9abd-0576b0d70c87,SOL-704027,ALST-0001,JZ88CYGP,completed,Completed,2026-05-07T09:54:25.186197+00:00,0,0,false,false,none
+afa1e1b6-eab6-4c33-af6e-1557165db671,SOL-265293,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T06:59:00.052353+00:00,0,0,false,false,none
+efffae80-c18b-48bf-8043-b5b3a9ea5beb,JOB-1754983842269-ls95urb0r,,gdjd,completed,Completed,2026-04-21T07:49:27.647322+00:00,39,0,true,false,rental_only
+25e0a4cc-22c0-4eae-8c82-4926db23226e,SOL-257467,HITA-0001,Nelspruit Service	2006-0222,completed,Invoiced,2026-04-20T05:06:12.147842+00:00,0,0,false,false,none
+3a41a768-3264-470c-8efa-dc1e6c92929d,SOL-496004,ACTE-0001,JZ93DZGP ,completed,Completed,2026-04-17T03:55:13.432635+00:00,0,60,false,true,subscription_only
+b4d72caa-18a5-483c-a287-def88ae76b68,JOB-1755166391853-wfj7r2d31,,BW81FZGP,completed,Completed,2026-04-21T07:55:05.283857+00:00,191,438,true,true,both
+f63af6dd-ac6b-4376-8d6e-9dede2c4c349,SOL-730788,ALST-0001,JP33GVGP,completed,Invoiced,2026-04-20T08:26:28.953405+00:00,0,0,false,false,none
+7f715d8a-a63f-405c-bff7-64ff63467b22,JOB-1755234972013-9s1326gnl,,AB848CDGP,completed,Completed,2026-04-21T07:54:57.741735+00:00,16,0,true,false,rental_only
+897503a9-6374-47ab-804e-6bf48064505e,SOL-607516,TTLI-0001,MB12SFGP - LH42,completed,Completed,2026-04-19T16:59:36.461529+00:00,235,684,true,true,both
+ab42d5c1-fccb-4056-8e19-507a42aefa3c,SOL-811786,KARG-0008,CH009075,completed,Completed,2026-04-19T18:15:16.314253+00:00,0,299,false,true,subscription_only
+6141b497-319f-4bfd-8d89-0ede823a229a,JOB-1755637885732-h9r8qqa24,,AB00896CDGP,completed,Completed,2026-04-21T07:54:26.796927+00:00,132,0,true,false,rental_only
+48d3e375-7445-4fc0-90dd-315cc4bb6679,JOB-1755496437744-dnwazjwpu,,AB56CDGP,completed,Completed,2026-04-21T07:54:30.315713+00:00,111,0,true,false,rental_only
+b790e832-45b1-4945-9c00-0a3065dfd22d,SOL-457666,TLOG-0001,KRS017MP - PLS236,completed,Completed,2026-04-19T17:01:53.684463+00:00,235,684,true,true,both
+a41ccf0c-145a-4916-ace4-4a83b9eb4f30,JOB-1755495721989-aizwya2f8,,AB56CDGP,completed,Completed,2026-04-21T07:54:33.937607+00:00,291,295,true,true,both
+e00ed7b1-f266-4d66-9f74-798f54cb47c1,SOL-525889,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:03:58.579651+00:00,0,0,false,false,none
+f9c5dfde-4b29-4d43-bc6c-8d0572111405,SOL-797426,THES-0002,KCY462MP ,completed,Invoiced,2026-05-07T12:31:01.017+00:00,270,299,true,true,both
+a138e2d8-98fd-475d-a21e-435b94b9d1bb,SOL-457457,ACTE-0001,FYR 731MP,completed,Completed,2026-03-19T08:00:19.171392+00:00,0,60,false,true,subscription_only
+09300552-ccbc-407a-9b5c-71bb5fb7f858,SOL-184784,TLOG-0001,JGV570FS - VT09 - PD121,completed,Completed,2026-04-19T17:09:40.954097+00:00,235,684,true,true,both
+280e3dbc-e89e-4bdc-aac3-2b88a425b503,SOL-882375,THES-0002,LMR027MP,completed,Invoiced,2026-05-07T12:32:27.91+00:00,270,299,true,true,both
+910b496e-6141-4d72-8832-667745fabfd5,SOL-156995,THES-0002,KY79LGGP ,completed,Invoiced,2026-05-07T13:28:46.095+00:00,270,299,true,true,both
+cdc19ea2-13ca-4e57-92b6-5f09d9730911,SOL-861668,TACI-0001,B557BXN,completed,Invoiced,2026-05-07T13:48:49.160683+00:00,0,614.04,false,true,subscription_only
+117df8f7-5937-409b-9551-db47f3e0d24d,SOL-989640,ANGE-0001,YMM294GP,completed,Invoiced,2026-04-21T09:51:56.28389+00:00,0,0,false,false,none
+f442157b-2afe-4ec9-83e8-29bb84e19aca,SOL-882699,EDGE-0007,CAA542682,completed,Completed,2026-03-25T11:06:37.210582+00:00,0,70,false,true,subscription_only
+587ed6cb-bb69-4fd9-90c7-20207b4080e2,SOL-545123,EDGE-0034,JZ33KBGP,completed,Completed,2026-05-12T09:22:14.375174+00:00,0,70,false,true,subscription_only
+f5e98552-5261-46e4-baa5-8fc2687d7e7a,SOL-151996,ACTE-0001,HBZ 874MP,completed,Completed,2026-03-19T08:01:22.567619+00:00,0,60,false,true,subscription_only
+e4b425be-dc46-4d85-bc22-8c901a2c82f2,SOL-515105,ACTE-0001,HJD 494MP,completed,Completed,2026-03-19T08:02:52.547043+00:00,0,60,false,true,subscription_only
+f8f45493-90a8-47e0-a140-3eb4f8b76f8f,SOL-612814,ACTE-0001,FVW743MP,completed,Completed,2026-03-19T10:53:54.93752+00:00,0,60,false,true,subscription_only
+21c10045-1d06-48b2-af81-898da5a8c134,SOL-796725,ACTE-0001,JJG 655MP,completed,Completed,2026-03-19T10:46:01.309437+00:00,0,60,false,true,subscription_only
+d3d02b86-b8ef-423c-a0df-c344393e9f1e,SOL-879697,ACTE-0001,JJK612MP ,completed,Completed,2026-03-19T10:50:54.340392+00:00,0,60,false,true,subscription_only
+a6de47ee-4118-40ef-901a-09fe0a4f05aa,SOL-129057,ACTE-0001,FTG 767MP,completed,Completed,2026-03-19T08:04:12.655513+00:00,0,60,false,true,subscription_only
+1723db90-099a-46bf-8c1e-531b9c5180d9,SOL-429407,ACTE-0001,KCT 046MP,completed,Completed,2026-03-19T10:40:17.29491+00:00,0,60,false,true,subscription_only
+cbf211bf-96fc-456b-bd46-5af6af18630d,SOL-533834,ACTE-0001,HYN 990MP,completed,Completed,2026-03-19T08:05:30.098674+00:00,0,60,false,true,subscription_only
+fc0df04f-018d-49e5-9e67-7ac878ee1233,SOL-597188,EDGE-0047,TEMPKA0006,completed,Invoiced,2026-05-08T09:08:42.845+00:00,0,70,false,true,subscription_only
+4736e570-8b24-4d88-8f0a-d2089ba6c114,SOL-137849,EPSC-0002,DATA UPLOAD - MW90NSGP,completed,Invoiced,2026-05-08T09:16:44.843312+00:00,0,0,false,false,none
+3581938b-3cfb-4856-a9c9-e631cdb1c528,SOL-925203,EPSC-0001,DATA UPLOAD - JF68FMGP,completed,Invoiced,2026-05-08T09:17:43.627211+00:00,0,0,false,false,none
+38eb9275-d9ed-421f-a893-359ea14f7fd8,SOL-283967,ACTE-0001,JWL 244MP,completed,Completed,2026-03-19T08:20:57.346753+00:00,0,60,false,true,subscription_only
+fc3bb9c0-d640-4e28-8102-4677177bbcb8,SOL-809711,TTFM-0001,KXZ482MP - BD01,completed,Completed,2026-04-20T13:32:58.760345+00:00,235,684,true,true,both
+3a0a66d8-af81-4b31-a9b0-1cf0328e6b6f,SOL-237548,ACTE-0001,JJG 589MP,completed,Completed,2026-03-19T06:21:54.178944+00:00,0,60,false,true,subscription_only
+270f1cb5-546d-4451-a42a-c30456267979,SOL-850977,KARG-0002,CH009108,completed,Completed,2026-05-12T14:02:55.52+00:00,0,299,false,true,subscription_only
+22dd5214-c4aa-4183-9bdf-6d53b9df7d14,SOL-133375,ACTE-0001,FYP 926MP,completed,Completed,2026-03-19T08:24:09.530759+00:00,0,60,false,true,subscription_only
+f3edb156-1261-419e-93eb-7c46d43ef27d,SOL-516446,ARGO-0001,CH998554,completed,Completed,2026-05-12T14:23:34.322925+00:00,369,0,true,false,rental_only
+0f6d071a-b068-4263-a51a-f532a03e708b,SOL-370894,ACTE-0001,HCR 052MP,completed,Completed,2026-03-19T08:25:42.330458+00:00,0,60,false,true,subscription_only
+3f031009-9cab-4430-ad19-7beffd15629f,SOL-824210,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:06:07.656108+00:00,0,0,false,false,none
+5598f6f4-a58a-4cec-b57c-d689a143b19a,SOL-884903,ACTE-0001,LCX 060MP,completed,Completed,2026-03-19T08:29:55.349267+00:00,0,60,false,true,subscription_only
+a31b582a-fd0e-4bc2-bd18-4fb0191c260e,SOL-943393,EDGE-0009,JCM767FS,completed,Completed,2026-03-25T11:08:11.302464+00:00,0,70,false,true,subscription_only
+ed345980-0715-4f52-98ce-5ef7f5fa0129,SOL-456981,ACTE-0001,FYR 751MP,completed,Completed,2026-03-19T08:09:53.201125+00:00,0,60,false,true,subscription_only
+5a36e170-f5a3-47d3-b484-f03347b13afb,SOL-732078,ARGO-0001,CH998555,completed,Completed,2026-05-12T14:25:10.764248+00:00,0,369,false,true,subscription_only
+e55b9627-569c-40f0-aaac-ec8e95fd97ec,SOL-540735,ACTE-0001,FWG 654MP,completed,Completed,2026-03-19T05:24:43.227488+00:00,0,60,false,true,subscription_only
+0f980595-7fb2-4659-8f9c-46bb6ba9e356,SOL-371135,ACTE-0001,FWG 659MP,completed,Completed,2026-03-19T05:26:46.995174+00:00,0,60,false,true,subscription_only
+8d12d8f1-8faf-4c69-8a59-920c75d4e640,SOL-961773,ACTE-0001,HJD 497MP,completed,Completed,2026-03-19T05:28:59.868751+00:00,0,60,false,true,subscription_only
+e48dd2c5-1380-4f13-95de-98401dd39eb5,SOL-541837,ACTE-0001,HGN 896MP,completed,Completed,2026-03-19T05:32:21.938+00:00,0,60,false,true,subscription_only
+ef5a141b-45da-4e9d-b755-efdb25f19902,SOL-299116,ACTE-0001,HDK 787MP,completed,Completed,2026-03-19T05:31:57.612999+00:00,0,60,false,true,subscription_only
+53088017-8cd8-4ce5-98b7-4776aaeb459d,SOL-403866,ACTE-0001,JJG 588MP,completed,Completed,2026-03-19T06:23:14.090739+00:00,0,60,false,true,subscription_only
+19ac7b66-e00e-44d3-a48f-e2c1ee1e2c63,SOL-470717,ACTE-0001,HZB 185MP,completed,Completed,2026-03-19T06:25:49.335074+00:00,0,60,false,true,subscription_only
+d6fabad8-572d-41e0-ae95-9a42f432dcf9,SOL-486611,ACTE-0001,JJK 610MP,completed,Completed,2026-03-19T10:41:56.481654+00:00,0,60,false,true,subscription_only
+b51cb78f-6ada-456e-bb20-4830b8afea56,SOL-163382,ACTE-0001,HZB 144MP,completed,Completed,2026-03-19T06:28:51.524308+00:00,0,60,false,true,subscription_only
+adf95e74-8a88-409c-a9ac-2deb7e7b3512,SOL-560452,ACTE-0001,HDD 137MP,completed,Completed,2026-03-19T06:30:39.091503+00:00,0,60,false,true,subscription_only
+cf3600ff-dd66-416c-8d21-7272c5dd5f46,SOL-569460,ACTE-0001,FTG 763MP,completed,Completed,2026-03-19T06:32:26.909793+00:00,0,60,false,true,subscription_only
+469517c7-fe96-4724-8c24-87b42bd1b8ef,SOL-322273,ACTE-0001,FVY 831MP,completed,Completed,2026-03-19T06:36:31.203+00:00,0,60,false,true,subscription_only
+2970d53c-26f9-4c49-9cf9-3bec4db70140,SOL-977982,ACTE-0001,HDD 129MP,completed,Completed,2026-03-19T06:51:10.731952+00:00,0,60,false,true,subscription_only
+042168e6-abe5-4b8b-be36-d403c99d77b3,SOL-891169,ACTE-0001,FYS 337MP,completed,Completed,2026-03-19T06:57:19.886985+00:00,0,60,false,true,subscription_only
+0af40fc6-b5b3-4a3a-a147-b974308d2694,SOL-704947,ACTE-0001,JJG 649MP,completed,Completed,2026-03-19T06:58:15.011632+00:00,0,60,false,true,subscription_only
+61d8abaa-6eb0-4c92-b86f-06d90a29fd6d,SOL-547462,ACTE-0001,JHC 233MP,completed,Completed,2026-03-19T06:59:19.773204+00:00,0,60,false,true,subscription_only
+72c644cd-ee9c-4eb5-801a-f21330da4172,SOL-278789,ACTE-0001,HGP 054MP ,completed,Completed,2026-03-19T07:28:30.878684+00:00,0,60,false,true,subscription_only
+586d62de-6f25-49ac-889b-17e0a8f44d40,SOL-890726,ACTE-0001,FYZ 213MP,completed,Completed,2026-03-19T07:29:56.779649+00:00,0,60,false,true,subscription_only
+edcc48be-dcdd-4756-b11a-28d23f1611e1,SOL-403699,ACTE-0001,HMJ 355L,completed,Completed,2026-03-19T07:56:28.290149+00:00,0,60,false,true,subscription_only
+e7b66b25-e50d-46fa-80d2-7bebd30df924,SOL-892244,ACTE-0001,HMJ 352L,completed,Completed,2026-03-19T07:57:44.876399+00:00,0,60,false,true,subscription_only
+19b33aa1-e9e4-47c7-8bd7-1207c71006bb,SOL-690286,ACTE-0001,FYS 351MP,completed,Completed,2026-03-19T07:59:15.510896+00:00,0,60,false,true,subscription_only
+6a26325f-3f7f-416a-8588-616d80ecfecd,SOL-577937,ACTE-0001,JJK 618MP,completed,Completed,2026-03-19T10:42:59.376817+00:00,0,60,false,true,subscription_only
+d17f2ddd-a52c-49ab-ad3e-e371a9da7eea,SOL-266982,SEVE-0001,F14	- MX28GYGP,completed,Completed,2026-04-17T05:06:29.908694+00:00,341.92,629,true,true,both
+25d8a522-92b3-4e68-94b6-b8b3fe551b2e,SOL-841081,ARGO-0001,CH998651,completed,Completed,2026-05-12T14:26:44.36633+00:00,0,369,false,true,subscription_only
+12819bdc-fa44-48f2-a431-9ba0451bc5fe,SOL-525299,EDGE-0004,LB83XNGP,completed,Invoiced,2026-05-06T08:26:57.790866+00:00,0,70,false,true,subscription_only
+a503e9dc-5f83-4fa6-a46b-92f4b4b7e4cc,SOL-544675,ACTE-0001,HCX 026L,completed,Completed,2026-03-31T08:28:59.618856+00:00,0,60,false,true,subscription_only
+5ba85a23-ab82-483c-ad9b-96207558015f,SOL-100350,EDGE-0049,LBN415NW,completed,Completed,2026-03-30T10:10:37.764533+00:00,0,70,false,true,subscription_only
+307dee64-5fe3-44fe-8de5-88c88992ee31,SOL-421420,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T06:52:46.456235+00:00,0,0,false,false,none
+e33326b2-67e6-419f-9c03-feb1b7fbd664,SOL-472574,ACTE-0001,KWB 547MP,completed,Completed,2026-03-31T08:34:24.895543+00:00,0,60,false,true,subscription_only
+a29c18b6-8e6b-4d3b-8d38-fc00980cfb4e,SOL-357912,ACTE-0001,HKL262L,completed,Completed,2026-04-17T03:45:00.208577+00:00,0,60,false,true,subscription_only
+0b5de782-f657-41e0-9b11-f88eed88a153,SOL-753523,ACTE-0001,ML51ZNGP,completed,Completed,2026-04-17T03:46:03.469064+00:00,0,60,false,true,subscription_only
+a13ba805-dcaa-499b-8a46-b31c685e1dd2,SOL-782906,TTFM-0001,JHD718FS - PB31,completed,Completed,2026-04-19T17:04:24.239373+00:00,235,684,true,true,both
+d35d0450-4f3a-4b7e-b528-61b8f027b96e,SOL-749919,EDGE-0004,MS99KFGP,completed,Completed,2026-04-15T07:21:54.550912+00:00,0,70,false,true,subscription_only
+944b6418-cef4-4eea-9066-ff7091a68f96,SOL-409838,THES-0002,DN20DHGP,completed,Invoiced,2026-05-07T13:28:24.632+00:00,0,569,false,true,subscription_only
+282f8ecb-f334-4dac-a8a3-1a3d06eab878,SOL-602945,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T06:56:04.08888+00:00,0,0,false,false,none
+65d60bcf-c4b4-4b8d-acf5-966a4c47ab7c,SOL-153018,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:10:43.512344+00:00,0,0,false,false,none
+9b099005-bea1-4064-b0c2-6c51969eab81,SOL-302337,THES-0002,LS97SFGP,completed,Invoiced,2026-05-07T13:28:52.589+00:00,270,299,true,true,both
+8364080b-3a38-4ec0-ab5c-db5f5d855353,JOB-1754983990908-jv74w752n,,AB56CDGP,completed,Completed,2026-04-12T22:11:39.664239+00:00,168,349,true,true,both
+3fc8d3dc-aa0c-4959-86d5-5e4c7b58b226,SOL-971433,INTE-0001,JV02MRGP,completed,Completed,2026-04-14T07:51:39.578277+00:00,0,299,false,true,subscription_only
+0446f468-9afb-48b0-a525-581e46c1574b,SOL-645483,TACI-0001,MX85VFGP,completed,Invoiced,2026-05-05T13:27:04.535+00:00,0,494,false,true,subscription_only
+3b1ce5c1-08f2-4aac-ab48-8364c8f368c7,SOL-463717,AFHU-0001,BG35WJGP ,completed,Completed,2026-04-13T10:58:03.989237+00:00,183,388,true,true,both
+bb2a9026-688e-451d-b1ed-8e3cf562c8aa,SOL-676261,ACTE-0001,HMJ44TRGP,completed,Completed,2026-04-17T03:49:38.065429+00:00,0,60,false,true,subscription_only
+0c53a5f1-b693-40c4-b9d7-e9552996d3ea,SOL-809523,PRCR-0001,CB03,completed,Completed,2026-04-15T11:58:45.166527+00:00,0,299,false,true,subscription_only
+1ddf5436-f332-46a8-9e63-4c9bc42cc8a7,SOL-311550,MACS-0029,DRIVER TAG 7988,completed,Invoiced,2026-03-16T23:59:59+00:00,0,0,false,false,none
+7efebba0-34e7-43c7-a94d-a7cf648f9ed2,SOL-555496,THES-0002,FF53SSGP ,completed,Completed,2026-04-13T12:16:10.32+00:00,270,299,true,true,both
+d36a0b5a-1268-4566-9e0e-dbcd2ea3fc50,SOL-622909,TTLI-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:15:59.776549+00:00,0,0,false,false,none
+a23ed2ac-aac1-409d-8a9d-c77972c7305a,SOL-141829,GENU-0001,CH973181,completed,Completed,2026-04-15T12:16:59.772776+00:00,0,471.87,false,true,subscription_only
+ede05e24-748c-45e4-9d1a-7ad9e47bb62b,SOL-800906,TTEX-0001,KXN248MP - EX39,completed,Completed,2026-04-21T12:16:44.070162+00:00,235,684,true,true,both
+dbe75de3-9b1d-4c78-88c5-537e52868fdd,SOL-649954,MACS-0024,CY156073 - T309,completed,Completed,2026-05-13T10:29:52.261+00:00,0,0,false,false,none
+7012c6d9-5c58-4078-861f-bdb4a36f58b8,SOL-914274,TLOG-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:18:32.080544+00:00,0,0,false,false,none
+07929715-c888-4e5f-9c8b-bbe5d70acdb8,SOL-568205,TLOG-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:20:56.63873+00:00,0,0,false,false,none
+83192c94-7956-4dca-b45f-ff5b563505ee,SOL-563309,TTFM-0001,LDG339MP - FM14,completed,Completed,2026-04-21T12:22:51.63781+00:00,235,684,true,true,both
+d43c463a-23eb-4127-93c7-4831a78631f6,SOL-156772,ALST-0001,KB27GLGP,completed,Invoiced,2026-04-20T09:56:38.407284+00:00,0,0,false,false,none
+04706b11-250a-423b-a86c-c94e3a0866a1,SOL-109291,TLOG-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:23:13.303421+00:00,0,0,false,false,none
+56858b3b-4818-490d-ac2b-d3db34119946,SOL-750649,TLOG-0001,PANIC INSTALLS ,completed,Completed,2026-04-21T07:25:14.82782+00:00,0,0,false,false,none
+78543e4b-9ccc-4d15-83da-030797a23dc3,CLIENT-1759819861218,MACS-0003,TESTGP,completed,Completed,2026-04-21T07:53:56.739676+00:00,23,0,true,false,rental_only
+fa021e1c-16ae-4e9f-8b0d-2962a3d74cdd,JOB-1755167114631-hmwp03jnk,,BW81FZGP,completed,Completed,2026-04-21T07:55:01.478422+00:00,359,787,true,true,both
