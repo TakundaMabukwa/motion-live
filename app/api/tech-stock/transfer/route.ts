@@ -195,6 +195,7 @@ export async function POST(request: NextRequest) {
     const transferItem = isPlainObject(body.item)
       ? { ...body.item }
       : ({} as Record<string, unknown>);
+    const transferRowId = String(transferItem.row_id || '').trim();
     const requestedQuantity = toPositiveInt(body.quantity, 0);
 
     if (!sourceTechnicianEmail || !targetTechnicianEmail) {
@@ -228,17 +229,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sourceQuery = await supabase
-      .from('tech_stock')
-      .select('id, technician_email, assigned_parts, stock')
-      .ilike('technician_email', sourceTechnicianEmail)
-      .order('id', { ascending: true })
-      .limit(1);
+    const parsedSourceRowId = Number.parseInt(transferRowId.split('-')[0] || '', 10);
+    const hasSourceRowId = Number.isFinite(parsedSourceRowId) && parsedSourceRowId > 0;
 
-    if (sourceQuery.error) {
-      return NextResponse.json({ error: sourceQuery.error.message }, { status: 500 });
+    let sourceRow: {
+      id: number;
+      technician_email: string | null;
+      assigned_parts: unknown;
+      stock: unknown;
+    } | null = null;
+
+    if (hasSourceRowId) {
+      const exactRowQuery = await supabase
+        .from('tech_stock')
+        .select('id, technician_email, assigned_parts, stock')
+        .eq('id', parsedSourceRowId)
+        .ilike('technician_email', sourceTechnicianEmail)
+        .limit(1);
+
+      if (exactRowQuery.error) {
+        return NextResponse.json(
+          { error: exactRowQuery.error.message },
+          { status: 500 },
+        );
+      }
+
+      sourceRow = Array.isArray(exactRowQuery.data)
+        ? (exactRowQuery.data[0] as typeof sourceRow)
+        : null;
+
+      if (!sourceRow) {
+        return NextResponse.json(
+          {
+            error:
+              'The selected stock row is stale or no longer available. Please refresh technician stock and try again.',
+          },
+          { status: 409 },
+        );
+      }
+    } else {
+      const sourceQuery = await supabase
+        .from('tech_stock')
+        .select('id, technician_email, assigned_parts, stock')
+        .ilike('technician_email', sourceTechnicianEmail)
+        .order('id', { ascending: true })
+        .limit(1);
+
+      if (sourceQuery.error) {
+        return NextResponse.json(
+          { error: sourceQuery.error.message },
+          { status: 500 },
+        );
+      }
+      sourceRow = Array.isArray(sourceQuery.data)
+        ? (sourceQuery.data[0] as typeof sourceRow)
+        : null;
     }
-    const sourceRow = Array.isArray(sourceQuery.data) ? sourceQuery.data[0] : null;
+
     if (!sourceRow) {
       return NextResponse.json(
         { error: 'Source technician stock not found' },
@@ -246,10 +293,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sourceAssignedParts = Array.isArray(sourceRow.assigned_parts)
+    const originalAssignedParts = Array.isArray(sourceRow.assigned_parts)
       ? [...sourceRow.assigned_parts]
       : [];
-    const sourceLegacyStock = cloneStockObject(sourceRow.stock);
+    const originalLegacyStock = cloneStockObject(sourceRow.stock);
+
+    const sourceAssignedParts = [...originalAssignedParts];
+    const sourceLegacyStock = cloneStockObject(originalLegacyStock);
 
     let remainingToTransfer = requestedQuantity;
     let transferTemplatePart: Record<string, unknown> | null = null;
@@ -382,6 +432,22 @@ export async function POST(request: NextRequest) {
     );
 
     if (!appendResult.success) {
+      // Compensating rollback: avoid "disappearing stock" when target append fails
+      const { error: rollbackError } = await supabase
+        .from('tech_stock')
+        .update({
+          assigned_parts: originalAssignedParts,
+          stock: originalLegacyStock,
+        })
+        .eq('id', sourceRow.id);
+
+      if (rollbackError) {
+        console.error(
+          'Failed to rollback source technician stock after append failure',
+          rollbackError,
+        );
+      }
+
       return NextResponse.json(
         { error: appendResult.error?.message || 'Failed to append stock to target technician' },
         { status: 500 },
