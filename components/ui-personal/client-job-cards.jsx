@@ -201,13 +201,6 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     return `R${parseFloat(amount).toFixed(2)}`;
   };
 
-  const toDateInputValue = (value) => {
-    if (!value) return '';
-    const parsedDate = new Date(value);
-    if (Number.isNaN(parsedDate.getTime())) return '';
-    return parsedDate.toISOString().split('T')[0];
-  };
-
   const parseQuoteProducts = (value) => {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') {
@@ -237,6 +230,53 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     parseQuoteProducts(quote?.quotation_products).map((item, index) =>
       getQuoteProductLabel(item, index),
     );
+
+  const normalizeTextToken = (value) =>
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+  const quoteLineRequiresAnnuity = (product) => {
+    const explicitLabour = product?.is_labour === true;
+    if (explicitLabour) return false;
+
+    const typeToken = normalizeTextToken(product?.type);
+    const categoryToken = normalizeTextToken(product?.category);
+    if (typeToken.includes('labour') || categoryToken.includes('labour')) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const hasLineAnnuityDate = (product) =>
+    String(product?.annuity_end_date || '')
+      .trim()
+      .length > 0;
+
+  const getMissingAnnuityProductLabels = (quote) =>
+    parseQuoteProducts(quote?.quotation_products)
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => quoteLineRequiresAnnuity(item) && !hasLineAnnuityDate(item))
+      .map(({ item, index }) => getQuoteProductLabel(item, index));
+
+  const getQuoteProductAnnuityRows = (quote) =>
+    parseQuoteProducts(quote?.quotation_products).map((item, index) => ({
+      label: getQuoteProductLabel(item, index),
+      annuityEndDate: String(item?.annuity_end_date || '').trim(),
+      requiresAnnuity: quoteLineRequiresAnnuity(item),
+    }));
+
+  const formatAnnuityDate = (value) => {
+    if (!value) return '';
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) return value;
+    return parsedDate.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
   const getProductContextDescription = (labels) => {
     if (!Array.isArray(labels) || labels.length === 0) return '';
@@ -347,7 +387,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     if (isDeinstallQuote(quote)) {
       const requiresRouting = isDecommissionQuote(quote);
       setQuotePendingApproval(quote);
-      setAnnuityEndDate(toDateInputValue(quote.annuity_end_date || quote.decommission_date));
+      setAnnuityEndDate('');
       setApprovalDestination(requiresRouting ? (quote.move_to_role || '') : 'none');
       setApprovalOrderNumber(existingOrderNumber);
       setIsApproveModalOpen(true);
@@ -378,15 +418,17 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
     const requiresRouting = isDecommissionQuote(quotePendingApproval);
     const calibrationQuote = isCalibrationQuote(quotePendingApproval);
     const normalizedOrderNumber = String(approvalOrderNumber || '').trim();
+    const missingAnnuityLabels = getMissingAnnuityProductLabels(quotePendingApproval);
+    const requiresAnnuityDate = isDeinstallQuote(quotePendingApproval) && missingAnnuityLabels.length > 0;
 
-    if (isDeinstallQuote(quotePendingApproval) && !annuityEndDate) {
+    if (requiresAnnuityDate && !annuityEndDate) {
       const productContext = getProductContextDescription(
-        getQuoteProductLabels(quotePendingApproval),
+        missingAnnuityLabels,
       );
       toast.error('Last Annuity Payment is required', {
         description:
           productContext ||
-          'Add the date before approving this quote.',
+          'Add the date before approving this quote for items missing annuity end date.',
       });
       return;
     }
@@ -477,6 +519,12 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
   const pendingApprovalIsCalibration = isCalibrationQuote(quotePendingApproval);
   const pendingApprovalIsDeinstall = isDeinstallQuote(quotePendingApproval);
   const pendingApprovalIsDecommission = isDecommissionQuote(quotePendingApproval);
+  const pendingApprovalProductAnnuityRows = getQuoteProductAnnuityRows(quotePendingApproval);
+  const pendingApprovalMissingAnnuityLabels = getMissingAnnuityProductLabels(quotePendingApproval);
+  const pendingApprovalNeedsAnnuityInput =
+    pendingApprovalIsDeinstall && pendingApprovalMissingAnnuityLabels.length > 0;
+  const pendingApprovalMissingAnnuitySummary =
+    getProductContextDescription(pendingApprovalMissingAnnuityLabels);
   const pendingApprovalHasOrderNumber =
     String(quotePendingApproval?.order_number || '').trim().length > 0;
   const pendingApprovalNeedsOrderNumber =
@@ -772,9 +820,44 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
               {pendingApprovalNeedsOrderNumber
                 ? 'is a calibration quote. Add the Order Number before approval.'
                 : pendingApprovalIsDecommission
-                ? `is a decommission job. Add Last Annuity Payment for ${pendingApprovalProductSummary} and choose where the new job card should go.`
-                : `is a de-install quote. Add Last Annuity Payment for ${pendingApprovalProductSummary} before approval.`}
+                ? pendingApprovalNeedsAnnuityInput
+                  ? `is a decommission job. Add Last Annuity Payment for products missing annuity dates (${pendingApprovalMissingAnnuitySummary || pendingApprovalProductSummary}) and choose where the new job card should go.`
+                  : 'is a decommission job. All product annuity dates are already set. Choose where the new job card should go.'
+                : pendingApprovalNeedsAnnuityInput
+                ? `is a de-install quote. Add Last Annuity Payment for products missing annuity dates (${pendingApprovalMissingAnnuitySummary || pendingApprovalProductSummary}).`
+                : `is a de-install quote. All product annuity dates are already set for ${pendingApprovalProductSummary}.`}
             </div>
+
+            {pendingApprovalIsDeinstall && pendingApprovalProductAnnuityRows.length > 0 && (
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="mb-2 text-sm font-medium text-gray-700">Quotation Product Annuity Dates</p>
+                <div className="space-y-1">
+                  {pendingApprovalProductAnnuityRows.map((row, index) => (
+                    <div
+                      key={`${row.label}-${index}`}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="text-gray-700">{row.label}</span>
+                      <span
+                        className={
+                          row.requiresAnnuity
+                            ? row.annuityEndDate
+                              ? 'font-medium text-green-700'
+                              : 'font-medium text-red-700'
+                            : 'text-gray-500'
+                        }
+                      >
+                        {row.requiresAnnuity
+                          ? row.annuityEndDate
+                            ? formatAnnuityDate(row.annuityEndDate)
+                            : 'Missing'
+                          : 'N/A (No annuity)'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {pendingApprovalNeedsOrderNumber && (
               <div className="space-y-2">
@@ -792,20 +875,22 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
               </div>
             )}
 
-            {pendingApprovalIsDeinstall && (
+            {pendingApprovalNeedsAnnuityInput && (
               <div className="space-y-2">
                 <label htmlFor="annuity-end-date" className="text-sm font-medium text-gray-700">
-                  Last Annuity Payment <span className="text-red-600">*</span>
+                  Last Annuity Payment {pendingApprovalNeedsAnnuityInput && <span className="text-red-600">*</span>}
                 </label>
                 <Input
                   id="annuity-end-date"
                   type="date"
                   value={annuityEndDate}
                   onChange={(event) => setAnnuityEndDate(event.target.value)}
-                  required
+                  required={pendingApprovalNeedsAnnuityInput}
                 />
                 <p className="text-xs text-gray-500">
-                  This date applies to: {pendingApprovalProductSummary}.
+                  {pendingApprovalNeedsAnnuityInput
+                    ? `This date will apply to missing items: ${pendingApprovalMissingAnnuitySummary || pendingApprovalProductSummary}.`
+                    : `All product annuity end dates are already captured in quotation products.`}
                 </p>
               </div>
             )}
@@ -847,7 +932,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
                 disabled={
                   Boolean(approvingQuote) ||
                   (pendingApprovalNeedsOrderNumber && !String(approvalOrderNumber || '').trim()) ||
-                  (pendingApprovalIsDeinstall && !annuityEndDate) ||
+                  (pendingApprovalNeedsAnnuityInput && !annuityEndDate) ||
                   (pendingApprovalIsDecommission && !approvalDestination)
                 }
               >

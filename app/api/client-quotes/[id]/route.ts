@@ -48,6 +48,28 @@ function getQuoteLineLabel(item: QuoteLineItem, index: number): string {
     : `Item ${index + 1}`;
 }
 
+function normalizeToken(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function quoteLineRequiresAnnuity(item: QuoteLineItem): boolean {
+  if (item.is_labour === true) return false;
+
+  const typeToken = normalizeToken(item.type);
+  const categoryToken = normalizeToken(item.category);
+  if (typeToken.includes('labour') || categoryToken.includes('labour')) {
+    return false;
+  }
+
+  return true;
+}
+
+function hasQuoteLineAnnuityDate(item: QuoteLineItem): boolean {
+  return String(item.annuity_end_date || '').trim().length > 0;
+}
+
 function buildProductContextMessage(productLabels: string[]): string | null {
   if (!Array.isArray(productLabels) || productLabels.length === 0) return null;
   if (productLabels.length <= 3) {
@@ -199,7 +221,10 @@ export async function PUT(
       );
       const isCalibration = normalizedQuoteJobType.includes('calibration');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
-      const deinstallProductLabels = quotationProducts.map(getQuoteLineLabel);
+      const missingDeinstallAnnuityLabels = quotationProducts
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => quoteLineRequiresAnnuity(line) && !hasQuoteLineAnnuityDate(line))
+        .map(({ line, index }) => getQuoteLineLabel(line, index));
       const providedOrderNumber = String(order_number || '').trim();
       const existingOrderNumber = String(clientQuote.order_number || '').trim();
       const resolvedOrderNumber = providedOrderNumber || existingOrderNumber;
@@ -219,34 +244,25 @@ export async function PUT(
         );
       }
 
-      const annuityEndDate = annuity_end_date || clientQuote.annuity_end_date || null;
-      if (isDeinstall && !annuityEndDate) {
-        const productContext = buildProductContextMessage(deinstallProductLabels);
+      const annuityEndDate = String(annuity_end_date || '').trim() || null;
+      const deinstallNeedsLineAnnuity = isDeinstall && missingDeinstallAnnuityLabels.length > 0;
+
+      if (deinstallNeedsLineAnnuity && !annuityEndDate) {
+        const productContext = buildProductContextMessage(missingDeinstallAnnuityLabels);
         return NextResponse.json(
           {
-            error: 'Last Annuity Payment is required for de-install quotes',
+            error: 'Last Annuity Payment is required for de-install items missing annuity end date',
             missingField: 'annuity_end_date',
-            productLabels: deinstallProductLabels,
-            details: productContext || 'Add Last Annuity Payment before approving this quote.',
+            productLabels: missingDeinstallAnnuityLabels,
+            details:
+              productContext ||
+              'Add Last Annuity Payment before approving this quote for items missing annuity end date.',
           },
           { status: 400 }
         );
       }
 
       if (isDecommissionJobCard) {
-        if (!annuityEndDate) {
-          const productContext = buildProductContextMessage(deinstallProductLabels);
-          return NextResponse.json(
-            {
-              error: 'Last Annuity Payment is required for decommission quotes',
-              missingField: 'annuity_end_date',
-              productLabels: deinstallProductLabels,
-              details: productContext || 'Add Last Annuity Payment before approving this quote.',
-            },
-            { status: 400 }
-          );
-        }
-
         if (!['inv', 'admin', 'accounts'].includes(destinationNormalized)) {
           return NextResponse.json(
             { error: 'destination role is required for decommission quotes' },
@@ -395,7 +411,9 @@ export async function PUT(
           isDeinstall && annuityEndDate
             ? quotationProducts.map((line) => ({
                 ...line,
-                annuity_end_date: line.annuity_end_date || annuityEndDate,
+                annuity_end_date: quoteLineRequiresAnnuity(line)
+                  ? line.annuity_end_date || annuityEndDate
+                  : line.annuity_end_date || null,
               }))
             : clientQuote.quotation_products || [],
         quotation_subtotal: clientQuote.quotation_subtotal || 0,
@@ -442,12 +460,15 @@ export async function PUT(
         status: 'approved',
         job_status: 'approved',
         decommission_date: decommissionDate,
-        annuity_end_date: annuityEndDate,
         order_number: resolvedOrderNumber || clientQuote.order_number || null,
         move_to_role: resolvedMoveToRole || clientQuote.move_to_role || null,
         updated_at: new Date().toISOString(),
         updated_by: user.id
       };
+
+      if (annuityEndDate) {
+        approveUpdatePayload.annuity_end_date = annuityEndDate;
+      }
       let updateError: { code?: string | null; message?: string | null; details?: string | null } | null = null;
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
