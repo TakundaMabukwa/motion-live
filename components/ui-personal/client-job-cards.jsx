@@ -859,6 +859,17 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
               </div>
             )}
 
+            {pendingApprovalNeedsAnnuityInput && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="mb-2 text-sm font-medium text-red-800">Items Missing Annuity End Date</p>
+                <ul className="space-y-1 text-sm text-red-700">
+                  {pendingApprovalMissingAnnuityLabels.map((label, index) => (
+                    <li key={`${label}-${index}`}>- {label}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {pendingApprovalNeedsOrderNumber && (
               <div className="space-y-2">
                 <label htmlFor="approval-order-number" className="text-sm font-medium text-gray-700">

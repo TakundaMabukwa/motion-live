@@ -293,6 +293,21 @@ export async function PUT(
         );
       }
 
+      const resolvedQuotationProducts =
+        isDeinstall && annuityEndDate
+          ? quotationProducts.map((line) => {
+              const lineHasAnnuity = hasQuoteLineAnnuityDate(line);
+              if (!quoteLineRequiresAnnuity(line) || lineHasAnnuity) {
+                return { ...line };
+              }
+
+              return {
+                ...line,
+                annuity_end_date: annuityEndDate,
+              };
+            })
+          : clientQuote.quotation_products || [];
+
       const decommissionDate = clientQuote.decommission_date || null;
       const resolvedMoveToRole = isDecommissionJobCard && destinationNormalized !== 'none'
         ? destinationNormalized
@@ -407,15 +422,7 @@ export async function PUT(
         quote_type: 'internal',
         
         // Pricing
-        quotation_products:
-          isDeinstall && annuityEndDate
-            ? quotationProducts.map((line) => ({
-                ...line,
-                annuity_end_date: quoteLineRequiresAnnuity(line)
-                  ? line.annuity_end_date || annuityEndDate
-                  : line.annuity_end_date || null,
-              }))
-            : clientQuote.quotation_products || [],
+        quotation_products: resolvedQuotationProducts,
         quotation_subtotal: clientQuote.quotation_subtotal || 0,
         quotation_vat_amount: clientQuote.quotation_vat_amount || 0,
         quotation_total_amount: clientQuote.quotation_total_amount || 0,
@@ -460,6 +467,7 @@ export async function PUT(
         status: 'approved',
         job_status: 'approved',
         decommission_date: decommissionDate,
+        quotation_products: resolvedQuotationProducts,
         order_number: resolvedOrderNumber || clientQuote.order_number || null,
         move_to_role: resolvedMoveToRole || clientQuote.move_to_role || null,
         updated_at: new Date().toISOString(),
