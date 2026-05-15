@@ -57,31 +57,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (!isEmailLike(finalTechnicianEmail)) {
-      if (String(technician_name || '').includes(',')) {
-        return NextResponse.json(
-          { error: 'Technician email is required when assigning multiple technicians' },
-          { status: 400 },
-        );
-      }
-
-      const emailName = String(technician_name || '')
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '.')
-        .replace(/[^a-z0-9.]/g, '');
-      finalTechnicianEmail = `${emailName}@soltrack.co.za`;
+      return NextResponse.json(
+        {
+          error:
+            'Technician email is missing. Please set a valid email on the technician profile before assignment.',
+        },
+        { status: 400 },
+      );
     }
     
     // Truncate to 50 characters to fit technician_phone field limit
     if (finalTechnicianEmail.length > 50) {
-      const domain = '@soltrack.co.za';
-      const maxNameLength = 50 - domain.length;
-      const rawLocal = finalTechnicianEmail.split('@')[0] || '';
-      const truncatedName = rawLocal.substring(0, maxNameLength);
-      finalTechnicianEmail = `${truncatedName}${domain}`;
+      const [rawLocalPart, rawDomainPart] = finalTechnicianEmail.split('@');
+      const domainPart = rawDomainPart ? `@${rawDomainPart}` : '';
+      const maxLocalLength = Math.max(1, 50 - domainPart.length);
+      const truncatedLocal = String(rawLocalPart || '').substring(0, maxLocalLength);
+      finalTechnicianEmail = domainPart
+        ? `${truncatedLocal}${domainPart}`
+        : finalTechnicianEmail.substring(0, 50);
     }
     
-    console.log('Generated email from technician name:', finalTechnicianEmail);
+    console.log('Resolved technician email:', finalTechnicianEmail);
     console.log('Email length:', finalTechnicianEmail.length);
     
     console.log('Final technician data:');

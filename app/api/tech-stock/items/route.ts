@@ -11,6 +11,13 @@ const normalizeSearchValue = (value: unknown) =>
     .trim()
     .toLowerCase();
 
+const isValidSingleTechnicianEmail = (value: unknown) => {
+  const email = normalizeSearchValue(value);
+  if (!email) return false;
+  if (email.includes(",") || email.includes(" ")) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+};
+
 const normalizeAssignedPart = (part: unknown) => {
   const base = part && typeof part === "object" ? { ...(part as Record<string, unknown>) } : {};
   const serialNumber = String(
@@ -133,6 +140,12 @@ export async function GET(request: NextRequest) {
     if (!technicianEmail) {
       return NextResponse.json(
         { error: "technician_email is required" },
+        { status: 400 },
+      );
+    }
+    if (!isValidSingleTechnicianEmail(technicianEmail)) {
+      return NextResponse.json(
+        { error: "technician_email must be a single valid email address" },
         { status: 400 },
       );
     }

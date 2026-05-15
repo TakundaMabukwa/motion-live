@@ -328,6 +328,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           return fallback.trim() ? `assigned:${fallback}` : '';
         }
         if (source === 'tech_stock.assigned_parts') {
+          const rowId = String(item?.row_id || '').trim();
+          if (rowId) return `stock:${rowId}`;
           const stockId = String(item?.stock_id || item?.id || '').trim();
           return stockId ? `stock:${stockId}` : '';
         }
@@ -425,14 +427,23 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const fetchTechnicianStock = async () => {
     try {
       setStockLoading(true);
-      const response = await fetch('/api/stock/technician');
+      const { technicianEmail } = await getCurrentTechnicianIdentity();
+      if (!technicianEmail) {
+        throw new Error('Could not resolve technician email');
+      }
+
+      const response = await fetch(
+        `/api/tech-stock/items?technician_email=${encodeURIComponent(technicianEmail)}`,
+      );
       if (!response.ok) {
         throw new Error('Failed to load technician stock');
       }
 
       const data = await response.json();
-      const stockItems = Array.isArray(data?.stock) ? data.stock : [];
-      const positiveStock = stockItems.filter((item: any) => (parseInt(String(item?.quantity || '0')) || 0) > 0);
+      const stockItems = Array.isArray(data?.items) ? data.items : [];
+      const positiveStock = stockItems.filter(
+        (item: any) => (parseInt(String(item?.quantity || '0')) || 0) > 0,
+      );
       setTechnicianStock(positiveStock);
     } catch (error: any) {
       console.error('Error loading technician stock:', error);
@@ -487,13 +498,23 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         .map((option) => option.equipmentItem);
 
       const selectedStockItems = technicianStock
-        .filter((item) => selectedEquipmentIds.includes(`stock:${String(item.id)}`))
+        .filter((item) => {
+          const selectionId = String(item?.row_id || item?.stock_id || item?.id || '').trim();
+          return selectionId
+            ? selectedEquipmentIds.includes(`stock:${selectionId}`)
+            : false;
+        })
         .map((item) => ({
-          stock_id: item.id,
+          row_id: String(item?.row_id || '').trim(),
+          stock_id: item.stock_id || item.id || '',
           code: item.code || '',
           description: item.description || '',
           supplier: item.supplier || '',
           stock_type: item.stock_type || '',
+          serial_number: String(
+            item?.serial_number || item?.serialNumber || item?.ip_address || item?.ipAddress || '',
+          ).trim(),
+          ip_address: String(item?.ip_address || item?.ipAddress || '').trim(),
           quantity: 1,
           available_stock: parseInt(String(item.quantity || '0')) || 0,
           selected_at: new Date().toISOString(),
@@ -2372,8 +2393,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     </div>
                     <div className="max-h-[42vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-                      {technicianStock.map((item: any) => {
-                        const itemId = String(item.id);
+                      {technicianStock.map((item: any, index: number) => {
+                        const rawItemId = String(item?.row_id || item?.stock_id || item?.id || '').trim();
+                        const itemId = rawItemId || `fallback-${index}`;
                         const checked = selectedEquipmentIds.includes(`stock:${itemId}`);
                         const itemSerial = String(
                           item?.serial_number ||
@@ -2393,6 +2415,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleEquipmentItem(`stock:${itemId}`)}
+                              disabled={!rawItemId}
                               className="mt-1 h-4 w-4 accent-blue-600"
                             />
                             <div className="min-w-0">

@@ -43,12 +43,11 @@ const normalizeSearchValue = (value) =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
-const isCleanTechnicianEmail = (value) => {
+const isValidSingleTechnicianEmail = (value) => {
   const email = String(value || "").trim().toLowerCase();
-  if (!email || !email.includes("@")) return false;
-  const [localPart] = email.split("@");
-  if (!localPart) return false;
-  return !localPart.includes(".");
+  if (!email) return false;
+  if (email.includes(",") || email.includes(" ")) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 const resolveSerialNumber = (item) =>
@@ -165,7 +164,7 @@ export default function AssignPartsModal({
     const map = new Map();
     technicianOptions.forEach((tech) => {
       const email = String(tech?.technician_email || "").trim().toLowerCase();
-      if (!isCleanTechnicianEmail(email)) return;
+      if (!isValidSingleTechnicianEmail(email)) return;
       if (!email) return;
       if (!map.has(email)) {
         map.set(email, {
@@ -222,23 +221,27 @@ export default function AssignPartsModal({
         if (!response.ok) throw new Error("Failed to fetch technician stock");
         const data = await response.json();
         stockArray = Array.isArray(data.items)
-          ? data.items.map((item, index) => ({
-              id: item.stock_id || item.id || `${index}`,
-              description: item.description || item.code || "Item",
-              code: item.code || "",
-              supplier: item.supplier || "Technician Stock",
-              stock_type: item.stock_type || item.code || "",
-              quantity: item.quantity || 1,
-              serial_number:
-                item.serial_number ||
-                item.serial ||
-                item.serialNumber ||
-                item.ip_address ||
-                "",
-              status: "IN STOCK",
-              category_code: item.code || "",
-              category_description: item.description || item.code || "",
-            }))
+          ? data.items
+              .map((item) => ({
+                id: item.row_id || "",
+                stock_id: item.stock_id || item.id || "",
+                row_id: item.row_id || "",
+                description: item.description || item.code || "Item",
+                code: item.code || "",
+                supplier: item.supplier || "Technician Stock",
+                stock_type: item.stock_type || item.code || "",
+                quantity: item.quantity || 1,
+                serial_number:
+                  item.serial_number ||
+                  item.serial ||
+                  item.serialNumber ||
+                  item.ip_address ||
+                  "",
+                status: "IN STOCK",
+                category_code: item.code || "",
+                category_description: item.description || item.code || "",
+              }))
+              .filter((item) => Boolean(String(item.row_id || "").trim()))
           : [];
       } else {
         const response = await fetch("/api/stock");
@@ -507,8 +510,18 @@ export default function AssignPartsModal({
   );
 
   const addPart = async (item) => {
+    if (modalStockSource === "technician" && !String(item?.row_id || "").trim()) {
+      toast.error("Selected technician stock row is stale. Please refresh and try again.");
+      return;
+    }
+    const selectedKey = String(
+      modalStockSource === "technician"
+        ? item.row_id
+        : item.row_id || item.id || item.stock_id || "",
+    ).trim();
     const alreadySelected = selectedParts.find(
-      (part) => part.stock_id === item.id,
+      (part) =>
+        String(part.row_id || part.stock_id || "").trim() === selectedKey,
     );
     if (alreadySelected) {
       toast.error("This item is already selected");
@@ -538,7 +551,8 @@ export default function AssignPartsModal({
     setSelectedParts((prev) => [
       ...prev,
       {
-        stock_id: item.id,
+        stock_id: item.stock_id || item.id,
+        row_id: item.row_id || "",
         description: String(
           item.category?.description || item.description || "",
         ),
@@ -553,20 +567,37 @@ export default function AssignPartsModal({
     ]);
 
     setAllStockItems((prev) =>
-      prev.filter((stockItem) => stockItem.id !== item.id),
+      prev.filter(
+        (stockItem) =>
+          String(
+            stockItem.row_id ||
+              stockItem.id ||
+              stockItem.stock_id ||
+              "",
+          ).trim() !== selectedKey,
+      ),
     );
   };
 
-  const removePart = async (stockId) => {
-    const part = selectedParts.find((p) => p.stock_id === stockId);
+  const removePart = async (selectionKey) => {
+    const normalizedKey = String(selectionKey || "").trim();
+    const part = selectedParts.find(
+      (p) => String(p.row_id || p.stock_id || "").trim() === normalizedKey,
+    );
     if (!part) return;
 
     // Just return it to the available list in the UI.
-    setSelectedParts((prev) => prev.filter((p) => p.stock_id !== stockId));
+    setSelectedParts((prev) =>
+      prev.filter(
+        (p) => String(p.row_id || p.stock_id || "").trim() !== normalizedKey,
+      ),
+    );
     setAllStockItems((prev) => [
       ...prev,
       {
-        id: part.stock_id,
+        id: part.row_id || part.stock_id,
+        stock_id: part.stock_id,
+        row_id: part.row_id || "",
         description: part.description || "",
         code: part.code || "",
         supplier: part.supplier || "",
@@ -634,9 +665,16 @@ export default function AssignPartsModal({
       const result = await response.json();
 
       // Remove assigned items from the available list
-      const assignedIds = selectedParts.map((p) => p.stock_id);
+      const assignedIds = selectedParts.map((p) =>
+        String(p.row_id || p.stock_id || "").trim(),
+      );
       setAllStockItems((prev) =>
-        prev.filter((item) => !assignedIds.includes(item.id)),
+        prev.filter((item) => {
+          const itemKey = String(
+            item.row_id || item.id || item.stock_id || "",
+          ).trim();
+          return !assignedIds.includes(itemKey);
+        }),
       );
 
       if (result.qr_code) {
@@ -1288,7 +1326,9 @@ export default function AssignPartsModal({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => removePart(part.stock_id)}
+                                onClick={() =>
+                                  removePart(part.row_id || part.stock_id)
+                                }
                                 className="text-red-500 hover:text-red-700 p-0 h-6 w-6"
                               >
                                 <X className="w-3 h-3" />

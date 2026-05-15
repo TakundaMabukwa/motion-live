@@ -30,6 +30,215 @@ function normalizeMoveToRole(value: unknown): string | null {
   return MOVE_TO_ROLE_ALLOWED.has(normalized) ? normalized : null;
 }
 
+const normalizeToken = (value: unknown) =>
+  String(value ?? '').trim().toLowerCase();
+
+const normalizeEmailValue = (value: unknown) =>
+  String(value ?? '').trim().toLowerCase();
+
+const isValidSingleTechnicianEmail = (value: unknown) => {
+  const email = normalizeEmailValue(value);
+  if (!email) return false;
+  if (email.includes(',') || email.includes(' ')) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+};
+
+const extractSingleTechnicianEmail = (...candidates: unknown[]) => {
+  for (const candidate of candidates) {
+    const token = String(candidate ?? '')
+      .split(',')
+      .map((part) => part.trim())
+      .find(Boolean);
+    if (!token) continue;
+    const normalized = normalizeEmailValue(token);
+    if (isValidSingleTechnicianEmail(normalized)) {
+      return normalized;
+    }
+  }
+  return '';
+};
+
+const toSafePositiveQuantity = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const toSafeNonNegativeQuantity = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+};
+
+type TransferRowLocator = {
+  rowId: number;
+  bucket: 'assigned' | 'legacy-array' | 'legacy-object';
+  index: number;
+};
+
+const parseTransferRowLocator = (value: unknown): TransferRowLocator | null => {
+  const normalized = String(value || '').trim().toLowerCase();
+  const match = normalized.match(
+    /^(\d+)-(assigned|legacy-array|legacy-object)-(\d+)$/,
+  );
+  if (!match) return null;
+
+  const rowId = Number.parseInt(match[1] || '', 10);
+  const index = Number.parseInt(match[3] || '', 10);
+  if (!Number.isFinite(rowId) || rowId <= 0) return null;
+  if (!Number.isFinite(index) || index < 0) return null;
+
+  return {
+    rowId,
+    bucket: match[2] as TransferRowLocator['bucket'],
+    index,
+  };
+};
+
+const resolvePartSerialToken = (value: Record<string, unknown>) =>
+  normalizeToken(
+    value.serial_number ?? value.serial ?? value.serialNumber ?? value.ip_address,
+  );
+
+const hasStrongPartIdentity = (value: Record<string, unknown>) =>
+  Boolean(normalizeToken(value.stock_id ?? value.id)) ||
+  Boolean(resolvePartSerialToken(value));
+
+const partsMatchStrict = (
+  candidate: Record<string, unknown>,
+  target: Record<string, unknown>,
+) => {
+  const candidateStockId = normalizeToken(candidate.stock_id ?? candidate.id);
+  const targetStockId = normalizeToken(target.stock_id ?? target.id);
+  if (candidateStockId || targetStockId) {
+    return Boolean(
+      candidateStockId &&
+        targetStockId &&
+        candidateStockId === targetStockId,
+    );
+  }
+
+  const candidateSerial = resolvePartSerialToken(candidate);
+  const targetSerial = resolvePartSerialToken(target);
+  if (candidateSerial || targetSerial) {
+    return Boolean(
+      candidateSerial && targetSerial && candidateSerial === targetSerial,
+    );
+  }
+
+  return false;
+};
+
+const decrementStructuredQuantity = (
+  entry: Record<string, unknown>,
+  quantity: number,
+) => {
+  const requestedQty = toSafePositiveQuantity(quantity);
+  const currentQty = toSafeNonNegativeQuantity(
+    entry.quantity ?? entry.count ?? entry.available_stock ?? 0,
+  );
+  const movedQty = Math.min(currentQty, requestedQty);
+  const remainingQty = Math.max(0, currentQty - movedQty);
+
+  if (Object.prototype.hasOwnProperty.call(entry, 'count')) {
+    entry.count = remainingQty;
+  }
+  if (Object.prototype.hasOwnProperty.call(entry, 'quantity')) {
+    entry.quantity = remainingQty;
+  } else if (!Object.prototype.hasOwnProperty.call(entry, 'count')) {
+    entry.quantity = remainingQty;
+  }
+  if (Object.prototype.hasOwnProperty.call(entry, 'available_stock')) {
+    entry.available_stock = remainingQty;
+  }
+
+  return { movedQty, remainingQty };
+};
+
+type LegacyEntryRef = {
+  bucket: 'legacy-array' | 'legacy-object';
+  index: number;
+  entry: Record<string, unknown>;
+  candidate: Record<string, unknown>;
+};
+
+const cloneStockValue = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return JSON.parse(JSON.stringify(value));
+};
+
+const collectLegacyEntryRefs = (rawStock: unknown): LegacyEntryRef[] => {
+  const refs: LegacyEntryRef[] = [];
+
+  if (Array.isArray(rawStock)) {
+    rawStock.forEach((item, index) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      const entry = item as Record<string, unknown>;
+      refs.push({
+        bucket: 'legacy-array',
+        index,
+        entry,
+        candidate: normalizePartRecord(entry),
+      });
+    });
+    return refs;
+  }
+
+  if (!rawStock || typeof rawStock !== 'object') {
+    return refs;
+  }
+
+  const stockRecord = rawStock as Record<string, unknown>;
+  let objectIndex = 0;
+
+  Object.entries(stockRecord).forEach(([topKey, topValue]) => {
+    if (!topValue || typeof topValue !== 'object' || Array.isArray(topValue)) {
+      return;
+    }
+
+    const topObject = topValue as Record<string, unknown>;
+    const isDirectItem =
+      Object.prototype.hasOwnProperty.call(topObject, 'count') ||
+      Object.prototype.hasOwnProperty.call(topObject, 'quantity') ||
+      Object.prototype.hasOwnProperty.call(topObject, 'description');
+
+    if (isDirectItem) {
+      refs.push({
+        bucket: 'legacy-object',
+        index: objectIndex++,
+        entry: topObject,
+        candidate: normalizePartRecord({
+          ...topObject,
+          code: topKey,
+          supplier: 'Technician Stock',
+        }),
+      });
+      return;
+    }
+
+    Object.entries(topObject).forEach(([childCode, childValue]) => {
+      if (!childValue || typeof childValue !== 'object' || Array.isArray(childValue)) {
+        return;
+      }
+      const entry = childValue as Record<string, unknown>;
+      refs.push({
+        bucket: 'legacy-object',
+        index: objectIndex++,
+        entry,
+        candidate: normalizePartRecord({
+          ...entry,
+          code: childCode,
+          supplier: topKey,
+        }),
+      });
+    });
+  });
+
+  return refs;
+};
+
 function resolvePartSerial(value: Record<string, unknown>): string {
   return String(
     value?.serial_number ??
@@ -205,108 +414,280 @@ export async function PATCH(
     updateData.move_to_role = normalizeMoveToRole(requestedMoveToRole);
 
     delete updateData.transfer_equipment_from_assigned_parts;
+    let pendingTechStockUpdates: Array<{
+      rowId: number;
+      technicianEmail: string;
+      originalAssignedParts: unknown[];
+      originalStock: unknown;
+      nextAssignedParts: unknown[];
+      nextStock: unknown;
+    }> = [];
 
     // Optional flow: move selected equipment from tech_stock.assigned_parts onto this job card.
     if (transferEquipmentFromAssignedParts && Array.isArray(body.equipment_used)) {
-      try {
-        const selectedEquipment = normalizePartArray(body.equipment_used);
+      const selectedEquipment = normalizePartArray(body.equipment_used);
 
-        if (selectedEquipment.length > 0) {
-          const technicianEmailForTransfer =
-            currentJob.technician_phone || user.email || null;
+      if (selectedEquipment.length > 0) {
+        const technicianEmailForTransfer = extractSingleTechnicianEmail(
+          currentJob.technician_phone,
+          user.email,
+        );
 
-          if (technicianEmailForTransfer) {
-            const { data: techStock, error: techStockError } = await supabase
-              .from('tech_stock')
-              .select('assigned_parts')
-              .eq('technician_email', technicianEmailForTransfer)
-              .maybeSingle();
+        if (!technicianEmailForTransfer) {
+          return NextResponse.json(
+            {
+              error:
+                'Unable to resolve a single technician stock email for transfer. Please refresh and try again.',
+            },
+            { status: 409 },
+          );
+        }
 
-            if (techStockError) {
-              console.error('Error fetching tech stock for transfer:', techStockError);
-            } else {
-              const assignedParts = Array.isArray(techStock?.assigned_parts) ? [...techStock.assigned_parts] : [];
-              const updatedAssignedParts = [...assignedParts];
-              const transferredParts: Record<string, unknown>[] = [];
+        const { data: techStockRows, error: techStockError } = await supabase
+          .from('tech_stock')
+          .select('id, assigned_parts, stock, technician_email')
+          .ilike('technician_email', technicianEmailForTransfer)
+          .order('id', { ascending: true });
 
-              const selectedStockIds = new Set(
-                selectedEquipment.map(
-                  (item: Record<string, unknown>) =>
-                    String(item?.stock_id || item?.id || ''),
-                )
+        if (techStockError) {
+          console.error('Error fetching tech stock for transfer:', techStockError);
+          return NextResponse.json(
+            { error: 'Failed to load technician stock for transfer' },
+            { status: 500 },
+          );
+        }
+
+        const sourceRows = Array.isArray(techStockRows) ? techStockRows : [];
+        if (sourceRows.length === 0) {
+          return NextResponse.json(
+            {
+              error:
+                'Technician stock row was not found. Please refresh and try again.',
+            },
+            { status: 409 },
+          );
+        }
+
+        const rowStates = new Map<
+          number,
+          {
+            rowId: number;
+            technicianEmail: string;
+            assignedParts: unknown[];
+            originalAssignedParts: unknown[];
+            stock: unknown;
+            originalStock: unknown;
+            legacyRefs: LegacyEntryRef[];
+          }
+        >();
+
+        sourceRows.forEach((row) => {
+          const rowId = Number(row.id);
+          if (!Number.isFinite(rowId) || rowId <= 0) return;
+
+          const assignedParts = Array.isArray(row.assigned_parts)
+            ? row.assigned_parts.map((part: unknown) =>
+                part && typeof part === 'object' && !Array.isArray(part)
+                  ? JSON.parse(JSON.stringify(part))
+                  : part,
+              )
+            : [];
+          const stock = cloneStockValue(row.stock);
+
+          rowStates.set(rowId, {
+            rowId,
+            technicianEmail: String(row.technician_email || technicianEmailForTransfer),
+            assignedParts,
+            originalAssignedParts: Array.isArray(row.assigned_parts)
+              ? [...row.assigned_parts]
+              : [],
+            stock,
+            originalStock: cloneStockValue(row.stock),
+            legacyRefs: collectLegacyEntryRefs(stock),
+          });
+        });
+
+        const transferredParts: Record<string, unknown>[] = [];
+        const touchedRowIds = new Set<number>();
+
+        for (const selectedPart of selectedEquipment) {
+          const normalizedSelected = normalizePartRecord(selectedPart);
+          const rowLocator = parseTransferRowLocator(normalizedSelected.row_id);
+          if (!rowLocator) {
+            return NextResponse.json(
+              {
+                error:
+                  'Selected stock item is stale or missing row identity. Please refresh and select again.',
+              },
+              { status: 409 },
+            );
+          }
+
+          const rowState = rowStates.get(rowLocator.rowId);
+          if (!rowState) {
+            return NextResponse.json(
+              {
+                error:
+                  'Selected technician stock row is stale. Please refresh and reselect items.',
+              },
+              { status: 409 },
+            );
+          }
+          touchedRowIds.add(rowState.rowId);
+
+          const requiresIdentityCheck = hasStrongPartIdentity(normalizedSelected);
+          let remainingQty = toSafePositiveQuantity(normalizedSelected.quantity);
+
+          if (rowLocator.bucket === 'assigned') {
+            const locatedPart = rowState.assignedParts[rowLocator.index];
+            if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Selected technician stock item is stale. Please refresh and try again.',
+                },
+                { status: 409 },
               );
-
-              const selectedKeys = new Set(
-                selectedEquipment.map(
-                  (item: Record<string, unknown>) =>
-                    `${String(item?.code || '')}::${String(item?.supplier || '')}`,
-                )
-              );
-
-              for (let i = 0; i < updatedAssignedParts.length; i += 1) {
-                const part = updatedAssignedParts[i];
-                const partStockId = String(part?.stock_id || part?.id || '');
-                const partKey = `${String(part?.code || '')}::${String(part?.supplier || '')}`;
-
-                const matchedById = partStockId && selectedStockIds.has(partStockId);
-                const matchedByCodeSupplier = selectedKeys.has(partKey);
-
-                if (!matchedById && !matchedByCodeSupplier) {
-                  continue;
-                }
-
-                const currentQty = parseInt(String(part?.quantity || '1')) || 1;
-                const newQty = Math.max(0, currentQty - 1);
-
-                transferredParts.push({
-                  ...part,
-                  quantity: 1,
-                });
-
-                if (newQty === 0) {
-                  updatedAssignedParts.splice(i, 1);
-                  i -= 1;
-                } else {
-                  updatedAssignedParts[i] = {
-                    ...part,
-                    quantity: newQty,
-                    available_stock: newQty,
-                  };
-                }
-              }
-
-              if (transferredParts.length > 0) {
-                const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
-                const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
-
-                updateData.parts_required = [...existingPartsRequired, ...transferredParts];
-                updateData.equipment_used = [...existingEquipmentUsed, ...transferredParts];
-
-                const { error: updateTechStockError } = await supabase
-                  .from('tech_stock')
-                  .update({ assigned_parts: updatedAssignedParts })
-                  .eq('technician_email', technicianEmailForTransfer);
-
-                if (updateTechStockError) {
-                  console.error('Error updating tech stock during transfer:', updateTechStockError);
-                }
-              } else {
-                // If no match found in assigned_parts, still keep selected equipment on the job card.
-                const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
-                const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
-                updateData.parts_required = [...existingPartsRequired, ...selectedEquipment];
-                updateData.equipment_used = [...existingEquipmentUsed, ...selectedEquipment];
-              }
             }
+
+            const locatedCandidate = normalizePartRecord(
+              locatedPart as Record<string, unknown>,
+            );
+            if (
+              requiresIdentityCheck &&
+              !partsMatchStrict(locatedCandidate, normalizedSelected)
+            ) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Selected technician stock item changed. Please refresh and try again.',
+                },
+                { status: 409 },
+              );
+            }
+
+            const { movedQty, remainingQty: locatedRemainingQty } =
+              decrementStructuredQuantity(
+                locatedPart as Record<string, unknown>,
+                remainingQty,
+              );
+
+            if (movedQty > 0) {
+              transferredParts.push({
+                ...locatedCandidate,
+                quantity: movedQty,
+                available_stock: movedQty,
+                row_id: normalizedSelected.row_id,
+                source: 'tech_stock.assigned_parts',
+              });
+            }
+
+            if (locatedRemainingQty <= 0) {
+              rowState.assignedParts[rowLocator.index] = null;
+            }
+            remainingQty -= movedQty;
           } else {
-            const existingPartsRequired = Array.isArray(currentJob.parts_required) ? currentJob.parts_required : [];
-            const existingEquipmentUsed = Array.isArray(currentJob.equipment_used) ? currentJob.equipment_used : [];
-            updateData.parts_required = [...existingPartsRequired, ...selectedEquipment];
-            updateData.equipment_used = [...existingEquipmentUsed, ...selectedEquipment];
+            const locatedLegacyEntry = rowState.legacyRefs.find(
+              (entry) =>
+                entry.bucket === rowLocator.bucket && entry.index === rowLocator.index,
+            );
+            if (!locatedLegacyEntry) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Selected technician stock item is stale. Please refresh and try again.',
+                },
+                { status: 409 },
+              );
+            }
+
+            if (
+              requiresIdentityCheck &&
+              !partsMatchStrict(locatedLegacyEntry.candidate, normalizedSelected)
+            ) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Selected technician stock item changed. Please refresh and try again.',
+                },
+                { status: 409 },
+              );
+            }
+
+            const { movedQty } = decrementStructuredQuantity(
+              locatedLegacyEntry.entry,
+              remainingQty,
+            );
+
+            if (movedQty > 0) {
+              transferredParts.push({
+                ...normalizePartRecord({
+                  ...locatedLegacyEntry.candidate,
+                  ...normalizedSelected,
+                }),
+                quantity: movedQty,
+                available_stock: movedQty,
+                row_id: normalizedSelected.row_id,
+                source: 'tech_stock.assigned_parts',
+              });
+            }
+
+            remainingQty -= movedQty;
+          }
+
+          if (remainingQty > 0) {
+            return NextResponse.json(
+              {
+                error:
+                  'Not enough stock available for one or more selected items. Please refresh and try again.',
+              },
+              { status: 400 },
+            );
           }
         }
-      } catch (transferError) {
-        console.error('Error during equipment transfer flow:', transferError);
+
+        if (transferredParts.length === 0) {
+          return NextResponse.json(
+            {
+              error:
+                'No stock was transferred. Please refresh and select stock items again.',
+            },
+            { status: 409 },
+          );
+        }
+
+        pendingTechStockUpdates = Array.from(rowStates.values())
+          .filter((rowState) => touchedRowIds.has(rowState.rowId))
+          .map((rowState) => {
+          const nextAssignedParts = rowState.assignedParts.flatMap((part: unknown) => {
+            if (!part) return [];
+            if (!part || typeof part !== 'object' || Array.isArray(part)) return [part];
+            const partObject = part as Record<string, unknown>;
+            const remainingQty = toSafeNonNegativeQuantity(
+              partObject.quantity ?? partObject.count ?? partObject.available_stock ?? 0,
+            );
+            return remainingQty > 0 ? [partObject] : [];
+          });
+
+          return {
+            rowId: rowState.rowId,
+            technicianEmail: rowState.technicianEmail,
+            originalAssignedParts: rowState.originalAssignedParts,
+            originalStock: rowState.originalStock,
+            nextAssignedParts,
+            nextStock: rowState.stock,
+          };
+        });
+
+        const existingPartsRequired = Array.isArray(currentJob.parts_required)
+          ? currentJob.parts_required
+          : [];
+        const existingEquipmentUsed = Array.isArray(currentJob.equipment_used)
+          ? currentJob.equipment_used
+          : [];
+
+        updateData.parts_required = [...existingPartsRequired, ...transferredParts];
+        updateData.equipment_used = [...existingEquipmentUsed, ...transferredParts];
       }
     }
 
@@ -316,6 +697,52 @@ export async function PATCH(
       updateData.technician_name = null;
       updateData.technician_phone = null;
       updateData.move_to_role = null;
+    }
+
+    let appliedTechStockUpdates = false;
+    const appliedStockRows: typeof pendingTechStockUpdates = [];
+    if (pendingTechStockUpdates.length > 0) {
+      for (const rowUpdate of pendingTechStockUpdates) {
+        const { error: updateTechStockError } = await supabase
+          .from('tech_stock')
+          .update({
+            assigned_parts: rowUpdate.nextAssignedParts,
+            stock: rowUpdate.nextStock,
+          })
+          .eq('id', rowUpdate.rowId)
+          .ilike('technician_email', rowUpdate.technicianEmail);
+
+        if (updateTechStockError) {
+          console.error('Error updating tech stock during transfer:', updateTechStockError);
+
+          for (const rollbackUpdate of appliedStockRows) {
+            const { error: rollbackError } = await supabase
+              .from('tech_stock')
+              .update({
+                assigned_parts: rollbackUpdate.originalAssignedParts,
+                stock: rollbackUpdate.originalStock,
+              })
+              .eq('id', rollbackUpdate.rowId);
+
+            if (rollbackError) {
+              console.error(
+                'Failed to rollback technician stock after transfer update failure:',
+                rollbackError,
+              );
+            }
+          }
+
+          return NextResponse.json(
+            {
+              error: 'Failed to move technician stock. Please refresh and try again.',
+            },
+            { status: 500 },
+          );
+        }
+
+        appliedStockRows.push(rowUpdate);
+      }
+      appliedTechStockUpdates = true;
     }
 
     // Update the job card
@@ -337,6 +764,25 @@ export async function PATCH(
     }
 
     if (updateError) {
+      if (appliedTechStockUpdates) {
+        for (const rollbackUpdate of pendingTechStockUpdates) {
+          const { error: rollbackError } = await supabase
+            .from('tech_stock')
+            .update({
+              assigned_parts: rollbackUpdate.originalAssignedParts,
+              stock: rollbackUpdate.originalStock,
+            })
+            .eq('id', rollbackUpdate.rowId);
+
+          if (rollbackError) {
+            console.error(
+              'Failed to rollback technician stock after job update failure:',
+              rollbackError,
+            );
+          }
+        }
+      }
+
       console.error('Error updating job card:', updateError);
       return NextResponse.json(
         {

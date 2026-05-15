@@ -138,20 +138,13 @@ export async function PUT(request: NextRequest) {
     }
 
     if (resolvedEmails.length === 0) {
-      const requestedNames = splitCsvValues(technicianName);
-      if (requestedNames.length > 1) {
-        return NextResponse.json(
-          { error: 'Technician email is required when assigning multiple technicians' },
-          { status: 400 },
-        );
-      }
-
-      const emailName = String(technicianName || '')
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '.')
-        .replace(/[^a-z0-9.]/g, '');
-      resolvedEmails = [`${emailName}@soltrack.co.za`];
+      return NextResponse.json(
+        {
+          error:
+            'Technician email is missing. Please set a valid email on the technician profile before assignment.',
+        },
+        { status: 400 },
+      );
     }
 
     const technicianPhoneValue = resolvedEmails.join(', ');

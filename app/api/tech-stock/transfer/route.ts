@@ -6,12 +6,11 @@ const normalizeValue = (value: unknown) =>
     .trim()
     .toLowerCase();
 
-const isCleanTechnicianEmail = (value: unknown) => {
+const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = normalizeValue(value);
-  if (!email || !email.includes('@')) return false;
-  const [localPart] = email.split('@');
-  if (!localPart) return false;
-  return !localPart.includes('.');
+  if (!email) return false;
+  if (email.includes(',') || email.includes(' ')) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -25,18 +24,48 @@ const toFiniteNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const resolvePartSerialToken = (value: Record<string, unknown>) =>
+  normalizeValue(
+    value.serial_number ?? value.serial ?? value.serialNumber ?? value.ip_address,
+  );
+
+type TransferRowLocator = {
+  rowId: number;
+  bucket: "assigned" | "legacy-array" | "legacy-object";
+  index: number;
+};
+
+const parseTransferRowLocator = (value: string): TransferRowLocator | null => {
+  const normalized = String(value || "").trim().toLowerCase();
+  const match = normalized.match(
+    /^(\d+)-(assigned|legacy-array|legacy-object)-(\d+)$/,
+  );
+  if (!match) return null;
+
+  const rowId = Number.parseInt(match[1] || "", 10);
+  const index = Number.parseInt(match[3] || "", 10);
+  if (!Number.isFinite(rowId) || rowId <= 0) return null;
+  if (!Number.isFinite(index) || index < 0) return null;
+
+  return {
+    rowId,
+    bucket: match[2] as TransferRowLocator["bucket"],
+    index,
+  };
+};
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const cloneStockObject = (value: unknown): Record<string, unknown> => {
-  if (!isPlainObject(value)) return {};
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+const cloneStockObject = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object') return {};
+  return JSON.parse(JSON.stringify(value));
 };
 
 const getPartQuantity = (part: Record<string, unknown>) =>
   Math.max(
-    1,
-    toPositiveInt(part.quantity ?? part.count ?? part.available_stock ?? 1, 1),
+    0,
+    toPositiveInt(part.quantity ?? part.count ?? part.available_stock ?? 0, 0),
   );
 
 const partsMatch = (
@@ -45,54 +74,63 @@ const partsMatch = (
 ) => {
   const candidateStockId = normalizeValue(candidate.stock_id ?? candidate.id);
   const targetStockId = normalizeValue(target.stock_id ?? target.id);
-  if (candidateStockId && targetStockId && candidateStockId === targetStockId) {
-    return true;
+  if (candidateStockId || targetStockId) {
+    return Boolean(
+      candidateStockId &&
+        targetStockId &&
+        candidateStockId === targetStockId,
+    );
   }
 
-  const candidateSerial = normalizeValue(
-    candidate.serial_number ?? candidate.serial ?? candidate.serialNumber ?? candidate.ip_address,
-  );
-  const targetSerial = normalizeValue(
-    target.serial_number ?? target.serial ?? target.serialNumber ?? target.ip_address,
-  );
-  if (candidateSerial && targetSerial && candidateSerial === targetSerial) {
-    return true;
+  const candidateSerial = resolvePartSerialToken(candidate);
+  const targetSerial = resolvePartSerialToken(target);
+  if (candidateSerial || targetSerial) {
+    return Boolean(
+      candidateSerial && targetSerial && candidateSerial === targetSerial,
+    );
   }
 
-  const candidateCode = normalizeValue(candidate.code);
-  const targetCode = normalizeValue(target.code);
-  if (!candidateCode || !targetCode || candidateCode !== targetCode) {
-    return false;
-  }
-
-  const candidateSupplier = normalizeValue(candidate.supplier);
-  const targetSupplier = normalizeValue(target.supplier);
-  if (candidateSupplier && targetSupplier && candidateSupplier !== targetSupplier) {
-    return false;
-  }
-
-  const candidateDescription = normalizeValue(candidate.description);
-  const targetDescription = normalizeValue(target.description);
-  if (
-    candidateDescription &&
-    targetDescription &&
-    candidateDescription !== targetDescription
-  ) {
-    return false;
-  }
-
-  return true;
+  // Never fall back to code-level matching here: that can reduce the wrong unit.
+  return false;
 };
 
 type LegacyStockEntry = {
+  bucket: "legacy-array" | "legacy-object";
+  index: number;
   supplier: string;
   code: string;
   entry: Record<string, unknown>;
+  candidate: Record<string, unknown>;
 };
 
-const collectLegacyStockEntries = (stock: Record<string, unknown>) => {
+const collectLegacyStockEntries = (stock: unknown) => {
   const entries: LegacyStockEntry[] = [];
 
+  if (Array.isArray(stock)) {
+    stock.forEach((item, index) => {
+      if (!isPlainObject(item)) return;
+      const candidate: Record<string, unknown> = {
+        ...item,
+        code: String(item.code ?? item.category_code ?? ""),
+        supplier: String(item.supplier ?? "Technician Stock"),
+      };
+      entries.push({
+        bucket: "legacy-array",
+        index,
+        supplier: String(candidate.supplier || "Technician Stock"),
+        code: String(candidate.code || ""),
+        entry: item,
+        candidate,
+      });
+    });
+    return entries;
+  }
+
+  if (!isPlainObject(stock)) {
+    return entries;
+  }
+
+  let objectIndex = 0;
   Object.entries(stock).forEach(([topKey, topValue]) => {
     if (!isPlainObject(topValue)) return;
 
@@ -100,10 +138,23 @@ const collectLegacyStockEntries = (stock: Record<string, unknown>) => {
       Object.prototype.hasOwnProperty.call(topValue, 'count') ||
       Object.prototype.hasOwnProperty.call(topValue, 'quantity')
     ) {
+      const currentCount = toPositiveInt(
+        topValue.count ?? topValue.quantity,
+        0,
+      );
+      if (currentCount <= 0) return;
+      const candidate: Record<string, unknown> = {
+        ...topValue,
+        code: topKey,
+        supplier: 'Technician Stock',
+      };
       entries.push({
+        bucket: "legacy-object",
+        index: objectIndex++,
         supplier: 'Technician Stock',
         code: topKey,
         entry: topValue,
+        candidate,
       });
       return;
     }
@@ -116,10 +167,23 @@ const collectLegacyStockEntries = (stock: Record<string, unknown>) => {
       ) {
         return;
       }
+      const currentCount = toPositiveInt(
+        childValue.count ?? childValue.quantity,
+        0,
+      );
+      if (currentCount <= 0) return;
+      const candidate: Record<string, unknown> = {
+        ...childValue,
+        code: childCode,
+        supplier: topKey,
+      };
       entries.push({
+        bucket: "legacy-object",
+        index: objectIndex++,
         supplier: topKey,
         code: childCode,
         entry: childValue,
+        candidate,
       });
     });
   });
@@ -134,6 +198,9 @@ const ensureTargetTransferPart = (
   const prepared = { ...templatePart };
   prepared.quantity = transferQuantity;
   prepared.available_stock = transferQuantity;
+  // prepared.count = transferQuantity;
+
+  
 
   const costPerUnit = toFiniteNumber(prepared.cost_per_unit);
   if (costPerUnit !== null) {
@@ -206,8 +273,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      !isCleanTechnicianEmail(sourceTechnicianEmail) ||
-      !isCleanTechnicianEmail(targetTechnicianEmail)
+      !isValidSingleTechnicianEmail(sourceTechnicianEmail) ||
+      !isValidSingleTechnicianEmail(targetTechnicianEmail)
     ) {
       return NextResponse.json(
         { error: 'Only clean technician emails are supported for inventory transfer' },
@@ -229,67 +296,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const parsedSourceRowId = Number.parseInt(transferRowId.split('-')[0] || '', 10);
-    const hasSourceRowId = Number.isFinite(parsedSourceRowId) && parsedSourceRowId > 0;
-
-    let sourceRow: {
-      id: number;
-      technician_email: string | null;
-      assigned_parts: unknown;
-      stock: unknown;
-    } | null = null;
-
-    if (hasSourceRowId) {
-      const exactRowQuery = await supabase
-        .from('tech_stock')
-        .select('id, technician_email, assigned_parts, stock')
-        .eq('id', parsedSourceRowId)
-        .ilike('technician_email', sourceTechnicianEmail)
-        .limit(1);
-
-      if (exactRowQuery.error) {
-        return NextResponse.json(
-          { error: exactRowQuery.error.message },
-          { status: 500 },
-        );
-      }
-
-      sourceRow = Array.isArray(exactRowQuery.data)
-        ? (exactRowQuery.data[0] as typeof sourceRow)
-        : null;
-
-      if (!sourceRow) {
-        return NextResponse.json(
-          {
-            error:
-              'The selected stock row is stale or no longer available. Please refresh technician stock and try again.',
-          },
-          { status: 409 },
-        );
-      }
-    } else {
-      const sourceQuery = await supabase
-        .from('tech_stock')
-        .select('id, technician_email, assigned_parts, stock')
-        .ilike('technician_email', sourceTechnicianEmail)
-        .order('id', { ascending: true })
-        .limit(1);
-
-      if (sourceQuery.error) {
-        return NextResponse.json(
-          { error: sourceQuery.error.message },
-          { status: 500 },
-        );
-      }
-      sourceRow = Array.isArray(sourceQuery.data)
-        ? (sourceQuery.data[0] as typeof sourceRow)
-        : null;
+    const transferRowLocator = parseTransferRowLocator(transferRowId);
+    if (!transferRowLocator) {
+      return NextResponse.json(
+        {
+          error:
+            'The selected stock row is stale or missing row identity. Please refresh technician stock and try again.',
+        },
+        { status: 409 },
+      );
     }
+
+    const sourceQuery = await supabase
+      .from('tech_stock')
+      .select('id, technician_email, assigned_parts, stock')
+      .eq('id', transferRowLocator.rowId)
+      .ilike('technician_email', sourceTechnicianEmail)
+      .limit(1);
+
+    if (sourceQuery.error) {
+      return NextResponse.json(
+        { error: sourceQuery.error.message },
+        { status: 500 },
+      );
+    }
+
+    const sourceRow = Array.isArray(sourceQuery.data)
+      ? (sourceQuery.data[0] as {
+          id: number;
+          technician_email: string | null;
+          assigned_parts: unknown;
+          stock: unknown;
+        } | null)
+      : null;
 
     if (!sourceRow) {
       return NextResponse.json(
-        { error: 'Source technician stock not found' },
-        { status: 404 },
+        {
+          error:
+            'The selected stock row is stale or no longer available. Please refresh technician stock and try again.',
+        },
+        { status: 409 },
       );
     }
 
@@ -304,97 +351,149 @@ export async function POST(request: NextRequest) {
     let remainingToTransfer = requestedQuantity;
     let transferTemplatePart: Record<string, unknown> | null = null;
     const updatedSourceParts: unknown[] = [];
+    const requiresIdentityCheck = Boolean(
+      normalizeValue(transferItem.stock_id ?? transferItem.id) ||
+        resolvePartSerialToken(transferItem),
+    );
 
-    sourceAssignedParts.forEach((part) => {
-      const partObject = isPlainObject(part)
-        ? ({ ...part } as Record<string, unknown>)
-        : ({} as Record<string, unknown>);
+    if (transferRowLocator.bucket === 'assigned') {
+      let matchedAssignedLocator = false;
+      let identityChanged = false;
 
-      if (
-        remainingToTransfer > 0 &&
-        partsMatch(partObject, transferItem)
-      ) {
-        const partQuantity = getPartQuantity(partObject);
-        const moved = Math.min(partQuantity, remainingToTransfer);
-        const remainingPartQty = partQuantity - moved;
+      for (let index = 0; index < sourceAssignedParts.length; index += 1) {
+        const part = sourceAssignedParts[index];
+        const partObject = isPlainObject(part)
+          ? ({ ...part } as Record<string, unknown>)
+          : ({} as Record<string, unknown>);
 
-        if (!transferTemplatePart) {
-          transferTemplatePart = ensureTargetTransferPart(partObject, moved);
-        }
+        if (remainingToTransfer > 0 && index === transferRowLocator.index) {
+          matchedAssignedLocator = true;
 
-        remainingToTransfer -= moved;
-        if (remainingPartQty > 0) {
-          const reducedPart = ensureTargetTransferPart(partObject, remainingPartQty);
-          updatedSourceParts.push(reducedPart);
-        }
-        return;
-      }
+          if (requiresIdentityCheck && !partsMatch(partObject, transferItem)) {
+            identityChanged = true;
+            updatedSourceParts.push(partObject);
+            continue;
+          }
 
-      updatedSourceParts.push(partObject);
-    });
+          const partQuantity = getPartQuantity(partObject);
+          const moved = Math.min(partQuantity, remainingToTransfer);
+          const remainingPartQty = partQuantity - moved;
 
-    if (remainingToTransfer > 0) {
-      const codeCandidates = [
-        normalizeValue(transferItem.code),
-        normalizeValue(transferItem.item_code),
-      ].filter(Boolean);
-      const preferredSupplier = normalizeValue(transferItem.supplier);
+          if (!transferTemplatePart && moved > 0) {
+            transferTemplatePart = ensureTargetTransferPart(partObject, moved);
+          }
 
-      const legacyEntries = collectLegacyStockEntries(sourceLegacyStock).sort((a, b) => {
-        const aScore =
-          normalizeValue(a.supplier) === preferredSupplier ? 0 : 1;
-        const bScore =
-          normalizeValue(b.supplier) === preferredSupplier ? 0 : 1;
-        if (aScore !== bScore) return aScore - bScore;
-        return a.code.localeCompare(b.code);
-      });
-
-      for (const legacyEntry of legacyEntries) {
-        if (remainingToTransfer <= 0) break;
-        if (
-          codeCandidates.length > 0 &&
-          !codeCandidates.includes(normalizeValue(legacyEntry.code))
-        ) {
+          remainingToTransfer -= moved;
+          if (remainingPartQty > 0) {
+            const reducedPart = ensureTargetTransferPart(partObject, remainingPartQty);
+            updatedSourceParts.push(reducedPart);
+          }
           continue;
         }
 
-        const currentCount = toPositiveInt(
-          legacyEntry.entry.count ?? legacyEntry.entry.quantity,
-          0,
-        );
-        if (currentCount <= 0) continue;
+        updatedSourceParts.push(partObject);
+      }
 
+      if (!matchedAssignedLocator) {
+        return NextResponse.json(
+          {
+            error:
+              'The selected technician stock item is stale. Please refresh and try again.',
+          },
+          { status: 409 },
+        );
+      }
+      if (identityChanged) {
+        return NextResponse.json(
+          {
+            error:
+              'The selected technician stock item changed. Please refresh and try again.',
+          },
+          { status: 409 },
+        );
+      }
+    } else {
+      sourceAssignedParts.forEach((part) => {
+        const partObject = isPlainObject(part)
+          ? ({ ...part } as Record<string, unknown>)
+          : ({} as Record<string, unknown>);
+        updatedSourceParts.push(partObject);
+      });
+    }
+
+    if (remainingToTransfer > 0 && transferRowLocator.bucket !== 'assigned') {
+      const legacyEntries = collectLegacyStockEntries(sourceLegacyStock);
+      const locatedLegacyEntry = legacyEntries.find(
+        (entry) =>
+          entry.bucket === transferRowLocator.bucket &&
+          entry.index === transferRowLocator.index,
+      );
+
+      if (!locatedLegacyEntry) {
+        return NextResponse.json(
+          {
+            error:
+              'The selected technician stock item is stale. Please refresh and try again.',
+          },
+          { status: 409 },
+        );
+      }
+
+      if (
+        requiresIdentityCheck &&
+        !partsMatch(locatedLegacyEntry.candidate, transferItem)
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'The selected technician stock item changed. Please refresh and try again.',
+          },
+          { status: 409 },
+        );
+      }
+
+      const currentCount = toPositiveInt(
+        locatedLegacyEntry.entry.count ?? locatedLegacyEntry.entry.quantity,
+        0,
+      );
+      if (currentCount > 0) {
         const moved = Math.min(currentCount, remainingToTransfer);
         const newCount = currentCount - moved;
-        legacyEntry.entry.count = newCount;
-        if (Object.prototype.hasOwnProperty.call(legacyEntry.entry, 'quantity')) {
-          legacyEntry.entry.quantity = newCount;
+        locatedLegacyEntry.entry.count = newCount;
+        if (Object.prototype.hasOwnProperty.call(locatedLegacyEntry.entry, 'quantity')) {
+          locatedLegacyEntry.entry.quantity = newCount;
         }
         remainingToTransfer -= moved;
 
-        if (!transferTemplatePart) {
+        if (!transferTemplatePart && moved > 0) {
           transferTemplatePart = {
-            code: legacyEntry.code,
+            code: locatedLegacyEntry.code,
             description: String(
-              legacyEntry.entry.description || transferItem.description || legacyEntry.code,
+              locatedLegacyEntry.entry.description ||
+                transferItem.description ||
+                locatedLegacyEntry.code,
             ),
-            supplier: legacyEntry.supplier,
+            supplier: locatedLegacyEntry.supplier,
             serial_number: String(
               transferItem.serial_number ??
                 transferItem.serial ??
                 transferItem.serialNumber ??
-                legacyEntry.entry.serial_number ??
-                legacyEntry.entry.serial ??
-                legacyEntry.entry.serialNumber ??
-                legacyEntry.entry.ip_address ??
+                locatedLegacyEntry.entry.serial_number ??
+                locatedLegacyEntry.entry.serial ??
+                locatedLegacyEntry.entry.serialNumber ??
+                locatedLegacyEntry.entry.ip_address ??
                 transferItem.ip_address ??
                 '',
             ).trim(),
             ip_address: String(
-              transferItem.ip_address ?? legacyEntry.entry.ip_address ?? '',
+              transferItem.ip_address ?? locatedLegacyEntry.entry.ip_address ?? '',
             ).trim(),
-            cost_per_unit: transferItem.cost_per_unit ?? legacyEntry.entry.cost_per_unit ?? 0,
-            total_cost: transferItem.total_cost ?? legacyEntry.entry.total_cost ?? 0,
+            cost_per_unit:
+              transferItem.cost_per_unit ??
+              locatedLegacyEntry.entry.cost_per_unit ??
+              0,
+            total_cost:
+              transferItem.total_cost ?? locatedLegacyEntry.entry.total_cost ?? 0,
           };
         }
       }

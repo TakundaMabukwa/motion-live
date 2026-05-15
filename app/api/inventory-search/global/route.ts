@@ -52,12 +52,11 @@ const normalizeValue = (value: unknown) =>
     .trim()
     .toLowerCase();
 
-const isCleanTechnicianEmail = (value: unknown) => {
+const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = normalizeValue(value);
-  if (!email || !email.includes('@')) return false;
-  const [localPart] = email.split('@');
-  if (!localPart) return false;
-  return !localPart.includes('.');
+  if (!email) return false;
+  if (email.includes(',') || email.includes(' ')) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -363,7 +362,7 @@ export async function GET(request: NextRequest) {
 
     techRows.forEach((row) => {
       const technicianEmail = String(row.technician_email || '').trim();
-      if (!isCleanTechnicianEmail(technicianEmail)) {
+      if (!isValidSingleTechnicianEmail(technicianEmail)) {
         return;
       }
       const assignedParts = Array.isArray(row.assigned_parts)

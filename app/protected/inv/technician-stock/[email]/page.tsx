@@ -40,12 +40,11 @@ const getItemQuantity = (item: TechnicianStockItem) => {
   return Math.max(1, Math.floor(parsed));
 };
 
-const isCleanTechnicianEmail = (value: unknown) => {
+const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = String(value || '').trim().toLowerCase();
-  if (!email || !email.includes('@')) return false;
-  const [localPart] = email.split('@');
-  if (!localPart) return false;
-  return !localPart.includes('.');
+  if (!email) return false;
+  if (email.includes(',') || email.includes(' ')) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 export default function TechnicianStockDetailsPage() {
@@ -112,7 +111,7 @@ export default function TechnicianStockDetailsPage() {
           const email = String(tech?.technician_email || '')
             .trim()
             .toLowerCase();
-          if (!isCleanTechnicianEmail(email)) return;
+          if (!isValidSingleTechnicianEmail(email)) return;
           if (!email) return;
           merged.set(email, {
             technician_email: email,
@@ -132,7 +131,7 @@ export default function TechnicianStockDetailsPage() {
             const email = String(tech?.email || '')
               .trim()
               .toLowerCase();
-            if (!isCleanTechnicianEmail(email)) return;
+            if (!isValidSingleTechnicianEmail(email)) return;
             if (!email) return;
             const existing = merged.get(email);
             merged.set(email, {

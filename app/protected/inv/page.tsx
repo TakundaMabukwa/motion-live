@@ -213,12 +213,11 @@ const resolveSerialNumber = (value: Record<string, unknown> | null | undefined) 
     value?.serial_number ?? value?.serial ?? value?.serialNumber ?? value?.ip_address ?? "",
   ).trim();
 
-const isCleanTechnicianEmail = (value: unknown) => {
+const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = String(value || "").trim().toLowerCase();
-  if (!email || !email.includes("@")) return false;
-  const [localPart] = email.split("@");
-  if (!localPart) return false;
-  return !localPart.includes(".");
+  if (!email) return false;
+  if (email.includes(",") || email.includes(" ")) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 const isSubsequenceMatch = (needle: string, haystack: string) => {
@@ -656,8 +655,8 @@ export default function InventoryPage() {
 
       const data = await response.json();
       const technicians = Array.isArray(data.technicians)
-        ? data.technicians.filter((tech: TechnicianStockRow) =>
-            isCleanTechnicianEmail(tech?.technician_email),
+          ? data.technicians.filter((tech: TechnicianStockRow) =>
+            isValidSingleTechnicianEmail(tech?.technician_email),
           )
         : [];
       setTechStockTechnicians(technicians);
@@ -860,6 +859,17 @@ export default function InventoryPage() {
   const isEscalatedToInventory = (job: JobCard) =>
     String(job.escalation_role || "").toLowerCase() === "inv";
 
+  const isAssignedPartsActiveJob = (job: JobCard) => {
+    const normalizedStatus = String(job.status || "").trim().toLowerCase();
+    const normalizedJobStatus = String(job.job_status || "")
+      .trim()
+      .toLowerCase();
+
+    return (
+      normalizedStatus !== "completed" && normalizedJobStatus !== "completed"
+    );
+  };
+
   const removeJobCardLocally = (jobId: string) => {
     setJobCards((current) => current.filter((job) => job.id !== jobId));
 
@@ -909,6 +919,7 @@ export default function InventoryPage() {
     (job: JobCard) =>
       !isMovedAwayFromInventory(job) &&
       !isEscalatedToInventory(job) &&
+      isAssignedPartsActiveJob(job) &&
       !Boolean(job.fc_note_acknowledged) &&
       job.parts_required &&
       Array.isArray(job.parts_required) &&
@@ -1009,7 +1020,7 @@ export default function InventoryPage() {
   });
 
   const filteredTechStockTechnicians = techStockTechnicians.filter((tech) => {
-    if (!isCleanTechnicianEmail(tech?.technician_email)) return false;
+    if (!isValidSingleTechnicianEmail(tech?.technician_email)) return false;
     if (!techStockSearchTerm) return true;
     const query = techStockSearchTerm.toLowerCase();
     const email = (tech.technician_email || "").toLowerCase();
@@ -3010,10 +3021,10 @@ export default function InventoryPage() {
                             event.stopPropagation();
                             handleAssignParts(job);
                           }}
-                          className="text-green-600 hover:text-green-700"
+                          className="text-blue-600 hover:text-blue-700"
                         >
-                          <RefreshCw className="mr-1 w-3 h-3" />
-                          Re-Open Job
+                          <Plus className="mr-1 w-3 h-3" />
+                          Assign Parts
                         </Button>
                         <Select
                           onValueChange={(value) =>
@@ -4457,14 +4468,12 @@ export default function InventoryPage() {
           ]}
           renderActions={(job) => (
             <>
-              {Array.isArray(job.parts_required) && job.parts_required.length > 0 ? (
-                <Button
-                  size="sm"
-                  onClick={() => handleAssignParts(job as JobCard)}
-                >
-                  Assign Parts
-                </Button>
-              ) : null}
+              <Button
+                size="sm"
+                onClick={() => handleAssignParts(job as JobCard)}
+              >
+                Assign Parts
+              </Button>
               <Button
                 size="sm"
                 variant="outline"

@@ -27,12 +27,11 @@ type TechnicianRow = {
 const normalizeEmail = (value: unknown) =>
   String(value || "").trim().toLowerCase();
 
-const isCleanInventoryTechnicianEmail = (value: unknown) => {
+const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = normalizeEmail(value);
-  if (!email || !email.includes("@")) return false;
-  const [localPart] = email.split("@");
-  if (!localPart) return false;
-  return !localPart.includes(".");
+  if (!email) return false;
+  if (email.includes(",") || email.includes(" ")) return false;
+  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
 };
 
 export async function GET() {
@@ -89,7 +88,7 @@ export async function GET() {
     // Source-of-truth list: only technicians that exist in tech_stock.
     (stockRows as TechStockRow[] | null)?.forEach((row) => {
       const email = normalizeEmail(row.technician_email);
-      if (!isCleanInventoryTechnicianEmail(email)) return;
+      if (!isValidSingleTechnicianEmail(email)) return;
       if (!email) return;
 
       const existing = technicianMap.get(email);
@@ -112,7 +111,7 @@ export async function GET() {
     // Enrich only the stock-backed emails with names from technicians/users.
     (technicianRows as TechnicianRow[] | null)?.forEach((row) => {
       const email = normalizeEmail(row.email);
-      if (!isCleanInventoryTechnicianEmail(email)) return;
+      if (!isValidSingleTechnicianEmail(email)) return;
       if (!email || !technicianMap.has(email)) return;
 
       const existing = technicianMap.get(email);
@@ -128,7 +127,7 @@ export async function GET() {
 
     (userRows as UserRow[] | null)?.forEach((row) => {
       const email = normalizeEmail(row.email);
-      if (!isCleanInventoryTechnicianEmail(email)) return;
+      if (!isValidSingleTechnicianEmail(email)) return;
       if (!email || !technicianMap.has(email)) return;
 
       const existing = technicianMap.get(email);

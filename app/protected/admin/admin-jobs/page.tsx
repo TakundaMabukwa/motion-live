@@ -279,17 +279,11 @@ export default function AdminJobsPage() {
 
       console.log(`STEP 1: Starting assignment for ${selectedTech.name} (${selectedTech.email})`);
       
-      // Generate email from technician name if no email exists
-      let technicianEmail = selectedTech.email;
-      if (!technicianEmail || technicianEmail.includes('@company.com')) {
-        // Generate email from name: "John Smith" -> "john.smith@soltrack.co.za"
-        const emailName = selectedTech.name
-          .toLowerCase()
-          .replace(/\s+/g, '.')
-          .replace(/[^a-z0-9.]/g, '');
-        technicianEmail = `${emailName}@soltrack.co.za`;
-        console.log(`Generated email from name: ${technicianEmail}`);
-      }
+      // Only use configured technician email; backend will also resolve by technician id/name.
+      const technicianEmail =
+        selectedTech.email && !selectedTech.email.includes('@company.com')
+          ? selectedTech.email
+          : '';
       
       console.log(`STEP 2: Using technician email: ${technicianEmail}`);
       
