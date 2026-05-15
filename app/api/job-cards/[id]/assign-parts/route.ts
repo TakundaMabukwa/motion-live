@@ -58,6 +58,15 @@ const normalizePartRecord = (part: Record<string, unknown>) => {
   return normalized;
 };
 
+const getPartIdentityLabel = (part: Record<string, unknown>) =>
+  String(
+    part?.code ??
+      part?.description ??
+      part?.stock_id ??
+      part?.id ??
+      'item',
+  ).trim() || 'item';
+
 const normalizeToken = (value: unknown) =>
   String(value ?? '').trim().toLowerCase();
 
@@ -317,6 +326,16 @@ export async function PUT(request: NextRequest, { params }) {
       return NextResponse.json({ error: 'Technician email is required' }, { status: 400 });
     }
 
+    const missingSerialPart = parts.find((part) => !resolvePartSerialToken(part));
+    if (missingSerialPart) {
+      return NextResponse.json(
+        {
+          error: `No serial number found for selected stock item (${getPartIdentityLabel(missingSerialPart)}). Assign serial number first.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const applySourceStockChanges = async () => {
       if (stockSource === 'soltrack') {
         for (const item of parts) {
@@ -352,20 +371,45 @@ export async function PUT(request: NextRequest, { params }) {
       }
 
       if (stockSource === 'technician') {
-        const parsedSelections = parts.map((selectedPart) => {
-          const normalizedSelected = normalizePartRecord(selectedPart);
-          const rowLocator = parseSourceRowLocator(normalizedSelected.row_id);
-          return {
-            normalizedSelected,
-            rowLocator,
-          };
-        });
+        const parsedSelections = parts
+          .map((selectedPart) => {
+            const normalizedSelected = normalizePartRecord(selectedPart);
+            const rowId = String(normalizedSelected.row_id || '').trim();
+            if (!rowId) return null;
+            const rowLocator = parseSourceRowLocator(rowId);
+            return {
+              normalizedSelected,
+              rowLocator,
+            };
+          })
+          .filter(
+            (
+              selection,
+            ): selection is {
+              normalizedSelected: Record<string, unknown>;
+              rowLocator: SourceRowLocator | null;
+            } => Boolean(selection),
+          );
+
+        if (parsedSelections.length === 0) {
+          return { success: true };
+        }
 
         if (parsedSelections.some((selection) => !selection.rowLocator)) {
           return {
             success: false,
             warning:
               'Selected technician stock item is stale. Please refresh and select exact rows again.',
+          };
+        }
+
+        const missingSerialSelection = parsedSelections.find(
+          (selection) => !resolvePartSerialToken(selection.normalizedSelected),
+        );
+        if (missingSerialSelection) {
+          return {
+            success: false,
+            warning: `No serial number found for selected technician stock item (${getPartIdentityLabel(missingSerialSelection.normalizedSelected)}).`,
           };
         }
 
@@ -464,6 +508,12 @@ export async function PUT(request: NextRequest, { params }) {
             const locatedCandidate = normalizePartRecord(
               locatedPart as Record<string, unknown>,
             );
+            if (!resolvePartSerialToken(locatedCandidate)) {
+              return {
+                success: false,
+                warning: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedCandidate)}).`,
+              };
+            }
             if (
               requiresIdentityCheck &&
               !partsMatchStrict(locatedCandidate, normalizedSelected)
@@ -494,6 +544,12 @@ export async function PUT(request: NextRequest, { params }) {
                 success: false,
                 warning:
                   'Selected technician stock item is stale. Please refresh and try again.',
+              };
+            }
+            if (!resolvePartSerialToken(locatedLegacyEntry.candidate)) {
+              return {
+                success: false,
+                warning: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
               };
             }
             if (

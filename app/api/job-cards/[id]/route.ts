@@ -289,6 +289,16 @@ function normalizePartArray(value: unknown): Record<string, unknown>[] {
   return value.map((part) => normalizePartRecord(part));
 }
 
+function getPartIdentityLabel(part: Record<string, unknown>): string {
+  return String(
+    part.code ??
+      part.description ??
+      part.stock_id ??
+      part.id ??
+      'item',
+  ).trim() || 'item';
+}
+
 function stripOptionalJobCardColumns<T extends Record<string, unknown>>(payload: T): T {
   const next = { ...payload };
   for (const column of OPTIONAL_JOB_CARD_COLUMNS) {
@@ -386,6 +396,26 @@ export async function PATCH(
     // Check if job is being completed (status changing to 'Completed')
     const isBeingCompleted = body.job_status === 'Completed' && 
                             currentJob.job_status !== 'Completed';
+
+    if (isBeingCompleted) {
+      const partsRequired = normalizePartArray(currentJob.parts_required);
+      const missingSerialParts = partsRequired.filter(
+        (part) => !resolvePartSerialToken(part),
+      );
+      if (missingSerialParts.length > 0) {
+        const sample = missingSerialParts
+          .slice(0, 5)
+          .map((part) => getPartIdentityLabel(part))
+          .join(', ');
+        return NextResponse.json(
+          {
+            error: `Cannot complete job. Missing serial number on ${missingSerialParts.length} part(s): ${sample}`,
+            missing_serial_count: missingSerialParts.length,
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     // Prepare update data - remove technician if job is being completed
     const updateData = {
@@ -512,6 +542,15 @@ export async function PATCH(
 
         for (const selectedPart of selectedEquipment) {
           const normalizedSelected = normalizePartRecord(selectedPart);
+          const selectedSerial = resolvePartSerialToken(normalizedSelected);
+          if (!selectedSerial) {
+            return NextResponse.json(
+              {
+                error: `No serial number found for selected stock item (${getPartIdentityLabel(normalizedSelected)}).`,
+              },
+              { status: 409 },
+            );
+          }
           const rowLocator = parseTransferRowLocator(normalizedSelected.row_id);
           if (!rowLocator) {
             return NextResponse.json(
@@ -553,6 +592,14 @@ export async function PATCH(
             const locatedCandidate = normalizePartRecord(
               locatedPart as Record<string, unknown>,
             );
+            if (!resolvePartSerialToken(locatedCandidate)) {
+              return NextResponse.json(
+                {
+                  error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedCandidate)}).`,
+                },
+                { status: 409 },
+              );
+            }
             if (
               requiresIdentityCheck &&
               !partsMatchStrict(locatedCandidate, normalizedSelected)
@@ -601,6 +648,14 @@ export async function PATCH(
               );
             }
 
+            if (!resolvePartSerialToken(locatedLegacyEntry.candidate)) {
+              return NextResponse.json(
+                {
+                  error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
+                },
+                { status: 409 },
+              );
+            }
             if (
               requiresIdentityCheck &&
               !partsMatchStrict(locatedLegacyEntry.candidate, normalizedSelected)
@@ -859,39 +914,60 @@ export async function PATCH(
           console.log('Missing technician email or ID, skipping stock deduction');
           return;
         }
+        const normalizedTechnicianEmail = normalizeEmailValue(technicianEmail);
+        if (!isValidSingleTechnicianEmail(normalizedTechnicianEmail)) {
+          console.log('Invalid technician email, skipping stock deduction');
+          return;
+        }
 
-        // Get technician's current stock
-        const { data: techStock, error: fetchError } = await supabase
+        // Get technician's current stock (case-insensitive, deterministic row)
+        const { data: techStockRows, error: fetchError } = await supabase
           .from('tech_stock')
-          .select('assigned_parts, technician_email')
-          .eq('technician_email', technicianEmail)
-          .single();
+          .select('id, assigned_parts, technician_email')
+          .ilike('technician_email', normalizedTechnicianEmail)
+          .order('id', { ascending: true })
+          .limit(1);
 
-        if (fetchError || !techStock) {
+        if (fetchError || !Array.isArray(techStockRows) || techStockRows.length === 0) {
           console.log('No tech stock found for technician:', technicianEmail);
           return;
         }
+        const techStock = techStockRows[0];
 
         // Double-check that we have the correct technician's stock
-        if (techStock.technician_email !== technicianEmail) {
-          console.error(`Technician email mismatch! Expected: ${technicianEmail}, Got: ${techStock.technician_email}`);
+        if (normalizeEmailValue(techStock.technician_email) !== normalizedTechnicianEmail) {
+          console.error(`Technician email mismatch! Expected: ${normalizedTechnicianEmail}, Got: ${techStock.technician_email}`);
           return;
         }
 
-        const assignedParts = techStock.assigned_parts || [];
+        const assignedParts = Array.isArray(techStock.assigned_parts) ? techStock.assigned_parts : [];
         let updatedParts = [...assignedParts];
         let stockDeducted = false;
 
-        // Match parts required with boot stock and deduct quantities
-        partsRequired.forEach(requiredPart => {
-          const stockIndex = updatedParts.findIndex(stockPart => 
-            stockPart.code === requiredPart.code && 
-            stockPart.boot_stock === 'yes'
-          );
+        // Match parts by serial identity (never by code) and deduct quantities.
+        partsRequired.forEach((requiredPart: Record<string, unknown>) => {
+          const requiredSerial = resolvePartSerialToken(requiredPart || {});
+          if (!requiredSerial) {
+            throw new Error(
+              `Cannot deduct stock: no serial number on required part (${getPartIdentityLabel(requiredPart || {})}).`,
+            );
+          }
+          const requiredQty = toSafePositiveQuantity(requiredPart?.quantity ?? 1);
+
+          const stockIndex = updatedParts.findIndex((stockPart: unknown) => {
+            if (!stockPart || typeof stockPart !== 'object' || Array.isArray(stockPart)) {
+              return false;
+            }
+            const stockPartRecord = stockPart as Record<string, unknown>;
+            const stockSerial = resolvePartSerialToken(stockPartRecord);
+            const bootStockFlag = String(stockPartRecord.boot_stock || '').trim().toLowerCase();
+            return stockSerial === requiredSerial && bootStockFlag === 'yes';
+          });
 
           if (stockIndex !== -1) {
-            const currentQty = parseInt(updatedParts[stockIndex].quantity) || 0;
-            const requiredQty = parseInt(requiredPart.quantity) || 0;
+            const currentQty = toSafeNonNegativeQuantity(
+              (updatedParts[stockIndex] as Record<string, unknown>)?.quantity,
+            );
             const newQty = Math.max(0, currentQty - requiredQty);
             
             updatedParts[stockIndex] = {
@@ -901,7 +977,7 @@ export async function PATCH(
             };
             
             stockDeducted = true;
-            console.log(`Deducted ${requiredQty} of ${requiredPart.code} from technician stock`);
+            console.log(`Deducted ${requiredQty} of serial ${requiredSerial} from technician stock`);
           }
         });
 
@@ -910,7 +986,8 @@ export async function PATCH(
           const { error: updateError } = await supabase
             .from('tech_stock')
             .update({ assigned_parts: updatedParts })
-            .eq('technician_email', technicianEmail);
+            .eq('id', techStock.id)
+            .ilike('technician_email', normalizedTechnicianEmail);
 
           if (updateError) {
             console.error('Error updating technician stock:', updateError);

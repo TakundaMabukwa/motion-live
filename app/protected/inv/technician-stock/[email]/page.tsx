@@ -44,7 +44,10 @@ const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = String(value || '').trim().toLowerCase();
   if (!email) return false;
   if (email.includes(',') || email.includes(' ')) return false;
-  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) return false;
+  const [localPart] = email.split('@');
+  if (!localPart) return false;
+  return !localPart.includes('.');
 };
 
 export default function TechnicianStockDetailsPage() {

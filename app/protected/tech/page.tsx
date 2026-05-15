@@ -235,7 +235,14 @@ export default function Dashboard() {
         sonnerToast.success(`Repair job ${job.job_number} completed successfully! Vehicle will be automatically added to vehicles table.`);
         fetchUserInfoAndJobs();
       } else {
-        throw new Error(`Failed to complete job: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          String(
+            errorData?.error ||
+              errorData?.details ||
+              `Failed to complete job: ${response.status}`,
+          ),
+        );
       }
     } catch (error) {
       console.error('Error completing repair job:', error);

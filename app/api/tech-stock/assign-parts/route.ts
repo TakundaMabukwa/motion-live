@@ -22,6 +22,20 @@ const normalizePartRecord = (part: Record<string, unknown>) => {
   return normalized;
 };
 
+const resolvePartSerialToken = (part: Record<string, unknown>) =>
+  String(
+    part?.serial_number ?? part?.serial ?? part?.serialNumber ?? part?.ip_address ?? '',
+  ).trim();
+
+const getPartIdentityLabel = (part: Record<string, unknown>) =>
+  String(
+    part?.code ??
+      part?.description ??
+      part?.stock_id ??
+      part?.id ??
+      'item',
+  ).trim() || 'item';
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -49,6 +63,16 @@ export async function POST(request: NextRequest) {
 
     if (parts.length === 0) {
       return NextResponse.json({ error: 'No parts selected' }, { status: 400 });
+    }
+
+    const missingSerial = parts.find((part) => !resolvePartSerialToken(part));
+    if (missingSerial) {
+      return NextResponse.json(
+        {
+          error: `No serial number found for selected stock item (${getPartIdentityLabel(missingSerial)}). Assign serial number first.`,
+        },
+        { status: 409 },
+      );
     }
 
     const inventoryItemIds = [

@@ -9,6 +9,8 @@ import { Package, Search, X, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const normalizeCategoryCode = (value) => String(value || '').trim().toUpperCase();
+const resolveSerialNumber = (item) =>
+  String(item?.serial_number || item?.serial || item?.serialNumber || item?.ip_address || '').trim();
 
 export default function AssignClientStockModal({ isOpen, onClose, client, onAssigned }) {
   const [selectedParts, setSelectedParts] = useState([]);
@@ -83,12 +85,19 @@ export default function AssignClientStockModal({ isOpen, onClose, client, onAssi
 
   const addPart = (item) => {
     if (selectedParts.some((part) => part.stock_id === item.id)) return;
+    const serialNumber = resolveSerialNumber(item);
+    if (!serialNumber) {
+      toast.error(
+        `No serial number found for selected stock item (${item?.code || item?.category_code || item?.description || 'item'}). Assign serial first.`,
+      );
+      return;
+    }
     setSelectedParts((prev) => [
       ...prev,
       {
         stock_id: item.id,
         description: String(item.category?.description || item.description || ''),
-        serial_number: String(item.serial_number || ''),
+        serial_number: serialNumber,
         code: String(item.category_code || item.code || ''),
         supplier: String(item.supplier || ''),
         quantity: 1,
@@ -129,6 +138,13 @@ export default function AssignClientStockModal({ isOpen, onClose, client, onAssi
     }
     if (selectedParts.length === 0) {
       toast.error('Please select at least one part');
+      return;
+    }
+    const missingSerial = selectedParts.find((part) => !resolveSerialNumber(part));
+    if (missingSerial) {
+      toast.error(
+        `No serial number found for selected stock item (${missingSerial?.code || missingSerial?.description || 'item'}). Assign serial first.`,
+      );
       return;
     }
 

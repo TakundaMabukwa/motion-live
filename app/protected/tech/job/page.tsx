@@ -353,7 +353,14 @@ export default function Jobs() {
         // Refresh the jobs data
         fetchUserInfoAndJobs();
       } else {
-        throw new Error(`Failed to complete job: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          String(
+            errorData?.error ||
+              errorData?.details ||
+              `Failed to complete job: ${response.status}`,
+          ),
+        );
       }
     } catch (error) {
       console.error('Error completing repair job:', error);

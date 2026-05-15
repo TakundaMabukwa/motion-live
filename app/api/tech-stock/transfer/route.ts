@@ -10,7 +10,10 @@ const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = normalizeValue(value);
   if (!email) return false;
   if (email.includes(',') || email.includes(' ')) return false;
-  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) return false;
+  const [localPart] = email.split('@');
+  if (!localPart) return false;
+  return !localPart.includes('.');
 };
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -93,6 +96,15 @@ const partsMatch = (
   // Never fall back to code-level matching here: that can reduce the wrong unit.
   return false;
 };
+
+const getPartIdentityLabel = (part: Record<string, unknown>) =>
+  String(
+    part?.code ??
+      part?.description ??
+      part?.stock_id ??
+      part?.id ??
+      'item',
+  ).trim() || 'item';
 
 type LegacyStockEntry = {
   bucket: "legacy-array" | "legacy-object";
@@ -296,6 +308,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const transferSerialToken = resolvePartSerialToken(transferItem);
+    if (!transferSerialToken) {
+      return NextResponse.json(
+        {
+          error: `No serial number found for selected technician stock item (${getPartIdentityLabel(transferItem)}).`,
+        },
+        { status: 409 },
+      );
+    }
+
     const transferRowLocator = parseTransferRowLocator(transferRowId);
     if (!transferRowLocator) {
       return NextResponse.json(
@@ -368,6 +390,14 @@ export async function POST(request: NextRequest) {
 
         if (remainingToTransfer > 0 && index === transferRowLocator.index) {
           matchedAssignedLocator = true;
+          if (!resolvePartSerialToken(partObject)) {
+            return NextResponse.json(
+              {
+                error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(partObject)}).`,
+              },
+              { status: 409 },
+            );
+          }
 
           if (requiresIdentityCheck && !partsMatch(partObject, transferItem)) {
             identityChanged = true;
@@ -434,6 +464,15 @@ export async function POST(request: NextRequest) {
           {
             error:
               'The selected technician stock item is stale. Please refresh and try again.',
+          },
+          { status: 409 },
+        );
+      }
+
+      if (!resolvePartSerialToken(locatedLegacyEntry.candidate)) {
+        return NextResponse.json(
+          {
+            error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
           },
           { status: 409 },
         );

@@ -217,7 +217,10 @@ const isValidSingleTechnicianEmail = (value: unknown) => {
   const email = String(value || "").trim().toLowerCase();
   if (!email) return false;
   if (email.includes(",") || email.includes(" ")) return false;
-  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) return false;
+  const [localPart] = email.split("@");
+  if (!localPart) return false;
+  return !localPart.includes(".");
 };
 
 const isSubsequenceMatch = (needle: string, haystack: string) => {
@@ -2525,18 +2528,21 @@ export default function InventoryPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: techStock, error } = await supabase
+      const normalizedUserEmail = String(user.email || "").trim().toLowerCase();
+      const { data: techStockRows, error } = await supabase
         .from("tech_stock")
-        .select("assigned_parts")
-        .eq("technician_email", user.email)
-        .single();
+        .select("id, technician_email, assigned_parts")
+        .ilike("technician_email", normalizedUserEmail)
+        .order("id", { ascending: true });
 
       if (error) {
         console.error("Error fetching tech stock:", error);
         return;
       }
 
-      const assignedParts = techStock?.assigned_parts || [];
+      const assignedParts = (Array.isArray(techStockRows) ? techStockRows : []).flatMap(
+        (row) => (Array.isArray(row?.assigned_parts) ? row.assigned_parts : []),
+      );
       const bootStockItems = assignedParts.filter(
         (item) => item.boot_stock === "yes",
       );

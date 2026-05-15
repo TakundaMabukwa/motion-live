@@ -527,6 +527,27 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
       let latestJob = jobData;
 
+      const missingSerialStockItem = selectedStockItems.find(
+        (item) =>
+          !String(
+            item?.serial_number ||
+              item?.serialNumber ||
+              item?.ip_address ||
+              item?.ipAddress ||
+              '',
+          )
+            .trim(),
+      );
+      if (missingSerialStockItem) {
+        const label = String(
+          missingSerialStockItem.code ||
+            missingSerialStockItem.description ||
+            missingSerialStockItem.stock_id ||
+            'item',
+        ).trim();
+        throw new Error(`No serial number found for selected stock item (${label}).`);
+      }
+
       if (selectedStockItems.length > 0) {
         const transferResponse = await fetch(`/api/job-cards/${jobData.id}`, {
           method: 'PATCH',
@@ -542,7 +563,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         if (!transferResponse.ok) {
           const errorData = await transferResponse.json().catch(() => ({}));
           console.error('Failed to save equipment used:', errorData);
-          throw new Error(`Failed to save equipment used: ${transferResponse.status}`);
+          throw new Error(
+            String(
+              errorData?.error ||
+                errorData?.details ||
+                `Failed to save equipment used: ${transferResponse.status}`,
+            ),
+          );
         }
 
         latestJob = await transferResponse.json();
@@ -574,7 +601,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       if (!updateResponse.ok) {
         const errorData = await updateResponse.json().catch(() => ({}));
         console.error('Failed to save equipment used:', errorData);
-        throw new Error(`Failed to save equipment used: ${updateResponse.status}`);
+        throw new Error(
+          String(
+            errorData?.error ||
+              errorData?.details ||
+              `Failed to save equipment used: ${updateResponse.status}`,
+          ),
+        );
       }
 
       const updatedJob = await updateResponse.json();
@@ -1626,7 +1659,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       } else {
         const errorData = await updateResponse.json().catch(() => ({}));
         console.error('Failed to complete job:', errorData);
-        throw new Error(`Failed to complete job: ${updateResponse.status}`);
+        throw new Error(
+          String(
+            errorData?.error ||
+              errorData?.details ||
+              `Failed to complete job: ${updateResponse.status}`,
+          ),
+        );
       }
     } catch (error) {
       console.error('Error completing job:', error);

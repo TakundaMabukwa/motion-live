@@ -9,6 +9,8 @@ import { Package, Search, X, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const normalizeCategoryCode = (value) => String(value || '').trim().toUpperCase();
+const resolveSerialNumber = (item) =>
+  String(item?.serial_number || item?.serial || item?.serialNumber || item?.ip_address || '').trim();
 
 export default function AssignTechStockModal({
   isOpen,
@@ -98,6 +100,13 @@ export default function AssignTechStockModal({
       toast.error('Part already selected');
       return;
     }
+    const serialNumber = resolveSerialNumber(item);
+    if (!serialNumber) {
+      toast.error(
+        `No serial number found for selected stock item (${item?.code || item?.category_code || item?.description || 'item'}). Assign serial first.`,
+      );
+      return;
+    }
 
     setSelectedParts((prev) => [
       ...prev,
@@ -107,8 +116,8 @@ export default function AssignTechStockModal({
         description: item?.description || item?.category_description || '',
         supplier: item?.supplier || 'N/A',
         quantity: 1,
-        serial_number: item?.serial_number || '',
-        ip_address: item?.ip_address || '',
+        serial_number: serialNumber,
+        ip_address: String(item?.ip_address || '').trim(),
         total_cost: 0,
         cost_per_unit: 0,
       },
@@ -126,6 +135,13 @@ export default function AssignTechStockModal({
     }
     if (selectedParts.length === 0) {
       toast.error('Please select at least one part');
+      return;
+    }
+    const missingSerial = selectedParts.find((part) => !resolveSerialNumber(part));
+    if (missingSerial) {
+      toast.error(
+        `No serial number found for selected stock item (${missingSerial?.code || missingSerial?.description || 'item'}). Assign serial first.`,
+      );
       return;
     }
 

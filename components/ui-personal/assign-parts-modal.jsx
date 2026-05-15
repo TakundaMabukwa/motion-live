@@ -47,7 +47,10 @@ const isValidSingleTechnicianEmail = (value) => {
   const email = String(value || "").trim().toLowerCase();
   if (!email) return false;
   if (email.includes(",") || email.includes(" ")) return false;
-  return /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email);
+  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) return false;
+  const [localPart] = email.split("@");
+  if (!localPart) return false;
+  return !localPart.includes(".");
 };
 
 const resolveSerialNumber = (item) =>
@@ -528,24 +531,12 @@ export default function AssignPartsModal({
       return;
     }
 
-    let serialNumber = resolveSerialNumber(item);
-
-    // If no serial number, fetch an available one from inventory_items for this category
-    if (!serialNumber && item.category_code) {
-      try {
-        const response = await fetch(
-          `/api/inventory/get-serial?category_code=${encodeURIComponent(item.category_code)}`,
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data.serial_number) {
-            serialNumber = data.serial_number;
-            toast.success(`Auto-assigned serial: ${serialNumber}`);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching serial number:", error);
-      }
+    const serialNumber = resolveSerialNumber(item);
+    if (!serialNumber) {
+      toast.error(
+        `No serial number found for selected stock item (${item?.code || item?.category_code || item?.description || "item"}). Assign serial first.`,
+      );
+      return;
     }
 
     setSelectedParts((prev) => [
@@ -635,6 +626,15 @@ export default function AssignPartsModal({
     }
     if (selectedParts.length === 0) {
       toast.error("Please select at least one part");
+      return;
+    }
+    const missingSerialPart = selectedParts.find(
+      (part) => !resolveSerialNumber(part),
+    );
+    if (missingSerialPart) {
+      toast.error(
+        `No serial number found for selected stock item (${missingSerialPart?.code || missingSerialPart?.description || "item"}). Assign serial first.`,
+      );
       return;
     }
 
