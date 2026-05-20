@@ -2154,8 +2154,12 @@ export default function AccountsContent({ activeSection }) {
 
     const fallbackVat = Number((fallbackSubtotal * VAT_RATE).toFixed(2));
     const fallbackTotal = Number((fallbackSubtotal + fallbackVat).toFixed(2));
+    const normalizedFallbackType = normalizeBillingToken(
+      job?.job_type || job?.quotation_job_type,
+    );
     const fallbackChargeType =
-      normalizeBillingToken(job?.job_type || job?.quotation_job_type) === "repair"
+      normalizedFallbackType === "repair" ||
+      normalizedFallbackType === "admincreated"
         ? "Repair"
         : "Admin";
 
@@ -2691,12 +2695,16 @@ export default function AccountsContent({ activeSection }) {
                     ? "ADMIN"
                     : selectedJobForInvoice.job_type || "Service",
               description: isAdminOrRepairFallbackJob(selectedJobForInvoice)
-                ? normalizeBillingToken(
-                    selectedJobForInvoice?.job_type ||
-                      selectedJobForInvoice?.quotation_job_type,
-                  ) === "repair"
-                  ? "Repair Job Charge"
-                  : "Admin Job Charge"
+                ? (() => {
+                    const normalizedType = normalizeBillingToken(
+                      selectedJobForInvoice?.job_type ||
+                        selectedJobForInvoice?.quotation_job_type,
+                    );
+                    return normalizedType === "repair" ||
+                      normalizedType === "admincreated"
+                      ? "Repair Job Charge"
+                      : "Admin Job Charge";
+                  })()
                 : selectedJobForInvoice.job_description || "Job completion",
               comments:
                 selectedJobForInvoice.completion_notes ||
@@ -3081,9 +3089,11 @@ export default function AccountsContent({ activeSection }) {
       if (fallbackAmount <= 0) {
         return "No billed items";
       }
+      const normalizedType = normalizeBillingToken(
+        job?.job_type || job?.quotation_job_type,
+      );
       const fallbackLabel =
-        normalizeBillingToken(job?.job_type || job?.quotation_job_type) ===
-        "repair"
+        normalizedType === "repair" || normalizedType === "admincreated"
           ? "Repair Job Charge"
           : "Admin Job Charge";
       return `${fallbackLabel} x1`;
@@ -4836,11 +4846,13 @@ export default function AccountsContent({ activeSection }) {
                       : 0;
                     const showFallbackRow =
                       totals.products.length === 0 && fallbackSubtotal > 0;
+                    const normalizedType = normalizeBillingToken(
+                      selectedJobDetails?.job_type ||
+                        selectedJobDetails?.quotation_job_type,
+                    );
                     const fallbackLabel =
-                      normalizeBillingToken(
-                        selectedJobDetails?.job_type ||
-                          selectedJobDetails?.quotation_job_type,
-                      ) === "repair"
+                      normalizedType === "repair" ||
+                      normalizedType === "admincreated"
                         ? "Repair Job Charge"
                         : "Admin Job Charge";
                     return (

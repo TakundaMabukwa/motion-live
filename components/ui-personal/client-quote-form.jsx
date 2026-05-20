@@ -49,6 +49,13 @@ const normalizeJobTypeValue = (value) => {
   const collapsed = normalized.replace(/[\s_-]/g, "");
   if (!normalized) return "";
   if (
+    collapsed === "admincreated" ||
+    normalized.includes("admin created") ||
+    normalized.includes("repair")
+  ) {
+    return "repair";
+  }
+  if (
     collapsed === "itembilling" ||
     collapsed === "onceoffitem" ||
     collapsed === "onceoff" ||
@@ -70,6 +77,7 @@ const normalizeJobTypeValue = (value) => {
 const normalizeJobSubTypeValue = (value, normalizedJobType) => {
   const normalized = String(value || "").trim().toLowerCase();
   if (!normalized) return "";
+  if (normalizedJobType === "repair") return "";
 
   if (normalizedJobType === "recovery") return "recovery";
   if (normalizedJobType === "item_billing") return "item_billing";
@@ -1290,7 +1298,12 @@ export default function ClientQuoteForm({
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        const basicRequirements = formData.jobType && formData.jobSubType && formData.description && formData.purchaseType;
+        const requiresSubType = formData.jobType !== "repair";
+        const basicRequirements =
+          formData.jobType &&
+          (!requiresSubType || formData.jobSubType) &&
+          formData.description &&
+          formData.purchaseType;
         if (formData.jobType === 'deinstall') {
           if (formData.jobSubType === 'decommission') {
             return basicRequirements && formData.decommissionDate && Boolean(formData.moveToRole);
@@ -1978,6 +1991,7 @@ export default function ClientQuoteForm({
                     <SelectContent>
                       <SelectItem value="install">Installation</SelectItem>
                       <SelectItem value="deinstall">De-installation</SelectItem>
+                      <SelectItem value="repair">Repair</SelectItem>
                       <SelectItem value="recovery">Recovery</SelectItem>
                       <SelectItem value="item_billing">Once Off Item</SelectItem>
                       <SelectItem value="calibration">Calibration</SelectItem>
@@ -1985,7 +1999,7 @@ export default function ClientQuoteForm({
                   </Select>
                 </div>
 
-                {formData.jobType && (
+                {formData.jobType && formData.jobType !== "repair" && (
                   <div className="space-y-2">
                     <Label htmlFor="jobSubType">Sub Category *</Label>
                     <Select

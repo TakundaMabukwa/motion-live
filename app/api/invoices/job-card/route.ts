@@ -142,8 +142,10 @@ const buildFallbackLineItemsForAdminOrRepair = (
     jobCard?.job_type ?? jobCard?.quotation_job_type ?? '',
   );
   const isRepair = normalizedType === 'repair';
+  const isAdminCreated = normalizedType === 'admincreated';
   const itemCode = isRepair ? 'REPAIR' : 'ADMIN';
-  const itemDescription = isRepair ? 'Repair Job Charge' : 'Admin Job Charge';
+  const itemDescription =
+    isRepair || isAdminCreated ? 'Repair Job Charge' : 'Admin Job Charge';
   const comments = String(
     jobCard?.completion_notes ??
       jobCard?.work_notes ??
