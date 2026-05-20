@@ -347,30 +347,80 @@ export default function RoleEscalationsPanel({
     };
   }, [jobs]);
 
+  const renderMoveSelect = (job: EscalationJob, className = "") => {
+    if (moveOptions.length === 0) return null;
+
+    return (
+      <Select
+        disabled={movingJobId === job.id}
+        onValueChange={(value) => {
+          const selectedOption = moveOptions.find((option) => option.value === value);
+          handleMoveJob(job, value, selectedOption?.payload || {});
+        }}
+      >
+        <SelectTrigger className={`h-10 w-full text-sm ${className}`}>
+          <SelectValue
+            placeholder={movingJobId === job.id ? "Moving..." : "Move to"}
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {moveOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  };
+
+  const renderJobActions = (job: EscalationJob, layout: "mobile" | "desktop") => (
+    <div
+      className={
+        layout === "mobile"
+          ? "flex w-full flex-col gap-2"
+          : "flex flex-col items-end gap-1.5"
+      }
+    >
+      {renderMoveSelect(
+        job,
+        layout === "desktop" ? "h-8 max-w-[148px] text-[11px]" : "",
+      )}
+      {renderActions ? (
+        <div className={layout === "mobile" ? "w-full [&_button]:w-full" : ""}>
+          {renderActions(job, {
+            refresh: fetchEscalations,
+            movingJobId,
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 w-full space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold tracking-tight text-slate-900">
             {title}
           </h2>
           <p className="mt-1 text-sm text-slate-600">{description}</p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative min-w-[280px]">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+          <div className="relative min-w-0 w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               placeholder="Search escalations..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              className="h-9 border-slate-200 pl-10 text-sm"
+              className="h-10 w-full border-slate-200 pl-10 text-sm"
             />
           </div>
           <Button
             variant="outline"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="h-9 border-slate-200"
+            className="h-10 w-full shrink-0 border-slate-200 sm:w-auto"
           >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
@@ -380,7 +430,7 @@ export default function RoleEscalationsPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <Card className="border-slate-200 shadow-sm">
           <CardContent className="p-3">
             <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -464,199 +514,284 @@ export default function RoleEscalationsPanel({
               <p className="mt-1 text-sm text-gray-500">{emptyDescription}</p>
             </div>
           ) : (
-            <div className="overflow-x-hidden">
-              <table className="w-full table-fixed border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80">
-                    <th className="w-[12%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      <span className="inline-flex items-center gap-1">
-                        Job ID <ArrowUpDown className="h-3 w-3" />
-                      </span>
-                    </th>
-                    <th className="w-[14%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      Customer
-                    </th>
-                    <th className="w-[11%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      Vehicle
-                    </th>
-                    <th className="w-[8%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      From
-                    </th>
-                    <th className="w-[11%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      Escalated
-                    </th>
-                    <th className="w-[10%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      Status
-                    </th>
-                    <th className="w-[19%] px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
-                      Details
-                    </th>
-                    <th className="w-[15%] px-2 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredJobs.map((job) => (
-                    <tr
-                      key={job.id}
-                      className="border-b border-slate-100 align-top hover:bg-slate-50/60"
-                    >
-                      <td className="px-2 py-2">
-                        <div className="font-semibold text-slate-900">
-                          {job.job_number || "N/A"}
+            <>
+              {/* Mobile / tablet card layout */}
+              <div className="divide-y divide-slate-100 lg:hidden">
+                {filteredJobs.map((job) => {
+                  const statusLabel = String(job.job_status || job.status || "N/A");
+                  const statusTone = getStatusClasses(statusLabel.toLowerCase());
+                  const dateInfo = formatEscalatedDate(
+                    job.escalated_at || job.updated_at || job.created_at,
+                  );
+                  const accountRef = String(
+                    (job as Record<string, unknown>)?.new_account_number ||
+                      (job as Record<string, unknown>)?.account_id ||
+                      "No account",
+                  );
+                  const contact = String(
+                    (job as Record<string, unknown>)?.contact_person ||
+                      (job as Record<string, unknown>)?.customer_phone ||
+                      (job as Record<string, unknown>)?.customer_email ||
+                      "No contact",
+                  );
+
+                  return (
+                    <div key={job.id} className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-base text-slate-900">
+                            {job.job_number || "N/A"}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {accountRef}
+                          </p>
+                          <p className="mt-2 font-medium text-slate-900">
+                            {job.customer_name || "N/A"}
+                          </p>
+                          <p className="truncate text-sm text-slate-500">{contact}</p>
                         </div>
-                        <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                          {String(
-                            (job as Record<string, unknown>)?.new_account_number ||
-                              (job as Record<string, unknown>)?.account_id ||
-                              "No account",
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">
-                        <div className="truncate font-medium text-slate-900">
-                          {job.customer_name || "N/A"}
-                        </div>
-                        <div className="truncate text-[11px] text-slate-500">
-                          {String(
-                            (job as Record<string, unknown>)?.contact_person ||
-                              (job as Record<string, unknown>)?.customer_phone ||
-                              (job as Record<string, unknown>)?.customer_email ||
-                              "No contact",
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">
-                        <div className="font-medium text-slate-900">
-                          {job.vehicle_registration || "N/A"}
-                        </div>
-                        <div className="truncate text-[11px] text-slate-500">
-                          {String(
-                            (job as Record<string, unknown>)?.vehicle_make || "",
-                          )}{" "}
-                          {String(
-                            (job as Record<string, unknown>)?.vehicle_model || "",
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2">
                         <Badge
                           variant="outline"
-                          className="h-5 rounded-sm px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                          className={`shrink-0 border px-2 py-0.5 text-xs font-semibold ${statusTone}`}
                         >
-                          {formatRoleLabel(job.escalation_source_role)}
+                          {statusLabel}
                         </Badge>
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">
-                        {(() => {
-                          const dateInfo = formatEscalatedDate(
-                            job.escalated_at || job.updated_at || job.created_at,
-                          );
-                          return (
-                            <>
-                              <div className="font-medium text-slate-900">
-                                {dateInfo.date}
-                              </div>
-                              <div className="text-[11px] text-slate-500">
-                                {dateInfo.time}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">
-                        {(() => {
-                          const label = String(
-                            job.job_status || job.status || "N/A",
-                          );
-                          const tone = getStatusClasses(label.toLowerCase());
-                          return (
-                            <Badge
-                              variant="outline"
-                              className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold ${tone}`}
-                            >
-                              {label}
-                            </Badge>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-2 py-2 text-slate-700">
-                        <div className="space-y-0.5 text-[11px] leading-4">
-                          <div className="truncate font-medium text-slate-900">
-                            {String(
-                              (job as Record<string, unknown>)?.job_type ||
-                                (job as Record<string, unknown>)?.job_sub_type ||
-                                "General",
-                            )}
-                          </div>
-                          <div className="truncate text-slate-600">
-                            {job.job_description || "No description"}
-                          </div>
-                          <div className="truncate text-slate-500">
-                            Order:{" "}
-                            {String(
-                              (job as Record<string, unknown>)?.order_number || "N/A",
-                            )}
-                          </div>
-                          {hasAssignedParts(job.parts_required) ? (
-                            <>
-                              <div className="text-amber-700">
-                                Parts assigned ({parsePartsRequired(job.parts_required).length})
-                              </div>
-                              {getPartsSerialPreview(job.parts_required).map((serial, serialIndex) => (
-                                <div
-                                  key={`${job.id}-serial-${serialIndex}`}
-                                  className="truncate text-[10px] text-slate-500"
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Vehicle
+                          </p>
+                          <p className="mt-1 font-medium text-slate-900">
+                            {job.vehicle_registration || "N/A"}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {String((job as Record<string, unknown>)?.vehicle_make || "")}{" "}
+                            {String((job as Record<string, unknown>)?.vehicle_model || "")}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                            Escalated
+                          </p>
+                          <p className="mt-1 font-medium text-slate-900">{dateInfo.date}</p>
+                          <p className="text-xs text-slate-500">{dateInfo.time || "—"}</p>
+                          <Badge
+                            variant="outline"
+                            className="mt-2 h-5 rounded-sm px-1.5 text-[10px] font-semibold uppercase"
+                          >
+                            From {formatRoleLabel(job.escalation_source_role)}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-slate-200 p-3 text-sm">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          Details
+                        </p>
+                        <p className="mt-1 font-medium text-slate-900">
+                          {String(
+                            (job as Record<string, unknown>)?.job_type ||
+                              (job as Record<string, unknown>)?.job_sub_type ||
+                              "General",
+                          )}
+                        </p>
+                        <p className="mt-1 text-slate-600">
+                          {job.job_description || "No description"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Order:{" "}
+                          {String((job as Record<string, unknown>)?.order_number || "N/A")}
+                        </p>
+                        {hasAssignedParts(job.parts_required) ? (
+                          <div className="mt-2 space-y-0.5">
+                            <p className="text-xs font-medium text-amber-700">
+                              Parts assigned ({parsePartsRequired(job.parts_required).length})
+                            </p>
+                            {getPartsSerialPreview(job.parts_required).map(
+                              (serial, serialIndex) => (
+                                <p
+                                  key={`${job.id}-mobile-serial-${serialIndex}`}
+                                  className="text-xs text-slate-500"
                                 >
                                   S/N: {serial}
-                                </div>
-                              ))}
-                            </>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-right">
-                        <div className="flex flex-col items-end gap-1.5">
-                          {moveOptions.length > 0 ? (
-                            <Select
-                              disabled={movingJobId === job.id}
-                              onValueChange={(value) => {
-                                const selectedOption = moveOptions.find(
-                                  (option) => option.value === value,
-                                );
-                                handleMoveJob(job, value, selectedOption?.payload || {});
-                              }}
-                            >
-                              <SelectTrigger className="h-8 w-full max-w-[148px] text-[11px]">
-                                <SelectValue
-                                  placeholder={
-                                    movingJobId === job.id ? "Moving..." : "Move to"
-                                  }
-                                />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {moveOptions.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : null}
-                          {renderActions
-                            ? renderActions(job, {
-                                refresh: fetchEscalations,
-                                movingJobId,
-                              })
-                            : null}
-                        </div>
-                      </td>
+                                </p>
+                              ),
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {renderJobActions(job, "mobile")}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[960px] border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80">
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          Job ID <ArrowUpDown className="h-3 w-3" />
+                        </span>
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Customer
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Vehicle
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        From
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Escalated
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Status
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">
+                        Details
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">
+                        Actions
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredJobs.map((job) => (
+                      <tr
+                        key={job.id}
+                        className="border-b border-slate-100 align-top hover:bg-slate-50/60"
+                      >
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-900">
+                            {job.job_number || "N/A"}
+                          </div>
+                          <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                            {String(
+                              (job as Record<string, unknown>)?.new_account_number ||
+                                (job as Record<string, unknown>)?.account_id ||
+                                "No account",
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="max-w-[180px] truncate font-medium text-slate-900">
+                            {job.customer_name || "N/A"}
+                          </div>
+                          <div className="max-w-[180px] truncate text-[11px] text-slate-500">
+                            {String(
+                              (job as Record<string, unknown>)?.contact_person ||
+                                (job as Record<string, unknown>)?.customer_phone ||
+                                (job as Record<string, unknown>)?.customer_email ||
+                                "No contact",
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="font-medium text-slate-900">
+                            {job.vehicle_registration || "N/A"}
+                          </div>
+                          <div className="truncate text-[11px] text-slate-500">
+                            {String(
+                              (job as Record<string, unknown>)?.vehicle_make || "",
+                            )}{" "}
+                            {String(
+                              (job as Record<string, unknown>)?.vehicle_model || "",
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge
+                            variant="outline"
+                            className="h-5 rounded-sm px-1.5 text-[10px] font-semibold uppercase tracking-wide"
+                          >
+                            {formatRoleLabel(job.escalation_source_role)}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {(() => {
+                            const dateInfo = formatEscalatedDate(
+                              job.escalated_at || job.updated_at || job.created_at,
+                            );
+                            return (
+                              <>
+                                <div className="font-medium text-slate-900">
+                                  {dateInfo.date}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {dateInfo.time}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {(() => {
+                            const label = String(job.job_status || job.status || "N/A");
+                            const tone = getStatusClasses(label.toLowerCase());
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold ${tone}`}
+                              >
+                                {label}
+                              </Badge>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="max-w-[220px] space-y-0.5 text-[11px] leading-4">
+                            <div className="truncate font-medium text-slate-900">
+                              {String(
+                                (job as Record<string, unknown>)?.job_type ||
+                                  (job as Record<string, unknown>)?.job_sub_type ||
+                                  "General",
+                              )}
+                            </div>
+                            <div className="truncate text-slate-600">
+                              {job.job_description || "No description"}
+                            </div>
+                            <div className="truncate text-slate-500">
+                              Order:{" "}
+                              {String(
+                                (job as Record<string, unknown>)?.order_number || "N/A",
+                              )}
+                            </div>
+                            {hasAssignedParts(job.parts_required) ? (
+                              <>
+                                <div className="text-amber-700">
+                                  Parts assigned (
+                                  {parsePartsRequired(job.parts_required).length})
+                                </div>
+                                {getPartsSerialPreview(job.parts_required).map(
+                                  (serial, serialIndex) => (
+                                    <div
+                                      key={`${job.id}-serial-${serialIndex}`}
+                                      className="truncate text-[10px] text-slate-500"
+                                    >
+                                      S/N: {serial}
+                                    </div>
+                                  ),
+                                )}
+                              </>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {renderJobActions(job, "desktop")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

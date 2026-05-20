@@ -188,9 +188,18 @@ export default function Calendar() {
     setShowVinScanner(true);
   };
 
-  const handleStartJob = (job: any) => {
-    setSelectedJob(job);
-    setShowStartJobModal(true);
+  const handleStartJob = async (job: any) => {
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch job details');
+      }
+      const fullJobData = await response.json();
+      setSelectedJob(fullJobData);
+      setShowStartJobModal(true);
+    } catch (error) {
+      console.error('Error fetching job details:', error);
+    }
   };
 
   const handleJobVerified = async (jobData: any) => {

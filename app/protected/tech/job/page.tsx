@@ -7,13 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { checkAuthSession, handleAuthError } from '@/lib/auth-session-utils';
 import {
   Plus,
@@ -49,6 +42,15 @@ import { LogoutButton } from '@/components/logout-button';
 import { toast } from 'sonner';
 import StartJobModal from '../components/StartJobModal';
 import CreateRepairJobModal from '../components/CreateRepairJobModal';
+import JobMoveSelect, {
+  type TechJobMoveDestination,
+} from '../components/JobMoveSelect';
+import {
+  isJobActiveInTechQueue,
+  isJobMarkedCompleted,
+  isJobStartedInTech,
+} from '@/lib/job-status';
+import { completeTechJobCard } from '@/lib/complete-tech-job';
 
 interface Job {
   id: string;
@@ -88,14 +90,11 @@ const splitTechnicianCsv = (value: string | null | undefined) =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-const isJobCompleted = (job: Job) =>
-  ['completed', 'done'].includes(String(job.job_status || job.status || '').trim().toLowerCase());
-
 const isJobOpenForTechnician = (job: Job) => {
+  if (!isJobActiveInTechQueue(job)) return false;
+
   const normalizedJobStatus = String(job.job_status || '').trim().toLowerCase();
   const normalizedStatus = String(job.status || '').trim().toLowerCase();
-
-  if (isJobCompleted(job)) return false;
 
   return !!String(job.technician_phone || '').trim() && (
     ['created', 'pending', 'active', 'in_progress', 'assigned'].includes(normalizedJobStatus || normalizedStatus) ||
@@ -120,6 +119,7 @@ export default function Jobs() {
   const [showStartJobModal, setShowStartJobModal] = useState(false);
   const [showCreateRepairJobModal, setShowCreateRepairJobModal] = useState(false);
   const [movingJobId, setMovingJobId] = useState<string | null>(null);
+  const [completingJobId, setCompletingJobId] = useState<string | null>(null);
 
   const itemsPerPage = 50;
   const pathname = usePathname();
@@ -161,7 +161,9 @@ export default function Jobs() {
         //   jobsUrl += `?technician=${encodeURIComponent(userData.user.email)}`;
         // }
         
-        const jobsResponse = await fetch(jobsUrl);
+        const jobsResponse = await fetch(`${jobsUrl}?t=${Date.now()}`, {
+          cache: 'no-store',
+        });
         if (!jobsResponse.ok) {
           throw new Error('Failed to fetch jobs');
         }
@@ -262,7 +264,7 @@ export default function Jobs() {
   const getJobStats = () => {
     const totalNew = userJobs.filter(job => job.job_status === 'created' && !job.technician_phone).length;
     const totalOpen = userJobs.filter(job => isJobOpenForTechnician(job)).length;
-    const totalCompleted = userJobs.filter(job => isJobCompleted(job)).length;
+    const totalCompleted = userJobs.filter((job) => isJobMarkedCompleted(job)).length;
     const totalRepair = userJobs.filter(job => job.repair === true).length;
     const serviceUpcoming = userJobs.filter(job => {
       if (!job.job_date) return false;
@@ -333,39 +335,35 @@ export default function Jobs() {
     fetchUserInfoAndJobs();
   };
 
-  const handleCompleteRepairJob = async (job: Job) => {
-    try {
-      // Update job status to completed
-      const response = await fetch(`/api/job-cards/${job.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          job_status: 'Completed',
-          completion_date: new Date().toISOString(),
-          end_time: new Date().toISOString(),
-        }),
-      });
+  const handleCompleteJob = async (job: Job) => {
+    if (!job?.id || completingJobId === job.id) return;
 
-      if (response.ok) {
-        toast.success(`Repair job ${job.job_number} completed successfully! Vehicle will be automatically added to vehicles table.`);
-        // Refresh the jobs data
-        fetchUserInfoAndJobs();
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          String(
-            errorData?.error ||
-              errorData?.details ||
-              `Failed to complete job: ${response.status}`,
-          ),
-        );
+    setCompletingJobId(job.id);
+    const loadingToast = toast.loading(`Completing job ${job.job_number}...`);
+
+    try {
+      const result = await completeTechJobCard(job.id);
+      if (!result.ok) {
+        throw new Error(result.error);
       }
+
+      toast.success(`Job ${job.job_number} completed successfully!`, {
+        id: loadingToast,
+      });
+      fetchUserInfoAndJobs();
     } catch (error) {
-      console.error('Error completing repair job:', error);
-      toast.error(`Failed to complete repair job: ${error.message}`);
+      console.error('Error completing job:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to complete job',
+        { id: loadingToast },
+      );
+    } finally {
+      setCompletingJobId(null);
     }
+  };
+
+  const handleCompleteJobFromList = (job: Job) => {
+    void handleCompleteJob(job);
   };
 
   const handleAddVehicleToInventory = async (job: Job) => {
@@ -393,11 +391,20 @@ export default function Jobs() {
     }
   };
 
-  const handleMoveJob = async (job: Job, destination: string) => {
+  const getMoveDestinationLabel = (destination: TechJobMoveDestination) => {
+    const labels: Record<TechJobMoveDestination, string> = {
+      inv: 'Inventory',
+      admin: 'Admin',
+      fc: 'FC',
+    };
+    return labels[destination] || destination;
+  };
+
+  const handleMoveJob = async (job: Job, destination: TechJobMoveDestination) => {
     if (!job?.id || !destination) return;
 
     setMovingJobId(job.id);
-    const destinationLabel = destination === 'inv' ? 'Inventory' : 'Admin Awaiting Technician';
+    const destinationLabel = getMoveDestinationLabel(destination);
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
@@ -419,6 +426,7 @@ export default function Jobs() {
 
       toast.dismiss(loadingToast);
       toast.success(`Job moved to ${destinationLabel}`);
+      setUserJobs((prev) => prev.filter((item) => item.id !== job.id));
       fetchUserInfoAndJobs();
     } catch (error) {
       console.error('Error moving technician job:', error);
@@ -464,34 +472,50 @@ export default function Jobs() {
                   </Badge>
                 </div>
                 <div className="flex flex-col gap-2">
+                  <JobMoveSelect
+                    isMoving={movingJobId === job.id}
+                    onMove={(destination) => handleMoveJob(job, destination)}
+                    className="w-full h-10"
+                  />
                   {job.job_type === 'repair' && job.job_status === 'created' ? (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 w-full">
                       <Button 
                         size="sm" 
                         onClick={() => handleStartJob(job)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+                        className="w-full bg-green-600 hover:bg-green-700 text-white text-sm h-11 rounded-lg"
                       >
-                        <Play className="w-3 h-3 mr-1" />
-                        Start
+                        <Play className="w-4 h-4 mr-2" />
+                        Start Job
                       </Button>
                       <Button 
                         size="sm" 
-                        onClick={() => handleCompleteRepairJob(job)}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                        onClick={() => handleCompleteJobFromList(job)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 rounded-lg"
                       >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Complete
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Complete Job
                       </Button>
                     </div>
-                  ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleCompleteRepairJob(job)}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Complete Job
-                    </Button>
+                  ) : isJobStartedInTech(job) ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      <Button
+                        size="sm"
+                        onClick={() => handleStartJob(job)}
+                        className="w-full bg-orange-400 hover:bg-orange-500 text-white text-sm font-medium h-11 rounded-lg shadow-sm"
+                      >
+                        <Play className="w-4 h-4 mr-2" />
+                        Continue Job
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleCompleteJobFromList(job)}
+                        disabled={completingJobId === job.id}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm h-11 rounded-lg"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        {completingJobId === job.id ? 'Completing...' : 'Complete Job'}
+                      </Button>
+                    </div>
                   ) : job.job_status === 'Completed' ? (
                     <Button 
                       size="sm" 
@@ -505,9 +529,9 @@ export default function Jobs() {
                     <Button 
                       size="sm" 
                       onClick={() => handleStartJob(job)}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white text-xs"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white text-sm h-11 rounded-lg"
                     >
-                      <Play className="w-3 h-3 mr-1" />
+                      <Play className="w-4 h-4 mr-2" />
                       Start Job
                     </Button>
                   )}
@@ -557,49 +581,54 @@ export default function Jobs() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center space-x-2">
-                      <Select
-                        disabled={movingJobId === job.id}
-                        onValueChange={(value) => handleMoveJob(job, value)}
-                      >
-                        <SelectTrigger className="w-[120px]">
-                          <SelectValue placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="inv">Inventory</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <JobMoveSelect
+                        isMoving={movingJobId === job.id}
+                        onMove={(destination) => handleMoveJob(job, destination)}
+                        className="w-[140px] h-9"
+                      />
                       {job.job_type === 'repair' && job.job_status === 'created' ? (
-                        <>
+                        <div className="flex flex-col gap-2 min-w-[140px]">
                           <Button 
                             size="sm" 
                             variant="outline"
                             onClick={() => handleStartJob(job)}
-                            className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                            className="w-full justify-center bg-green-600 hover:bg-green-700 text-white"
                           >
-                            <Play className="w-4 h-4" />
-                            Start
+                            <Play className="w-4 h-4 mr-1" />
+                            Start Job
                           </Button>
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => handleCompleteRepairJob(job)}
-                            className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => handleCompleteJobFromList(job)}
+                            className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
                           >
-                            <CheckCircle className="w-4 h-4" />
-                            Complete
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Complete Job
                           </Button>
-                        </>
-                      ) : job.job_type === 'repair' && job.job_status === 'Active' ? (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => handleCompleteRepairJob(job)}
-                          className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Complete
-                        </Button>
+                        </div>
+                      ) : isJobStartedInTech(job) ? (
+                        <div className="flex flex-col gap-2 min-w-[140px]">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStartJob(job)}
+                            className="w-full justify-center bg-orange-400 hover:bg-orange-500 text-white font-medium"
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            Continue Job
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCompleteJobFromList(job)}
+                            disabled={completingJobId === job.id}
+                            className="w-full justify-center bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            {completingJobId === job.id ? 'Completing...' : 'Complete Job'}
+                          </Button>
+                        </div>
                       ) : job.job_status === 'Completed' ? (
                         <Button 
                           size="sm" 
@@ -618,7 +647,7 @@ export default function Jobs() {
                           className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
                         >
                           <Play className="w-4 h-4" />
-                          Start
+                          Start Job
                         </Button>
                       )}
                     </div>
@@ -879,7 +908,7 @@ export default function Jobs() {
                   <CardTitle>Completed Jobs</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <JobTable jobs={userJobs.filter(job => isJobCompleted(job))} />
+                  <JobTable jobs={userJobs.filter((job) => isJobMarkedCompleted(job))} />
                 </CardContent>
               </Card>
             </TabsContent>

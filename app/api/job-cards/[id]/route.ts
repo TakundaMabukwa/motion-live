@@ -79,7 +79,7 @@ type TransferRowLocator = {
 const parseTransferRowLocator = (value: unknown): TransferRowLocator | null => {
   const normalized = String(value || '').trim().toLowerCase();
   const match = normalized.match(
-    /^(\d+)-(assigned|legacy-array|legacy-object)-(\d+)$/,
+    /^(\d+)-(assigned|legacy-array|legacy-object)-(\d+)(?:-unit-(\d+))?$/,
   );
   if (!match) return null;
 
@@ -108,22 +108,16 @@ const partsMatchStrict = (
   candidate: Record<string, unknown>,
   target: Record<string, unknown>,
 ) => {
-  const candidateStockId = normalizeToken(candidate.stock_id ?? candidate.id);
-  const targetStockId = normalizeToken(target.stock_id ?? target.id);
-  if (candidateStockId || targetStockId) {
-    return Boolean(
-      candidateStockId &&
-        targetStockId &&
-        candidateStockId === targetStockId,
-    );
-  }
-
   const candidateSerial = resolvePartSerialToken(candidate);
   const targetSerial = resolvePartSerialToken(target);
-  if (candidateSerial || targetSerial) {
-    return Boolean(
-      candidateSerial && targetSerial && candidateSerial === targetSerial,
-    );
+  if (candidateSerial && targetSerial) {
+    return candidateSerial === targetSerial;
+  }
+
+  const candidateStockId = normalizeToken(candidate.stock_id ?? candidate.id);
+  const targetStockId = normalizeToken(target.stock_id ?? target.id);
+  if (candidateStockId && targetStockId) {
+    return candidateStockId === targetStockId;
   }
 
   return false;
@@ -393,9 +387,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Job card not found' }, { status: 404 });
     }
 
-    // Check if job is being completed (status changing to 'Completed')
-    const isBeingCompleted = body.job_status === 'Completed' && 
-                            currentJob.job_status !== 'Completed';
+    const isCompletedStatus = (value: unknown) =>
+      normalizeToken(value) === 'completed';
+
+    // Check if job is being completed (status or job_status changing to completed)
+    const isBeingCompleted =
+      (isCompletedStatus(body.job_status) &&
+        !isCompletedStatus(currentJob.job_status)) ||
+      (isCompletedStatus(body.status) && !isCompletedStatus(currentJob.status));
 
     if (isBeingCompleted) {
       const partsRequired = normalizePartArray(currentJob.parts_required);
@@ -423,6 +422,15 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
       updated_by: user.id
     };
+
+    if (
+      isBeingCompleted ||
+      isCompletedStatus(body.job_status) ||
+      isCompletedStatus(body.status)
+    ) {
+      updateData.job_status = 'completed';
+      updateData.status = 'completed';
+    }
 
     if (Array.isArray(updateData.parts_required)) {
       updateData.parts_required = normalizePartArray(updateData.parts_required);
@@ -543,10 +551,13 @@ export async function PATCH(
         for (const selectedPart of selectedEquipment) {
           const normalizedSelected = normalizePartRecord(selectedPart);
           const selectedSerial = resolvePartSerialToken(normalizedSelected);
-          if (!selectedSerial) {
+          const selectedStockId = normalizeToken(
+            normalizedSelected.stock_id ?? normalizedSelected.id,
+          );
+          if (!selectedSerial && !selectedStockId) {
             return NextResponse.json(
               {
-                error: `No serial number found for selected stock item (${getPartIdentityLabel(normalizedSelected)}).`,
+                error: `Selected stock item is missing serial number and stock_id (${getPartIdentityLabel(normalizedSelected)}).`,
               },
               { status: 409 },
             );
@@ -592,10 +603,13 @@ export async function PATCH(
             const locatedCandidate = normalizePartRecord(
               locatedPart as Record<string, unknown>,
             );
-            if (!resolvePartSerialToken(locatedCandidate)) {
+            const locatedStockId = normalizeToken(
+              locatedCandidate.stock_id ?? locatedCandidate.id,
+            );
+            if (!resolvePartSerialToken(locatedCandidate) && !locatedStockId) {
               return NextResponse.json(
                 {
-                  error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedCandidate)}).`,
+                  error: `Selected stock item is missing serial number and stock_id in technician stock (${getPartIdentityLabel(locatedCandidate)}).`,
                 },
                 { status: 409 },
               );
@@ -648,10 +662,17 @@ export async function PATCH(
               );
             }
 
-            if (!resolvePartSerialToken(locatedLegacyEntry.candidate)) {
+            const legacyStockId = normalizeToken(
+              locatedLegacyEntry.candidate.stock_id ??
+                locatedLegacyEntry.candidate.id,
+            );
+            if (
+              !resolvePartSerialToken(locatedLegacyEntry.candidate) &&
+              !legacyStockId
+            ) {
               return NextResponse.json(
                 {
-                  error: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
+                  error: `Selected stock item is missing serial number and stock_id in technician stock (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
                 },
                 { status: 409 },
               );
@@ -734,20 +755,54 @@ export async function PATCH(
           };
         });
 
-        const existingPartsRequired = Array.isArray(currentJob.parts_required)
-          ? currentJob.parts_required
-          : [];
-        const existingEquipmentUsed = Array.isArray(currentJob.equipment_used)
-          ? currentJob.equipment_used
-          : [];
+        const existingPartsRequired = normalizePartArray(currentJob.parts_required);
+        const existingEquipmentUsed = normalizePartArray(currentJob.equipment_used);
+
+        const equipmentMatchesTransfer = (
+          existing: Record<string, unknown>,
+          transferred: Record<string, unknown>,
+        ) => {
+          if (String(existing?.source || '') !== 'tech_stock.assigned_parts') {
+            return false;
+          }
+
+          const existingRowId = String(existing?.row_id || '').trim().toLowerCase();
+          const transferredRowId = String(transferred?.row_id || '')
+            .trim()
+            .toLowerCase();
+          if (existingRowId && transferredRowId && existingRowId === transferredRowId) {
+            return true;
+          }
+
+          return partsMatchStrict(
+            normalizePartRecord(existing),
+            normalizePartRecord(transferred),
+          );
+        };
+
+        const retainedEquipmentUsed = existingEquipmentUsed.filter(
+          (existing) =>
+            !transferredParts.some((transferred) =>
+              equipmentMatchesTransfer(existing, transferred),
+            ),
+        );
 
         updateData.parts_required = [...existingPartsRequired, ...transferredParts];
-        updateData.equipment_used = [...existingEquipmentUsed, ...transferredParts];
+        updateData.equipment_used = [
+          ...retainedEquipmentUsed,
+          ...transferredParts.map((part) => ({
+            ...part,
+            boot_transfer_pending: false,
+          })),
+        ];
       }
     }
 
-    // If job is being completed, remove technician assignment
+    // If job is being completed, route to inventory and clear technician assignment
     if (isBeingCompleted) {
+      updateData.role = 'inv';
+      updateData.status = 'completed';
+      updateData.job_status = 'completed';
       updateData.assigned_technician_id = null;
       updateData.technician_name = null;
       updateData.technician_phone = null;

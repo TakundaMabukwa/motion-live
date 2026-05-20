@@ -1375,8 +1375,16 @@ export default function AdminDashboard() {
     );
   };
 
-  const isMovedToAdminJob = (job: JobCard) =>
-    String(job.status || "").toLowerCase() === "moved_to_admin";
+  const isMovedToAdminJob = (job: JobCard) => {
+    const role = String(job.role || "").toLowerCase();
+    const moveTo = String(job.move_to || "").toLowerCase();
+    const escalationRole = String(job.escalation_role || "").toLowerCase();
+    return (
+      role === "admin" ||
+      moveTo === "admin" ||
+      escalationRole === "admin"
+    );
+  };
 
   const isMovedAwayFromAdmin = (job: JobCard) => {
     const role = String(job.role || "").toLowerCase();

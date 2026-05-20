@@ -205,15 +205,22 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
         },
         body: JSON.stringify({
           after_photos: photoUrls,
-          status: 'Completed',
-          job_status: 'Completed',
+          status: 'completed',
+          job_status: 'completed',
+          role: 'inv',
           completion_date: new Date().toISOString(),
         }),
       });
 
       if (updateResponse.ok) {
         toast.success('Job completed successfully!');
-        onJobCompleted({ ...jobData, after_photos: photoUrls, status: 'Completed' });
+        onJobCompleted({
+          ...jobData,
+          after_photos: photoUrls,
+          status: 'completed',
+          job_status: 'completed',
+          role: 'inv',
+        });
         handleClose();
       } else {
         throw new Error('Failed to complete job');

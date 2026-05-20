@@ -163,7 +163,6 @@ export async function POST(
     const { data, error } = await supabase
       .from("job_cards")
       .update({
-        status: `moved_to_${targetRole}`,
         role: targetRole,
         move_to: targetRole,
         move_to_role: null,

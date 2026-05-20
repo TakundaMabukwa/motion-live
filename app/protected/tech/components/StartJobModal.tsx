@@ -19,6 +19,8 @@ import {
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { BrowserQRCodeReader } from '@zxing/library';
+import { completeTechJobCard } from '@/lib/complete-tech-job';
+import { isJobMarkedCompleted, isJobStartedInTech } from '@/lib/job-status';
 
 interface StartJobModalProps {
   isOpen: boolean;
@@ -36,6 +38,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
   const [completionNotes, setCompletionNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [manualReg, setManualReg] = useState('');
   const [jobData, setJobData] = useState<any>(job);
@@ -193,10 +196,28 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && currentStep === 'equipment-used') {
-      fetchTechnicianStock();
+    if (!isOpen || !jobData?.id) return;
+
+    if (job?.id && job.id === jobData.id) {
+      setJobData((previous: any) => mergeJobDataUpdate(previous, job));
     }
-  }, [isOpen, currentStep]);
+  }, [isOpen, job]);
+
+  useEffect(() => {
+    if (!isOpen || currentStep !== 'equipment-used' || !jobData?.id) return;
+
+    const refreshJobForEquipmentStep = async () => {
+      try {
+        const fullJobData = await fetchFullJobDetails(jobData.id);
+        setJobData((previous: any) => mergeJobDataUpdate(previous, fullJobData));
+      } catch (error) {
+        console.error('Error refreshing job parts for equipment step:', error);
+      }
+    };
+
+    refreshJobForEquipmentStep();
+    fetchTechnicianStock();
+  }, [isOpen, currentStep, jobData?.id]);
 
 
 
@@ -251,8 +272,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     if (!value) return [];
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return [];
       try {
-        const parsed = JSON.parse(value);
+        const parsed = JSON.parse(trimmed);
         return Array.isArray(parsed) ? parsed : [];
       } catch {
         return [];
@@ -261,46 +284,94 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     return [];
   };
 
+  const parsePartsRequiredField = (value: unknown): any[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed || trimmed === '[]') return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return [parsed];
+        return [];
+      } catch {
+        return [];
+      }
+    }
+    if (typeof value === 'object') return [value as any];
+    return [];
+  };
+
+  const mergeJobDataUpdate = (previous: any, next: any) => {
+    const previousParts = parsePartsRequiredField(previous?.parts_required);
+    const nextParts = parsePartsRequiredField(next?.parts_required);
+
+    return {
+      ...previous,
+      ...next,
+      parts_required:
+        nextParts.length > 0 ? next.parts_required : previous?.parts_required,
+      equipment_used:
+        parseArrayField(next?.equipment_used).length > 0
+          ? next.equipment_used
+          : previous?.equipment_used,
+    };
+  };
+
   const getSerialToken = (item: any) =>
-    String(
-      item?.serial_number ||
-        item?.serialNumber ||
-        item?.ip_address ||
-        item?.ipAddress ||
-        '',
-    )
+    String(item?.serial_number || item?.serialNumber || '')
       .trim()
-      .toUpperCase();
+      .toLowerCase();
 
-  const getUniqueItemId = (item: any) =>
-    String(item?.row_id || item?.stock_id || item?.id || '').trim();
+  const getStockIdToken = (item: any) => String(item?.stock_id ?? '').trim();
 
-  const getAssignedFallbackId = (item: any) =>
-    String(item?.stock_id || item?.part_required_id || item?.id || '').trim();
-
-  const getSelectionKeyForItem = (
-    source: 'assigned' | 'stock' | 'quote',
-    item: any,
-    index: number,
-  ) => {
+  /** One id per item: serial_number if present, otherwise stock_id only. */
+  const getPartItemIdentity = (item: any) => {
     const serial = getSerialToken(item);
-    // Build a key that is stable AND unique:
-    // - For technician stock: prefer row_id/stock_id, but still include serial when present.
-    // - For assigned parts: fallback must be stock_id (per schema expectation).
-    if (source === 'assigned') {
-      const fallbackId = getAssignedFallbackId(item);
-      if (serial && fallbackId) return `${source}:serial:${serial}:stock:${fallbackId}`;
-      if (serial) return `${source}:serial:${serial}`;
-      if (fallbackId) return `${source}:stock:${fallbackId}`;
-    } else {
-      const uniqueId = getUniqueItemId(item);
-      if (serial && uniqueId) return `${source}:serial:${serial}:id:${uniqueId}`;
-      if (serial) return `${source}:serial:${serial}`;
-      if (uniqueId) return `${source}:id:${uniqueId}`;
+    if (serial) return { type: 'serial' as const, value: serial };
+    const stockId = getStockIdToken(item);
+    if (stockId) return { type: 'stock' as const, value: stockId };
+    return null;
+  };
+
+  const getPartSelectionKey = (source: 'assigned' | 'stock', item: any) => {
+    const identity = getPartItemIdentity(item);
+    if (!identity) return '';
+    return `${source}:${identity.type}:${identity.value}`;
+  };
+
+  const getEquipmentIdentityKey = (item: any) => {
+    const source = String(item?.source || '').trim();
+    const quoteKey = String(item?.quote_item_key || '').trim();
+
+    if (source === 'job_card.quotation_products.deinstall') {
+      if (quoteKey) return `quote:${quoteKey}`;
+      const fallback = `${String(item?.name || '')}::${String(item?.vehicle_plate || '')}::${String(item?.value || '')}`;
+      return fallback.trim() ? `quote:${fallback}` : '';
     }
 
-    const fallback = `${String(item?.description || item?.name || item?.code || 'item').trim()}::${index}`;
-    return `${source}:fallback:${fallback}`;
+    const identity = getPartItemIdentity(item);
+    if (!identity) return '';
+    return `${source || 'item'}|${identity.type}:${identity.value}`;
+  };
+
+  const appendUniqueEquipmentUsed = (base: any[], additions: any[]) => {
+    const seen = new Set(base.map(getEquipmentIdentityKey).filter(Boolean));
+    const merged = [...base];
+
+    additions.forEach((item) => {
+      const key = getEquipmentIdentityKey(item);
+      if (!key) {
+        merged.push(item);
+        return;
+      }
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(item);
+    });
+
+    return merged;
   };
 
   const isDeinstallJob = (currentJob: any) => {
@@ -363,13 +434,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
   const getExistingEquipmentSelectionKeys = (items: any[]) =>
     items
-      .map((item: any) => {
+      .map((item: any, index: number) => {
         const source = String(item?.source || '');
         if (source === 'job_card.parts_required') {
-          return getSelectionKeyForItem('assigned', item, 0);
+          return getPartSelectionKey('assigned', item);
         }
         if (source === 'tech_stock.assigned_parts') {
-          return getSelectionKeyForItem('stock', item, 0);
+          return getPartSelectionKey('stock', item);
         }
         if (source === 'job_card.quotation_products.deinstall') {
           const quoteKey = String(item?.quote_item_key || item?.id || '').trim();
@@ -382,21 +453,21 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       .filter(Boolean);
 
   const getAssignedPartsOptions = (currentJob: any) => {
-    const items = parseArrayField(currentJob?.parts_required);
+    const items = parsePartsRequiredField(currentJob?.parts_required);
     return items.map((item: any, index: number) => {
-      const baseId =
-        getAssignedFallbackId(item) ||
-        `${item?.code || 'part'}::${item?.description || item?.name || ''}::${index}`;
-      const selectionKey = getSelectionKeyForItem('assigned', item, index);
+      const stockId = getStockIdToken(item);
+      const serial = String(item?.serial_number || item?.serialNumber || '').trim();
+      const selectionKey = getPartSelectionKey('assigned', item);
 
       return {
         selectionKey,
         equipmentItem: {
           ...item,
-          part_required_id: baseId,
+          stock_id: stockId || item?.stock_id,
+          part_required_id: serial || stockId || '',
           code: String(item?.code || ''),
           description: String(item?.description || item?.name || 'Assigned part'),
-          serial_number: String(item?.serial_number || item?.serialNumber || ''),
+          serial_number: serial,
           supplier: String(item?.supplier || ''),
           stock_type: String(item?.stock_type || item?.stockType || ''),
           quantity: Number(item?.quantity || 1) || 1,
@@ -511,7 +582,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       .filter(Boolean);
 
   const getPartsRequiredSummary = (currentJob: any) => {
-    const items = parseArrayField(currentJob?.parts_required);
+    const items = parsePartsRequiredField(currentJob?.parts_required);
     if (!items.length) return 'No parts assigned';
     return items
       .slice(0, 4)
@@ -525,6 +596,29 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     return jobType === 'repair' || status === 'admin_created';
   };
 
+  const getBootStockPendingTransfer = (equipmentUsed: unknown) =>
+    parseArrayField(equipmentUsed)
+      .filter((item) => {
+        const source = String(item?.source || '');
+        const rowId = String(item?.row_id || '').trim();
+        if (source !== 'tech_stock.assigned_parts' || !rowId) return false;
+        return item?.boot_transfer_pending !== false;
+      })
+      .map((item) => ({
+        row_id: String(item?.row_id || '').trim(),
+        stock_id: getStockIdToken(item) || '',
+        code: item.code || '',
+        description: item.description || '',
+        supplier: item.supplier || '',
+        stock_type: item.stock_type || '',
+        serial_number: String(item?.serial_number || item?.serialNumber || '').trim(),
+        ip_address: String(item?.ip_address || item?.ipAddress || '').trim(),
+        quantity: 1,
+        available_stock: parseInt(String(item?.available_stock ?? item?.quantity ?? '0')) || 0,
+        selected_at: item?.selected_at || new Date().toISOString(),
+        source: 'tech_stock.assigned_parts',
+      }));
+
   const handleEquipmentUsedComplete = async () => {
     try {
       setIsSubmitting(true);
@@ -534,119 +628,102 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         .map((option) => option.equipmentItem);
 
       const selectedStockItems = technicianStock
-        .filter((item, index) => {
-          const selectionKey = getSelectionKeyForItem('stock', item, index);
-          return selectedEquipmentIds.includes(selectionKey);
+        .filter((item) => {
+          const selectionKey = getPartSelectionKey('stock', item);
+          return selectionKey && selectedEquipmentIds.includes(selectionKey);
         })
         .map((item) => ({
           row_id: String(item?.row_id || '').trim(),
-          stock_id: item.stock_id || item.id || '',
+          stock_id: getStockIdToken(item) || '',
           code: item.code || '',
           description: item.description || '',
           supplier: item.supplier || '',
           stock_type: item.stock_type || '',
-          serial_number: String(
-            item?.serial_number || item?.serialNumber || item?.ip_address || item?.ipAddress || '',
-          ).trim(),
+          serial_number: String(item?.serial_number || item?.serialNumber || '').trim(),
           ip_address: String(item?.ip_address || item?.ipAddress || '').trim(),
           quantity: 1,
           available_stock: parseInt(String(item.quantity || '0')) || 0,
           selected_at: new Date().toISOString(),
-          source: 'tech_stock.assigned_parts'
+          source: 'tech_stock.assigned_parts',
+          boot_transfer_pending: true,
         }));
 
       const selectedDeinstallItems = getDeinstallEquipmentOptions(jobData)
         .filter((option) => selectedEquipmentIds.includes(option.selectionKey))
         .map((option) => option.equipmentItem);
 
-      let latestJob = jobData;
-
-      const missingSerialStockItem = selectedStockItems.find(
-        (item) =>
-          !String(
-            item?.serial_number ||
-              item?.serialNumber ||
-              item?.ip_address ||
-              item?.ipAddress ||
-              '',
-          )
-            .trim(),
+      const missingIdentityStockItem = selectedStockItems.find(
+        (item) => !getSerialToken(item) && !getStockIdToken(item),
       );
-      if (missingSerialStockItem) {
+      if (missingIdentityStockItem) {
         const label = String(
-          missingSerialStockItem.code ||
-            missingSerialStockItem.description ||
-            missingSerialStockItem.stock_id ||
+          missingIdentityStockItem.description ||
+            missingIdentityStockItem.stock_id ||
             'item',
         ).trim();
-        throw new Error(`No serial number found for selected stock item (${label}).`);
+        throw new Error(
+          `Selected stock item is missing serial number and stock_id (${label}).`,
+        );
       }
 
-      if (selectedStockItems.length > 0) {
-        const transferResponse = await fetch(`/api/job-cards/${jobData.id}`, {
+      const initialEquipmentUsed = parseArrayField(jobData?.equipment_used);
+      /** Replace only technician-selectable rows; unticking removes them from equipment_used. */
+      const equipmentSourcesReplacedOnSave = new Set([
+        'job_card.parts_required',
+        'tech_stock.assigned_parts',
+        'job_card.quotation_products.deinstall',
+      ]);
+      const preservedEquipmentUsed = initialEquipmentUsed.filter(
+        (item: any) => !equipmentSourcesReplacedOnSave.has(String(item?.source || '').trim()),
+      );
+      const mergedEquipmentUsed = appendUniqueEquipmentUsed(preservedEquipmentUsed, [
+        ...selectedAssignedItems,
+        ...selectedStockItems,
+        ...selectedDeinstallItems,
+      ]);
+
+      const equipmentChanged =
+        JSON.stringify(mergedEquipmentUsed) !== JSON.stringify(initialEquipmentUsed);
+
+      if (equipmentChanged) {
+        const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            equipment_used: selectedStockItems,
-            transfer_equipment_from_assigned_parts: true,
+            equipment_used: mergedEquipmentUsed,
           }),
         });
 
-        if (!transferResponse.ok) {
-          const errorData = await transferResponse.json().catch(() => ({}));
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json().catch(() => ({}));
           console.error('Failed to save equipment used:', errorData);
           throw new Error(
             String(
               errorData?.error ||
                 errorData?.details ||
-                `Failed to save equipment used: ${transferResponse.status}`,
+                `Failed to save equipment used: ${updateResponse.status}`,
             ),
           );
         }
 
-        latestJob = await transferResponse.json();
-      }
-
-      const existingEquipmentUsed = parseArrayField(latestJob?.equipment_used);
-      const preservedEquipmentUsed = existingEquipmentUsed.filter((item: any) => {
-        const source = String(item?.source || '');
-        return source !== 'tech_stock.assigned_parts' && source !== 'job_card.quotation_products.deinstall';
-      });
-
-      const mergedEquipmentUsed = [
-        ...preservedEquipmentUsed,
-        ...selectedAssignedItems,
-        ...selectedStockItems,
-        ...selectedDeinstallItems,
-      ];
-
-      const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          equipment_used: mergedEquipmentUsed,
-        }),
-      });
-
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json().catch(() => ({}));
-        console.error('Failed to save equipment used:', errorData);
-        throw new Error(
-          String(
-            errorData?.error ||
-              errorData?.details ||
-              `Failed to save equipment used: ${updateResponse.status}`,
-          ),
+        const updatedJob = await updateResponse.json();
+        setJobData((previous: any) =>
+          mergeJobDataUpdate(previous, updatedJob || jobData),
         );
+      } else {
+        setJobData((previous: any) => ({
+          ...mergeJobDataUpdate(previous, jobData),
+          equipment_used: mergedEquipmentUsed,
+        }));
       }
 
-      const updatedJob = await updateResponse.json();
-      setJobData(updatedJob || jobData);
-      toast.success('Equipment used saved');
+      toast.success(
+        selectedStockItems.length > 0
+          ? 'Equipment selections saved. Boot stock transfers when you complete the job.'
+          : 'Equipment used saved',
+      );
       setCurrentStep('job-active');
     } catch (error: any) {
       console.error('Error saving equipment used:', error);
@@ -1562,204 +1639,218 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
 
 
 
-  const handleBeforePhotosComplete = async () => {
-    if (beforePhotos.length === 0) {
-      toast.error('Please capture at least one before photo');
+  const uploadJobPhotos = async (
+    photos: string[],
+    phase: 'before' | 'after',
+  ): Promise<string[]> => {
+    if (photos.length === 0) return [];
+
+    const supabase = createClient();
+    const photoUrls: string[] = [];
+
+    for (const photoData of photos) {
+      const response = await fetch(photoData);
+      const blob = await response.blob();
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(7);
+      const filename = `job_${jobData.job_number || jobData.id}_${phase}_${timestamp}_${randomId}.jpg`;
+
+      const { error } = await supabase.storage
+        .from('invoices')
+        .upload(`job-photos/${filename}`, blob, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) {
+        console.error(`Error uploading ${phase} photo:`, error);
+        toast.error(`Failed to upload ${phase} photo ${photoUrls.length + 1}`);
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('invoices')
+        .getPublicUrl(`job-photos/${filename}`);
+
+      photoUrls.push(urlData.publicUrl);
+    }
+
+    return photoUrls;
+  };
+
+  const markJobAsStarted = async (beforePhotoUrls: string[] = []) => {
+    const { technicianName, technicianEmail } = await getCurrentTechnicianIdentity();
+    const payload: Record<string, unknown> = {
+      job_status: 'Active',
+      status: 'active',
+      technician_name: technicianName,
+      technician_phone: technicianEmail,
+      start_time: formatLocalDateTime(new Date()),
+      vehicle_year: vehicleDetails.vehicle_year || null,
+      vehicle_make: vehicleDetails.vehicle_make || null,
+      vehicle_model: vehicleDetails.vehicle_model || null,
+      vehicle_registration: vehicleDetails.vehicle_registration || null,
+      vehicle_chassis: vehicleDetails.vehicle_chassis || null,
+      vehicle_colour: vehicleDetails.vehicle_colour || null,
+      old_serial_number: vehicleDetails.old_serial_number || null,
+      new_serial_number: vehicleDetails.new_serial_number || null,
+      vin_numer: vehicleDetails.vin_numer || vehicleDetails.vehicle_chassis || null,
+      odormeter: vehicleDetails.odormeter || null,
+      ip_address: vehicleDetails.ip_address || null,
+    };
+
+    if (beforePhotoUrls.length > 0) {
+      payload.before_photos = beforePhotoUrls;
+    }
+
+    const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!updateResponse.ok) {
+      const errorData = await updateResponse.json().catch(() => ({}));
+      throw new Error(
+        String(
+          errorData?.error ||
+            errorData?.details ||
+            `Failed to start job: ${updateResponse.status}`,
+        ),
+      );
+    }
+
+    const updatedJob = await updateResponse.json();
+    setJobData((previous: any) =>
+      mergeJobDataUpdate(previous, updatedJob || jobData),
+    );
+    return updatedJob;
+  };
+
+  const handleSkipBeforePhotos = async () => {
+    if (isJobStartedInTech(jobData)) {
+      setCurrentStep('equipment-used');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Upload photos to storage and get URLs
-      const supabase = createClient();
-      const photoUrls: string[] = [];
+      await markJobAsStarted([]);
+      toast.success('Job started');
+      setCurrentStep('equipment-used');
+    } catch (error) {
+      console.error('Error starting job without photos:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to start job',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-      for (const photoData of beforePhotos) {
-        // Convert base64 to blob
-        const response = await fetch(photoData);
-        const blob = await response.blob();
-        
-        // Generate unique filename with job number
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substring(7);
-        const filename = `job_${jobData.job_number || jobData.id}_before_${timestamp}_${randomId}.jpg`;
-        
-        // Upload to invoices bucket in job-photos folder
-        const { data, error } = await supabase.storage
-          .from('invoices')
-          .upload(`job-photos/${filename}`, blob, {
-            contentType: 'image/jpeg',
-            cacheControl: '3600',
-            upsert: false
-          });
+  const handleCompleteJobInModal = async (options?: {
+    navigateToCompleteStep?: boolean;
+  }) => {
+    if (!jobData?.id || isSubmitting || isClosing) return;
 
-        if (error) {
-          console.error('Error uploading photo:', error);
-          toast.error(`Failed to upload photo ${photoUrls.length + 1}`);
-          continue;
-        }
+    setIsSubmitting(true);
+    try {
+      const uploadedAfterPhotos = await uploadJobPhotos(afterPhotos, 'after');
+      const uploadedBeforePhotos = await uploadJobPhotos(beforePhotos, 'before');
+      const storedAfterPhotos = [
+        ...parseArrayField(jobData?.after_photos),
+        ...uploadedAfterPhotos,
+      ].filter(
+        (url) =>
+          typeof url === 'string' &&
+          (/^https?:\/\//i.test(url) || url.startsWith('/')),
+      );
+      const storedBeforePhotos = [
+        ...parseArrayField(jobData?.before_photos),
+        ...uploadedBeforePhotos,
+      ].filter(
+        (url) =>
+          typeof url === 'string' &&
+          (/^https?:\/\//i.test(url) || url.startsWith('/')),
+      );
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('invoices')
-          .getPublicUrl(`job-photos/${filename}`);
+      const result = await completeTechJobCard(jobData.id, {
+        completion_notes: completionNotes.trim() || null,
+        after_photos: storedAfterPhotos,
+        before_photos: storedBeforePhotos,
+      });
 
-        photoUrls.push(urlData.publicUrl);
+      if (!result.ok) {
+        throw new Error(result.error);
       }
 
-      if (photoUrls.length === 0) {
-        throw new Error('Failed to upload any photos');
+      const finalPayload = mergeJobDataUpdate(jobData, {
+        ...(result.data as Record<string, unknown>),
+        status: 'completed',
+        job_status: 'completed',
+        role: 'inv',
+      });
+      setJobData(finalPayload);
+
+      if (options?.navigateToCompleteStep) {
+        toast.success(
+          uploadedAfterPhotos.length > 0
+            ? `Job completed successfully with ${uploadedAfterPhotos.length} after photos!`
+            : 'Job completed successfully!',
+        );
+        setCurrentStep('complete');
+        return;
       }
 
-      const { technicianName, technicianEmail } = await getCurrentTechnicianIdentity();
-
-       // Update job with before photos, vehicle details, and change status to active
-       const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
-         method: 'PATCH',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-         body: JSON.stringify({
-            before_photos: photoUrls,
-            job_status: 'Active',
-            technician_name: technicianName,
-            technician_phone: technicianEmail,
-            start_time: formatLocalDateTime(new Date()),
-            // Vehicle details
-            vehicle_year: vehicleDetails.vehicle_year || null,
-           vehicle_make: vehicleDetails.vehicle_make || null,
-           vehicle_model: vehicleDetails.vehicle_model || null,
-           vehicle_registration: vehicleDetails.vehicle_registration || null,
-           vehicle_chassis: vehicleDetails.vehicle_chassis || null,
-           vehicle_colour: vehicleDetails.vehicle_colour || null,
-           old_serial_number: vehicleDetails.old_serial_number || null,
-           new_serial_number: vehicleDetails.new_serial_number || null,
-           vin_numer: vehicleDetails.vin_numer || vehicleDetails.vehicle_chassis || null,
-           odormeter: vehicleDetails.odormeter || null,
-           ip_address: vehicleDetails.ip_address || null,
-         }),
-       });
-
-      if (updateResponse.ok) {
-        toast.success(`Job started successfully with ${photoUrls.length} before photos!`);
-        const updatedJob = await updateResponse.json();
-        setJobData(updatedJob || jobData);
-        setCurrentStep('equipment-used');
-      } else {
-        const errorData = await updateResponse.json().catch(() => ({}));
-        console.error('Failed to update job:', errorData);
-        throw new Error(`Failed to update job: ${updateResponse.status}`);
+      if (onJobCompleted) {
+        onJobCompleted(finalPayload);
+      } else if (onJobStarted) {
+        onJobStarted(finalPayload);
       }
+
+      stopQrScanner();
+      stopCamera();
+      resetModalState();
+      onClose();
+    } catch (error) {
+      console.error('Error completing job:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to complete job',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBeforePhotosComplete = async () => {
+    setIsSubmitting(true);
+    try {
+      const photoUrls = await uploadJobPhotos(beforePhotos, 'before');
+      await markJobAsStarted(photoUrls);
+      toast.success(
+        photoUrls.length > 0
+          ? `Job started successfully with ${photoUrls.length} before photos!`
+          : 'Job started successfully!',
+      );
+      setCurrentStep('equipment-used');
     } catch (error) {
       console.error('Error starting job:', error);
-      toast.error(`Failed to start job: ${error.message}`);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to start job',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleAfterPhotosComplete = async () => {
-    if (afterPhotos.length === 0) {
-      toast.error('Please capture at least one after photo');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      // Upload after photos to storage and get URLs
-      const supabase = createClient();
-      const photoUrls: string[] = [];
-
-      for (const photoData of afterPhotos) {
-        // Convert base64 to blob
-        const response = await fetch(photoData);
-        const blob = await response.blob();
-        
-        // Generate unique filename with job number
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substring(7);
-        const filename = `job_${jobData.job_number || jobData.id}_after_${timestamp}_${randomId}.jpg`;
-        
-        // Upload to invoices bucket in job-photos folder
-        const { data, error } = await supabase.storage
-          .from('invoices')
-          .upload(`job-photos/${filename}`, blob, {
-            contentType: 'image/jpeg',
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (error) {
-          console.error('Error uploading after photo:', error);
-          toast.error(`Failed to upload after photo ${photoUrls.length + 1}`);
-          continue;
-        }
-
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('invoices')
-          .getPublicUrl(`job-photos/${filename}`);
-
-        photoUrls.push(urlData.publicUrl);
-      }
-
-      if (photoUrls.length === 0) {
-        throw new Error('Failed to upload any after photos');
-      }
-
-      // Update job with after photos and change status to completed
-      const updateResponse = await fetch(`/api/job-cards/${jobData.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          after_photos: photoUrls,
-          job_status: 'Completed',
-          completion_notes: completionNotes || null,
-          completion_date: new Date().toISOString(),
-          end_time: new Date().toISOString(),
-        }),
-      });
-
-      if (updateResponse.ok) {
-        toast.success(`Job completed successfully with ${photoUrls.length} after photos!`);
-        setCurrentStep('complete');
-      } else {
-        const errorData = await updateResponse.json().catch(() => ({}));
-        console.error('Failed to complete job:', errorData);
-        throw new Error(
-          String(
-            errorData?.error ||
-              errorData?.details ||
-              `Failed to complete job: ${updateResponse.status}`,
-          ),
-        );
-      }
-    } catch (error) {
-      console.error('Error completing job:', error);
-      toast.error(`Failed to complete job: ${error.message}`);
-    } finally {
-      setIsSubmitting(false);
-    }
+    await handleCompleteJobInModal({ navigateToCompleteStep: true });
   };
 
-  const handleJobCompleted = (completedJobData: any) => {
-    if (onJobCompleted) {
-      onJobCompleted(completedJobData);
-    }
-  };
-
-  const handleClose = () => {
-    // If we're on the complete step, notify parent that job was completed
-    if (currentStep === 'complete') {
-      onJobStarted({ ...jobData, before_photos: beforePhotos, after_photos: afterPhotos, job_status: 'Completed' });
-    }
-    
-    // IMPORTANT: Stop all cameras before closing
-    stopQrScanner();
-    stopCamera();
-    
+  const resetModalState = () => {
     setCurrentStep('qr-scan');
     setQrCode('');
     setBeforePhotos([]);
@@ -1781,7 +1872,85 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       odormeter: '',
       ip_address: '',
     });
-    setJobData(job); // Reset to original job data
+    setJobData(job);
+  };
+
+  const finalizeJobOnClose = async () => {
+    if (!jobData?.id) return jobData;
+
+    if (isJobMarkedCompleted(jobData)) {
+      return jobData;
+    }
+
+    const storedAfterPhotos = [
+      ...parseArrayField(jobData?.after_photos),
+      ...afterPhotos,
+    ].filter(
+      (url) =>
+        typeof url === 'string' &&
+        (/^https?:\/\//i.test(url) || url.startsWith('/')),
+    );
+    const storedBeforePhotos = [
+      ...parseArrayField(jobData?.before_photos),
+      ...beforePhotos,
+    ].filter(
+      (url) =>
+        typeof url === 'string' &&
+        (/^https?:\/\//i.test(url) || url.startsWith('/')),
+    );
+
+    const result = await completeTechJobCard(jobData.id, {
+      completion_notes: completionNotes.trim() || null,
+      after_photos: storedAfterPhotos,
+      before_photos: storedBeforePhotos,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return mergeJobDataUpdate(jobData, result.data);
+  };
+
+  const handleClose = async () => {
+    if (currentStep === 'complete' && jobData?.id) {
+      setIsClosing(true);
+      try {
+        const completedJob = await finalizeJobOnClose();
+        const finalPayload = mergeJobDataUpdate(completedJob, {
+          before_photos: beforePhotos.length
+            ? beforePhotos
+            : completedJob?.before_photos,
+          after_photos: afterPhotos.length ? afterPhotos : completedJob?.after_photos,
+          completion_notes: completionNotes.trim() || completedJob?.completion_notes || null,
+          status: 'completed',
+          job_status: 'completed',
+          role: 'inv',
+        });
+
+        setJobData(finalPayload);
+        if (onJobCompleted) {
+          onJobCompleted(finalPayload);
+        } else if (onJobStarted) {
+          onJobStarted(finalPayload);
+        }
+      } catch (error) {
+        console.error('Error finalizing job on close:', error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'Failed to complete job before closing',
+        );
+        setIsClosing(false);
+        return;
+      } finally {
+        setIsClosing(false);
+      }
+    }
+
+    stopQrScanner();
+    stopCamera();
+    resetModalState();
     onClose();
   };
 
@@ -2361,21 +2530,22 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button
-                    onClick={handleBeforePhotosComplete}
-                    disabled={beforePhotos.length === 0 || isSubmitting}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
-                  >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    Complete & Start Job
-                  </Button>
-                  <Button
-                    onClick={() => setCurrentStep('equipment-used')}
-                    variant="outline"
-                    className="px-6"
-                  >
-                    Skip
-                  </Button>
+                <Button
+                  onClick={handleBeforePhotosComplete}
+                  disabled={isSubmitting}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Complete & Start Job
+                </Button>
+                <Button
+                  onClick={() => void handleSkipBeforePhotos()}
+                  disabled={isSubmitting}
+                  variant="outline"
+                  className="px-6"
+                >
+                  Skip
+                </Button>
                 </div>
               </div>
             )}
@@ -2422,46 +2592,75 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 )}
 
-                {getAssignedPartsOptions(jobData).length > 0 && (
-                  <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                    <div className="mb-3">
-                      <p className="text-sm font-semibold text-emerald-900">Assigned parts from job card</p>
-                      <p className="text-xs text-emerald-800 mt-1">
-                        Select the assigned parts that were actually installed on this job.
-                      </p>
-                    </div>
+                <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold text-emerald-900">Parts assigned to job</p>
+                    <p className="text-xs text-emerald-800 mt-1">
+                      {parsePartsRequiredField(jobData?.parts_required).length > 0
+                        ? 'Select the parts from parts_required that were installed on this job.'
+                        : 'No parts are listed on this job card yet.'}
+                    </p>
+                  </div>
+                  {parsePartsRequiredField(jobData?.parts_required).length === 0 ? (
+                    <p className="text-sm text-emerald-900/80 italic py-2">
+                      No parts assigned to job
+                    </p>
+                  ) : (
                     <div className="space-y-2">
-                      {getAssignedPartsOptions(jobData).map((option) => {
-                        const checked = selectedEquipmentIds.includes(option.selectionKey);
+                      {getAssignedPartsOptions(jobData).map((option, index) => {
+                        const canSelect = Boolean(option.selectionKey);
+                        const checked =
+                          canSelect &&
+                          selectedEquipmentIds.includes(option.selectionKey);
                         return (
                           <label
-                            key={option.selectionKey}
-                            className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
-                              checked ? 'border-emerald-400 bg-white' : 'border-emerald-200 bg-white/70'
+                            key={`assigned-part-${index}`}
+                            className={`flex items-start gap-3 rounded-lg border p-3 ${
+                              canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'
+                            } ${
+                              checked
+                                ? 'border-emerald-400 bg-white'
+                                : 'border-emerald-200 bg-white/70'
                             }`}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleEquipmentItem(option.selectionKey)}
+                              disabled={!canSelect}
+                              onChange={() => {
+                                if (!canSelect) return;
+                                toggleEquipmentItem(option.selectionKey);
+                              }}
                               className="mt-1 h-4 w-4 accent-emerald-600"
                             />
                             <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-900">{option.equipmentItem.description}</p>
+                              <p className="text-sm font-medium text-gray-900">
+                                {option.equipmentItem.description}
+                              </p>
                               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
-                                <span>Serial: {option.equipmentItem.serial_number || 'N/A'}</span>
+                                <span>
+                                  Serial: {option.equipmentItem.serial_number || 'N/A'}
+                                </span>
+                                <span>
+                                  Stock ID: {option.equipmentItem.stock_id || 'N/A'}
+                                </span>
                                 <span>Qty: {option.equipmentItem.quantity || 1}</span>
                                 {option.equipmentItem.supplier ? (
                                   <span>Supplier: {option.equipmentItem.supplier}</span>
                                 ) : null}
                               </div>
+                              {!canSelect ? (
+                                <p className="mt-1 text-xs text-amber-700">
+                                  Missing serial number and stock ID — cannot select this item.
+                                </p>
+                              ) : null}
                             </div>
                           </label>
                         );
                       })}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {isDeinstallJob(jobData) && getDeinstallEquipmentOptions(jobData).length > 0 && (
                   <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -2518,25 +2717,18 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div className="border-b border-gray-200 bg-slate-50 px-4 py-3">
                       <p className="text-sm font-semibold text-slate-900">Additional technician stock</p>
                       <p className="text-xs text-slate-600 mt-1">
-                        Select any extra boot stock used beyond the assigned installed parts above.
+                        Select extra boot stock used on this job. It is saved now and removed from your boot stock when you complete the job.
                       </p>
                     </div>
                     <div className="max-h-[42vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                       {technicianStock.map((item: any, index: number) => {
-                        const selectionKey = getSelectionKeyForItem('stock', item, index);
+                        const selectionKey = getPartSelectionKey('stock', item);
                         const checked = selectedEquipmentIds.includes(selectionKey);
                         const itemSerial = String(
-                          item?.serial_number ||
-                            item?.serialNumber ||
-                            item?.ip_address ||
-                            item?.ipAddress ||
-                            '',
+                          item?.serial_number || item?.serialNumber || '',
                         ).trim();
-                        const itemFallbackId = String(
-                          item?.stock_id || item?.row_id || item?.id || '',
-                        ).trim();
-                        const displayId = itemSerial || itemFallbackId || 'Unknown';
+                        const itemStockId = getStockIdToken(item);
                         return (
                           <label
                             key={selectionKey}
@@ -2553,7 +2745,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{item.description || 'Unnamed item'}</p>
                               <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                <span>{itemSerial ? 'Serial' : 'ID'}: {displayId}</span>
+                                <span>Serial: {itemSerial || 'N/A'}</span>
+                                <span>Stock ID: {itemStockId || 'N/A'}</span>
                                 <span>Supplier: {item.supplier || 'N/A'}</span>
                                 <span>Available: {parseInt(String(item.quantity || '0')) || 0}</span>
                               </div>
@@ -2585,7 +2778,25 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   Save & Continue
                 </Button>
                 <Button
-                  onClick={() => setCurrentStep('job-active')}
+                  onClick={async () => {
+                    if (!isJobStartedInTech(jobData)) {
+                      setIsSubmitting(true);
+                      try {
+                        await markJobAsStarted([]);
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : 'Failed to start job',
+                        );
+                        return;
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }
+                    setCurrentStep('job-active');
+                  }}
+                  disabled={isSubmitting}
                   variant="outline"
                   className="sm:w-auto"
                 >
@@ -2642,12 +2853,30 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </Button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col gap-3">
                   <Button onClick={goToPreviousStep} variant="outline" className="sm:w-auto">
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button onClick={handleClose} variant="outline" className="w-full">
+                  <Button
+                    onClick={() => void handleCompleteJobInModal()}
+                    disabled={isSubmitting || isClosing}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Completing...
+                      </>
+                    ) : (
+                      'Complete Job'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => void handleClose()}
+                    variant="outline"
+                    className="w-full"
+                  >
                     Close (Job will remain active)
                   </Button>
                 </div>
@@ -2849,19 +3078,20 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     Back
                   </Button>
                   <Button
-                    onClick={handleAfterPhotosComplete}
-                    disabled={afterPhotos.length === 0 || isSubmitting}
+                    onClick={() => void handleAfterPhotosComplete()}
+                    disabled={isSubmitting || isClosing}
                     className="flex-1 bg-green-600 hover:bg-green-700"
                   >
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                     Complete Job
                   </Button>
                   <Button
-                    onClick={() => setCurrentStep('complete')}
+                    onClick={() => void handleCompleteJobInModal({ navigateToCompleteStep: true })}
+                    disabled={isSubmitting || isClosing}
                     variant="outline"
                     className="sm:px-6"
                   >
-                    Skip
+                    Skip Photos & Complete
                   </Button>
                 </div>
               </div>
@@ -2909,8 +3139,19 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <ChevronLeft className="w-4 h-4 mr-2" />
                     Back
                   </Button>
-                  <Button onClick={handleClose} className="w-full">
-                    Close
+                  <Button
+                    onClick={() => void handleClose()}
+                    disabled={isClosing}
+                    className="w-full"
+                  >
+                    {isClosing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Completing...
+                      </>
+                    ) : (
+                      'Close'
+                    )}
                   </Button>
                 </div>
               </CardContent>
