@@ -843,6 +843,17 @@ export default function InventoryPage() {
     );
   };
 
+  /** Completed Job Cards tab: at least one of status / job_status is "completed" (case-insensitive). */
+  const isCompletedOnEitherStatusField = (job: JobCard) => {
+    const normalizedStatus = String(job.status || "").trim().toLowerCase();
+    const normalizedJobStatus = String(job.job_status || "")
+      .trim()
+      .toLowerCase();
+    return (
+      normalizedStatus === "completed" || normalizedJobStatus === "completed"
+    );
+  };
+
   const isMovedAwayFromInventory = (job: JobCard) => {
     const normalizedRole = String(job.role || "").toLowerCase();
     const normalizedMoveTo = String(job.move_to || "").toLowerCase();
@@ -932,8 +943,9 @@ export default function InventoryPage() {
   const completedJobs = jobCards
     .filter((job: JobCard) => {
       const normalizedRole = String(job.role || "").trim().toLowerCase();
-      // Completed is already evaluated case-insensitively inside isCompletedInventoryJob.
-      return isCompletedInventoryJob(job) && normalizedRole === "inv";
+      return (
+        normalizedRole === "inv" && isCompletedOnEitherStatusField(job)
+      );
     })
     .filter((job) => !isEscalatedToInventory(job));
 
@@ -959,7 +971,13 @@ export default function InventoryPage() {
       job.customer_name?.toLowerCase().includes(searchLower) ||
       job.vehicle_registration?.toLowerCase().includes(searchLower) ||
       job.job_description?.toLowerCase().includes(searchLower) ||
-      job.completion_notes?.toLowerCase().includes(searchLower)
+      job.completion_notes?.toLowerCase().includes(searchLower) ||
+      String(job.status || "")
+        .toLowerCase()
+        .includes(searchLower) ||
+      String(job.job_status || "")
+        .toLowerCase()
+        .includes(searchLower)
     );
   });
 
@@ -3081,7 +3099,7 @@ export default function InventoryPage() {
       <div className="relative">
         <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
         <Input
-          placeholder="Search completed jobs by job number, customer, vehicle, notes, or description..."
+          placeholder="Search by job number, customer, vehicle, status, job status, notes, or description..."
           value={completedJobsSearchTerm}
           onChange={(e) => setCompletedJobsSearchTerm(e.target.value)}
           className="pl-10"
@@ -3110,6 +3128,12 @@ export default function InventoryPage() {
                   </th>
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Vehicle
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Job status
                   </th>
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Completion Date
@@ -3145,6 +3169,21 @@ export default function InventoryPage() {
                           {job.vehicle_registration || "No vehicle"}
                         </span>
                       </div>
+                    </td>
+                    <td className="py-4 px-6 align-middle">
+                      <Badge variant="outline" className="font-normal text-xs">
+                        {job.status != null && String(job.status).trim() !== ""
+                          ? String(job.status)
+                          : "—"}
+                      </Badge>
+                    </td>
+                    <td className="py-4 px-6 align-middle">
+                      <Badge variant="outline" className="font-normal text-xs">
+                        {job.job_status != null &&
+                        String(job.job_status).trim() !== ""
+                          ? String(job.job_status)
+                          : "—"}
+                      </Badge>
                     </td>
                     <td className="py-4 px-6 align-middle">
                       <div className="flex items-center gap-2">
