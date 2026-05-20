@@ -73,6 +73,105 @@ const toBusinessMiddayIso = (value?: unknown) => {
   return new Date(`${businessDate}T12:00:00+02:00`).toISOString();
 };
 
+const normalizeBillingToken = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+const toNumberValue = (value: unknown) => {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isAdminOrRepairFallbackJob = (
+  jobCard: Record<string, unknown> | null | undefined,
+) => {
+  const normalizedJobType = normalizeBillingToken(
+    jobCard?.job_type ?? jobCard?.quotation_job_type ?? '',
+  );
+  const normalizedStatus = normalizeBillingToken(jobCard?.status ?? '');
+  return (
+    normalizedJobType === 'repair' ||
+    normalizedJobType === 'admincreated' ||
+    normalizedStatus === 'admincreated'
+  );
+};
+
+const getAdminOrRepairFallbackSubtotal = (
+  jobCard: Record<string, unknown> | null | undefined,
+  submittedSubtotal?: unknown,
+) => {
+  const candidates = [
+    submittedSubtotal,
+    jobCard?.quotation_total_amount,
+    jobCard?.actual_cost,
+    jobCard?.estimated_cost,
+    jobCard?.quotation_subtotal,
+  ];
+
+  for (const candidate of candidates) {
+    const amount = toNumberValue(candidate);
+    if (amount > 0) {
+      return amount;
+    }
+  }
+
+  return 0;
+};
+
+const buildFallbackLineItemsForAdminOrRepair = (
+  jobCard: Record<string, unknown> | null | undefined,
+  submittedSubtotal?: unknown,
+) => {
+  if (!isAdminOrRepairFallbackJob(jobCard)) {
+    return [] as Record<string, unknown>[];
+  }
+
+  const subtotal = getAdminOrRepairFallbackSubtotal(jobCard, submittedSubtotal);
+  if (subtotal <= 0) {
+    return [] as Record<string, unknown>[];
+  }
+
+  const normalizedType = normalizeBillingToken(
+    jobCard?.job_type ?? jobCard?.quotation_job_type ?? '',
+  );
+  const isRepair = normalizedType === 'repair';
+  const itemCode = isRepair ? 'REPAIR' : 'ADMIN';
+  const itemDescription = isRepair ? 'Repair Job Charge' : 'Admin Job Charge';
+  const comments = String(
+    jobCard?.completion_notes ??
+      jobCard?.work_notes ??
+      jobCard?.job_description ??
+      `${itemDescription} for ${String(jobCard?.job_number ?? 'job')}`,
+  ).trim();
+  const registration = String(
+    jobCard?.vehicle_registration ?? jobCard?.temporary_registration ?? 'N/A',
+  ).trim();
+  const vatAmount = Number((subtotal * 0.15).toFixed(2));
+  const totalIncl = Number((subtotal + vatAmount).toFixed(2));
+
+  return [
+    {
+      previous_reg: registration || 'N/A',
+      new_reg: registration || 'N/A',
+      item_code: itemCode,
+      description: itemDescription,
+      comments,
+      quantity: 1,
+      unit_price: subtotal,
+      vat_percent: '15.00%',
+      vat_amount: vatAmount,
+      total_incl: totalIncl,
+    },
+  ];
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -184,7 +283,7 @@ export async function POST(request: NextRequest) {
     const { data: jobCard, error: jobCardError } = await supabase
       .from('job_cards')
       .select(
-        'id, role, status, job_status, new_account_number, completion_date, end_time, updated_at, job_date',
+        'id, job_number, role, status, job_status, job_type, quotation_job_type, job_description, completion_notes, work_notes, vehicle_registration, temporary_registration, new_account_number, quotation_subtotal, quotation_total_amount, actual_cost, estimated_cost, completion_date, end_time, updated_at, job_date',
       )
       .eq('id', jobCardId)
       .maybeSingle();
@@ -246,6 +345,48 @@ export async function POST(request: NextRequest) {
       ? existingInvoices[0] || null
       : null;
 
+    const submittedLineItems = Array.isArray(lineItems)
+      ? lineItems.filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        )
+      : [];
+    const fallbackLineItems =
+      submittedLineItems.length === 0
+        ? buildFallbackLineItemsForAdminOrRepair(
+            jobCard as Record<string, unknown> | null | undefined,
+            subtotal,
+          )
+        : [];
+    const resolvedLineItems =
+      submittedLineItems.length > 0 ? submittedLineItems : fallbackLineItems;
+
+    const submittedSubtotal = toNumberValue(subtotal);
+    const submittedVatAmount = toNumberValue(vatAmount);
+    const submittedDiscountAmount = toNumberValue(discountAmount);
+    const submittedTotalAmount = toNumberValue(totalAmount);
+
+    const resolvedSubtotal =
+      submittedLineItems.length > 0
+        ? submittedSubtotal
+        : fallbackLineItems.length > 0
+          ? toNumberValue(fallbackLineItems[0]?.unit_price)
+          : submittedSubtotal;
+    const resolvedVatAmount =
+      submittedLineItems.length > 0
+        ? submittedVatAmount
+        : fallbackLineItems.length > 0
+          ? toNumberValue(fallbackLineItems[0]?.vat_amount)
+          : submittedVatAmount;
+    const resolvedDiscountAmount =
+      submittedLineItems.length > 0 ? submittedDiscountAmount : 0;
+    const resolvedTotalAmount =
+      submittedLineItems.length > 0
+        ? submittedTotalAmount
+        : fallbackLineItems.length > 0
+          ? toNumberValue(fallbackLineItems[0]?.total_incl)
+          : submittedTotalAmount;
+
     const payload = {
       job_card_id: jobCardId,
       job_number: jobNumber || null,
@@ -259,11 +400,11 @@ export async function POST(request: NextRequest) {
       due_date: dueDate || null,
       payment_terms: paymentTerms || null,
       notes: notes || null,
-      subtotal: Number(subtotal || 0),
-      vat_amount: Number(vatAmount || 0),
-      discount_amount: Number(discountAmount || 0),
-      total_amount: Number(totalAmount || 0),
-      line_items: Array.isArray(lineItems) ? lineItems : [],
+      subtotal: resolvedSubtotal,
+      vat_amount: resolvedVatAmount,
+      discount_amount: resolvedDiscountAmount,
+      total_amount: resolvedTotalAmount,
+      line_items: resolvedLineItems,
     };
 
     if (existingInvoice?.id) {

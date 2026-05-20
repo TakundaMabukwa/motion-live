@@ -680,6 +680,7 @@ export async function GET(request: NextRequest) {
     const sourceAccountNumber =
       String(searchParams.get('sourceAccountNumber') || accountNumber || '').trim();
     const requestedBillingMonth = normalizeBillingMonth(searchParams.get('billingMonth'));
+    const forceRebuildFromVehicles = searchParams.get('forceRebuildFromVehicles') === 'true';
     const includeGroupSummaries = searchParams.get('includeGroupSummaries') === 'true';
     const billingGroup = String(searchParams.get('billingGroup') || '').trim().toUpperCase();
     if (!accountNumber) {
@@ -789,20 +790,64 @@ export async function GET(request: NextRequest) {
       `new_account_number.eq.${value}`,
     ]);
 
-    let vehiclesQuery = supabase
-      .from('vehicles_duplicate')
-      .select('*')
-      .or(vehicleAccountFilters.join(','));
+    const invoiceVehiclesSource = 'vehicles_duplicate';
+    let vehicles: Record<string, any>[] | null = null;
+    let error: any = null;
 
-    if (Boolean(costCenter?.total_amount_locked)) {
-      vehiclesQuery = vehiclesQuery.eq('amount_locked', true);
+    if (forceRebuildFromVehicles) {
+      // Strict rebuild mode: use current account mapping first (new_account_number).
+      let strictQuery = supabase
+        .from(invoiceVehiclesSource)
+        .select('*')
+        .in('new_account_number', sourceAccountsForVehicles);
+
+      const strictResult = await strictQuery;
+      if (strictResult.error) {
+        throw strictResult.error;
+      }
+
+      if (Array.isArray(strictResult.data) && strictResult.data.length > 0) {
+        vehicles = strictResult.data as Record<string, any>[];
+      } else {
+        // Fallback for legacy rows where data may still live under account_number.
+        let fallbackQuery = supabase
+          .from(invoiceVehiclesSource)
+          .select('*')
+          .or(vehicleAccountFilters.join(','));
+
+        const fallbackResult = await fallbackQuery;
+        vehicles = (fallbackResult.data || []) as Record<string, any>[];
+        error = fallbackResult.error;
+      }
+    } else {
+      let vehiclesQuery = supabase
+        .from(invoiceVehiclesSource)
+        .select('*')
+        .or(vehicleAccountFilters.join(','));
+
+      if (Boolean(costCenter?.total_amount_locked)) {
+        vehiclesQuery = vehiclesQuery.eq('amount_locked', true);
+      }
+      // Note: When system is locked, we still include ALL vehicles
+      // The lock only affects the billing period/invoice date, not which vehicles to include
+      const result = await vehiclesQuery;
+      vehicles = (result.data || []) as Record<string, any>[];
+      error = result.error;
     }
-    // Note: When system is locked, we still include ALL vehicles
-    // The lock only affects the billing period/invoice date, not which vehicles to include
-
-    const { data: vehicles, error } = await vehiclesQuery;
 
     if (error) throw error;
+    if (forceRebuildFromVehicles && (!vehicles || vehicles.length === 0)) {
+      return NextResponse.json(
+        {
+          error: 'No vehicles found to rebuild this invoice from vehicles.',
+          accountNumber,
+          sourceAccountNumber,
+          vehicleSource: invoiceVehiclesSource,
+        },
+        { status: 404 },
+      );
+    }
+
     if ((!vehicles || vehicles.length === 0) && !storedInvoice) {
       return NextResponse.json({ 
         success: true,
@@ -1093,6 +1138,7 @@ export async function GET(request: NextRequest) {
     const isLockedInvoice =
       Boolean(storedInvoice?.invoice_locked) || isSystemLockedForBillingMonth;
     const useStoredLineItems =
+      !forceRebuildFromVehicles &&
       isLockedInvoice &&
       storedLineItems.length > 0 &&
       !hasLegacyStoredLineItems(storedLineItems);
@@ -1157,7 +1203,7 @@ export async function GET(request: NextRequest) {
       group_summaries: groupSummaries,
     };
 
-    if (storedInvoice?.id && !isLockedInvoice) {
+    if (storedInvoice?.id && (!isLockedInvoice || forceRebuildFromVehicles)) {
       const { error: syncInvoiceError } = await supabase
         .from('account_invoices')
         .update({

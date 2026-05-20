@@ -62,6 +62,23 @@ const resolveSerialNumber = (item) =>
       "",
   ).trim();
 
+const resolveUniqueItemToken = (item) =>
+  String(item?.stock_id || item?.id || item?.row_id || "").trim();
+
+const hasSerialOrUniqueItemIdentity = (item) =>
+  Boolean(resolveSerialNumber(item)) || Boolean(resolveUniqueItemToken(item));
+
+const buildSelectionKey = (source, owner, item) => {
+  const normalizedSource = String(source || "soltrack").trim().toLowerCase();
+  const normalizedOwner = String(owner || "").trim().toLowerCase();
+  const candidateId = String(
+    normalizedSource === "technician"
+      ? item?.row_id || item?.id || item?.stock_id || ""
+      : item?.id || item?.stock_id || item?.row_id || "",
+  ).trim();
+  return `${normalizedSource}|${normalizedOwner}|${candidateId}`;
+};
+
 const isSubsequenceMatch = (needle, haystack) => {
   if (!needle || !haystack) return false;
   let needleIndex = 0;
@@ -307,17 +324,30 @@ export default function AssignPartsModal({
 
     // Pre-populate with existing parts and IP address
     if (jobCard?.parts_required && Array.isArray(jobCard.parts_required)) {
-      const existingParts = jobCard.parts_required.map((part) => ({
-        stock_id: part.stock_id || part.id,
-        description: String(part.description || ""),
-        serial_number: resolveSerialNumber(part),
-        code: String(part.code || ""),
-        supplier: String(part.supplier || ""),
-        quantity: part.quantity || 1,
-        cost_per_unit: parseFloat(part.cost_per_unit || "0"),
-        total_cost: parseFloat(part.total_cost || "0"),
-        ip_address: part.ip_address || "",
-      }));
+      const existingParts = jobCard.parts_required.map((part, idx) => {
+        const source = String(part.source || "existing").trim().toLowerCase();
+        const sourceOwner = String(part.source_owner || "").trim().toLowerCase();
+        const selectionKey =
+          String(part.selection_key || "").trim() ||
+          `${source}|${sourceOwner}|${String(part.row_id || part.stock_id || part.id || idx).trim()}`;
+
+        return {
+          stock_id: part.stock_id || part.id,
+          row_id: part.row_id || "",
+          description: String(part.description || ""),
+          serial_number: resolveSerialNumber(part),
+          code: String(part.code || ""),
+          supplier: String(part.supplier || ""),
+          quantity: part.quantity || 1,
+          cost_per_unit: parseFloat(part.cost_per_unit || "0"),
+          total_cost: parseFloat(part.total_cost || "0"),
+          ip_address: part.ip_address || "",
+          source,
+          source_owner: sourceOwner,
+          is_new_assignment: false,
+          selection_key: selectionKey,
+        };
+      });
       setSelectedParts(existingParts);
 
       if (existingParts.length > 0 && existingParts[0].ip_address) {
@@ -443,9 +473,34 @@ export default function AssignPartsModal({
 
   const filteredAvailableParts = useMemo(() => {
     const rankedItems = allStockItems.map((item) => {
-      const isSelected = selectedParts.some(
-        (part) => part.stock_id === item.id,
+      const itemSelectionKey = buildSelectionKey(
+        modalStockSource,
+        modalStockOwner,
+        item,
       );
+      const isSelected = selectedParts.some((part) => {
+        const selectedKey = String(part.selection_key || "").trim();
+        if (selectedKey && selectedKey === itemSelectionKey) return true;
+
+        const selectedStockId = String(part.stock_id || "").trim();
+        const itemStockId = String(item.id || item.stock_id || "").trim();
+        if (selectedStockId && itemStockId && selectedStockId === itemStockId) {
+          return true;
+        }
+
+        const selectedSerial = resolveSerialNumber(part);
+        const itemSerial = resolveSerialNumber(item);
+        if (selectedSerial && itemSerial && selectedSerial === itemSerial) {
+          return true;
+        }
+
+        const fallbackKey = buildSelectionKey(
+          part.source || modalStockSource,
+          part.source_owner || modalStockOwner,
+          part,
+        );
+        return fallbackKey === itemSelectionKey;
+      });
       if (isSelected) return null;
       if (
         (modalStockSource === "client" || modalStockSource === "technician") &&
@@ -517,14 +572,30 @@ export default function AssignPartsModal({
       toast.error("Selected technician stock row is stale. Please refresh and try again.");
       return;
     }
-    const selectedKey = String(
-      modalStockSource === "technician"
-        ? item.row_id
-        : item.row_id || item.id || item.stock_id || "",
-    ).trim();
+    const selectedKey = buildSelectionKey(modalStockSource, modalStockOwner, item);
     const alreadySelected = selectedParts.find(
-      (part) =>
-        String(part.row_id || part.stock_id || "").trim() === selectedKey,
+      (part) => {
+        const partKey = String(part.selection_key || "").trim();
+        if (partKey && partKey === selectedKey) return true;
+
+        const selectedStockId = String(part.stock_id || "").trim();
+        const candidateStockId = String(item.id || item.stock_id || "").trim();
+        if (
+          selectedStockId &&
+          candidateStockId &&
+          selectedStockId === candidateStockId
+        ) {
+          return true;
+        }
+
+        const selectedSerial = resolveSerialNumber(part);
+        const candidateSerial = resolveSerialNumber(item);
+        return Boolean(
+          selectedSerial &&
+            candidateSerial &&
+            selectedSerial === candidateSerial,
+        );
+      },
     );
     if (alreadySelected) {
       toast.error("This item is already selected");
@@ -532,9 +603,9 @@ export default function AssignPartsModal({
     }
 
     const serialNumber = resolveSerialNumber(item);
-    if (!serialNumber) {
+    if (!hasSerialOrUniqueItemIdentity(item)) {
       toast.error(
-        `No serial number found for selected stock item (${item?.code || item?.category_code || item?.description || "item"}). Assign serial first.`,
+        `No serial or unique item ID found for selected stock item (${item?.code || item?.category_code || item?.description || "item"}).`,
       );
       return;
     }
@@ -548,24 +619,28 @@ export default function AssignPartsModal({
           item.category?.description || item.description || "",
         ),
         serial_number: String(serialNumber),
+        unique_item_id: resolveUniqueItemToken(item),
         code: String(item.category_code || item.code || ""),
         supplier: String(item.supplier || ""),
         quantity: 1,
         cost_per_unit: parseFloat(item.cost_excl_vat_zar || "0"),
         total_cost: parseFloat(item.cost_excl_vat_zar || "0"),
         ip_address: ipAddress || "",
+        source: modalStockSource,
+        source_owner: modalStockOwner,
+        is_new_assignment: true,
+        selection_key: selectedKey,
       },
     ]);
 
     setAllStockItems((prev) =>
       prev.filter(
         (stockItem) =>
-          String(
-            stockItem.row_id ||
-              stockItem.id ||
-              stockItem.stock_id ||
-              "",
-          ).trim() !== selectedKey,
+          buildSelectionKey(
+            modalStockSource,
+            modalStockOwner,
+            stockItem,
+          ) !== selectedKey,
       ),
     );
   };
@@ -573,32 +648,40 @@ export default function AssignPartsModal({
   const removePart = async (selectionKey) => {
     const normalizedKey = String(selectionKey || "").trim();
     const part = selectedParts.find(
-      (p) => String(p.row_id || p.stock_id || "").trim() === normalizedKey,
+      (p) => String(p.selection_key || "").trim() === normalizedKey,
     );
     if (!part) return;
 
     // Just return it to the available list in the UI.
     setSelectedParts((prev) =>
       prev.filter(
-        (p) => String(p.row_id || p.stock_id || "").trim() !== normalizedKey,
+        (p) => String(p.selection_key || "").trim() !== normalizedKey,
       ),
     );
-    setAllStockItems((prev) => [
-      ...prev,
-      {
-        id: part.row_id || part.stock_id,
-        stock_id: part.stock_id,
-        row_id: part.row_id || "",
-        description: part.description || "",
-        code: part.code || "",
-        supplier: part.supplier || "",
-        quantity: part.quantity || 1,
-        serial_number: part.serial_number || "",
-        category_code: part.code || "",
-        category_description: part.description || part.code || "",
-        status: "IN STOCK",
-      },
-    ]);
+    const sourceMatchesCurrentView =
+      String(part.source || "").trim().toLowerCase() ===
+        String(modalStockSource || "").trim().toLowerCase() &&
+      String(part.source_owner || "").trim().toLowerCase() ===
+        String(modalStockOwner || "").trim().toLowerCase();
+
+    if (sourceMatchesCurrentView) {
+      setAllStockItems((prev) => [
+        ...prev,
+        {
+          id: part.row_id || part.stock_id,
+          stock_id: part.stock_id,
+          row_id: part.row_id || "",
+          description: part.description || "",
+          code: part.code || "",
+          supplier: part.supplier || "",
+          quantity: part.quantity || 1,
+          serial_number: part.serial_number || "",
+          category_code: part.code || "",
+          category_description: part.description || part.code || "",
+          status: "IN STOCK",
+        },
+      ]);
+    }
   };
 
   const updatePartQuantity = (stockId, newQuantity) => {
@@ -628,12 +711,12 @@ export default function AssignPartsModal({
       toast.error("Please select at least one part");
       return;
     }
-    const missingSerialPart = selectedParts.find(
-      (part) => !resolveSerialNumber(part),
+    const missingIdentityPart = selectedParts.find(
+      (part) => !hasSerialOrUniqueItemIdentity(part),
     );
-    if (missingSerialPart) {
+    if (missingIdentityPart) {
       toast.error(
-        `No serial number found for selected stock item (${missingSerialPart?.code || missingSerialPart?.description || "item"}). Assign serial first.`,
+        `No serial or unique item ID found for selected stock item (${missingIdentityPart?.code || missingIdentityPart?.description || "item"}).`,
       );
       return;
     }
@@ -666,13 +749,15 @@ export default function AssignPartsModal({
 
       // Remove assigned items from the available list
       const assignedIds = selectedParts.map((p) =>
-        String(p.row_id || p.stock_id || "").trim(),
+        String(p.selection_key || "").trim(),
       );
       setAllStockItems((prev) =>
         prev.filter((item) => {
-          const itemKey = String(
-            item.row_id || item.id || item.stock_id || "",
-          ).trim();
+          const itemKey = buildSelectionKey(
+            modalStockSource,
+            modalStockOwner,
+            item,
+          );
           return !assignedIds.includes(itemKey);
         }),
       );
@@ -1023,7 +1108,6 @@ export default function AssignPartsModal({
                       setModalStockSource(next);
                       setModalStockOwner("");
                       setSelectedStockType("all");
-                      setSelectedParts([]);
                     }}
                     className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
@@ -1042,8 +1126,6 @@ export default function AssignPartsModal({
                       onChange={(e) => {
                         setModalStockOwner(e.target.value);
                         setSelectedStockType("all");
-                        setSelectedParts([]);
-                        fetchInventoryItems();
                       }}
                       className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
@@ -1066,8 +1148,6 @@ export default function AssignPartsModal({
                       onChange={(e) => {
                         setModalStockOwner(e.target.value);
                         setSelectedStockType("all");
-                        setSelectedParts([]);
-                        fetchInventoryItems();
                       }}
                       className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
@@ -1327,7 +1407,7 @@ export default function AssignPartsModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() =>
-                                  removePart(part.row_id || part.stock_id)
+                                  removePart(part.selection_key)
                                 }
                                 className="text-red-500 hover:text-red-700 p-0 h-6 w-6"
                               >

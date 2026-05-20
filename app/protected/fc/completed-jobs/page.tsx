@@ -262,6 +262,24 @@ const toFiniteNumber = (value: unknown): number => {
 const formatMoneyInput = (value: number): string =>
   Number.isFinite(value) ? value.toFixed(2) : "0.00";
 
+const normalizeBillingToken = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const isAdminOrRepairFallbackJob = (job?: CompletedJob | null) => {
+  const normalizedJobType = normalizeBillingToken(
+    job?.job_type ?? job?.quotation_job_type ?? "",
+  );
+  const normalizedStatus = normalizeBillingToken(job?.status ?? "");
+  return (
+    normalizedJobType === "repair" ||
+    normalizedJobType === "admincreated" ||
+    normalizedStatus === "admincreated"
+  );
+};
+
 const getQuotationProductLineTotal = (product: QuotationProduct): number => {
   const explicitTotal = toFiniteNumber(product.total_price);
   if (explicitTotal > 0) {
@@ -554,6 +572,27 @@ function FCCompletedJobsPageContent() {
   ) => {
     const quotationProducts = parseQuotationProducts(job.quotation_products);
     const derivedTotals = buildTotalsFromQuotationProducts(quotationProducts);
+    const fallbackSubtotal = Math.max(
+      0,
+      toFiniteNumber(
+        job.quotation_subtotal ??
+          job.quotation_total_amount ??
+          job.actual_cost ??
+          job.estimated_cost,
+      ),
+    );
+    const fallbackTotal = Math.max(
+      0,
+      toFiniteNumber(
+        job.quotation_total_amount ??
+          job.actual_cost ??
+          job.estimated_cost ??
+          job.quotation_subtotal,
+      ),
+    );
+    const useFallbackTotals =
+      quotationProducts.length === 0 && isAdminOrRepairFallbackJob(job);
+
     setEditingJob(job);
     setFinalizeError(null);
     setFormData({
@@ -568,9 +607,13 @@ function FCCompletedJobsPageContent() {
       job_location: toStringSafe(job.job_location),
       site_contact_person: toStringSafe(job.site_contact_person),
       site_contact_phone: toStringSafe(job.site_contact_phone),
-      quotation_subtotal: formatMoneyInput(derivedTotals.subtotal),
+      quotation_subtotal: formatMoneyInput(
+        useFallbackTotals ? fallbackSubtotal : derivedTotals.subtotal,
+      ),
       quotation_vat_amount: "0.00",
-      quotation_total_amount: formatMoneyInput(derivedTotals.total),
+      quotation_total_amount: formatMoneyInput(
+        useFallbackTotals ? fallbackTotal : derivedTotals.total,
+      ),
       estimated_cost: toStringSafe(job.estimated_cost),
       actual_cost: toStringSafe(job.actual_cost),
       work_notes: toStringSafe(job.work_notes),
@@ -765,6 +808,23 @@ function FCCompletedJobsPageContent() {
       const derivedTotals = buildTotalsFromQuotationProducts(
         normalizedQuotationProducts,
       );
+      const hasQuotationProducts = normalizedQuotationProducts.length > 0;
+      const manualSubtotal = Math.max(
+        0,
+        toFiniteNumber(formData.quotation_subtotal),
+      );
+      const manualTotal = Math.max(
+        0,
+        toFiniteNumber(formData.quotation_total_amount),
+      );
+      const resolvedSubtotal = hasQuotationProducts
+        ? derivedTotals.subtotal
+        : manualSubtotal;
+      const resolvedTotal = hasQuotationProducts
+        ? derivedTotals.total
+        : manualTotal > 0
+          ? manualTotal
+          : manualSubtotal;
 
       const finalizeData = {
         vehicle_registration: formData.vehicle_registration.trim(),
@@ -778,9 +838,9 @@ function FCCompletedJobsPageContent() {
         job_location: formData.job_location.trim() || null,
         site_contact_person: formData.site_contact_person.trim() || null,
         site_contact_phone: formData.site_contact_phone.trim() || null,
-        quotation_subtotal: derivedTotals.subtotal,
+        quotation_subtotal: resolvedSubtotal,
         quotation_vat_amount: 0,
-        quotation_total_amount: derivedTotals.total,
+        quotation_total_amount: resolvedTotal,
         quotation_products: normalizedQuotationProducts,
         estimated_cost: toNumberOrNull(formData.estimated_cost),
         actual_cost: toNumberOrNull(formData.actual_cost),
@@ -2136,6 +2196,17 @@ function FCCompletedJobsPageContent() {
                           </div>
                         </div>
                       )}
+
+                      {editableQuotationProducts.length === 0 &&
+                        isAdminOrRepairFallbackJob(editingJob) && (
+                          <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                            No quotation products found. For this{" "}
+                            {editingJob?.job_type || "admin"} job, update
+                            `Quotation Subtotal` / `Quotation Total` (or
+                            `Actual Cost`) and those values will be used during
+                            invoicing.
+                          </div>
+                        )}
 
                       <div className="space-y-2">
                         <Label htmlFor="quotation_subtotal">

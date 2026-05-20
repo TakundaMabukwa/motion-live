@@ -27,6 +27,16 @@ const normalizeEmail = (value: unknown) =>
     .trim()
     .toLowerCase();
 
+const normalizeStockSource = (value: unknown) => {
+  const normalized = String(value || 'soltrack')
+    .trim()
+    .toLowerCase();
+  if (normalized === 'client' || normalized === 'technician' || normalized === 'soltrack') {
+    return normalized;
+  }
+  return 'soltrack';
+};
+
 const extractFirstEmail = (value: unknown) => {
   const token = String(value || '')
     .split(',')
@@ -54,6 +64,10 @@ const normalizePartRecord = (part: Record<string, unknown>) => {
   normalized.row_id = String(part?.row_id ?? '').trim();
   normalized.serial_number = serialNumber;
   normalized.ip_address = String(part?.ip_address ?? '').trim();
+  normalized.source = normalizeStockSource(part?.source);
+  normalized.source_owner = String(part?.source_owner ?? '').trim().toLowerCase();
+  normalized.is_new_assignment = part?.is_new_assignment !== false;
+  normalized.selection_key = String(part?.selection_key ?? '').trim();
 
   return normalized;
 };
@@ -74,6 +88,9 @@ const resolvePartSerialToken = (value: Record<string, unknown>) =>
   normalizeToken(
     value.serial_number ?? value.serial ?? value.serialNumber ?? value.ip_address,
   );
+
+const hasRowLocatorToken = (value: Record<string, unknown>) =>
+  Boolean(parseSourceRowLocator(value.row_id));
 
 type SourceRowLocator = {
   rowId: number;
@@ -103,6 +120,9 @@ const parseSourceRowLocator = (value: unknown): SourceRowLocator | null => {
 const hasStrongPartIdentity = (value: Record<string, unknown>) =>
   Boolean(normalizeToken(value.stock_id ?? value.id)) ||
   Boolean(resolvePartSerialToken(value));
+
+const hasPartSelectionIdentity = (value: Record<string, unknown>) =>
+  hasStrongPartIdentity(value) || hasRowLocatorToken(value);
 
 const partsMatchStrict = (
   candidate: Record<string, unknown>,
@@ -283,8 +303,11 @@ export async function PUT(request: NextRequest, { params }) {
           normalizePartRecord(part || {}),
         )
       : [];
-    const stockSource = (source || 'soltrack').toString().toLowerCase();
+    const stockSource = normalizeStockSource(source);
     const stockOwner = (source_owner || '').toString();
+    const partsForSourceMutation = parts.filter(
+      (part) => part?.is_new_assignment !== false,
+    );
 
     let finalTechnicianEmail = extractFirstEmail(technician_email);
 
@@ -326,52 +349,92 @@ export async function PUT(request: NextRequest, { params }) {
       return NextResponse.json({ error: 'Technician email is required' }, { status: 400 });
     }
 
-    const missingSerialPart = parts.find((part) => !resolvePartSerialToken(part));
-    if (missingSerialPart) {
+    const missingIdentityPart = partsForSourceMutation.find(
+      (part) => !hasPartSelectionIdentity(part),
+    );
+    if (missingIdentityPart) {
       return NextResponse.json(
         {
-          error: `No serial number found for selected stock item (${getPartIdentityLabel(missingSerialPart)}). Assign serial number first.`,
+          error: `No serial number or unique item identity found for selected stock item (${getPartIdentityLabel(missingIdentityPart)}).`,
         },
         { status: 409 },
       );
     }
 
     const applySourceStockChanges = async () => {
-      if (stockSource === 'soltrack') {
-        for (const item of parts) {
-          const itemId = item.stock_id || item.inventory_item_id || item.id;
-          if (!itemId) continue;
-          const { error } = await supabase.from('inventory_items').delete().eq('id', itemId);
-          if (error) {
-            return {
-              success: false,
-              warning: `Failed to remove one or more Soltrack stock items: ${error.message}`,
-            };
-          }
-        }
+      if (partsForSourceMutation.length === 0) {
         return { success: true };
       }
 
-      if (stockSource === 'client') {
-        for (const item of parts) {
-          const itemId = item.stock_id || item.inventory_item_id || item.id;
-          if (!itemId) continue;
-          const { error } = await supabase
-            .from('client_inventory_items')
-            .delete()
-            .eq('id', itemId);
-          if (error) {
-            return {
-              success: false,
-              warning: `Failed to remove one or more client stock items: ${error.message}`,
-            };
-          }
+      const partsBySource = {
+        soltrack: [] as Record<string, unknown>[],
+        client: [] as Record<string, unknown>[],
+        technician: [] as Record<string, unknown>[],
+      };
+
+      partsForSourceMutation.forEach((part) => {
+        const mutationSource = normalizeStockSource(part?.source ?? stockSource);
+        partsBySource[mutationSource].push(part);
+      });
+
+      for (const item of partsBySource.soltrack) {
+        const itemId = item.stock_id || item.inventory_item_id || item.id;
+        if (!itemId) continue;
+        const { error } = await supabase
+          .from('inventory_items')
+          .delete()
+          .eq('id', itemId);
+        if (error) {
+          return {
+            success: false,
+            warning: `Failed to remove one or more Soltrack stock items: ${error.message}`,
+          };
         }
+      }
+
+      for (const item of partsBySource.client) {
+        const itemId = item.stock_id || item.inventory_item_id || item.id;
+        if (!itemId) continue;
+        const { error } = await supabase
+          .from('client_inventory_items')
+          .delete()
+          .eq('id', itemId);
+        if (error) {
+          return {
+            success: false,
+            warning: `Failed to remove one or more client stock items: ${error.message}`,
+          };
+        }
+      }
+
+      if (partsBySource.technician.length === 0) {
         return { success: true };
       }
 
-      if (stockSource === 'technician') {
-        const parsedSelections = parts
+      const technicianPartsByOwner = new Map<string, Record<string, unknown>[]>();
+      for (const part of partsBySource.technician) {
+        const partOwner = extractFirstEmail(
+          part?.source_owner ||
+            technicianSourceEmail ||
+            stockOwner ||
+            jobCard.technician_phone ||
+            technician_email ||
+            '',
+        );
+        if (!partOwner) {
+          return {
+            success: false,
+            warning:
+              'Technician email is required for technician stock booking. Please refresh and select technician stock again.',
+          };
+        }
+        const existing = technicianPartsByOwner.get(partOwner) || [];
+        existing.push(part);
+        technicianPartsByOwner.set(partOwner, existing);
+      }
+
+      for (const [technicianEmailForMutation, technicianParts] of technicianPartsByOwner.entries()) {
+        const parsedSelections = technicianParts
           .map((selectedPart) => {
             const normalizedSelected = normalizePartRecord(selectedPart);
             const rowId = String(normalizedSelected.row_id || '').trim();
@@ -392,7 +455,7 @@ export async function PUT(request: NextRequest, { params }) {
           );
 
         if (parsedSelections.length === 0) {
-          return { success: true };
+          continue;
         }
 
         if (parsedSelections.some((selection) => !selection.rowLocator)) {
@@ -400,16 +463,6 @@ export async function PUT(request: NextRequest, { params }) {
             success: false,
             warning:
               'Selected technician stock item is stale. Please refresh and select exact rows again.',
-          };
-        }
-
-        const missingSerialSelection = parsedSelections.find(
-          (selection) => !resolvePartSerialToken(selection.normalizedSelected),
-        );
-        if (missingSerialSelection) {
-          return {
-            success: false,
-            warning: `No serial number found for selected technician stock item (${getPartIdentityLabel(missingSerialSelection.normalizedSelected)}).`,
           };
         }
 
@@ -428,7 +481,7 @@ export async function PUT(request: NextRequest, { params }) {
         const { data: techStockRows, error: techFetchError } = await supabase
           .from('tech_stock')
           .select('id, technician_email, assigned_parts, stock')
-          .ilike('technician_email', technicianSourceEmail)
+          .ilike('technician_email', technicianEmailForMutation)
           .in('id', requiredRowIds);
 
         if (techFetchError) {
@@ -464,7 +517,7 @@ export async function PUT(request: NextRequest, { params }) {
 
           rowStates.set(rowId, {
             rowId,
-            technicianEmail: String(row?.technician_email || technicianSourceEmail),
+            technicianEmail: String(row?.technician_email || technicianEmailForMutation),
             assignedParts,
             stock,
             legacyRefs: collectLegacyEntryRefs(stock),
@@ -508,12 +561,6 @@ export async function PUT(request: NextRequest, { params }) {
             const locatedCandidate = normalizePartRecord(
               locatedPart as Record<string, unknown>,
             );
-            if (!resolvePartSerialToken(locatedCandidate)) {
-              return {
-                success: false,
-                warning: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedCandidate)}).`,
-              };
-            }
             if (
               requiresIdentityCheck &&
               !partsMatchStrict(locatedCandidate, normalizedSelected)
@@ -544,12 +591,6 @@ export async function PUT(request: NextRequest, { params }) {
                 success: false,
                 warning:
                   'Selected technician stock item is stale. Please refresh and try again.',
-              };
-            }
-            if (!resolvePartSerialToken(locatedLegacyEntry.candidate)) {
-              return {
-                success: false,
-                warning: `No serial number found in technician stock for selected item (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
               };
             }
             if (
@@ -614,10 +655,16 @@ export async function PUT(request: NextRequest, { params }) {
 
 
     // Generate QR code
+    const persistedParts = parts.map((part) => {
+      const sanitized = { ...part };
+      delete sanitized.is_new_assignment;
+      return sanitized;
+    });
+
     const qrData = {
       job_number: jobCard.job_number,
       job_id: jobCard.id,
-      assigned_parts: parts,
+      assigned_parts: persistedParts,
       technician: jobCard.technician_phone,
       assigned_date: new Date().toISOString()
     };
@@ -626,7 +673,7 @@ export async function PUT(request: NextRequest, { params }) {
 
     // Prepare update data
     const updateData = {
-      parts_required: parts,
+      parts_required: persistedParts,
       qr_code: qrCodeUrl,
       role: "admin",
       status: "admin_created",
@@ -660,14 +707,18 @@ export async function PUT(request: NextRequest, { params }) {
     // If technician is already assigned, copy parts to tech_stock
     let techStockMessage = '';
     let canApplySourceChanges = true;
+    const partsForTechnicianCopy = partsForSourceMutation.filter(
+      (part) => normalizeStockSource(part?.source ?? stockSource) === 'soltrack',
+    );
+
     if (
-      stockSource === 'soltrack' &&
+      partsForTechnicianCopy.length > 0 &&
       (isEmailLike(finalTechnicianEmail) || isEmailLike(extractFirstEmail(jobCard.technician_phone)))
     ) {
       const techEmail = isEmailLike(finalTechnicianEmail)
         ? finalTechnicianEmail
         : extractFirstEmail(jobCard.technician_phone);
-      const result = await addPartsToTechnicianStock(supabase, techEmail, parts);
+      const result = await addPartsToTechnicianStock(supabase, techEmail, partsForTechnicianCopy);
       
       if (result?.success) {
         techStockMessage = ` Parts copied to technician stock (${result.partsAdded} items).`;
@@ -683,7 +734,7 @@ export async function PUT(request: NextRequest, { params }) {
       if (!sourceMutation.success && sourceMutation.warning) {
         sourceStockMessage = ` Warning: ${sourceMutation.warning}`;
       }
-    } else if (stockSource === 'soltrack') {
+    } else if (partsForTechnicianCopy.length > 0) {
       sourceStockMessage =
         ' Warning: Source stock was not removed because technician stock update failed.';
     }

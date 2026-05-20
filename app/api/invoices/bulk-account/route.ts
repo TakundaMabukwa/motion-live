@@ -361,7 +361,8 @@ export async function POST(request: NextRequest) {
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
     const allowLockedRebuild = Boolean(body?.allowLockedRebuild);
-    const canOverrideLockedInvoice = allowLockedRebuild;
+    const preserveInvoiceIdentity = Boolean(body?.preserveInvoiceIdentity);
+    const canOverrideLockedInvoice = allowLockedRebuild || preserveInvoiceIdentity;
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -444,11 +445,26 @@ export async function POST(request: NextRequest) {
       notes: body?.notes || null,
     };
 
+    if (preserveInvoiceIdentity && !existingInvoice) {
+      return NextResponse.json(
+        { error: "Cannot preserve invoice identity: no existing invoice found for this account/month" },
+        { status: 409 },
+      );
+    }
+
     if (existingInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
+      const invoiceDateToKeep =
+        preserveInvoiceIdentity && existingInvoice?.invoice_date
+          ? existingInvoice.invoice_date
+          : payload.invoice_date;
       let allocationAuditId: string | null = null;
 
-      if (!hasRealInvoiceNumber(invoiceNumberToKeep) && !existingInvoice?.invoice_locked) {
+      if (
+        !preserveInvoiceIdentity &&
+        !hasRealInvoiceNumber(invoiceNumberToKeep) &&
+        !existingInvoice?.invoice_locked
+      ) {
         try {
           const allocation = await allocateTrackedInvoiceNumber(supabase, {
             source: "api/invoices/bulk-account",
@@ -474,6 +490,7 @@ export async function POST(request: NextRequest) {
         .from("bulk_account_invoices")
         .update({
           ...payload,
+          invoice_date: invoiceDateToKeep,
           invoice_number: invoiceNumberToKeep,
         })
         .eq("id", existingInvoice.id)

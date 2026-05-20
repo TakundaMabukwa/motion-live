@@ -1859,6 +1859,42 @@ export default function AccountsContent({ activeSection }) {
     return [];
   };
 
+  const normalizeBillingToken = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const isAdminOrRepairFallbackJob = (job) => {
+    const normalizedJobType = normalizeBillingToken(
+      job?.job_type || job?.quotation_job_type,
+    );
+    const normalizedStatus = normalizeBillingToken(job?.status);
+
+    return (
+      normalizedJobType === "repair" ||
+      normalizedJobType === "admincreated" ||
+      normalizedStatus === "admincreated"
+    );
+  };
+
+  const getAdminOrRepairFallbackSubtotal = (job) => {
+    const candidates = [
+      job?.quotation_total_amount,
+      job?.actual_cost,
+      job?.estimated_cost,
+      job?.quotation_subtotal,
+    ];
+
+    for (const candidate of candidates) {
+      const amount = toNumber(candidate);
+      if (amount > 0) {
+        return amount;
+      }
+    }
+
+    return 0;
+  };
+
   const getRecurringChargeAmount = (product, priceKey, grossKey) => {
     const priceAmount = toNumber(product?.[priceKey]);
     if (priceAmount > 0) return priceAmount;
@@ -2069,8 +2105,7 @@ export default function AccountsContent({ activeSection }) {
 
   const getInvoiceBuilderJobLines = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
-
-    return products.flatMap((product, productIndex) =>
+    const productLines = products.flatMap((product, productIndex) =>
       getProductChargeLines(product, job)
         .filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0)
         .map((chargeLine, chargeIndex) => {
@@ -2103,6 +2138,53 @@ export default function AccountsContent({ activeSection }) {
           };
         }),
     );
+
+    if (productLines.length > 0) {
+      return productLines;
+    }
+
+    if (!isAdminOrRepairFallbackJob(job)) {
+      return [];
+    }
+
+    const fallbackSubtotal = getAdminOrRepairFallbackSubtotal(job);
+    if (fallbackSubtotal <= 0) {
+      return [];
+    }
+
+    const fallbackVat = Number((fallbackSubtotal * VAT_RATE).toFixed(2));
+    const fallbackTotal = Number((fallbackSubtotal + fallbackVat).toFixed(2));
+    const fallbackChargeType =
+      normalizeBillingToken(job?.job_type || job?.quotation_job_type) === "repair"
+        ? "Repair"
+        : "Admin";
+
+    return [
+      {
+        id: `${job.id || "job"}:fallback-admin-repair`,
+        jobCardId: job.id,
+        jobNumber: job.job_number,
+        clientName: job.customer_name || "Unknown Customer",
+        accountNumber: job.new_account_number || "",
+        vehicleRegistration: job.vehicle_registration || "",
+        vehicleLabel: job.vehicle_registration || "",
+        itemName:
+          fallbackChargeType === "Repair"
+            ? "Repair Job Charge"
+            : "Admin Job Charge",
+        description:
+          job.completion_notes ||
+          job.work_notes ||
+          job.job_description ||
+          `${fallbackChargeType} job charge`,
+        chargeType: fallbackChargeType,
+        quantity: 1,
+        unitPrice: fallbackSubtotal,
+        subtotal: fallbackSubtotal,
+        vat: fallbackVat,
+        total: fallbackTotal,
+      },
+    ];
   };
 
   const selectedInvoiceBuilderCostCenter =
@@ -2361,7 +2443,12 @@ export default function AccountsContent({ activeSection }) {
       return sum + unitPrice * qty;
     }, 0);
 
-    const subtotal = computedSubtotal;
+    const subtotal =
+      computedSubtotal > 0
+        ? computedSubtotal
+        : isAdminOrRepairFallbackJob(job)
+          ? getAdminOrRepairFallbackSubtotal(job)
+          : 0;
     const vat = Number((subtotal * VAT_RATE).toFixed(2));
     const total = Number((subtotal + vat).toFixed(2));
 
@@ -2593,10 +2680,28 @@ export default function AccountsContent({ activeSection }) {
               newReg: hideRegistrationColumns
                 ? ""
                 : vehicleSummary || "N/A",
-              itemCode: selectedJobForInvoice.job_type || "Service",
-              description:
-                selectedJobForInvoice.job_description || "Job completion",
-              comments: "",
+              itemCode:
+                isAdminOrRepairFallbackJob(selectedJobForInvoice) &&
+                normalizeBillingToken(
+                  selectedJobForInvoice?.job_type ||
+                    selectedJobForInvoice?.quotation_job_type,
+                ) === "repair"
+                  ? "REPAIR"
+                  : isAdminOrRepairFallbackJob(selectedJobForInvoice)
+                    ? "ADMIN"
+                    : selectedJobForInvoice.job_type || "Service",
+              description: isAdminOrRepairFallbackJob(selectedJobForInvoice)
+                ? normalizeBillingToken(
+                    selectedJobForInvoice?.job_type ||
+                      selectedJobForInvoice?.quotation_job_type,
+                  ) === "repair"
+                  ? "Repair Job Charge"
+                  : "Admin Job Charge"
+                : selectedJobForInvoice.job_description || "Job completion",
+              comments:
+                selectedJobForInvoice.completion_notes ||
+                selectedJobForInvoice.work_notes ||
+                "",
               qty: 1,
               unitPrice: rawTotals.subtotal,
               vatPercent: "15.00%",
@@ -2968,7 +3073,21 @@ export default function AccountsContent({ activeSection }) {
 
   const formatBilledItems = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
-    if (!products.length) return "No billed items";
+    if (!products.length) {
+      if (!isAdminOrRepairFallbackJob(job)) {
+        return "No billed items";
+      }
+      const fallbackAmount = getAdminOrRepairFallbackSubtotal(job);
+      if (fallbackAmount <= 0) {
+        return "No billed items";
+      }
+      const fallbackLabel =
+        normalizeBillingToken(job?.job_type || job?.quotation_job_type) ===
+        "repair"
+          ? "Repair Job Charge"
+          : "Admin Job Charge";
+      return `${fallbackLabel} x1`;
+    }
     const labels = products.map((product) => {
       const qty = Math.max(1, toNumber(product?.quantity) || 1);
       const name = product?.name || product?.item_code || "Item";
@@ -4710,6 +4829,20 @@ export default function AccountsContent({ activeSection }) {
                   </h3>
                   {(() => {
                     const totals = getInvoiceTotals(selectedJobDetails);
+                    const fallbackSubtotal = isAdminOrRepairFallbackJob(
+                      selectedJobDetails,
+                    )
+                      ? getAdminOrRepairFallbackSubtotal(selectedJobDetails)
+                      : 0;
+                    const showFallbackRow =
+                      totals.products.length === 0 && fallbackSubtotal > 0;
+                    const fallbackLabel =
+                      normalizeBillingToken(
+                        selectedJobDetails?.job_type ||
+                          selectedJobDetails?.quotation_job_type,
+                      ) === "repair"
+                        ? "Repair Job Charge"
+                        : "Admin Job Charge";
                     return (
                       <Table>
                         <TableHeader>
@@ -4726,13 +4859,32 @@ export default function AccountsContent({ activeSection }) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {totals.products.length === 0 ? (
+                          {totals.products.length === 0 && !showFallbackRow ? (
                             <TableRow>
                               <TableCell
                                 colSpan={5}
                                 className="text-center text-sm text-gray-500"
                               >
                                 No quotation products found for this job.
+                              </TableCell>
+                            </TableRow>
+                          ) : showFallbackRow ? (
+                            <TableRow>
+                              <TableCell className="font-medium">
+                                {fallbackLabel}
+                              </TableCell>
+                              <TableCell className="text-gray-600">
+                                {selectedJobDetails?.completion_notes ||
+                                  selectedJobDetails?.work_notes ||
+                                  selectedJobDetails?.job_description ||
+                                  `${fallbackLabel} for ${selectedJobDetails?.job_number || "job"}`}
+                              </TableCell>
+                              <TableCell className="text-right">1</TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(fallbackSubtotal)}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(fallbackSubtotal)}
                               </TableCell>
                             </TableRow>
                           ) : (

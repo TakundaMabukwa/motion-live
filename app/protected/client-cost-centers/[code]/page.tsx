@@ -4926,6 +4926,7 @@ export default function ClientCostCentersPage() {
         accountNumber: selectedCostCenterForInvoice.accountNumber,
         billingMonth,
       });
+      invoiceQuery.set('forceRebuildFromVehicles', 'true');
 
       if (selectedCostCenterForInvoice.sourceAccountNumber) {
         invoiceQuery.set('sourceAccountNumber', selectedCostCenterForInvoice.sourceAccountNumber);
@@ -4978,6 +4979,7 @@ export default function ClientCostCentersPage() {
               : [],
           notes: rebuiltInvoiceData?.notes || '',
           allowLockedRebuild: canAdminRebuildInvoice,
+          preserveInvoiceIdentity: true,
         }),
       });
 

@@ -85,11 +85,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('API: Query successful', { 
-      companyGroupsCount: companyGroups?.length || 0, 
-      totalCount: count 
-    });
-
     // Transform the data and fetch vehicle amounts for each group
     const transformedCompanyGroups = await Promise.all(
       (companyGroups || []).map(async (group) => {
@@ -115,7 +110,6 @@ export async function GET(request: NextRequest) {
           
           // Fetch vehicle amounts for this prefix
           try {
-            console.log(`Fetching vehicle invoices for prefix: ${prefix}`);
             const { data: vehicleInvoices, error: vehicleError } = await supabase
               .from('vehicle_invoices')
               .select('*')
@@ -186,8 +180,6 @@ export async function GET(request: NextRequest) {
                 // Calculate overdue amount (what's actually due now)
                 const overdueAmount = getOverdueAmount(oneMonth, secondMonth, thirdMonth);
 
-                console.log(`Invoice ${invoice.id}: one_month=${oneMonth}, 2nd_month=${secondMonth}, 3rd_month=${thirdMonth}, monthlyAmount=${monthlyAmount}, overdueAmount=${overdueAmount}`);
-
                 return {
                   totalMonthlyAmount: acc.totalMonthlyAmount + monthlyAmount,
                   totalAmountDue: acc.totalAmountDue + overdueAmount, // This is what's actually due now
@@ -195,8 +187,6 @@ export async function GET(request: NextRequest) {
                   uniqueClientCount: uniqueClients.size
                 };
               }, { totalMonthlyAmount: 0, totalAmountDue: 0, vehicleCount: 0, uniqueClientCount: 0 });
-
-              console.log(`Final amounts for prefix ${prefix}:`, vehicleAmounts);
             }
           } catch (vehicleError) {
             console.error(`Error fetching vehicle amounts for prefix ${prefix}:`, vehicleError);
@@ -250,10 +240,6 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    console.log('API: Data transformation complete', { 
-      transformedCount: transformedCompanyGroups.length 
-    });
-
     const response = {
       companyGroups: transformedCompanyGroups,
       count: count || 0,
@@ -264,7 +250,6 @@ export async function GET(request: NextRequest) {
       fetchAll
     };
 
-    console.log('API: Request completed successfully');
     return NextResponse.json(response);
 
   } catch (error) {
