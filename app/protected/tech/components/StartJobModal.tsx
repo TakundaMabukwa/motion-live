@@ -216,7 +216,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const beforePhotoInputRef = useRef<HTMLInputElement>(null);
+  const beforeGalleryInputRef = useRef<HTMLInputElement>(null);
   const afterPhotoInputRef = useRef<HTMLInputElement>(null);
+  const afterGalleryInputRef = useRef<HTMLInputElement>(null);
 
   const formatLocalDateTime = (date: Date = new Date()) => {
     const year = date.getFullYear();
@@ -257,6 +259,48 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       }
     }
     return [];
+  };
+
+  const getSerialToken = (item: any) =>
+    String(
+      item?.serial_number ||
+        item?.serialNumber ||
+        item?.ip_address ||
+        item?.ipAddress ||
+        '',
+    )
+      .trim()
+      .toUpperCase();
+
+  const getUniqueItemId = (item: any) =>
+    String(item?.row_id || item?.stock_id || item?.id || '').trim();
+
+  const getAssignedFallbackId = (item: any) =>
+    String(item?.stock_id || item?.part_required_id || item?.id || '').trim();
+
+  const getSelectionKeyForItem = (
+    source: 'assigned' | 'stock' | 'quote',
+    item: any,
+    index: number,
+  ) => {
+    const serial = getSerialToken(item);
+    // Build a key that is stable AND unique:
+    // - For technician stock: prefer row_id/stock_id, but still include serial when present.
+    // - For assigned parts: fallback must be stock_id (per schema expectation).
+    if (source === 'assigned') {
+      const fallbackId = getAssignedFallbackId(item);
+      if (serial && fallbackId) return `${source}:serial:${serial}:stock:${fallbackId}`;
+      if (serial) return `${source}:serial:${serial}`;
+      if (fallbackId) return `${source}:stock:${fallbackId}`;
+    } else {
+      const uniqueId = getUniqueItemId(item);
+      if (serial && uniqueId) return `${source}:serial:${serial}:id:${uniqueId}`;
+      if (serial) return `${source}:serial:${serial}`;
+      if (uniqueId) return `${source}:id:${uniqueId}`;
+    }
+
+    const fallback = `${String(item?.description || item?.name || item?.code || 'item').trim()}::${index}`;
+    return `${source}:fallback:${fallback}`;
   };
 
   const isDeinstallJob = (currentJob: any) => {
@@ -322,16 +366,10 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       .map((item: any) => {
         const source = String(item?.source || '');
         if (source === 'job_card.parts_required') {
-          const partId = String(item?.part_required_id || item?.stock_id || item?.id || '').trim();
-          if (partId) return `assigned:${partId}`;
-          const fallback = `${String(item?.code || '')}::${String(item?.description || item?.name || '')}`;
-          return fallback.trim() ? `assigned:${fallback}` : '';
+          return getSelectionKeyForItem('assigned', item, 0);
         }
         if (source === 'tech_stock.assigned_parts') {
-          const rowId = String(item?.row_id || '').trim();
-          if (rowId) return `stock:${rowId}`;
-          const stockId = String(item?.stock_id || item?.id || '').trim();
-          return stockId ? `stock:${stockId}` : '';
+          return getSelectionKeyForItem('stock', item, 0);
         }
         if (source === 'job_card.quotation_products.deinstall') {
           const quoteKey = String(item?.quote_item_key || item?.id || '').trim();
@@ -346,15 +384,13 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const getAssignedPartsOptions = (currentJob: any) => {
     const items = parseArrayField(currentJob?.parts_required);
     return items.map((item: any, index: number) => {
-      const baseId = String(
-        item?.part_required_id ||
-        item?.stock_id ||
-        item?.id ||
-        `${item?.code || 'part'}::${item?.description || item?.name || ''}::${index}`
-      );
+      const baseId =
+        getAssignedFallbackId(item) ||
+        `${item?.code || 'part'}::${item?.description || item?.name || ''}::${index}`;
+      const selectionKey = getSelectionKeyForItem('assigned', item, index);
 
       return {
-        selectionKey: `assigned:${baseId}`,
+        selectionKey,
         equipmentItem: {
           ...item,
           part_required_id: baseId,
@@ -498,11 +534,9 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         .map((option) => option.equipmentItem);
 
       const selectedStockItems = technicianStock
-        .filter((item) => {
-          const selectionId = String(item?.row_id || item?.stock_id || item?.id || '').trim();
-          return selectionId
-            ? selectedEquipmentIds.includes(`stock:${selectionId}`)
-            : false;
+        .filter((item, index) => {
+          const selectionKey = getSelectionKeyForItem('stock', item, index);
+          return selectedEquipmentIds.includes(selectionKey);
         })
         .map((item) => ({
           row_id: String(item?.row_id || '').trim(),
@@ -649,6 +683,27 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
     } catch (error) {
       console.log('Permission API not supported, proceeding with camera access');
       return true;
+    }
+  };
+
+  const requestMediaPermissions = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast.error('Camera API is not available on this device/browser.');
+        return false;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach((track) => track.stop());
+      toast.success('Camera permission granted.');
+      return true;
+    } catch (error: any) {
+      if (error?.name === 'NotAllowedError') {
+        toast.error('Camera access denied. Please allow camera permission in browser settings.');
+      } else {
+        toast.error('Unable to request camera permission.');
+      }
+      return false;
     }
   };
 
@@ -828,6 +883,20 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const handleAfterNativePhotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
     await addPhotosFromNativePicker(event.target.files, 'after');
     event.target.value = '';
+  };
+
+  const openBeforeCameraPicker = async () => {
+    const canUseCamera = await requestMediaPermissions();
+    if (canUseCamera) {
+      beforePhotoInputRef.current?.click();
+    }
+  };
+
+  const openAfterCameraPicker = async () => {
+    const canUseCamera = await requestMediaPermissions();
+    if (canUseCamera) {
+      afterPhotoInputRef.current?.click();
+    }
   };
 
   const startCamera = async () => {
@@ -2143,6 +2212,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       onChange={handleBeforeNativePhotoChange}
                       className="hidden"
                     />
+                    <input
+                      ref={beforeGalleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleBeforeNativePhotoChange}
+                      className="hidden"
+                    />
                      
                     {!streamRef.current && (
                       <div className="flex flex-col items-center justify-center h-64 text-center p-6">
@@ -2151,15 +2228,25 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                         </div>
                         <p className="text-gray-400 mb-4">Camera not accessible</p>
                         <div className="flex flex-col sm:flex-row gap-2">
+                          <Button onClick={requestMediaPermissions} variant="outline">
+                            Grant Permissions
+                          </Button>
                           <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
                             Start Camera
                           </Button>
                           <Button
-                            onClick={() => beforePhotoInputRef.current?.click()}
+                            onClick={openBeforeCameraPicker}
                             variant="outline"
                             className="border-slate-500 text-white hover:bg-slate-800"
                           >
-                            Use Phone Camera
+                            Use Device Camera
+                          </Button>
+                          <Button
+                            onClick={() => beforeGalleryInputRef.current?.click()}
+                            variant="outline"
+                            className="border-slate-500 text-white hover:bg-slate-800"
+                          >
+                            Pick from Gallery
                           </Button>
                         </div>
                       </div>
@@ -2187,11 +2274,18 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                           Switch Camera
                         </Button>
                         <Button
-                          onClick={() => beforePhotoInputRef.current?.click()}
+                          onClick={openBeforeCameraPicker}
                           variant="outline"
                           className="sm:w-auto"
                         >
-                          Use Phone Camera
+                          Use Device Camera
+                        </Button>
+                        <Button
+                          onClick={() => beforeGalleryInputRef.current?.click()}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Pick from Gallery
                         </Button>
                       </div>
 
@@ -2355,11 +2449,8 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900">{option.equipmentItem.description}</p>
                               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
-                                <span>Code: {option.equipmentItem.code || 'N/A'}</span>
+                                <span>Serial: {option.equipmentItem.serial_number || 'N/A'}</span>
                                 <span>Qty: {option.equipmentItem.quantity || 1}</span>
-                                {option.equipmentItem.serial_number ? (
-                                  <span>Serial: {option.equipmentItem.serial_number}</span>
-                                ) : null}
                                 {option.equipmentItem.supplier ? (
                                   <span>Supplier: {option.equipmentItem.supplier}</span>
                                 ) : null}
@@ -2433,19 +2524,22 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div className="max-h-[42vh] overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                       {technicianStock.map((item: any, index: number) => {
-                        const rawItemId = String(item?.row_id || item?.stock_id || item?.id || '').trim();
-                        const itemId = rawItemId || `fallback-${index}`;
-                        const checked = selectedEquipmentIds.includes(`stock:${itemId}`);
+                        const selectionKey = getSelectionKeyForItem('stock', item, index);
+                        const checked = selectedEquipmentIds.includes(selectionKey);
                         const itemSerial = String(
                           item?.serial_number ||
-                          item?.serialNumber ||
-                          item?.ip_address ||
-                          item?.ipAddress ||
-                          ''
+                            item?.serialNumber ||
+                            item?.ip_address ||
+                            item?.ipAddress ||
+                            '',
                         ).trim();
+                        const itemFallbackId = String(
+                          item?.stock_id || item?.row_id || item?.id || '',
+                        ).trim();
+                        const displayId = itemSerial || itemFallbackId || 'Unknown';
                         return (
                           <label
-                            key={itemId}
+                            key={selectionKey}
                             className={`flex items-start gap-3 p-3 border-b border-gray-100 md:border-r cursor-pointer ${
                               checked ? 'bg-blue-50' : 'bg-white'
                             }`}
@@ -2453,16 +2547,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={() => toggleEquipmentItem(`stock:${itemId}`)}
-                              disabled={!rawItemId}
+                              onChange={() => toggleEquipmentItem(selectionKey)}
                               className="mt-1 h-4 w-4 accent-blue-600"
                             />
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{item.description || 'Unnamed item'}</p>
                               <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                <span>Code: {item.code || 'N/A'}</span>
+                                <span>{itemSerial ? 'Serial' : 'ID'}: {displayId}</span>
                                 <span>Supplier: {item.supplier || 'N/A'}</span>
-                                {itemSerial ? <span>Serial: {itemSerial}</span> : null}
                                 <span>Available: {parseInt(String(item.quantity || '0')) || 0}</span>
                               </div>
                             </div>
@@ -2594,6 +2686,14 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                       onChange={handleAfterNativePhotoChange}
                       className="hidden"
                     />
+                    <input
+                      ref={afterGalleryInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleAfterNativePhotoChange}
+                      className="hidden"
+                    />
                      
                     {!streamRef.current && (
                       <div className="flex flex-col items-center justify-center h-64 text-center p-6">
@@ -2602,15 +2702,25 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                         </div>
                         <p className="text-gray-400 mb-4">Camera not accessible</p>
                         <div className="flex flex-col sm:flex-row gap-2">
+                          <Button onClick={requestMediaPermissions} variant="outline">
+                            Grant Permissions
+                          </Button>
                           <Button onClick={startCamera} className="bg-blue-600 hover:bg-blue-700">
                             Start Camera
                           </Button>
                           <Button
-                            onClick={() => afterPhotoInputRef.current?.click()}
+                            onClick={openAfterCameraPicker}
                             variant="outline"
                             className="border-slate-500 text-white hover:bg-slate-800"
                           >
-                            Use Phone Camera
+                            Use Device Camera
+                          </Button>
+                          <Button
+                            onClick={() => afterGalleryInputRef.current?.click()}
+                            variant="outline"
+                            className="border-slate-500 text-white hover:bg-slate-800"
+                          >
+                            Pick from Gallery
                           </Button>
                         </div>
                       </div>
@@ -2638,11 +2748,18 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                           Switch Camera
                         </Button>
                         <Button
-                          onClick={() => afterPhotoInputRef.current?.click()}
+                          onClick={openAfterCameraPicker}
                           variant="outline"
                           className="sm:w-auto"
                         >
-                          Use Phone Camera
+                          Use Device Camera
+                        </Button>
+                        <Button
+                          onClick={() => afterGalleryInputRef.current?.click()}
+                          variant="outline"
+                          className="sm:w-auto"
+                        >
+                          Pick from Gallery
                         </Button>
                       </div>
 

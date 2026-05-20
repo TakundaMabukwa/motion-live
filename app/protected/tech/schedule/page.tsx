@@ -41,6 +41,22 @@ const MONTHS = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const splitCsv = (value: string | null | undefined) =>
+  String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const toDisplayName = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Unknown Technician';
+  const beforeAt = raw.includes('@') ? raw.split('@')[0] : raw;
+  return beforeAt
+    .replace(/[._-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 export default function TechSchedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState('');
@@ -59,6 +75,7 @@ export default function TechSchedule() {
   const [selectedTechnician, setSelectedTechnician] = useState(null);
   const [technicianColors, setTechnicianColors] = useState({});
   const [showDateJobsDialog, setShowDateJobsDialog] = useState(false);
+  const [technicians, setTechnicians] = useState<any[]>([]);
 
   const pathname = usePathname();
 
@@ -82,6 +99,29 @@ export default function TechSchedule() {
       }
       const userData = await userResponse.json();
       setUserInfo(userData);
+
+      let techniciansList: any[] = [];
+      if (userData.isTechAdmin) {
+        try {
+          const techniciansResponse = await fetch('/api/technicians', {
+            cache: 'no-store',
+          });
+          if (techniciansResponse.ok) {
+            const techniciansPayload = await techniciansResponse.json();
+            techniciansList = Array.isArray(techniciansPayload?.technicians)
+              ? techniciansPayload.technicians
+              : [];
+            setTechnicians(techniciansList);
+          } else {
+            setTechnicians([]);
+          }
+        } catch (techniciansError) {
+          console.error('Error fetching technicians list:', techniciansError);
+          setTechnicians([]);
+        }
+      } else {
+        setTechnicians([]);
+      }
       
       console.log('User info:', userData);
       
@@ -165,6 +205,12 @@ export default function TechSchedule() {
             jobsByDate[dateKey] = [];
           }
           
+          const technicianEmail = splitCsv(job.technician_phone)[0] || '';
+          const technicianName =
+            splitCsv(job.technician_name)[0] ||
+            toDisplayName(technicianEmail);
+          const technicianKey = technicianEmail || technicianName;
+
           const jobData = {
             id: job.id,
             jobNumber: job.job_number,
@@ -174,8 +220,8 @@ export default function TechSchedule() {
             customerAddress: job.customer_address,
             productName: job.job_description || 'Job Service',
             quantity: 1,
-            technician: job.technician_name || job.technician_phone,
-            technicianEmail: job.technician_phone,
+            technician: technicianName,
+            technicianEmail,
             technicianColor: getColorHex(job.technician_color) || '#6B7280',
             time: formatScheduleTime(job.start_time, job.job_date),
             rawStartTime: job.start_time || null,
@@ -191,7 +237,7 @@ export default function TechSchedule() {
           jobsByDate[dateKey].push(jobData);
           
           // Track technician jobs for availability
-          const techKey = job.technician_name || job.technician_phone;
+          const techKey = technicianKey;
           if (!technicianJobs[techKey]) {
             technicianJobs[techKey] = [];
           }
@@ -218,7 +264,19 @@ export default function TechSchedule() {
       setTechnicianColors(colors);
       
       // Calculate team availability
-      calculateTeamAvailability(technicianJobs);
+      if (userData.isTechAdmin && techniciansList.length > 0) {
+        techniciansList.forEach((technician) => {
+          const techEmail = String(technician?.email || '').trim();
+          const techName = String(technician?.name || '').trim();
+          const key = techEmail || techName;
+          if (!key) return;
+          if (!technicianJobs[key]) {
+            technicianJobs[key] = [];
+          }
+        });
+      }
+
+      calculateTeamAvailability(technicianJobs, techniciansList);
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast.error('Failed to load jobs');
@@ -227,11 +285,11 @@ export default function TechSchedule() {
     }
   };
 
-  const calculateTeamAvailability = (technicianJobs) => {
+  const calculateTeamAvailability = (technicianJobs, techniciansDirectory = technicians) => {
     const availability = {};
     
-    Object.keys(technicianJobs).forEach(technicianEmail => {
-      const jobs = technicianJobs[technicianEmail];
+    Object.keys(technicianJobs).forEach((technicianKey) => {
+      const jobs = technicianJobs[technicianKey];
       const now = currentTime;
       
       // Check if technician is currently busy
@@ -246,7 +304,18 @@ export default function TechSchedule() {
       const today = now.toISOString().split('T')[0];
       const todaysJobs = jobs.filter(job => job.date === today);
       
-      availability[technicianEmail] = {
+      const matchedTechnician = techniciansDirectory.find((technician) => {
+        const email = String(technician?.email || '').trim();
+        const name = String(technician?.name || '').trim();
+        return technicianKey === email || technicianKey === name;
+      });
+
+      availability[technicianKey] = {
+        key: technicianKey,
+        email: String(matchedTechnician?.email || '').trim() || technicianKey,
+        name:
+          String(matchedTechnician?.name || '').trim() ||
+          toDisplayName(technicianKey),
         isAvailable: !isCurrentlyBusy,
         todaysJobs: todaysJobs,
         totalJobs: jobs.length
@@ -267,18 +336,25 @@ export default function TechSchedule() {
 
   // Recalculate availability when current time changes or jobs change
   useEffect(() => {
-    if (Object.keys(jobs).length > 0) {
-      const technicianJobs = {};
-      Object.values(jobs).flat().forEach(job => {
-        if (!technicianJobs[job.technician]) {
-          technicianJobs[job.technician] = [];
-        }
-        technicianJobs[job.technician].push(job);
-      });
-      console.log('Recalculating availability for technicians:', Object.keys(technicianJobs));
-      calculateTeamAvailability(technicianJobs);
-    }
-  }, [currentTime, jobs]);
+    const technicianJobs = {};
+    Object.values(jobs).flat().forEach(job => {
+      const key = String(job.technicianEmail || job.technician || '').trim();
+      if (!key) return;
+      if (!technicianJobs[key]) {
+        technicianJobs[key] = [];
+      }
+      technicianJobs[key].push(job);
+    });
+    technicians.forEach((technician) => {
+      const key = String(technician?.email || technician?.name || '').trim();
+      if (!key) return;
+      if (!technicianJobs[key]) {
+        technicianJobs[key] = [];
+      }
+    });
+    console.log('Recalculating availability for technicians:', Object.keys(technicianJobs));
+    calculateTeamAvailability(technicianJobs, technicians);
+  }, [currentTime, jobs, technicians]);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -380,8 +456,13 @@ export default function TechSchedule() {
     setJobDetailsOpen(true);
   };
 
-  const handleTechnicianClick = (technicianEmail, availability) => {
-    setSelectedTechnician({ email: technicianEmail, ...availability });
+  const handleTechnicianClick = (technicianKey, availability) => {
+    setSelectedTechnician({
+      key: technicianKey,
+      ...availability,
+      email: availability?.email || technicianKey,
+      name: availability?.name || toDisplayName(technicianKey),
+    });
     setShowTechnicianCalendar(true);
   };
 
@@ -490,11 +571,11 @@ export default function TechSchedule() {
                 {Object.keys(teamAvailability).length === 0 ? (
                   <p className="text-gray-500 text-sm col-span-2">No technicians assigned</p>
                 ) : (
-                  Object.entries(teamAvailability).map(([technicianEmail, availability]) => (
+                  Object.entries(teamAvailability).map(([technicianKey, availability]) => (
                     <div 
-                      key={technicianEmail} 
+                      key={technicianKey} 
                       className="flex flex-col items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg transition-colors cursor-pointer"
-                      onClick={() => handleTechnicianClick(technicianEmail, availability)}
+                      onClick={() => handleTechnicianClick(technicianKey, availability)}
                     >
                       <div className="flex items-center gap-2 mb-2">
                         {availability.isAvailable ? (
@@ -503,7 +584,7 @@ export default function TechSchedule() {
                           <XCircle className="w-4 h-4 text-red-500" />
                         )}
                         <p className="font-medium text-sm">
-                          {technicianEmail.split('@')[0]}
+                          {availability?.name || toDisplayName(availability?.email || technicianKey)}
                         </p>
                       </div>
                       <Badge variant={availability.isAvailable ? "default" : "secondary"} className="text-xs">
@@ -665,11 +746,11 @@ export default function TechSchedule() {
                   {Object.keys(teamAvailability).length === 0 ? (
                     <p className="text-gray-500 text-sm">No technicians assigned to jobs</p>
                   ) : (
-                    Object.entries(teamAvailability).map(([technicianEmail, availability]) => (
+                    Object.entries(teamAvailability).map(([technicianKey, availability]) => (
                       <div 
-                        key={technicianEmail} 
+                        key={technicianKey} 
                         className="flex justify-between items-center bg-gray-50 hover:bg-gray-100 p-3 rounded-lg transition-colors cursor-pointer"
-                        onClick={() => handleTechnicianClick(technicianEmail, availability)}
+                        onClick={() => handleTechnicianClick(technicianKey, availability)}
                       >
                         <div className="flex items-center gap-2">
                           {availability.isAvailable ? (
@@ -679,7 +760,7 @@ export default function TechSchedule() {
                           )}
                           <div>
                             <p className="font-medium text-sm">
-                              {technicianEmail.split('@')[0]}
+                              {availability?.name || toDisplayName(availability?.email || technicianKey)}
                             </p>
                             <p className="text-gray-500 text-xs">
                               {availability.todaysJobs.length} job(s) today
@@ -860,7 +941,7 @@ export default function TechSchedule() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <User className="w-5 h-5" />
-              {selectedTechnician?.email?.split('@')[0]}'s Schedule
+              {(selectedTechnician?.name || toDisplayName(selectedTechnician?.email))}'s Schedule
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
@@ -876,7 +957,7 @@ export default function TechSchedule() {
                         <XCircle className="w-4 h-4 text-red-500" />
                       )}
                       <span className="font-medium text-gray-900 text-sm">
-                        {selectedTechnician.email?.split('@')[0]}
+                        {selectedTechnician?.name || toDisplayName(selectedTechnician?.email)}
                       </span>
                     </div>
                     <Badge variant={selectedTechnician.isAvailable ? "default" : "secondary"} className="text-xs">
@@ -926,8 +1007,8 @@ export default function TechSchedule() {
                     <div className="gap-0 grid grid-cols-7 border border-gray-200 rounded overflow-hidden">
                       {getDaysInMonth(currentDate).map((day, index) => {
                         const technicianJobs = getEventsForDate(day).filter(event => 
-                          event.technician === selectedTechnician.email || 
-                          event.technicianEmail === selectedTechnician.email
+                          event.technicianEmail === selectedTechnician.email ||
+                          event.technician === selectedTechnician.name
                         );
                         const hasJobs = technicianJobs.length > 0;
 
@@ -968,8 +1049,8 @@ export default function TechSchedule() {
                     <div className="space-y-2 max-h-40 sm:max-h-60 overflow-y-auto">
                       {(() => {
                         const allTechJobs = Object.values(jobs).flat().filter(job => 
-                          job.technician === selectedTechnician.email || 
-                          job.technicianEmail === selectedTechnician.email
+                          job.technicianEmail === selectedTechnician.email ||
+                          job.technician === selectedTechnician.name
                         );
                         
                         return allTechJobs.length === 0 ? (

@@ -51,76 +51,6 @@ const buildPartIdentityKey = (part: Record<string, unknown>) => {
   return `code:${code}|supplier:${supplier}|desc:${description}`;
 };
 
-const parseLegacyStockObject = (rawStock: unknown) => {
-  if (!rawStock || typeof rawStock !== "object" || Array.isArray(rawStock)) {
-    return [];
-  }
-
-  const normalizedItems: Array<Record<string, unknown>> = [];
-  const stockRecord = rawStock as Record<string, unknown>;
-
-  const pushItem = (
-    supplier: string,
-    code: string,
-    rawItem: Record<string, unknown>,
-  ) => {
-    const quantity = normalizeQuantity(rawItem.count ?? rawItem.quantity ?? 0);
-    if (quantity <= 0) return;
-
-    const itemCode = String(code || "").trim();
-    const safeSupplier = String(supplier || "Technician Stock").trim();
-    const description =
-      String(rawItem.description || rawItem.name || itemCode).trim() || itemCode;
-    const itemId = `tech-${safeSupplier}-${itemCode}`;
-    const serialNumber = String(
-      rawItem.serial_number ?? rawItem.serial ?? rawItem.serialNumber ?? rawItem.ip_address ?? "",
-    ).trim();
-
-    normalizedItems.push({
-      id: itemId,
-      stock_id: itemId,
-      supplier: safeSupplier,
-      code: itemCode,
-      description,
-      stock_type: safeSupplier,
-      quantity,
-      available_stock: quantity,
-      status: "IN STOCK",
-      serial_number: serialNumber,
-      ip_address: String(rawItem.ip_address || "").trim(),
-      source: "tech_stock.stock",
-    });
-  };
-
-  Object.entries(stockRecord).forEach(([topKey, topValue]) => {
-    if (!topValue || typeof topValue !== "object" || Array.isArray(topValue)) {
-      return;
-    }
-
-    const topObject = topValue as Record<string, unknown>;
-    const isDirectItem =
-      Object.prototype.hasOwnProperty.call(topObject, "count") ||
-      Object.prototype.hasOwnProperty.call(topObject, "quantity") ||
-      Object.prototype.hasOwnProperty.call(topObject, "description");
-
-    if (isDirectItem) {
-      // Supports shape: { "CODE": { count, description } }
-      pushItem("Technician Stock", topKey, topObject);
-      return;
-    }
-
-    // Supports nested shape: { "SUPPLIER": { "CODE": { count, description } } }
-    Object.entries(topObject).forEach(([childCode, childValue]) => {
-      if (!childValue || typeof childValue !== "object" || Array.isArray(childValue)) {
-        return;
-      }
-      pushItem(topKey, childCode, childValue as Record<string, unknown>);
-    });
-  });
-
-  return normalizedItems;
-};
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -152,7 +82,8 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("tech_stock")
-      .select("id, technician_email, assigned_parts, stock")
+      // Source of truth is tech_stock.assigned_parts going forward.
+      .select("id, technician_email, assigned_parts")
       .ilike("technician_email", technicianEmail)
       .order("id", { ascending: true });
 
@@ -169,54 +100,46 @@ export async function GET(request: NextRequest) {
             row_id: `${rowPrefix}-assigned-${index}`,
           }))
         : [];
-      const legacyStockArray = Array.isArray(row?.stock)
-        ? row.stock.map((part, index) => ({
-            ...normalizeAssignedPart(part),
-            row_id: `${rowPrefix}-legacy-array-${index}`,
-          }))
-        : [];
-      const parsedStockObject = parseLegacyStockObject(row?.stock).map((part, index) => ({
-        ...part,
-        row_id: `${rowPrefix}-legacy-object-${index}`,
-      }));
-      const legacyItems = [...legacyStockArray, ...parsedStockObject].map((part) =>
-        normalizeAssignedPart(part),
-      );
-
-      if (assignedParts.length === 0) {
-        return legacyItems.map((part, index) => ({
-          ...part,
-          row_id:
-            String((part as Record<string, unknown>)?.row_id || "").trim() ||
-            `${rowPrefix}-item-${index}`,
-        }));
-      }
-
-      const merged = [...assignedParts];
-      const seen = new Set(
-        assignedParts.map((part) =>
-          buildPartIdentityKey(part as Record<string, unknown>),
-        ),
-      );
-
-      legacyItems.forEach((legacyPart) => {
-        const key = buildPartIdentityKey(legacyPart as Record<string, unknown>);
-        if (seen.has(key)) return;
-        seen.add(key);
-        merged.push(legacyPart);
-      });
-
-      return merged.map((part, index) => ({
+      return assignedParts.map((part, index) => ({
         ...part,
         row_id:
           String((part as Record<string, unknown>)?.row_id || "").trim() ||
-          `${rowPrefix}-item-${index}`,
+          `${rowPrefix}-assigned-${index}`,
+      }));
+    });
+
+    // Do not group quantities in the UI: expand each item into single-unit rows.
+    // This keeps selection accurate and avoids "one checkbox selects many".
+    const expandedItems = mergedItems.flatMap((item, index) => {
+      const base = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const quantity = normalizeQuantity(base.quantity ?? base.count ?? 1) || 1;
+      const rowId = String(base.row_id || "").trim() || `row-item-${index}`;
+
+      // If quantity is 1 (or invalid), keep as-is.
+      if (quantity <= 1) {
+        return [
+          {
+            ...base,
+            quantity: 1,
+            available_stock: normalizeQuantity(base.available_stock ?? 1) || 1,
+            row_id: rowId,
+          },
+        ];
+      }
+
+      return Array.from({ length: quantity }, (_, unitIndex) => ({
+        ...base,
+        quantity: 1,
+        available_stock: 1,
+        unit_index: unitIndex + 1,
+        unit_total: quantity,
+        row_id: `${rowId}-unit-${unitIndex + 1}`,
       }));
     });
 
     return NextResponse.json({
       technician_email: rows[0]?.technician_email || technicianEmail,
-      items: mergedItems,
+      items: expandedItems,
     });
   } catch (error) {
     console.error("Error in tech stock items GET:", error);

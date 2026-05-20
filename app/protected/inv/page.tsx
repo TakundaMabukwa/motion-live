@@ -929,15 +929,13 @@ export default function InventoryPage() {
       job.parts_required.length > 0,
   );
 
-  const completedJobs = jobCards.filter((job: JobCard) => {
-    const normalizedRole = String(job.role || "").toLowerCase();
-    const normalizedMoveTo = String(job.move_to || "").toLowerCase();
-
-    const isInventoryRouted =
-      normalizedRole === "inv" || normalizedMoveTo === "inv";
-
-    return isCompletedInventoryJob(job) && isInventoryRouted;
-  }).filter((job) => !isEscalatedToInventory(job));
+  const completedJobs = jobCards
+    .filter((job: JobCard) => {
+      const normalizedRole = String(job.role || "").trim().toLowerCase();
+      // Completed is already evaluated case-insensitively inside isCompletedInventoryJob.
+      return isCompletedInventoryJob(job) && normalizedRole === "inv";
+    })
+    .filter((job) => !isEscalatedToInventory(job));
 
   const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
     if (!assignedPartsSearchTerm.trim()) return true;
