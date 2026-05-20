@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import AssignTechStockModal from '@/components/inv/components/AssignTechStockModal';
+import { isCleanTechnicianEmail } from '@/lib/tech-stock-part-identity';
 import { toast } from 'sonner';
 
 type TechnicianStockItem = {
@@ -30,6 +31,7 @@ type TechnicianStockItem = {
 };
 
 type TechnicianOption = {
+  id?: string | number;
   technician_email: string | null;
   display_name?: string | null;
 };
@@ -38,16 +40,6 @@ const getItemQuantity = (item: TechnicianStockItem) => {
   const parsed = Number(item.quantity ?? 0);
   if (!Number.isFinite(parsed)) return 1;
   return Math.max(1, Math.floor(parsed));
-};
-
-const isValidSingleTechnicianEmail = (value: unknown) => {
-  const email = String(value || '').trim().toLowerCase();
-  if (!email) return false;
-  if (email.includes(',') || email.includes(' ')) return false;
-  if (!/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/.test(email)) return false;
-  const [localPart] = email.split('@');
-  if (!localPart) return false;
-  return !localPart.includes('.');
 };
 
 export default function TechnicianStockDetailsPage() {
@@ -72,7 +64,7 @@ export default function TechnicianStockDetailsPage() {
   const [selectedTransferItem, setSelectedTransferItem] =
     useState<TechnicianStockItem | null>(null);
   const [targetTechnicianEmail, setTargetTechnicianEmail] = useState('');
-  const [transferQuantity, setTransferQuantity] = useState(1);
+  const [targetTechStockId, setTargetTechStockId] = useState<number | null>(null);
   const [transferring, setTransferring] = useState(false);
 
   const fetchItems = async () => {
@@ -114,9 +106,10 @@ export default function TechnicianStockDetailsPage() {
           const email = String(tech?.technician_email || '')
             .trim()
             .toLowerCase();
-          if (!isValidSingleTechnicianEmail(email)) return;
+          if (!isCleanTechnicianEmail(email)) return;
           if (!email) return;
           merged.set(email, {
+            id: (tech as TechnicianOption)?.id,
             technician_email: email,
             display_name: tech?.display_name || null,
           });
@@ -134,7 +127,7 @@ export default function TechnicianStockDetailsPage() {
             const email = String(tech?.email || '')
               .trim()
               .toLowerCase();
-            if (!isValidSingleTechnicianEmail(email)) return;
+            if (!isCleanTechnicianEmail(email)) return;
             if (!email) return;
             const existing = merged.get(email);
             merged.set(email, {
@@ -181,20 +174,23 @@ export default function TechnicianStockDetailsPage() {
 
   const transferTargets = useMemo(
     () =>
-      technicians.filter(
-        (tech) =>
-          String(tech.technician_email || '').trim().toLowerCase() !==
-          String(technicianEmail || '').trim().toLowerCase(),
-      ),
+      technicians.filter((tech) => {
+        const email = String(tech.technician_email || '').trim().toLowerCase();
+        if (!isCleanTechnicianEmail(email)) return false;
+        return email !== String(technicianEmail || '').trim().toLowerCase();
+      }),
     [technicians, technicianEmail],
   );
   const hasTransferTargets = transferTargets.length > 0;
 
   const openTransferDialog = (item: TechnicianStockItem) => {
-    const safeQuantity = getItemQuantity(item);
+    if (!String(item.serial_number || '').trim()) {
+      toast.error('This item has no serial number and cannot be transferred.');
+      return;
+    }
     setSelectedTransferItem(item);
-    setTransferQuantity(safeQuantity >= 1 ? 1 : safeQuantity);
     setTargetTechnicianEmail('');
+    setTargetTechStockId(null);
     setShowTransferDialog(true);
   };
 
@@ -209,11 +205,10 @@ export default function TechnicianStockDetailsPage() {
       return;
     }
 
-    const maxQuantity = getItemQuantity(selectedTransferItem);
-    const safeTransferQuantity = Math.max(
-      1,
-      Math.min(maxQuantity, Number(transferQuantity) || 1),
-    );
+    if (!String(selectedTransferItem.serial_number || '').trim()) {
+      toast.error('Serial number is required to transfer this item');
+      return;
+    }
 
     setTransferring(true);
     try {
@@ -223,8 +218,15 @@ export default function TechnicianStockDetailsPage() {
         body: JSON.stringify({
           source_technician_email: technicianEmail,
           target_technician_email: targetTechnicianEmail,
-          item: selectedTransferItem,
-          quantity: safeTransferQuantity,
+          target_tech_stock_id: targetTechStockId,
+          item: {
+            row_id: selectedTransferItem.row_id,
+            serial_number: selectedTransferItem.serial_number,
+            stock_id: selectedTransferItem.stock_id ?? selectedTransferItem.id,
+            code: selectedTransferItem.code,
+            description: selectedTransferItem.description,
+            supplier: selectedTransferItem.supplier,
+          },
         }),
       });
 
@@ -238,15 +240,19 @@ export default function TechnicianStockDetailsPage() {
       )
         .trim()
         .toLowerCase();
-      const movedCode = String(
-        payload?.item_code || selectedTransferItem?.code || '',
+      const movedSerial = String(
+        payload?.serial_number || selectedTransferItem?.serial_number || '',
       ).trim();
 
-      toast.success('Stock transferred successfully');
+      toast.success(
+        movedSerial
+          ? `Transferred serial ${movedSerial} successfully`
+          : 'Stock transferred successfully',
+      );
       setShowTransferDialog(false);
       setSelectedTransferItem(null);
       setTargetTechnicianEmail('');
-      setTransferQuantity(1);
+      setTargetTechStockId(null);
       await fetchTechnicians();
 
       if (
@@ -254,8 +260,8 @@ export default function TechnicianStockDetailsPage() {
         destinationEmail !== String(technicianEmail || '').trim().toLowerCase()
       ) {
         const targetPath = `/protected/inv/technician-stock/${encodeURIComponent(destinationEmail)}`;
-        const query = movedCode
-          ? `?moved=${encodeURIComponent(movedCode)}`
+        const query = movedSerial
+          ? `?moved=${encodeURIComponent(movedSerial)}`
           : '';
         router.push(`${targetPath}${query}`);
       } else {
@@ -361,7 +367,9 @@ export default function TechnicianStockDetailsPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => openTransferDialog(item)}
-                      disabled={!hasTransferTargets}
+                      disabled={
+                        !hasTransferTargets || !String(item.serial_number || '').trim()
+                      }
                     >
                       <SendHorizontal className="mr-2 h-4 w-4" />
                       Transfer
@@ -398,8 +406,13 @@ export default function TechnicianStockDetailsPage() {
                 Code: {selectedTransferItem?.code || 'N/A'}
               </div>
               <div className="text-gray-600">
-                Available: {selectedTransferItem ? getItemQuantity(selectedTransferItem) : 1}
+                Serial: {selectedTransferItem?.serial_number || 'Missing'}
               </div>
+              {selectedTransferItem?.stock_id ? (
+                <div className="text-gray-600">
+                  Stock ID: {selectedTransferItem.stock_id}
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -408,7 +421,19 @@ export default function TechnicianStockDetailsPage() {
               </label>
               <select
                 value={targetTechnicianEmail}
-                onChange={(event) => setTargetTechnicianEmail(event.target.value)}
+                onChange={(event) => {
+                  const email = event.target.value;
+                  setTargetTechnicianEmail(email);
+                  const match = transferTargets.find(
+                    (tech) =>
+                      String(tech.technician_email || '').trim().toLowerCase() ===
+                      email.trim().toLowerCase(),
+                  );
+                  const stockId = Number(match?.id);
+                  setTargetTechStockId(
+                    Number.isFinite(stockId) && stockId > 0 ? stockId : null,
+                  );
+                }}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
                 disabled={loadingTechnicians || transferring}
               >
@@ -428,30 +453,6 @@ export default function TechnicianStockDetailsPage() {
                   No other technicians available for transfer.
                 </p>
               ) : null}
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Quantity
-              </label>
-              <Input
-                type="number"
-                min={1}
-                max={
-                  selectedTransferItem
-                    ? getItemQuantity(selectedTransferItem)
-                    : 1
-                }
-                value={transferQuantity}
-                onChange={(event) =>
-                  setTransferQuantity(
-                    Number.isFinite(Number(event.target.value))
-                      ? Number(event.target.value)
-                      : 1,
-                  )
-                }
-                disabled={transferring}
-              />
             </div>
 
             <div className="flex justify-end gap-2">

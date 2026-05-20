@@ -72,14 +72,14 @@ const toSafeNonNegativeQuantity = (value: unknown) => {
 
 type TransferRowLocator = {
   rowId: number;
-  bucket: 'assigned' | 'legacy-array' | 'legacy-object';
+  bucket: 'assigned';
   index: number;
 };
 
 const parseTransferRowLocator = (value: unknown): TransferRowLocator | null => {
   const normalized = String(value || '').trim().toLowerCase();
   const match = normalized.match(
-    /^(\d+)-(assigned|legacy-array|legacy-object)-(\d+)(?:-unit-(\d+))?$/,
+    /^(\d+)-(assigned)-(\d+)(?:-unit-(\d+))?$/,
   );
   if (!match) return null;
 
@@ -90,7 +90,7 @@ const parseTransferRowLocator = (value: unknown): TransferRowLocator | null => {
 
   return {
     rowId,
-    bucket: match[2] as TransferRowLocator['bucket'],
+    bucket: 'assigned',
     index,
   };
 };
@@ -147,90 +147,6 @@ const decrementStructuredQuantity = (
   }
 
   return { movedQty, remainingQty };
-};
-
-type LegacyEntryRef = {
-  bucket: 'legacy-array' | 'legacy-object';
-  index: number;
-  entry: Record<string, unknown>;
-  candidate: Record<string, unknown>;
-};
-
-const cloneStockValue = (value: unknown): unknown => {
-  if (!value || typeof value !== 'object') {
-    return {};
-  }
-  return JSON.parse(JSON.stringify(value));
-};
-
-const collectLegacyEntryRefs = (rawStock: unknown): LegacyEntryRef[] => {
-  const refs: LegacyEntryRef[] = [];
-
-  if (Array.isArray(rawStock)) {
-    rawStock.forEach((item, index) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
-      const entry = item as Record<string, unknown>;
-      refs.push({
-        bucket: 'legacy-array',
-        index,
-        entry,
-        candidate: normalizePartRecord(entry),
-      });
-    });
-    return refs;
-  }
-
-  if (!rawStock || typeof rawStock !== 'object') {
-    return refs;
-  }
-
-  const stockRecord = rawStock as Record<string, unknown>;
-  let objectIndex = 0;
-
-  Object.entries(stockRecord).forEach(([topKey, topValue]) => {
-    if (!topValue || typeof topValue !== 'object' || Array.isArray(topValue)) {
-      return;
-    }
-
-    const topObject = topValue as Record<string, unknown>;
-    const isDirectItem =
-      Object.prototype.hasOwnProperty.call(topObject, 'count') ||
-      Object.prototype.hasOwnProperty.call(topObject, 'quantity') ||
-      Object.prototype.hasOwnProperty.call(topObject, 'description');
-
-    if (isDirectItem) {
-      refs.push({
-        bucket: 'legacy-object',
-        index: objectIndex++,
-        entry: topObject,
-        candidate: normalizePartRecord({
-          ...topObject,
-          code: topKey,
-          supplier: 'Technician Stock',
-        }),
-      });
-      return;
-    }
-
-    Object.entries(topObject).forEach(([childCode, childValue]) => {
-      if (!childValue || typeof childValue !== 'object' || Array.isArray(childValue)) {
-        return;
-      }
-      const entry = childValue as Record<string, unknown>;
-      refs.push({
-        bucket: 'legacy-object',
-        index: objectIndex++,
-        entry,
-        candidate: normalizePartRecord({
-          ...entry,
-          code: childCode,
-          supplier: topKey,
-        }),
-      });
-    });
-  });
-
-  return refs;
 };
 
 function resolvePartSerial(value: Record<string, unknown>): string {
@@ -456,9 +372,7 @@ export async function PATCH(
       rowId: number;
       technicianEmail: string;
       originalAssignedParts: unknown[];
-      originalStock: unknown;
       nextAssignedParts: unknown[];
-      nextStock: unknown;
     }> = [];
 
     // Optional flow: move selected equipment from tech_stock.assigned_parts onto this job card.
@@ -483,7 +397,7 @@ export async function PATCH(
 
         const { data: techStockRows, error: techStockError } = await supabase
           .from('tech_stock')
-          .select('id, assigned_parts, stock, technician_email')
+          .select('id, assigned_parts, technician_email')
           .ilike('technician_email', technicianEmailForTransfer)
           .order('id', { ascending: true });
 
@@ -513,9 +427,6 @@ export async function PATCH(
             technicianEmail: string;
             assignedParts: unknown[];
             originalAssignedParts: unknown[];
-            stock: unknown;
-            originalStock: unknown;
-            legacyRefs: LegacyEntryRef[];
           }
         >();
 
@@ -530,7 +441,6 @@ export async function PATCH(
                   : part,
               )
             : [];
-          const stock = cloneStockValue(row.stock);
 
           rowStates.set(rowId, {
             rowId,
@@ -539,9 +449,6 @@ export async function PATCH(
             originalAssignedParts: Array.isArray(row.assigned_parts)
               ? [...row.assigned_parts]
               : [],
-            stock,
-            originalStock: cloneStockValue(row.stock),
-            legacyRefs: collectLegacyEntryRefs(stock),
           });
         });
 
@@ -588,128 +495,64 @@ export async function PATCH(
           const requiresIdentityCheck = hasStrongPartIdentity(normalizedSelected);
           let remainingQty = toSafePositiveQuantity(normalizedSelected.quantity);
 
-          if (rowLocator.bucket === 'assigned') {
-            const locatedPart = rowState.assignedParts[rowLocator.index];
-            if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
-              return NextResponse.json(
-                {
-                  error:
-                    'Selected technician stock item is stale. Please refresh and try again.',
-                },
-                { status: 409 },
-              );
-            }
+          const locatedPart = rowState.assignedParts[rowLocator.index];
+          if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
+            return NextResponse.json(
+              {
+                error:
+                  'Selected technician stock item is stale. Please refresh and try again.',
+              },
+              { status: 409 },
+            );
+          }
 
-            const locatedCandidate = normalizePartRecord(
+          const locatedCandidate = normalizePartRecord(
+            locatedPart as Record<string, unknown>,
+          );
+          const locatedStockId = normalizeToken(
+            locatedCandidate.stock_id ?? locatedCandidate.id,
+          );
+          if (!resolvePartSerialToken(locatedCandidate) && !locatedStockId) {
+            return NextResponse.json(
+              {
+                error: `Selected stock item is missing serial number and stock_id in technician stock (${getPartIdentityLabel(locatedCandidate)}).`,
+              },
+              { status: 409 },
+            );
+          }
+          if (
+            requiresIdentityCheck &&
+            !partsMatchStrict(locatedCandidate, normalizedSelected)
+          ) {
+            return NextResponse.json(
+              {
+                error:
+                  'Selected technician stock item changed. Please refresh and try again.',
+              },
+              { status: 409 },
+            );
+          }
+
+          const { movedQty, remainingQty: locatedRemainingQty } =
+            decrementStructuredQuantity(
               locatedPart as Record<string, unknown>,
-            );
-            const locatedStockId = normalizeToken(
-              locatedCandidate.stock_id ?? locatedCandidate.id,
-            );
-            if (!resolvePartSerialToken(locatedCandidate) && !locatedStockId) {
-              return NextResponse.json(
-                {
-                  error: `Selected stock item is missing serial number and stock_id in technician stock (${getPartIdentityLabel(locatedCandidate)}).`,
-                },
-                { status: 409 },
-              );
-            }
-            if (
-              requiresIdentityCheck &&
-              !partsMatchStrict(locatedCandidate, normalizedSelected)
-            ) {
-              return NextResponse.json(
-                {
-                  error:
-                    'Selected technician stock item changed. Please refresh and try again.',
-                },
-                { status: 409 },
-              );
-            }
-
-            const { movedQty, remainingQty: locatedRemainingQty } =
-              decrementStructuredQuantity(
-                locatedPart as Record<string, unknown>,
-                remainingQty,
-              );
-
-            if (movedQty > 0) {
-              transferredParts.push({
-                ...locatedCandidate,
-                quantity: movedQty,
-                available_stock: movedQty,
-                row_id: normalizedSelected.row_id,
-                source: 'tech_stock.assigned_parts',
-              });
-            }
-
-            if (locatedRemainingQty <= 0) {
-              rowState.assignedParts[rowLocator.index] = null;
-            }
-            remainingQty -= movedQty;
-          } else {
-            const locatedLegacyEntry = rowState.legacyRefs.find(
-              (entry) =>
-                entry.bucket === rowLocator.bucket && entry.index === rowLocator.index,
-            );
-            if (!locatedLegacyEntry) {
-              return NextResponse.json(
-                {
-                  error:
-                    'Selected technician stock item is stale. Please refresh and try again.',
-                },
-                { status: 409 },
-              );
-            }
-
-            const legacyStockId = normalizeToken(
-              locatedLegacyEntry.candidate.stock_id ??
-                locatedLegacyEntry.candidate.id,
-            );
-            if (
-              !resolvePartSerialToken(locatedLegacyEntry.candidate) &&
-              !legacyStockId
-            ) {
-              return NextResponse.json(
-                {
-                  error: `Selected stock item is missing serial number and stock_id in technician stock (${getPartIdentityLabel(locatedLegacyEntry.candidate)}).`,
-                },
-                { status: 409 },
-              );
-            }
-            if (
-              requiresIdentityCheck &&
-              !partsMatchStrict(locatedLegacyEntry.candidate, normalizedSelected)
-            ) {
-              return NextResponse.json(
-                {
-                  error:
-                    'Selected technician stock item changed. Please refresh and try again.',
-                },
-                { status: 409 },
-              );
-            }
-
-            const { movedQty } = decrementStructuredQuantity(
-              locatedLegacyEntry.entry,
               remainingQty,
             );
 
-            if (movedQty > 0) {
-              transferredParts.push({
-                ...normalizePartRecord({
-                  ...locatedLegacyEntry.candidate,
-                  ...normalizedSelected,
-                }),
-                quantity: movedQty,
-                available_stock: movedQty,
-                row_id: normalizedSelected.row_id,
-                source: 'tech_stock.assigned_parts',
-              });
-            }
-
-            remainingQty -= movedQty;
+          if (movedQty > 0) {
+            transferredParts.push({
+              ...locatedCandidate,
+              quantity: movedQty,
+              available_stock: movedQty,
+              row_id: normalizedSelected.row_id,
+              source: 'tech_stock.assigned_parts',
+            });
           }
+
+          if (locatedRemainingQty <= 0) {
+            rowState.assignedParts[rowLocator.index] = null;
+          }
+          remainingQty -= movedQty;
 
           if (remainingQty > 0) {
             return NextResponse.json(
@@ -749,9 +592,7 @@ export async function PATCH(
             rowId: rowState.rowId,
             technicianEmail: rowState.technicianEmail,
             originalAssignedParts: rowState.originalAssignedParts,
-            originalStock: rowState.originalStock,
             nextAssignedParts,
-            nextStock: rowState.stock,
           };
         });
 
@@ -817,7 +658,6 @@ export async function PATCH(
           .from('tech_stock')
           .update({
             assigned_parts: rowUpdate.nextAssignedParts,
-            stock: rowUpdate.nextStock,
           })
           .eq('id', rowUpdate.rowId)
           .ilike('technician_email', rowUpdate.technicianEmail);
@@ -830,7 +670,6 @@ export async function PATCH(
               .from('tech_stock')
               .update({
                 assigned_parts: rollbackUpdate.originalAssignedParts,
-                stock: rollbackUpdate.originalStock,
               })
               .eq('id', rollbackUpdate.rowId);
 
@@ -880,7 +719,6 @@ export async function PATCH(
             .from('tech_stock')
             .update({
               assigned_parts: rollbackUpdate.originalAssignedParts,
-              stock: rollbackUpdate.originalStock,
             })
             .eq('id', rollbackUpdate.rowId);
 
@@ -920,7 +758,7 @@ export async function PATCH(
       }
     }
 
-    async function addVehicleToInventoryIfInstall(jobCard: any) {
+    async function addVehicleToInventoryIfInstall(jobCard: Record<string, unknown>) {
       const jobType = String(jobCard?.job_type || '').toLowerCase();
       const isInstallJob = jobType === 'install' || jobType === 'installation';
 
@@ -960,7 +798,11 @@ export async function PATCH(
     }
 
     // Function to deduct stock from technician's boot stock
-    async function deductTechnicianStock(technicianEmail: string, partsRequired: any[], technicianId: string) {
+    async function deductTechnicianStock(
+      technicianEmail: string,
+      partsRequired: Record<string, unknown>[],
+      technicianId: string,
+    ) {
       try {
         console.log(`Attempting to deduct stock for technician: ${technicianEmail}`);
         
@@ -996,7 +838,7 @@ export async function PATCH(
         }
 
         const assignedParts = Array.isArray(techStock.assigned_parts) ? techStock.assigned_parts : [];
-        let updatedParts = [...assignedParts];
+        const updatedParts = [...assignedParts];
         let stockDeducted = false;
 
         // Match parts by serial identity (never by code) and deduct quantities.

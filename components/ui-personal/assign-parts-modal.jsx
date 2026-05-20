@@ -63,7 +63,7 @@ const resolveSerialNumber = (item) =>
   ).trim();
 
 const resolveUniqueItemToken = (item) =>
-  String(item?.stock_id || item?.id || item?.row_id || "").trim();
+  String(item?.row_id || item?.id || item?.stock_id || "").trim();
 
 const hasSerialOrUniqueItemIdentity = (item) =>
   Boolean(resolveSerialNumber(item)) || Boolean(resolveUniqueItemToken(item));
@@ -472,35 +472,19 @@ export default function AssignPartsModal({
   }, [allStockItems, ipAddress, searchTerm]);
 
   const filteredAvailableParts = useMemo(() => {
+    const selectedKeys = new Set(
+      selectedParts
+        .map((part) => String(part.selection_key || "").trim())
+        .filter(Boolean),
+    );
+
     const rankedItems = allStockItems.map((item) => {
       const itemSelectionKey = buildSelectionKey(
         modalStockSource,
         modalStockOwner,
         item,
       );
-      const isSelected = selectedParts.some((part) => {
-        const selectedKey = String(part.selection_key || "").trim();
-        if (selectedKey && selectedKey === itemSelectionKey) return true;
-
-        const selectedStockId = String(part.stock_id || "").trim();
-        const itemStockId = String(item.id || item.stock_id || "").trim();
-        if (selectedStockId && itemStockId && selectedStockId === itemStockId) {
-          return true;
-        }
-
-        const selectedSerial = resolveSerialNumber(part);
-        const itemSerial = resolveSerialNumber(item);
-        if (selectedSerial && itemSerial && selectedSerial === itemSerial) {
-          return true;
-        }
-
-        const fallbackKey = buildSelectionKey(
-          part.source || modalStockSource,
-          part.source_owner || modalStockOwner,
-          part,
-        );
-        return fallbackKey === itemSelectionKey;
-      });
+      const isSelected = selectedKeys.has(itemSelectionKey);
       if (isSelected) return null;
       if (
         (modalStockSource === "client" || modalStockSource === "technician") &&
@@ -576,25 +560,7 @@ export default function AssignPartsModal({
     const alreadySelected = selectedParts.find(
       (part) => {
         const partKey = String(part.selection_key || "").trim();
-        if (partKey && partKey === selectedKey) return true;
-
-        const selectedStockId = String(part.stock_id || "").trim();
-        const candidateStockId = String(item.id || item.stock_id || "").trim();
-        if (
-          selectedStockId &&
-          candidateStockId &&
-          selectedStockId === candidateStockId
-        ) {
-          return true;
-        }
-
-        const selectedSerial = resolveSerialNumber(part);
-        const candidateSerial = resolveSerialNumber(item);
-        return Boolean(
-          selectedSerial &&
-            candidateSerial &&
-            selectedSerial === candidateSerial,
-        );
+        return Boolean(partKey && partKey === selectedKey);
       },
     );
     if (alreadySelected) {
@@ -665,9 +631,8 @@ export default function AssignPartsModal({
         String(modalStockOwner || "").trim().toLowerCase();
 
     if (sourceMatchesCurrentView) {
-      setAllStockItems((prev) => [
-        ...prev,
-        {
+      setAllStockItems((prev) => {
+        const restoredItem = {
           id: part.row_id || part.stock_id,
           stock_id: part.stock_id,
           row_id: part.row_id || "",
@@ -679,8 +644,20 @@ export default function AssignPartsModal({
           category_code: part.code || "",
           category_description: part.description || part.code || "",
           status: "IN STOCK",
-        },
-      ]);
+        };
+        const restoredKey = buildSelectionKey(
+          modalStockSource,
+          modalStockOwner,
+          restoredItem,
+        );
+        const exists = prev.some(
+          (stockItem) =>
+            buildSelectionKey(modalStockSource, modalStockOwner, stockItem) ===
+            restoredKey,
+        );
+        if (exists) return prev;
+        return [...prev, restoredItem];
+      });
     }
   };
 
@@ -1375,7 +1352,7 @@ export default function AssignPartsModal({
                       <div className="bg-white rounded border">
                         {selectedParts.map((part, index) => (
                           <div
-                            key={`${part.stock_id}-${index}`}
+                            key={`${String(part.selection_key || part.stock_id || index)}`}
                             className="p-3 border-b last:border-b-0 flex justify-between items-center"
                           >
                             <div className="flex-1">

@@ -56,11 +56,6 @@ function getStockTypeFromSupplier(supplier: string): string {
   return supplierTypeMap[supplier] || 'Hardware';
 }
 
-// Define the complete inventory structure here as fallback
-type InventoryItem = { description?: string; count?: number };
-type SupplierInventory = { [itemCode: string]: InventoryItem };
-type Inventory = { [supplier: string]: SupplierInventory | InventoryItem };
-
 // const COMPLETE_INVENTORY: Inventory = {
 //   "CST ELECTRONICS": {
 //     "ML9092 TSL/2.2K": { "description": "TAG READER WITH 2K RESISTOR 24V", "count": 0 }
@@ -255,7 +250,7 @@ export async function GET() {
 
     const { data: technicianStockRows, error } = await supabase
       .from('tech_stock')
-      .select('id, assigned_parts, stock, technician_email')
+      .select('id, assigned_parts, technician_email')
       .not('technician_email', 'is', null)
       .order('id', { ascending: true });
 
@@ -279,82 +274,34 @@ export async function GET() {
     // Convert assigned parts to the expected format.
     stockRows.forEach((row) => {
       const rowAssignedParts = Array.isArray(row?.assigned_parts) ? row.assigned_parts : [];
-      rowAssignedParts.forEach((part: any, index: number) => {
+      rowAssignedParts.forEach((part: unknown, index: number) => {
+        const partRecord =
+          part && typeof part === 'object' && !Array.isArray(part)
+            ? (part as Record<string, unknown>)
+            : {};
         const serialNumber = String(
-          part?.serial_number ||
-            part?.serialNumber ||
-            part?.ip_address ||
-            part?.ipAddress ||
+          partRecord?.serial_number ||
+            partRecord?.serialNumber ||
+            partRecord?.ip_address ||
+            partRecord?.ipAddress ||
             "",
         ).trim();
 
         processedStock.push({
-          id: part.stock_id || `part-${row.id || 'row'}-${index}`,
-          quantity: (part.quantity || 1).toString(),
+          id: String(partRecord.stock_id || `part-${row.id || 'row'}-${index}`),
+          quantity: String(partRecord.quantity || 1),
           technician_email: technicianEmailFromRows,
-          code: part.code || part.serial_number || 'N/A',
-          description: part.description || 'No description available',
-          supplier: part.supplier || 'JOB_PARTS',
-          cost_excl_vat_zar: parseFloat(part.cost_per_unit || '0'),
+          code: String(partRecord.code || partRecord.serial_number || 'N/A'),
+          description: String(partRecord.description || 'No description available'),
+          supplier: String(partRecord.supplier || 'JOB_PARTS'),
+          cost_excl_vat_zar: parseFloat(String(partRecord.cost_per_unit || '0')),
           usd: 0,
-          stock_type: getStockTypeFromSupplier(part.supplier || 'JOB_PARTS'),
+          stock_type: getStockTypeFromSupplier(String(partRecord.supplier || 'JOB_PARTS')),
           serial_number: serialNumber || undefined,
           ip_address: serialNumber || undefined,
         });
       });
     });
-
-    // Backward-compat fallback: if assigned_parts is empty, hydrate from legacy stock object.
-    if (processedStock.length === 0) {
-      stockRows.forEach((row) => {
-        if (!row?.stock || typeof row.stock !== 'object') return;
-        const legacyStock = row.stock as Record<string, any>;
-
-        Object.entries(legacyStock).forEach(([supplier, items]) => {
-          if (!items || typeof items !== 'object') return;
-
-          const maybeDirectItem = items as Record<string, any>;
-          const isDirectItemShape =
-            Object.prototype.hasOwnProperty.call(maybeDirectItem, 'count') ||
-            Object.prototype.hasOwnProperty.call(maybeDirectItem, 'description');
-
-          if (isDirectItemShape) {
-            const count = parseInt(String((maybeDirectItem as any)?.count || '0')) || 0;
-            if (count > 0) {
-              processedStock.push({
-                id: `${supplier}-${supplier}-${row.id || 'row'}`,
-                quantity: String(count),
-                technician_email: technicianEmailFromRows,
-                code: supplier || 'N/A',
-                description: (maybeDirectItem as any)?.description || 'No description available',
-                supplier: supplier || 'JOB_PARTS',
-                cost_excl_vat_zar: 0,
-                usd: 0,
-                stock_type: getStockTypeFromSupplier(supplier || 'JOB_PARTS')
-              });
-            }
-            return;
-          }
-
-          Object.entries(items as Record<string, any>).forEach(([itemCode, itemData], index) => {
-            const count = parseInt(String(itemData?.count || '0')) || 0;
-            if (count <= 0) return;
-
-            processedStock.push({
-              id: `${supplier}-${itemCode}-${row.id || 'row'}-${index}`,
-              quantity: String(count),
-              technician_email: technicianEmailFromRows,
-              code: itemCode || 'N/A',
-              description: itemData?.description || 'No description available',
-              supplier: supplier || 'JOB_PARTS',
-              cost_excl_vat_zar: 0,
-              usd: 0,
-              stock_type: getStockTypeFromSupplier(supplier || 'JOB_PARTS')
-            });
-          });
-        });
-      });
-    }
 
     const dedupedStockMap = new Map<string, ProcessedStockItem>();
     processedStock.forEach((item) => {
@@ -391,85 +338,19 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const body = await request.json();
-    const { id, new_quantity } = body as { id: string; new_quantity: number };
-    if (!id || typeof new_quantity !== 'number') {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
-    }
-
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const technicianEmail = normalizeEmail(user.email);
-
-    // Fetch existing technician stock
-    const { data: technicianStockRows, error } = await supabase
-      .from('tech_stock')
-      .select('id, stock, technician_email')
-      .not('technician_email', 'is', null)
-      .order('id', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching technician stock for PATCH:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    const technicianStock = (Array.isArray(technicianStockRows) ? technicianStockRows : []).find(
-      (row) =>
-        isSingleTechnicianEmail(row?.technician_email) &&
-        normalizeEmail(row?.technician_email) === technicianEmail,
-    ) || null;
-
-    const stockData = technicianStock?.stock || {};
-
-    // id format: "SUPPLIER-ITEMCODE"
-    const splitIndex = id.indexOf('-');
-    if (splitIndex === -1) {
-      return NextResponse.json({ error: 'Invalid id format' }, { status: 400 });
-    }
-
-    const supplier = id.slice(0, splitIndex);
-    const itemCode = id.slice(splitIndex + 1);
-
-    // Ensure supplier object exists
-    if (!stockData[supplier]) {
-      stockData[supplier] = {};
-    }
-
-    if (!stockData[supplier][itemCode]) {
-      stockData[supplier][itemCode] = { description: itemCode, count: new_quantity };
-    } else {
-      stockData[supplier][itemCode].count = new_quantity;
-    }
-
-    // Try to update existing tech_stock row for this technician
-    const { data: updatedRows, error: updateError } = await supabase
-      .from('tech_stock')
-      .update({ stock: stockData, technician_email: technicianEmail })
-      .eq('id', technicianStock?.id || -1)
-      .select();
-
-    if (updateError) {
-      console.error('Error updating technician stock:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    if (!updatedRows || updatedRows.length === 0) {
-      // No existing row; insert a new one
-      const { error: insertError } = await supabase
-        .from('tech_stock')
-        .insert({ technician_email: technicianEmail, stock: stockData });
-
-      if (insertError) {
-        console.error('Error inserting technician stock:', insertError);
-        return NextResponse.json({ error: insertError.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, action: 'inserted' });
-    }
-
-    return NextResponse.json({ success: true, action: 'updated' });
+    await request.json().catch(() => null);
+    return NextResponse.json(
+      {
+        error:
+          'Manual technician quantity edits are disabled. Technician stock now uses tech_stock.assigned_parts only via assign/transfer flows.',
+      },
+      { status: 410 },
+    );
   } catch (error) {
     console.error('Error in technician stock PATCH:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

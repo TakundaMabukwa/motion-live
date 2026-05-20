@@ -33,7 +33,6 @@ type ClientStockRow = {
 type TechStockRow = {
   technician_email: string | null;
   assigned_parts: unknown;
-  stock: unknown;
 };
 
 type InventoryCategoryRow = {
@@ -67,77 +66,6 @@ const toPositiveInt = (value: unknown, fallback = 0) => {
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-const collectLegacyStockItems = (stock: unknown) => {
-  const rows: Array<{
-    supplier: string;
-    code: string;
-    description: string;
-    quantity: number;
-    serial_number?: string;
-    ip_address?: string;
-  }> = [];
-
-  if (!isPlainObject(stock)) return rows;
-
-  Object.entries(stock).forEach(([topKey, topValue]) => {
-    if (!isPlainObject(topValue)) return;
-
-    const directCount = toPositiveInt(
-      (topValue as Record<string, unknown>).count ??
-        (topValue as Record<string, unknown>).quantity,
-    );
-
-    if (directCount > 0) {
-      rows.push({
-        supplier: 'Technician Stock',
-        code: topKey,
-        description: String(
-          (topValue as Record<string, unknown>).description || topKey,
-        ),
-        quantity: directCount,
-        serial_number: String(
-          (topValue as Record<string, unknown>).serial_number ||
-            (topValue as Record<string, unknown>).serial ||
-            (topValue as Record<string, unknown>).serialNumber ||
-            '',
-        ).trim(),
-        ip_address: String(
-          (topValue as Record<string, unknown>).ip_address || '',
-        ).trim(),
-      });
-      return;
-    }
-
-    Object.entries(topValue).forEach(([childCode, childValue]) => {
-      if (!isPlainObject(childValue)) return;
-      const quantity = toPositiveInt(
-        (childValue as Record<string, unknown>).count ??
-          (childValue as Record<string, unknown>).quantity,
-      );
-      if (quantity <= 0) return;
-      rows.push({
-        supplier: topKey,
-        code: childCode,
-        description: String(
-          (childValue as Record<string, unknown>).description || childCode,
-        ),
-        quantity,
-        serial_number: String(
-          (childValue as Record<string, unknown>).serial_number ||
-            (childValue as Record<string, unknown>).serial ||
-            (childValue as Record<string, unknown>).serialNumber ||
-            '',
-        ).trim(),
-        ip_address: String(
-          (childValue as Record<string, unknown>).ip_address || '',
-        ).trim(),
-      });
-    });
-  });
-
-  return rows;
-};
 
 const matchesQuery = (query: string, values: Array<unknown>) => {
   const normalizedQuery = normalizeValue(query);
@@ -224,7 +152,7 @@ export async function GET(request: NextRequest) {
         .limit(perSourceLimit),
       supabase
         .from('tech_stock')
-        .select('technician_email, assigned_parts, stock')
+        .select('technician_email, assigned_parts')
         .limit(300),
     ]);
 
@@ -426,43 +354,6 @@ export async function GET(request: NextRequest) {
               partRecord.ip_address ||
               '',
           ).trim(),
-          technician_email: technicianEmail || null,
-        });
-      });
-
-      const legacyItems = collectLegacyStockItems(row.stock);
-      legacyItems.forEach((legacyItem, index) => {
-        if (
-          !matchesQuery(query, [
-            technicianEmail,
-            legacyItem.code,
-            legacyItem.description,
-            legacyItem.supplier,
-            legacyItem.serial_number,
-            legacyItem.ip_address,
-          ])
-        ) {
-          return;
-        }
-
-        const reference =
-          legacyItem.serial_number ||
-          legacyItem.ip_address ||
-          `${legacyItem.supplier}:${legacyItem.code}`;
-        const key = `tech-legacy:${technicianEmail}:${legacyItem.supplier}:${legacyItem.code}:${index}`;
-        pushUnique(key, {
-          result_id: key,
-          source: 'technician_stock',
-          source_label: 'Technician Stock',
-          reference,
-          code: legacyItem.code,
-          description: legacyItem.description,
-          quantity: legacyItem.quantity,
-          status: 'IN STOCK',
-          bin: technicianEmail || 'Technician Bin',
-          owner: technicianEmail || 'Technician',
-          supplier: legacyItem.supplier,
-          serial_number: legacyItem.serial_number || legacyItem.ip_address || null,
           technician_email: technicianEmail || null,
         });
       });

@@ -10,7 +10,9 @@ import { toast } from 'sonner';
 
 const normalizeCategoryCode = (value) => String(value || '').trim().toUpperCase();
 const resolveSerialNumber = (item) =>
-  String(item?.serial_number || item?.serial || item?.serialNumber || item?.ip_address || '').trim();
+  String(item?.serial_number || item?.serial || item?.serialNumber || '').trim();
+const isInStockItem = (item) =>
+  String(item?.status || 'IN STOCK').trim().toUpperCase() === 'IN STOCK';
 
 export default function AssignTechStockModal({
   isOpen,
@@ -32,7 +34,9 @@ export default function AssignTechStockModal({
       const response = await fetch('/api/stock');
       if (!response.ok) throw new Error('Failed to fetch stock');
       const data = await response.json();
-      const stockArray = Array.isArray(data.stock) ? data.stock : [];
+      const stockArray = Array.isArray(data.stock)
+        ? data.stock.filter(isInStockItem)
+        : [];
       setAllStockItems(stockArray);
 
       const stockCategoryMap = new Map();
@@ -103,7 +107,7 @@ export default function AssignTechStockModal({
     const serialNumber = resolveSerialNumber(item);
     if (!serialNumber) {
       toast.error(
-        `No serial number found for selected stock item (${item?.code || item?.category_code || item?.description || 'item'}). Assign serial first.`,
+        `No serial number on inventory item (${item?.code || item?.category_code || item?.description || 'item'}). Add a serial before assigning.`,
       );
       return;
     }
@@ -112,12 +116,12 @@ export default function AssignTechStockModal({
       ...prev,
       {
         stock_id: stockId,
+        inventory_item_id: stockId,
         code: item?.code || item?.category_code || '',
         description: item?.description || item?.category_description || '',
         supplier: item?.supplier || 'N/A',
         quantity: 1,
         serial_number: serialNumber,
-        ip_address: String(item?.ip_address || '').trim(),
         total_cost: 0,
         cost_per_unit: 0,
       },
@@ -152,7 +156,8 @@ export default function AssignTechStockModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           technician_email: technician.technician_email,
-          inventory_items: selectedParts,
+          tech_stock_id: technician.id,
+          inventory_item_ids: selectedParts.map((part) => part.stock_id),
         }),
       });
 
@@ -224,7 +229,7 @@ export default function AssignTechStockModal({
                           {item.description || item.category_description || item.code}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {item.code || item.category_code} • {item.serial_number || 'No serial'}
+                          {item.code || item.category_code} • Serial: {item.serial_number || 'Missing serial'}
                         </div>
                       </div>
                       <Button size="sm" variant="outline" onClick={() => addPart(item)}>

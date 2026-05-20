@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data: stockData, error } = await supabase
       .from('tech_stock')
-      .select('*')
+      .select('id, technician_email, assigned_parts, created_at')
       .ilike('technician_email', email)
       .order('id', { ascending: true });
 
@@ -45,11 +45,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { stock } = body;
+    const assignedPartsRaw = Array.isArray(body?.assigned_parts)
+      ? body.assigned_parts
+      : Array.isArray(body?.stock)
+        ? body.stock
+        : null;
     const technicianEmail = normalizeEmail(body?.technician_email);
 
-    if (!technicianEmail || !stock) {
-      return NextResponse.json({ error: 'Technician email and stock data are required' }, { status: 400 });
+    if (!technicianEmail || !assignedPartsRaw) {
+      return NextResponse.json(
+        { error: 'Technician email and assigned_parts array are required' },
+        { status: 400 },
+      );
     }
 
     // Check if record exists (case-insensitive)
@@ -71,9 +78,9 @@ export async function POST(request: NextRequest) {
       // Update existing record
       const { data: updatedRecord, error: updateError } = await supabase
         .from('tech_stock')
-        .update({ stock, technician_email: technicianEmail })
+        .update({ assigned_parts: assignedPartsRaw, technician_email: technicianEmail })
         .eq('id', existingRecord.id)
-        .select('*')
+        .select('id, technician_email, assigned_parts, created_at')
         .single();
 
       if (updateError) {
@@ -86,8 +93,8 @@ export async function POST(request: NextRequest) {
       // Create new record
       const { data: newRecord, error: insertError } = await supabase
         .from('tech_stock')
-        .insert({ technician_email: technicianEmail, stock })
-        .select('*')
+        .insert({ technician_email: technicianEmail, assigned_parts: assignedPartsRaw })
+        .select('id, technician_email, assigned_parts, created_at')
         .single();
 
       if (insertError) {
