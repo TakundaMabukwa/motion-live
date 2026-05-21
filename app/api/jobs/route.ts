@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 
 const splitCsv = (value: string | null | undefined) =>
   String(value || '')
-    .split(',')
+    .split(/[\n,;|]+/g)
     .map((item) => item.trim())
     .filter(Boolean);
 
@@ -20,7 +20,15 @@ const getTechnicianCandidates = (email: string | null | undefined) => {
 const isJobAssignedToTechnician = (job: Record<string, unknown>, technician: string | null | undefined) => {
   const normalizedEmail = String(technician || '').trim().toLowerCase();
   const emailTokens = splitCsv(String(job?.technician_phone || '')).map((token) => token.toLowerCase());
+  const inlineEmailTokens = (
+    `${String(job?.technician_phone || '')},${String(job?.technician_name || '')}`
+      .toLowerCase()
+      .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []
+  );
   if (normalizedEmail && emailTokens.includes(normalizedEmail)) {
+    return true;
+  }
+  if (normalizedEmail && inlineEmailTokens.includes(normalizedEmail)) {
     return true;
   }
 

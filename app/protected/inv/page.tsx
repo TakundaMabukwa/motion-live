@@ -132,7 +132,7 @@ interface TechnicianStockRow {
 
 interface GlobalStockSearchResult {
   result_id: string;
-  source: "inventory" | "client_stock" | "technician_stock";
+  source: "inventory" | "client_stock" | "technician_stock" | "job_history";
   source_label: string;
   reference: string;
   code: string;
@@ -145,6 +145,16 @@ interface GlobalStockSearchResult {
   supplier?: string | null;
   technician_email?: string | null;
   cost_code?: string | null;
+  job_id?: string | null;
+  job_number?: string | null;
+  vehicle_registration?: string | null;
+  customer_name?: string | null;
+  job_type?: string | null;
+  trail_event?: string | null;
+  event_date?: string | null;
+  event_date_label?: string | null;
+  completion_date?: string | null;
+  decommission_date?: string | null;
 }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -401,6 +411,7 @@ export default function InventoryPage() {
     inventory: 0,
     client_stock: 0,
     technician_stock: 0,
+    job_history: 0,
     total: 0,
   });
   const [showAssignTechStock, setShowAssignTechStock] = useState(false);
@@ -540,6 +551,7 @@ export default function InventoryPage() {
         inventory: 0,
         client_stock: 0,
         technician_stock: 0,
+        job_history: 0,
         total: 0,
       });
       return;
@@ -685,6 +697,7 @@ export default function InventoryPage() {
         inventory: 0,
         client_stock: 0,
         technician_stock: 0,
+        job_history: 0,
         total: 0,
       });
       return;
@@ -718,6 +731,7 @@ export default function InventoryPage() {
         inventory: Number(payload?.counts?.inventory || 0),
         client_stock: Number(payload?.counts?.client_stock || 0),
         technician_stock: Number(payload?.counts?.technician_stock || 0),
+        job_history: Number(payload?.counts?.job_history || 0),
         total: Number(payload?.counts?.total || 0),
       });
     } catch (error) {
@@ -3968,8 +3982,8 @@ export default function InventoryPage() {
             Inventory Search
           </h3>
           <p className="text-sm text-gray-600">
-            Global lookup across Soltrack stock, client stock, and technician
-            stock bins.
+            Global lookup across stock bins and full job-card trail by reg,
+            serial, IP, account, or job number.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -3993,7 +4007,7 @@ export default function InventoryPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
         <Input
-          placeholder="Search serial, code, description, supplier, bin, account, or technician..."
+          placeholder="Search reg, serial/IP, job number, code, supplier, bin, account, or technician..."
           value={globalStockSearchTerm}
           onChange={(event) => setGlobalStockSearchTerm(event.target.value)}
           className="bg-white pl-10"
@@ -4002,22 +4016,22 @@ export default function InventoryPage() {
 
       {globalStockSearchTerm.trim().length < 2 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white py-10 text-center text-sm text-gray-600">
-          Type at least 2 characters to search all stock bins.
+          Type at least 2 characters to search stock bins and job history.
         </div>
       ) : globalStockSearchLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <span className="ml-2 text-sm text-gray-600">
-            Searching stock bins...
+            Searching stock bins and history...
           </span>
         </div>
       ) : globalStockSearchResults.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white py-10 text-center text-sm text-gray-600">
-          No stock matches found.
+          No stock or job-history matches found.
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <Card className="border-blue-100">
               <CardContent className="p-4">
                 <p className="text-xs font-medium tracking-wide text-blue-700 uppercase">
@@ -4045,6 +4059,16 @@ export default function InventoryPage() {
                 </p>
                 <p className="mt-1 text-2xl font-semibold text-purple-900">
                   {globalStockSearchCounts.technician_stock}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-amber-100">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium tracking-wide text-amber-700 uppercase">
+                  Job History
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-amber-900">
+                  {globalStockSearchCounts.job_history}
                 </p>
               </CardContent>
             </Card>
@@ -4091,6 +4115,8 @@ export default function InventoryPage() {
                             ? "border-indigo-200 text-indigo-700"
                             : item.source === "technician_stock"
                               ? "border-purple-200 text-purple-700"
+                              : item.source === "job_history"
+                                ? "border-amber-200 text-amber-700"
                               : "border-blue-200 text-blue-700"
                         }
                       >
@@ -4098,16 +4124,31 @@ export default function InventoryPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {item.reference}
+                      <div>{item.reference}</div>
+                      {item.source === "job_history" && item.event_date_label ? (
+                        <div className="text-xs font-normal text-gray-500">
+                          {item.event_date_label}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-700">
-                      {item.serial_number || "-"}
+                      <div>{item.serial_number || "-"}</div>
+                      {item.source === "job_history" && item.vehicle_registration ? (
+                        <div className="text-gray-500">
+                          Reg: {item.vehicle_registration}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
                       <div className="font-medium text-gray-900">{item.code}</div>
                       <div className="text-xs text-gray-600">
                         {item.description || "No description"}
                       </div>
+                      {item.source === "job_history" && item.trail_event ? (
+                        <div className="text-xs text-amber-700">
+                          Trail: {item.trail_event}
+                        </div>
+                      ) : null}
                       {item.supplier ? (
                         <div className="text-xs text-gray-500">
                           Supplier: {item.supplier}
@@ -4122,9 +4163,24 @@ export default function InventoryPage() {
                     <td className="px-4 py-3 text-gray-700">
                       <div>{item.bin}</div>
                       <div className="text-xs text-gray-500">{item.owner}</div>
+                      {item.source === "job_history" && item.cost_code ? (
+                        <div className="text-xs text-gray-500">
+                          Account: {item.cost_code}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
-                      {item.status || "N/A"}
+                      <div>{item.status || "N/A"}</div>
+                      {item.source === "job_history" && item.completion_date ? (
+                        <div className="text-xs text-gray-500">
+                          Completed: {new Date(item.completion_date).toLocaleDateString()}
+                        </div>
+                      ) : null}
+                      {item.source === "job_history" && item.decommission_date ? (
+                        <div className="text-xs text-gray-500">
+                          De-installed: {new Date(item.decommission_date).toLocaleDateString()}
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -6525,5 +6581,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-
-

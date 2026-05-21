@@ -110,6 +110,7 @@ export default function Dashboard() {
       setUserInfo(userData);
       setUserRole(userData.user.role);
       setUserEmail(userData.user.email);
+      setActiveJobsView(userData.isTechAdmin ? 'all-jobs' : 'my-jobs');
       
       let jobsUrl = '/api/jobs';
       const jobsResponse = await fetch(`${jobsUrl}?t=${Date.now()}`, {
@@ -317,9 +318,14 @@ export default function Dashboard() {
 
   const splitCsv = (value: string | null | undefined) =>
     String(value || '')
-      .split(',')
+      .split(/[\n,;|]+/g)
       .map((item) => item.trim())
       .filter(Boolean);
+
+  const extractEmails = (value: string | null | undefined) =>
+    String(value || '')
+      .toLowerCase()
+      .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || [];
 
   const getUserNameCandidates = () => {
     const prefix = (userEmail || '').split('@')[0] || '';
@@ -328,10 +334,19 @@ export default function Dashboard() {
   };
 
   const isJobAssignedToCurrentUser = (job: Job) => {
+    const normalizedUserEmail = String(userEmail || '').trim().toLowerCase();
     const emailTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
+    const inlineEmailTokens = [
+      ...extractEmails(job.technician_phone),
+      ...extractEmails(job.technician_name),
+    ];
     const nameTokens = splitCsv(job.technician_name).map((token) => normalizeToken(token));
 
-    const emailMatch = !!userEmail && emailTokens.includes(userEmail.toLowerCase());
+    const emailMatch =
+      !!normalizedUserEmail &&
+      (emailTokens.includes(normalizedUserEmail) ||
+        inlineEmailTokens.includes(normalizedUserEmail) ||
+        inlineEmailTokens.some((email) => email.includes(normalizedUserEmail)));
     if (emailMatch) return true;
 
     const candidates = getUserNameCandidates();
@@ -425,10 +440,11 @@ export default function Dashboard() {
   };
   const activeUserJobs = userJobs.filter((job) => isJobActiveInTechQueue(job));
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
-  const escalationJobs = assignedActiveJobs.filter((job) => isEscalatedToTech(job));
+  const jobPoolForTeamViews = userInfo?.isTechAdmin ? activeUserJobs : assignedActiveJobs;
+  const escalationJobs = jobPoolForTeamViews.filter((job) => isEscalatedToTech(job));
   // Assigned techs should still see escalated jobs in My Jobs; the Escalations tab is an extra view, not an exclusion.
   const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job));
-  const allJobs = assignedActiveJobs.filter((job) => !isEscalatedToTech(job));
+  const allJobs = jobPoolForTeamViews.filter((job) => !isEscalatedToTech(job));
   const displayedJobs =
     activeJobsView === 'my-jobs'
       ? myJobs
