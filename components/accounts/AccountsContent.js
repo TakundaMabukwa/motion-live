@@ -1337,7 +1337,7 @@ export default function AccountsContent({ activeSection }) {
           selectedJobForInvoice,
         );
         if (!effectiveAccountNumber) {
-          toast.error("Vehicle not found in vehicles_duplicate. Match a vehicle first.");
+          toast.error("Vehicle not found, please add it.");
           return;
         }
       }
