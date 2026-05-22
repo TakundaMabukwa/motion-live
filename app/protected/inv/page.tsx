@@ -335,7 +335,7 @@ export default function InventoryPage() {
   const [movedDeinstalledItems, setMovedDeinstalledItems] = useState<
     Record<string, string>
   >({});
-  const [activeTab, setActiveTab] = useState("job-cards");
+  const [activeTab, setActiveTab] = useState("escalations");
   const [stockOrders, setStockOrders] = useState<StockOrder[]>([]);
   const [stockOrdersLoading, setStockOrdersLoading] = useState(false);
   const [stockOrdersSearchTerm, setStockOrdersSearchTerm] = useState("");
@@ -438,7 +438,7 @@ export default function InventoryPage() {
         },
         body: JSON.stringify({
           destination,
-          preserveCompleted: true,
+          escalationOnly: true,
         }),
       });
 
@@ -893,10 +893,19 @@ export default function InventoryPage() {
       .trim()
       .toLowerCase();
 
+    const closedStates = new Set(["completed", "invoiced"]);
     return (
-      normalizedStatus !== "completed" && normalizedJobStatus !== "completed"
+      !closedStates.has(normalizedStatus) &&
+      !closedStates.has(normalizedJobStatus)
     );
   };
+
+  const hasPartsRequired = (job: JobCard) =>
+    Boolean(
+      job.parts_required &&
+        Array.isArray(job.parts_required) &&
+        job.parts_required.length > 0,
+    );
 
   const removeJobCardLocally = (jobId: string) => {
     setJobCards((current) => current.filter((job) => job.id !== jobId));
@@ -944,14 +953,7 @@ export default function InventoryPage() {
   });
 
   const jobCardsWithParts = jobCards.filter(
-    (job: JobCard) =>
-      !isMovedAwayFromInventory(job) &&
-      !isEscalatedToInventory(job) &&
-      isAssignedPartsActiveJob(job) &&
-      !Boolean(job.fc_note_acknowledged) &&
-      job.parts_required &&
-      Array.isArray(job.parts_required) &&
-      job.parts_required.length > 0,
+    (job: JobCard) => hasPartsRequired(job) && isAssignedPartsActiveJob(job),
   );
 
   const completedJobs = jobCards
@@ -1129,34 +1131,34 @@ export default function InventoryPage() {
     setMarkingNoPartsRequired(true);
 
     try {
-      const response = await fetch(`/api/job-cards/${selectedJobCard.id}/move`, {
-        method: "POST",
+      const response = await fetch(`/api/job-cards/${selectedJobCard.id}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          destination: "admin",
-          bypassEscalation: true,
+          parts_required: [],
+          qr_code: null,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(
-          errorData?.error || "Failed to move job to admin",
+          errorData?.error || "Failed to save no-parts-required",
         );
       }
 
-      toast.success(
-        `Job ${selectedJobCard.job_number} moved to admin with no parts required`,
-      );
-      removeJobCardLocally(selectedJobCard.id);
+      toast.success(`Saved: no parts required for job ${selectedJobCard.job_number}`);
+      fetchJobCards();
       setShowAssignParts(false);
       setSelectedJobCard(null);
     } catch (error) {
       console.error("Error marking no parts required:", error);
       toast.error(
-        error instanceof Error ? error.message : "Failed to move job to admin",
+        error instanceof Error
+          ? error.message
+          : "Failed to save no-parts-required",
       );
     } finally {
       setMarkingNoPartsRequired(false);
@@ -2882,12 +2884,6 @@ export default function InventoryPage() {
                                 Admin
                               </SelectItem>
                               <SelectItem
-                                value="accounts"
-                                className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
-                              >
-                                Accounts
-                              </SelectItem>
-                              <SelectItem
                                 value="fc"
                                 className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3"
                               >
@@ -3078,12 +3074,6 @@ export default function InventoryPage() {
                               Admin
                             </SelectItem>
                             <SelectItem
-                              value="accounts"
-                              className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
-                            >
-                              Accounts
-                            </SelectItem>
-                            <SelectItem
                               value="fc"
                               className="cursor-pointer hover:bg-purple-50 focus:bg-purple-50 font-medium text-sm py-2 px-3"
                             >
@@ -3269,12 +3259,6 @@ export default function InventoryPage() {
                               className="cursor-pointer hover:bg-blue-50 focus:bg-blue-50 font-medium text-sm py-2 px-3"
                             >
                               Admin
-                            </SelectItem>
-                            <SelectItem
-                              value="accounts"
-                              className="cursor-pointer hover:bg-green-50 focus:bg-green-50 font-medium text-sm py-2 px-3"
-                            >
-                              Accounts
                             </SelectItem>
                             <SelectItem
                               value="fc"
@@ -4563,7 +4547,6 @@ export default function InventoryPage() {
           moveOptions={[
             { value: "admin", label: "Admin" },
             { value: "fc", label: "FC" },
-            { value: "accounts", label: "Accounts" },
           ]}
           renderActions={(job) => (
             <>

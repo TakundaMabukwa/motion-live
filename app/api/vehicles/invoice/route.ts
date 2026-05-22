@@ -223,6 +223,8 @@ const pushInvoiceItem = (
     total_incl_vat: totalInclVat.toFixed(2),
     total_including_vat: totalInclVat.toFixed(2),
     totalRentalSub: totalInclVat.toFixed(2),
+    vehicle_created_at: vehicle.created_at || null,
+    item_added_at: vehicle.created_at || vehicle.updated_at || null,
   });
 
   return totalInclVat;

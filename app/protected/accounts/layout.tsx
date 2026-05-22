@@ -9,12 +9,12 @@ import UniversalLayout from '@/components/shared/UniversalLayout';
 
 function AccountsLayoutContent() {
   const searchParams = useSearchParams();
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('clients');
 
   useEffect(() => {
     const section = searchParams.get('section');
     if (section) {
-      setActiveSection(section);
+      setActiveSection(section === 'dashboard' ? 'clients' : section);
     }
   }, [searchParams]);
 

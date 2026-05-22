@@ -1791,7 +1791,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
         ...(result.data as Record<string, unknown>),
         status: 'completed',
         job_status: 'completed',
-        role: 'inv',
+        role: 'admin',
       });
       setJobData(finalPayload);
 
@@ -1925,7 +1925,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           completion_notes: completionNotes.trim() || completedJob?.completion_notes || null,
           status: 'completed',
           job_status: 'completed',
-          role: 'inv',
+          role: 'admin',
         });
 
         setJobData(finalPayload);

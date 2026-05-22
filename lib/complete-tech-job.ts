@@ -101,7 +101,7 @@ export async function completeTechJobCard(
   const completionPayload: Record<string, unknown> = {
     status: "completed",
     job_status: "completed",
-    role: "inv",
+    role: "admin",
     completion_date: new Date().toISOString(),
     end_time: new Date().toISOString(),
   };

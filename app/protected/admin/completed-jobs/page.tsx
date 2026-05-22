@@ -39,6 +39,7 @@ interface CompletedJob {
   start_time?: string;
   end_time?: string;
   status: string;
+  job_status?: string;
   job_type: string;
   job_description: string;
   customer_name: string;
@@ -183,13 +184,19 @@ export function AwaitingTestingContent({
       if (!response.ok) throw new Error("Failed to fetch completed jobs");
       const data = await response.json();
       const completedJobs = (data.jobs || []).filter(
-        (job: CompletedJob) =>
-          !["fc", "inv", "accounts"].includes(
-            String(job.role || "").toLowerCase(),
-          ) &&
-          !["fc", "inv", "accounts"].includes(
-            String(job.move_to || "").toLowerCase(),
-          ),
+        (job: CompletedJob) => {
+          const normalizedRole = String(job.role || "").trim().toLowerCase();
+          const normalizedStatus = String(job.status || "").trim().toLowerCase();
+          const normalizedJobStatus = String(job.job_status || "")
+            .trim()
+            .toLowerCase();
+
+          const isCompleted =
+            normalizedStatus === "completed" ||
+            normalizedJobStatus === "completed";
+
+          return isCompleted && normalizedRole === "admin";
+        },
       );
       setJobs(completedJobs);
     } catch (error) {
@@ -268,43 +275,6 @@ export function AwaitingTestingContent({
       }
     } catch (error) {
       console.error("Error sending job to inventory:", error);
-      toast({
-        title: "Failed to send",
-        description: "Please try again later.",
-        variant: "destructive",
-      });
-    } finally {
-      setSendingJobId(null);
-    }
-  };
-
-  const handleSendToRia = async (job: CompletedJob) => {
-    setSendingJobId(job.id);
-    try {
-      const response = await fetch(`/api/job-cards/${job.id}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination: "accounts",
-          preserveCompleted: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to send job to Ria");
-      }
-
-      toast({
-        title: "Sent successfully",
-        description: `Job ${job.job_number} was sent to Ria successfully.`,
-      });
-      setJobs((prev) => prev.filter((item) => item.id !== job.id));
-      if (selectedJob?.id === job.id) {
-        setViewJobOpen(false);
-      }
-    } catch (error) {
-      console.error("Error sending job to Ria:", error);
       toast({
         title: "Failed to send",
         description: "Please try again later.",

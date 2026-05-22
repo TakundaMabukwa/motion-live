@@ -314,8 +314,6 @@ export default function Dashboard() {
     }
   };
 
-  const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
-
   const splitCsv = (value: string | null | undefined) =>
     String(value || '')
       .split(/[\n,;|]+/g)
@@ -327,30 +325,17 @@ export default function Dashboard() {
       .toLowerCase()
       .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || [];
 
-  const getUserNameCandidates = () => {
-    const prefix = (userEmail || '').split('@')[0] || '';
-    const cleaned = prefix.replace(/[._-]/g, ' ');
-    return [prefix, cleaned, ...cleaned.split(' ')].filter(Boolean).map(normalizeToken);
-  };
-
-  const isJobAssignedToCurrentUser = (job: Job) => {
+  const isAssignedToCurrentUserByTechnicianPhone = (job: Job) => {
     const normalizedUserEmail = String(userEmail || '').trim().toLowerCase();
+    if (!normalizedUserEmail) return false;
+
     const emailTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
-    const inlineEmailTokens = [
-      ...extractEmails(job.technician_phone),
-      ...extractEmails(job.technician_name),
-    ];
-    const nameTokens = splitCsv(job.technician_name).map((token) => normalizeToken(token));
+    const inlineEmailTokens = extractEmails(job.technician_phone);
 
-    const emailMatch =
-      !!normalizedUserEmail &&
-      (emailTokens.includes(normalizedUserEmail) ||
-        inlineEmailTokens.includes(normalizedUserEmail) ||
-        inlineEmailTokens.some((email) => email.includes(normalizedUserEmail)));
-    if (emailMatch) return true;
-
-    const candidates = getUserNameCandidates();
-    return candidates.some((candidate) => nameTokens.includes(candidate));
+    return (
+      emailTokens.includes(normalizedUserEmail) ||
+      inlineEmailTokens.includes(normalizedUserEmail)
+    );
   };
 
   const parseQuotationProducts = (quotationProducts: unknown): Array<Record<string, unknown>> => {
@@ -439,11 +424,14 @@ export default function Dashboard() {
     void handleCompleteJob(job);
   };
   const activeUserJobs = userJobs.filter((job) => isJobActiveInTechQueue(job));
+  const nonCompletedUserJobs = userJobs.filter((job) => !isJobMarkedCompleted(job));
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
   const jobPoolForTeamViews = userInfo?.isTechAdmin ? activeUserJobs : assignedActiveJobs;
   const escalationJobs = jobPoolForTeamViews.filter((job) => isEscalatedToTech(job));
   // Assigned techs should still see escalated jobs in My Jobs; the Escalations tab is an extra view, not an exclusion.
-  const myJobs = assignedActiveJobs.filter((job) => isJobAssignedToCurrentUser(job));
+  const myJobs = nonCompletedUserJobs.filter((job) =>
+    isAssignedToCurrentUserByTechnicianPhone(job),
+  );
   const allJobs = jobPoolForTeamViews.filter((job) => !isEscalatedToTech(job));
   const displayedJobs =
     activeJobsView === 'my-jobs'

@@ -316,13 +316,11 @@ export async function PUT(
 
       const routingFields: {
         status: string;
-        role?: 'admin' | 'inv' | 'accounts';
-        move_to?: 'admin' | 'inv' | 'accounts';
+        role?: 'admin' | 'accounts';
+        move_to?: 'admin' | 'accounts';
       } =
         routingDestination === 'admin'
           ? { role: 'admin', move_to: 'admin', status: 'admin_created' }
-          : routingDestination === 'inv'
-          ? { role: 'inv', move_to: 'inv', status: 'pending' }
           : routingDestination === 'accounts'
           ? { role: 'accounts', move_to: 'accounts', status: 'pending' }
           : { status: 'pending' };
@@ -343,8 +341,8 @@ export async function PUT(
         ? {
             status: 'pending',
             job_status: 'pending',
-            role: 'inv' as const,
-            move_to: 'inv' as const,
+            role: 'fc' as const,
+            move_to: null,
           }
         : {
             status: routingFields.status,
@@ -512,7 +510,7 @@ export async function PUT(
         message: shouldAutoCompleteToAccounts
           ? 'Calibration quote approved and moved to Accounts'
           : shouldRouteToInventory
-          ? 'Client quote approved and moved to Inventory (Assign Parts)'
+          ? 'Client quote approved and copied to job cards (role set to FC)'
           : 'Client quote approved and copied to job cards successfully',
         data: {
           jobCardId: jobCard.id,

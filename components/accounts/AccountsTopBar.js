@@ -48,17 +48,14 @@ export default function AccountsTopBar({ activeSection, onSectionChange }) {
   };
 
   const navigation = [
-    { name: 'Dashboard', icon: 'grid', key: 'dashboard' },
     { name: 'Clients', icon: 'clients', key: 'clients' },
     { name: 'Invoices', icon: 'file-text', key: 'invoices' },
     { name: 'Credit Notes', icon: 'file-text', key: 'credit-notes' },
     { name: 'Client Info', icon: 'clients', key: 'client-info' },
-    { name: 'Receivables', icon: 'alert-triangle', key: 'overdue' },
     { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
     { name: 'Job Pool', icon: 'clock', key: 'job-pool' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },
     { name: 'Orders', icon: 'receipt', key: 'orders' },
-    // { name: 'Vehicles', icon: 'car', key: 'vehicles' },
   ];
 
   return (

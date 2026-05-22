@@ -10,14 +10,14 @@ export default function AccountsPage() {
   useEffect(() => {
     // Only redirect if we're exactly at /protected/accounts (not at /protected/accounts/[accountNumber])
     if (pathname === '/protected/accounts') {
-      router.replace('/protected/accounts?section=dashboard');
+      router.replace('/protected/accounts?section=clients');
     }
   }, [router, pathname]);
 
   return (
     <div className="flex justify-center items-center py-12">
       <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-      <span className="ml-2">Redirecting to accounts dashboard...</span>
+      <span className="ml-2">Redirecting to clients...</span>
     </div>
   );
 }

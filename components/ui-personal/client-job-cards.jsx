@@ -362,7 +362,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       }
 
       toast.success('Quote approved successfully!', {
-        description: `Quote ${quote.job_number} has been approved and copied to job cards.`
+        description: `Quote ${quote.job_number} has been approved. Go to Jobs tab and move where needed.`
       });
 
       // Refresh the client quotes list
@@ -403,7 +403,7 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
       return;
     }
 
-    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
+    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.  Note: This job card will not go to INV(Ria) unless moved to Inventory on Job Cards tab`)) {
       return;
     }
 

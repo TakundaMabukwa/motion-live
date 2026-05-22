@@ -8,7 +8,14 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { id } = await params;
-    const { destination, note, preserveCompleted, bypassEscalation } = await request.json();
+    const {
+      destination,
+      note,
+      preserveCompleted,
+      bypassEscalation,
+      escalationOnly,
+      inventoryPlacement,
+    } = await request.json();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -39,6 +46,10 @@ export async function POST(
       );
     }
 
+    const inventoryPlacementNormalized = String(inventoryPlacement || "")
+      .trim()
+      .toLowerCase();
+
     const { data: currentJob, error: currentJobError } = await supabase
       .from("job_cards")
       .select("role, move_to, completion_notes, status, job_status")
@@ -52,6 +63,38 @@ export async function POST(
       );
     }
 
+    // Completed-jobs handoff: preserve everything and only switch role to inventory.
+    if (
+      targetRole === "inv" &&
+      inventoryPlacementNormalized === "completed-jobs"
+    ) {
+      const { data: inventoryRoleOnlyJob, error: inventoryRoleOnlyError } =
+        await supabase
+          .from("job_cards")
+          .update({
+            role: "inv",
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+      if (inventoryRoleOnlyError) {
+        return NextResponse.json(
+          {
+            error: "Failed to set Inventory role",
+            details: inventoryRoleOnlyError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Job role changed to Inventory",
+        job: inventoryRoleOnlyJob,
+      });
+    }
+
     const sourceJobStatus = String(currentJob.job_status || "").trim().toLowerCase();
     const sourceStatus = String(currentJob.status || "").trim().toLowerCase();
     const sourceIsCompleted =
@@ -60,11 +103,8 @@ export async function POST(
     const sourceRole = String(
       currentJob.role || currentJob.move_to || "",
     ).trim().toLowerCase() || null;
-    const isInventorySourceRole =
-      sourceRole === "inv" || sourceRole === "inventory";
     const shouldRouteDirectToAdminAwaiting =
-      targetRole === "admin" &&
-      (isInventorySourceRole || Boolean(bypassEscalation));
+      targetRole === "admin" && Boolean(bypassEscalation);
     const shouldPreserveCompletedForFc =
       targetRole === "fc" && (Boolean(preserveCompleted) || sourceIsCompleted);
     const shouldMoveAsCompleted =
@@ -82,6 +122,35 @@ export async function POST(
           escalation_source_role: sourceRole,
           escalated_at: new Date().toISOString(),
         };
+
+    if (Boolean(escalationOnly)) {
+      const { data: escalatedJob, error: escalationOnlyError } = await supabase
+        .from("job_cards")
+        .update({
+          escalation_role: targetRole,
+          escalation_source_role: sourceRole,
+          escalated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (escalationOnlyError) {
+        return NextResponse.json(
+          {
+            error: `Failed to move job to ${targetRole.toUpperCase()} escalations`,
+            details: escalationOnlyError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Job moved to ${targetRole.toUpperCase()} escalation queue`,
+        job: escalatedJob,
+      });
+    }
 
     // Completed destinations (Accounts and FC with preserveCompleted=true) should avoid escalation.
     // Other role-to-role moves should stay active/pending and surface via escalations.

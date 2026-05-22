@@ -112,6 +112,11 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     const requestedBillingMonth = String(request.nextUrl.searchParams.get('billingMonth') || '')
       .trim();
+    const persistInvoices = String(
+      request.nextUrl.searchParams.get('persist') || 'true',
+    )
+      .trim()
+      .toLowerCase() === 'true';
 
     let accountNumbers: string[] = [];
 
@@ -353,7 +358,53 @@ export async function GET(request: NextRequest) {
           reg: item.reg || null,
           fleetNumber: item.fleetNumber || null,
           company: item.company || '',
+          vehicle_created_at: item.vehicle_created_at || null,
+          item_added_at:
+            item.item_added_at || item.vehicle_created_at || item.created_at || null,
         }));
+
+        if (!persistInvoices) {
+          const previewCompanyName = String(
+            costCenter?.legal_name ||
+              costCenter?.company ||
+              draftInvoiceData?.company_name ||
+              accountNumber,
+          ).trim();
+          const previewClientAddress = String(
+            buildAddress(costCenter) || draftInvoiceData?.client_address || '',
+          ).trim();
+          const previewCustomerVatNumber = String(
+            costCenter?.vat_number || draftInvoiceData?.customer_vat_number || '',
+          ).trim();
+          const previewCompanyRegistrationNumber = String(
+            costCenter?.registration_number ||
+              draftInvoiceData?.company_registration_number ||
+              '',
+          ).trim();
+
+          return {
+            accountNumber,
+            invoiceData: {
+              ...draftInvoiceData,
+              company_name: previewCompanyName,
+              invoice_number: existingInvoice?.invoice_number || draftInvoiceData?.invoice_number || '',
+              invoice_date: resolveInvoiceDate(
+                draftInvoiceData?.billing_month || billingMonthKey,
+                draftInvoiceData?.invoice_date,
+              ),
+              billing_month: draftInvoiceData?.billing_month || billingMonthKey,
+              client_address: previewClientAddress,
+              customer_vat_number: previewCustomerVatNumber,
+              company_registration_number: previewCompanyRegistrationNumber,
+              subtotal: draftInvoiceData?.subtotal ?? 0,
+              vat_amount: draftInvoiceData?.vat_amount ?? 0,
+              total_amount: draftInvoiceData?.total_amount ?? 0,
+              notes: draftInvoiceData?.notes ?? '',
+              invoiceItems: invoiceItems,
+              invoice_items: invoiceItems,
+            },
+          };
+        }
 
         const persistResponse = await fetch(`${origin}/api/invoices/bulk-account`, {
           method: 'POST',

@@ -207,7 +207,7 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
           after_photos: photoUrls,
           status: 'completed',
           job_status: 'completed',
-          role: 'inv',
+          role: 'admin',
           completion_date: new Date().toISOString(),
         }),
       });
@@ -219,7 +219,7 @@ export default function EndJobModal({ isOpen, onClose, job, onJobCompleted }: En
           after_photos: photoUrls,
           status: 'completed',
           job_status: 'completed',
-          role: 'inv',
+          role: 'admin',
         });
         handleClose();
       } else {

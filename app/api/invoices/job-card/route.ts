@@ -89,6 +89,32 @@ const toNumberValue = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const extractBillingInvoiceIdentity = (billingStatuses: unknown) => {
+  if (!billingStatuses || typeof billingStatuses !== 'object') {
+    return { invoiceId: '', invoiceNumber: '' };
+  }
+
+  const invoiceStatus =
+    (billingStatuses as Record<string, unknown>)?.invoice &&
+    typeof (billingStatuses as Record<string, unknown>).invoice === 'object'
+      ? ((billingStatuses as Record<string, unknown>).invoice as Record<
+          string,
+          unknown
+        >)
+      : null;
+
+  if (!invoiceStatus) {
+    return { invoiceId: '', invoiceNumber: '' };
+  }
+
+  const invoiceId = String(invoiceStatus.invoice_id || '').trim();
+  const invoiceNumber = String(
+    invoiceStatus.invoice_number || invoiceStatus.reference || '',
+  ).trim();
+
+  return { invoiceId, invoiceNumber };
+};
+
 const isAdminOrRepairFallbackJob = (
   jobCard: Record<string, unknown> | null | undefined,
 ) => {
@@ -211,15 +237,59 @@ export async function GET(request: NextRequest) {
     if (!invoice) {
       const { data: jobCardMeta, error: jobCardMetaError } = await supabase
         .from('job_cards')
-        .select('job_number')
+        .select('job_number, billing_statuses')
         .eq('id', jobCardId)
         .maybeSingle();
 
       if (jobCardMetaError) {
         console.error('Error fetching job card metadata for invoice lookup:', jobCardMetaError);
       } else {
+        const {
+          invoiceId: billingInvoiceId,
+          invoiceNumber: billingInvoiceNumber,
+        } = extractBillingInvoiceIdentity(jobCardMeta?.billing_statuses);
+
+        if (billingInvoiceId) {
+          const { data: billingFallbackData, error: billingFallbackError } =
+            await supabase
+              .from('invoices')
+              .select('*')
+              .eq('id', billingInvoiceId)
+              .maybeSingle();
+
+          if (billingFallbackError) {
+            console.error(
+              'Error fetching fallback invoice by billing invoice_id:',
+              billingFallbackError,
+            );
+          } else {
+            invoice = billingFallbackData || null;
+          }
+        }
+
+        if (!invoice && billingInvoiceNumber) {
+          const { data: billingNumberFallbackData, error: billingNumberFallbackError } =
+            await supabase
+              .from('invoices')
+              .select('*')
+              .eq('invoice_number', billingInvoiceNumber)
+              .order('created_at', { ascending: false })
+              .limit(1);
+
+          if (billingNumberFallbackError) {
+            console.error(
+              'Error fetching fallback invoice by billing invoice_number:',
+              billingNumberFallbackError,
+            );
+          } else {
+            invoice = Array.isArray(billingNumberFallbackData)
+              ? billingNumberFallbackData[0] || null
+              : null;
+          }
+        }
+
         const jobNumber = String(jobCardMeta?.job_number || '').trim();
-        if (jobNumber) {
+        if (!invoice && jobNumber) {
           const { data: fallbackData, error: fallbackError } = await supabase
             .from('invoices')
             .select('*')
@@ -285,7 +355,7 @@ export async function POST(request: NextRequest) {
     const { data: jobCard, error: jobCardError } = await supabase
       .from('job_cards')
       .select(
-        'id, job_number, role, status, job_status, job_type, quotation_job_type, job_description, completion_notes, work_notes, vehicle_registration, temporary_registration, new_account_number, quotation_subtotal, quotation_total_amount, actual_cost, estimated_cost, completion_date, end_time, updated_at, job_date',
+        'id, job_number, role, status, job_status, job_type, quotation_job_type, job_description, completion_notes, work_notes, vehicle_registration, temporary_registration, new_account_number, quotation_subtotal, quotation_total_amount, actual_cost, estimated_cost, completion_date, end_time, updated_at, job_date, billing_statuses',
       )
       .eq('id', jobCardId)
       .maybeSingle();
@@ -343,9 +413,100 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingInvoice = Array.isArray(existingInvoices)
+    const existingInvoiceByJobCardId = Array.isArray(existingInvoices)
       ? existingInvoices[0] || null
       : null;
+
+    const resolvedJobNumber = String(jobNumber || jobCard?.job_number || '').trim();
+    const {
+      invoiceId: billingInvoiceId,
+      invoiceNumber: billingInvoiceNumber,
+    } = extractBillingInvoiceIdentity(jobCard?.billing_statuses);
+    const normalizedJobStatus = String(jobCard?.job_status || '')
+      .trim()
+      .toLowerCase();
+
+    let reusableInvoice = existingInvoiceByJobCardId;
+
+    if (!reusableInvoice && resolvedJobNumber) {
+      const { data: jobNumberMatches, error: jobNumberMatchError } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('job_number', resolvedJobNumber)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (jobNumberMatchError) {
+        console.error('Error checking invoice by job_number:', jobNumberMatchError);
+        return NextResponse.json(
+          {
+            error: 'Failed to check existing invoice by job number',
+            details: jobNumberMatchError.message || null,
+            code: jobNumberMatchError.code || null,
+          },
+          { status: 500 },
+        );
+      }
+
+      reusableInvoice = Array.isArray(jobNumberMatches)
+        ? jobNumberMatches[0] || null
+        : null;
+    }
+
+    if (!reusableInvoice && billingInvoiceId) {
+      const { data: billingInvoiceMatch, error: billingInvoiceMatchError } =
+        await supabase
+          .from('invoices')
+          .select('*')
+          .eq('id', billingInvoiceId)
+          .maybeSingle();
+
+      if (billingInvoiceMatchError) {
+        console.error(
+          'Error checking invoice by billing_statuses.invoice_id:',
+          billingInvoiceMatchError,
+        );
+        return NextResponse.json(
+          {
+            error: 'Failed to check invoice linked in billing status',
+            details: billingInvoiceMatchError.message || null,
+            code: billingInvoiceMatchError.code || null,
+          },
+          { status: 500 },
+        );
+      }
+
+      reusableInvoice = billingInvoiceMatch || null;
+    }
+
+    if (!reusableInvoice && billingInvoiceNumber) {
+      const { data: billingNumberMatches, error: billingNumberMatchError } =
+        await supabase
+          .from('invoices')
+          .select('*')
+          .eq('invoice_number', billingInvoiceNumber)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+      if (billingNumberMatchError) {
+        console.error(
+          'Error checking invoice by billing_statuses.invoice_number:',
+          billingNumberMatchError,
+        );
+        return NextResponse.json(
+          {
+            error: 'Failed to check existing invoice by billing invoice number',
+            details: billingNumberMatchError.message || null,
+            code: billingNumberMatchError.code || null,
+          },
+          { status: 500 },
+        );
+      }
+
+      reusableInvoice = Array.isArray(billingNumberMatches)
+        ? billingNumberMatches[0] || null
+        : null;
+    }
 
     const submittedLineItems = Array.isArray(lineItems)
       ? lineItems.filter(
@@ -409,15 +570,15 @@ export async function POST(request: NextRequest) {
       line_items: resolvedLineItems,
     };
 
-    if (existingInvoice?.id) {
+    if (reusableInvoice?.id) {
       const { data: updatedInvoice, error: updateError } = await supabase
         .from('invoices')
         .update({
           ...payload,
-          invoice_number: existingInvoice.invoice_number,
-          created_by: existingInvoice.created_by || user.id,
+          invoice_number: reusableInvoice.invoice_number,
+          created_by: reusableInvoice.created_by || user.id,
         })
-        .eq('id', existingInvoice.id)
+        .eq('id', reusableInvoice.id)
         .select('*')
         .single();
 
@@ -438,6 +599,25 @@ export async function POST(request: NextRequest) {
         reused: true,
         refreshed: Boolean(refreshInvoiceNumber),
       });
+    }
+
+    // Safety guard: if billing status already carries an invoice identity but no
+    // matching row was found, do not allocate/store a brand new invoice number.
+    if (
+      billingInvoiceId ||
+      billingInvoiceNumber ||
+      normalizedJobStatus === 'invoiced'
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Job card is already marked as invoiced but no matching stored invoice was found. Invoice number allocation was blocked to prevent duplicates.',
+          billing_invoice_id: billingInvoiceId || null,
+          billing_invoice_number: billingInvoiceNumber || null,
+          job_status: jobCard?.job_status || null,
+        },
+        { status: 409 },
+      );
     }
 
     let allocatedInvoiceNumber = '';

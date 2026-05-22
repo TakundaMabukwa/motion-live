@@ -370,7 +370,7 @@ export default function QuotesDashboard() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.`)) {
+    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards. Note: This job card will not go to INV(Ria) unless moved to Inventory`)) {
       return;
     }
 

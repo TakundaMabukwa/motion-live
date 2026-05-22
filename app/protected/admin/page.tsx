@@ -721,7 +721,6 @@ export default function AdminDashboard() {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="inv">Inventory</SelectItem>
-        <SelectItem value="accounts">Accounts</SelectItem>
         <SelectItem value="fc">FC</SelectItem>
       </SelectContent>
     </Select>
@@ -1694,7 +1693,7 @@ export default function AdminDashboard() {
                       </div>
                     </th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Description / At a Glance
+                      Description
                     </th>
                     <th className="py-3 px-4 text-left font-medium text-gray-500">
                       Customer
@@ -1846,7 +1845,6 @@ export default function AdminDashboard() {
           moveOptions={[
             { value: "inv", label: "Inventory", payload: { inventoryPlacement: "assign-parts" } },
             { value: "fc", label: "FC" },
-            { value: "accounts", label: "Accounts" },
           ]}
           renderActions={(job) => (
             <>

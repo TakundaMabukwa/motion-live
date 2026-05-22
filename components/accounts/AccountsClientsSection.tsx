@@ -19,11 +19,39 @@ import {
   RefreshCw,
   Loader2,
   Eye,
-  FileText
+  FileText,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAccounts } from '@/contexts/AccountsContext';
 // Dynamic import for XLSX to avoid build issues
+
+type BulkPreviewRow = {
+  accountNumber: string;
+  companyName: string;
+  billingMonth: string;
+  vehicleCount: number;
+  subtotal: number;
+  vatAmount: number;
+  totalAmount: number;
+  selected: boolean;
+  invoiceData: Record<string, unknown>;
+};
+
+type PreviewLineItem = {
+  key: string;
+  regFleet: string;
+  itemCode: string;
+  description: string;
+  exVat: number;
+  vatAmount: number;
+  totalInclVat: number;
+  quantity: number;
+  addedAtRaw: unknown;
+  addedAtLabel: string;
+  isRecent: boolean;
+};
 
 export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'clients' | 'client-info' }) {
   const { 
@@ -38,6 +66,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const [isGeneratingAllInvoicesExcel, setIsGeneratingAllInvoicesExcel] = useState(false);
   const [isGeneratingAllInvoicesPdf, setIsGeneratingAllInvoicesPdf] = useState(false);
   const [showAllInvoicesDialog, setShowAllInvoicesDialog] = useState(false);
+  const [allInvoicesPreviewStage, setAllInvoicesPreviewStage] = useState<'options' | 'preview'>('options');
+  const [allInvoicesPreviewRows, setAllInvoicesPreviewRows] = useState<BulkPreviewRow[]>([]);
+  const [expandedAllInvoicesPreviewRows, setExpandedAllInvoicesPreviewRows] = useState<Record<string, boolean>>({});
+  const [isLoadingAllInvoicesPreview, setIsLoadingAllInvoicesPreview] = useState(false);
+  const [isGeneratingSelectedInvoices, setIsGeneratingSelectedInvoices] = useState(false);
   const [showInvoiceNumberDialog, setShowInvoiceNumberDialog] = useState(false);
   const [showSystemLockDialog, setShowSystemLockDialog] = useState(false);
   const [systemLock, setSystemLock] = useState<Record<string, unknown> | null>(null);
@@ -84,6 +117,16 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
     fetchSystemLock();
   }, [mode]);
+
+  useEffect(() => {
+    if (!showAllInvoicesDialog) {
+      setAllInvoicesPreviewStage('options');
+      setAllInvoicesPreviewRows([]);
+      setExpandedAllInvoicesPreviewRows({});
+      setIsLoadingAllInvoicesPreview(false);
+      setIsGeneratingSelectedInvoices(false);
+    }
+  }, [showAllInvoicesDialog]);
 
   const COMPANY_INFO = {
     name: 'Soltrack (PTY) LTD',
@@ -439,6 +482,30 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     });
   }, [companyGroups, searchTerm]);
 
+  const selectedAllInvoicesPreviewRows = useMemo(
+    () => allInvoicesPreviewRows.filter((row) => row.selected),
+    [allInvoicesPreviewRows],
+  );
+
+  const allInvoicesPreviewTotals = useMemo(
+    () =>
+      selectedAllInvoicesPreviewRows.reduce(
+        (acc, row) => ({
+          subtotal: acc.subtotal + row.subtotal,
+          vatAmount: acc.vatAmount + row.vatAmount,
+          totalAmount: acc.totalAmount + row.totalAmount,
+          vehicleCount: acc.vehicleCount + row.vehicleCount,
+        }),
+        {
+          subtotal: 0,
+          vatAmount: 0,
+          totalAmount: 0,
+          vehicleCount: 0,
+        },
+      ),
+    [selectedAllInvoicesPreviewRows],
+  );
+
   const handleRefresh = async () => {
     try {
       await fetchCompanyGroups('');
@@ -656,119 +723,235 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     }
   };
 
-  // Handle invoice export for all cost centers grouped by new_account_number
-  const handleAllInvoicesExcel = async () => {
-    try {
-      setIsGeneratingAllInvoicesExcel(true);
-      toast.success('Generating all client invoices Excel...');
-
-      const response = await fetch('/api/vehicles/bulk-client-invoices-excel');
-      if (!response.ok) {
-        throw new Error('Failed to generate client invoices Excel');
-      }
-
-      const blob = await response.blob();
-      const contentDisposition = response.headers.get('Content-Disposition') || '';
-      const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-      const fileName = fileNameMatch?.[1] || `All_Client_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = fileName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(anchor);
-
-      toast.success('All client invoices Excel downloaded');
-    } catch (error) {
-      console.error('Error generating all client invoices Excel:', error);
-      toast.error('Failed to generate all client invoices Excel');
-    } finally {
-      setIsGeneratingAllInvoicesExcel(false);
+  const extractInvoiceItems = (invoiceData: Record<string, unknown>) => {
+    if (Array.isArray(invoiceData?.invoiceItems)) {
+      return invoiceData.invoiceItems as Array<Record<string, unknown>>;
     }
+    if (Array.isArray(invoiceData?.invoice_items)) {
+      return invoiceData.invoice_items as Array<Record<string, unknown>>;
+    }
+    return [] as Array<Record<string, unknown>>;
   };
 
-  const handleAllInvoicesPdf = async () => {
+  const countInvoiceVehicles = (invoiceItems: Array<Record<string, unknown>>) => {
+    const regs = new Set<string>();
+    for (const item of invoiceItems) {
+      const values = [
+        item?.new_reg,
+        item?.previous_reg,
+        item?.reg,
+        item?.fleetNumber,
+      ];
+      for (const value of values) {
+        const normalized = String(value || '').trim().toUpperCase();
+        if (!normalized || normalized === '-' || normalized === 'N/A') continue;
+        regs.add(normalized);
+      }
+    }
+    return regs.size > 0 ? regs.size : invoiceItems.length > 0 ? 1 : 0;
+  };
+
+  const mapInvoiceItemsToBulkLineItems = (
+    invoiceItems: Array<Record<string, unknown>>,
+  ) =>
+    invoiceItems.map((item) => ({
+      previous_reg: item.previous_reg || item.reg || '-',
+      new_reg: item.new_reg || item.fleetNumber || item.reg || '-',
+      item_code: item.item_code || '-',
+      description: item.description || '-',
+      comments: item.company || '',
+      units: item.units || item.quantity || 1,
+      quantity: item.quantity || item.units || 1,
+      unit_price_without_vat:
+        item.unit_price_without_vat ??
+        item.amountExcludingVat ??
+        item.total_excl_vat ??
+        item.unit_price ??
+        0,
+      amountExcludingVat:
+        item.amountExcludingVat ??
+        item.unit_price_without_vat ??
+        item.total_excl_vat ??
+        item.unit_price ??
+        0,
+      vat_amount: item.vat_amount ?? 0,
+      total_incl_vat:
+        item.total_incl_vat ??
+        item.total_including_vat ??
+        item.totalRentalSub ??
+        0,
+      total_including_vat:
+        item.total_including_vat ??
+        item.total_incl_vat ??
+        item.totalRentalSub ??
+        0,
+      reg: item.reg || null,
+      fleetNumber: item.fleetNumber || null,
+      company: item.company || '',
+      vehicle_created_at: item.vehicle_created_at || null,
+      item_added_at:
+        item.item_added_at || item.vehicle_created_at || item.created_at || null,
+    }));
+
+  const normalizeBulkPreviewRows = (
+    invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }>,
+  ) => {
+    const rows = invoices.map(({ accountNumber, invoiceData }) => {
+      const invoiceItems = extractInvoiceItems(invoiceData);
+      const subtotal = toNumber(invoiceData?.subtotal);
+      const vatAmount = toNumber(invoiceData?.vat_amount);
+      const totalAmount = toNumber(invoiceData?.total_amount);
+      const vehicleCount = countInvoiceVehicles(invoiceItems);
+
+      return {
+        accountNumber: String(accountNumber || '').trim().toUpperCase(),
+        companyName: String(invoiceData?.company_name || accountNumber || '').trim(),
+        billingMonth: String(invoiceData?.billing_month || '').trim(),
+        vehicleCount,
+        subtotal,
+        vatAmount,
+        totalAmount,
+        selected: true,
+        invoiceData,
+      } as BulkPreviewRow;
+    });
+
+    rows.sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
+    return rows;
+  };
+
+  const parseDateValue = (value: unknown) => {
+    if (!value) return null;
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatCompactDate = (value: unknown) => {
+    const parsed = parseDateValue(value);
+    if (!parsed) return '-';
+    return parsed.toLocaleDateString('en-GB');
+  };
+
+  const getPreviewBillingDate = (row: BulkPreviewRow) => {
+    const invoiceDate = parseDateValue(row.invoiceData?.invoice_date);
+    if (invoiceDate) return invoiceDate;
+
+    const fallbackBillingDate = parseDateValue(
+      getBillingInvoiceDate(String(row.billingMonth || '').trim()),
+    );
+    return fallbackBillingDate || new Date();
+  };
+
+  const buildPreviewLineItems = (row: BulkPreviewRow): PreviewLineItem[] => {
+    const billingDate = getPreviewBillingDate(row);
+    const recentCutoff = new Date(billingDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const items = extractInvoiceItems(row.invoiceData);
+
+    return items.map((item, index) => {
+      const exVat = toNumber(
+        item?.amountExcludingVat ??
+          item?.unit_price_without_vat ??
+          item?.total_excl_vat ??
+          item?.unit_price,
+      );
+      const vatAmount = toNumber(item?.vat_amount ?? item?.vatAmount) || exVat * VAT_RATE;
+      const totalInclVat =
+        toNumber(item?.total_including_vat ?? item?.total_incl_vat ?? item?.totalRentalSub) ||
+        exVat + vatAmount;
+      const quantity = Math.max(1, Number(item?.quantity ?? item?.units ?? 1) || 1);
+      const addedAtRaw =
+        item?.item_added_at ??
+        item?.vehicle_created_at ??
+        item?.created_at ??
+        item?.amount_locked_at ??
+        null;
+      const addedAtDate = parseDateValue(addedAtRaw);
+      const isRecent = Boolean(
+        addedAtDate &&
+          addedAtDate.getTime() >= recentCutoff.getTime() &&
+          addedAtDate.getTime() <= billingDate.getTime(),
+      );
+
+      return {
+        key: `${row.accountNumber}-${index}-${String(item?.reg || item?.fleetNumber || item?.item_code || 'item')}`,
+        regFleet: String(item?.new_reg || item?.reg || item?.fleetNumber || item?.previous_reg || '-'),
+        itemCode: String(item?.item_code || '-'),
+        description: String(item?.description || '-'),
+        exVat,
+        vatAmount,
+        totalInclVat,
+        quantity,
+        addedAtRaw,
+        addedAtLabel: formatCompactDate(addedAtRaw),
+        isRecent,
+      };
+    });
+  };
+
+  const toggleBulkPreviewExpansion = (accountNumber: string) => {
+    setExpandedAllInvoicesPreviewRows((prev) => ({
+      ...prev,
+      [accountNumber]: !prev[accountNumber],
+    }));
+  };
+
+  const renderInvoicesToPreviewWindow = (
+    invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }>,
+  ) => {
     const previewWindow = window.open('', '_blank');
     if (!previewWindow) {
-      toast.error('Please allow popups to preview the invoices');
-      return;
+      throw new Error('Please allow popups to preview the invoices');
     }
 
     previewWindow.document.write('<html><head><title>Preparing invoices...</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">Preparing invoice preview...</body></html>');
     previewWindow.document.close();
 
-    try {
-      setIsGeneratingAllInvoicesPdf(true);
-      toast.success('Preparing all client invoices PDF...');
+    const logoUrl = `${window.location.origin}/soltrack_logo.png`;
+    const invoicePages = invoices
+      .map(({ accountNumber, invoiceData }) => {
+        const items = extractInvoiceItems(invoiceData);
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data', {
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to prepare client invoices PDF');
-      }
-
-      const result = await response.json();
-      const invoices = Array.isArray(result?.invoices) ? result.invoices : [];
-
-      if (invoices.length === 0) {
-        toast.error('No invoice data found for PDF export');
-        return;
-      }
-
-      const logoUrl = `${window.location.origin}/soltrack_logo.png`;
-      const invoicePages = invoices
-        .map(({ accountNumber, invoiceData }: { accountNumber: string; invoiceData: Record<string, unknown> }) => {
-          const items = Array.isArray(invoiceData?.invoiceItems)
-            ? invoiceData.invoiceItems
-            : Array.isArray(invoiceData?.invoice_items)
-              ? invoiceData.invoice_items
-              : [];
-
-          const rows = items.map((item: Record<string, unknown>) => {
-            const exVat = toNumber(
-              item.unit_price_without_vat ??
-                item.amountExcludingVat ??
-                item.total_excl_vat ??
-                item.unit_price,
-            );
-            const vatAmount = toNumber(item.vat_amount) || exVat * VAT_RATE;
-            const totalIncl =
-              toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub) ||
-              exVat + vatAmount;
-
-            return {
-              previousReg: String(item.reg || '-'),
-              newReg: String(item.fleetNumber || item.reg || '-'),
-              itemCode: String(item.item_code || '-'),
-              description: String(item.description || '-'),
-              comments: String(item.company || ''),
-              units: String(item.units || 1),
-              unitPrice: formatAmount(exVat),
-              vatAmount: formatAmount(vatAmount),
-              totalIncl: formatAmount(totalIncl),
-              exVat,
-              vat: vatAmount,
-              incl: totalIncl,
-            };
-          });
-
-          const totals = rows.reduce(
-            (acc, row) => ({
-              subtotal: acc.subtotal + row.exVat,
-              vat: acc.vat + row.vat,
-              total: acc.total + row.incl,
-            }),
-            { subtotal: 0, vat: 0, total: 0 },
+        const rows = items.map((item: Record<string, unknown>) => {
+          const exVat = toNumber(
+            item.unit_price_without_vat ??
+              item.amountExcludingVat ??
+              item.total_excl_vat ??
+              item.unit_price,
           );
+          const vatAmount = toNumber(item.vat_amount) || exVat * VAT_RATE;
+          const totalIncl =
+            toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub) ||
+            exVat + vatAmount;
 
-          const rowMarkup =
-            rows
-              .map(
-                (row) => `
+          return {
+            previousReg: String(item.previous_reg || item.reg || '-'),
+            newReg: String(item.new_reg || item.fleetNumber || item.reg || '-'),
+            itemCode: String(item.item_code || '-'),
+            description: String(item.description || '-'),
+            comments: String(item.company || ''),
+            units: String(item.units || item.quantity || 1),
+            unitPrice: formatAmount(exVat),
+            vatAmount: formatAmount(vatAmount),
+            totalIncl: formatAmount(totalIncl),
+            exVat,
+            vat: vatAmount,
+            incl: totalIncl,
+          };
+        });
+
+        const totals = rows.reduce(
+          (acc, row) => ({
+            subtotal: acc.subtotal + row.exVat,
+            vat: acc.vat + row.vat,
+            total: acc.total + row.incl,
+          }),
+          { subtotal: 0, vat: 0, total: 0 },
+        );
+
+        const rowMarkup =
+          rows
+            .map(
+              (row) => `
                   <tr>
                     <td>${escapeHtml(row.previousReg)}</td>
                     <td>${escapeHtml(row.newReg)}</td>
@@ -782,10 +965,10 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                     <td class="col-right">${escapeHtml(row.totalIncl)}</td>
                   </tr>
                 `,
-              )
-              .join('') || '<tr><td colspan="10">No invoice rows available</td></tr>';
+            )
+            .join('') || '<tr><td colspan="10">No invoice rows available</td></tr>';
 
-          return `
+        return `
             <div class="invoice-page" data-account-number="${escapeHtml(accountNumber)}" data-billing-month="${escapeHtml(String(invoiceData?.billing_month || ''))}" data-company-name="${escapeHtml(invoiceData?.company_name || accountNumber)}">
               <div class="invoice-sheet">
                 <div class="invoice-top">
@@ -909,11 +1092,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
               </div>
             </div>
           `;
-        })
-        .join('');
+      })
+      .join('');
 
-      previewWindow.document.open();
-      previewWindow.document.write(`
+    previewWindow.document.open();
+    previewWindow.document.write(`
         <!DOCTYPE html>
         <html>
           <head>
@@ -1044,20 +1227,177 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
           </body>
         </html>
       `);
-      previewWindow.document.close();
-      previewWindow.focus();
-      previewWindow.onload = () => {
-        setTimeout(() => previewWindow.print(), 200);
-      };
+    previewWindow.document.close();
+    previewWindow.focus();
+    previewWindow.onload = () => {
+      setTimeout(() => previewWindow.print(), 200);
+    };
+  };
 
-      toast.success(`Prepared ${invoices.length} client invoices for PDF preview`);
+  // Handle invoice export for all cost centers grouped by new_account_number
+  const handleAllInvoicesExcel = async () => {
+    try {
+      setIsGeneratingAllInvoicesExcel(true);
+      toast.success('Generating all client invoices Excel...');
+
+      const response = await fetch('/api/vehicles/bulk-client-invoices-excel');
+      if (!response.ok) {
+        throw new Error('Failed to generate client invoices Excel');
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const fileName = fileNameMatch?.[1] || `All_Client_Invoices_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(anchor);
+
+      toast.success('All client invoices Excel downloaded');
     } catch (error) {
-      console.error('Error generating all client invoices PDF:', error);
-      previewWindow.close();
-      toast.error('Failed to generate all client invoices PDF');
+      console.error('Error generating all client invoices Excel:', error);
+      toast.error('Failed to generate all client invoices Excel');
     } finally {
-      setIsGeneratingAllInvoicesPdf(false);
+      setIsGeneratingAllInvoicesExcel(false);
+    }
+  };
+
+  const handleAllInvoicesPdf = async () => {
+    try {
+      setIsLoadingAllInvoicesPreview(true);
+      toast.success('Preparing invoice preview...');
+
+      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data?persist=false', {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to prepare client invoices preview');
+      }
+
+      const result = await response.json();
+      const invoices = Array.isArray(result?.invoices) ? result.invoices : [];
+
+      if (invoices.length === 0) {
+        toast.error('No invoice preview data found');
+        return;
+      }
+
+      setAllInvoicesPreviewRows(normalizeBulkPreviewRows(invoices));
+      setAllInvoicesPreviewStage('preview');
+    } catch (error) {
+      console.error('Error preparing all client invoice preview:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to prepare invoice preview');
+    } finally {
+      setIsLoadingAllInvoicesPreview(false);
+    }
+  };
+
+  const toggleBulkPreviewSelection = (accountNumber: string) => {
+    setAllInvoicesPreviewRows((prev) =>
+      prev.map((row) =>
+        row.accountNumber === accountNumber
+          ? { ...row, selected: !row.selected }
+          : row,
+      ),
+    );
+  };
+
+  const setAllBulkPreviewSelections = (selected: boolean) => {
+    setAllInvoicesPreviewRows((prev) => prev.map((row) => ({ ...row, selected })));
+  };
+
+  const handleGenerateSelectedInvoicesPdf = async () => {
+    const selectedRows = allInvoicesPreviewRows.filter((row) => row.selected);
+    if (selectedRows.length === 0) {
+      toast.error('Select at least one cost center');
+      return;
+    }
+
+    try {
+      setIsGeneratingSelectedInvoices(true);
+      setIsGeneratingAllInvoicesPdf(true);
+      toast.success(`Generating ${selectedRows.length} invoices sequentially...`);
+
+      const generatedInvoices: Array<{
+        accountNumber: string;
+        invoiceData: Record<string, unknown>;
+      }> = [];
+
+      for (let index = 0; index < selectedRows.length; index += 1) {
+        const row = selectedRows[index];
+        const invoiceItems = extractInvoiceItems(row.invoiceData);
+        const lineItems = mapInvoiceItemsToBulkLineItems(invoiceItems);
+        const subtotal = toNumber(row.invoiceData?.subtotal);
+        const vatAmount = toNumber(row.invoiceData?.vat_amount);
+        const totalAmount = toNumber(row.invoiceData?.total_amount);
+        const billingMonth = String(row.billingMonth || row.invoiceData?.billing_month || '').trim();
+
+        const persistResponse = await fetch('/api/invoices/bulk-account', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accountNumber: row.accountNumber,
+            billingMonth: billingMonth || null,
+            companyName: row.invoiceData?.company_name || row.companyName || row.accountNumber,
+            companyRegistrationNumber: row.invoiceData?.company_registration_number || null,
+            clientAddress: row.invoiceData?.client_address || null,
+            customerVatNumber: row.invoiceData?.customer_vat_number || null,
+            invoiceDate: row.invoiceData?.invoice_date || getBillingInvoiceDate(billingMonth),
+            subtotal,
+            vatAmount,
+            discountAmount: 0,
+            totalAmount,
+            lineItems,
+            notes: row.invoiceData?.notes || null,
+          }),
+        });
+
+        if (!persistResponse.ok) {
+          const errorPayload = await persistResponse.json().catch(() => ({}));
+          throw new Error(
+            errorPayload?.error ||
+              `Failed to generate invoice for ${row.accountNumber} at position ${index + 1}`,
+          );
+        }
+
+        const persistResult = await persistResponse.json().catch(() => ({}));
+        const persistedInvoice = persistResult?.invoice;
+        const persistedLineItems = Array.isArray(persistedInvoice?.line_items)
+          ? persistedInvoice.line_items
+          : invoiceItems;
+
+        if (!persistedInvoice || !String(persistedInvoice?.invoice_number || '').trim()) {
+          throw new Error(`Missing invoice number for ${row.accountNumber}`);
+        }
+
+        generatedInvoices.push({
+          accountNumber: row.accountNumber,
+          invoiceData: {
+            ...row.invoiceData,
+            ...persistedInvoice,
+            invoiceItems: persistedLineItems,
+            invoice_items: persistedLineItems,
+          },
+        });
+      }
+
+      await renderInvoicesToPreviewWindow(generatedInvoices);
+      toast.success(`Generated and stored ${generatedInvoices.length} invoices`);
       setShowAllInvoicesDialog(false);
+    } catch (error) {
+      console.error('Error generating selected client invoices:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to generate selected invoices');
+    } finally {
+      setIsGeneratingSelectedInvoices(false);
+      setIsGeneratingAllInvoicesPdf(false);
     }
   };
 
@@ -1066,7 +1406,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       setLoadingBulkInvoiceRows(true);
       setShowInvoiceNumberDialog(true);
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data');
+      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data?persist=false');
       if (!response.ok) {
         throw new Error('Failed to load bulk invoices');
       }
@@ -1496,39 +1836,256 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       </Card>
 
       <Dialog open={showAllInvoicesDialog} onOpenChange={setShowAllInvoicesDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Export All Invoices</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">
-              Choose how you want to generate all client invoices.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                onClick={handleAllInvoicesPdf}
-                disabled={isGeneratingAllInvoicesPdf || isGeneratingAllInvoicesExcel}
-                className="h-24 bg-red-600 hover:bg-red-700 text-white"
-              >
-                <div className="flex flex-col items-center">
-                  <FileText className="mb-2 w-5 h-5" />
-                  <span>PDF</span>
-                  <span className="text-xs font-normal opacity-90">Preview and print</span>
+        <DialogContent
+          className={
+            allInvoicesPreviewStage === 'preview'
+              ? 'w-[96vw] max-w-[96vw] h-[92vh] max-h-[92vh] p-0'
+              : 'max-w-md'
+          }
+        >
+          {allInvoicesPreviewStage === 'options' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Export All Invoices</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Choose how you want to generate all client invoices.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={handleAllInvoicesPdf}
+                    disabled={isGeneratingAllInvoicesPdf || isGeneratingAllInvoicesExcel || isLoadingAllInvoicesPreview}
+                    className="h-24 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <div className="flex flex-col items-center">
+                      <FileText className="mb-2 w-5 h-5" />
+                      <span>PDF</span>
+                      <span className="text-xs font-normal opacity-90">
+                        {isLoadingAllInvoicesPreview ? 'Loading preview...' : 'Preview and print'}
+                      </span>
+                    </div>
+                  </Button>
+                  <Button
+                    onClick={handleAllInvoicesExcel}
+                    disabled={isGeneratingAllInvoicesPdf || isGeneratingAllInvoicesExcel || isLoadingAllInvoicesPreview}
+                    className="h-24 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <div className="flex flex-col items-center">
+                      <FileText className="mb-2 w-5 h-5" />
+                      <span>Excel</span>
+                      <span className="text-xs font-normal opacity-90">Current export</span>
+                    </div>
+                  </Button>
                 </div>
-              </Button>
-              <Button
-                onClick={handleAllInvoicesExcel}
-                disabled={isGeneratingAllInvoicesPdf || isGeneratingAllInvoicesExcel}
-                className="h-24 bg-green-600 hover:bg-green-700 text-white"
-              >
-                <div className="flex flex-col items-center">
-                  <FileText className="mb-2 w-5 h-5" />
-                  <span>Excel</span>
-                  <span className="text-xs font-normal opacity-90">Current export</span>
+              </div>
+            </>
+          ) : (
+            <div className="h-full flex flex-col">
+              <DialogHeader className="px-6 pt-5 pb-3 border-b">
+                <DialogTitle>Invoice Generation Preview</DialogTitle>
+                <p className="text-sm text-gray-600">
+                  No invoice numbers are allocated here. Expand a cost center row to inspect billed vehicles/items.
+                </p>
+              </DialogHeader>
+
+              <div className="flex-1 min-h-0 p-4 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-gray-600">
+                    Light green rows indicate items added in the last 30 days from the billing date.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAllBulkPreviewSelections(true)}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAllBulkPreviewSelections(false)}
+                    >
+                      Clear All
+                    </Button>
+                  </div>
                 </div>
-              </Button>
+
+                <div className="rounded-md border flex-1 min-h-0 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="h-8">
+                        <TableHead className="w-[42px] text-center text-[11px] px-2">Open</TableHead>
+                        <TableHead className="w-[54px] text-center text-[11px] px-2">Use</TableHead>
+                        <TableHead className="text-[11px] px-2">Cost Center</TableHead>
+                        <TableHead className="text-[11px] px-2">Client</TableHead>
+                        <TableHead className="text-right text-[11px] px-2">Vehicles</TableHead>
+                        <TableHead className="text-right text-[11px] px-2">Total Ex VAT</TableHead>
+                        <TableHead className="text-right text-[11px] px-2">VAT</TableHead>
+                        <TableHead className="text-right text-[11px] px-2">Total Incl VAT</TableHead>
+                        <TableHead className="text-right text-[11px] px-2">New (30d)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {allInvoicesPreviewRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                            No cost centers found for invoice preview.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        allInvoicesPreviewRows.map((row) => {
+                          const isExpanded = Boolean(expandedAllInvoicesPreviewRows[row.accountNumber]);
+                          const lineItems = buildPreviewLineItems(row);
+                          const recentItems = lineItems.filter((item) => item.isRecent);
+
+                          return [
+                            <TableRow key={`preview-${row.accountNumber}`} className="h-8 text-xs">
+                                <TableCell className="text-center px-2 py-1">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center justify-center w-5 h-5 rounded border border-gray-300 hover:bg-gray-100"
+                                    onClick={() => toggleBulkPreviewExpansion(row.accountNumber)}
+                                    aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+                                  >
+                                    {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                  </button>
+                                </TableCell>
+                                <TableCell className="text-center px-2 py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={row.selected}
+                                    onChange={() => toggleBulkPreviewSelection(row.accountNumber)}
+                                    disabled={isGeneratingSelectedInvoices}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium px-2 py-1">{row.accountNumber}</TableCell>
+                                <TableCell className="px-2 py-1">{row.companyName || row.accountNumber}</TableCell>
+                                <TableCell className="text-right px-2 py-1">{row.vehicleCount}</TableCell>
+                                <TableCell className="text-right px-2 py-1">{formatCurrency(row.subtotal)}</TableCell>
+                                <TableCell className="text-right px-2 py-1">{formatCurrency(row.vatAmount)}</TableCell>
+                                <TableCell className="text-right px-2 py-1">{formatCurrency(row.totalAmount)}</TableCell>
+                                <TableCell className="text-right px-2 py-1">
+                                  {recentItems.length > 0 ? (
+                                    <span className="inline-flex items-center rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-[10px] font-semibold">
+                                      {recentItems.length}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">0</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>,
+                              isExpanded ? (
+                                <TableRow key={`preview-details-${row.accountNumber}`}>
+                                  <TableCell colSpan={9} className="bg-gray-50 px-2 py-2">
+                                    <div className="rounded border bg-white overflow-hidden">
+                                      <div className="px-2 py-1 text-[11px] text-gray-600 border-b">
+                                        Billing Date: {formatCompactDate(row.invoiceData?.invoice_date || getBillingInvoiceDate(row.billingMonth))}
+                                      </div>
+                                      <div className="max-h-[28vh] overflow-auto">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow className="h-7">
+                                              <TableHead className="text-[10px] px-2 py-1">Vehicle (Reg/Fleet)</TableHead>
+                                              <TableHead className="text-[10px] px-2 py-1">Item Code</TableHead>
+                                              <TableHead className="text-[10px] px-2 py-1">Description</TableHead>
+                                              <TableHead className="text-right text-[10px] px-2 py-1">Qty</TableHead>
+                                              <TableHead className="text-right text-[10px] px-2 py-1">Added</TableHead>
+                                              <TableHead className="text-right text-[10px] px-2 py-1">Ex VAT</TableHead>
+                                              <TableHead className="text-right text-[10px] px-2 py-1">VAT</TableHead>
+                                              <TableHead className="text-right text-[10px] px-2 py-1">Incl VAT</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {lineItems.length === 0 ? (
+                                              <TableRow>
+                                                <TableCell colSpan={8} className="text-center py-3 text-[11px] text-gray-500">
+                                                  No line items available.
+                                                </TableCell>
+                                              </TableRow>
+                                            ) : (
+                                              lineItems.map((item) => (
+                                                <TableRow key={item.key} className={`h-7 text-[11px] ${item.isRecent ? 'bg-green-50' : ''}`}>
+                                                  <TableCell className="px-2 py-1">{item.regFleet}</TableCell>
+                                                  <TableCell className="px-2 py-1">{item.itemCode}</TableCell>
+                                                  <TableCell className="px-2 py-1">{item.description}</TableCell>
+                                                  <TableCell className="text-right px-2 py-1">{item.quantity}</TableCell>
+                                                  <TableCell className="text-right px-2 py-1">{item.addedAtLabel}</TableCell>
+                                                  <TableCell className="text-right px-2 py-1">{formatCurrency(item.exVat)}</TableCell>
+                                                  <TableCell className="text-right px-2 py-1">{formatCurrency(item.vatAmount)}</TableCell>
+                                                  <TableCell className="text-right px-2 py-1">{formatCurrency(item.totalInclVat)}</TableCell>
+                                                </TableRow>
+                                              ))
+                                            )}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ) : null,
+                            ];
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="rounded-md bg-gray-50 border px-4 py-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <div className="text-gray-500">Selected Cost Centers</div>
+                      <div className="font-semibold text-gray-900">{selectedAllInvoicesPreviewRows.length}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Vehicles</div>
+                      <div className="font-semibold text-gray-900">{allInvoicesPreviewTotals.vehicleCount}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Total Ex VAT (Annuity)</div>
+                      <div className="font-semibold text-gray-900">{formatCurrency(allInvoicesPreviewTotals.subtotal)}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Total Incl VAT</div>
+                      <div className="font-semibold text-gray-900">{formatCurrency(allInvoicesPreviewTotals.totalAmount)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-gray-700">
+                    VAT: {formatCurrency(allInvoicesPreviewTotals.vatAmount)}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap justify-between gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAllInvoicesPreviewStage('options')}
+                    disabled={isGeneratingSelectedInvoices}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    disabled={isGeneratingSelectedInvoices || selectedAllInvoicesPreviewRows.length === 0}
+                    onClick={handleGenerateSelectedInvoicesPdf}
+                  >
+                    {isGeneratingSelectedInvoices ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating Sequentially...
+                      </>
+                    ) : (
+                      <>Generate PDF Invoices</>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 

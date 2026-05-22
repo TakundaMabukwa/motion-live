@@ -639,9 +639,9 @@ export async function PATCH(
       }
     }
 
-    // If job is being completed, route to inventory and clear technician assignment
+    // If job is being completed, route back to admin and clear technician assignment
     if (isBeingCompleted) {
-      updateData.role = 'inv';
+      updateData.role = 'admin';
       updateData.status = 'completed';
       updateData.job_status = 'completed';
       updateData.assigned_technician_id = null;

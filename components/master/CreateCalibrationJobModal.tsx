@@ -229,10 +229,6 @@ export default function CreateCalibrationJobModal() {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : handleClose())}>
       <DialogTrigger asChild>
-        <Button className="bg-blue-600 hover:bg-blue-700">
-          <Target className="mr-2 h-4 w-4" />
-          Create Calibration Quote
-        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>

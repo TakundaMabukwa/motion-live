@@ -301,15 +301,7 @@ export default function AccountsContent({ activeSection }) {
     [searchTerm, page],
   );
 
-  // Initial data fetch
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
-
-  // Fetch payment totals when component loads
-  useEffect(() => {
-    fetchPaymentTotals();
-  }, [fetchPaymentTotals]);
+  // Dashboard-only fetches are disabled because dashboard is no longer an active section.
 
   useEffect(() => {
     let active = true;
@@ -354,39 +346,7 @@ export default function AccountsContent({ activeSection }) {
     }
   }, []);
 
-  // Real-time search filtering
-  useEffect(() => {
-    if (searchTerm.trim() === "") {
-      setCustomers(allCustomers);
-    } else {
-      const searchLower = searchTerm.toLowerCase();
-      const filtered = allCustomers.filter((customer) => {
-        const legalNamesLower = (customer.legal_names || "").toLowerCase();
-        const companyGroupLower = (customer.company_group || "").toLowerCase();
-        const accountNumbersLower = (
-          customer.all_account_numbers || ""
-        ).toLowerCase();
-
-        return (
-          legalNamesLower.includes(searchLower) ||
-          companyGroupLower.includes(searchLower) ||
-          accountNumbersLower.includes(searchLower)
-        );
-      });
-      setCustomers(filtered);
-    }
-  }, [searchTerm, allCustomers]);
-
-  // Check for account parameter in URL
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const accountParam = urlParams.get("account");
-
-    if (accountParam) {
-      console.log("Account parameter found:", accountParam);
-      fetchAccountData(accountParam);
-    }
-  }, []);
+  // Dashboard-only local search/account-param fetch behavior disabled.
 
   const fetchCompletedJobs = async (
     invoiceState = completedJobsInvoiceTab,
@@ -1324,7 +1284,6 @@ export default function AccountsContent({ activeSection }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          refreshInvoiceNumber: true,
           jobCardId: selectedJobForInvoice.id,
           jobNumber: selectedJobForInvoice.job_number,
           quotationNumber: selectedJobForInvoice.quotation_number,
@@ -3128,6 +3087,10 @@ export default function AccountsContent({ activeSection }) {
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  if (activeSection === "dashboard") {
+    return <AccountsClientsSection mode="clients" />;
+  }
 
   // Dashboard Section
   if (activeSection === "dashboard") {
