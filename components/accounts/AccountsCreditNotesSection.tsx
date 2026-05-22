@@ -175,7 +175,7 @@ export default function AccountsCreditNotesSection() {
   const totalCreditValue = useMemo(
     () =>
       filteredCreditNotes.reduce(
-        (sum, creditNote) => sum + Number(creditNote.amount || 0),
+        (sum, creditNote) => sum + Number(creditNote.amount || 0) * 1.15,
         0,
       ),
     [filteredCreditNotes],
@@ -234,7 +234,7 @@ export default function AccountsCreditNotesSection() {
           </CardHeader>
           <CardContent>
             <div className="font-bold text-green-600 text-2xl">{formatCurrency(totalCreditValue)}</div>
-            <p className="text-muted-foreground text-xs">Amounts are Excl. VAT</p>
+            <p className="text-muted-foreground text-xs">Amounts are Inc. VAT (15%)</p>
           </CardContent>
         </Card>
         <Card>
@@ -303,10 +303,11 @@ export default function AccountsCreditNotesSection() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Credit Note No</TableHead>
-                    <TableHead>Account</TableHead>
+                    <TableHead>Client Name</TableHead>
                     <TableHead>Company</TableHead>
+                    <TableHead>Account</TableHead>
                     <TableHead>Billing Month</TableHead>
-                    <TableHead className="text-right">Amount (Excl)</TableHead>
+                    <TableHead className="text-right">Amount (Inc. VAT)</TableHead>
                     <TableHead className="text-right">Applied</TableHead>
                     <TableHead className="text-right">Unapplied</TableHead>
                     <TableHead>Status</TableHead>
@@ -322,14 +323,19 @@ export default function AccountsCreditNotesSection() {
                           {formatDate(creditNote.credit_note_date)}
                         </div>
                       </TableCell>
-                      <TableCell>{creditNote.account_number || "N/A"}</TableCell>
                       <TableCell>
-                        <div className="max-w-[260px] truncate">
-                          {creditNote.company_name || "N/A"}
+                        <span className="font-medium">{creditNote.company_name || creditNote.account_number || "N/A"}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-[200px] truncate text-slate-500">
+                          {creditNote.company_name ? creditNote.account_number || "N/A" : "N/A"}
                         </div>
                       </TableCell>
+                      <TableCell className="text-slate-500">{creditNote.account_number || "N/A"}</TableCell>
                       <TableCell>{formatDate(creditNote.billing_month_applies_to)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(creditNote.amount)}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(Number(creditNote.amount || 0) * 1.15)}
+                      </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency(creditNote.applied_amount)}
                       </TableCell>
