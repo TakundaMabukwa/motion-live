@@ -47,6 +47,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   skylink_motorbike: "skylink_pro",
   skylink_obd: "skylink_pro",
   p08obdsafety: "skylink_pro",
+  p08starlink4gau: "skylink_pro",
+  ituran_starlink_4g_au: "skylink_pro",
   p08scooter: "skylink_pro",
   skylite: "skylink_pro",
   skyspy: "skyspy",
@@ -66,6 +68,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   cia: "cia",
   fm_unit: "fm_unit",
   sim_card_number: "sim_card_number",
+  sim_machine2machine_lite: "sim_card_number",
+  machine2machine_lite: "sim_card_number",
   data_number: "data_number",
   gps: "gps",
   gsm: "gsm",
@@ -202,8 +206,12 @@ const DIRECT_SEARCH_FIELDS = Array.from(
 
 function resolveKnownFieldName(field: string) {
   if (!field) return null;
-  if (DIRECT_ALIASES[field]) {
-    return { kind: "direct" as const, field: DIRECT_ALIASES[field] };
+  const aliasedField = DIRECT_ALIASES[field];
+  if (aliasedField) {
+    if (GROUPED_FIELD_BASES.has(aliasedField)) {
+      return { kind: "grouped" as const, field: aliasedField };
+    }
+    return { kind: "direct" as const, field: aliasedField };
   }
   if (GROUPED_FIELD_BASES.has(field)) {
     return { kind: "grouped" as const, field };
@@ -295,6 +303,16 @@ function getInstallEquipmentValue(
   return fallback || null;
 }
 
+function getInstallSlotValue(
+  item: EquipmentItem,
+  values: ReturnType<typeof getUniqueEquipmentValue>,
+) {
+  if (values.serial) return values.serial;
+  if (values.ip) return values.ip;
+  const rawValue = String(item?.value || "").trim();
+  return rawValue || null;
+}
+
 function findFieldByExistingValue(
   vehicle: VehicleRow,
   values: ReturnType<typeof getUniqueEquipmentValue>,
@@ -383,8 +401,12 @@ function resolveField(item: EquipmentItem) {
     .filter(Boolean);
 
   for (const candidate of candidates) {
-    if (DIRECT_ALIASES[candidate]) {
-      return { kind: "direct" as const, field: DIRECT_ALIASES[candidate] };
+    const aliasedField = DIRECT_ALIASES[candidate];
+    if (aliasedField) {
+      if (GROUPED_FIELD_BASES.has(aliasedField)) {
+        return { kind: "grouped" as const, field: aliasedField };
+      }
+      return { kind: "direct" as const, field: aliasedField };
     }
     if (GROUPED_FIELD_BASES.has(candidate)) {
       return { kind: "grouped" as const, field: candidate };
@@ -448,6 +470,7 @@ function buildVehicleUpdate(
 ) {
   const values = getUniqueEquipmentValue(item);
   const installValue = getInstallEquipmentValue(item, values);
+  const installSlotValue = getInstallSlotValue(item, values);
   const mapping =
     findFieldByExistingValue(vehicle, values) || resolveField(item);
   if (!mapping) {
@@ -464,8 +487,9 @@ function buildVehicleUpdate(
       const update: Record<string, any> = {};
       if (values.serial) update[serialField] = values.serial;
       if (values.ip) update[ipField] = values.ip;
-      if (!Object.keys(update).length && installValue)
-        update[serialField] = installValue;
+      if (!Object.keys(update).length && installSlotValue) {
+        update[serialField] = installSlotValue;
+      }
       return Object.keys(update).length
         ? { update, warning: null }
         : {
@@ -479,8 +503,8 @@ function buildVehicleUpdate(
   if (mapping.kind === "family") {
     const targetField =
       jobType === "install"
-        ? pickInstallSlot(vehicle, mapping.field, installValue)
-        : pickDeinstallSlot(vehicle, mapping.field, installValue);
+        ? pickInstallSlot(vehicle, mapping.field, installSlotValue)
+        : pickDeinstallSlot(vehicle, mapping.field, installSlotValue);
 
     if (!targetField) {
       return {
@@ -493,9 +517,11 @@ function buildVehicleUpdate(
     }
 
     return {
-      update: { [targetField]: jobType === "install" ? installValue : null },
+      update: {
+        [targetField]: jobType === "install" ? installSlotValue : null,
+      },
       warning:
-        installValue || jobType === "deinstall"
+        installSlotValue || jobType === "deinstall"
           ? null
           : `No install value found for ${mapping.field}`,
     };
@@ -673,11 +699,13 @@ const syncJobEquipmentToTable = async (
     throw new Error(`No matching vehicle rows found in ${tableName}`);
   }
 
-  const sourceItems = [
-    ...parseArray(job?.quotation_products),
-    ...parseArray(job?.equipment_used),
-    ...parseArray(job?.parts_required),
-  ];
+  const equipmentUsedItems = parseArray(job?.equipment_used);
+  const partsRequiredItems = parseArray(job?.parts_required);
+  const quotationItems = parseArray(job?.quotation_products);
+  const sourceItems =
+    equipmentUsedItems.length || partsRequiredItems.length
+      ? [...equipmentUsedItems, ...partsRequiredItems]
+      : [...quotationItems];
 
   if (!sourceItems.length) {
     return {

@@ -183,6 +183,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   skylink_motorbike: "skylink_pro",
   skylink_obd: "skylink_pro",
   p08obdsafety: "skylink_pro",
+  p08starlink4gau: "skylink_pro",
+  ituran_starlink_4g_au: "skylink_pro",
   p08scooter: "skylink_pro",
   skylite: "skylink_pro",
   skyspy: "skyspy",
@@ -200,6 +202,8 @@ const DIRECT_ALIASES: Record<string, string> = {
   cia: "cia",
   fm_unit: "fm_unit",
   sim_card_number: "sim_card_number",
+  sim_machine2machine_lite: "sim_card_number",
+  machine2machine_lite: "sim_card_number",
   sms: "additional_data",
   data_number: "data_number",
   gps: "gps",
@@ -385,8 +389,12 @@ const getUniqueEquipmentValue = (item: any) => {
 
 const resolveKnownFieldName = (field: string) => {
   if (!field) return null;
-  if (DIRECT_ALIASES[field]) {
-    return { kind: "direct" as const, field: DIRECT_ALIASES[field] };
+  const aliasedField = DIRECT_ALIASES[field];
+  if (aliasedField) {
+    if (GROUPED_FIELD_BASES.has(aliasedField)) {
+      return { kind: "grouped" as const, field: aliasedField };
+    }
+    return { kind: "direct" as const, field: aliasedField };
   }
   if (GROUPED_FIELD_BASES.has(field)) {
     return { kind: "grouped" as const, field };
@@ -436,8 +444,12 @@ const resolveField = (item: any) => {
     .filter(Boolean);
 
   for (const candidate of candidates) {
-    if (DIRECT_ALIASES[candidate]) {
-      return { kind: "direct" as const, field: DIRECT_ALIASES[candidate] };
+    const aliasedField = DIRECT_ALIASES[candidate];
+    if (aliasedField) {
+      if (GROUPED_FIELD_BASES.has(aliasedField)) {
+        return { kind: "grouped" as const, field: aliasedField };
+      }
+      return { kind: "direct" as const, field: aliasedField };
     }
     if (GROUPED_FIELD_BASES.has(candidate)) {
       return { kind: "grouped" as const, field: candidate };
@@ -659,14 +671,7 @@ const getRecurringChargeSpecs = (item: any, jobType: "install" | "deinstall") =>
   const rentalAmount = getChargeAmount(item, "rental_price");
   const hints = getRecurringHints(item);
 
-  const allowSubscription =
-    purchaseType === "rental" ||
-    purchaseType === "subscription" ||
-    !purchaseType;
-  const allowRental = purchaseType === "rental" || !purchaseType;
-
   if (
-    allowSubscription &&
     (subscriptionAmount > 0 ||
       (jobType === "deinstall" &&
         (purchaseType === "subscription" || hints.hasSubscription)))
@@ -679,7 +684,6 @@ const getRecurringChargeSpecs = (item: any, jobType: "install" | "deinstall") =>
   }
 
   if (
-    allowRental &&
     (rentalAmount > 0 ||
       (jobType === "deinstall" &&
         (purchaseType === "rental" || hints.hasRental)))

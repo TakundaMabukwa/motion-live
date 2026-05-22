@@ -1932,28 +1932,47 @@ export default function AccountsContent({ activeSection }) {
       .filter(Boolean);
   };
 
-  const getProductUnitPrice = (product) => {
+  const getProductUnitPrice = (product, options = {}) => {
+    const { includeRecurring = true } = options;
     const qty = Math.max(1, toNumber(product?.quantity) || 1);
-    const directUnitPrice = [
-      product?.unit_price,
-      product?.subscription_price,
-      product?.cash_price,
-      product?.rental_price,
-      product?.installation_price,
-      product?.de_installation_price,
-      product?.price,
-    ]
+    const directPriceCandidates = includeRecurring
+      ? [
+          product?.unit_price,
+          product?.subscription_price,
+          product?.cash_price,
+          product?.rental_price,
+          product?.installation_price,
+          product?.de_installation_price,
+          product?.price,
+        ]
+      : [
+          product?.unit_price,
+          product?.cash_price,
+          product?.installation_price,
+          product?.de_installation_price,
+          product?.price,
+        ];
+    const directUnitPrice = directPriceCandidates
       .map(toNumber)
       .find((price) => price > 0);
 
     if (directUnitPrice) return directUnitPrice;
 
+    const totalPriceCandidates = includeRecurring
+      ? [
+          product?.subscription_gross,
+          product?.cash_gross,
+          product?.rental_gross,
+          product?.installation_gross,
+          product?.de_installation_gross,
+        ]
+      : [
+          product?.cash_gross,
+          product?.installation_gross,
+          product?.de_installation_gross,
+        ];
     const totalPrice =
-      toNumber(product?.subscription_gross) ||
-      toNumber(product?.cash_gross) ||
-      toNumber(product?.rental_gross) ||
-      toNumber(product?.installation_gross) ||
-      toNumber(product?.de_installation_gross);
+      totalPriceCandidates.map(toNumber).find((amount) => amount > 0) || 0;
 
     if (totalPrice > 0) {
       return totalPrice / qty;
@@ -1962,7 +1981,8 @@ export default function AccountsContent({ activeSection }) {
     return 0;
   };
 
-  const getProductChargeLines = (product, job) => {
+  const getProductChargeLines = (product, job, options = {}) => {
+    const { includeRecurring = true } = options;
     const qty = Math.max(1, toNumber(product?.quantity) || 1);
     const jobType = String(
       job?.job_type || job?.quotation_job_type || "",
@@ -1986,8 +2006,10 @@ export default function AccountsContent({ activeSection }) {
       jobType.includes("de-install") ||
       jobType.includes("decomm");
 
-    addLine("subscription_gross", "subscription_price", "Subscription");
-    addLine("rental_gross", "rental_price", "Rental");
+    if (includeRecurring) {
+      addLine("subscription_gross", "subscription_price", "Subscription");
+      addLine("rental_gross", "rental_price", "Rental");
+    }
     addLine("cash_gross", "cash_price", "Cash");
     if (!isDeinstall) {
       addLine("installation_gross", "installation_price", "Installation");
@@ -2001,7 +2023,9 @@ export default function AccountsContent({ activeSection }) {
     }
 
     if (lines.length === 0) {
-      const fallbackUnitPrice = getProductUnitPrice(product);
+      const fallbackUnitPrice = getProductUnitPrice(product, {
+        includeRecurring,
+      });
       if (fallbackUnitPrice > 0) {
         lines.push({
           key: "fallback",
@@ -2387,7 +2411,9 @@ export default function AccountsContent({ activeSection }) {
   const getInvoiceTotals = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
     const computedSubtotal = products.reduce((sum, product) => {
-      const chargeLines = getProductChargeLines(product, job).filter(
+      const chargeLines = getProductChargeLines(product, job, {
+        includeRecurring: false,
+      }).filter(
         (chargeLine) => toNumber(chargeLine?.unitPrice) > 0,
       );
 
@@ -2402,7 +2428,9 @@ export default function AccountsContent({ activeSection }) {
       }
 
       const qty = Math.max(1, toNumber(product?.quantity) || 1);
-      const unitPrice = getProductUnitPrice(product);
+      const unitPrice = getProductUnitPrice(product, {
+        includeRecurring: false,
+      });
       return sum + unitPrice * qty;
     }, 0);
 
@@ -2564,10 +2592,9 @@ export default function AccountsContent({ activeSection }) {
 
     const rows = rawTotals.products.length > 0
         ? rawTotals.products.flatMap((product, index) => {
-            const chargeLines = getProductChargeLines(
-              product,
-              selectedJobForInvoice,
-            );
+            const chargeLines = getProductChargeLines(product, selectedJobForInvoice, {
+              includeRecurring: false,
+            });
 
             return chargeLines
               .filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0)
@@ -5121,7 +5148,9 @@ export default function AccountsContent({ activeSection }) {
                         Selected {selectedAnnuityItemKeys.length} of{" "}
                         {annuitySelectableItems.length} item(s) to add to annuity
                         in <strong>vehicles</strong> and{" "}
-                        <strong>vehicles_duplicate</strong>.
+                        <strong>vehicles_duplicate</strong>. These recurring
+                        items are synced to vehicle billing but not added to
+                        invoice line items.
                       </p>
                       <div className="mt-3 max-h-60 space-y-2 overflow-y-auto pr-1">
                         {annuitySelectableItems.map((item) => {
