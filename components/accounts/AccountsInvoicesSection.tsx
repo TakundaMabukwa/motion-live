@@ -78,7 +78,8 @@ export default function AccountsInvoicesSection() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState("");
+  const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedInvoice, setSelectedInvoice] = useState<AccountInvoiceRow | null>(null);
   const [showViewer, setShowViewer] = useState(false);
 
