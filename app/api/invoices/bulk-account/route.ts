@@ -211,7 +211,6 @@ const syncBulkInvoiceToAccountInvoices = async (
       throw updateError;
     }
 
-    await upsertPaymentsMirror(supabase, updatedInvoice);
     return updatedInvoice;
   }
 
@@ -228,7 +227,6 @@ const syncBulkInvoiceToAccountInvoices = async (
     throw insertError;
   }
 
-  await upsertPaymentsMirror(supabase, insertedInvoice);
   return insertedInvoice;
 };
 
@@ -527,15 +525,6 @@ export async function POST(request: NextRequest) {
         });
       } catch (syncError) {
         console.error("Failed to sync bulk invoice to account_invoices:", syncError);
-        return NextResponse.json(
-          {
-            error:
-              syncError instanceof Error
-                ? syncError.message
-                : "Failed to sync bulk invoice to account invoices",
-          },
-          { status: 500 },
-        );
       }
 
       const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, updatedInvoice);
@@ -600,15 +589,6 @@ export async function POST(request: NextRequest) {
       });
     } catch (syncError) {
       console.error("Failed to sync bulk invoice to account_invoices:", syncError);
-      return NextResponse.json(
-        {
-          error:
-            syncError instanceof Error
-              ? syncError.message
-              : "Failed to sync bulk invoice to account invoices",
-        },
-        { status: 500 },
-      );
     }
 
     const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, insertedInvoice);

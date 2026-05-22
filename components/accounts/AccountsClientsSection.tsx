@@ -1667,18 +1667,6 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
         </div>
         <div className="flex gap-3">
           <Button
-            onClick={() => setShowSystemLockDialog(true)}
-            variant={systemLock?.is_locked ? 'secondary' : 'outline'}
-            disabled={loadingSystemLock}
-          >
-            {loadingSystemLock ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 mr-2" />
-            )}
-            {systemLock?.is_locked ? 'Unlock System' : 'Lock System'}
-          </Button>
-          <Button
             onClick={() => setShowAllInvoicesDialog(true)}
             disabled={isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf}
             className="bg-blue-600 hover:bg-blue-700 text-white"
