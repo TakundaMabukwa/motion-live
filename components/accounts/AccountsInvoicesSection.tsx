@@ -39,6 +39,7 @@ interface AccountInvoiceRow {
   notes: string | null;
   line_items?: unknown[];
   created_at?: string | null;
+  job_card_id?: string | null;
   job_number?: string | null;
   order_number?: string | null;
 }
@@ -167,12 +168,13 @@ export default function AccountsInvoicesSection() {
     setSelectedInvoice(invoice);
     setShowViewer(true);
     setViewerOrderNumber(null);
-    if (invoice.job_number) {
+    const id = invoice.job_card_id || (invoice.id?.startsWith("job-card-") ? invoice.id.replace("job-card-", "") : null);
+    if (id) {
       try {
-        const res = await fetch(`/api/job-cards/order-number?job_number=${encodeURIComponent(invoice.job_number)}`);
+        const res = await fetch(`/api/job-cards/${encodeURIComponent(id)}`);
         if (res.ok) {
           const data = await res.json();
-          setViewerOrderNumber(data.order_number || invoice.order_number || null);
+          setViewerOrderNumber(data?.order_number || invoice.order_number || null);
         } else {
           setViewerOrderNumber(invoice.order_number || null);
         }

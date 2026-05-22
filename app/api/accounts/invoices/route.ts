@@ -153,6 +153,7 @@ export async function GET(request: NextRequest) {
         line_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         notes: String(invoice?.notes || "").trim() || null,
         created_at: String(invoice?.created_at || "").trim() || null,
+        job_card_id: jcId || null,
         job_number: String(invoice?.job_number || "").trim() || null,
         order_number: orderNumberByJobCardId.get(jcId) || null,
       };
@@ -166,6 +167,7 @@ export async function GET(request: NextRequest) {
       const linkedJobCardId = invNum ? invoiceNumberToJobCardId.get(invNum) : null;
       return {
         ...row,
+        job_card_id: linkedJobCardId || null,
         job_number: invNum ? jobNumberByInvoiceNumber.get(invNum) || null : null,
         order_number: linkedJobCardId ? orderNumberByJobCardId.get(linkedJobCardId) || null : null,
       };
