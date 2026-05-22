@@ -120,11 +120,16 @@ export async function GET(request: NextRequest) {
     }
 
     const invoiceNumberToJobCardId = new Map<string, string>();
+    const jobNumberByInvoiceNumber = new Map<string, string>();
     for (const inv of rawJobCardInvoices) {
       const invNum = String(inv?.invoice_number || "").trim().toUpperCase();
       const jcId = String(inv?.job_card_id || "").trim();
       if (invNum && jcId) {
         invoiceNumberToJobCardId.set(invNum, jcId);
+      }
+      const jobNum = String(inv?.job_number || "").trim();
+      if (invNum && jobNum) {
+        jobNumberByInvoiceNumber.set(invNum, jobNum);
       }
     }
 
@@ -161,6 +166,7 @@ export async function GET(request: NextRequest) {
       const linkedJobCardId = invNum ? invoiceNumberToJobCardId.get(invNum) : null;
       return {
         ...row,
+        job_number: invNum ? jobNumberByInvoiceNumber.get(invNum) || null : null,
         order_number: linkedJobCardId ? orderNumberByJobCardId.get(linkedJobCardId) || null : null,
       };
     });
@@ -174,7 +180,7 @@ export async function GET(request: NextRequest) {
       const key = buildInvoiceMergeKey(row);
       if (mergedByInvoiceKey.has(key)) {
         const existing = mergedByInvoiceKey.get(key)!;
-        mergedByInvoiceKey.set(key, { ...existing, ...row, job_number: existing?.job_number || row?.job_number, order_number: existing?.order_number || row?.order_number });
+        mergedByInvoiceKey.set(key, { ...existing, ...row });
       } else {
         mergedByInvoiceKey.set(key, row);
       }
