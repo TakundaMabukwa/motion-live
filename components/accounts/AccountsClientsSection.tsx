@@ -1322,15 +1322,16 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     try {
       setIsGeneratingSelectedInvoices(true);
       setIsGeneratingAllInvoicesPdf(true);
-      toast.success(`Generating ${selectedRows.length} invoices sequentially...`);
+      toast.success(`Generating ${selectedRows.length} invoices...`);
 
       const generatedInvoices: Array<{
         accountNumber: string;
         invoiceData: Record<string, unknown>;
       }> = [];
+      const errors: string[] = [];
+      const CONCURRENCY = 5;
 
-      for (let index = 0; index < selectedRows.length; index += 1) {
-        const row = selectedRows[index];
+      const generateOne = async (row: Record<string, unknown>) => {
         const invoiceItems = extractInvoiceItems(row.invoiceData);
         const lineItems = mapInvoiceItemsToBulkLineItems(invoiceItems);
         const subtotal = toNumber(row.invoiceData?.subtotal);
@@ -1340,9 +1341,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
         const persistResponse = await fetch('/api/invoices/bulk-account', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             accountNumber: row.accountNumber,
             billingMonth: billingMonth || null,
@@ -1362,10 +1361,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
         if (!persistResponse.ok) {
           const errorPayload = await persistResponse.json().catch(() => ({}));
-          throw new Error(
-            errorPayload?.error ||
-              `Failed to generate invoice for ${row.accountNumber} at position ${index + 1}`,
-          );
+          throw new Error(errorPayload?.error || `Failed to generate invoice for ${row.accountNumber}`);
         }
 
         const persistResult = await persistResponse.json().catch(() => ({}));
@@ -1378,7 +1374,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
           throw new Error(`Missing invoice number for ${row.accountNumber}`);
         }
 
-        generatedInvoices.push({
+        return {
           accountNumber: row.accountNumber,
           invoiceData: {
             ...row.invoiceData,
@@ -1386,12 +1382,32 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
             invoiceItems: persistedLineItems,
             invoice_items: persistedLineItems,
           },
-        });
+        };
+      };
+
+      for (let i = 0; i < selectedRows.length; i += CONCURRENCY) {
+        const batch = selectedRows.slice(i, i + CONCURRENCY);
+        const results = await Promise.allSettled(batch.map(generateOne));
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            generatedInvoices.push(result.value);
+          } else {
+            errors.push(result.reason?.message || 'Unknown error');
+          }
+        }
       }
 
-      await renderInvoicesToPreviewWindow(generatedInvoices);
-      toast.success(`Generated and stored ${generatedInvoices.length} invoices`);
-      setShowAllInvoicesDialog(false);
+      if (errors.length > 0) {
+        console.error('Invoice generation errors:', errors);
+        toast.error(`${errors.length} invoice(s) failed. ${generatedInvoices.length} succeeded.`);
+      }
+
+      if (generatedInvoices.length > 0) {
+        await renderInvoicesToPreviewWindow(generatedInvoices);
+        toast.success(`Generated and stored ${generatedInvoices.length} invoices`);
+        setShowAllInvoicesDialog(false);
+      }
     } catch (error) {
       console.error('Error generating selected client invoices:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to generate selected invoices');
