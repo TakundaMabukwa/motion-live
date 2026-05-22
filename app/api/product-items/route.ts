@@ -1,6 +1,48 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { type, product, description, category, price, quantity, discount, rental, installation, subscription } = body;
+
+    if (!type || !product || !category) {
+      return NextResponse.json({ error: 'type, product, and category are required' }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from('product_items')
+      .insert({
+        type,
+        product,
+        description: description || null,
+        category,
+        price: parseFloat(price) || 0,
+        quantity: parseFloat(quantity) || 1,
+        discount: parseFloat(discount) || 0,
+        rental: parseFloat(rental) || 0,
+        installation: parseFloat(installation) || 0,
+        subscription: parseFloat(subscription) || 0,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: 'Failed to create product item', details: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ product: data }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Failed to create product item', details: error.message }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();

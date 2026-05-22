@@ -718,6 +718,49 @@ export default function AccountsContent({ activeSection }) {
     }
   };
 
+  const resolveAccountNumber = async (job) => {
+    if (!job) return "";
+    const existing = String(
+      job?.new_account_number || "",
+    ).trim();
+    if (existing) return existing;
+
+    const reg = String(
+      job?.vehicle_registration || "",
+    ).trim();
+    if (!reg) return "";
+
+    try {
+      const response = await fetch("/api/vehicles/find-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reg }),
+      });
+      if (!response.ok) return "";
+      const result = await response.json();
+      if (result?.found && result?.new_account_number) {
+        const accountNumber = String(result.new_account_number).trim();
+        // Update the job card with the resolved account number and company
+        try {
+          await fetch(`/api/job-cards/${job.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              new_account_number: accountNumber,
+              ...(result.company ? { customer_name: result.company } : {}),
+            }),
+          });
+        } catch (patchErr) {
+          console.error("Error updating job card from vehicle lookup:", patchErr);
+        }
+        return accountNumber;
+      }
+    } catch (err) {
+      console.error("Error resolving account number from vehicle:", err);
+    }
+    return "";
+  };
+
   const getLocalDateInputValue = (dateValue = new Date()) => {
     const localDate = new Date(
       dateValue.getTime() - dateValue.getTimezoneOffset() * 60000,
@@ -781,14 +824,22 @@ export default function AccountsContent({ activeSection }) {
     fetchInvoiceBuilderJobs("");
   };
 
-  const toggleInvoiceBuilderJob = (jobId) => {
+  const toggleInvoiceBuilderJob = async (jobId) => {
     const targetJob = invoiceBuilderJobs.find((job) => job.id === jobId);
-    const targetAccountCode = String(targetJob?.new_account_number || "")
+    let targetAccountCode = String(targetJob?.new_account_number || "")
       .trim()
       .toUpperCase();
     const selectedAccountCode = String(invoiceBuilderSelectedCostCenterCode || "")
       .trim()
       .toUpperCase();
+
+    if (!targetAccountCode && targetJob) {
+      const resolved = await resolveAccountNumber(targetJob);
+      if (resolved) {
+        targetAccountCode = resolved.toUpperCase();
+        if (targetJob) targetJob.new_account_number = resolved;
+      }
+    }
 
     if (targetAccountCode && selectedAccountCode && targetAccountCode !== selectedAccountCode) {
       toast.error("One draft invoice can only use one cost center at a time");
@@ -1047,9 +1098,25 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const createInvoiceBuilderInvoice = async () => {
-    if (!invoiceBuilderSelectedCostCenterCode) {
-      toast.error("Select a cost center before creating the invoice");
-      return;
+    let costCenterCode = String(invoiceBuilderSelectedCostCenterCode || "")
+      .trim()
+      .toUpperCase();
+    if (!costCenterCode) {
+      const selectedJobs = invoiceBuilderJobs.filter((job) =>
+        invoiceBuilderSelectedJobIds.includes(job.id),
+      );
+      for (const job of selectedJobs) {
+        const resolved = await resolveAccountNumber(job);
+        if (resolved) {
+          costCenterCode = resolved.toUpperCase();
+          break;
+        }
+      }
+      if (!costCenterCode) {
+        toast.error("Select a cost center before creating the invoice");
+        return;
+      }
+      setInvoiceBuilderSelectedCostCenterCode(costCenterCode);
     }
 
     if (invoiceBuilderDraftWithManualLines.lines.length === 0) {
@@ -1063,7 +1130,7 @@ export default function AccountsContent({ activeSection }) {
       source_type: line.isManual ? "manual" : "job_card",
       job_card_id: line.jobCardId || null,
       job_number: line.jobNumber || null,
-      account_number: invoiceBuilderSelectedCostCenterCode,
+      account_number: costCenterCode,
       product_item_id: line.productItemId || null,
       item_code: line.chargeType || "Charge",
       description: line.itemName || "Item",
@@ -1095,7 +1162,7 @@ export default function AccountsContent({ activeSection }) {
     }));
 
     const payload = {
-      accountNumber: invoiceBuilderSelectedCostCenterCode,
+      accountNumber: costCenterCode,
       billingMonth,
       companyName:
         selectedInvoiceBuilderCostCenter?.company ||
@@ -1252,11 +1319,29 @@ export default function AccountsContent({ activeSection }) {
 
     setIsGeneratingInvoice(true);
     try {
-      const effectiveAccountNumber = String(
+      let effectiveAccountNumber = String(
         selectedJobForInvoice?.new_account_number ||
           selectedCostCenterInfo?.cost_code ||
           "",
       ).trim();
+
+      if (!effectiveAccountNumber) {
+        const reg = String(
+          selectedJobForInvoice?.vehicle_registration || "",
+        ).trim();
+        if (!reg) {
+          toast.error("Job has no vehicle registration to look up a cost center");
+          return;
+        }
+        effectiveAccountNumber = await resolveAccountNumber(
+          selectedJobForInvoice,
+        );
+        if (!effectiveAccountNumber) {
+          toast.error("Vehicle not found in vehicles_duplicate. Match a vehicle first.");
+          return;
+        }
+      }
+
       const jobForVehicleSync = effectiveAccountNumber
         ? {
             ...selectedJobForInvoice,

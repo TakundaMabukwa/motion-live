@@ -25,6 +25,7 @@ import {
   Quote,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
+import CreateBOIModal from "@/components/fc/CreateBOIModal";
 
 import { toast } from "sonner";
 import { type Vehicle } from "@/lib/actions/vehicles";
@@ -656,6 +657,7 @@ function AccountDetailPageContent() {
                   ? `Client Quotations for Account ${customer.new_account_number}`
                   : "Client Quotations"}
               </h2>
+              <CreateBOIModal />
               <Button
                 onClick={() => setShowClientQuote(true)}
                 className="bg-blue-600 hover:bg-blue-700"

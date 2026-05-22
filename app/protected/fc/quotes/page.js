@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import FCSectionNav from "@/components/fc/FCSectionNav";
+import CreateBOIModal from "@/components/fc/CreateBOIModal";
 import { toast } from "sonner";
 
 export default function QuotesDashboard() {
@@ -549,11 +550,15 @@ export default function QuotesDashboard() {
         title="Quotes"
         subtitle="Manage your sales quotes and proposals"
         icon={FileText}
-        actionButton={{
-          label: "Create Quote",
-          onClick: handleNewQuote,
-          icon: Plus
-        }}
+        actionContent={
+          <div className="flex items-center gap-2">
+            <CreateBOIModal />
+            <Button onClick={handleNewQuote} className="flex items-center space-x-2">
+              <Plus className="w-4 h-4" />
+              <span>Create Quote</span>
+            </Button>
+          </div>
+        }
       />
 
       {/* Main Navigation */}

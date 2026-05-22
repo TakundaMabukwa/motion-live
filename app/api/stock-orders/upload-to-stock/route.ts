@@ -77,6 +77,35 @@ export async function POST(request: NextRequest) {
         } else {
           itemsCreated++;
         }
+
+        // Also add to product_items as a MODULE with 0 billing
+        const productName = (description || "Custom Item").trim();
+        const { data: existingProduct } = await supabase
+          .from('product_items')
+          .select('id')
+          .eq('product', productName)
+          .maybeSingle();
+
+        if (!existingProduct) {
+          const { error: productInsertError } = await supabase
+            .from('product_items')
+            .insert({
+              type: 'MODULE',
+              product: productName,
+              description: description || null,
+              category: 'MODULE',
+              price: 0,
+              quantity: 1,
+              discount: 0,
+              rental: 0,
+              installation: 0,
+              subscription: 0,
+            });
+
+          if (productInsertError) {
+            errors.push(`Failed to add product item ${productName}: ${productInsertError.message}`);
+          }
+        }
       } catch (error) {
         errors.push(`Error processing item ${item.description}: ${error.message}`);
       }
