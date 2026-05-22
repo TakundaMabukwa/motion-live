@@ -166,13 +166,16 @@ export async function GET(request: NextRequest) {
     });
 
     const mergedByInvoiceKey = new Map<string, Record<string, unknown>>();
-    for (const row of accountRows) {
+    for (const row of normalizedJobCardInvoices) {
       mergedByInvoiceKey.set(buildInvoiceMergeKey(row), row);
     }
 
-    for (const row of normalizedJobCardInvoices) {
+    for (const row of accountRows) {
       const key = buildInvoiceMergeKey(row);
-      if (!mergedByInvoiceKey.has(key)) {
+      if (mergedByInvoiceKey.has(key)) {
+        const existing = mergedByInvoiceKey.get(key)!;
+        mergedByInvoiceKey.set(key, { ...existing, ...row, job_number: existing?.job_number || row?.job_number, order_number: existing?.order_number || row?.order_number });
+      } else {
         mergedByInvoiceKey.set(key, row);
       }
     }
