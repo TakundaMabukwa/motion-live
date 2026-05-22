@@ -667,6 +667,8 @@ const getRecurringHints = (item: any) => {
 const getRecurringChargeSpecs = (item: any, jobType: "install" | "deinstall") => {
   const specs: Array<{ amount: number; preferSub: boolean; preferRental: boolean }> = [];
   const purchaseType = getNormalizedPurchaseType(item);
+  // Vehicle recurring columns must always store base 1x recurring values.
+  // Multiplier logic is invoice-only and should not compound vehicle annuity columns.
   const subscriptionAmount = getChargeAmount(item, "subscription_price");
   const rentalAmount = getChargeAmount(item, "rental_price");
   const hints = getRecurringHints(item);

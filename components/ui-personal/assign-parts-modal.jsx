@@ -68,6 +68,12 @@ const resolveUniqueItemToken = (item) =>
 const hasSerialOrUniqueItemIdentity = (item) =>
   Boolean(resolveSerialNumber(item)) || Boolean(resolveUniqueItemToken(item));
 
+const toRecurringMultiplier = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Math.max(1, Math.floor(parsed));
+};
+
 const buildSelectionKey = (source, owner, item) => {
   const normalizedSource = String(source || "soltrack").trim().toLowerCase();
   const normalizedOwner = String(owner || "").trim().toLowerCase();
@@ -344,6 +350,12 @@ export default function AssignPartsModal({
           ip_address: part.ip_address || "",
           source,
           source_owner: sourceOwner,
+          recurring_multiplier: toRecurringMultiplier(
+            part.recurring_multiplier || part.recurringMultiplier || 1,
+          ),
+          recurring_multiplier_label: `${toRecurringMultiplier(
+            part.recurring_multiplier || part.recurringMultiplier || 1,
+          )}x`,
           is_new_assignment: false,
           selection_key: selectionKey,
         };
@@ -594,6 +606,8 @@ export default function AssignPartsModal({
         ip_address: ipAddress || "",
         source: modalStockSource,
         source_owner: modalStockOwner,
+        recurring_multiplier: 1,
+        recurring_multiplier_label: "1x",
         is_new_assignment: true,
         selection_key: selectedKey,
       },

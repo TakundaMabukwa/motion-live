@@ -658,6 +658,10 @@ export default function ClientQuoteForm({
       deInstallationDiscount: Number(p.de_installation_discount || p.deInstallationDiscount || 0),
       subscriptionPrice: Number(p.subscription_price || p.subscriptionPrice || 0),
       subscriptionDiscount: Number(p.subscription_discount || p.subscriptionDiscount || 0),
+      recurringMultiplier: Math.max(
+        1,
+        Number(p.recurring_multiplier || p.recurringMultiplier || 1) || 1,
+      ),
       annuityEndDate: p.annuity_end_date || p.annuityEndDate || "",
       vehicleId: p.vehicle_id || null,
       vehiclePlate: p.vehicle_plate || null,
@@ -1149,6 +1153,7 @@ export default function ClientQuoteForm({
         deInstallationDiscount: 0,
         subscriptionPrice: 0,
         subscriptionDiscount: 0,
+        recurringMultiplier: 1,
         annuityEndDate: '',
         vehicleId: product.vehicleId,
         vehiclePlate: product.vehiclePlate,
@@ -1172,6 +1177,7 @@ export default function ClientQuoteForm({
         deInstallationDiscount: 0,
         subscriptionPrice: 0,
         subscriptionDiscount: 0,
+        recurringMultiplier: 1,
         annuityEndDate: '',
         vehicleId: null,
         vehiclePlate: null,
@@ -1198,6 +1204,7 @@ export default function ClientQuoteForm({
         deInstallationDiscount: 0,
         subscriptionPrice: product.subscription || 0,
         subscriptionDiscount: 0,
+        recurringMultiplier: 1,
       };
       setSelectedProducts(prev => [...prev, productWithDefaults]);
     }
@@ -1228,6 +1235,17 @@ export default function ClientQuoteForm({
     return Math.max(0, price - discount);
   }, []);
 
+  const getRecurringMultiplier = useCallback((product) => {
+    if (formData.jobType !== "install" || product?.isLabour) {
+      return 1;
+    }
+    const raw = Number(
+      product?.recurringMultiplier ?? product?.recurring_multiplier ?? 1,
+    );
+    if (!Number.isFinite(raw) || raw < 1) return 1;
+    return Math.floor(raw);
+  }, [formData.jobType]);
+
   const getProductTotal = useCallback((product) => {
     if (product.isRecovery) {
       const recoveryGross = calculateGrossAmount(product.cashPrice, product.cashDiscount);
@@ -1242,6 +1260,7 @@ export default function ClientQuoteForm({
     
     // Regular products: sum all applicable pricing tiers
     let total = 0;
+    const recurringMultiplier = getRecurringMultiplier(product);
     const isPurchase = product.purchaseType === 'purchase';
     const isRental = product.purchaseType === 'rental';
     
@@ -1252,7 +1271,7 @@ export default function ClientQuoteForm({
     } else if (isRental) {
       // Rental price calculation
       const rentalGross = calculateGrossAmount(product.rentalPrice, product.rentalDiscount);
-      total += rentalGross;
+      total += rentalGross * recurringMultiplier;
     }
 
     // Add installation/de-installation cost with discount
@@ -1267,11 +1286,11 @@ export default function ClientQuoteForm({
     // Subscription can apply to any non-labour line item (including services)
     if (product.subscriptionPrice) {
       const subscriptionGross = calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0);
-      total += subscriptionGross;
+      total += subscriptionGross * recurringMultiplier;
     }
 
     return total * product.quantity;
-  }, [formData.jobType, calculateGrossAmount]);
+  }, [formData.jobType, calculateGrossAmount, getRecurringMultiplier]);
 
   const getTotalQuoteAmount = useMemo(() => {
     return selectedProducts.reduce((total, product) => total + getProductTotal(product), 0);
@@ -1455,6 +1474,7 @@ export default function ClientQuoteForm({
 
       const serializeProductForQuote = (product) => {
         const quantity = Number(product.quantity) || 1;
+        const recurringMultiplier = getRecurringMultiplier(product);
         const isLabour = !!product.isLabour;
         const purchaseType = product.purchaseType || (formData.jobType === 'deinstall' ? 'service' : formData.purchaseType || 'purchase');
         const isRental = !isLabour && purchaseType === 'rental';
@@ -1501,10 +1521,10 @@ export default function ClientQuoteForm({
         const totalPrice = product.isRecovery
           ? cashGross * quantity
           : ((isLabour || isPurchase ? cashGross : 0)
-          + (isRental ? rentalGross : 0)
+          + (isRental ? rentalGross * recurringMultiplier : 0)
           + installationGross
           + deInstallationGross
-          + subscriptionGross) * quantity;
+          + subscriptionGross * recurringMultiplier) * quantity;
 
         const resolvedVehiclePlate =
           formData.vehicle_registration || product.vehiclePlate || null;
@@ -1535,6 +1555,7 @@ export default function ClientQuoteForm({
           subscription_discount: subscriptionDiscount,
           subscription_gross: subscriptionGross,
           total_price: totalPrice,
+          recurring_multiplier: recurringMultiplier,
           annuity_end_date: formData.jobType === 'deinstall'
             ? (product.annuityEndDate || null)
             : null,
@@ -2693,8 +2714,14 @@ export default function ClientQuoteForm({
                         </div>
 
                         {/* Product Information Header */}
-                        {!product.isLabour ? (
-                          <div className="gap-4 grid grid-cols-1 md:grid-cols-3 mb-4">
+        {!product.isLabour ? (
+                          <div
+                            className={`gap-4 grid grid-cols-1 ${
+                              formData.jobType === "install"
+                                ? "md:grid-cols-4"
+                                : "md:grid-cols-3"
+                            } mb-4`}
+                          >
                             <div className="space-y-2">
                               <Label>Product</Label>
                               <Input
@@ -2728,6 +2755,37 @@ export default function ClientQuoteForm({
                                 }
                               />
                             </div>
+                            {formData.jobType === "install" && (
+                              <div className="space-y-2">
+                                <Label>Recurring Multiplier</Label>
+                                <Select
+                                  value={String(getRecurringMultiplier(product))}
+                                  onValueChange={(value) =>
+                                    updateProduct(
+                                      index,
+                                      "recurringMultiplier",
+                                      Math.max(1, parseInt(value, 10) || 1),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="1x" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Array.from({ length: 10 }, (_, i) => i + 1).map(
+                                      (multiplier) => (
+                                        <SelectItem
+                                          key={multiplier}
+                                          value={String(multiplier)}
+                                        >
+                                          {multiplier}x
+                                        </SelectItem>
+                                      ),
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="gap-4 grid grid-cols-1 md:grid-cols-2 mb-4">
@@ -2878,7 +2936,14 @@ export default function ClientQuoteForm({
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Total Rental/Month ex VAT</Label>
                                 <Input
-                                  value={(calculateGrossAmount(product.rentalPrice, product.rentalDiscount) * product.quantity).toFixed(2)}
+                                  value={(
+                                    calculateGrossAmount(
+                                      product.rentalPrice,
+                                      product.rentalDiscount,
+                                    ) *
+                                    product.quantity *
+                                    getRecurringMultiplier(product)
+                                  ).toFixed(2)}
                                   readOnly
                                   className="bg-gray-50"
                                 />
@@ -2980,7 +3045,14 @@ export default function ClientQuoteForm({
                               <div className="space-y-1">
                                 <Label className="text-gray-600 text-xs">Total Monthly Subscription</Label>
                                 <Input
-                                  value={(calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0) * product.quantity).toFixed(2)}
+                                  value={(
+                                    calculateGrossAmount(
+                                      product.subscriptionPrice,
+                                      product.subscriptionDiscount || 0,
+                                    ) *
+                                    product.quantity *
+                                    getRecurringMultiplier(product)
+                                  ).toFixed(2)}
                                   readOnly
                                   className="bg-gray-50"
                                 />

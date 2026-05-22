@@ -61,6 +61,11 @@ const normalizePartRecord = (part: Record<string, unknown>) => {
   normalized.source_owner = String(part?.source_owner ?? '').trim().toLowerCase();
   normalized.is_new_assignment = part?.is_new_assignment !== false;
   normalized.selection_key = String(part?.selection_key ?? '').trim();
+  const recurringMultiplier = toRecurringMultiplier(
+    part?.recurring_multiplier ?? part?.recurringMultiplier ?? 1,
+  );
+  normalized.recurring_multiplier = recurringMultiplier;
+  normalized.recurring_multiplier_label = `${recurringMultiplier}x`;
 
   return normalized;
 };
@@ -76,6 +81,169 @@ const getPartIdentityLabel = (part: Record<string, unknown>) =>
 
 const normalizeToken = (value: unknown) =>
   String(value ?? '').trim().toLowerCase();
+
+const normalizeMatchToken = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+const parseQuoteLineItems = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    );
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is Record<string, unknown> =>
+            Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+        );
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const toRecurringMultiplier = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  return Math.max(1, Math.floor(parsed));
+};
+
+const splitSerialTokens = (value: unknown) =>
+  String(value ?? '')
+    .split(/[\s,;/|]+/g)
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+
+const extractQuoteLineSerialTokens = (line: Record<string, unknown>) => {
+  const serialLikeValues: unknown[] = [
+    line.serial_number,
+    line.serial,
+    line.serialNumber,
+    line.ip_address,
+    line.detail_value,
+    line.detailValue,
+    line.value,
+  ];
+
+  const description = String(line.description ?? '');
+  if (description) {
+    const valueMatch = description.match(/value\s*:\s*([^\n\r]+)/i);
+    if (valueMatch?.[1]) {
+      serialLikeValues.push(valueMatch[1]);
+    }
+  }
+
+  const tokens = new Set<string>();
+  serialLikeValues.forEach((raw) => {
+    splitSerialTokens(raw).forEach((token) => {
+      tokens.add(token);
+    });
+    const wholeToken = String(raw ?? '').trim().toLowerCase();
+    if (wholeToken) tokens.add(wholeToken);
+  });
+
+  return tokens;
+};
+
+const findBestQuoteLineForPart = (
+  part: Record<string, unknown>,
+  quoteLines: Record<string, unknown>[],
+) => {
+  if (!quoteLines.length) return null;
+
+  const partSerial = resolvePartSerialToken(part);
+  const partCode = normalizeMatchToken(part.code ?? part.item_code);
+  const partDescription = normalizeMatchToken(part.description);
+
+  let bestLine: Record<string, unknown> | null = null;
+  let bestScore = 0;
+
+  for (const line of quoteLines) {
+    let score = 0;
+
+    const lineSerialTokens = extractQuoteLineSerialTokens(line);
+    if (partSerial && lineSerialTokens.has(partSerial)) {
+      score += 120;
+    }
+
+    const lineCode = normalizeMatchToken(line.code ?? line.item_code);
+    if (partCode && lineCode && partCode === lineCode) {
+      score += 80;
+    } else if (partCode) {
+      const lineJoined = normalizeMatchToken(
+        [
+          line.code,
+          line.item_code,
+          line.name,
+          line.product,
+          line.description,
+          line.type,
+          line.category,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+      if (lineJoined && lineJoined.includes(partCode)) {
+        score += 30;
+      }
+    }
+
+    if (partDescription) {
+      const lineDescription = normalizeMatchToken(
+        [line.name, line.product, line.description, line.type, line.category]
+          .filter(Boolean)
+          .join(' '),
+      );
+      if (
+        lineDescription &&
+        (lineDescription.includes(partDescription) ||
+          partDescription.includes(lineDescription))
+      ) {
+        score += 20;
+      }
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestLine = line;
+    }
+  }
+
+  if (bestScore <= 0) return null;
+  return bestLine;
+};
+
+const resolvePartRecurringMultiplier = (
+  part: Record<string, unknown>,
+  quoteLines: Record<string, unknown>[],
+) => {
+  const explicitMultiplier = toRecurringMultiplier(
+    part.recurring_multiplier ?? part.recurringMultiplier,
+  );
+  if (explicitMultiplier > 1) {
+    return explicitMultiplier;
+  }
+
+  const matchedQuoteLine = findBestQuoteLineForPart(part, quoteLines);
+  if (!matchedQuoteLine) {
+    return explicitMultiplier;
+  }
+
+  return toRecurringMultiplier(
+    matchedQuoteLine.recurring_multiplier ?? matchedQuoteLine.recurringMultiplier,
+  );
+};
 
 const resolvePartSerialToken = (value: Record<string, unknown>) =>
   normalizeToken(
@@ -246,6 +414,7 @@ export async function PUT(request: NextRequest, { params }) {
     if (jobError || !jobCard) {
       return NextResponse.json({ error: 'Job card not found' }, { status: 404 });
     }
+    const quoteLineItems = parseQuoteLineItems(jobCard.quotation_products);
     if (!isEmailLike(finalTechnicianEmail)) {
       finalTechnicianEmail = extractFirstEmail(jobCard.technician_phone);
     }
@@ -543,6 +712,12 @@ export async function PUT(request: NextRequest, { params }) {
     const persistedParts = parts.map((part) => {
       const sanitized = { ...part };
       delete sanitized.is_new_assignment;
+      const recurringMultiplier = resolvePartRecurringMultiplier(
+        sanitized,
+        quoteLineItems,
+      );
+      sanitized.recurring_multiplier = recurringMultiplier;
+      sanitized.recurring_multiplier_label = `${recurringMultiplier}x`;
       return sanitized;
     });
 

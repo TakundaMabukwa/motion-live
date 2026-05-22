@@ -3437,17 +3437,15 @@ export default function InventoryPage() {
                         <Package className="mr-1 w-3 h-3" />
                         View Items
                       </Button>
-                      {order.status === "paid" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleUploadToStock(order)}
-                          className="text-orange-600 hover:text-orange-700 text-xs"
-                        >
-                          <Package className="mr-1 w-3 h-3" />
-                          Upload to Stock
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleUploadToStock(order)}
+                        className="text-orange-600 hover:text-orange-700 text-xs"
+                      >
+                        <Package className="mr-1 w-3 h-3" />
+                        Upload to Stock
+                      </Button>
                     </div>
                   </td>
                 </tr>

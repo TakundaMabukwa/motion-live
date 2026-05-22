@@ -1862,6 +1862,14 @@ export default function AccountsContent({ activeSection }) {
     return 0;
   };
 
+  const getRecurringMultiplier = (product) => {
+    const raw = toNumber(
+      product?.recurring_multiplier ?? product?.recurringMultiplier ?? 1,
+    );
+    if (raw <= 0) return 1;
+    return Math.max(1, Math.floor(raw));
+  };
+
   const getAnnuitySelectionKey = (product) => {
     const parts = [
       product?.id,
@@ -1982,22 +1990,30 @@ export default function AccountsContent({ activeSection }) {
   };
 
   const getProductChargeLines = (product, job, options = {}) => {
-    const { includeRecurring = true } = options;
+    const {
+      includeRecurring = true,
+      includeRecurringWhenMultiplierNotOne = false,
+    } = options;
     const qty = Math.max(1, toNumber(product?.quantity) || 1);
+    const recurringMultiplier = getRecurringMultiplier(product);
+    const shouldIncludeRecurring =
+      includeRecurring ||
+      (includeRecurringWhenMultiplierNotOne && recurringMultiplier !== 1);
     const jobType = String(
       job?.job_type || job?.quotation_job_type || "",
     ).toLowerCase();
     const lines = [];
 
-    const addLine = (grossKey, priceKey, label) => {
+    const addLine = (grossKey, priceKey, label, multiplier = 1) => {
       const amount = toNumber(product?.[grossKey]) || toNumber(product?.[priceKey]);
       if (amount <= 0) return;
+      const unitPrice = amount * Math.max(1, toNumber(multiplier) || 1);
       lines.push({
         key: priceKey,
         label,
         qty,
-        unitPrice: amount,
-        subtotal: amount * qty,
+        unitPrice,
+        subtotal: unitPrice * qty,
       });
     };
 
@@ -2006,9 +2022,21 @@ export default function AccountsContent({ activeSection }) {
       jobType.includes("de-install") ||
       jobType.includes("decomm");
 
-    if (includeRecurring) {
-      addLine("subscription_gross", "subscription_price", "Subscription");
-      addLine("rental_gross", "rental_price", "Rental");
+    if (shouldIncludeRecurring) {
+      const recurringLabelSuffix =
+        recurringMultiplier !== 1 ? ` (${recurringMultiplier}x)` : "";
+      addLine(
+        "subscription_gross",
+        "subscription_price",
+        `Subscription${recurringLabelSuffix}`,
+        recurringMultiplier,
+      );
+      addLine(
+        "rental_gross",
+        "rental_price",
+        `Rental${recurringLabelSuffix}`,
+        recurringMultiplier,
+      );
     }
     addLine("cash_gross", "cash_price", "Cash");
     if (!isDeinstall) {
@@ -2413,6 +2441,7 @@ export default function AccountsContent({ activeSection }) {
     const computedSubtotal = products.reduce((sum, product) => {
       const chargeLines = getProductChargeLines(product, job, {
         includeRecurring: false,
+        includeRecurringWhenMultiplierNotOne: true,
       }).filter(
         (chargeLine) => toNumber(chargeLine?.unitPrice) > 0,
       );
@@ -2594,6 +2623,7 @@ export default function AccountsContent({ activeSection }) {
         ? rawTotals.products.flatMap((product, index) => {
             const chargeLines = getProductChargeLines(product, selectedJobForInvoice, {
               includeRecurring: false,
+              includeRecurringWhenMultiplierNotOne: true,
             });
 
             return chargeLines
@@ -5148,9 +5178,10 @@ export default function AccountsContent({ activeSection }) {
                         Selected {selectedAnnuityItemKeys.length} of{" "}
                         {annuitySelectableItems.length} item(s) to add to annuity
                         in <strong>vehicles</strong> and{" "}
-                        <strong>vehicles_duplicate</strong>. These recurring
-                        items are synced to vehicle billing but not added to
-                        invoice line items.
+                        <strong>vehicles_duplicate</strong>. Recurring items are
+                        synced to vehicle billing. Invoice line items include
+                        recurring charges only when the product multiplier is
+                        above 1x.
                       </p>
                       <div className="mt-3 max-h-60 space-y-2 overflow-y-auto pr-1">
                         {annuitySelectableItems.map((item) => {

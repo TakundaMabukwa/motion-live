@@ -27,11 +27,10 @@ export async function POST(request: NextRequest) {
       .from('stock_orders')
       .select('*')
       .eq('id', orderId)
-      .eq('status', 'paid')
       .single();
 
     if (orderError || !order) {
-      return NextResponse.json({ error: 'Order not found or not paid' }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
     if (!order.order_items || !Array.isArray(order.order_items)) {
