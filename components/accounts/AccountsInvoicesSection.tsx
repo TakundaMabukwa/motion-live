@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, FileText, Loader2, RefreshCw, Search } from "lucide-react";
+import { Eye, Loader2, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
 
@@ -40,6 +39,8 @@ interface AccountInvoiceRow {
   notes: string | null;
   line_items?: unknown[];
   created_at?: string | null;
+  job_number?: string | null;
+  order_number?: string | null;
 }
 
 const formatCurrency = (value: unknown) =>
@@ -82,6 +83,9 @@ export default function AccountsInvoicesSection() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedInvoice, setSelectedInvoice] = useState<AccountInvoiceRow | null>(null);
   const [showViewer, setShowViewer] = useState(false);
+  const [viewerOrderNumber, setViewerOrderNumber] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
@@ -141,6 +145,15 @@ export default function AccountsInvoicesSection() {
     );
   }, [invoices, searchTerm]);
 
+  const sortedInvoices = useMemo(() => {
+    const sorted = [...filteredInvoices].sort((a, b) => {
+      const aVal = String(sortField === "invoice_number" ? a.invoice_number : a.company_name || "").trim().toLowerCase();
+      const bVal = String(sortField === "invoice_number" ? b.invoice_number : b.company_name || "").trim().toLowerCase();
+      return sortDir === "desc" ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+    });
+    return sorted;
+  }, [filteredInvoices, sortField, sortDir]);
+
   const totalInvoiceValue = useMemo(
     () => filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0),
     [filteredInvoices],
@@ -150,177 +163,161 @@ export default function AccountsInvoicesSection() {
     await fetchInvoices(searchTerm, selectedMonth);
   };
 
-  const handleOpenInvoice = (invoice: AccountInvoiceRow) => {
+  const handleOpenInvoice = async (invoice: AccountInvoiceRow) => {
     setSelectedInvoice(invoice);
     setShowViewer(true);
+    setViewerOrderNumber(null);
+    if (invoice.job_number) {
+      try {
+        const res = await fetch(`/api/job-cards/order-number?job_number=${encodeURIComponent(invoice.job_number)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setViewerOrderNumber(data.order_number || invoice.order_number || null);
+        } else {
+          setViewerOrderNumber(invoice.order_number || null);
+        }
+      } catch {
+        setViewerOrderNumber(invoice.order_number || null);
+      }
+    } else {
+      setViewerOrderNumber(invoice.order_number || null);
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="font-bold text-gray-900 text-3xl">Invoices</h1>
-          <p className="mt-2 text-gray-600">
-            List and view stored account invoices from the accounts module
-          </p>
+          <h1 className="font-bold text-gray-900 text-xl">Invoices</h1>
+          <p className="text-xs text-gray-500">Stored account invoices</p>
         </div>
-        <Button onClick={handleRefresh} disabled={refreshing || loading} variant="outline">
+        <Button onClick={handleRefresh} disabled={refreshing || loading} variant="outline" size="sm">
           {refreshing || loading ? (
-            <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+            <Loader2 className="mr-1 w-3 h-3 animate-spin" />
           ) : (
-            <RefreshCw className="mr-2 w-4 h-4" />
+            <RefreshCw className="mr-1 w-3 h-3" />
           )}
           {refreshing || loading ? "Refreshing..." : "Refresh"}
         </Button>
       </div>
 
-      <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Stored Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-bold text-blue-600 text-2xl">{filteredInvoices.length}</div>
-            <p className="text-muted-foreground text-xs">Visible invoice records</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Invoice Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-bold text-green-600 text-2xl">{formatCurrency(totalInvoiceValue)}</div>
-            <p className="text-muted-foreground text-xs">Across filtered invoices</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Open Balances</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-bold text-red-600 text-2xl">
-              {formatCurrency(
-                filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.balance_due || 0), 0),
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs">Balance still due</p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="top-1/2 left-2.5 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
+          <Input
+            type="text"
+            placeholder="Search invoices..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="pl-8 h-8 text-sm"
+          />
+        </div>
+        <Input
+          type="month"
+          value={selectedMonth}
+          onChange={(event) => setSelectedMonth(event.target.value)}
+          max={new Date().toISOString().slice(0, 7)}
+          className="w-44 h-8 text-sm"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedMonth(currentMonth)}>
+          Current
+        </Button>
+        <select
+          value={sortField}
+          onChange={(e) => setSortField(e.target.value as "invoice_number" | "company_name")}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="invoice_number">Invoice No</option>
+          <option value="company_name">Company</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+          className="flex items-center gap-1 h-8 rounded-md border border-input bg-background px-2 text-xs hover:bg-accent"
+        >
+          {sortDir === "asc" ? "↑ A-Z" : "↓ Z-A"}
+        </button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Search Invoices</CardTitle>
-          <p className="text-gray-600 text-sm">
-            Search by invoice number, account number, company, or VAT number, and filter by month
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="gap-3 grid grid-cols-1 md:grid-cols-[1fr_220px_auto]">
-            <div className="relative">
-              <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
-              <Input
-                type="text"
-                placeholder="Search invoices..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => setSelectedMonth(event.target.value)}
-              max={new Date().toISOString().slice(0, 7)}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setSelectedMonth("")}
-              disabled={!selectedMonth}
-            >
-              Clear Month
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-4 text-xs">
+        <span className="text-slate-500">
+          <strong className="text-slate-700">{filteredInvoices.length}</strong> invoices
+        </span>
+        <span className="text-slate-500">
+          Total: <strong className="text-green-600">{formatCurrency(totalInvoiceValue)}</strong>
+        </span>
+        <span className="text-slate-500">
+          Balance: <strong className="text-red-600">
+            {formatCurrency(filteredInvoices.reduce((sum, i) => sum + Number(i.balance_due || 0), 0))}
+          </strong>
+        </span>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="w-5 h-5 text-blue-600" />
-            Invoice List
-          </CardTitle>
-          <p className="text-gray-600 text-sm">
-            Open any invoice to view the rendered tax invoice with current customer data
-          </p>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="py-12 text-center text-gray-500">
-              <Loader2 className="mx-auto mb-4 w-6 h-6 animate-spin" />
-              Loading invoices...
-            </div>
-          ) : filteredInvoices.length === 0 ? (
-            <div className="py-12 text-center">
-              <FileText className="mx-auto mb-4 w-12 h-12 text-gray-400" />
-              <h3 className="mb-2 font-medium text-gray-900 text-lg">No invoices found</h3>
-              <p className="text-gray-500">
-                {searchTerm.trim()
-                  ? `No invoices match "${searchTerm.trim()}".`
-                  : "No account invoices are available yet."}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice No</TableHead>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Billing Month</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Action</TableHead>
+      <div className="overflow-hidden rounded-lg border bg-white">
+        <div className="max-h-[65vh] overflow-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-white z-10">
+              <TableRow>
+                <TableHead className="py-2 text-xs">Invoice No</TableHead>
+                <TableHead className="py-2 text-xs">Order No</TableHead>
+                <TableHead className="py-2 text-xs">Account</TableHead>
+                <TableHead className="py-2 text-xs">Company</TableHead>
+                <TableHead className="py-2 text-xs">Billing Month</TableHead>
+                <TableHead className="py-2 text-xs text-right">Total</TableHead>
+                <TableHead className="py-2 text-xs text-right">Balance</TableHead>
+                <TableHead className="py-2 text-xs">Status</TableHead>
+                <TableHead className="py-2 text-xs text-center">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-xs text-slate-400 py-8">
+                    <Loader2 className="mx-auto mb-2 w-4 h-4 animate-spin" />
+                    Loading invoices...
+                  </TableCell>
+                </TableRow>
+              ) : sortedInvoices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-xs text-slate-400 py-8">
+                    No invoices found{selectedMonth ? ` for ${selectedMonth}` : ""}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                sortedInvoices.map((invoice) => (
+                  <TableRow key={invoice.id} className="text-xs">
+                    <TableCell className="py-1.5 font-medium">
+                      {invoice.invoice_number || "PENDING"}
+                      <div className="text-[10px] text-gray-400">{formatDate(invoice.invoice_date)}</div>
+                    </TableCell>
+                    <TableCell className="py-1.5 text-[10px] text-slate-500">
+                      {invoice.order_number || "—"}
+                    </TableCell>
+                    <TableCell className="py-1.5">{invoice.account_number || "N/A"}</TableCell>
+                    <TableCell className="py-1.5 max-w-[200px] truncate">
+                      {invoice.company_name || "N/A"}
+                    </TableCell>
+                    <TableCell className="py-1.5">{formatDate(invoice.billing_month)}</TableCell>
+                    <TableCell className="py-1.5 text-right">{formatCurrency(invoice.total_amount)}</TableCell>
+                    <TableCell className="py-1.5 text-right">{formatCurrency(invoice.balance_due)}</TableCell>
+                    <TableCell className="py-1.5">
+                      <Badge className={`${getStatusTone(invoice.payment_status)} text-[10px] px-1.5 py-0`}>
+                        {String(invoice.payment_status || "pending")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-1.5 text-center">
+                      <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
+                        <Eye className="mr-1 w-3 h-3" />
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">
-                        {invoice.invoice_number || "PENDING"}
-                        <div className="text-xs text-gray-500">{formatDate(invoice.invoice_date)}</div>
-                      </TableCell>
-                      <TableCell>{invoice.account_number || "N/A"}</TableCell>
-                      <TableCell>
-                        <div className="max-w-[260px] truncate">
-                          {invoice.company_name || "N/A"}
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatDate(invoice.billing_month)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(invoice.total_amount)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(invoice.balance_due)}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusTone(invoice.payment_status)}>
-                          {String(invoice.payment_status || "pending")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button size="sm" variant="outline" onClick={() => handleOpenInvoice(invoice)}>
-                          <Eye className="mr-1 w-4 h-4" />
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       <Dialog open={showViewer} onOpenChange={setShowViewer}>
         <DialogContent className="max-w-7xl max-h-[92vh] overflow-y-auto">
@@ -328,6 +325,11 @@ export default function AccountsInvoicesSection() {
             <DialogTitle>
               {selectedInvoice?.invoice_number || "Invoice Preview"}
             </DialogTitle>
+            {viewerOrderNumber ? (
+              <p className="text-xs text-slate-500">
+                Order Number: <span className="font-medium text-slate-700">{viewerOrderNumber}</span>
+              </p>
+            ) : null}
           </DialogHeader>
           {selectedInvoice ? (
             <InvoiceReportComponent

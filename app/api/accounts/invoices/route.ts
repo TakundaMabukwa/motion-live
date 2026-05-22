@@ -80,14 +80,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const accountRows = Array.isArray(invoices)
-      ? (invoices as Record<string, unknown>[])
-      : [];
-
     let jobCardInvoiceQuery = supabase
       .from("invoices")
       .select(
-        "id, account_number, invoice_number, invoice_date, total_amount, client_name, client_address, line_items, notes, created_at",
+        "id, job_card_id, job_number, account_number, invoice_number, invoice_date, total_amount, client_name, client_address, line_items, notes, created_at",
       )
       .order("created_at", { ascending: false })
       .order("invoice_date", { ascending: false, nullsFirst: false });
@@ -102,11 +98,39 @@ export async function GET(request: NextRequest) {
       console.error("Failed to fetch job-card invoices for accounts invoices:", jobCardInvoicesError);
     }
 
-    const normalizedJobCardInvoices = (Array.isArray(jobCardInvoices)
+    const rawJobCardInvoices = Array.isArray(jobCardInvoices)
       ? (jobCardInvoices as Record<string, unknown>[])
-      : []
-    ).map((invoice) => {
+      : [];
+
+    const jobCardIds = rawJobCardInvoices
+      .map((inv) => String(inv?.job_card_id || "").trim())
+      .filter(Boolean);
+
+    let orderNumberByJobCardId = new Map<string, string | null>();
+    if (jobCardIds.length > 0) {
+      const { data: jobCards } = await supabase
+        .from("job_cards")
+        .select("id, order_number")
+        .in("id", jobCardIds);
+      if (Array.isArray(jobCards)) {
+        orderNumberByJobCardId = new Map(
+          jobCards.map((jc) => [String(jc.id), jc.order_number || null]),
+        );
+      }
+    }
+
+    const invoiceNumberToJobCardId = new Map<string, string>();
+    for (const inv of rawJobCardInvoices) {
+      const invNum = String(inv?.invoice_number || "").trim().toUpperCase();
+      const jcId = String(inv?.job_card_id || "").trim();
+      if (invNum && jcId) {
+        invoiceNumberToJobCardId.set(invNum, jcId);
+      }
+    }
+
+    const normalizedJobCardInvoices = rawJobCardInvoices.map((invoice) => {
       const invoiceMonthKey = getMonthKeyFromValue(invoice?.invoice_date || invoice?.created_at);
+      const jcId = String(invoice?.job_card_id || "").trim();
       return {
         id: `job-card-${String(invoice?.id || "").trim()}`,
         account_number: String(invoice?.account_number || "").trim() || null,
@@ -124,6 +148,20 @@ export async function GET(request: NextRequest) {
         line_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         notes: String(invoice?.notes || "").trim() || null,
         created_at: String(invoice?.created_at || "").trim() || null,
+        job_number: String(invoice?.job_number || "").trim() || null,
+        order_number: orderNumberByJobCardId.get(jcId) || null,
+      };
+    });
+
+    const accountRows = (Array.isArray(invoices)
+      ? (invoices as Record<string, unknown>[])
+      : []
+    ).map((row) => {
+      const invNum = String(row?.invoice_number || "").trim().toUpperCase();
+      const linkedJobCardId = invNum ? invoiceNumberToJobCardId.get(invNum) : null;
+      return {
+        ...row,
+        order_number: linkedJobCardId ? orderNumberByJobCardId.get(linkedJobCardId) || null : null,
       };
     });
 

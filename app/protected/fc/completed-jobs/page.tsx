@@ -1100,6 +1100,11 @@ function FCCompletedJobsPageContent() {
                             <h3 className="text-base font-semibold">
                               {job.job_number || job.id}
                             </h3>
+                            {job.order_number ? (
+                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                PO#{job.order_number}
+                              </span>
+                            ) : null}
                             <Badge className={getStatusColor(job.job_status)}>
                               {job.job_status || job.status || "N/A"}
                             </Badge>
@@ -1345,6 +1350,10 @@ function FCCompletedJobsPageContent() {
                     <p>
                       <strong>Job Number:</strong>{" "}
                       {selectedJob.job_number || "N/A"}
+                    </p>
+                    <p>
+                      <strong>Order Number:</strong>{" "}
+                      {selectedJob.order_number || "N/A"}
                     </p>
                     <p>
                       <strong>Status:</strong>{" "}
