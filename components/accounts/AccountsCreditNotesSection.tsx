@@ -36,6 +36,7 @@ interface AccountCreditNoteRow {
   reference: string | null;
   comment: string | null;
   reason: string | null;
+  client_name: string | null;
   company_name: string | null;
   customer_vat_number: string | null;
   company_registration_number: string | null;
@@ -324,7 +325,7 @@ export default function AccountsCreditNotesSection() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium">{creditNote.company_name || creditNote.account_number || "N/A"}</span>
+                        <span className="font-medium">{creditNote.client_name || creditNote.company_name || creditNote.account_number || "N/A"}</span>
                       </TableCell>
                       <TableCell>
                         <div className="max-w-[200px] truncate text-slate-500">
