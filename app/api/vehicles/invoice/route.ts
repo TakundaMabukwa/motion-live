@@ -724,17 +724,15 @@ export async function GET(request: NextRequest) {
         ? [sourceAccountNumber, ...EPS_ADDITIONAL_SOURCE_ACCOUNTS]
         : [sourceAccountNumber];
 
-    const vehicleAccountFilters = sourceAccountsForVehicles.flatMap((value) => [
-      `account_number.eq.${value}`,
-      `new_account_number.eq.${value}`,
-    ]);
+    const vehicleAccountFilters = sourceAccountsForVehicles.flatMap(
+      (value) => `new_account_number.eq.${value}`,
+    );
 
     const invoiceVehiclesSource = 'vehicles_duplicate';
     let vehicles: Record<string, any>[] | null = null;
     let error: any = null;
 
     if (forceRebuildFromVehicles) {
-      // Strict rebuild mode: use current account mapping first (new_account_number).
       let strictQuery = supabase
         .from(invoiceVehiclesSource)
         .select('*')
@@ -748,7 +746,6 @@ export async function GET(request: NextRequest) {
       if (Array.isArray(strictResult.data) && strictResult.data.length > 0) {
         vehicles = strictResult.data as Record<string, any>[];
       } else {
-        // Fallback for legacy rows where data may still live under account_number.
         let fallbackQuery = supabase
           .from(invoiceVehiclesSource)
           .select('*')
@@ -762,7 +759,7 @@ export async function GET(request: NextRequest) {
       let vehiclesQuery = supabase
         .from(invoiceVehiclesSource)
         .select('*')
-        .or(vehicleAccountFilters.join(','));
+        .in('new_account_number', sourceAccountsForVehicles);
 
       const result = await vehiclesQuery;
       vehicles = (result.data || []) as Record<string, any>[];
