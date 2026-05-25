@@ -358,9 +358,8 @@ export async function POST(request: NextRequest) {
       .toUpperCase();
     const billingMonth = normalizeBillingMonth(body?.billingMonth);
     const invoiceDate = body?.invoiceDate || getBillingInvoiceDate(billingMonth);
-    const allowLockedRebuild = Boolean(body?.allowLockedRebuild);
     const preserveInvoiceIdentity = Boolean(body?.preserveInvoiceIdentity);
-    const canOverrideLockedInvoice = allowLockedRebuild || preserveInvoiceIdentity;
+    const forceNewInvoice = Boolean(body?.forceNewInvoice);
 
     if (!accountNumber) {
       return NextResponse.json(
@@ -436,7 +435,7 @@ export async function POST(request: NextRequest) {
       notes: body?.notes || null,
     };
 
-    if (existingInvoice) {
+    if (existingInvoice && !forceNewInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
       const invoiceDateToKeep =
         preserveInvoiceIdentity && existingInvoice?.invoice_date

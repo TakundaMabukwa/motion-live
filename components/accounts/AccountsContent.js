@@ -62,6 +62,8 @@ import AccountsReceivablesSection from "./AccountsReceivablesSection";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AnnuityInvoiceTab from "./AnnuityInvoiceTab";
 
 export default function AccountsContent({ activeSection }) {
   const COMPLETED_JOB_TABS = [
@@ -95,6 +97,7 @@ export default function AccountsContent({ activeSection }) {
     useState(false);
   const [invoiceBuilderCreatedInvoice, setInvoiceBuilderCreatedInvoice] =
     useState(null);
+  const [invoiceBuilderTab, setInvoiceBuilderTab] = useState("job-card");
   const [invoiceBuilderSearchTerm, setInvoiceBuilderSearchTerm] = useState("");
   const [invoiceBuilderSelectedJobIds, setInvoiceBuilderSelectedJobIds] =
     useState([]);
@@ -3889,10 +3892,19 @@ export default function AccountsContent({ activeSection }) {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-blue-600" />
-                Job Card Invoice Builder
+                Invoice Client
               </DialogTitle>
+              <Tabs value={invoiceBuilderTab} onValueChange={setInvoiceBuilderTab} className="mt-2">
+                <TabsList>
+                  <TabsTrigger value="job-card">Job Card</TabsTrigger>
+                  <TabsTrigger value="annuity">Annuity</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </DialogHeader>
 
+            {invoiceBuilderTab === "annuity" ? (
+              <AnnuityInvoiceTab costCenters={invoiceBuilderCostCenters} />
+            ) : (
             <div className="space-y-5">
               <div className="rounded-xl border bg-gradient-to-r from-slate-50 via-white to-blue-50 p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -3978,7 +3990,7 @@ export default function AccountsContent({ activeSection }) {
                                   No cost centers found.
                                 </div>
                               ) : (
-                                filteredInvoiceBuilderCostCenters.map((costCenter) => {
+                                filteredInvoiceBuilderCostCenters.map((costCenter, ccIdx) => {
                                   const value = String(costCenter.cost_code || "")
                                     .trim()
                                     .toUpperCase();
@@ -3990,7 +4002,7 @@ export default function AccountsContent({ activeSection }) {
 
                                   return (
                                     <button
-                                      key={`builder-cost-center-${value}`}
+                                      key={`builder-cost-center-${value}-${ccIdx}`}
                                       type="button"
                                       onClick={() => {
                                         handleInvoiceBuilderCostCenterChange(value);
@@ -4707,6 +4719,7 @@ export default function AccountsContent({ activeSection }) {
                 </div>
               </div>
             </div>
+            )}
 
             <DialogFooter className="pt-4 border-t">
               <Button
@@ -4715,6 +4728,7 @@ export default function AccountsContent({ activeSection }) {
               >
                 Close
               </Button>
+              {invoiceBuilderTab !== "annuity" && (
               <Button
                 onClick={createInvoiceBuilderInvoice}
                 disabled={
@@ -4726,6 +4740,7 @@ export default function AccountsContent({ activeSection }) {
               >
                 {invoiceBuilderCreatingInvoice ? "Creating..." : "Create Invoice"}
               </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
