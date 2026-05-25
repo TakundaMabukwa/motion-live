@@ -126,35 +126,6 @@ const getEffectiveInvoiceLockState = (costCenter) => {
   const invoiceData = costCenter?.invoiceData || null;
   const costCenterInfo = costCenter?.costCenterInfo || null;
 
-  if (Boolean(invoiceData?.invoice_locked)) {
-    return {
-      locked: true,
-      source: 'invoice',
-      lockedByEmail: invoiceData?.invoice_locked_by_email || null,
-      lockedAt: invoiceData?.invoice_locked_at || null,
-      lockedAmount: Number(
-        invoiceData?.total_amount ??
-          invoiceData?.totalAmount ??
-          invoiceData?.subtotal ??
-          0,
-      ),
-      billingMonth:
-        String(invoiceData?.billing_month || costCenter?.billingMonth || '').trim() || null,
-    };
-  }
-
-  if (Boolean(costCenterInfo?.total_amount_locked)) {
-    return {
-      locked: true,
-      source: 'cost_center',
-      lockedByEmail: costCenterInfo?.total_amount_locked_by_email || null,
-      lockedAt: costCenterInfo?.total_amount_locked_at || null,
-      lockedAmount: Number(costCenterInfo?.total_amount_locked_value ?? 0),
-      billingMonth:
-        String(invoiceData?.billing_month || costCenter?.billingMonth || '').trim() || null,
-    };
-  }
-
   return {
     locked: false,
     source: null,
@@ -199,39 +170,11 @@ const mergeLiveInvoiceWithStoredBulkInvoice = (liveInvoiceData, storedBulkInvoic
   };
 };
 
-const applyCostCenterLockedTotals = (invoiceData, costCenterInfo) => {
-  if (!invoiceData || !Boolean(costCenterInfo?.total_amount_locked)) {
-    return invoiceData;
-  }
-
-  const lockedExVat = Number(costCenterInfo?.total_amount_locked_value ?? 0);
-  if (!(lockedExVat > 0)) {
-    return invoiceData;
-  }
-
-  const vatAmount = Number((lockedExVat * 0.15).toFixed(2));
-  const totalAmount = Number((lockedExVat + vatAmount).toFixed(2));
-
-  return {
-    ...invoiceData,
-    subtotal: lockedExVat,
-    vat_amount: vatAmount,
-    total_amount: totalAmount,
-    discount_amount: Number(invoiceData?.discount_amount || 0),
-  };
+const applyCostCenterLockedTotals = (invoiceData, _costCenterInfo) => {
+  return invoiceData;
 };
 
-const appendInvoiceLockCutoff = (query, costCenterInfo, storedBulkInvoice = null) => {
-  if (Boolean(storedBulkInvoice?.invoice_locked)) {
-    return query;
-  }
-
-  const lockCutoffAt = String(costCenterInfo?.total_amount_locked_at || '').trim();
-  if (!lockCutoffAt) {
-    return query;
-  }
-
-  query.set('lockCutoffAt', lockCutoffAt);
+const appendInvoiceLockCutoff = (query, _costCenterInfo, _storedBulkInvoice = null) => {
   return query;
 };
 

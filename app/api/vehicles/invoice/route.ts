@@ -19,20 +19,6 @@ const buildAddress = (source?: Record<string, unknown> | null) =>
 
 const normalizeTextValue = (value: unknown) => String(value || '').trim();
 
-const isLockAppliedToBillingMonth = (
-  lockDate: unknown,
-  billingMonth: string | null,
-) => {
-  const normalizedLockMonth = normalizeBillingMonth(lockDate);
-  const normalizedBillingMonth = normalizeBillingMonth(billingMonth);
-
-  if (!normalizedLockMonth || !normalizedBillingMonth) {
-    return false;
-  }
-
-  return normalizedLockMonth === normalizedBillingMonth;
-};
-
 const TOTAL_BILLING_COLUMNS = new Set([
   'total_rental_sub',
   'total_rental',
@@ -689,59 +675,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account number is required' }, { status: 400 });
     }
 
-    // Check if system is locked - if locked, use lock_date as cutoff for ALL invoices
-    const { data: systemLock, error: lockError } = await supabase
-      .from('system_locks')
-      .select('*')
-      .eq('lock_key', 'billing')
-      .maybeSingle();
-
-    if (lockError) {
-      console.error('Error fetching system lock:', lockError);
-    }
-
-    const isSystemLocked = Boolean(systemLock?.is_locked);
-    const lockDate = systemLock?.lock_date || null;
     const normalizedRequestedBillingMonth =
       typeof requestedBillingMonth === 'string' && requestedBillingMonth.trim()
         ? normalizeBillingMonth(requestedBillingMonth)
         : null;
-    const normalizedLockBillingMonth =
-      isSystemLocked && lockDate ? normalizeBillingMonth(lockDate) : null;
-    const effectiveBillingMonth =
-      isSystemLocked && normalizedLockBillingMonth
-        ? normalizedLockBillingMonth
-        : normalizedRequestedBillingMonth;
-    const isSystemLockedForBillingMonth =
-      isSystemLocked && isLockAppliedToBillingMonth(lockDate, effectiveBillingMonth);
-
-    const resolveLockedInvoiceDate = (rawLockDate: string | null, fallbackBillingMonth: string | null) => {
-      const normalizedLockMonth = rawLockDate ? normalizeBillingMonth(rawLockDate) : null;
-      if (!normalizedLockMonth) {
-        return null;
-      }
-
-      const lockMonthPart = String(normalizedLockMonth).slice(5, 7);
-      const yearSource = fallbackBillingMonth || normalizedLockMonth;
-      const targetYear = String(yearSource).slice(0, 4);
-      const effectiveBillingMonth = `${targetYear}-${lockMonthPart}-01`;
-      const parsed = new Date(`${effectiveBillingMonth}T00:00:00`);
-      if (Number.isNaN(parsed.getTime())) {
-        return null;
-      }
-
-      const year = parsed.getFullYear();
-      const month = parsed.getMonth();
-      const lastDay = new Date(year, month + 1, 0).getDate();
-      const invoiceDay = Math.min(30, lastDay);
-      return new Date(year, month, invoiceDay, 23, 59, 59, 999).toISOString();
-    };
-    
-    // Calculate end of month from lock_date for vehicle cutoff
-    const billingCutoffDate =
-      isSystemLockedForBillingMonth && lockDate
-        ? resolveLockedInvoiceDate(lockDate, effectiveBillingMonth)
-        : null;
+    const effectiveBillingMonth = normalizedRequestedBillingMonth;
 
     let storedInvoiceQuery = supabase
       .from('account_invoices')
@@ -778,8 +716,7 @@ export async function GET(request: NextRequest) {
     const shouldUseEpsGrouping =
       String(accountNumber || '').trim().toUpperCase() === EPS_SPECIAL_SOURCE_ACCOUNT &&
       sourceAccountNumber === EPS_SPECIAL_SOURCE_ACCOUNT &&
-      Boolean(includeGroupSummaries || billingGroup) &&
-      !Boolean(costCenter?.total_amount_locked);
+      Boolean(includeGroupSummaries || billingGroup);
 
     // Fetch all vehicle fields
     const sourceAccountsForVehicles =
@@ -827,11 +764,6 @@ export async function GET(request: NextRequest) {
         .select('*')
         .or(vehicleAccountFilters.join(','));
 
-      if (Boolean(costCenter?.total_amount_locked)) {
-        vehiclesQuery = vehiclesQuery.eq('amount_locked', true);
-      }
-      // Note: When system is locked, we still include ALL vehicles
-      // The lock only affects the billing period/invoice date, not which vehicles to include
       const result = await vehiclesQuery;
       vehicles = (result.data || []) as Record<string, any>[];
       error = result.error;
@@ -1137,11 +1069,9 @@ export async function GET(request: NextRequest) {
       Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
         ? storedInvoice.line_items
         : [];
-    const isLockedInvoice =
-      Boolean(storedInvoice?.invoice_locked) || isSystemLockedForBillingMonth;
     const useStoredLineItems =
       !forceRebuildFromVehicles &&
-      isLockedInvoice &&
+      storedInvoice?.invoice_locked &&
       storedLineItems.length > 0 &&
       !hasLegacyStoredLineItems(storedLineItems);
     const resolvedLineItems = useStoredLineItems ? storedLineItems : invoiceItems;
@@ -1170,16 +1100,9 @@ export async function GET(request: NextRequest) {
         ? storedTotal
         : lineItemFinancials.totalAmount;
 
-    // Calculate invoice date - use locked month end date when system is locked
+    // Calculate invoice date - use stored invoice date or current date
     let invoiceDate: string;
-    if (isSystemLockedForBillingMonth && billingCutoffDate) {
-      // When locked, ALWAYS use the end of the locked month as invoice date
-      // This overrides any stored invoice date to ensure consistency
-      invoiceDate = billingCutoffDate;
-    } else {
-      // Normal behavior - use stored invoice date or current date
-      invoiceDate = storedInvoice?.invoice_date || new Date().toISOString();
-    }
+    invoiceDate = storedInvoice?.invoice_date || new Date().toISOString();
 
     const invoiceData = {
       company_name: companyName,
@@ -1198,14 +1121,10 @@ export async function GET(request: NextRequest) {
       total_amount: resolvedTotal,
       subtotal: resolvedSubtotal,
       vat_amount: resolvedVat,
-      invoice_locked: isLockedInvoice,
-      invoice_locked_by: storedInvoice?.invoice_locked_by || null,
-      invoice_locked_at: storedInvoice?.invoice_locked_at || null,
-      invoice_locked_by_email: storedInvoice?.invoice_locked_by_email || null,
       group_summaries: groupSummaries,
     };
 
-    if (storedInvoice?.id && (!isLockedInvoice || forceRebuildFromVehicles)) {
+    if (storedInvoice?.id && !useStoredLineItems) {
       const { error: syncInvoiceError } = await supabase
         .from('account_invoices')
         .update({

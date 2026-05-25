@@ -418,13 +418,6 @@ export async function POST(request: NextRequest) {
       ? lockedInvoices[0] || null
       : null;
 
-    if (lockedInvoiceForPeriod && !canOverrideLockedInvoice) {
-      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, lockedInvoiceForPeriod);
-      return NextResponse.json({ invoice: lockedInvoice, reused: true, locked: true });
-    }
-
-    // Prefer the locked-period invoice when it exists so we never allocate
-    // a new invoice number for a billing month that is already locked.
     const existingInvoice = lockedInvoiceForPeriod || latestInvoiceForMonth;
 
     const payload = {
@@ -442,13 +435,6 @@ export async function POST(request: NextRequest) {
       line_items: Array.isArray(body?.lineItems) ? body.lineItems : [],
       notes: body?.notes || null,
     };
-
-    if (preserveInvoiceIdentity && !existingInvoice) {
-      return NextResponse.json(
-        { error: "Cannot preserve invoice identity: no existing invoice found for this account/month" },
-        { status: 409 },
-      );
-    }
 
     if (existingInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
@@ -669,14 +655,6 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: "Bulk invoice not found" },
         { status: 404 },
-      );
-    }
-
-    if (currentInvoice.invoice_locked && invoiceLocked === undefined) {
-      const lockedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, currentInvoice);
-      return NextResponse.json(
-        { error: "Invoice is locked", invoice: lockedInvoice, locked: true },
-        { status: 409 },
       );
     }
 

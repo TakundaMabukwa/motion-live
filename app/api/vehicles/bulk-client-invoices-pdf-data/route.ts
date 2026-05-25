@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 
       while (true) {
         const { data: vehicles, error: vehiclesError } = await supabase
-          .from('vehicles')
+          .from('vehicles_duplicate')
           .select('new_account_number, account_number')
           .range(from, from + pageSize - 1);
 
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
         new Set(
           allVehicles
             .map((row) =>
-              String(row?.new_account_number || row?.account_number || '')
+              String(row?.new_account_number || '')
                 .trim()
                 .toUpperCase(),
             )
