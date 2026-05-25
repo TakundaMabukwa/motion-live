@@ -345,6 +345,7 @@ export default function ValidateVehiclesPage() {
     "amount_locked",
     "amount_locked_by",
     "amount_locked_at",
+    "once_off_fees",
   ];
   const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour"];
   const billingFields = [
