@@ -32,7 +32,7 @@ interface AccountsContextType {
   loading: boolean;
   loadingAmounts: boolean;
   totalCount: number;
-  fetchCompanyGroups: (search?: string) => Promise<void>;
+  fetchCompanyGroups: (search?: string, options?: { startMonth?: string; endMonth?: string }) => Promise<void>;
   fetchVehicleAmounts: (prefix: string) => Promise<VehicleAmounts | null>;
   clearData: () => void;
   isDataLoaded: boolean;
@@ -61,13 +61,13 @@ export const AccountsProvider: React.FC<AccountsProviderProps> = ({ children }) 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Fetch company groups data from customers-grouped table
-  const fetchCompanyGroups = useCallback(async (search = "") => {
+  const fetchCompanyGroups = useCallback(async (search = "", options?: { startMonth?: string; endMonth?: string }) => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`,
-        { cache: 'no-store' },
-      );
+      let url = `/api/accounts/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true`;
+      if (options?.startMonth) url += `&startMonth=${encodeURIComponent(options.startMonth)}`;
+      if (options?.endMonth) url += `&endMonth=${encodeURIComponent(options.endMonth)}`;
+      const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Failed to fetch company groups');
       }

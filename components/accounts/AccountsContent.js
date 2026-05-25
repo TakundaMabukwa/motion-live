@@ -1509,6 +1509,25 @@ export default function AccountsContent({ activeSection }) {
         }
       }
 
+      const jobTypeRaw = String(selectedJobForInvoice?.job_type || selectedJobForInvoice?.quotation_job_type || "").toLowerCase();
+      const isDeinstall = jobTypeRaw.includes("deinstall") || jobTypeRaw.includes("de-install") || jobTypeRaw.includes("decomm");
+
+      if (isDeinstall && effectiveAccountNumber) {
+        const zeroRes = await fetch("/api/vehicles/deinstall-zero-out", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId: selectedJobForInvoice.id,
+            accountNumber: effectiveAccountNumber,
+            vehicleReg: selectedJobForInvoice.vehicle_registration,
+          }),
+        });
+        if (!zeroRes.ok) {
+          const zeroErr = await zeroRes.json().catch(() => ({}));
+          syncWarnings.push(zeroErr.error || "De-install zero-out returned an error");
+        }
+      }
+
       const equipmentResponse = await fetch(
         "/api/vehicles/sync-job-equipment",
         {
@@ -3727,6 +3746,9 @@ export default function AccountsContent({ activeSection }) {
                         Job Number
                       </TableHead>
                       <TableHead className="h-10 px-3 text-xs">
+                        Type
+                      </TableHead>
+                      <TableHead className="h-10 px-3 text-xs">
                         Invoice No
                       </TableHead>
                       <TableHead className="h-10 px-3 text-xs">
@@ -3746,9 +3768,23 @@ export default function AccountsContent({ activeSection }) {
                 </TableHeader>
                 <TableBody>
                   {filteredCompletedJobs.map((job) => (
-                    <TableRow key={job.id} className="h-12">
+                      <TableRow key={job.id} className="h-12">
                       <TableCell className="py-2 px-3 font-semibold text-gray-900">
                         <div className="text-sm">{job.job_number}</div>
+                      </TableCell>
+                      <TableCell className="py-2 px-3">
+                        {job.job_type ? (
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                            String(job.job_type).toLowerCase().includes("deinstall") ||
+                            String(job.job_type).toLowerCase().includes("decomm")
+                              ? "bg-red-100 text-red-700"
+                              : "bg-blue-100 text-blue-700"
+                          }`}>
+                            {job.job_type}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="py-2 px-3 text-gray-700">
                         {getBillingInvoiceNumber(job) ? (

@@ -1114,6 +1114,19 @@ export default function InventoryPage() {
     setShowAssignParts(true);
   };
 
+  const handleSearchResultViewParts = async (result: GlobalStockSearchResult) => {
+    if (!result.job_id) return;
+    try {
+      const response = await fetch(`/api/job-cards/${result.job_id}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Failed to fetch job card');
+      const data = await response.json();
+      const jobCard: JobCard = data.jobCard || data;
+      handleAssignParts(jobCard);
+    } catch (error) {
+      console.error('Error fetching job card for parts view:', error);
+    }
+  };
+
   const handleOpenJobDetails = (jobCard: JobCard) => {
     setSelectedInventoryJob(jobCard);
     setShowJobDetails(true);
@@ -4087,7 +4100,14 @@ export default function InventoryPage() {
                 {globalStockSearchResults.map((item) => (
                   <tr
                     key={item.result_id}
-                    className="border-b border-gray-100 align-top hover:bg-gray-50"
+                    className={`border-b border-gray-100 align-top hover:bg-gray-50 ${
+                      item.source === "job_history" ? "cursor-pointer" : ""
+                    }`}
+                    onClick={() => {
+                      if (item.source === "job_history") {
+                        handleSearchResultViewParts(item);
+                      }
+                    }}
                   >
                     <td className="px-4 py-3">
                       <Badge
@@ -4161,6 +4181,11 @@ export default function InventoryPage() {
                       {item.source === "job_history" && item.decommission_date ? (
                         <div className="text-xs text-gray-500">
                           De-installed: {new Date(item.decommission_date).toLocaleDateString()}
+                        </div>
+                      ) : null}
+                      {item.source === "job_history" ? (
+                        <div className="mt-1 text-xs font-medium text-blue-600">
+                          Click to view parts
                         </div>
                       ) : null}
                     </td>

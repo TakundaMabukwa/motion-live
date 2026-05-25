@@ -62,6 +62,8 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   } = useAccounts();
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [startMonth, setStartMonth] = useState('');
+  const [endMonth, setEndMonth] = useState('');
   const [isGeneratingBulkInvoice, setIsGeneratingBulkInvoice] = useState(false);
   const [isGeneratingAllInvoicesExcel, setIsGeneratingAllInvoicesExcel] = useState(false);
   const [isGeneratingAllInvoicesPdf, setIsGeneratingAllInvoicesPdf] = useState(false);
@@ -445,9 +447,9 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   // Initial load
   useEffect(() => {
     if (!isDataLoaded) {
-      fetchCompanyGroups('');
+      fetchCompanyGroups('', { startMonth, endMonth });
     }
-  }, [fetchCompanyGroups, isDataLoaded]);
+  }, [fetchCompanyGroups, isDataLoaded, startMonth, endMonth]);
 
   useEffect(() => {
     if (mode === 'client-info' && editableCostCenters.length === 0) {
@@ -508,7 +510,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
 
   const handleRefresh = async () => {
     try {
-      await fetchCompanyGroups('');
+      await fetchCompanyGroups('', { startMonth, endMonth });
       toast.success('Data refreshed successfully');
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -1759,6 +1761,32 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Input
+              type="month"
+              value={startMonth}
+              onChange={(e) => setStartMonth(e.target.value)}
+              className="h-8 w-40 text-xs"
+              placeholder="From"
+            />
+            <span className="text-xs text-gray-400">to</span>
+            <Input
+              type="month"
+              value={endMonth}
+              onChange={(e) => setEndMonth(e.target.value)}
+              className="h-8 w-40 text-xs"
+              placeholder="To"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fetchCompanyGroups(searchTerm, { startMonth, endMonth })}
+              className="h-8 text-xs"
+            >
+              Filter
+            </Button>
           </div>
         </CardContent>
       </Card>

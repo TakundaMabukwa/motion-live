@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
       ),
     ).slice(0, 120);
 
-    const [inventoryResponse, clientResponse, techResponse, jobCardsResponse] = await Promise.all([
+    const [inventoryResponse, clientResponse, techResponse, jobCardsResponse, jobCardsPartsResponse] = await Promise.all([
       supabase
         .from('inventory_items')
         .select(
@@ -268,6 +268,15 @@ export async function GET(request: NextRequest) {
         .order('completion_date', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(perSourceLimit * 2),
+      supabase
+        .from('job_cards')
+        .select(
+          'id, job_number, job_type, status, job_status, customer_name, vehicle_registration, ip_address, old_serial_number, new_serial_number, created_at, completion_date, decommission_date, updated_at, job_date, new_account_number, quotation_products, parts_required, equipment_used, job_description',
+        )
+        .contains('parts_required', JSON.stringify([{ serial_number: query }]))
+        .order('completion_date', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(perSourceLimit * 2),
     ]);
 
     if (inventoryResponse.error) {
@@ -291,6 +300,12 @@ export async function GET(request: NextRequest) {
     if (jobCardsResponse.error) {
       return NextResponse.json(
         { error: jobCardsResponse.error.message },
+        { status: 500 },
+      );
+    }
+    if (jobCardsPartsResponse.error) {
+      return NextResponse.json(
+        { error: jobCardsPartsResponse.error.message },
         { status: 500 },
       );
     }
@@ -531,11 +546,22 @@ export async function GET(request: NextRequest) {
     const matchedJobRows = Array.isArray(jobCardsResponse.data)
       ? (jobCardsResponse.data as JobCardRow[])
       : [];
+    const partsMatchedJobRows = Array.isArray(jobCardsPartsResponse.data)
+      ? (jobCardsPartsResponse.data as JobCardRow[])
+      : [];
+    const mergedJobRows = [...matchedJobRows];
+    const seenIds = new Set(matchedJobRows.map((r) => r.id));
+    for (const row of partsMatchedJobRows) {
+      if (!seenIds.has(row.id)) {
+        seenIds.add(row.id);
+        mergedJobRows.push(row);
+      }
+    }
     const matchedJobIds = new Set<string>();
     const matchedRegistrations = new Set<string>();
     const normalizedQuery = normalizeValue(query);
 
-    matchedJobRows.forEach((row) => {
+    mergedJobRows.forEach((row) => {
       const rowIdentifiers = extractJobCardIdentifiers(row);
       const matchingIdentifiers = rowIdentifiers.filter((identifier) =>
         normalizeValue(identifier).includes(normalizedQuery),

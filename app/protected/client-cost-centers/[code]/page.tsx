@@ -2482,46 +2482,67 @@ export default function ClientCostCentersPage() {
       bulkInvoice = bulkInvoicePayload?.invoice || null;
     }
 
-    let systemLock = null;
-    const systemLockResponse = await fetch('/api/system-lock', { cache: 'no-store' });
-    if (systemLockResponse.ok) {
-      const lockPayload = await systemLockResponse.json();
-      systemLock = lockPayload?.lock || null;
-    }
-    const lockedInvoiceDate = getActiveSystemLockInvoiceDate(systemLock, targetBillingMonth);
-    const systemLockMonth = String(systemLock?.lock_date || '').slice(5, 7);
-    const billingMonthKey = String(targetBillingMonth || '').slice(5, 7);
-    const isSystemLockedForMonth =
-      Boolean(systemLock?.is_locked) &&
-      Boolean(systemLockMonth) &&
-      Boolean(billingMonthKey) &&
-      systemLockMonth === billingMonthKey;
-
-    if (isSystemLockedForMonth) {
-      bulkInvoice = {
-        ...bulkInvoice,
-        invoice_locked: true,
-        invoice_locked_by_email: bulkInvoice?.invoice_locked_by_email || systemLock?.locked_by_email || null,
-        invoice_locked_at: bulkInvoice?.invoice_locked_at || systemLock?.locked_at || null,
-      };
-    }
-
     const costCenterInfo = costCenter?.costCenterInfo || (await fetchCostCenterInfo(costCenter.accountNumber));
-    appendInvoiceLockCutoff(query, costCenterInfo, bulkInvoice);
 
-    let liveInvoiceData = null;
-    const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
-    if (invoiceResponse.ok) {
-      const data = await invoiceResponse.json();
-      liveInvoiceData = data?.invoiceData || null;
+    let invoiceData = null;
+
+    if (bulkInvoice) {
+      // Stored invoice exists for current month — use it as-is
+      invoiceData = normalizeBatchInvoiceAllInvoiceData(
+        applyCostCenterLockedTotals(
+          mergeLiveInvoiceWithStoredBulkInvoice(null, bulkInvoice, costCenterInfo),
+          costCenterInfo,
+        ),
+      );
+    } else {
+      // No stored invoice — fetch live data and persist it
+      const invoiceResponse = await fetch(`/api/vehicles/invoice?${query.toString()}`);
+      if (!invoiceResponse.ok) {
+        throw new Error('Failed to fetch vehicle invoice data');
+      }
+      const { invoiceData: liveInvoiceData } = await invoiceResponse.json();
+      if (!liveInvoiceData) {
+        throw new Error('No vehicle data found for this account');
+      }
+
+      const lineItems = Array.isArray(liveInvoiceData?.invoiceItems)
+        ? liveInvoiceData.invoiceItems
+        : Array.isArray(liveInvoiceData?.invoice_items)
+          ? liveInvoiceData.invoice_items
+          : [];
+      const persistResponse = await fetch('/api/invoices/bulk-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountNumber: costCenter.accountNumber,
+          billingMonth: targetBillingMonth,
+          invoiceDate: liveInvoiceData.invoice_date || getMonthEndInvoiceDate(targetBillingMonth),
+          companyName: liveInvoiceData.company_name || null,
+          companyRegistrationNumber: liveInvoiceData.company_registration_number || null,
+          clientAddress: liveInvoiceData.client_address || null,
+          customerVatNumber: liveInvoiceData.customer_vat_number || null,
+          subtotal: Number(liveInvoiceData.subtotal || 0),
+          vatAmount: Number(liveInvoiceData.vat_amount || 0),
+          discountAmount: Number(liveInvoiceData.discount_amount || 0),
+          totalAmount: Number(liveInvoiceData.total_amount || 0),
+          lineItems,
+          notes: liveInvoiceData.notes || '',
+        }),
+      });
+      if (!persistResponse.ok) {
+        throw new Error('Failed to persist invoice');
+      }
+      const persistPayload = await persistResponse.json();
+      bulkInvoice = persistPayload?.invoice || null;
+
+      invoiceData = normalizeBatchInvoiceAllInvoiceData(
+        applyCostCenterLockedTotals(
+          mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice, costCenterInfo),
+          costCenterInfo,
+        ),
+      );
     }
 
-    const invoiceData = normalizeBatchInvoiceAllInvoiceData(
-      applyCostCenterLockedTotals(
-        mergeLiveInvoiceWithStoredBulkInvoice(liveInvoiceData, bulkInvoice, costCenterInfo),
-        costCenterInfo,
-      ),
-    );
     if (!invoiceData) {
       throw new Error('No vehicle data found for this account');
     }
@@ -2536,33 +2557,29 @@ export default function ClientCostCentersPage() {
       invoiceData.invoice_number = resolvedInvoiceNumber;
     }
 
-    if (lockedInvoiceDate) {
-      invoiceData.invoice_date = lockedInvoiceDate;
-    }
-
     const normalizedBulkInvoice = bulkInvoice
       ? normalizeStoredBulkInvoiceForPreview({
           ...bulkInvoice,
           billing_month: targetBillingMonth,
           invoice_date:
-            lockedInvoiceDate ||
             invoiceData?.invoice_date ||
             bulkInvoice?.invoice_date ||
             getMonthEndInvoiceDate(targetBillingMonth),
         })
       : null;
+
     const reportCostCenter = {
       ...costCenter,
       billingMonth: targetBillingMonth,
       reference: resolvedInvoiceNumber || costCenter?.reference || null,
       invoiceDate:
-        lockedInvoiceDate ||
         invoiceData?.invoice_date ||
         getMonthEndInvoiceDate(targetBillingMonth),
       invoiceData,
       bulkInvoice: normalizedBulkInvoice,
       costCenterInfo,
     };
+
     const invoiceView = buildInvoiceView({
       activeInvoiceData: invoiceData,
       customerInfo: costCenterInfo,

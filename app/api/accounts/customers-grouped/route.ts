@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     const requestedLimit = parseInt(searchParams.get('limit') || '20');
     const search = searchParams.get('search') || '';
     const fetchAll = searchParams.get('fetchAll') === 'true';
+    const startMonth = String(searchParams.get('startMonth') || '').trim();
+    const endMonth = String(searchParams.get('endMonth') || '').trim();
     const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
       ? Math.min(requestedLimit, 200)
       : 20;
@@ -61,6 +63,18 @@ export async function GET(request: NextRequest) {
         // Fallback to simple search on company_group only
         query = query.ilike('company_group', `%${search}%`);
       }
+    }
+
+    // Apply month range filter on created_at if provided
+    if (startMonth) {
+      query = query.gte('created_at', `${startMonth}-01`);
+    }
+    if (endMonth) {
+      // Get last day of the given month
+      const [year, month] = endMonth.split('-').map(Number);
+      const lastDay = new Date(year, month, 0).getDate();
+      const endDate = `${endMonth}-${String(lastDay).padStart(2, '0')}`;
+      query = query.lte('created_at', `${endDate}T23:59:59`);
     }
 
     // Apply pagination - if fetchAll is true, get all records
