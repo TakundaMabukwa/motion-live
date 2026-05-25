@@ -107,14 +107,18 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
 
     let orderNumberByJobCardId = new Map<string, string | null>();
+    let newAccountNumberByJobCardId = new Map<string, string>();
     if (jobCardIds.length > 0) {
       const { data: jobCards } = await supabase
         .from("job_cards")
-        .select("id, order_number")
+        .select("id, order_number, new_account_number")
         .in("id", jobCardIds);
       if (Array.isArray(jobCards)) {
         orderNumberByJobCardId = new Map(
           jobCards.map((jc) => [String(jc.id), jc.order_number || null]),
+        );
+        newAccountNumberByJobCardId = new Map(
+          jobCards.map((jc) => [String(jc.id), String(jc.new_account_number || "").trim().toUpperCase()]),
         );
       }
     }
@@ -136,9 +140,10 @@ export async function GET(request: NextRequest) {
     const normalizedJobCardInvoices = rawJobCardInvoices.map((invoice) => {
       const invoiceMonthKey = getMonthKeyFromValue(invoice?.invoice_date || invoice?.created_at);
       const jcId = String(invoice?.job_card_id || "").trim();
+      const jobCardNewAccountNumber = jcId ? newAccountNumberByJobCardId.get(jcId) || null : null;
       return {
         id: `job-card-${String(invoice?.id || "").trim()}`,
-        account_number: String(invoice?.account_number || "").trim() || null,
+        account_number: jobCardNewAccountNumber || String(invoice?.account_number || "").trim() || null,
         billing_month: invoiceMonthKey ? `${invoiceMonthKey}-01` : null,
         invoice_number: String(invoice?.invoice_number || "").trim() || null,
         invoice_date: String(invoice?.invoice_date || "").trim() || null,
@@ -211,33 +216,22 @@ export async function GET(request: NextRequest) {
         })
       : searchFilteredRows;
 
-    const accountNumbers = Array.from(
-      new Set(
-        monthFilteredRows
-          .map((invoice) => String(invoice?.account_number || "").trim())
-          .filter(Boolean),
-      ),
-    );
-
     let costCentersByCode = new Map<string, Record<string, unknown>>();
-    if (accountNumbers.length > 0) {
-      const { data: costCenters, error: costCentersError } = await supabase
-        .from("cost_centers")
-        .select(
-          "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_province, physical_code",
-        )
-        .in("cost_code", accountNumbers);
+    const { data: allCostCenters, error: allCostCentersError } = await supabase
+      .from("cost_centers")
+      .select(
+        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_province, physical_code",
+      );
 
-      if (costCentersError) {
-        console.error("Failed to fetch cost center invoice metadata:", costCentersError);
-      } else {
-        costCentersByCode = new Map(
-          (Array.isArray(costCenters) ? costCenters : []).map((row) => [
-            String(row?.cost_code || "").trim().toUpperCase(),
-            row,
-          ]),
-        );
-      }
+    if (allCostCentersError) {
+      console.error("Failed to fetch cost centers for invoice enrichment:", allCostCentersError);
+    } else {
+      costCentersByCode = new Map(
+        (Array.isArray(allCostCenters) ? allCostCenters : []).map((row) => [
+          String(row?.cost_code || "").trim().toUpperCase(),
+          row,
+        ]),
+      );
     }
 
     const invoicesWithCustomerInfo = monthFilteredRows.map((invoice) => {
