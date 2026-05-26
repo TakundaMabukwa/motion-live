@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
@@ -340,9 +340,11 @@ const styles = {
   },
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
+    const startMonth = String(request.nextUrl.searchParams.get('startMonth') || '').trim();
+    const endMonth = String(request.nextUrl.searchParams.get('endMonth') || '').trim();
 
     const allVehicles: Array<Record<string, unknown>> = [];
     const pageSize = 1000;

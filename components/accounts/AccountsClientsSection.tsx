@@ -1242,7 +1242,10 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       setIsGeneratingAllInvoicesExcel(true);
       toast.success('Generating all client invoices Excel...');
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-excel');
+      const excelParams = new URLSearchParams();
+      if (startMonth) excelParams.set('startMonth', startMonth);
+      if (endMonth) excelParams.set('endMonth', endMonth);
+      const response = await fetch(`/api/vehicles/bulk-client-invoices-excel?${excelParams.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to generate client invoices Excel');
       }
@@ -1275,7 +1278,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       setIsLoadingAllInvoicesPreview(true);
       toast.success('Preparing invoice preview...');
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data?persist=false', {
+      const pdfParams = new URLSearchParams();
+      pdfParams.set('persist', 'false');
+      if (startMonth) pdfParams.set('startMonth', startMonth);
+      if (endMonth) pdfParams.set('endMonth', endMonth);
+      const response = await fetch(`/api/vehicles/bulk-client-invoices-pdf-data?${pdfParams.toString()}`, {
         cache: 'no-store',
       });
       if (!response.ok) {
@@ -1424,7 +1431,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       setLoadingBulkInvoiceRows(true);
       setShowInvoiceNumberDialog(true);
 
-      const response = await fetch('/api/vehicles/bulk-client-invoices-pdf-data?persist=false');
+      const invoiceNumberParams = new URLSearchParams();
+      invoiceNumberParams.set('persist', 'false');
+      if (startMonth) invoiceNumberParams.set('startMonth', startMonth);
+      if (endMonth) invoiceNumberParams.set('endMonth', endMonth);
+      const response = await fetch(`/api/vehicles/bulk-client-invoices-pdf-data?${invoiceNumberParams.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to load bulk invoices');
       }
@@ -1882,8 +1893,25 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">
-                  Choose how you want to generate all client invoices.
+                  Select a billing period and choose how to export.
                 </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="month"
+                    value={startMonth}
+                    onChange={(e) => setStartMonth(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                    placeholder="From"
+                  />
+                  <span className="text-xs text-gray-400">to</span>
+                  <Input
+                    type="month"
+                    value={endMonth}
+                    onChange={(e) => setEndMonth(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                    placeholder="To"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     onClick={handleAllInvoicesPdf}

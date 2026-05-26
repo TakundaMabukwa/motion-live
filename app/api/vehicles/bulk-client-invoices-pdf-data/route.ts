@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       .split(',')
       .map((value) => value.trim().toUpperCase())
       .filter(Boolean);
-    const requestedBillingMonth = String(request.nextUrl.searchParams.get('billingMonth') || '')
+    const requestedBillingMonth = String(request.nextUrl.searchParams.get('billingMonth') || request.nextUrl.searchParams.get('startMonth') || '')
       .trim();
     const persistInvoices = String(
       request.nextUrl.searchParams.get('persist') || 'true',
@@ -173,7 +173,8 @@ export async function GET(request: NextRequest) {
     }
 
     const origin = new URL(request.url).origin;
-    const billingMonthKey = requestedBillingMonth || getOperationalBillingMonthKey();
+    const rawBillingMonth = requestedBillingMonth || getOperationalBillingMonthKey();
+    const billingMonthKey = rawBillingMonth.length === 7 ? `${rawBillingMonth}-01` : rawBillingMonth;
     const invoices: Array<{ accountNumber: string; invoiceData: Record<string, unknown> }> = [];
     const costCenterByAccount = new Map<string, Record<string, unknown>>();
 

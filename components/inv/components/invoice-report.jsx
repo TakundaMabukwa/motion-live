@@ -1255,6 +1255,7 @@ export default function InvoiceReportComponent({
   extraActions = null,
   documentTitle = "Tax Invoice",
   documentNumberLabel = "TAX INVOICE",
+  hideUI = false,
 }) {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
@@ -1672,24 +1673,26 @@ export default function InvoiceReportComponent({
   return (
     <div className="w-full">
       <div className="invoice-actions">
-        <select
-          value={selectedInvoiceMonth}
-          onChange={(event) => handleInvoiceMonthChange(event.target.value)}
-          disabled={isLoadingInvoiceMonth}
-          className="border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900"
-        >
-          <option value="__current__">Current Billing</option>
-          {invoiceHistory.map((invoice) => {
-            const billingMonthValue = String(invoice?.billing_month || "").trim();
-            if (!billingMonthValue) return null;
-            return (
-              <option key={`${invoice.id}-${billingMonthValue}`} value={billingMonthValue}>
-                {`${formatDate(billingMonthValue)} - ${invoice.invoice_number || "Stored Invoice"}`}
-              </option>
-            );
-          })}
-        </select>
-        {!viewOnly && invoiceView.invoiceNumber === "PENDING" && (
+        {!hideUI && (
+          <select
+            value={selectedInvoiceMonth}
+            onChange={(event) => handleInvoiceMonthChange(event.target.value)}
+            disabled={isLoadingInvoiceMonth}
+            className="border border-gray-300 rounded px-3 py-2 text-sm bg-white text-gray-900"
+          >
+            <option value="__current__">Current Billing</option>
+            {invoiceHistory.map((invoice) => {
+              const billingMonthValue = String(invoice?.billing_month || "").trim();
+              if (!billingMonthValue) return null;
+              return (
+                <option key={`${invoice.id}-${billingMonthValue}`} value={billingMonthValue}>
+                  {`${formatDate(billingMonthValue)} - ${invoice.invoice_number || "Stored Invoice"}`}
+                </option>
+              );
+            })}
+          </select>
+        )}
+        {!hideUI && !viewOnly && invoiceView.invoiceNumber === "PENDING" && (
           <Button
             onClick={generateInvoice}
             disabled={isGeneratingInvoice}
@@ -1705,12 +1708,12 @@ export default function InvoiceReportComponent({
             )}
           </Button>
         )}
-        <Button onClick={printReport} className="flex items-center gap-2">
+        {!hideUI && <Button onClick={printReport} className="flex items-center gap-2">
           <Download className="w-4 h-4" />
           Print / Save PDF
-        </Button>
-        {extraActions}
-        {!viewOnly && (
+        </Button>}
+        {!hideUI && extraActions}
+        {!hideUI && !viewOnly && (
           <Button
             onClick={emailPDF}
             disabled={isSendingEmail}
@@ -1731,19 +1734,21 @@ export default function InvoiceReportComponent({
         )}
       </div>
 
-      <div className="mb-4">
-        <label className="block mb-2 font-medium text-sm text-gray-700">
-          Invoice Notes
-        </label>
-        <textarea
-          value={editableNotes}
-          onChange={(event) => setEditableNotes(event.target.value)}
-          rows={4}
-          readOnly={viewOnly}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
-          placeholder="Add invoice notes for this month..."
-        />
-      </div>
+      {!hideUI && (
+        <div className="mb-4">
+          <label className="block mb-2 font-medium text-sm text-gray-700">
+            Invoice Notes
+          </label>
+          <textarea
+            value={editableNotes}
+            onChange={(event) => setEditableNotes(event.target.value)}
+            rows={4}
+            readOnly={viewOnly}
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
+            placeholder="Add invoice notes for this month..."
+          />
+        </div>
+      )}
 
       <InvoiceDocument logoUrl={logoUrl} invoiceView={invoiceView} />
     </div>
