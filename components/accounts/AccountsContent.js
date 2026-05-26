@@ -149,6 +149,9 @@ export default function AccountsContent({ activeSection }) {
     useState(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedJobForInvoice, setSelectedJobForInvoice] = useState(null);
+  const [billingInvoiceDate, setBillingInvoiceDate] = useState(
+    new Date().toLocaleDateString("en-CA"),
+  );
   const [invoiceFormData, setInvoiceFormData] = useState({
     clientName: "",
     clientEmail: "",
@@ -780,6 +783,7 @@ export default function AccountsContent({ activeSection }) {
     setSelectedCostCenterInfo(null);
     setAnnuitySelectableItems(annuityItems);
     setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
+    setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
     // Pre-fill form with available job data
     setInvoiceFormData({
       clientName: latestJob.customer_name || "",
@@ -1376,6 +1380,7 @@ export default function AccountsContent({ activeSection }) {
           jobNumber: selectedJobForInvoice.job_number,
           quotationNumber: selectedJobForInvoice.quotation_number,
           accountNumber: effectiveAccountNumber,
+          invoiceDate: billingInvoiceDate,
           clientName:
             invoiceFormData.clientName || selectedJobForInvoice.customer_name,
           clientEmail:
@@ -1691,6 +1696,7 @@ export default function AccountsContent({ activeSection }) {
     setSelectedCostCenterInfo(null);
     setAnnuitySelectableItems([]);
     setSelectedAnnuityItemKeys([]);
+    setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
   };
 
   const toggleAnnuityItemSelection = (itemKey) => {
@@ -2706,6 +2712,7 @@ export default function AccountsContent({ activeSection }) {
         systemLock?.lock_date,
         storedInvoiceRecord?.invoice_date ||
           generatedInvoice?.generatedAt ||
+          billingInvoiceDate ||
           invoiceFormData?.dueDate ||
           selectedJobForInvoice?.end_time ||
           selectedJobForInvoice?.completion_date ||
@@ -2714,6 +2721,7 @@ export default function AccountsContent({ activeSection }) {
     const invoiceDate =
       storedInvoiceRecord?.invoice_date ||
       generatedInvoice?.generatedAt ||
+      billingInvoiceDate ||
       lockedPreviewInvoiceDate ||
       new Date().toISOString();
     const orderNumber = selectedJobForInvoice.order_number || "N/A";
@@ -5547,7 +5555,7 @@ export default function AccountsContent({ activeSection }) {
                     generatedInvoice?.invoiceNumber ||
                     "INV-PENDING";
                   const invoiceDate =
-                    generatedInvoice?.generatedAt || new Date().toISOString();
+                    generatedInvoice?.generatedAt || billingInvoiceDate;
                   return (
                     <div
                       id="invoice-preview"
@@ -5805,6 +5813,19 @@ export default function AccountsContent({ activeSection }) {
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+                  {!generatedInvoice && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                        Invoice Date
+                      </Label>
+                      <Input
+                        type="date"
+                        value={billingInvoiceDate}
+                        onChange={(e) => setBillingInvoiceDate(e.target.value)}
+                        className="h-9 w-44"
+                      />
+                    </div>
+                  )}
                   {!generatedInvoice ? (
                     <Button
                       onClick={generateInvoice}

@@ -438,7 +438,6 @@ export default function InventoryPage() {
         },
         body: JSON.stringify({
           destination,
-          escalationOnly: true,
         }),
       });
 
