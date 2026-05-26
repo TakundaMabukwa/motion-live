@@ -74,13 +74,13 @@ const COMPLETED_JOB_FIELDS = [
   "customer_feedback",
   "customer_satisfaction_rating",
   "created_by",
+  "billing_statuses",
 ].join(", ");
 
 export async function GET() {
   try {
     const supabase = await createClient();
 
-    // Check authentication
     const {
       data: { user },
       error: authError,
@@ -89,15 +89,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch FC-bound jobs for review (case-insensitive at DB level).
-    // Include both:
-    // 1) role='fc' (normal path), and
-    // 2) move_to='fc' (legacy / partially moved records).
-    // Completion is checked in code so we can handle inconsistent casing/spacing.
     const { data, error } = await supabase
       .from("job_cards")
       .select(COMPLETED_JOB_FIELDS)
       .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc")
+      .not("move_to", "ilike", "accounts")
       .order("completion_date", { ascending: false });
 
     if (error) {
@@ -119,15 +115,85 @@ export async function GET() {
       const escalationRole = normalizeToken(job.escalation_role);
       const isCompleted = status === "completed" || jobStatus === "completed";
 
+      const isForwardedAway = moveTo !== "fc" && moveTo !== "";
       const belongsToFcReview =
-        role === "fc" || moveTo === "fc" || escalationRole === "fc";
+        !isForwardedAway &&
+        (role === "fc" || moveTo === "fc" || escalationRole === "fc");
       if (!belongsToFcReview) return false;
       if (!isCompleted) return false;
       return true;
     });
+
+    // Look up invoices for these jobs to filter out invoiced ones
+    const jobIds = jobs.map((j) => String(j.id)).filter(Boolean);
+    const jobNumbers = jobs.map((j) => String(j.job_number)).filter(Boolean);
+
+    const invoicedJobIdSet = new Set<string>();
+    const invoicedJobNumberSet = new Set<string>();
+
+    if (jobIds.length > 0) {
+      const { data: invoiceRows } = await supabase
+        .from("invoices")
+        .select("job_card_id, job_number")
+        .in("job_card_id", jobIds);
+
+      if (invoiceRows) {
+        for (const row of invoiceRows) {
+          if (row.job_card_id) invoicedJobIdSet.add(String(row.job_card_id));
+          if (row.job_number) invoicedJobNumberSet.add(String(row.job_number));
+        }
+      }
+    }
+
+    if (jobNumbers.length > 0) {
+      const { data: invoiceRowsByNumber } = await supabase
+        .from("invoices")
+        .select("job_card_id, job_number")
+        .in("job_number", jobNumbers);
+
+      if (invoiceRowsByNumber) {
+        for (const row of invoiceRowsByNumber) {
+          if (row.job_card_id) invoicedJobIdSet.add(String(row.job_card_id));
+          if (row.job_number) invoicedJobNumberSet.add(String(row.job_number));
+        }
+      }
+    }
+
+    const nonInvoicedJobs = jobs.filter((job) => {
+      // Exclude by job_status
+      const jobStatus = normalizeToken(job.job_status);
+      if (jobStatus === "invoiced") return false;
+
+      const jobId = String(job.id || "").trim();
+      const jobNum = String(job.job_number || "").trim();
+
+      // Exclude if there's an invoice record for this job
+      if (invoicedJobIdSet.has(jobId) || invoicedJobNumberSet.has(jobNum)) {
+        return false;
+      }
+
+      // Also check billing_statuses as a fallback
+      const billing = job.billing_statuses;
+      if (
+        billing &&
+        typeof billing === "object" &&
+        billing.invoice &&
+        (billing.invoice === true ||
+          (typeof billing.invoice === "object" &&
+            (billing.invoice.done === true ||
+              billing.invoice.invoice_id ||
+              billing.invoice.invoice_number ||
+              billing.invoice.reference)))
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+
     const creatorIds = Array.from(
       new Set(
-        jobs
+        nonInvoicedJobs
           .map((job) => String(job.created_by || "").trim())
           .filter((id) => /^[0-9a-f-]{36}$/i.test(id)),
       ),
@@ -181,7 +247,7 @@ export async function GET() {
       ),
     );
 
-    const enrichedJobs = jobs.map((job) => {
+    const enrichedJobs = nonInvoicedJobs.map((job) => {
       const creatorId = String(job.created_by || "").trim();
       const creator = creatorLookup.get(creatorId);
       return {
