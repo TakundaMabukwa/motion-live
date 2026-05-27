@@ -96,9 +96,14 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
     const key = item.reg || item.fleetNumber || item.item_code || `item-${idx}`;
     const edit = editedVehicles[key];
     const totalExclVat =
-      edit?.total_excl_vat ?? item.total_excl_vat ?? item.amountExcludingVat ?? (
-        toNumber(item.unit_price_without_vat ?? item.amountExcludingVat ?? 0) *
-        toNumber(item.quantity || item.units || 1)
+      edit?.total_excl_vat ??
+      edit?.totalExcludingVat ??
+      edit?.amountExcludingVat ??
+      item.total_excl_vat ??
+      item.amountExcludingVat ??
+      (
+        toNumber(edit?.unit_price_without_vat ?? item.unit_price_without_vat ?? 0) *
+        toNumber(edit?.quantity ?? item.quantity ?? item.units ?? 1)
       );
     return { ...item, total_excl_vat: toNumber(totalExclVat) };
   });
@@ -306,6 +311,11 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         invoice_items: updatedItems,
       }));
     }
+    setEditedVehicles((prev) => {
+      const next = { ...prev };
+      delete next[vehicleKey];
+      return next;
+    });
     toast.success("Vehicle updated");
   };
 
@@ -906,13 +916,7 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                           <Input
                                             type="number"
                                             step="0.01"
-                                            value={(() => {
-                                              const excl = editData.total_excl_vat ?? editData.totalExcludingVat ?? (
-                                                toNumber(item.unit_price_without_vat ?? item.amountExcludingVat ?? 0) *
-                                                toNumber(item.quantity || item.units || 1)
-                                              );
-                                              return toNumber(excl) * 1.15;
-                                            })()}
+                                            value={liveLineItems[idx].total_excl_vat * 1.15}
                                             onChange={(e) => {
                                               const incl = Number(e.target.value);
                                               const excl = incl / 1.15;
@@ -940,10 +944,7 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                           }}
                                           className="w-full text-right hover:text-blue-600"
                                         >
-                                          {formatCurrency(
-                                            (toNumber(item.unit_price_without_vat ?? item.amountExcludingVat ?? 0)) *
-                                              (toNumber(item.quantity || item.units || 1)) * 1.15,
-                                          )}
+                                          {formatCurrency(liveLineItems[idx].total_excl_vat * 1.15)}
                                         </button>
                                       )}
                                     </TableCell>
