@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
     const { data: allCostCenters, error: allCostCentersError } = await supabase
       .from("cost_centers")
       .select(
-        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_province, physical_code",
+        "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code",
       );
 
     if (allCostCentersError) {
@@ -242,7 +242,6 @@ export async function GET(request: NextRequest) {
         costCenter?.physical_address_2,
         costCenter?.physical_address_3,
         costCenter?.physical_area,
-        costCenter?.physical_province,
         costCenter?.physical_code,
       ]
         .map((value) => String(value || "").trim())
