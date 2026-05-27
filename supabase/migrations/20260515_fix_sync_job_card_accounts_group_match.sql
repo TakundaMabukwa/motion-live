@@ -93,30 +93,6 @@ begin
     where id = v_grouped_id;
   end if;
 
-  -- vehicles: install jobs only, key by reg
-  if v_reg is not null and v_job_type like 'install%' then
-    if not exists (
-      select 1 from public.vehicles where lower(reg) = lower(v_reg)
-    ) then
-      insert into public.vehicles(
-        reg,
-        make,
-        model,
-        year,
-        company,
-        new_account_number
-      )
-      values (
-        v_reg,
-        new.vehicle_make,
-        new.vehicle_model,
-        new.vehicle_year,
-        v_company,
-        v_account
-      );
-    end if;
-  end if;
-
   return new;
 end;
 $$;
