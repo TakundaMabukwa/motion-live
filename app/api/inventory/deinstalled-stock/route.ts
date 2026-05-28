@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-type Destination = 'client' | 'soltrack' | 'decommission';
+type Destination = 'client' | 'soltrack' | 'technician' | 'decommission';
 
 const getStringValue = (value: unknown): string => {
   if (value === null || value === undefined) return '';
@@ -102,17 +102,18 @@ export async function POST(request: NextRequest) {
     if (
       destination !== 'client' &&
       destination !== 'soltrack' &&
+      destination !== 'technician' &&
       destination !== 'decommission'
     ) {
       return NextResponse.json(
-        { error: 'destination must be client, soltrack, or decommission' },
+        { error: 'destination must be client, soltrack, technician, or decommission' },
         { status: 400 },
       );
     }
 
     const { data: job, error: jobError } = await supabase
       .from('job_cards')
-      .select('id, job_number, customer_name, new_account_number')
+      .select('id, job_number, customer_name, new_account_number, technician_phone')
       .eq('id', jobId)
       .single();
 
@@ -182,6 +183,63 @@ export async function POST(request: NextRequest) {
         success: true,
         destination: 'soltrack',
         item: insertedItem,
+      });
+    }
+
+    if (destination === 'technician') {
+      const technicianEmail = getStringValue(job.technician_phone);
+      if (!technicianEmail) {
+        return NextResponse.json(
+          { error: 'This job has no technician email assigned' },
+          { status: 400 },
+        );
+      }
+
+      const techPart = {
+        description: itemName,
+        code: categoryCode,
+        serial_number: serialNumber,
+        quantity: 1,
+        notes,
+      };
+
+      const { data: existingTechStock } = await supabase
+        .from('tech_stock')
+        .select('id, assigned_parts')
+        .ilike('technician_email', technicianEmail)
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingTechStock) {
+        const currentParts = Array.isArray(existingTechStock.assigned_parts)
+          ? existingTechStock.assigned_parts
+          : [];
+        const { error: updateError } = await supabase
+          .from('tech_stock')
+          .update({ assigned_parts: [...currentParts, techPart] })
+          .eq('id', existingTechStock.id);
+
+        if (updateError) {
+          return NextResponse.json({ error: updateError.message }, { status: 500 });
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from('tech_stock')
+          .insert({
+            technician_email: technicianEmail,
+            assigned_parts: [techPart],
+          });
+
+        if (insertError) {
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        destination: 'technician',
+        item: techPart,
       });
     }
 

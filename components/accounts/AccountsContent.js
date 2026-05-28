@@ -776,6 +776,115 @@ export default function AccountsContent({ activeSection }) {
 
   const handleInvoiceClient = async (job) => {
     const latestJob = await fetchLatestJobCard(job);
+    // For repair/admin jobs with a vehicle registration, try to overwrite
+    // client info with the customer data from the system
+    if (
+      isAdminOrRepairFallbackJob(latestJob) &&
+      latestJob.vehicle_registration
+    ) {
+      try {
+        const regRaw = String(latestJob.vehicle_registration).trim();
+        const regEnc = encodeURIComponent(regRaw);
+        let foundAccountNumber = "";
+        let foundCompany = "";
+        let foundEmail = "";
+        let foundPhone = "";
+        let foundAddress = "";
+
+        // Primary: look up vehicles_ip for direct field data
+        const vipResp = await fetch(
+          `/api/vehicles-ip?registration=${regEnc}`,
+        );
+        if (vipResp.ok) {
+          const vipData = await vipResp.json();
+          if (vipData.vehicles && vipData.vehicles.length > 0) {
+            const v = vipData.vehicles[0];
+            foundAccountNumber = v.new_account_number || "";
+            foundCompany = v.company || "";
+            foundEmail = v.email || "";
+            foundPhone = v.cell_no || v.switchboard || "";
+            foundAddress = v.physical_address || "";
+          }
+        }
+
+        // Fallback: use find-account + customer API
+        if (!foundAccountNumber) {
+          const faResp = await fetch("/api/vehicles/find-account", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reg: regRaw }),
+          });
+          if (faResp.ok) {
+            const faData = await faResp.json();
+            if (faData?.found && faData?.new_account_number) {
+              foundAccountNumber = faData.new_account_number;
+              foundCompany = faData.company || "";
+              // Fetch full customer details
+              const custResp = await fetch(
+                `/api/customers/${encodeURIComponent(foundAccountNumber)}`,
+              );
+              if (custResp.ok) {
+                const custData = await custResp.json();
+                const c = custData?.customer;
+                if (c) {
+                  foundCompany = c.company || foundCompany;
+                  foundEmail = c.email || "";
+                  foundPhone =
+                    c.cell_no || c.landline_no || c.switchboard || "";
+                  foundAddress =
+                    c.physical_address || c.address || "";
+                }
+              }
+            }
+          }
+        }
+
+        // Also try to get address/vat from cost_center directly
+        if (foundAccountNumber) {
+          try {
+            const ccResp = await fetch(
+              `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(foundAccountNumber)}`,
+            );
+            if (ccResp.ok) {
+              const ccData = await ccResp.json();
+              const costCenter = Array.isArray(ccData?.costCenters) &&
+                ccData.costCenters.find(
+                  (c) =>
+                    String(c?.cost_code || "").trim().toUpperCase() ===
+                    foundAccountNumber.toUpperCase(),
+                );
+              if (costCenter) {
+                foundCompany = costCenter.company || costCenter.legal_name || foundCompany;
+                foundAddress = [
+                  costCenter.physical_address_1,
+                  costCenter.physical_address_2,
+                  costCenter.physical_address_3,
+                  costCenter.physical_area,
+                  costCenter.physical_code,
+                ]
+                  .map((v) => String(v || "").trim())
+                  .filter(Boolean)
+                  .join("\n") || foundAddress;
+              }
+            }
+          } catch (ccErr) {
+            console.error("Error fetching cost center for repair invoice:", ccErr);
+          }
+        }
+
+        if (foundAccountNumber)
+          latestJob.new_account_number = foundAccountNumber;
+        if (foundCompany) latestJob.customer_name = foundCompany;
+        if (foundEmail) latestJob.customer_email = foundEmail;
+        if (foundPhone) latestJob.customer_phone = foundPhone;
+        if (foundAddress) latestJob.customer_address = foundAddress;
+      } catch (err) {
+        console.error(
+          "Error looking up vehicle for repair invoice client info:",
+          err,
+        );
+      }
+    }
     const annuityItems = getAnnuitySelectionItems(latestJob);
     setSelectedJobForInvoice(latestJob);
     setGeneratedInvoice(null);

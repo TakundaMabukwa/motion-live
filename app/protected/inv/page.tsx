@@ -165,6 +165,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -197,6 +198,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  Trash2,
 } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
 import DashboardTabs from "@/components/shared/DashboardTabs";
@@ -1133,6 +1135,10 @@ export default function InventoryPage() {
 
   const handlePartsAssigned = () => {
     fetchJobCards();
+    const assignedJobId = selectedJobCard?.id;
+    if (showCompletedJobDetails && assignedJobId) {
+      handleViewCompletedJobDetails(assignedJobId);
+    }
     setShowAssignParts(false);
     setSelectedJobCard(null);
   };
@@ -1499,11 +1505,37 @@ export default function InventoryPage() {
     return `${jobId}:${context}:${itemId}:${index}`;
   };
 
+  const handleRemoveCompletedPart = async (item: Record<string, unknown>) => {
+    if (!selectedCompletedJob?.id) return;
+    try {
+      const response = await fetch(
+        `/api/job-cards/${selectedCompletedJob.id}/unassign-part`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ part: item }),
+        },
+      );
+      if (!response.ok) {
+        const err = await response.json().catch(() => null);
+        throw new Error(err?.error || "Failed to remove part");
+      }
+      toast.success("Part removed from job");
+      if (selectedCompletedJob.id) {
+        handleViewCompletedJobDetails(selectedCompletedJob.id);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to remove part",
+      );
+    }
+  };
+
   const handleMoveJobItem = async (
     context: "deinstalled" | "stock-used" | "quotation",
     item: Record<string, unknown>,
     index: number,
-    destination: "client" | "soltrack" | "decommission",
+    destination: "client" | "soltrack" | "technician" | "decommission",
   ) => {
     if (!selectedCompletedJob?.id) {
       toast.error("No completed job selected");
@@ -1516,7 +1548,9 @@ export default function InventoryPage() {
         ? "Adding to client stock..."
         : destination === "soltrack"
           ? "Adding to Soltrack stock..."
-          : "Decommissioning item...";
+          : destination === "technician"
+            ? "Adding to technician stock..."
+            : "Decommissioning item...";
     setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
 
     try {
@@ -1548,6 +1582,10 @@ export default function InventoryPage() {
           destination === "soltrack"
             ? "moved"
             : prev[`${itemKey}:soltrack`] || "",
+        [`${itemKey}:technician`]:
+          destination === "technician"
+            ? "moved"
+            : prev[`${itemKey}:technician`] || "",
         [`${itemKey}:decommission`]:
           destination === "decommission"
             ? "moved"
@@ -1559,7 +1597,9 @@ export default function InventoryPage() {
           ? "Item added to client stock"
           : destination === "soltrack"
             ? "Item added to Soltrack stock"
-            : "Item decommissioned",
+            : destination === "technician"
+              ? "Item added to technician stock"
+              : "Item decommissioned",
       );
     } catch (error) {
       console.error("Error moving item to stock:", error);
@@ -5234,6 +5274,19 @@ export default function InventoryPage() {
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <Button
                             size="sm"
+                            variant="destructive"
+                            onClick={() =>
+                              handleRemoveCompletedPart(
+                                part.raw as Record<string, unknown>,
+                              )
+                            }
+                            className="text-xs"
+                          >
+                            <Trash2 className="mr-1 w-3 h-3" />
+                            Remove
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="outline"
                             disabled={
                               movingDeinstalledItemKey ===
@@ -5289,6 +5342,35 @@ export default function InventoryPage() {
                                   ] === "moved"
                                 ? "Added to Soltrack Stock"
                                 : "Add to Soltrack Stock"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              movingDeinstalledItemKey ===
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:technician` ||
+                              movedDeinstalledItems[
+                                `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:technician`
+                              ] === "moved"
+                            }
+                            onClick={() =>
+                              handleMoveJobItem(
+                                "stock-used",
+                                part.raw as Record<string, unknown>,
+                                index,
+                                "technician",
+                              )
+                            }
+                            className="text-xs"
+                          >
+                            {movingDeinstalledItemKey ===
+                            `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:technician`
+                              ? "Adding..."
+                              : movedDeinstalledItems[
+                                    `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:technician`
+                                  ] === "moved"
+                                ? "Added to Technician Stock"
+                                : "Add to Technician Stock"}
                           </Button>
                           <Button
                             size="sm"
@@ -5764,6 +5846,21 @@ export default function InventoryPage() {
                 )}
               </div>
               )}
+              <DialogFooter className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCompletedJobDetails(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => handleAssignParts(selectedCompletedJob)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Plus className="mr-1 w-3 h-3" />
+                  Assign Parts
+                </Button>
+              </DialogFooter>
             </div>
           )}
         </DialogContent>

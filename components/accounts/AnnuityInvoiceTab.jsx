@@ -963,13 +963,18 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                           </Table>
                         </div>
 
-                        {/* Vehicle detail editor */}
+                        {/* Vehicle detail editor - only Excl VAT, VAT, Total Incl */}
                         {editingVehicleId && (() => {
                           const editKey = editingVehicleId;
                           const editData = editedVehicles[editKey] || {};
-                          const allFields = Object.keys(editData).filter(
-                            (k) => typeof editData[k] !== "object" || editData[k] === null,
+                          const exclVat = toNumber(
+                            editData.total_excl_vat ??
+                            editData.totalExcludingVat ??
+                            editData.amountExcludingVat ??
+                            editData.unit_price_without_vat ?? 0,
                           );
+                          const vatAmt = exclVat * 0.15;
+                          const totalIncl = exclVat * 1.15;
                           return (
                             <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
                               <div className="flex items-center justify-between">
@@ -991,28 +996,52 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                {allFields.map((field) => {
-                                  const value = editData[field];
-                                  const label = field
-                                    .replace(/_/g, " ")
-                                    .replace(/\b\w/g, (c) => c.toUpperCase());
-                                  const isNumeric = typeof value === "number" || !Number.isNaN(Number(value));
-                                  return (
-                                    <div key={field} className="space-y-0.5">
-                                      <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide truncate block">
-                                        {label}
-                                      </label>
-                                      <Input
-                                        type={isNumeric ? "number" : "text"}
-                                        step={isNumeric ? "0.01" : undefined}
-                                        value={value ?? ""}
-                                        onChange={(e) => handleEditChange(editKey, field, isNumeric ? Number(e.target.value) : e.target.value)}
-                                        className="h-8 text-xs"
-                                      />
-                                    </div>
-                                  );
-                                })}
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-0.5">
+                                  <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                    Amount Excl. VAT
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={exclVat}
+                                    onChange={(e) => {
+                                      const val = toNumber(e.target.value);
+                                      handleEditChange(editKey, "total_excl_vat", val);
+                                    }}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                    VAT (15%)
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={vatAmt}
+                                    onChange={(e) => {
+                                      const val = toNumber(e.target.value);
+                                      handleEditChange(editKey, "total_excl_vat", val / 0.15);
+                                    }}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-0.5">
+                                  <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                    Total Incl. VAT
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={totalIncl}
+                                    onChange={(e) => {
+                                      const val = toNumber(e.target.value);
+                                      handleEditChange(editKey, "total_excl_vat", val / 1.15);
+                                    }}
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
                               </div>
                             </div>
                           );
