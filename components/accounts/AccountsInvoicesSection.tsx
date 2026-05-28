@@ -42,6 +42,8 @@ interface AccountInvoiceRow {
   job_card_id?: string | null;
   job_number?: string | null;
   order_number?: string | null;
+  source_type?: string | null;
+  created_by_name?: string | null;
 }
 
 const formatCurrency = (value: unknown) =>
@@ -87,6 +89,7 @@ export default function AccountsInvoicesSection() {
   const [viewerOrderNumber, setViewerOrderNumber] = useState<string | null>(null);
   const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card">("all");
 
   const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
@@ -131,12 +134,20 @@ export default function AccountsInvoicesSection() {
   }, [selectedMonth]);
 
   const filteredInvoices = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return invoices;
+    let list = invoices;
+
+    if (sourceFilter !== "all") {
+      list = list.filter((inv) =>
+        sourceFilter === "annuity"
+          ? inv.source_type === "account_invoice"
+          : inv.source_type === "job_card_invoice",
+      );
     }
 
-    return invoices.filter((invoice) =>
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) return list;
+
+    return list.filter((invoice) =>
       [
         invoice.invoice_number,
         invoice.account_number,
@@ -144,7 +155,7 @@ export default function AccountsInvoicesSection() {
         invoice.customer_vat_number,
       ].some((value) => String(value || "").toLowerCase().includes(normalizedSearch)),
     );
-  }, [invoices, searchTerm]);
+  }, [invoices, searchTerm, sourceFilter]);
 
   const sortedInvoices = useMemo(() => {
     const sorted = [...filteredInvoices].sort((a, b) => {
@@ -224,6 +235,22 @@ export default function AccountsInvoicesSection() {
         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedMonth(currentMonth)}>
           Current
         </Button>
+        <div className="flex rounded-md border border-input overflow-hidden">
+          {(["all", "annuity", "job_card"] as const).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => setSourceFilter(opt)}
+              className={`px-2.5 h-7 text-[11px] font-medium transition-colors ${
+                sourceFilter === opt
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {opt === "all" ? "All" : opt === "annuity" ? "Annuity" : "Job Card"}
+            </button>
+          ))}
+        </div>
         <select
           value={sortField}
           onChange={(e) => setSortField(e.target.value as "invoice_number" | "company_name")}
@@ -268,20 +295,22 @@ export default function AccountsInvoicesSection() {
                 <TableHead className="py-2 text-xs text-right">Total</TableHead>
                 <TableHead className="py-2 text-xs text-right">Balance</TableHead>
                 <TableHead className="py-2 text-xs">Status</TableHead>
+                <TableHead className="py-2 text-xs">Source</TableHead>
+                <TableHead className="py-2 text-xs">Created By</TableHead>
                 <TableHead className="py-2 text-xs text-center">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-xs text-slate-400 py-8">
+                  <TableCell colSpan={11} className="text-center text-xs text-slate-400 py-8">
                     <Loader2 className="mx-auto mb-2 w-4 h-4 animate-spin" />
                     Loading invoices...
                   </TableCell>
                 </TableRow>
               ) : sortedInvoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-xs text-slate-400 py-8">
+                  <TableCell colSpan={11} className="text-center text-xs text-slate-400 py-8">
                     No invoices found{selectedMonth ? ` for ${selectedMonth}` : ""}
                   </TableCell>
                 </TableRow>
@@ -306,6 +335,16 @@ export default function AccountsInvoicesSection() {
                       <Badge className={`${getStatusTone(invoice.payment_status)} text-[10px] px-1.5 py-0`}>
                         {String(invoice.payment_status || "pending")}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="py-1.5">
+                      {invoice.source_type === "account_invoice" ? (
+                        <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Annuity</Badge>
+                      ) : (
+                        <Badge className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0">Job Card</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="py-1.5 max-w-[120px] truncate text-[10px] text-slate-600">
+                      {invoice.created_by_name || "—"}
                     </TableCell>
                     <TableCell className="py-1.5 text-center">
                       <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>

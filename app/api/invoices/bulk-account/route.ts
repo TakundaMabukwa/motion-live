@@ -178,6 +178,8 @@ const syncBulkInvoiceToAccountInvoices = async (
     dueDate,
   });
 
+  const invoiceCreatedBy = bulkInvoice?.created_by || userId || null;
+
   const payload = {
     account_number: accountNumber,
     billing_month: billingMonth,
@@ -197,6 +199,7 @@ const syncBulkInvoiceToAccountInvoices = async (
     payment_status: financials.paymentStatus,
     line_items: Array.isArray(bulkInvoice?.line_items) ? bulkInvoice.line_items : [],
     notes: bulkInvoice?.notes || null,
+    created_by: invoiceCreatedBy,
   };
 
   if (existingInvoice?.id) {

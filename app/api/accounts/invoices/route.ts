@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("account_invoices")
       .select(
-        "id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, company_name, customer_vat_number, company_registration_number, client_address, line_items, notes, created_at",
+        "id, account_number, billing_month, invoice_number, invoice_date, total_amount, paid_amount, balance_due, payment_status, company_name, customer_vat_number, company_registration_number, client_address, line_items, notes, created_at, created_by",
       )
       .order("created_at", { ascending: false })
       .order("invoice_date", { ascending: false, nullsFirst: false });
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     let jobCardInvoiceQuery = supabase
       .from("invoices")
       .select(
-        "id, job_card_id, job_number, account_number, invoice_number, invoice_date, total_amount, client_name, client_address, line_items, notes, created_at",
+        "id, job_card_id, job_number, account_number, invoice_number, invoice_date, total_amount, client_name, client_address, line_items, notes, created_at, created_by",
       )
       .order("created_at", { ascending: false })
       .order("invoice_date", { ascending: false, nullsFirst: false });
@@ -158,6 +158,8 @@ export async function GET(request: NextRequest) {
         line_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
         notes: String(invoice?.notes || "").trim() || null,
         created_at: String(invoice?.created_at || "").trim() || null,
+        created_by: String(invoice?.created_by || "").trim() || null,
+        source_type: "job_card_invoice",
         job_card_id: jcId || null,
         job_number: String(invoice?.job_number || "").trim() || null,
         order_number: orderNumberByJobCardId.get(jcId) || null,
@@ -172,6 +174,8 @@ export async function GET(request: NextRequest) {
       const linkedJobCardId = invNum ? invoiceNumberToJobCardId.get(invNum) : null;
       return {
         ...row,
+        source_type: "account_invoice",
+        created_by: String(row?.created_by || "").trim() || null,
         job_card_id: linkedJobCardId || null,
         job_number: invNum ? jobNumberByInvoiceNumber.get(invNum) || null : null,
         order_number: linkedJobCardId ? orderNumberByJobCardId.get(linkedJobCardId) || null : null,
@@ -268,8 +272,34 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const createdByIds = Array.from(
+      new Set(
+        invoicesWithCustomerInfo
+          .map((inv) => String(inv?.created_by || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    let userEmailById = new Map<string, string>();
+    if (createdByIds.length > 0) {
+      const { data: userRows } = await supabase
+        .from("users")
+        .select("id, email")
+        .in("id", createdByIds);
+      if (Array.isArray(userRows)) {
+        userEmailById = new Map(
+          userRows.map((u) => [String(u.id), String(u.email || "").trim()]),
+        );
+      }
+    }
+
+    const invoicesWithUserInfo = invoicesWithCustomerInfo.map((invoice) => ({
+      ...invoice,
+      source_type: String(invoice?.source_type || "").trim() || "account_invoice",
+      created_by_name: userEmailById.get(String(invoice?.created_by || "").trim()) || null,
+    }));
+
     return NextResponse.json({
-      invoices: invoicesWithCustomerInfo,
+      invoices: invoicesWithUserInfo,
       filters: { month },
     });
   } catch (error) {
