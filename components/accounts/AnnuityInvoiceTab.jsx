@@ -95,6 +95,7 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
   const liveLineItems = sourceItems.map((item, idx) => {
     const key = item.reg || item.fleetNumber || item.item_code || `item-${idx}`;
     const edit = editedVehicles[key];
+    const qty = toNumber(edit?.quantity ?? item.quantity ?? item.units ?? 1);
     const totalExclVat =
       edit?.total_excl_vat ??
       edit?.totalExcludingVat ??
@@ -103,9 +104,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
       item.amountExcludingVat ??
       (
         toNumber(edit?.unit_price_without_vat ?? item.unit_price_without_vat ?? 0) *
-        toNumber(edit?.quantity ?? item.quantity ?? item.units ?? 1)
+        qty
       );
-    return { ...item, total_excl_vat: toNumber(totalExclVat) };
+    const unitPrice = qty > 0 ? toNumber(totalExclVat) / qty : 0;
+    return { ...item, total_excl_vat: toNumber(totalExclVat), unit_price_without_vat: unitPrice };
   });
   const computedTotals = (() => {
     const subtotal = liveLineItems.reduce((sum, item) => sum + toNumber(item.total_excl_vat), 0);
@@ -447,14 +449,16 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
             billing_month: `${selectedBillingMonth}-01`,
             invoice_number: invoiceDataForPreview.invoice_number,
             invoice_date: invoiceDataForPreview.invoice_date,
-            total_amount: toNumber(invoiceDataForPreview.total_amount),
+            total_amount: computedTotals.total_amount,
+            subtotal: computedTotals.subtotal,
+            vat_amount: computedTotals.vat_amount,
             company_name: invoiceDataForPreview.company_name || selectedCostCenter?.company,
             client_address: invoiceDataForPreview.client_address,
             customer_vat_number: invoiceDataForPreview.customer_vat_number,
             company_registration_number: invoiceDataForPreview.company_registration_number,
-            line_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : vehicleList,
-            invoice_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : vehicleList,
-            invoiceItems: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : vehicleList,
+            line_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
+            invoice_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
+            invoiceItems: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
           }}
         />,
       );
@@ -909,7 +913,7 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                     <TableCell className="py-1 text-xs">{item.item_code || item.itemCode || "-"}</TableCell>
                                     <TableCell className="py-1 text-xs max-w-[200px] truncate">{item.description || item.item_name || "-"}</TableCell>
                                     <TableCell className="py-1 text-xs text-right">{item.quantity || item.units || 1}</TableCell>
-                                    <TableCell className="py-1 text-xs text-right">{formatCurrency(item.unit_price_without_vat ?? item.amountExcludingVat ?? 0)}</TableCell>
+                                    <TableCell className="py-1 text-xs text-right">{formatCurrency(liveLineItems[idx].unit_price_without_vat)}</TableCell>
                                     <TableCell className="py-1 text-xs text-right font-medium">
                                       {isEditingTotal ? (
                                         <div className="flex items-center justify-end gap-1">
@@ -948,12 +952,20 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                         </button>
                                       )}
                                     </TableCell>
-                                    <TableCell className="py-1 text-center">
+                                    <TableCell className="py-1 text-center flex items-center justify-center gap-1">
                                       <button
                                         onClick={() => handleStartEdit(item)}
                                         className="p-1 hover:bg-slate-100 rounded"
+                                        title="Edit"
                                       >
                                         <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteVehicle(key)}
+                                        className="p-1 hover:bg-red-100 rounded"
+                                        title="Remove"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
                                       </button>
                                     </TableCell>
                                   </TableRow>

@@ -2124,6 +2124,10 @@ export default function AccountsContent({ activeSection }) {
 
     return products
       .map((product, index) => {
+        if (toNumber(product?.is_labour)) {
+          return null;
+        }
+
         const rentalAmount = getRecurringChargeAmount(
           product,
           "rental_price",
@@ -2260,7 +2264,14 @@ export default function AccountsContent({ activeSection }) {
         recurringMultiplier,
       );
     }
-    addLine("cash_gross", "cash_price", "Cash");
+    const hasRecurringCharge =
+      toNumber(product?.rental_price) > 0 ||
+      toNumber(product?.rental_gross) > 0 ||
+      toNumber(product?.subscription_price) > 0 ||
+      toNumber(product?.subscription_gross) > 0;
+    if (!hasRecurringCharge) {
+      addLine("cash_gross", "cash_price", "Cash");
+    }
     if (!isDeinstall) {
       addLine("installation_gross", "installation_price", "Installation");
     }
