@@ -2254,7 +2254,11 @@ export default function AccountsContent({ activeSection }) {
       jobType.includes("de-install") ||
       jobType.includes("decomm");
 
-    if (shouldIncludeRecurring) {
+    if (isDeinstall && !isLabourProduct(product)) {
+      return [];
+    }
+
+    if (shouldIncludeRecurring && !isLabourProduct(product)) {
       const recurringLabelSuffix =
         recurringMultiplier !== 1 ? ` (${recurringMultiplier}x)` : "";
       addLine(
@@ -2877,6 +2881,23 @@ export default function AccountsContent({ activeSection }) {
       "N/A";
     const effectiveClientName = defaultClientName;
 
+    const isDeinstallJob = (() => {
+      const raw = String(
+        selectedJobForInvoice?.job_type ||
+        selectedJobForInvoice?.quotation_job_type || "",
+      ).toLowerCase();
+      return raw.includes("deinstall") ||
+        raw.includes("de-install") ||
+        raw.includes("decomm");
+    })();
+
+    const isAnnuityProduct = (product) =>
+      !isLabourProduct(product) &&
+      (toNumber(product?.rental_price) > 0 ||
+        toNumber(product?.rental_gross) > 0 ||
+        toNumber(product?.subscription_price) > 0 ||
+        toNumber(product?.subscription_gross) > 0);
+
     const rows = rawTotals.products.length > 0
         ? rawTotals.products.flatMap((product, index) => {
             const chargeLines = getProductChargeLines(product, selectedJobForInvoice, {
@@ -2884,9 +2905,12 @@ export default function AccountsContent({ activeSection }) {
               includeRecurringWhenMultiplierNotOne: true,
             });
 
-            return chargeLines
-              .filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0)
-              .map((chargeLine) => {
+            const validLines = chargeLines.filter(
+              (chargeLine) => toNumber(chargeLine?.unitPrice) > 0,
+            );
+
+            if (validLines.length > 0) {
+              return validLines.map((chargeLine) => {
               const lineVat = Number(
                 (chargeLine.subtotal * VAT_RATE).toFixed(2),
               );
@@ -2927,6 +2951,39 @@ export default function AccountsContent({ activeSection }) {
                 totalIncl: lineTotal,
               };
             });
+            }
+
+            if (isAnnuityProduct(product) && !isDeinstallJob) {
+              const productName = String(
+                product?.name || product?.item_code || "",
+              ).trim();
+              const productDescription = String(
+                product?.description || "",
+              ).trim();
+              const resolvedDescription =
+                productDescription || productName || "-";
+              const qty = Math.max(1, toNumber(product?.quantity) || 1);
+
+              return {
+                key: `${product?.id || product?.name || product?.item_code || "item"}-annuity-${index}`,
+                previousReg: hideRegistrationColumns
+                  ? ""
+                  : product?.vehicle_plate || vehicleSummary || "N/A",
+                newReg: hideRegistrationColumns
+                  ? ""
+                  : product?.vehicle_plate || vehicleSummary || "N/A",
+                itemCode: "Annuity",
+                description: resolvedDescription,
+                comments: `Annuity - ${productName}`,
+                qty,
+                unitPrice: 0,
+                vatPercent: "0.00%",
+                vatAmount: 0,
+                totalIncl: 0,
+              };
+            }
+
+            return [];
           })
       : Array.isArray(storedInvoiceRecord?.line_items) &&
           storedInvoiceRecord.line_items.length > 0
