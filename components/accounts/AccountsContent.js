@@ -2076,6 +2076,12 @@ export default function AccountsContent({ activeSection }) {
     return 0;
   };
 
+  const isLabourProduct = (p) => {
+    if (toNumber(p?.is_labour)) return true;
+    const name = String(p?.name || "").toLowerCase();
+    return name.includes("labour") || name.includes("labor");
+  };
+
   const getRecurringChargeAmount = (product, priceKey, grossKey) => {
     const priceAmount = toNumber(product?.[priceKey]);
     if (priceAmount > 0) return priceAmount;
@@ -2121,12 +2127,6 @@ export default function AccountsContent({ activeSection }) {
 
   const getAnnuitySelectionItems = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
-
-    const isLabourProduct = (p) => {
-      if (toNumber(p?.is_labour)) return true;
-      const name = String(p?.name || "").toLowerCase();
-      return name.includes("labour") || name.includes("labor");
-    };
 
     return products
       .map((product, index) => {
@@ -2283,6 +2283,23 @@ export default function AccountsContent({ activeSection }) {
     }
     if (isDeinstall) {
       addLine("de_installation_gross", "de_installation_price", "De-Installation");
+    }
+    if (lines.length === 0 && isLabourProduct(product)) {
+      const amount =
+        toNumber(product?.total_price) ||
+        toNumber(product?.subscription_gross) ||
+        toNumber(product?.subscription_price) ||
+        toNumber(product?.rental_gross) ||
+        toNumber(product?.rental_price);
+      if (amount > 0) {
+        lines.push({
+          key: "labour",
+          label: "Labour",
+          qty,
+          unitPrice: amount,
+          subtotal: amount * qty,
+        });
+      }
     }
     if (lines.length === 0) {
       addLine("price", "price", "Price");
