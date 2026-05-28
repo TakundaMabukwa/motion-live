@@ -44,6 +44,20 @@ const toNumber = (value) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const buildClientAddress = (costCenter) => {
+  if (!costCenter) return "";
+  const parts = [
+    costCenter?.physical_address_1,
+    costCenter?.physical_address_2,
+    costCenter?.physical_address_3,
+    costCenter?.physical_area,
+    costCenter?.physical_code,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "";
+};
+
 const getMonthEndInvoiceDate = (billingMonth) => {
   if (!billingMonth) return new Date().toISOString();
   const parts = String(billingMonth).split("-");
@@ -236,9 +250,9 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         };
         setInvoiceData(refData);
         setEditableCompany(refData.company_name || selectedCostCenter?.company || "");
-        setEditableVat(refData.customer_vat_number || "");
-        setEditableAddress(refData.client_address || "");
-        setEditableRegNumber(refData.company_registration_number || "");
+        setEditableVat(refData.customer_vat_number || selectedCostCenter?.vat_number || "");
+        setEditableAddress(refData.client_address || buildClientAddress(selectedCostCenter) || "");
+        setEditableRegNumber(refData.company_registration_number || selectedCostCenter?.registration_number || "");
         setEditableNotes(refData.notes || "");
         setVehicles(refItems);
         setShowPreview(true);
@@ -254,9 +268,9 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         const freshData = data.invoiceData;
         setInvoiceData(freshData);
         setEditableCompany(freshData.company_name || selectedCostCenter?.company || "");
-        setEditableVat(freshData.customer_vat_number || "");
-        setEditableAddress(freshData.client_address || "");
-        setEditableRegNumber(freshData.company_registration_number || "");
+        setEditableVat(freshData.customer_vat_number || selectedCostCenter?.vat_number || "");
+        setEditableAddress(freshData.client_address || buildClientAddress(selectedCostCenter) || "");
+        setEditableRegNumber(freshData.company_registration_number || selectedCostCenter?.registration_number || "");
         setEditableNotes(freshData.notes || "");
         setVehicles(
           Array.isArray(freshData?.invoiceItems)
@@ -367,10 +381,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         accountNumber: selectedCostCenterCode,
         billingMonth,
         invoiceDate: invoiceDate ? `${invoiceDate}T23:59:59.999Z` : getMonthEndInvoiceDate(billingMonth),
-        companyName: editableCompany || selectedCostCenter?.company || null,
-        companyRegistrationNumber: editableRegNumber || null,
-        clientAddress: editableAddress || null,
-        customerVatNumber: editableVat || null,
+        companyName: editableCompany || selectedCostCenter?.company || selectedCostCenter?.legal_name || null,
+        companyRegistrationNumber: editableRegNumber || selectedCostCenter?.registration_number || null,
+        clientAddress: editableAddress || buildClientAddress(selectedCostCenter) || null,
+        customerVatNumber: editableVat || selectedCostCenter?.vat_number || null,
         subtotal: computedTotals.subtotal,
         vatAmount: computedTotals.vat_amount,
         discountAmount: 0,
@@ -452,10 +466,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
             total_amount: computedTotals.total_amount,
             subtotal: computedTotals.subtotal,
             vat_amount: computedTotals.vat_amount,
-            company_name: invoiceDataForPreview.company_name || selectedCostCenter?.company,
-            client_address: invoiceDataForPreview.client_address,
-            customer_vat_number: invoiceDataForPreview.customer_vat_number,
-            company_registration_number: invoiceDataForPreview.company_registration_number,
+              company_name: invoiceDataForPreview.company_name || selectedCostCenter?.company || selectedCostCenter?.legal_name,
+            client_address: invoiceDataForPreview.client_address || buildClientAddress(selectedCostCenter),
+            customer_vat_number: invoiceDataForPreview.customer_vat_number || selectedCostCenter?.vat_number,
+            company_registration_number: invoiceDataForPreview.company_registration_number || selectedCostCenter?.registration_number,
             line_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
             invoice_items: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
             invoiceItems: Array.isArray(invoiceDataForPreview.line_items) ? invoiceDataForPreview.line_items : liveLineItems,
@@ -654,10 +668,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                         invoice_items: Array.isArray(inv.line_items) ? inv.line_items : [],
                         invoiceItems: Array.isArray(inv.line_items) ? inv.line_items : [],
                       }));
-                      setEditableCompany(inv.company_name || "");
-                      setEditableVat(inv.customer_vat_number || "");
-                      setEditableAddress(inv.client_address || "");
-                      setEditableRegNumber(inv.company_registration_number || "");
+                      setEditableCompany(inv.company_name || selectedCostCenter?.company || selectedCostCenter?.legal_name || "");
+                      setEditableVat(inv.customer_vat_number || selectedCostCenter?.vat_number || "");
+                      setEditableAddress(inv.client_address || buildClientAddress(selectedCostCenter) || "");
+                      setEditableRegNumber(inv.company_registration_number || selectedCostCenter?.registration_number || "");
                       setEditableNotes(inv.notes || "");
                       setVehicles(
                         Array.isArray(inv.line_items) ? inv.line_items : [],
@@ -688,10 +702,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                             invoice_items: Array.isArray(inv.line_items) ? inv.line_items : [],
                             invoiceItems: Array.isArray(inv.line_items) ? inv.line_items : [],
                           }));
-                          setEditableCompany(inv.company_name || "");
-                          setEditableVat(inv.customer_vat_number || "");
-                          setEditableAddress(inv.client_address || "");
-                          setEditableRegNumber(inv.company_registration_number || "");
+                          setEditableCompany(inv.company_name || selectedCostCenter?.company || selectedCostCenter?.legal_name || "");
+                          setEditableVat(inv.customer_vat_number || selectedCostCenter?.vat_number || "");
+                          setEditableAddress(inv.client_address || buildClientAddress(selectedCostCenter) || "");
+                          setEditableRegNumber(inv.company_registration_number || selectedCostCenter?.registration_number || "");
                           setEditableNotes(inv.notes || "");
                           setShowPreview(true);
                           setPreviewMode("pdf");
@@ -870,10 +884,10 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                         total_amount: computedTotals.total_amount,
                         subtotal: computedTotals.subtotal,
                         vat_amount: computedTotals.vat_amount,
-                        company_name: editableCompany || selectedCostCenter?.company,
-                        client_address: editableAddress,
-                        customer_vat_number: editableVat,
-                        company_registration_number: editableRegNumber,
+                        company_name: editableCompany || selectedCostCenter?.company || selectedCostCenter?.legal_name,
+                        client_address: editableAddress || buildClientAddress(selectedCostCenter),
+                        customer_vat_number: editableVat || selectedCostCenter?.vat_number,
+                        company_registration_number: editableRegNumber || selectedCostCenter?.registration_number,
                         notes: editableNotes,
                         line_items: liveLineItems,
                         invoice_items: liveLineItems,
