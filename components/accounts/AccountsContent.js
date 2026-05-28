@@ -2122,9 +2122,15 @@ export default function AccountsContent({ activeSection }) {
   const getAnnuitySelectionItems = (job) => {
     const products = parseQuotationProducts(job?.quotation_products);
 
+    const isLabourProduct = (p) => {
+      if (toNumber(p?.is_labour)) return true;
+      const name = String(p?.name || "").toLowerCase();
+      return name.includes("labour") || name.includes("labor");
+    };
+
     return products
       .map((product, index) => {
-        if (toNumber(product?.is_labour)) {
+        if (isLabourProduct(product)) {
           return null;
         }
 
