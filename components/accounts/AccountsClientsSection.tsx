@@ -1926,7 +1926,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                       </span>
                     </div>
                   </Button>
-                  <Button
+                  {/* <Button
                     onClick={handleAllInvoicesExcel}
                     disabled={isGeneratingAllInvoicesPdf || isGeneratingAllInvoicesExcel || isLoadingAllInvoicesPreview}
                     className="h-24 bg-green-600 hover:bg-green-700 text-white"
@@ -1936,7 +1936,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                       <span>Excel</span>
                       <span className="text-xs font-normal opacity-90">Current export</span>
                     </div>
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
             </>
