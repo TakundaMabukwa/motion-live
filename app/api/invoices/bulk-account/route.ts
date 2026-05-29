@@ -438,7 +438,7 @@ export async function POST(request: NextRequest) {
       notes: body?.notes || null,
     };
 
-    if (existingInvoice && !forceNewInvoice) {
+    if (existingInvoice) {
       let invoiceNumberToKeep = existingInvoice.invoice_number;
       const invoiceDateToKeep =
         preserveInvoiceIdentity && existingInvoice?.invoice_date
@@ -448,8 +448,8 @@ export async function POST(request: NextRequest) {
 
       if (
         !preserveInvoiceIdentity &&
-        !hasRealInvoiceNumber(invoiceNumberToKeep) &&
-        !existingInvoice?.invoice_locked
+        !existingInvoice?.invoice_locked &&
+        (forceNewInvoice || !hasRealInvoiceNumber(invoiceNumberToKeep))
       ) {
         try {
           const allocation = await allocateTrackedInvoiceNumber(supabase, {
@@ -551,36 +551,133 @@ export async function POST(request: NextRequest) {
       .select("*")
       .single();
 
+    let invoice = insertedInvoice;
+    let reused = false;
+
     if (insertError) {
-      await markTrackedInvoiceFailed(supabase, {
-        auditId: allocationAuditId,
-        invoiceNumber: allocatedInvoiceNumber,
-        errorMessage: insertError.message || "Failed to create bulk invoice",
-      });
-      return NextResponse.json(
-        { error: insertError.message || "Failed to create bulk invoice" },
-        { status: 500 },
-      );
+      const isDuplicate = insertError.code === "23505" ||
+        (insertError.message?.includes("duplicate key") ?? false);
+
+      if (isDuplicate && billingMonth) {
+        await markTrackedInvoiceFailed(supabase, {
+          auditId: allocationAuditId,
+          invoiceNumber: allocatedInvoiceNumber,
+          errorMessage: "Concurrent insert conflict, updating existing invoice instead",
+        });
+
+        const { data: conflictRows } = await supabase
+          .from("bulk_account_invoices")
+          .select("*")
+          .eq("account_number", accountNumber)
+          .eq("billing_month", billingMonth)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        const conflictInvoice = Array.isArray(conflictRows) ? conflictRows[0] || null : null;
+
+        if (!conflictInvoice) {
+          return NextResponse.json(
+            { error: "Failed to resolve concurrent invoice conflict" },
+            { status: 500 },
+          );
+        }
+
+        let updateInvoiceNumber = conflictInvoice.invoice_number;
+        let updateAllocationAuditId: string | null = null;
+
+        if (
+          !conflictInvoice.invoice_locked &&
+          (forceNewInvoice || !hasRealInvoiceNumber(conflictInvoice.invoice_number))
+        ) {
+          try {
+            const allocation = await allocateTrackedInvoiceNumber(supabase, {
+              source: "api/invoices/bulk-account",
+              userId: user.id,
+              requestKey: `${accountNumber}|${billingMonth || "none"}|conflict|${Date.now()}`,
+              context: {
+                accountNumber,
+                billingMonth: billingMonth || null,
+                existingInvoiceId: conflictInvoice.id,
+              },
+            });
+            updateInvoiceNumber = allocation.invoiceNumber;
+            updateAllocationAuditId = allocation.auditId;
+          } catch {
+            return NextResponse.json(
+              { error: "Failed to allocate invoice number" },
+              { status: 500 },
+            );
+          }
+        }
+
+        const { data: updatedInvoice, error: updateError } = await supabase
+          .from("bulk_account_invoices")
+          .update({
+            ...payload,
+            invoice_number: updateInvoiceNumber,
+          })
+          .eq("id", conflictInvoice.id)
+          .select("*")
+          .single();
+
+        if (updateError) {
+          if (updateAllocationAuditId && hasRealInvoiceNumber(updateInvoiceNumber)) {
+            await markTrackedInvoiceFailed(supabase, {
+              auditId: updateAllocationAuditId,
+              invoiceNumber: String(updateInvoiceNumber),
+              errorMessage: updateError.message || "Failed to update existing invoice",
+            });
+          }
+          return NextResponse.json(
+            { error: updateError.message || "Failed to update existing invoice" },
+            { status: 500 },
+          );
+        }
+
+        if (updateAllocationAuditId && hasRealInvoiceNumber(updateInvoiceNumber)) {
+          await markTrackedInvoicePersisted(supabase, {
+            auditId: updateAllocationAuditId,
+            invoiceNumber: String(updateInvoiceNumber),
+            persistedTable: "bulk_account_invoices",
+            persistedInvoiceId: updatedInvoice.id,
+          });
+        }
+
+        invoice = updatedInvoice;
+        reused = true;
+      } else {
+        await markTrackedInvoiceFailed(supabase, {
+          auditId: allocationAuditId,
+          invoiceNumber: allocatedInvoiceNumber,
+          errorMessage: insertError.message || "Failed to create bulk invoice",
+        });
+        return NextResponse.json(
+          { error: insertError.message || "Failed to create bulk invoice" },
+          { status: 500 },
+        );
+      }
     }
 
-    await markTrackedInvoicePersisted(supabase, {
-      auditId: allocationAuditId,
-      invoiceNumber: allocatedInvoiceNumber,
-      persistedTable: "bulk_account_invoices",
-      persistedInvoiceId: insertedInvoice.id,
-    });
+    if (!reused) {
+      await markTrackedInvoicePersisted(supabase, {
+        auditId: allocationAuditId,
+        invoiceNumber: allocatedInvoiceNumber,
+        persistedTable: "bulk_account_invoices",
+        persistedInvoiceId: invoice.id,
+      });
+    }
 
     try {
       await syncBulkInvoiceToAccountInvoices(supabase, {
-        bulkInvoice: insertedInvoice,
+        bulkInvoice: invoice,
         userId: user.id,
       });
     } catch (syncError) {
       console.error("Failed to sync bulk invoice to account_invoices:", syncError);
     }
 
-    const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, insertedInvoice);
-    return NextResponse.json({ invoice: enrichedInvoice, reused: false });
+    const enrichedInvoice = await enrichBulkInvoiceWithLockMeta(supabase, invoice);
+    return NextResponse.json({ invoice: enrichedInvoice, reused });
   } catch (error) {
     console.error("Unexpected error in bulk account invoice POST:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
