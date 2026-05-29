@@ -277,13 +277,27 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         setEditableAddress(freshData.client_address || buildClientAddress(selectedCostCenter) || "");
         setEditableRegNumber(freshData.company_registration_number || selectedCostCenter?.registration_number || "");
         setEditableNotes(freshData.notes || "");
-        setVehicles(
+        let freshItems =
           Array.isArray(freshData?.invoiceItems)
             ? freshData.invoiceItems
             : Array.isArray(freshData?.invoice_items)
               ? freshData.invoice_items
-              : [],
-        );
+              : [];
+        if (freshItems.length === 0) {
+          freshItems = [{
+            reg: "",
+            fleetNumber: "",
+            item_code: `ITEM-${Date.now()}`,
+            description: "New item",
+            quantity: 1,
+            units: 1,
+            total_excl_vat: 0,
+            unit_price_without_vat: 0,
+          }];
+          freshData.invoiceItems = freshItems;
+          freshData.invoice_items = freshItems;
+        }
+        setVehicles(freshItems);
         setShowPreview(true);
         setPreviewMode("pdf");
         setSavedInvoice(null);
@@ -1069,7 +1083,19 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                                   </button>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-4 gap-3">
+                                <div className="space-y-0.5">
+                                  <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                                    Registration
+                                  </label>
+                                  <Input
+                                    type="text"
+                                    value={editData.reg || editData.vehicle_registration || ""}
+                                    onChange={(e) => handleEditChange(editKey, "reg", e.target.value)}
+                                    placeholder="e.g. ABC123GP"
+                                    className="h-8 text-xs"
+                                  />
+                                </div>
                                 <div className="space-y-0.5">
                                   <label className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
                                     Amount Excl. VAT
