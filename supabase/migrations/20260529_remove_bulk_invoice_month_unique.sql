@@ -1,0 +1,1 @@
+drop index if exists public.bulk_account_invoices_account_month_idx;

@@ -396,7 +396,7 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         totalAmount: computedTotals.total_amount,
         lineItems,
         notes: editableNotes || "",
-        ...(selectedExistingInvoice && { forceNewInvoice: true }),
+        ...(!selectedExistingInvoice && { forceNewInvoice: true }),
       };
 
       const res = await fetch("/api/invoices/bulk-account", {
