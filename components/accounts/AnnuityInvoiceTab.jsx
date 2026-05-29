@@ -350,6 +350,37 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
     });
   };
 
+  const handleAddVehicle = () => {
+    const newKey = `new-${Date.now()}`;
+    const newVehicle = {
+      reg: "",
+      fleetNumber: "",
+      item_code: `ITEM-${Date.now()}`,
+      description: "New item",
+      quantity: 1,
+      units: 1,
+      total_excl_vat: 0,
+      unit_price_without_vat: 0,
+    };
+    setVehicles((prev) => [...prev, newVehicle]);
+    if (invoiceData) {
+      setInvoiceData((prev) => ({
+        ...prev,
+        invoiceItems: [
+          ...(Array.isArray(prev.invoiceItems) ? prev.invoiceItems : []),
+          newVehicle,
+        ],
+        invoice_items: [
+          ...(Array.isArray(prev.invoice_items) ? prev.invoice_items : []),
+          newVehicle,
+        ],
+      }));
+    }
+    setEditedVehicles((prev) => ({ ...prev, [newKey]: { ...newVehicle } }));
+    setEditingVehicleId(newKey);
+    setEditingTotalKey(null);
+  };
+
   const handleDeleteVehicle = (itemKey) => {
     setVehicles((prev) => prev.filter((v) => {
       const key = v.reg || v.fleetNumber || v.item_code || "";
@@ -903,9 +934,20 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
                 ) : (
                   <div className="space-y-3">
                     {vehicleList.length === 0 ? (
-                      <p className="text-sm text-slate-500">No vehicle billing lines found.</p>
+                      <div className="flex flex-col items-center gap-3 py-6">
+                        <p className="text-sm text-slate-500">No vehicle billing lines found.</p>
+                        <Button type="button" size="sm" variant="outline" onClick={handleAddVehicle} className="h-7 text-xs">
+                          Add First Item
+                        </Button>
+                      </div>
                     ) : (
                       <>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-500">{vehicleList.length} item(s)</span>
+                          <Button type="button" size="sm" variant="outline" onClick={handleAddVehicle} className="h-7 text-xs">
+                            Add Item
+                          </Button>
+                        </div>
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>

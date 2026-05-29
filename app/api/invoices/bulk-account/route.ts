@@ -526,7 +526,7 @@ export async function POST(request: NextRequest) {
       const allocation = await allocateTrackedInvoiceNumber(supabase, {
         source: "api/invoices/bulk-account",
         userId: user.id,
-        requestKey: `${accountNumber}|${billingMonth || "none"}|new`,
+        requestKey: `${accountNumber}|${billingMonth || "none"}|new|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`,
         context: {
           accountNumber,
           billingMonth: billingMonth || null,
