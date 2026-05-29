@@ -121,7 +121,12 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
         qty
       );
     const unitPrice = qty > 0 ? toNumber(totalExclVat) / qty : 0;
-    return { ...item, total_excl_vat: toNumber(totalExclVat), unit_price_without_vat: unitPrice };
+    const {
+      vat_amount: _v1, vatAmount: _v2, total_vat: _v3,
+      total_including_vat: _v4, total_incl_vat: _v5, total_incl: _v6, totalIncl: _v7, totalRentalSub: _v8,
+      ...itemWithoutStoredVat
+    } = item;
+    return { ...itemWithoutStoredVat, total_excl_vat: toNumber(totalExclVat), unit_price_without_vat: unitPrice };
   });
   const computedTotals = (() => {
     const subtotal = liveLineItems.reduce((sum, item) => sum + toNumber(item.total_excl_vat), 0);
