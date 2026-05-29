@@ -36,6 +36,7 @@ type BulkPreviewRow = {
   vatAmount: number;
   totalAmount: number;
   selected: boolean;
+  alreadyInvoiced: boolean;
   invoiceData: Record<string, unknown>;
 };
 
@@ -805,6 +806,9 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
       const totalAmount = toNumber(invoiceData?.total_amount);
       const vehicleCount = countInvoiceVehicles(invoiceItems);
 
+      const invoiceNumber = String(invoiceData?.invoice_number || '').trim();
+      const alreadyInvoiced = Boolean(invoiceNumber);
+
       return {
         accountNumber: String(accountNumber || '').trim().toUpperCase(),
         companyName: String(invoiceData?.company_name || accountNumber || '').trim(),
@@ -813,7 +817,8 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
         subtotal,
         vatAmount,
         totalAmount,
-        selected: true,
+        selected: !alreadyInvoiced,
+        alreadyInvoiced,
         invoiceData,
       } as BulkPreviewRow;
     });
@@ -1310,7 +1315,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const toggleBulkPreviewSelection = (accountNumber: string) => {
     setAllInvoicesPreviewRows((prev) =>
       prev.map((row) =>
-        row.accountNumber === accountNumber
+        row.accountNumber === accountNumber && !row.alreadyInvoiced
           ? { ...row, selected: !row.selected }
           : row,
       ),
@@ -1318,7 +1323,12 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   };
 
   const setAllBulkPreviewSelections = (selected: boolean) => {
-    setAllInvoicesPreviewRows((prev) => prev.map((row) => ({ ...row, selected })));
+    setAllInvoicesPreviewRows((prev) =>
+      prev.map((row) => ({
+        ...row,
+        selected: row.alreadyInvoiced ? false : selected,
+      })),
+    );
   };
 
   const handleGenerateSelectedInvoicesPdf = async () => {
@@ -2003,7 +2013,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                           const recentItems = lineItems.filter((item) => item.isRecent);
 
                           return [
-                            <TableRow key={`preview-${row.accountNumber}`} className="h-8 text-xs">
+                            <TableRow key={`preview-${row.accountNumber}`} className={`h-8 text-xs ${row.alreadyInvoiced ? 'opacity-50 bg-gray-50' : ''}`}>
                                 <TableCell className="text-center px-2 py-1">
                                   <button
                                     type="button"
@@ -2019,7 +2029,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                                     type="checkbox"
                                     checked={row.selected}
                                     onChange={() => toggleBulkPreviewSelection(row.accountNumber)}
-                                    disabled={isGeneratingSelectedInvoices}
+                                    disabled={isGeneratingSelectedInvoices || row.alreadyInvoiced}
                                   />
                                 </TableCell>
                                 <TableCell className="font-medium px-2 py-1">{row.accountNumber}</TableCell>
@@ -2029,7 +2039,11 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                                 <TableCell className="text-right px-2 py-1">{formatCurrency(row.vatAmount)}</TableCell>
                                 <TableCell className="text-right px-2 py-1">{formatCurrency(row.totalAmount)}</TableCell>
                                 <TableCell className="text-right px-2 py-1">
-                                  {recentItems.length > 0 ? (
+                                  {row.alreadyInvoiced ? (
+                                    <span className="inline-flex items-center rounded bg-gray-200 text-gray-600 px-1.5 py-0.5 text-[10px] font-semibold">
+                                      Invoiced
+                                    </span>
+                                  ) : recentItems.length > 0 ? (
                                     <span className="inline-flex items-center rounded bg-green-100 text-green-800 px-1.5 py-0.5 text-[10px] font-semibold">
                                       {recentItems.length}
                                     </span>
