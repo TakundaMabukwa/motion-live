@@ -1315,7 +1315,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
   const toggleBulkPreviewSelection = (accountNumber: string) => {
     setAllInvoicesPreviewRows((prev) =>
       prev.map((row) =>
-        row.accountNumber === accountNumber && !row.alreadyInvoiced
+        row.accountNumber === accountNumber
           ? { ...row, selected: !row.selected }
           : row,
       ),
@@ -1326,7 +1326,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
     setAllInvoicesPreviewRows((prev) =>
       prev.map((row) => ({
         ...row,
-        selected: row.alreadyInvoiced ? false : selected,
+        selected,
       })),
     );
   };
@@ -2013,7 +2013,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                           const recentItems = lineItems.filter((item) => item.isRecent);
 
                           return [
-                            <TableRow key={`preview-${row.accountNumber}`} className={`h-8 text-xs ${row.alreadyInvoiced ? 'opacity-50 bg-gray-50' : ''}`}>
+                            <TableRow key={`preview-${row.accountNumber}`} className={`h-8 text-xs`}>
                                 <TableCell className="text-center px-2 py-1">
                                   <button
                                     type="button"
@@ -2029,7 +2029,7 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
                                     type="checkbox"
                                     checked={row.selected}
                                     onChange={() => toggleBulkPreviewSelection(row.accountNumber)}
-                                    disabled={isGeneratingSelectedInvoices || row.alreadyInvoiced}
+                                    disabled={isGeneratingSelectedInvoices}
                                   />
                                 </TableCell>
                                 <TableCell className="font-medium px-2 py-1">{row.accountNumber}</TableCell>
