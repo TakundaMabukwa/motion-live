@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-const FC_TAB_IDS = ["global", "companies", "client-info", "jobs", "annuity-billing", "quotes"];
+const FC_TAB_IDS = ["global", "companies", "jobs", "annuity-billing", "quotes"];
 
 const normalizeFcTab = (value) => {
   const raw = String(value || "").trim().toLowerCase();
@@ -841,13 +841,6 @@ function AccountsDashboardContent() {
         </>
         );
 
-      case 'client-info':
-        return (
-          <AccountsProvider>
-            <AccountsClientsSection mode="client-info" />
-          </AccountsProvider>
-        );
-
       case 'jobs':
         return <JobsTab />;
 
@@ -916,7 +909,6 @@ function AccountsDashboardContent() {
           {[
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
-            { id: 'client-info', label: 'Client Info', icon: Users, type: 'tab' },
             { id: 'jobs', label: 'Jobs', icon: Briefcase, type: 'tab' },
             { id: 'annuity-billing', label: 'Annuity Billing', icon: FileText, type: 'tab' },
             { id: 'quotes', label: 'Quotes', icon: Receipt, type: 'tab' }
@@ -924,7 +916,6 @@ function AccountsDashboardContent() {
             const Icon = navItem.icon;
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
-                           (navItem.id === 'client-info' && activeTab === 'client-info') ||
                            (navItem.id === 'jobs' && activeTab === 'jobs') ||
                            (navItem.id === 'annuity-billing' && activeTab === 'annuity-billing') ||
                            (navItem.id === 'quotes' && activeTab === 'quotes');
