@@ -107,6 +107,11 @@ export default function EditJobPage() {
       return;
     }
 
+    if (source === "jobs") {
+      router.push("/protected/fc?tab=jobs");
+      return;
+    }
+
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
@@ -129,6 +134,12 @@ export default function EditJobPage() {
 
     if (source === "escalations") {
       router.push("/protected/fc?tab=escalations");
+      router.refresh();
+      return;
+    }
+
+    if (source === "jobs") {
+      router.push("/protected/fc?tab=jobs");
       router.refresh();
       return;
     }

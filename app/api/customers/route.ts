@@ -395,6 +395,14 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (!existingCostCenter) {
+        // Auto-assign fc_id if the creating user is an FC role
+        const { data: postCcUserData } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        const ccFcId = postCcUserData?.role === "fc" ? user.id : null;
+
         const { error: costCenterInsertError } = await supabase
           .from("cost_centers")
           .insert([
@@ -402,6 +410,7 @@ export async function POST(request: NextRequest) {
               company: body.company || null,
               cost_code: resolvedAccountNumber,
               validated: false,
+              fc_id: ccFcId,
             },
           ]);
 

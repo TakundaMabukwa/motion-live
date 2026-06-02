@@ -124,34 +124,39 @@ function AccountDetailPageContent() {
 
   const fetchCustomerData = async () => {
     try {
-      // Since accountId is now a cost code (like DATA-0001), create a customer object from it
-      const accountPrefix = String(accountId || "").split("-")[0] || "";
+      const accountCode = String(accountId || "");
+      const accountPrefix = accountCode.split("-")[0] || "";
       const isOperationalLookup = lookupMode === "cost_center_code";
       const effectiveAccountNumber =
         isOperationalLookup && sourceAccountNumber
           ? sourceAccountNumber
-          : String(accountId || "");
-      const displayName =
-        isOperationalLookup && operationalSiteName
-          ? operationalSiteName
-          : accountPrefix;
+          : accountCode;
+
+      // Fetch the cost center name from the database
+      let costCenterName = isOperationalLookup && operationalSiteName ? operationalSiteName : accountPrefix;
+      try {
+        const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountCode)}&skip_lock_info=true`, { cache: 'no-store' });
+        if (ccResponse.ok) {
+          const ccData = await ccResponse.json();
+          const centers = Array.isArray(ccData?.costCenters) ? ccData.costCenters : Array.isArray(ccData) ? ccData : [];
+          if (centers.length > 0 && centers[0].company) {
+            costCenterName = centers[0].company;
+          }
+        }
+      } catch (_) {
+        // Fallback to the code-based name
+      }
 
       const customerData = {
-        id: accountId,
+        id: accountCode,
         new_account_number: effectiveAccountNumber,
-        cost_center_code: isOperationalLookup ? String(accountId || "") : null,
-        cost_center_name: operationalSiteName || null,
-        operational_cost_center_code: isOperationalLookup
-          ? String(accountId || "")
-          : null,
-        operational_cost_center_name: operationalSiteName || null,
-        company: displayName, // Show site name for operational lookup context
-        legal_name: isOperationalLookup
-          ? displayName
-          : `${accountPrefix} Cost Center`,
-        trading_name: isOperationalLookup
-          ? displayName
-          : `${accountPrefix} Cost Center`,
+        cost_center_code: isOperationalLookup ? accountCode : null,
+        cost_center_name: costCenterName,
+        operational_cost_center_code: isOperationalLookup ? accountCode : null,
+        operational_cost_center_name: isOperationalLookup ? costCenterName : null,
+        company: costCenterName,
+        legal_name: costCenterName,
+        trading_name: costCenterName,
         email: null,
         cell_no: null,
         switchboard: null,

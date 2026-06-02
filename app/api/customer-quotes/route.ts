@@ -226,51 +226,134 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    
-    // Check authentication
+
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')));
+    const offset = (page - 1) * limit;
     const status = searchParams.get('status');
+    const search = searchParams.get('search');
     const customerName = searchParams.get('customer_name');
     const quoteType = searchParams.get('quote_type');
 
-    let query = supabase
+    // Build filter conditions (shared between data and count queries)
+    const applyFilters = (q: ReturnType<typeof supabase.from<'customer_quotes'>['select']>) => {
+      if (status === 'draft') {
+        q = q.is('job_status', null);
+      } else if (status) {
+        q = q.eq('job_status', status);
+      }
+      if (search) {
+        const pattern = `*${search}*`;
+        q = q.or(
+          `job_number.ilike.${pattern},customer_name.ilike.${pattern},customer_email.ilike.${pattern},vehicle_registration.ilike.${pattern}`
+        );
+      }
+      if (customerName) {
+        q = q.ilike('customer_name', `%${customerName}%`);
+      }
+      if (quoteType) {
+        q = q.eq('quote_type', quoteType);
+      }
+      return q;
+    };
+
+    // Fetch paginated data
+    let dataQuery = supabase
       .from('customer_quotes')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (status) {
-      query = query.eq('status', status);
-    }
-    if (customerName) {
-      query = query.ilike('customer_name', `%${customerName}%`);
-    }
-    if (quoteType) {
-      query = query.eq('quote_type', quoteType);
-    }
+    dataQuery = applyFilters(dataQuery);
+    dataQuery = dataQuery.range(offset, offset + limit - 1);
 
-    const { data, error } = await query;
+    const { data, error } = await dataQuery;
 
     if (error) {
       console.error('Database error:', error);
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'Failed to fetch customer quotes',
-        details: error.message 
+        details: error.message
       }, { status: 500 });
     }
 
+    // Fetch total count for pagination
+    let countQuery = supabase
+      .from('customer_quotes')
+      .select('id', { count: 'exact', head: true });
+
+    countQuery = applyFilters(countQuery as any);
+
+    const { count: total, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('Count query error:', countError);
+    }
+
+    // Fetch summary stats by status (parallel)
+    const summaryStatuses = ['pending', 'approved', 'rejected'];
+    const summaryCounts: Record<string, number> = { draft: 0, pending: 0, approved: 0, rejected: 0 };
+
+    const countResults = await Promise.all(
+      summaryStatuses.map(async (s) => {
+        const { count } = await supabase
+          .from('customer_quotes')
+          .select('id', { count: 'exact', head: true })
+          .eq('job_status', s);
+        return { status: s, count: count ?? 0 };
+      })
+    );
+
+    countResults.forEach(({ status: s, count }) => { summaryCounts[s] = count; });
+
+    // Draft count: job_status is null (new quotes) or 'draft'
+    const { count: draftCount } = await supabase
+      .from('customer_quotes')
+      .select('id', { count: 'exact', head: true })
+      .is('job_status', null);
+    summaryCounts.draft = draftCount ?? 0;
+
+    // Aggregate monetary values for approved and rejected
+    let approvedValue = 0;
+    let declinedValue = 0;
+    const { data: valueRows } = await supabase
+      .from('customer_quotes')
+      .select('job_status, quotation_total_amount')
+      .in('job_status', ['approved', 'rejected']);
+
+    (valueRows || []).forEach((row) => {
+      const val = parseFloat(String(row.quotation_total_amount)) || 0;
+      if (row.job_status === 'approved') {
+        approvedValue += val;
+      } else if (row.job_status === 'rejected') {
+        declinedValue += val;
+      }
+    });
+
     return NextResponse.json({
       success: true,
-      data: data || []
+      data: data || [],
+      pagination: {
+        page,
+        limit,
+        total: total ?? 0,
+        totalPages: total ? Math.ceil(total / limit) : 0
+      },
+      summary: {
+        ...summaryCounts,
+        approvedValue,
+        declinedValue
+      }
     });
 
   } catch (error) {
     console.error('Error fetching customer quotes:', error);
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

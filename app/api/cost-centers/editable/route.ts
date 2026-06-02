@@ -34,11 +34,25 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    // Check if the user is an FC to apply fc_id filtering
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isFcUser = userData?.role === "fc";
+
+    let query = supabase
       .from("cost_centers")
       .select(
         "id, company, legal_name, cost_code, contact_name, email, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code, postal_address_1, postal_address_2, postal_address_3, validated, created_at",
-      )
+      );
+
+    if (isFcUser) {
+      query = query.eq("fc_id", user.id);
+    }
+
+    const { data, error } = await query
       .order("cost_code", { ascending: true });
 
     if (error) {
@@ -72,6 +86,28 @@ export async function PATCH(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    // For FC users, verify ownership before update
+    const { data: patchUserData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (patchUserData?.role === "fc") {
+      const { data: ownerCheck } = await supabase
+        .from("cost_centers")
+        .select("id")
+        .eq("id", id)
+        .eq("fc_id", user.id)
+        .maybeSingle();
+
+      if (!ownerCheck) {
+        return NextResponse.json(
+          { error: "You can only edit your own assigned cost centers" },
+          { status: 403 },
+        );
+      }
     }
 
     const updatePayload = EDITABLE_FIELDS.reduce<Record<string, unknown>>((acc, field) => {
@@ -131,11 +167,33 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "rows are required" }, { status: 400 });
     }
 
+    // For FC users, verify ownership before batch update
+    const { data: putUserData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isPutFcUser = putUserData?.role === "fc";
+
     const updates = await Promise.all(
       rows.map(async (row) => {
         const id = String(row?.id || "").trim();
         if (!id) {
           throw new Error("Each row must include an id");
+        }
+
+        // For FC users, verify each row belongs to them
+        if (isPutFcUser) {
+          const { data: ownerCheck } = await supabase
+            .from("cost_centers")
+            .select("id")
+            .eq("id", id)
+            .eq("fc_id", user.id)
+            .maybeSingle();
+
+          if (!ownerCheck) {
+            throw new Error(`Cost center ${id} is not assigned to you`);
+          }
         }
 
         const updatePayload = EDITABLE_FIELDS.reduce<Record<string, unknown>>((acc, field) => {

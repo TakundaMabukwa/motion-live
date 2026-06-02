@@ -62,10 +62,28 @@ async function attachLockedByEmails(supabase, rows = []) {
 }
 
 const COST_CENTER_SELECT_FIELDS =
-  "id, created_at, company, cost_code, legal_name, contact_name, vat_number, email, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code, postal_address_1, postal_address_2, postal_address_3, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at";
+  "id, created_at, company, cost_code, legal_name, contact_name, vat_number, email, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code, postal_address_1, postal_address_2, postal_address_3, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at, fc_id";
 
 export async function GET(request) {
   try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if the user is an FC to apply fc_id filtering
+    const { data: userData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const isFcUser = userData?.role === "fc";
+
     const { searchParams } = new URL(request.url);
     const accounts = searchParams.get("accounts");
     const prefix = searchParams.get("prefix");
@@ -78,12 +96,16 @@ export async function GET(request) {
       );
     }
 
-    const supabase = await createClient();
+    let baseQuery = supabase
+      .from("cost_centers")
+      .select(COST_CENTER_SELECT_FIELDS);
+
+    if (isFcUser) {
+      baseQuery = baseQuery.eq("fc_id", user.id);
+    }
 
     if (all === "1") {
-      const { data, error } = await supabase
-        .from("cost_centers")
-        .select(COST_CENTER_SELECT_FIELDS)
+      const { data, error } = await baseQuery
         .order("cost_code", { ascending: true });
 
       if (error) {
@@ -104,9 +126,15 @@ export async function GET(request) {
         return NextResponse.json([], { status: 200 });
       }
 
-      const { data, error } = await supabase
+      let prefixQuery = supabase
         .from("cost_centers")
-        .select(COST_CENTER_SELECT_FIELDS)
+        .select(COST_CENTER_SELECT_FIELDS);
+
+      if (isFcUser) {
+        prefixQuery = prefixQuery.eq("fc_id", user.id);
+      }
+
+      const { data, error } = await prefixQuery
         .ilike("cost_code", `${cleanPrefix}-%`)
         .order("cost_code", { ascending: true });
 
@@ -129,9 +157,15 @@ export async function GET(request) {
     console.log("Fetching cost centers for accounts:", accountArray);
 
     // Fetch from cost_centers table where cost_code matches any account number
-    const { data, error } = await supabase
+    let accountQuery = supabase
       .from("cost_centers")
-      .select(COST_CENTER_SELECT_FIELDS)
+      .select(COST_CENTER_SELECT_FIELDS);
+
+    if (isFcUser) {
+      accountQuery = accountQuery.eq("fc_id", user.id);
+    }
+
+    const { data, error } = await accountQuery
       .in("cost_code", accountArray)
       .order("cost_code", { ascending: true });
 
@@ -205,6 +239,15 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const company = (body?.company || "").toString().trim();
     const prefixSource = (body?.prefix_source || body?.client_name || company)
@@ -328,6 +371,14 @@ export async function POST(request) {
       }
     }
 
+    // Auto-assign fc_id if the user is an FC role
+    const { data: postUserData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const fcId = postUserData?.role === "fc" ? user.id : null;
+
     const { data: insertedCenter, error: insertError } = await supabase
       .from("cost_centers")
       .insert([
@@ -335,9 +386,10 @@ export async function POST(request) {
           company,
           cost_code: costCode,
           validated: false,
+          fc_id: fcId,
         },
       ])
-      .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at")
+      .select("id, created_at, company, cost_code, validated, total_amount_locked, total_amount_locked_value, total_amount_locked_by, total_amount_locked_at, fc_id")
       .single();
 
     if (insertError) {

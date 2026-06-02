@@ -89,9 +89,27 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // For FC users, get their assigned cost codes
+    const { data: fcCostCenters } = await supabase
+      .from('cost_centers')
+      .select('cost_code')
+      .eq('fc_id', user.id)
+      .not('cost_code', 'is', null);
+
+    const fcCostCodes = [...new Set(
+      (fcCostCenters || [])
+        .map((cc) => String(cc.cost_code || '').trim())
+        .filter(Boolean)
+    )];
+
+    if (fcCostCodes.length === 0) {
+      return NextResponse.json({ jobs: [], fcUsers: [], total: 0 });
+    }
+
     const { data, error } = await supabase
       .from("job_cards")
       .select(COMPLETED_JOB_FIELDS)
+      .in("new_account_number", fcCostCodes)
       .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc")
       .not("move_to", "ilike", "accounts")
       .order("completion_date", { ascending: false });

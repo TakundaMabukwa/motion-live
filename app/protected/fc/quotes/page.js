@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -27,6 +27,7 @@ import DashboardHeader from "@/components/shared/DashboardHeader";
 import FCSectionNav from "@/components/fc/FCSectionNav";
 import CreateBOIModal from "@/components/fc/CreateBOIModal";
 import { toast } from "sonner";
+import CreateExternalQuoteForm from "@/components/fc/CreateExternalQuoteForm";
 
 export default function QuotesDashboard() {
   const router = useRouter();
@@ -54,6 +55,10 @@ export default function QuotesDashboard() {
     vehicle_make: "",
     vehicle_model: "",
   });
+  const [quoteTab, setQuoteTab] = useState("view");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [summary, setSummary] = useState({ draft: 0, pending: 0, approved: 0, rejected: 0, approvedValue: 0, declinedValue: 0 });
 
   const getQuoteStatus = useCallback((quote) => {
     const raw = String(
@@ -69,16 +74,24 @@ export default function QuotesDashboard() {
     [getQuoteStatus],
   );
 
-  // Fetch quotes from the API
-  const fetchQuotes = useCallback(async () => {
+  // Fetch quotes from the API with pagination and filters
+  const fetchQuotes = useCallback(async (pageNum = 1, search = "", filter = "all") => {
     try {
       setLoading(true);
-      const response = await fetch('/api/customer-quotes');
+      const params = new URLSearchParams();
+      params.set('page', String(pageNum));
+      params.set('limit', '20');
+      if (filter && filter !== 'all') params.set('status', filter);
+      if (search) params.set('search', search);
+
+      const response = await fetch(`/api/customer-quotes?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch quotes');
       }
       const result = await response.json();
       setQuotes(result.data || []);
+      setPagination(result.pagination || { page: 1, limit: 20, total: 0, totalPages: 0 });
+      setSummary(result.summary || { draft: 0, pending: 0, approved: 0, rejected: 0, approvedValue: 0, declinedValue: 0 });
     } catch (error) {
       console.error('Error fetching quotes:', error);
       toast.error('Failed to fetch quotes', {
@@ -90,29 +103,11 @@ export default function QuotesDashboard() {
   }, []);
 
   useEffect(() => {
-    fetchQuotes();
-  }, [fetchQuotes]);
+    fetchQuotes(page, searchTerm, selectedFilter);
+  }, [fetchQuotes, page, searchTerm, selectedFilter]);
 
-  const filteredQuotes = useMemo(() => {
-    let filtered = quotes;
-    
-    // Apply search filter
-    if (searchTerm.trim()) {
-      filtered = filtered.filter(quote =>
-        quote.job_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        quote.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        quote.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        quote.vehicle_registration?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    // Apply status filter
-    if (selectedFilter !== "all") {
-      filtered = filtered.filter((quote) => getQuoteStatus(quote) === selectedFilter);
-    }
-    
-    return filtered;
-  }, [quotes, searchTerm, selectedFilter, getQuoteStatus]);
+  // API handles all filtering; quotes is the current page data
+  const displayedQuotes = quotes;
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -483,8 +478,7 @@ export default function QuotesDashboard() {
   };
 
   const handleNewQuote = useCallback(() => {
-    // Navigate to external quotation page
-    window.location.href = '/protected/fc/external-quotation';
+    setQuoteTab("create");
   }, []);
 
   const handleViewQuote = (quote) => {
@@ -509,17 +503,13 @@ export default function QuotesDashboard() {
     setSelectedQuote(null);
   };
 
-  // Calculate statistics
-  const totalQuotes = quotes.length;
-  const pendingQuotes = quotes.filter((q) => getQuoteStatus(q) === "pending").length;
-  const approvedQuotes = quotes.filter((q) => getQuoteStatus(q) === "approved").length;
-  const declinedQuotes = quotes.filter((q) => getQuoteStatus(q) === "rejected").length;
-  const approvedValue = quotes
-    .filter((q) => getQuoteStatus(q) === "approved")
-    .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
-  const declinedValue = quotes
-    .filter((q) => getQuoteStatus(q) === "rejected")
-    .reduce((sum, q) => sum + (parseFloat(q.quotation_total_amount) || 0), 0);
+  // Calculate statistics from API summary
+  const totalQuotes = summary.draft + summary.pending + summary.approved + summary.rejected;
+  const pendingQuotes = summary.pending;
+  const approvedQuotes = summary.approved;
+  const declinedQuotes = summary.rejected;
+  const approvedValue = summary.approvedValue || 0;
+  const declinedValue = summary.declinedValue || 0;
 
   if (loading) {
     return (
@@ -564,6 +554,32 @@ export default function QuotesDashboard() {
       {/* Main Navigation */}
       <FCSectionNav />
 
+      {/* Tab Navigation */}
+      <div className="flex space-x-1 rounded-lg bg-gray-100 p-1 w-fit">
+        <button
+          onClick={() => { setQuoteTab("view"); setPage(1); }}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            quoteTab === "view"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-gray-600 hover:text-gray-800"
+          }`}
+        >
+          View Existing Quotes
+        </button>
+        <button
+          onClick={() => setQuoteTab("create")}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            quoteTab === "create"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-gray-600 hover:text-gray-800"
+          }`}
+        >
+          Create Quote
+        </button>
+      </div>
+
+      {quoteTab === "view" && (
+        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
@@ -632,7 +648,7 @@ export default function QuotesDashboard() {
             <div className="right-0 z-10 absolute bg-white shadow-lg mt-2 border border-gray-200 rounded-lg w-48">
               <div className="p-2">
                 <button
-                  onClick={() => setSelectedFilter("all")}
+                  onClick={() => { setSelectedFilter("all"); setPage(1); }}
                   className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
                     selectedFilter === "all" ? "bg-blue-50 text-blue-600" : ""
                   }`}
@@ -640,7 +656,7 @@ export default function QuotesDashboard() {
                   All Client Quotes
                 </button>
                 <button
-                  onClick={() => setSelectedFilter("draft")}
+                  onClick={() => { setSelectedFilter("draft"); setPage(1); }}
                   className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
                     selectedFilter === "draft" ? "bg-blue-50 text-blue-600" : ""
                   }`}
@@ -648,7 +664,7 @@ export default function QuotesDashboard() {
                   Draft
                 </button>
                 <button
-                  onClick={() => setSelectedFilter("pending")}
+                  onClick={() => { setSelectedFilter("pending"); setPage(1); }}
                   className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
                     selectedFilter === "pending" ? "bg-blue-50 text-blue-600" : ""
                   }`}
@@ -656,7 +672,7 @@ export default function QuotesDashboard() {
                   Pending
                 </button>
                 <button
-                  onClick={() => setSelectedFilter("approved")}
+                  onClick={() => { setSelectedFilter("approved"); setPage(1); }}
                   className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 ${
                     selectedFilter === "approved" ? "bg-blue-50 text-blue-600" : ""
                   }`}
@@ -667,7 +683,7 @@ export default function QuotesDashboard() {
             </div>
           )}
         </div>
-        <Button onClick={fetchQuotes} variant="outline" className="flex items-center space-x-2">
+        <Button onClick={() => fetchQuotes(page, searchTerm, selectedFilter)} variant="outline" className="flex items-center space-x-2">
           <RefreshCw className="w-4 h-4" />
           <span>Refresh</span>
         </Button>
@@ -682,7 +698,7 @@ export default function QuotesDashboard() {
               type="text"
               placeholder="Search by vehicle reg, customer, or job number..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               className="w-full"
             />
           </div>
@@ -702,7 +718,7 @@ export default function QuotesDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredQuotes.map((quote) => (
+                {displayedQuotes.map((quote) => (
                   <TableRow key={quote.id}>
                     <TableCell className="font-medium">{quote.job_number}</TableCell>
                     <TableCell>
@@ -785,8 +801,35 @@ export default function QuotesDashboard() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            Page {pagination.page} of {pagination.totalPages} ({pagination.total} quotes)
+          </p>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
+              disabled={page >= pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Empty State */}
-      {filteredQuotes.length === 0 && (
+      {!loading && displayedQuotes.length === 0 && (
         <Card>
           <CardContent className="p-8">
             <div className="text-center">
@@ -1244,6 +1287,11 @@ export default function QuotesDashboard() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
+      {quoteTab === "create" && (
+        <CreateExternalQuoteForm />
+      )}
     </div>
   );
 }

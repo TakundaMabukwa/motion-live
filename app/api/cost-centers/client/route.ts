@@ -84,8 +84,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if the user is an FC to apply fc_id filtering
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    const isFcUser = userData?.role === 'fc';
+
     const { searchParams } = new URL(request.url);
     const allNewAccountNumbers = searchParams.get('all_new_account_numbers');
+    const companyName = searchParams.get('company_name') || '';
+    const legalName = searchParams.get('legal_name') || '';
+    const skipLockInfo = searchParams.get('skip_lock_info') === 'true';
 
     if (!allNewAccountNumbers) {
       return NextResponse.json({ error: 'all_new_account_numbers parameter is required' }, { status: 400 });
@@ -111,9 +122,15 @@ export async function GET(request: NextRequest) {
 
     console.log('Deduplicated account numbers:', accountNumbers);
 
-    const { data: exactCostCenters, error } = await supabase
+    let exactQuery = supabase
       .from('cost_centers')
-      .select('*')
+      .select('*');
+
+    if (isFcUser) {
+      exactQuery = exactQuery.eq('fc_id', user.id);
+    }
+
+    const { data: exactCostCenters, error } = await exactQuery
       .in('cost_code', accountNumbers)
       .order('cost_code', { ascending: true });
 
@@ -132,9 +149,15 @@ export async function GET(request: NextRequest) {
 
     if (prefixes.length > 0) {
       const prefixQueries = prefixes.map((prefix) => `cost_code.ilike.${prefix}-%`);
-      const { data: prefixRows, error: prefixError } = await supabase
+      let prefixQuery = supabase
         .from('cost_centers')
-        .select('*')
+        .select('*');
+
+      if (isFcUser) {
+        prefixQuery = prefixQuery.eq('fc_id', user.id);
+      }
+
+      const { data: prefixRows, error: prefixError } = await prefixQuery
         .or(prefixQueries.join(','))
         .order('cost_code', { ascending: true });
 
@@ -198,10 +221,10 @@ export async function GET(request: NextRequest) {
 
     const missingCodes = accountNumbers.filter((code) => !normalizedFoundCodes.has(code));
 
-    let fallbackCompany = '';
-    let fallbackLegalName = '';
+    let fallbackCompany = String(costCenters?.[0]?.company || companyName || '').trim();
+    let fallbackLegalName = legalName || '';
 
-    if (missingCodes.length > 0) {
+    if (missingCodes.length > 0 && !companyName && !legalName) {
       const { data: groupedRows, error: groupedError } = await supabase
         .from('customers_grouped')
         .select('company_group, legal_names, all_new_account_numbers');
@@ -219,10 +242,9 @@ export async function GET(request: NextRequest) {
 
         fallbackCompany = String(
           matchingGroup?.company_group ||
-            costCenters?.[0]?.company ||
-            '',
+            fallbackCompany,
         ).trim();
-        fallbackLegalName = String(matchingGroup?.legal_names || '').trim();
+        fallbackLegalName = String(matchingGroup?.legal_names || legalName || '').trim();
       }
     }
 
@@ -244,7 +266,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const enrichedCostCenters = await attachLockedByEmails(supabase, filledCostCenters);
+    const enrichedCostCenters = skipLockInfo ? filledCostCenters : await attachLockedByEmails(supabase, filledCostCenters);
     const finalCostCenters = enrichedCostCenters.map((row) => ({
       ...row,
       effective_cost_code: getEffectiveCode(row),

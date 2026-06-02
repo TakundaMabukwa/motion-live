@@ -24,6 +24,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // For FC users, verify they have access to this account
+    const { data: fcCostCenter } = await supabase
+      .from('cost_centers')
+      .select('cost_code')
+      .eq('fc_id', user.id)
+      .eq('cost_code', accountNumber)
+      .maybeSingle();
+
+    // Only require FC ownership if the user is an FC role
+    const { data: acctUserData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (acctUserData?.role === 'fc' && !fcCostCenter) {
+      return NextResponse.json(
+        { error: "You don't have access to this account" },
+        { status: 403 },
+      );
+    }
+
     const [jobCardsResponse, clientQuotesResponse] = await Promise.all([
       supabase
         .from("job_cards")

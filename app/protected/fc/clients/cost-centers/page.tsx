@@ -28,6 +28,8 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  ChevronDown,
+  FileText,
   Hash,
   Loader2,
   Plus,
@@ -36,6 +38,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface FCUser {
+  id: string;
+  email: string;
+}
 
 interface CostCenter {
   id: string;
@@ -46,6 +53,7 @@ interface CostCenter {
   cost_center_code?: string | null;
   effective_cost_code?: string | null;
   site_allocated?: string | null;
+  fc_id?: string | null;
 }
 
 interface VehicleSummary {
@@ -170,8 +178,34 @@ function ClientCostCentersContent() {
   const [deleteVehiclesLoading, setDeleteVehiclesLoading] = useState(false);
   const [deleteVehicles, setDeleteVehicles] = useState<VehicleSummary[]>([]);
   const [deleteAction, setDeleteAction] = useState("none");
+  const [fcUserOptions, setFcUserOptions] = useState<FCUser[]>([]);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<CostCenter | null>(null);
+  const [assignFcUserId, setAssignFcUserId] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [jobSummary, setJobSummary] = useState<any>(null);
+  const [jobSummaryLoading, setJobSummaryLoading] = useState(false);
 
   const itemsPerPage = 50;
+
+  const fetchJobSummary = async (accounts: string[]) => {
+    if (accounts.length === 0) return;
+    try {
+      setJobSummaryLoading(true);
+      const response = await fetch(
+        `/api/cost-centers/job-summary?accounts=${encodeURIComponent(accounts.join(","))}`,
+        { cache: 'no-store' },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setJobSummary(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch job summary:", err);
+    } finally {
+      setJobSummaryLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (accountsParam) {
@@ -190,6 +224,7 @@ function ClientCostCentersContent() {
         fetchClientGroupInfo(accounts[0]);
       }
       fetchCostCenters(decodedAccounts);
+      fetchJobSummary(accounts);
     }
   }, [accountsParam]);
 
@@ -213,6 +248,22 @@ function ClientCostCentersContent() {
       console.error("Error fetching grouped client info:", error);
     }
   };
+
+  // Fetch FC users for the assignment dropdown
+  useEffect(() => {
+    const fetchFcUsers = async () => {
+      try {
+        const response = await fetch('/api/fc/users', { cache: 'no-store' });
+        if (response.ok) {
+          const data = await response.json();
+          setFcUserOptions(data.fcUsers || []);
+        }
+      } catch (err) {
+        console.error('Failed to load FC users:', err);
+      }
+    };
+    fetchFcUsers();
+  }, []);
 
   // Filter cost centers based on search term (company only)
   useEffect(() => {
@@ -523,16 +574,55 @@ function ClientCostCentersContent() {
     }
   };
 
+  const handleAssignFc = async () => {
+    if (!assignTarget || !assignFcUserId) return;
+
+    try {
+      setAssignLoading(true);
+      const response = await fetch("/api/cost-centers/assign-fc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          costCenterId: assignTarget.id,
+          fcUserId: assignFcUserId,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to assign FC");
+      }
+
+      toast.success("FC assigned successfully");
+      setAssignDialogOpen(false);
+      setAssignTarget(null);
+      setAssignFcUserId("");
+
+      if (accountsParam) {
+        const decodedAccounts = decodeURIComponent(accountsParam);
+        fetchCostCenters(decodedAccounts);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to assign FC");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
   // Loading skeleton component
   const LoadingSkeleton = () => (
     <div className="bg-gray-50 shadow-sm border border-gray-300 rounded-lg overflow-hidden">
       {/* Table Header Skeleton */}
-      <div className="gap-4 grid grid-cols-3 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
-        <div className="flex justify-center">
+      <div className="gap-4 grid grid-cols-4 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
+        <div className="flex items-center">
           <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
         </div>
-        <div className="flex items-center">
+        <div className="flex justify-center">
           <div className="bg-gray-200 rounded w-20 h-4 animate-pulse"></div>
+        </div>
+        <div className="flex justify-center">
+          <div className="bg-gray-200 rounded w-24 h-4 animate-pulse"></div>
         </div>
         <div className="flex justify-end">
           <div className="bg-gray-200 rounded w-16 h-4 animate-pulse"></div>
@@ -544,7 +634,7 @@ function ClientCostCentersContent() {
         {Array.from({ length: 5 }).map((_, index) => (
           <div
             key={index}
-            className="gap-4 grid grid-cols-3 bg-white px-6 py-2"
+            className="gap-4 grid grid-cols-4 bg-white px-6 py-2"
           >
             {/* Cost Center Column Skeleton */}
             <div className="flex items-center">
@@ -556,6 +646,11 @@ function ClientCostCentersContent() {
               <div>
                 <div className="bg-gray-200 rounded w-20 h-4 animate-pulse"></div>
               </div>
+            </div>
+
+            {/* FC Column Skeleton */}
+            <div className="flex justify-center items-center">
+              <div className="bg-gray-200 rounded w-24 h-4 animate-pulse"></div>
             </div>
 
             {/* Actions Column Skeleton */}
@@ -748,6 +843,106 @@ function ClientCostCentersContent() {
           </div>
         </div>
 
+        {/* Job Summary Section */}
+        <div className="mb-6">
+          <div className="bg-white shadow-sm border border-gray-200 rounded-lg overflow-hidden">
+            <div
+              className="flex justify-between items-center px-6 py-4 hover:bg-gray-50 cursor-pointer select-none"
+              onClick={() => setJobSummary(jobSummary ? { ...jobSummary, _collapsed: !jobSummary._collapsed } : null)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex justify-center items-center bg-purple-100 rounded-lg w-10 h-10">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900 text-lg">Job Products Summary</h2>
+                  <p className="text-gray-500 text-sm">
+                    Breakdown of installed/deinstalled items across cost centers in the last month
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {jobSummary && !jobSummaryLoading && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-green-600">{jobSummary.installJobs} installs</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-red-600">{jobSummary.deinstallJobs} deinstalls</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-gray-500">{jobSummary.productCount} unique items</span>
+                  </div>
+                )}
+                {jobSummaryLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                ) : (
+                  <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${jobSummary?._collapsed ? '-rotate-90' : ''}`} />
+                )}
+              </div>
+            </div>
+
+            {(!jobSummary?._collapsed && jobSummary) && (
+              <div className="px-6 pb-4 border-gray-200 border-t">
+                {/* Summary Stats Cards */}
+                <div className="gap-4 grid grid-cols-4 my-4">
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <div className="font-bold text-green-700 text-2xl">{jobSummary.installJobs}</div>
+                    <div className="text-green-600 text-xs">Install Jobs</div>
+                  </div>
+                  <div className="bg-red-50 p-3 rounded-lg">
+                    <div className="font-bold text-red-700 text-2xl">{jobSummary.deinstallJobs}</div>
+                    <div className="text-red-600 text-xs">Deinstall Jobs</div>
+                  </div>
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <div className="font-bold text-blue-700 text-2xl">{jobSummary.totalJobs}</div>
+                    <div className="text-blue-600 text-xs">Total Jobs</div>
+                  </div>
+                  <div className="bg-purple-50 p-3 rounded-lg">
+                    <div className="font-bold text-purple-700 text-2xl">{jobSummary.productCount}</div>
+                    <div className="text-purple-600 text-xs">Unique Products</div>
+                  </div>
+                </div>
+
+                {/* Products Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-gray-200 border-b">
+                        <th className="py-2 pr-4 text-left font-medium text-gray-600 whitespace-nowrap">Product Name</th>
+                        <th className="py-2 px-4 text-left font-medium text-gray-600 whitespace-nowrap">Type</th>
+                        <th className="py-2 px-4 text-center font-medium text-gray-600 whitespace-nowrap">Installed</th>
+                        <th className="py-2 px-4 text-center font-medium text-gray-600 whitespace-nowrap">Deinstalled</th>
+                        <th className="py-2 px-4 text-center font-medium text-gray-600 whitespace-nowrap">Qty</th>
+                        <th className="py-2 px-4 text-right font-medium text-gray-600 whitespace-nowrap">Cash</th>
+                        <th className="py-2 px-4 text-right font-medium text-gray-600 whitespace-nowrap">Rental</th>
+                        <th className="py-2 px-4 text-right font-medium text-gray-600 whitespace-nowrap">Subscription</th>
+                        <th className="py-2 px-4 text-right font-medium text-gray-600 whitespace-nowrap">Install Gross</th>
+                        <th className="py-2 px-4 text-center font-medium text-gray-600 whitespace-nowrap">Vehicles</th>
+                        <th className="py-2 pl-4 text-center font-medium text-gray-600 whitespace-nowrap">Jobs</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {jobSummary.products.map((p: any, i: number) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="py-2 pr-4 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
+                          <td className="py-2 px-4 text-gray-500 whitespace-nowrap">{p.category || p.type}</td>
+                          <td className="py-2 px-4 text-center text-green-600">{p.installCount || '-'}</td>
+                          <td className="py-2 px-4 text-center text-red-600">{p.deinstallCount || '-'}</td>
+                          <td className="py-2 px-4 text-center font-medium">{p.totalQuantity}</td>
+                          <td className="py-2 px-4 text-right font-mono text-xs">R {p.totalCashGross.toFixed(2)}</td>
+                          <td className="py-2 px-4 text-right font-mono text-xs">R {p.totalRentalGross.toFixed(2)}</td>
+                          <td className="py-2 px-4 text-right font-mono text-xs">R {p.totalSubscriptionGross.toFixed(2)}</td>
+                          <td className="py-2 px-4 text-right font-mono text-xs">R {p.totalInstallationGross.toFixed(2)}</td>
+                          <td className="py-2 px-4 text-center text-xs text-gray-500">{p.vehicleCount}</td>
+                          <td className="py-2 pl-4 text-center text-xs text-gray-500">{p.jobCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Table */}
         <div className="bg-gray-50 shadow-sm border border-gray-300 rounded-lg overflow-hidden">
           {(() => {
@@ -785,7 +980,7 @@ function ClientCostCentersContent() {
             ) : (
               <>
                 {/* Table Header */}
-                <div className="gap-4 grid grid-cols-3 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
+                <div className="gap-4 grid grid-cols-4 bg-blue-50 shadow-sm px-6 py-2 border-gray-200 border-b">
                   <div className="flex items-center">
                     <span className="font-medium text-gray-700 text-sm">
                       Cost Center
@@ -794,6 +989,11 @@ function ClientCostCentersContent() {
                   <div className="text-center">
                     <span className="font-medium text-gray-700 text-sm">
                       Cost Code
+                    </span>
+                  </div>
+                  <div className="text-center">
+                    <span className="font-medium text-gray-700 text-sm">
+                      Assigned FC
                     </span>
                   </div>
                   <div className="text-right">
@@ -808,7 +1008,7 @@ function ClientCostCentersContent() {
                   {paginatedCostCenters.map((costCenter) => (
                     <div
                       key={costCenter.id}
-                      className="gap-4 grid grid-cols-3 bg-white hover:bg-gray-50 px-6 py-2 transition-colors"
+                      className="gap-4 grid grid-cols-4 bg-white hover:bg-gray-50 px-6 py-2 transition-colors"
                     >
                       {/* Cost Center Column */}
                       <div className="flex items-center">
@@ -826,9 +1026,40 @@ function ClientCostCentersContent() {
                         </div>
                       </div>
 
+                      {/* FC Assignment Column */}
+                      <div className="flex justify-center items-center">
+                        {costCenter.fc_id ? (
+                          <span className="inline-flex items-center bg-blue-100 px-2 py-1 rounded-full text-blue-800 text-xs">
+                            {fcUserOptions.find((u) => u.id === costCenter.fc_id)?.email || "Assigned"}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center bg-gray-100 px-2 py-1 rounded-full text-gray-500 text-xs">
+                            Not assigned
+                          </span>
+                        )}
+                      </div>
+
                       {/* Actions Column */}
                       <div className="flex justify-end items-center">
                         <div className="flex items-center gap-2">
+                          {costCenter.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setAssignTarget(costCenter);
+                                setAssignFcUserId(costCenter.fc_id || "");
+                                setAssignDialogOpen(true);
+                              }}
+                              className={
+                                costCenter.fc_id
+                                  ? "hover:bg-blue-50 text-blue-600 hover:text-blue-700"
+                                  : "hover:bg-amber-50 text-amber-600 hover:text-amber-700"
+                              }
+                            >
+                              {costCenter.fc_id ? "Change FC" : "Assign FC"}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1135,6 +1366,89 @@ function ClientCostCentersContent() {
                 <Trash2 className="mr-2 w-4 h-4" />
               )}
               {deleteLoading ? "Deleting..." : "Delete Cost Center"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={assignDialogOpen}
+        onOpenChange={(open) => {
+          if (!assignLoading) {
+            setAssignDialogOpen(open);
+            if (!open) {
+              setAssignTarget(null);
+              setAssignFcUserId("");
+            }
+          }
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Assign FC to Cost Center</DialogTitle>
+            <DialogDescription>
+              Select an FC user to assign to{" "}
+              <span className="font-medium text-slate-900">
+                {assignTarget?.cost_code || "this cost center"}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-slate-50 p-3">
+              <div className="font-medium text-slate-900">
+                {assignTarget?.company || "N/A"}
+              </div>
+              <div className="text-slate-600 text-sm">
+                {assignTarget?.cost_code || ""}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="assign-fc-user">FC User</Label>
+              <select
+                id="assign-fc-user"
+                value={assignFcUserId}
+                onChange={(e) => setAssignFcUserId(e.target.value)}
+                className="border border-gray-300 rounded-md w-full h-10 px-3 text-sm"
+                disabled={assignLoading}
+              >
+                <option value="">Select an FC user...</option>
+                {fcUserOptions.map((fc) => (
+                  <option key={fc.id} value={fc.id}>
+                    {fc.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAssignDialogOpen(false);
+                setAssignTarget(null);
+                setAssignFcUserId("");
+              }}
+              disabled={assignLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAssignFc}
+              disabled={assignLoading || !assignFcUserId}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {assignLoading ? (
+                <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+              ) : null}
+              {assignLoading ? "Assigning..." : "Assign"}
             </Button>
           </DialogFooter>
         </DialogContent>

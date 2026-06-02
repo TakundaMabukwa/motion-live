@@ -1,0 +1,786 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Search, RefreshCw, Loader2,
+  Briefcase, CheckCircle2, Clock, AlertTriangle, Users,
+  Eye, FileEdit, Edit, Car,
+  ArrowUpDown, Activity,
+} from "lucide-react";
+import { toast } from "sonner";
+import InvoiceJobModal from "./InvoiceJobModal";
+
+const JOB_TABS = [
+  { id: "not-completed", label: "Not Completed" },
+  { id: "completed", label: "Completed" },
+];
+
+const parseProducts = (val) => {
+  if (Array.isArray(val)) return val;
+  if (typeof val === "string") { try { return JSON.parse(val); } catch { return []; } }
+  return [];
+};
+
+const toFiniteNumber = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const formatCurrency = (v) => {
+  const n = toFiniteNumber(v);
+  return n === 0 ? "N/A" : `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const formatMoney = (v) => toFiniteNumber(v).toFixed(2);
+const toStringSafe = (v) => (v === null || v === undefined ? "" : String(v));
+const getPreferredPriceField = (p) => {
+  const type = (p.purchase_type || "").toLowerCase();
+  const fields = type === "cash" ? ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"]
+    : type === "rental" ? ["rental_price","subscription_price","cash_price","installation_price","de_installation_price"]
+    : type === "subscription" ? ["subscription_price","rental_price","cash_price","installation_price","de_installation_price"]
+    : type === "installation" ? ["installation_price","cash_price","rental_price","subscription_price","de_installation_price"]
+    : type === "de_installation" || type === "de-installation"
+      ? ["de_installation_price","installation_price","cash_price","rental_price","subscription_price"]
+      : ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
+  return fields.find((f) => toFiniteNumber(p[f]) > 0) || fields[0];
+};
+const getProductLineTotal = (p) => {
+  const t = toFiniteNumber(p.total_price);
+  if (t > 0) return t;
+  const q = Math.max(0, toFiniteNumber(p.quantity) || 0);
+  const price = toFiniteNumber(p[getPreferredPriceField(p)]);
+  return Number((q * price).toFixed(2));
+};
+const PRICE_FIELDS = ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
+
+export default function JobsTab() {
+  const router = useRouter();
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [jobTab, setJobTab] = useState("not-completed");
+
+  // Edit & Finalize dialog
+  const [editingJob, setEditingJob] = useState(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+
+  // Invoice modal
+  const [showFinalInvoiceModal, setShowFinalInvoiceModal] = useState(false);
+
+  // Edit dialog 4-tab state
+  const [editDialogTab, setEditDialogTab] = useState("overview");
+  const [formData, setFormData] = useState({
+    vehicle_registration: "", order_number: "", vehicle_make: "", vehicle_model: "",
+    vehicle_year: "", vin_number: "", odormeter: "", ip_address: "", job_location: "",
+    site_contact_person: "", site_contact_phone: "",
+    quotation_subtotal: "0.00", quotation_vat_amount: "0.00", quotation_total_amount: "0.00",
+    estimated_cost: "", actual_cost: "", work_notes: "", completion_notes: "",
+    special_instructions: "", customer_feedback: "",
+  });
+  const [editableProducts, setEditableProducts] = useState([]);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState(null);
+  const [movingJobId, setMovingJobId] = useState(null);
+
+  const isMounted = useRef(true);
+  useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; }; }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchJobs = useCallback(async (search = "") => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      const response = await fetch(`/api/fc/jobs?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to fetch jobs");
+      const data = await response.json();
+      if (isMounted.current) setJobs(data.jobs || []);
+    } catch (err) {
+      console.error("Error fetching jobs:", err);
+      toast.error("Failed to load jobs");
+    } finally {
+      if (isMounted.current) { setLoading(false); setRefreshing(false); }
+    }
+  }, []);
+
+  useEffect(() => { fetchJobs(debouncedSearch); }, [debouncedSearch, fetchJobs]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchJobs(debouncedSearch);
+  };
+
+  const handleMoveJob = useCallback(async (job, destination) => {
+    if (!job?.id || !destination) return;
+    setMovingJobId(job.id);
+    const destLabel = destination === "inv" ? "Inventory" : destination === "fc" ? "FC" : "Admin Awaiting Technician";
+    const loadingToast = toast.loading(`Moving job to ${destLabel}...`);
+    try {
+      const response = await fetch(`/api/job-cards/${job.id}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destination,
+          ...(destination === "fc" ? { preserveCompleted: true } : {}),
+          ...(destination === "inv" ? { inventoryPlacement: "assign-parts" } : {}),
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `Failed to move job to ${destLabel}`);
+      }
+      toast.dismiss(loadingToast);
+      toast.success(`Job moved to ${destLabel}`);
+      await fetchJobs(debouncedSearch);
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error(error.message || `Failed to move job to ${destLabel}`);
+    } finally {
+      setMovingJobId(null);
+    }
+  }, [fetchJobs, debouncedSearch]);
+
+  const isJobCompleted = useCallback((job) => {
+    const s = String(job.status || job.job_status || "").toLowerCase().trim();
+    return s === "completed";
+  }, []);
+
+  const filteredJobs = useMemo(() => {
+    const visible = jobs.filter((j) => {
+      const s = String(j.status || j.job_status || "").toLowerCase().trim();
+      return s !== "invoiced";
+    });
+    if (jobTab === "completed") return visible.filter((j) => isJobCompleted(j));
+    return visible.filter((j) => !isJobCompleted(j));
+  }, [jobs, jobTab, isJobCompleted]);
+
+  const filteredJobsSearch = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return filteredJobs;
+    return filteredJobs.filter((j) =>
+      [j.job_number, j.customer_name, j.vehicle_registration, j.job_description, j.new_account_number]
+        .filter(Boolean).join(" ").toLowerCase().includes(q),
+    );
+  }, [filteredJobs, searchTerm]);
+
+  const metrics = useMemo(() => {
+    const list = filteredJobsSearch;
+    const total = list.length;
+    let completed = 0, inProgress = 0, pending = 0, unassigned = 0;
+    for (const j of list) {
+      const s = String(j.status || j.job_status || "").toLowerCase().trim();
+      if (s === "completed") completed++;
+      else if (s === "in progress" || s === "processing") inProgress++;
+      else if (!s || s === "pending" || s === "new") pending++;
+      if (!j.assigned_technician_id) unassigned++;
+    }
+    return { total, completed, inProgress, pending, unassigned };
+  }, [filteredJobsSearch]);
+
+  const handleViewJob = (job) => router.push(`/protected/fc/jobs/${job.id}/edit?source=jobs`);
+
+  const handleEditAndFinalize = useCallback((job) => {
+    setEditingJob(job);
+    setFinalizeError(null);
+    setEditDialogTab("overview");
+    const products = parseProducts(job.quotation_products).map((p) => ({ ...p }));
+    const prods = products.map((p) => {
+      const qty = Math.max(1, Number(p.quantity) || 1);
+      const price = toFiniteNumber(p[getPreferredPriceField(p)]);
+      return { ...p, quantity: qty, total_price: price > 0 ? Number((qty * price).toFixed(2)) : 0 };
+    });
+    setEditableProducts(prods);
+    const sub = prods.reduce((s, p) => s + Number(p.total_price || 0), 0);
+    setFormData({
+      vehicle_registration: String(job.vehicle_registration || ""),
+      order_number: String(job.order_number || ""),
+      vehicle_make: String(job.vehicle_make || ""),
+      vehicle_model: String(job.vehicle_model || ""),
+      vehicle_year: String(job.vehicle_year ?? ""),
+      vin_number: String(job.vin_numer || ""),
+      odormeter: String(job.odormeter || ""),
+      ip_address: String(job.ip_address || ""),
+      job_location: String(job.job_location || ""),
+      site_contact_person: String(job.site_contact_person || ""),
+      site_contact_phone: String(job.site_contact_phone || ""),
+      quotation_subtotal: sub.toFixed(2),
+      quotation_vat_amount: "0.00",
+      quotation_total_amount: sub.toFixed(2),
+      estimated_cost: String(job.estimated_cost ?? ""),
+      actual_cost: String(job.actual_cost ?? ""),
+      work_notes: String(job.work_notes || ""),
+      completion_notes: String(job.completion_notes || ""),
+      special_instructions: String(job.special_instructions || ""),
+      customer_feedback: String(job.customer_feedback || ""),
+    });
+    setShowEditDialog(true);
+  }, []);
+
+  const updateFormField = useCallback((field, value) => {
+    setFinalizeError(null);
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSubtotalChange = useCallback((value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) { updateFormField("quotation_subtotal", value); return; }
+    setFormData((prev) => ({ ...prev, quotation_subtotal: value, quotation_vat_amount: "0.00", quotation_total_amount: n.toFixed(2) }));
+  }, [updateFormField]);
+
+  const syncTotalsFromProducts = useCallback((products) => {
+    const subtotal = products.reduce((s, p) => s + getProductLineTotal(p), 0);
+    setFormData((prev) => ({
+      ...prev,
+      quotation_subtotal: formatMoney(subtotal),
+      quotation_vat_amount: "0.00",
+      quotation_total_amount: formatMoney(subtotal),
+    }));
+  }, []);
+
+  const handleProductFieldChange = useCallback((index, field, value) => {
+    setEditableProducts((prev) => {
+      const next = [...prev];
+      const current = { ...next[index] };
+      if (!current) return prev;
+      if (field === "quantity") {
+        const qty = Math.max(0, toFiniteNumber(value));
+        current.quantity = qty;
+        const price = toFiniteNumber(current[getPreferredPriceField(current)]);
+        current.total_price = Number((qty * price).toFixed(2));
+      } else if (PRICE_FIELDS.includes(field)) {
+        const price = Math.max(0, toFiniteNumber(value));
+        current[field] = price;
+        const qty = Math.max(1, toFiniteNumber(current.quantity) || 1);
+        current.quantity = qty;
+        current.total_price = Number((qty * price).toFixed(2));
+      } else if (field === "total_price") {
+        current.total_price = Math.max(0, toFiniteNumber(value));
+      } else {
+        current[field] = value;
+      }
+      next[index] = current;
+      syncTotalsFromProducts(next);
+      return next;
+    });
+  }, [syncTotalsFromProducts]);
+
+  const handleFinalizeClick = useCallback(() => {
+    setShowEditDialog(false);
+    setShowFinalInvoiceModal(true);
+  }, []);
+
+  const handleRefreshJobsAfterInvoice = useCallback(() => {
+    setEditingJob(null);
+    setShowFinalInvoiceModal(false);
+    handleRefresh();
+  }, []);
+
+  return (
+    <div className="min-w-0 w-full space-y-4">
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-1 border-b border-slate-200">
+        {JOB_TABS.map((tab) => (
+          <button
+            key={tab.id} type="button" onClick={() => setJobTab(tab.id)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              jobTab === tab.id ? "border-blue-500 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+            }`}
+          >{tab.label}</button>
+        ))}
+      </div>
+
+      {/* Metrics cards */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {[
+          { label: "Total", value: metrics.total, icon: Briefcase, bg: "bg-blue-100 text-blue-700" },
+          { label: "Completed", value: metrics.completed, icon: CheckCircle2, bg: "bg-green-100 text-green-700" },
+          { label: "In Progress", value: metrics.inProgress, icon: Clock, bg: "bg-amber-100 text-amber-700" },
+          { label: "Pending", value: metrics.pending, icon: AlertTriangle, bg: "bg-purple-100 text-purple-700" },
+          { label: "Unassigned", value: metrics.unassigned, icon: Users, bg: "bg-slate-100 text-slate-700" },
+        ].map((m) => {
+          const Icon = m.icon;
+          return (
+            <Card key={m.label} className="border-slate-200 shadow-sm">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{m.label}</span>
+                  <div className={`flex justify-center items-center rounded-lg w-7 h-7 ${m.bg}`}><Icon className="w-4 h-4" /></div>
+                </div>
+                <p className="mt-1 text-xl font-bold leading-none text-slate-900">{m.value}</p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Search + Refresh */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+            {jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {jobTab === "completed" ? "Jobs that have been completed and are ready for invoicing." : "Jobs currently in progress or pending assignment."}
+          </p>
+        </div>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+          <div className="relative min-w-0 w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search jobs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-10 w-full border-slate-200 pl-10 text-sm"
+            />
+          </div>
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 w-full shrink-0 border-slate-200 sm:w-auto">
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Mobile card layout */}
+      <div className="divide-y divide-slate-100 lg:hidden">
+        {loading ? (
+          <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
+        ) : filteredJobsSearch.length === 0 ? (
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "completed" : "active"} jobs found.</p></div>
+        ) : filteredJobsSearch.map((job) => {
+          const sb = ((s) => {
+            const st = String(s || "").toLowerCase().trim();
+            if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+            if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
+            if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
+            return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
+          })(job.status || job.job_status);
+
+          return (
+            <div key={job.id} className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-base text-slate-900">{job.job_number || "N/A"}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">{job.new_account_number || "No account"}</p>
+                  <p className="mt-2 font-medium text-slate-900">{job.customer_name || "N/A"}</p>
+                </div>
+                <Badge variant="outline" className={`shrink-0 border px-2 py-0.5 text-xs font-semibold ${sb.cls}`}>{sb.label}</Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Vehicle</p>
+                  <p className="mt-1 font-medium text-slate-900">{job.vehicle_registration || "N/A"}</p>
+                  <p className="truncate text-xs text-slate-500">{job.vehicle_make || ""} {job.vehicle_model || ""}</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Created</p>
+                  <p className="mt-1 font-medium text-slate-900">
+                    {job.created_at ? new Date(job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) : "N/A"}
+                  </p>
+                  <p className="text-xs text-slate-500">{job.job_type || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleViewJob(job)} className="h-8 text-xs flex-1">
+                  <Eye className="mr-1 w-3.5 h-3.5" /> View
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
+                  <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden lg:block">
+        <CardHeader className="border-b border-slate-100 pb-3">
+          <CardTitle className="text-base">{jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
+          ) : filteredJobsSearch.length === 0 ? (
+            <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "completed" : "active"} jobs found.</p></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[960px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80">
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500"><span className="inline-flex items-center gap-1">Job # <ArrowUpDown className="h-3 w-3" /></span></th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Customer</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Vehicle</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Account</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Type</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Created</th>
+                    <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredJobsSearch.map((job) => {
+                    const sb = ((s) => {
+                      const st = String(s || "").toLowerCase().trim();
+                      if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+                      if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
+                      if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
+                      return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
+                    })(job.status || job.job_status);
+
+                    return (
+                      <tr key={job.id} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
+                        <td className="px-3 py-2">
+                          <div className="font-semibold text-slate-900">{job.job_number || "N/A"}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="max-w-[180px] truncate font-medium text-slate-900">{job.customer_name || "N/A"}</div>
+                          <div className="max-w-[180px] truncate text-[11px] text-slate-500">{job.customer_email || job.customer_phone || ""}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="font-medium text-slate-900">{job.vehicle_registration || "N/A"}</div>
+                          <div className="truncate text-[11px] text-slate-500">{job.vehicle_make || ""} {job.vehicle_model || ""}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <span className="font-mono text-[11px]">{job.new_account_number || "N/A"}</span>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">{job.job_type || "-"}</td>
+                        <td className="px-3 py-2 text-slate-700">
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant="outline" className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold ${sb.cls}`}>{sb.label}</Badge>
+                            {job.escalation_role && String(job.escalation_role).toLowerCase() === "fc" && (
+                              <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700">Escalated</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">
+                          {job.created_at ? new Date(job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => handleViewJob(job)} className="hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-7 px-2 text-[11px]">
+                              <Eye className="mr-1 w-3 h-3" /> View
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
+                              <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
+                            </Button>
+                            <Select disabled={movingJobId === job.id} onValueChange={(value) => handleMoveJob(job, value)}>
+                              <SelectTrigger className="h-7 w-[100px] text-[11px]">
+                                <SelectValue placeholder={movingJobId === job.id ? "Moving..." : "Move to"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="fc">FC</SelectItem>
+                                <SelectItem value="inv">Inventory</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ===== EDIT & FINALIZE DIALOG ===== */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setEditingJob(null); } }}>
+        <DialogContent className="max-h-[92vh] max-w-[96vw] overflow-y-auto xl:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Edit className="w-5 h-5" /> Edit &amp; Finalize - {editingJob?.job_number || editingJob?.id || ""}</DialogTitle>
+          </DialogHeader>
+          {editingJob && (
+            <div className="space-y-6">
+              <Tabs value={editDialogTab} onValueChange={(v) => setEditDialogTab(v)} className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="vehicle">Vehicle and Site</TabsTrigger>
+                  <TabsTrigger value="pricing">Pricing and Notes</TabsTrigger>
+                  <TabsTrigger value="finalize">Finalize</TabsTrigger>
+                </TabsList>
+
+                {/* ===== TAB 1: OVERVIEW ===== */}
+                <TabsContent value="overview" className="space-y-4">
+                  <Card>
+                    <CardHeader><CardTitle className="text-lg">Job Snapshot</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                      <p><strong>Job Number:</strong> {editingJob.job_number || "N/A"}</p>
+                      <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
+                      <p><strong>Account:</strong> {editingJob.new_account_number || "N/A"}</p>
+                      <p><strong>Job Type:</strong> {editingJob.job_type || "N/A"}</p>
+                      <p><strong>Quote:</strong> {editingJob.quotation_number || "N/A"}</p>
+                      <p><strong>Quote Status:</strong> {editingJob.quote_status || "N/A"}</p>
+                      <p><strong>Current Total:</strong> {formatCurrency(formData.quotation_total_amount)}</p>
+                      <p><strong>Products:</strong> {editableProducts.length}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader><CardTitle className="text-lg">Quotation Products</CardTitle></CardHeader>
+                    <CardContent>
+                      {editableProducts.length === 0 ? (
+                        <p className="text-sm text-gray-500">No quotation products available</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[860px]">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Item</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Qty</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Purchase Type</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Subscription</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Install</th>
+                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {editableProducts.map((p, i) => (
+                                <tr key={p.id || i}>
+                                  <td className="px-3 py-2 text-sm text-gray-900">{p.name || p.description || `Item ${i + 1}`}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.quantity) || "N/A"}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{p.purchase_type || "N/A"}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.subscription_price) || "N/A"}</td>
+                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.installation_price) || "N/A"}</td>
+                                  <td className="px-3 py-2 text-sm font-medium text-gray-900">{toStringSafe(p.total_price) || "N/A"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* ===== TAB 2: VEHICLE AND SITE ===== */}
+                <TabsContent value="vehicle" className="space-y-4">
+                  <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Car className="w-5 h-5" /> Vehicle and Site Information</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_registration">Vehicle Registration *</Label>
+                        <Input id="vehicle_registration" value={formData.vehicle_registration} onChange={(e) => updateFormField("vehicle_registration", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_make">Vehicle Make</Label>
+                        <Input id="vehicle_make" value={formData.vehicle_make} onChange={(e) => updateFormField("vehicle_make", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_model">Vehicle Model</Label>
+                        <Input id="vehicle_model" value={formData.vehicle_model} onChange={(e) => updateFormField("vehicle_model", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vehicle_year">Vehicle Year</Label>
+                        <Input id="vehicle_year" type="number" value={formData.vehicle_year} onChange={(e) => updateFormField("vehicle_year", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="vin_number">VIN Number</Label>
+                        <Input id="vin_number" value={formData.vin_number} onChange={(e) => updateFormField("vin_number", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="odormeter">Odometer</Label>
+                        <Input id="odormeter" value={formData.odormeter} onChange={(e) => updateFormField("odormeter", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ip_address">IP Address</Label>
+                        <Input id="ip_address" value={formData.ip_address} onChange={(e) => updateFormField("ip_address", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="job_location">Job Location</Label>
+                        <Input id="job_location" value={formData.job_location} onChange={(e) => updateFormField("job_location", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="site_contact_person">Site Contact Person</Label>
+                        <Input id="site_contact_person" value={formData.site_contact_person} onChange={(e) => updateFormField("site_contact_person", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="site_contact_phone">Site Contact Phone</Label>
+                        <Input id="site_contact_phone" value={formData.site_contact_phone} onChange={(e) => updateFormField("site_contact_phone", e.target.value)} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* ===== TAB 3: PRICING AND NOTES ===== */}
+                <TabsContent value="pricing" className="space-y-4">
+                  <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg">Pricing, Quote and Notes</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      {editableProducts.length > 0 && (
+                        <div className="md:col-span-2 space-y-4 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                          <div>
+                            <h4 className="font-medium text-gray-900">Quotation Items</h4>
+                            <p className="text-sm text-gray-600">Update the item pricing fields below. Totals above will roll up from all items automatically.</p>
+                          </div>
+                          <div className="space-y-4">
+                            {editableProducts.map((p, i) => {
+                              const activeField = getPreferredPriceField(p);
+                              return (
+                                <div key={p.id || i} className="rounded-lg border bg-white p-4">
+                                  <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                      <p className="font-medium text-gray-900">{p.name || `Item ${i + 1}`}</p>
+                                      <p className="text-sm text-gray-600">{p.description || "No description"}</p>
+                                    </div>
+                                    <div className="text-sm text-gray-600">
+                                      <p><strong>Purchase Type:</strong> {p.purchase_type || "N/A"}</p>
+                                      <p><strong>Category:</strong> {p.category || "N/A"}</p>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                    <div className="space-y-2">
+                                      <Label>Quantity</Label>
+                                      <Input type="number" min="0" step="1" value={toStringSafe(p.quantity || 1)} onChange={(e) => handleProductFieldChange(i, "quantity", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Active Price ({activeField.replace(/_/g, " ")})</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p[activeField] ?? "")} onChange={(e) => handleProductFieldChange(i, activeField, e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Total Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.total_price ?? "")} onChange={(e) => handleProductFieldChange(i, "total_price", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Subscription Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.subscription_price ?? "")} onChange={(e) => handleProductFieldChange(i, "subscription_price", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Rental Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.rental_price ?? "")} onChange={(e) => handleProductFieldChange(i, "rental_price", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Cash Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.cash_price ?? "")} onChange={(e) => handleProductFieldChange(i, "cash_price", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Installation Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "installation_price", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>De-installation Price</Label>
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.de_installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "de_installation_price", e.target.value)} />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor="quotation_subtotal">Quotation Subtotal</Label>
+                        <Input id="quotation_subtotal" type="number" step="0.01" value={formData.quotation_subtotal} onChange={(e) => handleSubtotalChange(e.target.value)} readOnly={editableProducts.length > 0} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
+                        <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} onChange={(e) => updateFormField("quotation_total_amount", e.target.value)} readOnly={editableProducts.length > 0} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="estimated_cost">Estimated Cost</Label>
+                        <Input id="estimated_cost" type="number" step="0.01" value={formData.estimated_cost} onChange={(e) => updateFormField("estimated_cost", e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="actual_cost">Actual Cost</Label>
+                        <Input id="actual_cost" type="number" step="0.01" value={formData.actual_cost} onChange={(e) => updateFormField("actual_cost", e.target.value)} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="work_notes">Work Notes</Label>
+                        <Textarea id="work_notes" value={formData.work_notes} onChange={(e) => updateFormField("work_notes", e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="completion_notes">Completion Notes</Label>
+                        <Textarea id="completion_notes" value={formData.completion_notes} onChange={(e) => updateFormField("completion_notes", e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="special_instructions">Special Instructions</Label>
+                        <Textarea id="special_instructions" value={formData.special_instructions} onChange={(e) => updateFormField("special_instructions", e.target.value)} rows={3} />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="customer_feedback">Customer Feedback</Label>
+                        <Textarea id="customer_feedback" value={formData.customer_feedback} onChange={(e) => updateFormField("customer_feedback", e.target.value)} rows={2} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* ===== TAB 4: FINALIZE ===== */}
+                <TabsContent value="finalize" className="space-y-4">
+                  <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-5 h-5 text-green-600" /> Finalize and Generate Invoice</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="order_number">Order Number</Label>
+                        <Input id="order_number" value={formData.order_number} onChange={(e) => updateFormField("order_number", e.target.value)} placeholder="Order number (Optional)" />
+                        <p className="text-sm text-gray-500">Optional. Leave blank if there is no order number yet.</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 p-4">
+                        <h4 className="mb-2 font-medium text-blue-900">Final Review</h4>
+                        <div className="grid grid-cols-1 gap-1 text-sm text-blue-900 md:grid-cols-2">
+                          <p><strong>Job:</strong> {editingJob.job_number || editingJob.id}</p>
+                          <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
+                          <p><strong>Account Code:</strong> {editingJob.new_account_number || "N/A"}</p>
+                          <p><strong>Order Number:</strong> {formData.order_number || "Not set"}</p>
+                          <p><strong>Vehicle:</strong> {formData.vehicle_registration || "Not set"}</p>
+                          <p><strong>IP Address:</strong> {formData.ip_address || "Not set"}</p>
+                          <p><strong>Total:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : "Not set"}</p>
+                          <p><strong>Products:</strong> {editableProducts.length}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-900">
+                        <p>This will update the job card details and generate an invoice using the document sequence.</p>
+                      </div>
+                      {finalizeError && (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                          <p className="font-medium">Error</p>
+                          <p>{finalizeError}</p>
+                        </div>
+                      )}
+                      <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingJob(null); }} disabled={finalizing}>Cancel</Button>
+                        <Button onClick={handleFinalizeClick} disabled={finalizing} className="bg-green-600 hover:bg-green-700">
+                          {finalizing ? (
+                            <><div className="mr-2 w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Finalizing...</>
+                          ) : (
+                            <><CheckCircle2 className="mr-2 w-4 h-4" /> Finalize</>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== INVOICE MODAL ===== */}
+      <InvoiceJobModal
+        job={editingJob}
+        open={showFinalInvoiceModal}
+        onOpenChange={setShowFinalInvoiceModal}
+        onComplete={handleRefreshJobsAfterInvoice}
+        editedProducts={editableProducts}
+      />
+    </div>
+  );
+}

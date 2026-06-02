@@ -2,17 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, CheckCircle, ExternalLink, FileText } from "lucide-react";
+import { Building2, CheckCircle, FileText } from "lucide-react";
 
 const NAV_ITEMS = [
   { id: "accounts", label: "Accounts", icon: Building2, href: "/protected/fc" },
   { id: "quotes", label: "Quotes", icon: FileText, href: "/protected/fc/quotes" },
-  {
-    id: "external-quotation",
-    label: "External Quotation",
-    icon: ExternalLink,
-    href: "/protected/fc/external-quotation",
-  },
   {
     id: "completed-jobs",
     label: "Job Card Review",
@@ -26,7 +20,6 @@ const isAccountsArea = (pathname: string) => {
   if (!path.startsWith("/protected/fc")) return false;
   return (
     !path.startsWith("/protected/fc/quotes") &&
-    !path.startsWith("/protected/fc/external-quotation") &&
     !path.startsWith("/protected/fc/completed-jobs")
   );
 };

@@ -6,16 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Clock,
-  AlertCircle,
   Building,
-  Users,
   TrendingUp,
   RefreshCw,
   Eye,
-  Calendar,
-  MapPin,
   DollarSign,
-  FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -47,9 +42,19 @@ interface AccountSummary {
   last_activity: string;
 }
 
+interface RevenueBreakdownItem {
+  label: string;
+  total: number;
+  vehicleCount: number;
+}
+
 export default function GlobalView() {
   const [recentJobs, setRecentJobs] = useState<JobCard[]>([]);
   const [accountSummaries, setAccountSummaries] = useState<AccountSummary[]>([]);
+  const [accountCount, setAccountCount] = useState(0);
+  const [deviceCount, setDeviceCount] = useState(0);
+  const [revenue, setRevenue] = useState(0);
+  const [revenueBreakdown, setRevenueBreakdown] = useState<RevenueBreakdownItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const router = useRouter();
@@ -72,6 +77,10 @@ export default function GlobalView() {
       setAccountSummaries(
         Array.isArray(data?.accountSummaries) ? data.accountSummaries : [],
       );
+      setAccountCount(Number(data?.accountCount) || 0);
+      setDeviceCount(Number(data?.deviceCount) || 0);
+      setRevenue(Number(data?.revenue) || 0);
+      setRevenueBreakdown(Array.isArray(data?.revenueBreakdown) ? data.revenueBreakdown : []);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error fetching global data:', error);
@@ -164,60 +173,87 @@ export default function GlobalView() {
         </div>
       </div>
 
-      {/* Summary Cards - Total Accounts and Valuation cards removed */}
+      {/* Summary Cards */}
       <div className="gap-6 grid grid-cols-1 md:grid-cols-3">
-        {/* Recent Jobs */}
+        {/* Accounts */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-            <CardTitle className="font-medium text-sm">Recent Jobs</CardTitle>
-            <Clock className="w-4 h-4 text-blue-600" />
+            <CardTitle className="font-medium text-sm">Accounts</CardTitle>
+            <Building className="w-4 h-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="font-bold text-blue-600 text-2xl">{recentJobs.length}</div>
+            <div className="font-bold text-blue-600 text-2xl">{accountCount}</div>
             <p className="text-muted-foreground text-xs">
-              Reported in last 24 hours
+              Active accounts
             </p>
           </CardContent>
         </Card>
 
-        {/* Open Jobs */}
-        <Card className="border-l-4 border-l-orange-500">
+        {/* Devices */}
+        <Card className="border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-            <CardTitle className="font-medium text-sm">Open Jobs</CardTitle>
-            <AlertCircle className="w-4 h-4 text-orange-600" />
+            <CardTitle className="font-medium text-sm">Devices</CardTitle>
+            <TrendingUp className="w-4 h-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="font-bold text-orange-600 text-2xl">
-              {accountSummaries.reduce((sum, account) => sum + account.open_jobs, 0)}
-            </div>
+            <div className="font-bold text-green-600 text-2xl">{deviceCount}</div>
             <p className="text-muted-foreground text-xs">
-              Jobs in progress
+              Tracked vehicles
             </p>
-            <div className="mt-1 font-bold text-orange-600 text-lg">
-              {formatCurrency(accountSummaries.reduce((sum, account) => sum + account.total_value, 0))}
-            </div>
           </CardContent>
         </Card>
 
-        {/* Quotes Opened */}
-        <Card className="border-l-4 border-l-yellow-500">
+        {/* Revenue */}
+        <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="flex flex-row justify-between items-center space-y-0 pb-2">
-            <CardTitle className="font-medium text-sm">Quotes Opened</CardTitle>
-            <FileText className="w-4 h-4 text-yellow-600" />
+            <CardTitle className="font-medium text-sm">Revenue</CardTitle>
+            <DollarSign className="w-4 h-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="font-bold text-yellow-600 text-2xl">
-              {recentJobs.filter(job => job.status === 'open' || job.job_status === 'open').length}
-            </div>
+            <div className="font-bold text-emerald-600 text-2xl">{formatCurrency(revenue)}</div>
             <p className="text-muted-foreground text-xs">
-              Open quotes
+              Total rental & subscription
             </p>
-            <div className="mt-1 font-bold text-yellow-600 text-lg">
-              {formatCurrency(recentJobs.filter(job => job.status === 'open' || job.job_status === 'open').reduce((sum, job) => sum + (job.quotation_total_amount || 0), 0))}
-            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Device Breakdown */}
+      {revenueBreakdown.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Devices Breakdown
+            </CardTitle>
+            <p className="text-gray-600 text-sm">
+              Total value and count per device type across all vehicles
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 font-medium">Device</th>
+                    <th className="text-right py-2 font-medium">Count</th>
+                    <th className="text-right py-2 font-medium">Total Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {revenueBreakdown.map((item) => (
+                    <tr key={item.label} className="border-b last:border-0">
+                      <td className="py-1.5">{item.label}</td>
+                      <td className="text-right py-1.5 text-muted-foreground">{item.vehicleCount}</td>
+                      <td className="text-right py-1.5 font-medium">{formatCurrency(item.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Jobs Section */}
       <Card>

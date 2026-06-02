@@ -52,7 +52,7 @@ interface ClientsContextType {
   loading: boolean;
   loadingContacts: boolean;
   totalCount: number;
-  fetchCompanyGroups: (search?: string) => Promise<void>;
+  fetchCompanyGroups: (search?: string, fcId?: string) => Promise<void>;
   fetchContactInfo: (groups: CompanyGroup[]) => Promise<void>;
   clearData: () => void;
   isDataLoaded: boolean;
@@ -153,9 +153,9 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const fetchCompanyGroups = useCallback(async (search = '') => {
-    const normalizedSearch = search.trim().toLowerCase();
-    const cachedGroupResult = groupsCacheRef.current.get(normalizedSearch);
+  const fetchCompanyGroups = useCallback(async (search = '', fcId = '', silent = false) => {
+    const cacheKey = `${search.trim().toLowerCase()}|${fcId}`;
+    const cachedGroupResult = groupsCacheRef.current.get(cacheKey);
 
     if (cachedGroupResult && Date.now() - cachedGroupResult.cachedAt < 60000) {
       setCompanyGroups(cachedGroupResult.companyGroups);
@@ -171,9 +171,12 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
+      const params = new URLSearchParams({ search, fetchAll: 'true', includePayments: 'false' });
+      if (fcId) params.set('fc_id', fcId);
+
       const response = await fetch(
-        `/api/customers-grouped?search=${encodeURIComponent(search)}&fetchAll=true&includePayments=false`,
+        `/api/customers-grouped?${params.toString()}`,
         { cache: 'no-store' },
       );
 
@@ -189,7 +192,7 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
       setPaymentData({});
       setTotalCount(nextTotalCount);
       setIsDataLoaded(true);
-      groupsCacheRef.current.set(normalizedSearch, {
+      groupsCacheRef.current.set(cacheKey, {
         companyGroups: newCompanyGroups,
         totalCount: nextTotalCount,
         cachedAt: Date.now(),

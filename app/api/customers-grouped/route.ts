@@ -19,8 +19,57 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const fetchAll = searchParams.get('fetchAll') === 'true';
     const includePayments = searchParams.get('includePayments') === 'true';
+    const filterFcId = searchParams.get('fc_id') || '';
     const limit = 20;
     const offset = (page - 1) * limit;
+
+    // Determine which FC ID to filter by
+    // Priority: explicit fc_id param > logged-in FC user
+    let targetFcId = filterFcId || null;
+
+    if (!targetFcId) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      // Auto-filter for FC users to their own assigned clients
+      if (userData?.role === 'fc') {
+        targetFcId = user.id;
+      }
+    }
+
+    // Get cost codes for the target FC
+    let fcCostCodes: string[] = [];
+    if (targetFcId) {
+      const { data: fcCostCenters } = await supabase
+        .from('cost_centers')
+        .select('cost_code')
+        .eq('fc_id', targetFcId)
+        .not('cost_code', 'is', null);
+
+      fcCostCodes = [...new Set(
+        (fcCostCenters || [])
+          .map((cc) => String(cc.cost_code || '').trim().toUpperCase())
+          .filter(Boolean)
+      )];
+
+      if (fcCostCodes.length === 0) {
+        // No assigned cost centers — return empty
+        const emptyResponse = {
+          companyGroups: [],
+          paymentData: {},
+          count: 0,
+          page,
+          limit,
+          hasMore: false,
+          totalPages: 0,
+          fetchAll,
+        };
+        return NextResponse.json(emptyResponse);
+      }
+    }
 
     let query = supabase
       .from('customers_grouped')
@@ -33,7 +82,30 @@ export async function GET(request: NextRequest) {
         created_at
       `, { count: 'exact' });
 
-    if (search.trim()) {
+    if (fcCostCodes.length > 0) {
+      // Filter by FC's cost codes — build OR conditions for each code
+      const fcConditions = fcCostCodes.map(
+        (code) => `all_new_account_numbers.ilike.%${code}%`,
+      );
+
+      if (search.trim()) {
+        // Combine FC filter AND search filter — Supabase ANDs multiple .or() calls
+        try {
+          query = query.or(fcConditions.join(','));
+          query = query.or(
+            `company_group.ilike.%${search}%,` +
+            `legal_names.ilike.%${search}%,` +
+            `all_account_numbers.ilike.%${search}%`
+          );
+        } catch (searchError) {
+          console.error('API: Search query error:', searchError);
+          query = query.or(fcConditions.join(','));
+          query = query.ilike('company_group', `%${search}%`);
+        }
+      } else {
+        query = query.or(fcConditions.join(','));
+      }
+    } else if (search.trim()) {
       try {
         query = query.or(
           `company_group.ilike.%${search}%,` +
