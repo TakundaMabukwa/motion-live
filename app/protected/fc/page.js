@@ -158,13 +158,14 @@ function AccountsDashboardContent() {
 
   // Load FC users for the filter dropdown, default to current user
   useEffect(() => {
+    let cancelled = false;
     const fetchFcUsers = async () => {
       try {
         const response = await fetch('/api/fc/users', { cache: 'no-store' });
-        if (response.ok) {
+        if (response.ok && !cancelled) {
           const data = await response.json();
           setFcUserOptions(data.fcUsers || []);
-          if (data.currentUserId && !fcFilter) {
+          if (!fcFilter && data.currentUserRole === "fc") {
             setFcFilter(data.currentUserId);
           }
         }
@@ -173,6 +174,7 @@ function AccountsDashboardContent() {
       }
     };
     fetchFcUsers();
+    return () => { cancelled = true; };
   }, []);
 
   // Initial load
@@ -180,7 +182,7 @@ function AccountsDashboardContent() {
     if (activeTab === 'companies') {
       maybeRefreshCompanyGroups(true);
     }
-  }, [activeTab, pathname]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'companies') return;

@@ -14,6 +14,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: currentUserData } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
     const { data: fcUsers, error } = await supabase
       .from("users")
       .select("id, email")
@@ -28,7 +34,11 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ fcUsers: fcUsers || [], currentUserId: user.id });
+    return NextResponse.json({
+      fcUsers: fcUsers || [],
+      currentUserId: user.id,
+      currentUserRole: currentUserData?.role || "",
+    });
   } catch (error) {
     return NextResponse.json(
       {

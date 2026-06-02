@@ -1713,14 +1713,6 @@ export default function AccountsClientsSection({ mode = 'clients' }: { mode?: 'c
             <FileText className={`w-4 h-4 mr-2 ${(isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf) ? 'animate-pulse' : ''}`} />
             {(isGeneratingAllInvoicesExcel || isGeneratingAllInvoicesPdf) ? 'Preparing Invoices...' : 'All Invoices'}
           </Button>
-          <Button
-            onClick={handleOpenInvoiceNumberDialog}
-            disabled={loadingBulkInvoiceRows}
-            variant="outline"
-          >
-            <FileText className={`w-4 h-4 mr-2 ${loadingBulkInvoiceRows ? 'animate-spin' : ''}`} />
-            {loadingBulkInvoiceRows ? 'Loading Numbers...' : 'Edit Invoice Numbers'}
-          </Button>
           <Button 
             onClick={handleBulkInvoice}
             disabled={isGeneratingBulkInvoice}
