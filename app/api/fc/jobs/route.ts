@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
+    const showAllJobs = searchParams.get("allJobs") === "true";
 
     const { data: userData } = await supabase
       .from("users")
@@ -132,7 +133,7 @@ export async function GET(request: NextRequest) {
       .select("*")
       .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc,move_to_role.ilike.fc");
 
-    if (isFc && fcCostCodes.length > 0) {
+    if (!showAllJobs && isFc && fcCostCodes.length > 0) {
       query = query.in("new_account_number", fcCostCodes);
     }
 

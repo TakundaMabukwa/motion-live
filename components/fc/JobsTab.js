@@ -72,6 +72,7 @@ export default function JobsTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [jobTab, setJobTab] = useState("not-completed");
+  const [showAllJobs, setShowAllJobs] = useState(false);
 
   // Edit & Finalize dialog
   const [editingJob, setEditingJob] = useState(null);
@@ -103,11 +104,12 @@ export default function JobsTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchJobs = useCallback(async (search = "") => {
+  const fetchJobs = useCallback(async (search = "", all = false) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      if (all) params.set("allJobs", "true");
       const response = await fetch(`/api/fc/jobs?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch jobs");
       const data = await response.json();
@@ -120,11 +122,11 @@ export default function JobsTab() {
     }
   }, []);
 
-  useEffect(() => { fetchJobs(debouncedSearch); }, [debouncedSearch, fetchJobs]);
+  useEffect(() => { fetchJobs(debouncedSearch, showAllJobs); }, [debouncedSearch, showAllJobs, fetchJobs]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchJobs(debouncedSearch);
+    await fetchJobs(debouncedSearch, showAllJobs);
   };
 
   const handleMoveJob = useCallback(async (job, destination) => {
@@ -281,10 +283,22 @@ export default function JobsTab() {
     });
   }, [syncTotalsFromProducts]);
 
-  const handleFinalizeClick = useCallback(() => {
+  const handleFinalizeClick = useCallback(async () => {
+    const jobId = editingJob?.id;
+    if (jobId) {
+      try {
+        const patchBody = {};
+        for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback"]) {
+          if (formData[key] !== undefined) patchBody[key] = formData[key];
+        }
+        await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody),
+        });
+      } catch { /* patch failure is non-blocking */ }
+    }
     setShowEditDialog(false);
     setShowFinalInvoiceModal(true);
-  }, []);
+  }, [formData, editingJob?.id]);
 
   const handleRefreshJobsAfterInvoice = useCallback(() => {
     setEditingJob(null);
@@ -350,6 +364,14 @@ export default function JobsTab() {
               className="h-10 w-full border-slate-200 pl-10 text-sm"
             />
           </div>
+          <Button
+            variant={showAllJobs ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowAllJobs((v) => !v)}
+            className="h-10 shrink-0 whitespace-nowrap"
+          >
+            {showAllJobs ? "All Jobs" : "My Jobs"}
+          </Button>
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 w-full shrink-0 border-slate-200 sm:w-auto">
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
@@ -692,15 +714,7 @@ export default function JobsTab() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
-                        <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} onChange={(e) => updateFormField("quotation_total_amount", e.target.value)} readOnly={editableProducts.length > 0} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="estimated_cost">Estimated Cost</Label>
-                        <Input id="estimated_cost" type="number" step="0.01" value={formData.estimated_cost} onChange={(e) => updateFormField("estimated_cost", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="actual_cost">Actual Cost</Label>
-                        <Input id="actual_cost" type="number" step="0.01" value={formData.actual_cost} onChange={(e) => updateFormField("actual_cost", e.target.value)} />
+                        <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} readOnly />
                       </div>
                       <div className="md:col-span-2 space-y-2">
                         <Label htmlFor="work_notes">Work Notes</Label>

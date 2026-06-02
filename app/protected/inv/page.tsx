@@ -4585,20 +4585,8 @@ export default function InventoryPage() {
 
   const tabs = [
     {
-      value: "job-cards",
-      label: "Job Cards",
-      icon: FileText,
-      content: jobCardsContent,
-    },
-    {
-      value: "assigned-parts",
-      label: "Assigned Parts",
-      icon: Package,
-      content: assignedPartsContent,
-    },
-    {
       value: "escalations",
-      label: "Escalations",
+      label: "Jobs",
       icon: AlertCircle,
       content: (
         <RoleEscalationsPanel

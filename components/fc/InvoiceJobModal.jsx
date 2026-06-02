@@ -189,7 +189,7 @@ const getInvoiceVehicles = (job) => {
 const getInvoiceTotals = (job, overrideProducts) => {
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   const computedSubtotal = products.reduce((sum, product) => {
-    const chargeLines = getProductChargeLines(product, job, { includeRecurring: false, includeRecurringWhenMultiplierNotOne: true }).filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0);
+    const chargeLines = getProductChargeLines(product, job, { includeRecurring: false, includeRecurringWhenMultiplierNotOne: true }).filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
     if (chargeLines.length > 0) {
       return sum + chargeLines.reduce((lineSum, chargeLine) => lineSum + toNumber(chargeLine.subtotal), 0);
     }
@@ -378,10 +378,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           clientName: latestJob.customer_name || "",
           clientEmail: latestJob.customer_email || "",
           clientPhone: latestJob.customer_phone || "",
-          clientAddress: latestJob.customer_address || "",
+          clientAddress: "",
           paymentTerms: "30 days",
           dueDate: getLocalDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
-          notes: "",
+          notes: [latestJob.quote_notes, latestJob.completion_notes].filter(Boolean).join("\n"),
         });
       })();
     }
@@ -443,10 +443,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const raw = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
-    const rows = rawTotals.products.length > 0
+    const productRows = rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
           const chargeLines = getProductChargeLines(product, job, { includeRecurring: false, includeRecurringWhenMultiplierNotOne: true });
-          const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) > 0);
+          const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
           if (validLines.length > 0) {
             return validLines.map((chargeLine) => {
               const lineVat = Number((chargeLine.subtotal * VAT_RATE).toFixed(2));
@@ -492,7 +492,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           return [];
         })
       : Array.isArray(storedInvoiceRecord?.line_items) && storedInvoiceRecord.line_items.length > 0
-        ? storedInvoiceRecord.line_items.filter((item) => toNumber(item?.unit_price) > 0).map((item, index) => ({
+        ? storedInvoiceRecord.line_items.filter((item) => toNumber(item?.unit_price) >= 0).map((item, index) => ({
             key: `${item?.item_code || item?.description || "item"}-${index}`,
             previousReg: hideRegistrationColumns ? "" : item?.previous_reg || vehicleSummary || "N/A",
             newReg: hideRegistrationColumns ? "" : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
@@ -521,12 +521,31 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             vatAmount: rawTotals.vat,
             totalIncl: rawTotals.total,
           }];
+    const annuityRows = (annuitySelectableItems || [])
+      .filter((item) => selectedAnnuityItemKeys.includes(item.key))
+      .map((item, idx) => ({
+        key: `annuity-item-${idx}`,
+        previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+        newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+        itemCode: "Annuity",
+        description: item.name || "Annuity Item",
+        comments: `Annuity - ${item.name}`,
+        qty: item.quantity || 1,
+        unitPrice: 0,
+        vatPercent: "0.00%",
+        vatAmount: 0,
+        totalIncl: 0,
+      }));
+    const rows = [...productRows, ...annuityRows];
     const totals = rows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;
       acc.vat += row.vatAmount;
       acc.total += row.totalIncl;
       return acc;
     }, { subtotal: 0, vat: 0, total: 0, discount: 0 });
+    const displayTotals = rawTotals.subtotal > 0
+      ? { subtotal: rawTotals.subtotal, vat: rawTotals.vat, total: rawTotals.total, discount: 0 }
+      : totals;
     return {
       invoiceNumber, invoiceDate: formatDate(invoiceDate), orderNumber, clientName: effectiveClientName,
       clientEmail: storedInvoiceRecord?.client_email || invoiceFormData.clientEmail || job.customer_email || "No email provided",
@@ -536,7 +555,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       customerVatNumber: selectedCostCenterInfo?.vat_number || selectedCostCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
       companyRegistrationNumber: selectedCostCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
       notes: storedInvoiceRecord?.notes || invoiceFormData.notes || job.special_instructions || "No special instructions.",
-      hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals, rows,
+      hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals: displayTotals, rows,
     };
   };
 

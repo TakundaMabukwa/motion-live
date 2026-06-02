@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DashboardHeader from "@/components/shared/DashboardHeader";
-import FCSectionNav from "@/components/fc/FCSectionNav";
 import CreateBOIModal from "@/components/fc/CreateBOIModal";
 import { toast } from "sonner";
 import CreateExternalQuoteForm from "@/components/fc/CreateExternalQuoteForm";
@@ -55,7 +54,6 @@ export default function QuotesDashboard() {
     vehicle_make: "",
     vehicle_model: "",
   });
-  const [quoteTab, setQuoteTab] = useState("view");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [summary, setSummary] = useState({ draft: 0, pending: 0, approved: 0, rejected: 0, approvedValue: 0, declinedValue: 0 });
@@ -551,35 +549,6 @@ export default function QuotesDashboard() {
         }
       />
 
-      {/* Main Navigation */}
-      <FCSectionNav />
-
-      {/* Tab Navigation */}
-      <div className="flex space-x-1 rounded-lg bg-gray-100 p-1 w-fit">
-        <button
-          onClick={() => { setQuoteTab("view"); setPage(1); }}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            quoteTab === "view"
-              ? "bg-white text-blue-600 shadow-sm"
-              : "text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          View Existing Quotes
-        </button>
-        <button
-          onClick={() => setQuoteTab("create")}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-            quoteTab === "create"
-              ? "bg-white text-blue-600 shadow-sm"
-              : "text-gray-600 hover:text-gray-800"
-          }`}
-        >
-          Create Quote
-        </button>
-      </div>
-
-      {quoteTab === "view" && (
-        <>
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
@@ -1287,11 +1256,6 @@ export default function QuotesDashboard() {
           )}
         </DialogContent>
       </Dialog>
-        </>
-      )}
-      {quoteTab === "create" && (
-        <CreateExternalQuoteForm />
-      )}
     </div>
   );
 }
