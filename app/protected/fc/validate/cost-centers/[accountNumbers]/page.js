@@ -6,8 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from 'sonner';
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronRight, ArrowLeft, CheckCircle, Check, Trash2, AlertCircle } from "lucide-react";
+import { Loader2, ChevronRight, ArrowLeft, CheckCircle, Check, Trash2, AlertCircle, Edit3, X } from "lucide-react";
 import DashboardHeader from "@/components/shared/DashboardHeader";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 export default function ValidateCostCentersPage() {
   const router = useRouter();
@@ -23,6 +31,9 @@ export default function ValidateCostCentersPage() {
   const [transferOptions, setTransferOptions] = useState([]);
   const [selectedTransferTarget, setSelectedTransferTarget] = useState(null);
   const [deleteAction, setDeleteAction] = useState(null); // 'transfer' or 'delete'
+  const [editMode, setEditMode] = useState(false);
+  const [editingCostCenter, setEditingCostCenter] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const accountNumbers = params?.accountNumbers ? decodeURIComponent(params.accountNumbers) : "";
   const lastFetchKeyRef = useRef(null);
 
@@ -218,6 +229,50 @@ export default function ValidateCostCentersPage() {
     }
   };
 
+  const handleSaveEdit = async () => {
+    if (!editingCostCenter) return;
+    setSavingEdit(true);
+    try {
+      const body = {
+        id: editingCostCenter.id,
+        company: editingCostCenter.company,
+        legal_name: editingCostCenter.legal_name,
+        contact_name: editingCostCenter.contact_name,
+        email: editingCostCenter.email,
+        vat_number: editingCostCenter.vat_number,
+        registration_number: editingCostCenter.registration_number,
+        physical_address_1: editingCostCenter.physical_address_1,
+        physical_address_2: editingCostCenter.physical_address_2,
+        physical_address_3: editingCostCenter.physical_address_3,
+        physical_area: editingCostCenter.physical_area,
+        physical_code: editingCostCenter.physical_code,
+        postal_address_1: editingCostCenter.postal_address_1,
+        postal_address_2: editingCostCenter.postal_address_2,
+        postal_address_3: editingCostCenter.postal_address_3,
+        validated: editingCostCenter.validated,
+      };
+      const response = await fetch('/api/cost-centers/editable', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save cost center');
+      }
+      const data = await response.json();
+      setCostCenters(prev => prev.map(cc =>
+        cc.id === editingCostCenter.id ? { ...cc, ...data.costCenter } : cc
+      ));
+      toast.success('Cost center updated');
+      setEditingCostCenter(null);
+    } catch (error) {
+      toast.error('Failed to save: ' + error.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6 p-6">
@@ -231,10 +286,20 @@ export default function ValidateCostCentersPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <DashboardHeader 
-        title="Select Cost Center"
-        subtitle="Choose a cost center to view and validate vehicles"
-      />
+      <div className="flex justify-between items-start">
+        <DashboardHeader
+          title="Select Cost Center"
+          subtitle="Choose a cost center to view and validate vehicles"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setEditMode(!editMode)}
+        >
+          <Edit3 className="w-4 h-4 mr-2" />
+          {editMode ? 'Done' : 'Edit Info'}
+        </Button>
+      </div>
 
       <div className="flex gap-2 mb-6">
         <Button
@@ -292,6 +357,16 @@ export default function ValidateCostCentersPage() {
                   </td>
                   <td className="px-4 py-2 border-b">
                     <div className="flex gap-2">
+                      {editMode && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingCostCenter({ ...costCenter })}
+                        >
+                          <Edit3 className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -334,6 +409,147 @@ export default function ValidateCostCentersPage() {
           </table>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <Dialog open={!!editingCostCenter} onOpenChange={(open) => { if (!open) setEditingCostCenter(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Cost Center - {editingCostCenter?.cost_code}</DialogTitle>
+          </DialogHeader>
+          {editingCostCenter && (
+            <div className="space-y-6">
+              {/* Billing Fields */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Billing Fields</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>VAT Number</Label>
+                    <Input
+                      value={editingCostCenter.vat_number || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, vat_number: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Registration Number</Label>
+                    <Input
+                      value={editingCostCenter.registration_number || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, registration_number: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Validated</Label>
+                    <select
+                      value={editingCostCenter.validated ? 'true' : 'false'}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, validated: e.target.value === 'true' })}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              {/* Operations Fields */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Operations Fields</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Company</Label>
+                    <Input
+                      value={editingCostCenter.company || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, company: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Legal Name</Label>
+                    <Input
+                      value={editingCostCenter.legal_name || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, legal_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Contact Name</Label>
+                    <Input
+                      value={editingCostCenter.contact_name || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, contact_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input
+                      value={editingCostCenter.email || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Physical Address Line 1</Label>
+                    <Input
+                      value={editingCostCenter.physical_address_1 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, physical_address_1: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Physical Address Line 2</Label>
+                    <Input
+                      value={editingCostCenter.physical_address_2 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, physical_address_2: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Physical Address Line 3</Label>
+                    <Input
+                      value={editingCostCenter.physical_address_3 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, physical_address_3: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Physical Area</Label>
+                    <Input
+                      value={editingCostCenter.physical_area || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, physical_area: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Physical Code</Label>
+                    <Input
+                      value={editingCostCenter.physical_code || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, physical_code: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Postal Address Line 1</Label>
+                    <Input
+                      value={editingCostCenter.postal_address_1 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, postal_address_1: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Postal Address Line 2</Label>
+                    <Input
+                      value={editingCostCenter.postal_address_2 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, postal_address_2: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label>Postal Address Line 3</Label>
+                    <Input
+                      value={editingCostCenter.postal_address_3 || ''}
+                      onChange={(e) => setEditingCostCenter({ ...editingCostCenter, postal_address_3: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => setEditingCostCenter(null)}>Cancel</Button>
+                <Button onClick={handleSaveEdit} disabled={savingEdit}>
+                  {savingEdit ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Modal */}
       {deleteModal && (
