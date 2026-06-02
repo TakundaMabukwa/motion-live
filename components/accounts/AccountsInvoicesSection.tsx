@@ -275,11 +275,6 @@ export default function AccountsInvoicesSection() {
         <span className="text-slate-500">
           Total: <strong className="text-green-600">{formatCurrency(totalInvoiceValue)}</strong>
         </span>
-        <span className="text-slate-500">
-          Balance: <strong className="text-red-600">
-            {formatCurrency(filteredInvoices.reduce((sum, i) => sum + Number(i.balance_due || 0), 0))}
-          </strong>
-        </span>
       </div>
 
       <div className="overflow-hidden rounded-lg border bg-white">

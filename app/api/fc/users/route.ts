@@ -28,7 +28,7 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ fcUsers: fcUsers || [] });
+    return NextResponse.json({ fcUsers: fcUsers || [], currentUserId: user.id });
   } catch (error) {
     return NextResponse.json(
       {

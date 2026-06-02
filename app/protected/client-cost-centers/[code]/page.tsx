@@ -6018,51 +6018,6 @@ export default function ClientCostCentersPage() {
               </div>
               <div className="text-right">
                 <div className="flex gap-2 mb-2">
-                  <Button
-                    onClick={() => handlePayAllCostCenters()}
-                    size="sm"
-                    disabled={costCentersWithPayments.filter(cc => cc.balanceDue > 0).length === 0}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    <CreditCard className="mr-2 w-4 h-4" />
-                    Pay All
-                  </Button>
-                  <Button
-                    onClick={() => handleLockAllInvoices()}
-                    size="sm"
-                    disabled={isLockingBulkInvoices}
-                    className="bg-gray-900 hover:bg-black disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isLockingBulkInvoices ? (
-                      <>
-                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
-                        Locking...
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="mr-2 w-4 h-4" />
-                        Lock All
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleBulkInvoice()}
-                    size="sm"
-                    disabled={isGeneratingBulkInvoice}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingBulkInvoice ? (
-                      <>
-                        <div className="mr-2 border-2 border-white border-t-transparent rounded-full w-4 h-4 animate-spin"></div>
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="mr-2 w-4 h-4" />
-                        Invoice All
-                      </>
-                    )}
-                  </Button>
                 </div>
                 {showCostCenterTotalColumn && costCentersWithPayments.filter(cc => getOutstandingAmount(cc) > 0).length > 0 && (
                   <p className="mt-1 text-gray-500 text-xs">
@@ -6089,7 +6044,7 @@ export default function ClientCostCentersPage() {
                       </>
                     )}
                     <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Actions</th>
-                    <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th>
+                    {/* <th className="p-4 font-semibold text-gray-700 text-sm text-center uppercase tracking-wider">Reports</th> */}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -6156,14 +6111,6 @@ export default function ClientCostCentersPage() {
                       <td className="p-4 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <Button
-                            onClick={() => handlePayCostCenter(costCenter)}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg px-4 py-2 rounded-lg text-white transition-all duration-200"
-                          >
-                            <CreditCard className="mr-2 w-4 h-4" />
-                            Pay
-                          </Button>
-                          <Button
                             onClick={() => openCreditNoteModal(costCenter)}
                             size="sm"
                             variant="outline"
@@ -6171,64 +6118,6 @@ export default function ClientCostCentersPage() {
                           >
                             <FileText className="mr-2 w-4 h-4" />
                             Credit Note
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => openReportDeliveryOptions({ type: 'invoice', costCenter })}
-                            disabled={generatingReport[costCenter.accountNumber]}
-                          >
-                            {generatingReport[costCenter.accountNumber] ? (
-                              <>
-                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
-                                Loading...
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="mr-1 w-3 h-3" />
-                                Invoice
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => openReportDeliveryOptions({ type: 'statement', costCenter })}
-                            disabled={generatingReport[costCenter.accountNumber]}
-                          >
-                            {generatingReport[costCenter.accountNumber] ? (
-                              <>
-                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
-                                Loading...
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="mr-1 w-3 h-3" />
-                                Statement
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-slate-700 hover:bg-slate-800 shadow-md hover:shadow-lg px-3 py-1 rounded text-white text-xs transition-all duration-200"
-                            onClick={() => openReportDeliveryOptions({ type: 'items', costCenter })}
-                            disabled={generatingReport[costCenter.accountNumber]}
-                          >
-                            {generatingReport[costCenter.accountNumber] ? (
-                              <>
-                                <div className="mr-1 border-2 border-white border-t-transparent rounded-full w-3 h-3 animate-spin"></div>
-                                Loading...
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="mr-1 w-3 h-3" />
-                                Full Statement + Items
-                              </>
-                            )}
                           </Button>
                         </div>
                       </td>

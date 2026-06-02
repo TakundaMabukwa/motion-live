@@ -52,10 +52,7 @@ export default function AccountsTopBar({ activeSection, onSectionChange }) {
     { name: 'Invoices', icon: 'file-text', key: 'invoices' },
     { name: 'Credit Notes', icon: 'file-text', key: 'credit-notes' },
     { name: 'Client Info', icon: 'clients', key: 'client-info' },
-    { name: 'Purchases', icon: 'shopping-cart', key: 'purchases' },
-    { name: 'Job Pool', icon: 'clock', key: 'job-pool' },
     { name: 'Completed Job Cards', icon: 'receipt', key: 'completed-jobs' },
-    { name: 'Orders', icon: 'receipt', key: 'orders' },
   ];
 
   return (

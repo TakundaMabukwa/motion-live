@@ -156,7 +156,7 @@ function AccountsDashboardContent() {
     }
   }, [debouncedSearchTerm, fcFilter, activeTab, fetchCompanyGroups]);
 
-  // Load FC users for the filter dropdown
+  // Load FC users for the filter dropdown, default to current user
   useEffect(() => {
     const fetchFcUsers = async () => {
       try {
@@ -164,6 +164,9 @@ function AccountsDashboardContent() {
         if (response.ok) {
           const data = await response.json();
           setFcUserOptions(data.fcUsers || []);
+          if (data.currentUserId && !fcFilter) {
+            setFcFilter(data.currentUserId);
+          }
         }
       } catch (err) {
         console.error('Failed to load FC users for filter:', err);
