@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -277,6 +277,7 @@ const isOnceOffItemJob = (job) => {
 };
 
 export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, editedProducts: externalEditedProducts }) {
+  const latestJobRef = useRef(null);
   const [billingInvoiceDate, setBillingInvoiceDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [invoiceFormData, setInvoiceFormData] = useState({
     clientName: "", clientEmail: "", clientPhone: "", clientAddress: "", paymentTerms: "30 days", dueDate: "", notes: "",
@@ -367,6 +368,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             if (foundAddress) latestJob.customer_address = foundAddress;
           } catch { /* ignore */ }
         }
+        latestJobRef.current = latestJob;
         const annuityItems = getAnnuitySelectionItems(latestJob, externalEditedProducts);
         setGeneratedInvoice(null);
         setStoredInvoiceRecord(null);
@@ -436,7 +438,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ") : "N/A";
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
-    const orderNumber = job.order_number || "N/A";
+    const orderNumber = latestJobRef.current?.order_number || job.order_number || "N/A";
     const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || invoiceFormData.clientName || job.customer_name || "N/A";
     const effectiveClientName = defaultClientName;
     const isDeinstallJob = (() => {
