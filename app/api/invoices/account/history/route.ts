@@ -210,7 +210,7 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false }),
       supabase
         .from("job_cards")
-        .select("id, new_account_number, job_number, order_number, customer_name, vehicle_registration, quotation_products, quotation_total_amount, billing_statuses, completion_date, updated_at")
+        .select("id, new_account_number, job_number, order_number, job_type, customer_name, vehicle_registration, quotation_products, quotation_total_amount, billing_statuses, completion_date, updated_at")
         .in("new_account_number", accountNumbers),
       supabase
         .from("account_invoice_payments")
@@ -432,6 +432,7 @@ export async function GET(request: NextRequest) {
                   order_number: row?.order_number || null,
                   customer_name: row?.customer_name || null,
                   vehicle_registration: row?.vehicle_registration || null,
+                  job_type: row?.job_type || null,
                   quotation_products: Array.isArray(row?.quotation_products) ? row.quotation_products : [],
                   total_amount: Number(
                     row?.billing_statuses?.invoice?.total_amount ??
@@ -479,6 +480,7 @@ export async function GET(request: NextRequest) {
                 job_number: invoice?.job_number || linkedJobCard?.job_number || null,
                 customer_name: linkedJobCard?.customer_name || invoice?.company_name || null,
                 vehicle_registration: derivedVehicleRegistration,
+                job_type: linkedJobCard?.job_type || null,
                 quotation_products: Array.isArray(linkedJobCard?.quotation_products)
                   ? linkedJobCard.quotation_products
                   : [],

@@ -329,6 +329,7 @@ export default function ValidateVehiclesPage() {
   const [loadingInvoiceHistory, setLoadingInvoiceHistory] = useState(false);
   const [showJobCardInvoicePreview, setShowJobCardInvoicePreview] = useState(false);
   const [jobCardInvoicePreview, setJobCardInvoicePreview] = useState(null);
+  const [jobCardSearchQuery, setJobCardSearchQuery] = useState("");
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = params?.costCode ? decodeURIComponent(params.costCode) : "";
@@ -611,6 +612,16 @@ export default function ValidateVehiclesPage() {
       ),
     [selectedMonthInvoices],
   );
+
+  const filteredJobCardInvoices = useMemo(() => {
+    const query = jobCardSearchQuery.trim().toLowerCase();
+    if (!query) return jobCardInvoices;
+    return jobCardInvoices.filter((inv) => {
+      const jobNum = String(inv?.job_number || "").toLowerCase();
+      const invNum = String(inv?.invoice_number || "").toLowerCase();
+      return jobNum.includes(query) || invNum.includes(query);
+    });
+  }, [jobCardInvoices, jobCardSearchQuery]);
 
   useEffect(() => {
     const loadLoggedInUserEmail = async () => {
@@ -2237,6 +2248,24 @@ export default function ValidateVehiclesPage() {
               No job card invoices found for {formatBillingMonthLabel(selectedBillingMonth)}.
             </div>
           ) : (
+            <><div className="flex items-center gap-2 mb-3">
+              <Search className="h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by job number or invoice number..."
+                value={jobCardSearchQuery}
+                onChange={(e) => setJobCardSearchQuery(e.target.value)}
+                className="h-9 flex-1 rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              />
+              {jobCardSearchQuery && (
+                <button
+                  onClick={() => setJobCardSearchQuery("")}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <div className="overflow-x-auto rounded-md border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
@@ -2245,6 +2274,9 @@ export default function ValidateVehiclesPage() {
                     <th className="px-3 py-2 text-left">Billing Month</th>
                     <th className="px-3 py-2 text-left">Invoice Number</th>
                     <th className="px-3 py-2 text-left">Order Number</th>
+                    <th className="px-3 py-2 text-left">Job Number</th>
+                    <th className="px-3 py-2 text-left">Job Type</th>
+                    <th className="px-3 py-2 text-left">Vehicle Reg</th>
                     <th className="px-3 py-2 text-left">Account</th>
                     <th className="px-3 py-2 text-left">Customer</th>
                     <th className="px-3 py-2 text-right">Amount</th>
@@ -2252,7 +2284,7 @@ export default function ValidateVehiclesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {jobCardInvoices.map((invoice) => (
+                  {filteredJobCardInvoices.map((invoice) => (
                     <tr key={`${invoice?.id || "row"}-${invoice?.invoice_number || "no-number"}`}>
                       <td className="px-3 py-2">
                         {formatInvoiceDate(invoice?.invoice_date || invoice?.created_at)}
@@ -2268,6 +2300,9 @@ export default function ValidateVehiclesPage() {
                       <td className="px-3 py-2">
                         {invoice?.order_number || "N/A"}
                       </td>
+                      <td className="px-3 py-2">{invoice?.job_number || "N/A"}</td>
+                      <td className="px-3 py-2">{invoice?.job_type || "N/A"}</td>
+                      <td className="px-3 py-2">{invoice?.vehicle_registration || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.account_number || costCode || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.company_name || invoice?.client_name || "N/A"}</td>
                       <td className="px-3 py-2 text-right">
@@ -2290,6 +2325,7 @@ export default function ValidateVehiclesPage() {
                 </tbody>
               </table>
             </div>
+          </>
           )}
         </div>
       )}
