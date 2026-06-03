@@ -963,8 +963,7 @@ export default function InventoryPage() {
       return (
         normalizedRole === "inv" && isCompletedOnEitherStatusField(job)
       );
-    })
-    .filter((job) => !isEscalatedToInventory(job));
+    });
 
   const filteredJobCardsWithParts = jobCardsWithParts.filter((job: JobCard) => {
     if (!assignedPartsSearchTerm.trim()) return true;
@@ -3185,12 +3184,7 @@ export default function InventoryPage() {
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Vehicle
                   </th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Job status
-                  </th>
+
                   <th className="py-4 px-6 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Completion Date
                   </th>
@@ -3226,21 +3220,7 @@ export default function InventoryPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-4 px-6 align-middle">
-                      <Badge variant="outline" className="font-normal text-xs">
-                        {job.status != null && String(job.status).trim() !== ""
-                          ? String(job.status)
-                          : "—"}
-                      </Badge>
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      <Badge variant="outline" className="font-normal text-xs">
-                        {job.job_status != null &&
-                        String(job.job_status).trim() !== ""
-                          ? String(job.job_status)
-                          : "—"}
-                      </Badge>
-                    </td>
+
                     <td className="py-4 px-6 align-middle">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
