@@ -203,13 +203,17 @@ export async function GET(request: NextRequest) {
       }
 
       if (escalationRole) {
-        query = query.eq('escalation_role', escalationRole);
+        if (escalationRole === 'inv') {
+          query = query.eq('role', 'inv');
+        } else {
+          query = query.eq('escalation_role', escalationRole);
+        }
       }
 
       if (excludeCompleted) {
         query = query
-          .not('job_status', 'in', '("Completed","completed")')
-          .not('status', 'in', '("Completed","completed")');
+          .not('job_status', 'in', '("Completed","completed","Invoiced","invoiced")')
+          .not('status', 'in', '("Completed","completed","Invoiced","invoiced")');
       }
 
       return query.range(offset, offset + limit - 1);
@@ -237,13 +241,17 @@ export async function GET(request: NextRequest) {
       }
 
       if (escalationRole) {
-        countQuery = countQuery.eq('escalation_role', escalationRole);
+        if (escalationRole === 'inv') {
+          countQuery = countQuery.eq('role', 'inv');
+        } else {
+          countQuery = countQuery.eq('escalation_role', escalationRole);
+        }
       }
 
       if (excludeCompleted) {
         countQuery = countQuery
-          .not('job_status', 'in', '("Completed","completed")')
-          .not('status', 'in', '("Completed","completed")');
+          .not('job_status', 'in', '("Completed","completed","Invoiced","invoiced")')
+          .not('status', 'in', '("Completed","completed","Invoiced","invoiced")');
       }
 
       const countResult = await countQuery;

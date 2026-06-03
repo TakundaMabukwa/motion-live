@@ -131,10 +131,10 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("job_cards")
       .select("*")
-      .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc,move_to_role.ilike.fc");
+      .eq("role", "fc");
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
-      query = query.or(`new_account_number.in.(${fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")).join(",")}),role.ilike.fc`);
+      query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
 
     query = query.not("move_to", "ilike", "accounts");
