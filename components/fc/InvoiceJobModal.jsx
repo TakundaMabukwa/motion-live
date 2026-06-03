@@ -601,13 +601,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       .company-right div{margin-top:10px;font-weight:400}
       .rule{border-top:2px solid #bcbcbc;margin:12px 24px 8px}
       .title{text-align:center;font-size:21px;font-weight:700;margin:6px 0 34px}
-      .party-row{display:grid;grid-template-columns:1.5fr 0.9fr;gap:22px;min-height:146px;padding:0 26px}
-      .bill-to{margin-top:10px}
-      .bill-company{font-size:17px;font-weight:700;margin-top:0}
-      .bill-address{margin-top:14px;font-size:15px;line-height:1.55;white-space:pre-line}
-      .invoice-meta{align-self:start;font-size:17px}
-      .invoice-meta-row{display:grid;grid-template-columns:170px 1fr;margin-bottom:24px}
-      .invoice-meta-row .label{font-weight:700}
+      .invoice-party-row{display:grid;grid-template-columns:1.45fr 0.85fr;gap:24px;min-height:150px;margin-bottom:26px}
+      .invoice-client-block{display:flex;flex-direction:column;gap:14px}
+      .invoice-client-name{font-weight:700;font-size:18px}
+      .invoice-client-address{white-space:pre-line;font-size:15px;line-height:1.5}
+      .invoice-meta{display:grid;grid-template-columns:auto 1fr;gap:18px 14px;align-content:start}
+      .invoice-meta-label,.invoice-meta-value{font-weight:700;font-size:18px}
       .box-table,.line-table,.totals-table,.footer-table{width:calc(100% - 48px);margin:0 24px;border-collapse:collapse;table-layout:fixed}
       .box-table th,.box-table td,.totals-table td,.footer-table td{border:2px solid #505050}
       .box-table{margin-top:8px}
@@ -641,16 +640,19 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       </div>
       <div class="rule"></div>
       <div class="title">TAX INVOICE</div>
-      <div class="party-row">
-        <div class="bill-to">
-          <div class="bill-company">${escapeHtml(invoiceView.clientName)}</div>
-          <div class="bill-address"><strong>Company Reg:</strong> ${escapeHtml(invoiceView.companyRegistrationNumber)}</div>
-          <div class="bill-address">${escapeHtml(invoiceView.clientAddress)}</div>
+      <div class="invoice-party-row">
+        <div class="invoice-client-block">
+          <div class="invoice-client-name">${escapeHtml(invoiceView.clientName)}</div>
+          <div class="invoice-client-address"><strong>Company Reg:</strong> ${escapeHtml(invoiceView.companyRegistrationNumber)}</div>
+          <div class="invoice-client-address">${escapeHtml(invoiceView.clientAddress)}</div>
         </div>
         <div class="invoice-meta">
-          <div class="invoice-meta-row"><div class="label">TAX INVOICE :</div><div>${escapeHtml(invoiceView.invoiceNumber)}</div></div>
-          <div class="invoice-meta-row"><div class="label">Date:</div><div>${escapeHtml(invoiceView.invoiceDate)}</div></div>
-          <div class="invoice-meta-row"><div class="label">Order Number:</div><div>${escapeHtml(invoiceView.orderNumber)}</div></div>
+          <div class="invoice-meta-label">TAX INVOICE :</div>
+          <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceNumber)}</div>
+          <div class="invoice-meta-label">Date:</div>
+          <div class="invoice-meta-value">${escapeHtml(invoiceView.invoiceDate)}</div>
+          <div class="invoice-meta-label">Order Number:</div>
+          <div class="invoice-meta-value">${escapeHtml(invoiceView.orderNumber)}</div>
         </div>
       </div>
       <table class="box-table"><colgroup>${boxTableColgroup}</colgroup>

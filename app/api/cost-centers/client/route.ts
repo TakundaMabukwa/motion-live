@@ -84,14 +84,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check if the user is an FC to apply fc_id filtering
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    const isFcUser = userData?.role === 'fc';
-
     const { searchParams } = new URL(request.url);
     const allNewAccountNumbers = searchParams.get('all_new_account_numbers');
     const companyName = searchParams.get('company_name') || '';
@@ -122,15 +114,9 @@ export async function GET(request: NextRequest) {
 
     console.log('Deduplicated account numbers:', accountNumbers);
 
-    let exactQuery = supabase
+    const { data: exactCostCenters, error } = await supabase
       .from('cost_centers')
-      .select('*');
-
-    if (isFcUser) {
-      exactQuery = exactQuery.eq('fc_id', user.id);
-    }
-
-    const { data: exactCostCenters, error } = await exactQuery
+      .select('*')
       .in('cost_code', accountNumbers)
       .order('cost_code', { ascending: true });
 
@@ -149,15 +135,9 @@ export async function GET(request: NextRequest) {
 
     if (prefixes.length > 0) {
       const prefixQueries = prefixes.map((prefix) => `cost_code.ilike.${prefix}-%`);
-      let prefixQuery = supabase
+      const { data: prefixRows, error: prefixError } = await supabase
         .from('cost_centers')
-        .select('*');
-
-      if (isFcUser) {
-        prefixQuery = prefixQuery.eq('fc_id', user.id);
-      }
-
-      const { data: prefixRows, error: prefixError } = await prefixQuery
+        .select('*')
         .or(prefixQueries.join(','))
         .order('cost_code', { ascending: true });
 
@@ -258,6 +238,13 @@ export async function GET(request: NextRequest) {
         cost_code: missingCode,
         validated: false,
         legal_name: fallbackLegalName || fallbackCompany || '',
+        vat_number: null,
+        registration_number: null,
+        physical_address_1: null,
+        physical_address_2: null,
+        physical_address_3: null,
+        physical_area: null,
+        physical_code: null,
         total_amount_locked: false,
         total_amount_locked_value: null,
         total_amount_locked_by: null,
