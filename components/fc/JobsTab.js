@@ -288,7 +288,7 @@ export default function JobsTab() {
     if (jobId) {
       try {
         const patchBody = {};
-        for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback"]) {
+        for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback", "order_number"]) {
           if (formData[key] !== undefined) patchBody[key] = formData[key];
         }
         await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, {
