@@ -171,7 +171,7 @@ const getProductChargeLines = (product, job, options = {}) => {
   if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
   if (lines.length === 0) {
     const fallbackUnitPrice = getProductUnitPrice(product, { includeRecurring: true });
-    if (fallbackUnitPrice > 0) lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
+    lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
   }
   return lines;
 };
@@ -197,7 +197,7 @@ const getInvoiceTotals = (job, overrideProducts) => {
     const unitPrice = getProductUnitPrice(product, { includeRecurring: false });
     return sum + unitPrice * qty;
   }, 0);
-  const subtotal = computedSubtotal > 0 ? computedSubtotal : getAdminOrRepairFallbackSubtotal(job);
+  const subtotal = products.length > 0 ? computedSubtotal : toNumber(job?.quotation_subtotal);
   const vat = Number((subtotal * VAT_RATE).toFixed(2));
   const total = Number((subtotal + vat).toFixed(2));
   return { products, subtotal, vat, total };
@@ -383,7 +383,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           clientAddress: "",
           paymentTerms: "30 days",
           dueDate: getLocalDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
-          notes: [latestJob.quote_notes, latestJob.completion_notes].filter(Boolean).join("\n"),
+          notes: [latestJob.quote_notes, latestJob.work_notes, latestJob.completion_notes].filter(Boolean).join("\n"),
         });
       })();
     }
@@ -428,26 +428,27 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
   };
 
   const buildCompletedJobInvoiceView = () => {
-    if (!job) return null;
-    const isOnceOffItemInvoice = isOnceOffItemJob(job);
+    const effectiveJob = latestJobRef.current || job;
+    if (!effectiveJob) return null;
+    const isOnceOffItemInvoice = isOnceOffItemJob(effectiveJob);
     const hideRegistrationColumns = isOnceOffItemInvoice;
     const hideItemCodeColumn = isOnceOffItemInvoice;
     const hideAccountColumn = isOnceOffItemInvoice;
-    const rawTotals = getInvoiceTotals(job, externalEditedProducts);
-    const invoiceVehicles = getInvoiceVehicles(job);
+    const rawTotals = getInvoiceTotals(effectiveJob, externalEditedProducts);
+    const invoiceVehicles = getInvoiceVehicles(effectiveJob);
     const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ") : "N/A";
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
     const orderNumber = latestJobRef.current?.order_number || job.order_number || "N/A";
-    const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || invoiceFormData.clientName || job.customer_name || "N/A";
+    const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || invoiceFormData.clientName || effectiveJob.customer_name || "N/A";
     const effectiveClientName = defaultClientName;
     const isDeinstallJob = (() => {
-      const raw = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+      const raw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
     const productRows = rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
-          const chargeLines = getProductChargeLines(product, job, { includeRecurring: false, includeRecurringWhenMultiplierNotOne: true });
+          const chargeLines = getProductChargeLines(product, effectiveJob, { includeRecurring: false, includeRecurringWhenMultiplierNotOne: true });
           const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
           if (validLines.length > 0) {
             return validLines.map((chargeLine) => {
@@ -511,12 +512,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             key: "fallback-row",
             previousReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
             newReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
-            itemCode: isAdminOrRepairFallbackJob(job) && normalizeBillingToken(job?.job_type || job?.quotation_job_type) === "repair" ? "REPAIR" : isAdminOrRepairFallbackJob(job) ? "ADMIN" : job.job_type || "Service",
-            description: isAdminOrRepairFallbackJob(job) ? (() => {
-              const normalizedType = normalizeBillingToken(job?.job_type || job?.quotation_job_type);
+            itemCode: isAdminOrRepairFallbackJob(effectiveJob) && normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type) === "repair" ? "REPAIR" : isAdminOrRepairFallbackJob(effectiveJob) ? "ADMIN" : effectiveJob.job_type || "Service",
+            description: isAdminOrRepairFallbackJob(effectiveJob) ? (() => {
+              const normalizedType = normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type);
               return normalizedType === "repair" || normalizedType === "admincreated" ? "Repair Job Charge" : "Admin Job Charge";
-            })() : job.job_description || "Job completion",
-            comments: job.completion_notes || job.work_notes || "",
+            })() : effectiveJob.job_description || "Job completion",
+            comments: effectiveJob.completion_notes || effectiveJob.work_notes || "",
             qty: 1,
             unitPrice: rawTotals.subtotal,
             vatPercent: "15.00%",
@@ -550,13 +551,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       : totals;
     return {
       invoiceNumber, invoiceDate: formatDate(invoiceDate), orderNumber, clientName: effectiveClientName,
-      clientEmail: storedInvoiceRecord?.client_email || invoiceFormData.clientEmail || job.customer_email || "No email provided",
-      clientPhone: storedInvoiceRecord?.client_phone || invoiceFormData.clientPhone || job.customer_phone || "No phone provided",
-      clientAddress: buildClientAddress(selectedCostCenterInfo, storedInvoiceRecord?.client_address || invoiceFormData.clientAddress || job.customer_address),
+      clientEmail: storedInvoiceRecord?.client_email || invoiceFormData.clientEmail || effectiveJob.customer_email || "No email provided",
+      clientPhone: storedInvoiceRecord?.client_phone || invoiceFormData.clientPhone || effectiveJob.customer_phone || "No phone provided",
+      clientAddress: buildClientAddress(selectedCostCenterInfo, storedInvoiceRecord?.client_address || invoiceFormData.clientAddress || effectiveJob.customer_address),
       accountNumber: getSelectedInvoiceAccountNumber() || "N/A",
       customerVatNumber: selectedCostCenterInfo?.vat_number || selectedCostCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
       companyRegistrationNumber: selectedCostCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
-      notes: storedInvoiceRecord?.notes || invoiceFormData.notes || job.special_instructions || "No special instructions.",
+      notes: storedInvoiceRecord?.notes || invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
       hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals: displayTotals, rows,
     };
   };
@@ -683,23 +684,24 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
   const getInvoiceVehicleRegistrationDisplay = (job) => getInvoiceRegistrationFallback(job);
 
   const generateInvoice = async () => {
-    if (!job) return;
+    const effectiveJob = latestJobRef.current || job;
+    if (!effectiveJob) return;
     setIsGeneratingInvoice(true);
     try {
-      let effectiveAccountNumber = String(job?.new_account_number || selectedCostCenterInfo?.cost_code || "").trim();
+      let effectiveAccountNumber = String(effectiveJob?.new_account_number || selectedCostCenterInfo?.cost_code || "").trim();
       if (!effectiveAccountNumber) {
-        const reg = String(job?.vehicle_registration || "").trim();
+        const reg = String(effectiveJob?.vehicle_registration || "").trim();
         if (!reg) {
           toast.error("Job has no vehicle registration to look up a cost center");
           return;
         }
-        effectiveAccountNumber = await resolveAccountNumber(job);
+        effectiveAccountNumber = await resolveAccountNumber(effectiveJob);
         if (!effectiveAccountNumber) {
           toast.error("Vehicle not found, please add it.");
           return;
         }
       }
-      const jobForVehicleSync = effectiveAccountNumber ? { ...job, new_account_number: effectiveAccountNumber } : job;
+      const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
       const invoicePreview = buildCompletedJobInvoiceView();
       const lineItems = (invoicePreview?.rows || []).map((row) => ({
         previous_reg: row.previousReg, new_reg: row.newReg, item_code: row.itemCode,
@@ -710,14 +712,14 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jobCardId: job.id, jobNumber: job.job_number, quotationNumber: job.quotation_number,
+          jobCardId: effectiveJob.id, jobNumber: effectiveJob.job_number, quotationNumber: effectiveJob.quotation_number,
           accountNumber: effectiveAccountNumber, invoiceDate: billingInvoiceDate,
-          clientName: invoiceFormData.clientName || job.customer_name,
-          clientEmail: invoiceFormData.clientEmail || job.customer_email,
-          clientPhone: invoiceFormData.clientPhone || job.customer_phone,
-          clientAddress: invoiceFormData.clientAddress || job.customer_address,
+          clientName: invoiceFormData.clientName || effectiveJob.customer_name,
+          clientEmail: invoiceFormData.clientEmail || effectiveJob.customer_email,
+          clientPhone: invoiceFormData.clientPhone || effectiveJob.customer_phone,
+          clientAddress: invoiceFormData.clientAddress || effectiveJob.customer_address,
           dueDate: invoiceFormData.dueDate, paymentTerms: invoiceFormData.paymentTerms,
-          notes: invoiceFormData.notes || job.special_instructions || "No special instructions.",
+          notes: invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
           subtotal: invoicePreview?.totals?.subtotal || 0, vatAmount: invoicePreview?.totals?.vat || 0,
           discountAmount: invoicePreview?.totals?.discount || 0, totalAmount: invoicePreview?.totals?.total || 0, lineItems,
         }),
@@ -728,7 +730,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const invoiceNumber = invoiceRecord?.invoice_number;
       if (!invoiceRecord || !invoiceNumber) throw new Error("Invoice record was not returned");
       const invoiceData = {
-        invoiceNumber, jobNumber: job.job_number, clientInfo: invoiceFormData, jobDetails: job,
+        invoiceNumber, jobNumber: effectiveJob.job_number, clientInfo: invoiceFormData, jobDetails: effectiveJob,
         generatedAt: invoiceRecord.invoice_date || new Date().toISOString(),
         pdfUrl: invoiceRecord.pdf_url || `#invoice-${invoiceNumber}`, invoiceId: invoiceRecord.id,
       };
@@ -737,7 +739,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const deferredActions = [];
       const syncWarnings = [];
       if (effectiveAccountNumber) {
-        const products = parseQuotationProducts(job.quotation_products);
+        const products = parseQuotationProducts(effectiveJob.quotation_products);
         const selectedAnnuityKeys = new Set(selectedAnnuityItemKeys);
         const selectedAnnuityProducts = annuitySelectableItems.filter((item) => selectedAnnuityKeys.has(item.key)).map((item) => item.product);
         if (products.length > 0) {
@@ -745,13 +747,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              cost_code: effectiveAccountNumber, job_card_id: job.id, job_number: job.job_number,
-              job_type: job.job_type || job.quotation_job_type, quotation_number: job.quotation_number,
+              cost_code: effectiveAccountNumber, job_card_id: effectiveJob.id, job_number: effectiveJob.job_number,
+              job_type: effectiveJob.job_type || effectiveJob.quotation_job_type, quotation_number: effectiveJob.quotation_number,
               invoice_number: invoiceNumber, quotation_products: products,
               selected_annuity_products: selectedAnnuityProducts,
               selected_annuity_item_keys: Array.from(selectedAnnuityKeys),
-              vehicle_registration: job.vehicle_registration, vehicle_make: job.vehicle_make,
-              vehicle_model: job.vehicle_model, vehicle_year: job.vehicle_year, customer_name: job.customer_name,
+              vehicle_registration: effectiveJob.vehicle_registration, vehicle_make: effectiveJob.vehicle_make,
+              vehicle_model: effectiveJob.vehicle_model, vehicle_year: effectiveJob.vehicle_year, customer_name: effectiveJob.customer_name,
             }),
           });
           if (!billingResponse.ok) {
@@ -769,12 +771,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           }
         }
       }
-      const jobTypeRaw = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+      const jobTypeRaw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
       const isDeinstall = jobTypeRaw.includes("deinstall") || jobTypeRaw.includes("de-install") || jobTypeRaw.includes("decomm");
       if (isDeinstall && effectiveAccountNumber) {
         const zeroRes = await fetch("/api/vehicles/deinstall-zero-out", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: job.id, accountNumber: effectiveAccountNumber, vehicleReg: job.vehicle_registration }),
+          body: JSON.stringify({ jobId: effectiveJob.id, accountNumber: effectiveAccountNumber, vehicleReg: effectiveJob.vehicle_registration }),
         });
         if (!zeroRes.ok) {
           const zeroErr = await zeroRes.json().catch(() => ({}));
@@ -794,13 +796,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       if (equipmentResult?.warnings?.length) syncWarnings.push(...equipmentResult.warnings);
 
       // Update billing status
-      if (job?.id) {
+      if (effectiveJob?.id) {
         try {
-          const currentStatuses = job?.billing_statuses && typeof job.billing_statuses === "object" ? job.billing_statuses : {};
+          const currentStatuses = effectiveJob?.billing_statuses && typeof effectiveJob.billing_statuses === "object" ? effectiveJob.billing_statuses : {};
           const nextStatuses = { ...currentStatuses, invoice: { done: true, at: new Date().toISOString(), invoice_number: invoiceNumber, invoice_id: invoiceRecord.id, invoice_date: invoiceData.generatedAt, subtotal: invoiceRecord.subtotal || 0, vat_amount: invoiceRecord.vat_amount || 0, total_amount: invoiceRecord.total_amount || 0 } };
-          await fetch(`/api/job-cards/${job.id}`, {
+          await fetch(`/api/job-cards/${effectiveJob.id}`, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ billing_statuses: nextStatuses, job_status: "Invoiced", status: "completed" }),
+            body: JSON.stringify({ billing_statuses: nextStatuses, job_status: "invoiced", status: "completed" }),
           });
         } catch { /* non-critical */ }
       }
@@ -835,17 +837,19 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
   };
 
   const sendInvoiceEmail = async () => {
+    const effectiveJob = latestJobRef.current || job;
+    if (!effectiveJob) { toast.error("No job data available"); return; }
     if (!generatedInvoice || !invoiceFormData.clientEmail) { toast.error("Please provide client email address"); return; }
     setIsSendingEmail(true);
     try {
-      const totals = getInvoiceTotals(job, externalEditedProducts);
+      const totals = getInvoiceTotals(effectiveJob, externalEditedProducts);
       const items = totals.products.length > 0
         ? totals.products.map((product) => {
             const qty = Math.max(1, toNumber(product?.quantity) || 1);
             const unitPrice = getProductUnitPrice(product);
-            return { description: product?.description || product?.name || "Item", quantity: qty, unitPrice, total: unitPrice * qty, vehicleRegistration: getInvoiceVehicleRegistrationDisplay(job) };
+            return { description: product?.description || product?.name || "Item", quantity: qty, unitPrice, total: unitPrice * qty, vehicleRegistration: getInvoiceVehicleRegistrationDisplay(effectiveJob) };
           })
-        : [{ description: `${job.job_type || "Service"} - ${job.job_description || "Job completion"}`, quantity: 1, unitPrice: totals.subtotal, total: totals.subtotal, vehicleRegistration: getInvoiceVehicleRegistrationDisplay(job) }];
+        : [{ description: `${effectiveJob.job_type || "Service"} - ${effectiveJob.job_description || "Job completion"}`, quantity: 1, unitPrice: totals.subtotal, total: totals.subtotal, vehicleRegistration: getInvoiceVehicleRegistrationDisplay(effectiveJob) }];
       const invoiceEmailData = {
         invoiceNumber: generatedInvoice.invoiceNumber, clientName: invoiceFormData.clientName,
         clientEmail: invoiceFormData.clientEmail, clientPhone: invoiceFormData.clientPhone,

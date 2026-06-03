@@ -659,6 +659,19 @@ const buildEpsInvoiceData = (
   };
 };
 
+function applyBillingOverrides(
+  vehicles: Record<string, any>[],
+  billingMonth: string,
+): Record<string, any>[] {
+  if (!billingMonth || !vehicles) return vehicles;
+  return vehicles.map((vehicle) => {
+    const overrides: Record<string, any> = vehicle.billing_overrides || {};
+    const monthOverrides = overrides[billingMonth];
+    if (!monthOverrides || typeof monthOverrides !== 'object') return vehicle;
+    return { ...vehicle, ...monthOverrides };
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -764,6 +777,10 @@ export async function GET(request: NextRequest) {
       const result = await vehiclesQuery;
       vehicles = (result.data || []) as Record<string, any>[];
       error = result.error;
+    }
+
+    if (requestedBillingMonth && vehicles) {
+      vehicles = applyBillingOverrides(vehicles, requestedBillingMonth);
     }
 
     if (error) throw error;

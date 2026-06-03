@@ -3,10 +3,23 @@ import { NextResponse } from 'next/server';
 
 import { NextRequest } from 'next/server';
 
+function applyBillingOverrides(
+  vehicles: Record<string, any>[],
+  billingMonth: string,
+): Record<string, any>[] {
+  return vehicles.map((vehicle) => {
+    const overrides: Record<string, any> = vehicle.billing_overrides || {};
+    const monthOverrides = overrides[billingMonth];
+    if (!monthOverrides || typeof monthOverrides !== 'object') return vehicle;
+    return { ...vehicle, ...monthOverrides };
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const costCode = searchParams.get('cost_code');
+    const billingMonth = searchParams.get('billingMonth') || '';
 
     if (!costCode) {
       return NextResponse.json(
@@ -18,7 +31,6 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     console.log('Fetching vehicles for new_account_number:', costCode);
 
-    // Fetch vehicles where new_account_number matches
     let query = supabase
       .from('vehicles_duplicate')
       .select('*')
@@ -35,8 +47,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Vehicles found:', data?.length || 0);
-    return NextResponse.json(data || []);
+    const vehicles = data || [];
+    const result = billingMonth ? applyBillingOverrides(vehicles, billingMonth) : vehicles;
+
+    console.log('Vehicles found:', vehicles.length);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error in vehicles GET API:', error);
     const errMsg = error instanceof Error ? error.message : String(error);

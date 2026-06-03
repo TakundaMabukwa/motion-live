@@ -335,6 +335,7 @@ export default function ValidateVehiclesPage() {
   const lastVehiclesFetchKeyRef = useRef(null);
   const lastInitialCostCenterFetchRef = useRef(null);
   const hasLoadedPrefixCostCentersRef = useRef(false);
+  const multiplierOriginsRef = useRef({});
 
   const excludeKeys = [
     "id",
@@ -346,6 +347,7 @@ export default function ValidateVehiclesPage() {
     "amount_locked_by",
     "amount_locked_at",
     "once_off_fees",
+    "billing_overrides",
   ];
   const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour"];
   const billingFields = [
@@ -1049,6 +1051,40 @@ export default function ValidateVehiclesPage() {
       return;
     }
 
+    // Separate multiplier-origin changes into billing_overrides (temporary per-month)
+    const multiplierFields = Object.keys(multiplierOriginsRef.current);
+    const overrideFields = {};
+    const directFields = {};
+    for (const [fieldKey, fieldValue] of Object.entries(changedFields)) {
+      if (multiplierFields.includes(fieldKey)) {
+        overrideFields[fieldKey] = fieldValue;
+      } else {
+        directFields[fieldKey] = fieldValue;
+      }
+    }
+
+    // When multiplier affects individual billing fields, its recalculated
+    // totals must also be overridden so they revert next month
+    const multiplierAffectsTotals = multiplierFields.some(
+      (f) =>
+        (f.endsWith("_rental") && f !== "total_rental") ||
+        (f.endsWith("_sub") && !["total_sub", "total_rental_sub"].includes(f)) ||
+        specialBillingFields.includes(f),
+    );
+    if (multiplierAffectsTotals) {
+      for (const t of ["total_rental", "total_sub", "total_rental_sub"]) {
+        if (t in changedFields) {
+          overrideFields[t] = changedFields[t];
+          delete directFields[t];
+        }
+      }
+    }
+
+    const currentBillingMonthKey = FC_BILLING_MONTH;
+    const billingOverrides = Object.keys(overrideFields).length > 0
+      ? { [currentBillingMonthKey]: overrideFields }
+      : {};
+
     const previousVehicles = vehicles;
     const optimisticVehicle = { ...currentVehicle, ...changedFields };
     setVehicles((prev) =>
@@ -1060,7 +1096,8 @@ export default function ValidateVehiclesPage() {
       const payload = {
         id: editedData.id,
         ...(editedData.unique_id ? { unique_id: editedData.unique_id } : {}),
-        ...changedFields,
+        ...directFields,
+        ...(Object.keys(billingOverrides).length > 0 ? { billing_overrides: billingOverrides } : {}),
       };
       const response = await fetch("/api/vehicles/update", {
         method: "PUT",
@@ -1093,6 +1130,7 @@ export default function ValidateVehiclesPage() {
         toast.success("Vehicle updated successfully");
       }
       setEditedData({});
+      multiplierOriginsRef.current = {};
     } catch (error) {
       setVehicles(previousVehicles);
       setEditingVehicle(editedData.id);
@@ -1538,6 +1576,27 @@ export default function ValidateVehiclesPage() {
                         onChange={(e) => onChange(key, e.target.value)}
                         className="h-8 text-sm"
                       />
+                      {isEditing && (
+                        <div className="flex gap-0.5 items-center">
+                          {[1, 2, 3].map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                const current = parseFloat(data[key]) || 0;
+                                if (m !== 1 && !multiplierOriginsRef.current[key]) {
+                                  multiplierOriginsRef.current[key] = vehicle[key] ?? String(current);
+                                }
+                                onChange(key, String((current * m) || 0));
+                              }}
+                              className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-slate-200 hover:bg-slate-100 text-slate-600"
+                              title={`${m}x multiplier`}
+                            >
+                              {m}x
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {!isNew && data[key] !== vehicle[key] && (
                         <button
                           onClick={() => confirmField(key)}

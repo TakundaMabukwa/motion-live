@@ -80,7 +80,7 @@ export async function PUT(request) {
     let lookupValue = identifier;
     const { data: foundVehicle, error: existingVehicleError } = await supabase
       .from('vehicles_duplicate')
-      .select('id, unique_id, vehicle_validated')
+      .select('id, unique_id, vehicle_validated, billing_overrides')
       .eq(identifierField, identifier)
       .maybeSingle();
     let existingVehicle = foundVehicle;
@@ -104,7 +104,7 @@ export async function PUT(request) {
       if (fallbackReg || fallbackFleetNumber) {
         let fallbackQuery = supabase
           .from('vehicles_duplicate')
-          .select('id, unique_id, vehicle_validated')
+          .select('id, unique_id, vehicle_validated, billing_overrides')
           .limit(1);
 
         if (fallbackReg && fallbackFleetNumber) {
@@ -144,6 +144,24 @@ export async function PUT(request) {
           { status: 404 }
         );
       }
+    }
+
+    // Handle billing_overrides: merge incoming overrides with existing
+    const incomingOverrides: Record<string, any> = updateData.billing_overrides;
+    delete updateData.billing_overrides;
+    if (incomingOverrides && typeof incomingOverrides === 'object' && Object.keys(incomingOverrides).length > 0) {
+      const existingOverrides: Record<string, any> =
+        (existingVehicle as any)?.billing_overrides || {};
+      const mergedOverrides = { ...existingOverrides };
+      for (const [monthKey, monthFields] of Object.entries(incomingOverrides)) {
+        if (monthFields && typeof monthFields === 'object') {
+          mergedOverrides[monthKey] = {
+            ...(existingOverrides[monthKey] || {}),
+            ...(monthFields as Record<string, any>),
+          };
+        }
+      }
+      updateData.billing_overrides = mergedOverrides;
     }
 
     const billingLocked = await isBillingLocked(supabase);

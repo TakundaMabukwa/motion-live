@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
       .or("role.ilike.fc,move_to.ilike.fc,escalation_role.ilike.fc,move_to_role.ilike.fc");
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
-      query = query.in("new_account_number", fcCostCodes);
+      query = query.or(`new_account_number.in.(${fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")).join(",")}),role.ilike.fc`);
     }
 
     query = query.not("move_to", "ilike", "accounts");

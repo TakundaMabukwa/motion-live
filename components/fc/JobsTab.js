@@ -55,12 +55,16 @@ const getPreferredPriceField = (p) => {
       : ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
   return fields.find((f) => toFiniteNumber(p[f]) > 0) || fields[0];
 };
+const calcProductTotal = (p) => {
+  const qty = Math.max(1, toFiniteNumber(p.quantity) || 1);
+  const sumPrices = PRICE_FIELDS.reduce((sum, field) => sum + toFiniteNumber(p[field]), 0);
+  return Number((qty * sumPrices).toFixed(2));
+};
+
 const getProductLineTotal = (p) => {
   const t = toFiniteNumber(p.total_price);
   if (t > 0) return t;
-  const q = Math.max(0, toFiniteNumber(p.quantity) || 0);
-  const price = toFiniteNumber(p[getPreferredPriceField(p)]);
-  return Number((q * price).toFixed(2));
+  return calcProductTotal(p);
 };
 const PRICE_FIELDS = ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
 
@@ -159,19 +163,21 @@ export default function JobsTab() {
     }
   }, [fetchJobs, debouncedSearch]);
 
-  const isJobCompleted = useCallback((job) => {
-    const s = String(job.status || job.job_status || "").toLowerCase().trim();
-    return s === "completed";
+  const getJobStatus = useCallback((job) => {
+    const s = String(job.status || "").toLowerCase().trim();
+    const js = String(job.job_status || "").toLowerCase().trim();
+    const completed = s === "completed" || js === "completed";
+    const invoiced = s === "invoiced" || js === "invoiced";
+    if (invoiced) return "invoiced";
+    if (completed) return "completed";
+    return js || s || "pending";
   }, []);
 
   const filteredJobs = useMemo(() => {
-    const visible = jobs.filter((j) => {
-      const s = String(j.status || j.job_status || "").toLowerCase().trim();
-      return s !== "invoiced";
-    });
-    if (jobTab === "completed") return visible.filter((j) => isJobCompleted(j));
-    return visible.filter((j) => !isJobCompleted(j));
-  }, [jobs, jobTab, isJobCompleted]);
+    const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
+    if (jobTab === "completed") return visible.filter((j) => getJobStatus(j) === "completed");
+    return visible.filter((j) => getJobStatus(j) !== "completed");
+  }, [jobs, jobTab, getJobStatus]);
 
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -187,10 +193,10 @@ export default function JobsTab() {
     const total = list.length;
     let completed = 0, inProgress = 0, pending = 0, unassigned = 0;
     for (const j of list) {
-      const s = String(j.status || j.job_status || "").toLowerCase().trim();
+      const s = getJobStatus(j);
       if (s === "completed") completed++;
       else if (s === "in progress" || s === "processing") inProgress++;
-      else if (!s || s === "pending" || s === "new") pending++;
+      else if (s === "pending" || s === "new") pending++;
       if (!j.assigned_technician_id) unassigned++;
     }
     return { total, completed, inProgress, pending, unassigned };
@@ -262,16 +268,11 @@ export default function JobsTab() {
       const current = { ...next[index] };
       if (!current) return prev;
       if (field === "quantity") {
-        const qty = Math.max(0, toFiniteNumber(value));
-        current.quantity = qty;
-        const price = toFiniteNumber(current[getPreferredPriceField(current)]);
-        current.total_price = Number((qty * price).toFixed(2));
+        current.quantity = Math.max(0, toFiniteNumber(value));
+        current.total_price = calcProductTotal(current);
       } else if (PRICE_FIELDS.includes(field)) {
-        const price = Math.max(0, toFiniteNumber(value));
-        current[field] = price;
-        const qty = Math.max(1, toFiniteNumber(current.quantity) || 1);
-        current.quantity = qty;
-        current.total_price = Number((qty * price).toFixed(2));
+        current[field] = Math.max(0, toFiniteNumber(value));
+        current.total_price = calcProductTotal(current);
       } else if (field === "total_price") {
         current.total_price = Math.max(0, toFiniteNumber(value));
       } else {
@@ -285,20 +286,35 @@ export default function JobsTab() {
 
   const handleFinalizeClick = useCallback(async () => {
     const jobId = editingJob?.id;
-    if (jobId) {
-      try {
-        const patchBody = {};
-        for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback", "order_number"]) {
-          if (formData[key] !== undefined) patchBody[key] = formData[key];
-        }
-        await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody),
-        });
-      } catch { /* patch failure is non-blocking */ }
+    if (!jobId) return;
+    setFinalizing(true);
+    try {
+      const patchBody = {};
+      for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback", "order_number", "vehicle_registration", "vehicle_make", "vehicle_model"]) {
+        if (formData[key] !== undefined) patchBody[key] = formData[key];
+      }
+      if (editableProducts.length > 0) {
+        patchBody.quotation_products = editableProducts;
+      }
+      const res = await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody),
+      });
+      if (!res.ok) throw new Error("Failed to save job data");
+
+      const freshRes = await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, { cache: "no-store" });
+      if (freshRes.ok) {
+        const freshJob = await freshRes.json();
+        if (freshJob?.id) setEditingJob(freshJob);
+      }
+    } catch (err) {
+      setFinalizing(false);
+      toast.error(err.message || "Failed to save data before finalizing");
+      return;
     }
     setShowEditDialog(false);
     setShowFinalInvoiceModal(true);
-  }, [formData, editingJob?.id]);
+    setFinalizing(false);
+  }, [formData, editingJob?.id, editableProducts]);
 
   const handleRefreshJobsAfterInvoice = useCallback(() => {
     setEditingJob(null);
@@ -385,13 +401,12 @@ export default function JobsTab() {
         ) : filteredJobsSearch.length === 0 ? (
           <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "completed" : "active"} jobs found.</p></div>
         ) : filteredJobsSearch.map((job) => {
-          const sb = ((s) => {
-            const st = String(s || "").toLowerCase().trim();
+          const sb = ((st) => {
             if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
             if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
             if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
             return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
-          })(job.status || job.job_status);
+          })(getJobStatus(job));
 
           return (
             <div key={job.id} className="space-y-3 p-4">
@@ -459,13 +474,12 @@ export default function JobsTab() {
                 </thead>
                 <tbody>
                   {filteredJobsSearch.map((job) => {
-                    const sb = ((s) => {
-                      const st = String(s || "").toLowerCase().trim();
+                    const sb = ((st) => {
                       if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
                       if (st === "in progress" || st === "processing") return { label: "In Progress", cls: "border-blue-200 bg-blue-50 text-blue-700" };
                       if (st === "pending" || st === "new") return { label: "Pending", cls: "border-amber-200 bg-amber-50 text-amber-700" };
                       return { label: st || "N/A", cls: "border-slate-200 bg-slate-50 text-slate-700" };
-                    })(job.status || job.job_status);
+                    })(getJobStatus(job));
 
                     return (
                       <tr key={job.id} className="border-b border-slate-100 align-top hover:bg-slate-50/60">
@@ -679,7 +693,7 @@ export default function JobsTab() {
                                     </div>
                                     <div className="space-y-2">
                                       <Label>Total Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.total_price ?? "")} onChange={(e) => handleProductFieldChange(i, "total_price", e.target.value)} />
+                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.total_price ?? "")} readOnly className="bg-gray-50" />
                                     </div>
                                     <div className="space-y-2">
                                       <Label>Subscription Price</Label>
