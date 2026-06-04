@@ -16,6 +16,7 @@ import { buildTemporaryRegistration } from "@/lib/temp-registration";
 
 const VAT_RATE = 0.15;
 const BILLING_STATUS_KEYS = ["invoice"];
+const PRICE_FIELDS = ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
 
 const toNumber = (value) => {
   const num = typeof value === "string" ? parseFloat(value) : Number(value);
@@ -154,7 +155,11 @@ const getProductChargeLines = (product, job, options = {}) => {
     lines.push({ key: priceKey, label, qty, unitPrice, subtotal: unitPrice * qty });
   };
   const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
-  if (isDeinstall && !isLabourProduct(product)) return [];
+  if (isDeinstall) {
+    const totalUnitPrice = PRICE_FIELDS.reduce((sum, f) => sum + toNumber(product?.[f]), 0);
+    lines.push({ key: "deinstall", label: "De-Installation", qty, unitPrice: totalUnitPrice, subtotal: totalUnitPrice * qty });
+    return lines;
+  }
   if (shouldIncludeRecurring && !isLabourProduct(product)) {
     const recurringLabelSuffix = recurringMultiplier !== 1 ? ` (${recurringMultiplier}x)` : "";
     addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
@@ -162,11 +167,10 @@ const getProductChargeLines = (product, job, options = {}) => {
   }
   const hasRecurringCharge = toNumber(product?.rental_price) > 0 || toNumber(product?.rental_gross) > 0 || toNumber(product?.subscription_price) > 0 || toNumber(product?.subscription_gross) > 0;
   if (!hasRecurringCharge) addLine("cash_gross", "cash_price", "Cash");
-  if (!isDeinstall) addLine("installation_gross", "installation_price", "Installation");
-  if (isDeinstall) addLine("de_installation_gross", "de_installation_price", "De-Installation");
+  addLine("installation_gross", "installation_price", "Installation");
   if (lines.length === 0 && isLabourProduct(product)) {
     const amount = toNumber(product?.total_price) || toNumber(product?.subscription_gross) || toNumber(product?.subscription_price) || toNumber(product?.rental_gross) || toNumber(product?.rental_price);
-    if (amount > 0) lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
+    lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
   }
   if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
   if (lines.length === 0) {
@@ -368,16 +372,30 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             if (foundAddress) latestJob.customer_address = foundAddress;
           } catch { /* ignore */ }
         }
+
+        // Always fetch cost center info for the client name
+        const accountNumber = String(latestJob?.new_account_number || job?.new_account_number || "").trim();
+        let fetchedCostCenter = null;
+        if (accountNumber) {
+          try {
+            const ccResp = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`);
+            if (ccResp.ok) {
+              const ccData = await ccResp.json();
+              fetchedCostCenter = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === accountNumber.toUpperCase()) : null) || null;
+            }
+          } catch { /* ignore */ }
+        }
+
         latestJobRef.current = latestJob;
         const annuityItems = getAnnuitySelectionItems(latestJob, externalEditedProducts);
         setGeneratedInvoice(null);
         setStoredInvoiceRecord(null);
-        setSelectedCostCenterInfo(null);
+        setSelectedCostCenterInfo(fetchedCostCenter);
         setAnnuitySelectableItems(annuityItems);
         setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
         setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
         setInvoiceFormData({
-          clientName: latestJob.customer_name || "",
+          clientName: fetchedCostCenter?.company || fetchedCostCenter?.legal_name || latestJob.customer_name || "",
           clientEmail: latestJob.customer_email || "",
           clientPhone: latestJob.customer_phone || "",
           clientAddress: "",
@@ -387,23 +405,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         });
       })();
     }
-  }, [open, job]);
-
-  useEffect(() => {
-    if (!open || !job) return;
-    let cancelled = false;
-    const accountNumber = String(job?.new_account_number || "").trim();
-    if (!accountNumber) return;
-    (async () => {
-      try {
-        const response = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`);
-        if (!response.ok) throw new Error("Failed to fetch cost center info");
-        const result = await response.json();
-        const matchedCostCenter = Array.isArray(result?.costCenters) ? result.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === accountNumber.toUpperCase()) : null;
-        if (!cancelled) setSelectedCostCenterInfo(matchedCostCenter || null);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
   }, [open, job]);
 
   const toggleAnnuityItemSelection = (itemKey) => {
@@ -440,7 +441,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
     const orderNumber = latestJobRef.current?.order_number || job.order_number || "N/A";
-    const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || invoiceFormData.clientName || effectiveJob.customer_name || "N/A";
+    const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || effectiveJob.customer_name || "N/A";
     const effectiveClientName = defaultClientName;
     const isDeinstallJob = (() => {
       const raw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
@@ -551,9 +552,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       : totals;
     return {
       invoiceNumber, invoiceDate: formatDate(invoiceDate), orderNumber, clientName: effectiveClientName,
-      clientEmail: storedInvoiceRecord?.client_email || invoiceFormData.clientEmail || effectiveJob.customer_email || "No email provided",
-      clientPhone: storedInvoiceRecord?.client_phone || invoiceFormData.clientPhone || effectiveJob.customer_phone || "No phone provided",
-      clientAddress: buildClientAddress(selectedCostCenterInfo, storedInvoiceRecord?.client_address || invoiceFormData.clientAddress || effectiveJob.customer_address),
+      clientEmail: storedInvoiceRecord?.client_email || effectiveJob.customer_email || "No email provided",
+      clientPhone: storedInvoiceRecord?.client_phone || effectiveJob.customer_phone || "No phone provided",
+      clientAddress: buildClientAddress(selectedCostCenterInfo, storedInvoiceRecord?.client_address || effectiveJob.customer_address),
       accountNumber: getSelectedInvoiceAccountNumber() || "N/A",
       customerVatNumber: selectedCostCenterInfo?.vat_number || selectedCostCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
       companyRegistrationNumber: selectedCostCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
@@ -613,13 +614,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       .box-table th{font-size:12px;font-weight:700;text-align:center;padding:4px 4px}
       .box-table td{font-size:14px;text-align:center;padding:6px 4px}
       .line-table{margin-top:16px}
-      .line-table thead{border-top:2px solid #505050;border-bottom:2px solid #505050}
+      .line-table thead{border:0}
       .line-table th{background:#d6d6d6;font-size:11px;font-weight:700;text-align:left;padding:4px 3px;white-space:nowrap;border:0}
-      .line-table td{font-size:11px;padding:3px 3px;vertical-align:top;border:0}
+      .line-table td{font-size:11px;padding:3px 3px;vertical-align:top;border:0;word-break:break-word;overflow-wrap:break-word}
       .line-table tbody tr:nth-child(even) td{background:#dcdcdc}
       .line-table .text-right{text-align:right}
       .line-table .text-center{text-align:center}
-      .line-table .spacer td{height:168px;background:#fff!important;border-bottom:0}
+      .line-table .spacer td{height:168px;background:#fff!important}
       .bottom-row{display:grid;grid-template-columns:1.15fr 0.85fr;gap:24px;align-items:start;margin:16px 24px 0}
       .notes{font-size:14px;white-space:pre-line}
       .notes strong{font-size:16px}
@@ -716,10 +717,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         body: JSON.stringify({
           jobCardId: effectiveJob.id, jobNumber: effectiveJob.job_number, quotationNumber: effectiveJob.quotation_number,
           accountNumber: effectiveAccountNumber, invoiceDate: billingInvoiceDate,
-          clientName: invoiceFormData.clientName || effectiveJob.customer_name,
-          clientEmail: invoiceFormData.clientEmail || effectiveJob.customer_email,
-          clientPhone: invoiceFormData.clientPhone || effectiveJob.customer_phone,
-          clientAddress: invoiceFormData.clientAddress || effectiveJob.customer_address,
+          clientName: invoicePreview?.clientName || invoiceFormData.clientName || effectiveJob.customer_name,
+          clientEmail: invoicePreview?.clientEmail || invoiceFormData.clientEmail || effectiveJob.customer_email,
+          clientPhone: invoicePreview?.clientPhone || invoiceFormData.clientPhone || effectiveJob.customer_phone,
+          clientAddress: invoicePreview?.clientAddress || invoiceFormData.clientAddress || effectiveJob.customer_address,
           dueDate: invoiceFormData.dueDate, paymentTerms: invoiceFormData.paymentTerms,
           notes: invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
           subtotal: invoicePreview?.totals?.subtotal || 0, vatAmount: invoicePreview?.totals?.vat || 0,
