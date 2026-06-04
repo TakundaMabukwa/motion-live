@@ -165,8 +165,7 @@ const getProductChargeLines = (product, job, options = {}) => {
     addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
     addLine("rental_gross", "rental_price", `Rental${recurringLabelSuffix}`, recurringMultiplier);
   }
-  const hasRecurringCharge = toNumber(product?.rental_price) > 0 || toNumber(product?.rental_gross) > 0 || toNumber(product?.subscription_price) > 0 || toNumber(product?.subscription_gross) > 0;
-  if (!hasRecurringCharge) addLine("cash_gross", "cash_price", "Cash");
+  addLine("cash_gross", "cash_price", "Cash");
   addLine("installation_gross", "installation_price", "Installation");
   if (lines.length === 0 && isLabourProduct(product)) {
     const amount = toNumber(product?.total_price) || toNumber(product?.subscription_gross) || toNumber(product?.subscription_price) || toNumber(product?.rental_gross) || toNumber(product?.rental_price);
