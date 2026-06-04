@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Briefcase,
   Receipt,
+  Clock,
 } from "lucide-react";
 import CreateCalibrationJobModal from '@/components/master/CreateCalibrationJobModal';
 import {
@@ -44,8 +45,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import AccountsJobPoolSection from "@/components/accounts/AccountsJobPoolSection";
 
-const FC_TAB_IDS = ["global", "companies", "jobs", "annuity-billing", "quotes"];
+const FC_TAB_IDS = ["global", "companies", "jobs", "annuity-billing", "quotes", "job-pool"];
 
 const normalizeFcTab = (value) => {
   const raw = String(value || "").trim().toLowerCase();
@@ -855,6 +857,9 @@ function AccountsDashboardContent() {
       case 'quotes':
         return <FCQuotesPage />;
 
+      case 'job-pool':
+        return <AccountsJobPoolSection />;
+
       default:
         return <GlobalView />;
     }
@@ -916,14 +921,16 @@ function AccountsDashboardContent() {
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'jobs', label: 'Jobs', icon: Briefcase, type: 'tab' },
             { id: 'annuity-billing', label: 'Annuity Billing', icon: FileText, type: 'tab' },
-            { id: 'quotes', label: 'Quotes', icon: Receipt, type: 'tab' }
+            { id: 'quotes', label: 'Quotes', icon: Receipt, type: 'tab' },
+            { id: 'job-pool', label: 'Job Pool', icon: Clock, type: 'tab' }
           ].map((navItem) => {
             const Icon = navItem.icon;
             const isActive = (navItem.id === 'global' && activeTab === 'global') || 
                            (navItem.id === 'companies' && activeTab === 'companies') ||
                            (navItem.id === 'jobs' && activeTab === 'jobs') ||
                            (navItem.id === 'annuity-billing' && activeTab === 'annuity-billing') ||
-                           (navItem.id === 'quotes' && activeTab === 'quotes');
+                           (navItem.id === 'quotes' && activeTab === 'quotes') ||
+                           (navItem.id === 'job-pool' && activeTab === 'job-pool');
             
             return (
               <button

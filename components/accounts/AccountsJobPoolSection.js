@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Circle, RefreshCw } from "lucide-react";
+import { RefreshCw, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const ROLE_COLUMNS = [
@@ -10,68 +13,14 @@ const ROLE_COLUMNS = [
   { key: "inv", label: "INV" },
   { key: "admin", label: "ADMIN" },
   { key: "tech", label: "TECH" },
-  { key: "accounts", label: "ACCOUNTS" },
   { key: "unassigned", label: "UNASSIGNED" },
 ];
 
 const getAgeTone = (days) => {
-  if (days <= 3) {
-    return {
-      accent: "bg-emerald-500",
-      text: "text-emerald-600",
-      soft: "bg-emerald-50",
-      status: "ACTIVE",
-      bar: "bg-emerald-500",
-      ring: "border-emerald-100",
-    };
-  }
-
-  if (days <= 7) {
-    return {
-      accent: "bg-orange-500",
-      text: "text-orange-500",
-      soft: "bg-orange-50",
-      status: "PENDING",
-      bar: "bg-orange-500",
-      ring: "border-orange-100",
-    };
-  }
-
-  return {
-    accent: "bg-rose-600",
-    text: "text-rose-600",
-    soft: "bg-rose-50",
-    status: "OVERDUE",
-    bar: "bg-rose-600",
-    ring: "border-rose-100",
-  };
+  if (days <= 3) return { accent: "bg-emerald-500", ring: "border-emerald-100" };
+  if (days <= 7) return { accent: "bg-orange-500", ring: "border-orange-100" };
+  return { accent: "bg-rose-600", ring: "border-rose-100" };
 };
-
-const formatRoleLabel = (role) => {
-  const raw = String(role || "").trim().toLowerCase();
-  if (raw === "tech" || raw === "technician") return "TECH";
-  if (raw === "fc") return "FC";
-  if (raw === "inv") return "INV";
-  if (raw === "admin") return "ADMIN";
-  if (raw === "accounts") return "ACCOUNTS";
-  return raw ? raw.toUpperCase() : "UNASSIGNED";
-};
-
-const buildAgeBucketSummary = (jobs) =>
-  jobs.reduce(
-    (summary, job) => {
-      const days = Number(job.role_age_days || 0);
-      if (days <= 3) {
-        summary.green += 1;
-      } else if (days <= 7) {
-        summary.orange += 1;
-      } else {
-        summary.red += 1;
-      }
-      return summary;
-    },
-    { green: 0, orange: 0, red: 0 },
-  );
 
 const renderColumnSkeleton = (roleKey) => (
   <div key={`job-pool-skeleton-${roleKey}`} className="min-w-[240px] border-r border-slate-200 bg-slate-50/60 p-3 last:border-r-0">
@@ -94,23 +43,14 @@ const renderColumnSkeleton = (roleKey) => (
 export default function AccountsJobPoolSection() {
   const [jobs, setJobs] = useState([]);
   const [counts, setCounts] = useState({
-    fc: 0,
-    inv: 0,
-    admin: 0,
-    tech: 0,
-    accounts: 0,
-    unassigned: 0,
+    fc: 0, inv: 0, admin: 0, tech: 0, unassigned: 0,
   });
   const [totals, setTotals] = useState({
-    fc: 0,
-    inv: 0,
-    admin: 0,
-    tech: 0,
-    accounts: 0,
-    unassigned: 0,
+    fc: 0, inv: 0, admin: 0, tech: 0, unassigned: 0,
   });
   const [loading, setLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [moveHistoryJob, setMoveHistoryJob] = useState(null);
 
   const formatCurrency = (amount) =>
     new Intl.NumberFormat("en-ZA", {
@@ -132,24 +72,10 @@ export default function AccountsJobPoolSection() {
       const result = await response.json();
       setJobs(Array.isArray(result?.jobs) ? result.jobs : []);
       setCounts(
-        result?.counts || {
-          fc: 0,
-          inv: 0,
-          admin: 0,
-          tech: 0,
-          accounts: 0,
-          unassigned: 0,
-        },
+        result?.counts || { fc: 0, inv: 0, admin: 0, tech: 0, unassigned: 0 },
       );
       setTotals(
-        result?.totals || {
-          fc: 0,
-          inv: 0,
-          admin: 0,
-          tech: 0,
-          accounts: 0,
-          unassigned: 0,
-        },
+        result?.totals || { fc: 0, inv: 0, admin: 0, tech: 0, unassigned: 0 },
       );
       setHasLoadedOnce(true);
     } catch (error) {
@@ -183,16 +109,8 @@ export default function AccountsJobPoolSection() {
       }
     });
 
-    ROLE_COLUMNS.forEach((role) => {
-      grouped[role.key].sort(
-        (left, right) => Number(right.role_age_days || 0) - Number(left.role_age_days || 0),
-      );
-    });
-
     return grouped;
   }, [jobs]);
-
-  const overallBuckets = useMemo(() => buildAgeBucketSummary(jobs), [jobs]);
 
   return (
     <div className="space-y-5">
@@ -201,9 +119,8 @@ export default function AccountsJobPoolSection() {
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">
             Job Pool
           </h2>
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            <Circle className="h-2.5 w-2.5 fill-emerald-500 text-emerald-500" />
-            Live Repository Status
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+            Live Repository — {jobs.length} open jobs
           </div>
         </div>
         <Button
@@ -219,115 +136,28 @@ export default function AccountsJobPoolSection() {
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm xl:col-span-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Open Jobs
-          </div>
-          <div className="mt-2 text-3xl font-bold text-slate-900">
-            {String(jobs.length).padStart(2, "0")}
-          </div>
-          <div className="mt-1 text-sm text-slate-500">
-            Active across FC, Inventory, Admin, Tech, Accounts, and Unassigned
-          </div>
-        </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-            0-3 Days
-          </div>
-          <div className="mt-2 text-3xl font-bold text-emerald-700">
-            {overallBuckets.green}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-600">
-            4-7 Days
-          </div>
-          <div className="mt-2 text-3xl font-bold text-orange-600">
-            {overallBuckets.orange}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-600">
-            8+ Days
-          </div>
-          <div className="mt-2 text-3xl font-bold text-rose-600">
-            {overallBuckets.red}
-          </div>
-        </div>
-      </div>
-
       <div className="overflow-x-auto rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="min-w-[1380px]">
-          <div className="grid grid-cols-6 border-b border-slate-200 bg-slate-50">
-            {ROLE_COLUMNS.map((role) => {
-              const roleJobs = groupedJobs[role.key] || [];
-              const bucketSummary = buildAgeBucketSummary(roleJobs);
-
-              return (
-                <div
-                  key={role.key}
-                  className="border-r border-slate-200 px-4 py-3 last:border-r-0"
-                >
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-2xl font-bold leading-none text-slate-900">
-                        {role.label}
-                      </div>
-                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        {String(counts[role.key] || 0).padStart(2, "0")} jobs
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-slate-600">
-                        {formatCurrency(totals[role.key] || 0)}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-                      <div className="rounded-lg bg-slate-50 px-1 py-1">
-                        <div className="text-[10px] font-semibold uppercase text-slate-400">
-                          3
-                        </div>
-                        <div className="text-xs font-bold text-emerald-600">
-                          {bucketSummary.green}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-1 py-1">
-                        <div className="text-[10px] font-semibold uppercase text-slate-400">
-                          7
-                        </div>
-                        <div className="text-xs font-bold text-orange-500">
-                          {bucketSummary.orange}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-1 py-1">
-                        <div className="text-[10px] font-semibold uppercase text-slate-400">
-                          7+
-                        </div>
-                        <div className="text-xs font-bold text-rose-600">
-                          {bucketSummary.red}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="grid grid-cols-6 border-b border-slate-200 bg-white">
+        <div className="min-w-[1150px]">
+          <div className="grid grid-cols-5 border-b border-slate-200 bg-slate-50">
             {ROLE_COLUMNS.map((role) => (
               <div
-                key={`${role.key}-subheader`}
-                className="border-r border-slate-200 px-4 py-2 last:border-r-0"
+                key={role.key}
+                className="border-r border-slate-200 px-4 py-3 last:border-r-0"
               >
-                <div className="grid grid-cols-[1.1fr_0.9fr] text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  <span>Job / Client</span>
-                  <span>Age</span>
+                <div className="text-2xl font-bold leading-none text-slate-900">
+                  {role.label}
+                </div>
+                <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  {String(counts[role.key] || 0).padStart(2, "0")} jobs
+                </div>
+                <div className="mt-1 text-xs font-semibold text-slate-600">
+                  {formatCurrency(totals[role.key] || 0)}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-6">
+          <div className="grid grid-cols-5">
             {loading && !hasLoadedOnce
               ? ROLE_COLUMNS.map((role) => renderColumnSkeleton(role.key))
               : ROLE_COLUMNS.map((role) => {
@@ -356,52 +186,22 @@ export default function AccountsJobPoolSection() {
                                 <div className="flex">
                                   <div className={`w-1 ${tone.accent}`} />
                                   <div className="flex-1 p-2.5">
-                                    <div className="grid grid-cols-[1.08fr_0.92fr] gap-2.5">
-                                      <div className="min-w-0">
-                                        <div className="truncate text-[14px] font-bold text-slate-900">
-                                          {job.job_number}
-                                        </div>
-                                        <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-500">
-                                          {role.key === "tech"
-                                            ? job.technician_name || "No technician"
-                                            : job.customer_name || "Unknown client"}
-                                        </div>
-                                      </div>
-
-                                      <div className="text-right">
-                                        <span
-                                          className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${tone.soft} ${tone.text}`}
-                                        >
-                                          {tone.status}
-                                        </span>
-                                        <div className="mt-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                          Age Analysis
-                                        </div>
-                                        <div className="mt-1 flex items-end justify-end gap-2">
-                                          <div className="w-16">
-                                            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                                              <div
-                                                className={`h-full rounded-full ${tone.bar}`}
-                                                style={{
-                                                  width: `${Math.min(
-                                                    100,
-                                                    Math.max(18, ageDays * 10),
-                                                  )}%`,
-                                                }}
-                                              />
-                                            </div>
-                                          </div>
-                                          <div className={`text-right ${tone.text}`}>
-                                            <div className="text-[16px] font-bold leading-none">
-                                              {ageDays}
-                                            </div>
-                                            <div className="text-[9px] font-semibold uppercase tracking-[0.18em]">
-                                              {ageDays === 1 ? "Day" : "Days"}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
+                                    <div className="truncate text-[14px] font-bold text-slate-900">
+                                      {job.job_number}
                                     </div>
+                                    <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-500">
+                                      {role.key === "tech"
+                                        ? (job.technician_name ? `${job.technician_name} — ${job.customer_name || "No client"}` : job.customer_name || "No technician")
+                                        : job.customer_name || "Unknown client"}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setMoveHistoryJob(job)}
+                                      className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                    >
+                                      <History className="h-3 w-3" />
+                                      Move History
+                                    </button>
                                   </div>
                                 </div>
                               </article>
@@ -415,11 +215,52 @@ export default function AccountsJobPoolSection() {
           </div>
         </div>
       </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        Aging is measured from the job card&apos;s current-role `updated_at`
-        timestamp so the board stays fast and consistent with the live dataset.
-      </div>
+      <Dialog open={Boolean(moveHistoryJob)} onOpenChange={(open) => { if (!open) setMoveHistoryJob(null); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Move History — {moveHistoryJob?.job_number || ""}
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const history = Array.isArray(moveHistoryJob?.move_history) ? moveHistoryJob.move_history : [];
+            if (history.length === 0) {
+              return (
+                <div className="py-8 text-center text-sm text-slate-500">
+                  No move history recorded for this job.
+                </div>
+              );
+            }
+            return (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">User</th>
+                      <th className="px-3 py-2 text-left">From</th>
+                      <th className="px-3 py-2 text-left">To</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {history.map((entry, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/60">
+                        <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                          {entry.moved_at ? new Date(entry.moved_at).toLocaleString("en-ZA") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">{entry.user_email || entry.moved_by || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700">{(entry.from_role || "—").toUpperCase()}</td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{(entry.to_role || "—").toUpperCase()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

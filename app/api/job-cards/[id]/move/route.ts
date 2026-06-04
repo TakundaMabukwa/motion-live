@@ -1,6 +1,33 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+const buildMoveHistoryEntry = (
+  userId: string | null,
+  userEmail: string | null,
+  fromRole: string | null,
+  toRole: string,
+) => ({
+  moved_by: userId,
+  user_email: userEmail,
+  from_role: fromRole,
+  to_role: toRole,
+  moved_at: new Date().toISOString(),
+});
+
+const fetchMoveHistory = async (
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+) => {
+  const { data, error } = await supabase
+    .from("job_cards")
+    .select("move_history")
+    .eq("id", jobId)
+    .single();
+  if (error || !data?.move_history) return null;
+  const history = Array.isArray(data.move_history) ? data.move_history : [];
+  return history as Record<string, unknown>[];
+};
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -16,6 +43,10 @@ export async function POST(
       escalationOnly,
       inventoryPlacement,
     } = await request.json();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (!id || !destination) {
       return NextResponse.json(
@@ -63,38 +94,6 @@ export async function POST(
       );
     }
 
-    // Completed-jobs handoff: preserve everything and only switch role to inventory.
-    if (
-      targetRole === "inv" &&
-      inventoryPlacementNormalized === "completed-jobs"
-    ) {
-      const { data: inventoryRoleOnlyJob, error: inventoryRoleOnlyError } =
-        await supabase
-          .from("job_cards")
-          .update({
-            role: "inv",
-          })
-          .eq("id", id)
-          .select()
-          .single();
-
-      if (inventoryRoleOnlyError) {
-        return NextResponse.json(
-          {
-            error: "Failed to set Inventory role",
-            details: inventoryRoleOnlyError.message,
-          },
-          { status: 500 },
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Job role changed to Inventory",
-        job: inventoryRoleOnlyJob,
-      });
-    }
-
     const sourceJobStatus = String(currentJob.job_status || "").trim().toLowerCase();
     const sourceStatus = String(currentJob.status || "").trim().toLowerCase();
     const sourceIsCompleted =
@@ -123,6 +122,51 @@ export async function POST(
           escalated_at: new Date().toISOString(),
         };
 
+    // Build the move log entry
+    const moveEntry = buildMoveHistoryEntry(
+      user?.id || null, user?.email || null,
+      currentJob?.role || null, targetRole,
+    );
+
+    // Fetch existing move_history (safe: returns null if column doesn't exist)
+    const existingHistory = await fetchMoveHistory(supabase, id);
+    const updatedHistory = existingHistory
+      ? [...existingHistory, moveEntry]
+      : [moveEntry];
+
+    // Completed-jobs handoff: preserve everything and only switch role to inventory.
+    if (
+      targetRole === "inv" &&
+      inventoryPlacementNormalized === "completed-jobs"
+    ) {
+      const { data: inventoryRoleOnlyJob, error: inventoryRoleOnlyError } =
+        await supabase
+          .from("job_cards")
+          .update({
+            role: "inv",
+            move_history: updatedHistory,
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+      if (inventoryRoleOnlyError) {
+        return NextResponse.json(
+          {
+            error: "Failed to set Inventory role",
+            details: inventoryRoleOnlyError.message,
+          },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Job role changed to Inventory",
+        job: inventoryRoleOnlyJob,
+      });
+    }
+
     if (Boolean(escalationOnly)) {
       const { data: escalatedJob, error: escalationOnlyError } = await supabase
         .from("job_cards")
@@ -130,6 +174,7 @@ export async function POST(
           escalation_role: targetRole,
           escalation_source_role: sourceRole,
           escalated_at: new Date().toISOString(),
+          move_history: updatedHistory,
         })
         .eq("id", id)
         .select()
@@ -175,6 +220,7 @@ export async function POST(
             completion_date: new Date().toISOString(),
             end_time: new Date().toISOString(),
             ...escalationPayload,
+            move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
             ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
           }
@@ -187,6 +233,7 @@ export async function POST(
             completion_date: null,
             end_time: null,
             ...escalationPayload,
+            move_history: updatedHistory,
             ...(targetRole === "fc" ? { fc_note_acknowledged: false } : {}),
             ...(nextCompletionNotes ? { completion_notes: nextCompletionNotes } : {}),
           };
@@ -235,6 +282,7 @@ export async function POST(
         role: targetRole,
         move_to: targetRole,
         move_to_role: null,
+        move_history: updatedHistory,
         ...escalationPayload,
       })
       .eq("id", id)

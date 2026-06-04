@@ -6,7 +6,6 @@ const TRACKED_ROLE_KEYS = [
   "inv",
   "admin",
   "tech",
-  "accounts",
   "unassigned",
 ] as const;
 const CLOSED_STATUSES = new Set([
@@ -28,8 +27,6 @@ const ROLE_ALIASES: Record<string, (typeof TRACKED_ROLE_KEYS)[number]> = {
   administrator: "admin",
   tech: "tech",
   technician: "tech",
-  accounts: "accounts",
-  account: "accounts",
   unassigned: "unassigned",
 };
 
@@ -162,7 +159,8 @@ export async function GET(request: NextRequest) {
         actual_cost,
         created_at,
         assigned_technician_id,
-        updated_at
+        updated_at,
+        move_history
       `,
       )
       .order("updated_at", { ascending: true });

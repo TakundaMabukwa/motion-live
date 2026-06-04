@@ -20,8 +20,8 @@ import {
 import {
   Search, RefreshCw, Loader2,
   Briefcase, CheckCircle2, Clock, AlertTriangle, Users,
-  Eye, FileEdit, Edit, Car,
-  ArrowUpDown, Activity,
+  History, Eye, FileEdit, Edit, Car,
+  ArrowUpDown, Activity, FileText, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import InvoiceJobModal from "./InvoiceJobModal";
@@ -29,6 +29,7 @@ import InvoiceJobModal from "./InvoiceJobModal";
 const JOB_TABS = [
   { id: "not-completed", label: "Not Completed" },
   { id: "completed", label: "Completed" },
+  { id: "invoiced", label: "Invoiced" },
 ];
 
 const parseProducts = (val) => {
@@ -99,6 +100,23 @@ export default function JobsTab() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeError, setFinalizeError] = useState(null);
   const [movingJobId, setMovingJobId] = useState(null);
+  const [moveHistoryJob, setMoveHistoryJob] = useState(null);
+  const [completedMonthFilter, setCompletedMonthFilter] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  // Invoiced tab state
+  const [invFcFilter, setInvFcFilter] = useState("");
+  const [invFcUserOptions, setInvFcUserOptions] = useState([]);
+  const [invCostCenters, setInvCostCenters] = useState([]);
+  const [invInvoices, setInvInvoices] = useState([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invBillingMonth, setInvBillingMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [invSearch, setInvSearch] = useState("");
 
   const isMounted = useRef(true);
   useEffect(() => { isMounted.current = true; return () => { isMounted.current = false; }; }, []);
@@ -127,6 +145,84 @@ export default function JobsTab() {
   }, []);
 
   useEffect(() => { fetchJobs(debouncedSearch, showAllJobs); }, [debouncedSearch, showAllJobs, fetchJobs]);
+
+  // Load FC users and cost centers for invoiced tab
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const [usersRes, ccRes] = await Promise.all([
+          fetch("/api/fc/users", { cache: "no-store" }),
+          fetch("/api/cost-centers?all=1", { cache: "no-store" }),
+        ]);
+        if (!active) return;
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setInvFcUserOptions(usersData.fcUsers || []);
+          if (usersData.currentUserRole === "fc" && !invFcFilter) {
+            setInvFcFilter(usersData.currentUserId);
+          }
+        }
+        if (ccRes.ok) {
+          const ccData = await ccRes.json();
+          setInvCostCenters(Array.isArray(ccData?.costCenters) ? ccData.costCenters : Array.isArray(ccData) ? ccData : []);
+        }
+      } catch (err) {
+        console.error("Error loading FC users/cost centers:", err);
+      }
+    };
+    load();
+    return () => { active = false; };
+  }, []);
+
+  // Fetch invoices when invoiced tab is active
+  useEffect(() => {
+    if (jobTab !== "invoiced") return;
+    let active = true;
+    const fetchInvoices = async () => {
+      setInvLoading(true);
+      try {
+        let costCodeList = [];
+        if (invFcFilter) {
+          costCodeList = invCostCenters
+            .filter((cc) => String(cc.fc_id || "").trim().toLowerCase() === String(invFcFilter).trim().toLowerCase())
+            .map((cc) => String(cc.cost_code || "").trim())
+            .filter(Boolean);
+        } else {
+          costCodeList = invCostCenters
+            .map((cc) => String(cc.cost_code || "").trim())
+            .filter(Boolean);
+        }
+        costCodeList = [...new Set(costCodeList)];
+        if (costCodeList.length === 0) {
+          if (active) setInvInvoices([]);
+          return;
+        }
+        const [first, ...rest] = costCodeList;
+        const params = new URLSearchParams({ accountNumber: first, billingMonth: invBillingMonth + "-01" });
+        if (rest.length > 0) params.set("accountNumbers", rest.join(","));
+        const res = await fetch(`/api/invoices/account/history?${params.toString()}`, { cache: "no-store" });
+        if (!active) return;
+        if (!res.ok) { setInvInvoices([]); return; }
+        const result = await res.json();
+        const jobCardOnly = (Array.isArray(result?.invoices) ? result.invoices : [])
+          .filter((inv) => String(inv?.source_type || "").trim() === "job_card_invoice")
+          .sort((a, b) => {
+            const aD = new Date(a?.invoice_date || a?.created_at || 0).getTime();
+            const bD = new Date(b?.invoice_date || b?.created_at || 0).getTime();
+            return bD - aD;
+          });
+        if (active) setInvInvoices(jobCardOnly);
+      } catch (err) {
+        console.error("Error fetching invoiced data:", err);
+        if (active) setInvInvoices([]);
+      } finally {
+        if (active) setInvLoading(false);
+      }
+    };
+    fetchInvoices();
+    return () => { active = false; };
+  }, [jobTab, invFcFilter, invCostCenters, invBillingMonth]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -179,14 +275,24 @@ export default function JobsTab() {
     return visible.filter((j) => getJobStatus(j) !== "completed");
   }, [jobs, jobTab, getJobStatus]);
 
+  const filteredJobsByMonth = useMemo(() => {
+    if (jobTab !== "completed" || !completedMonthFilter) return filteredJobs;
+    return filteredJobs.filter((j) => {
+      const d = j.completion_date || j.updated_at || "";
+      const m = d.slice(0, 7);
+      return m === completedMonthFilter;
+    });
+  }, [filteredJobs, jobTab, completedMonthFilter]);
+
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return filteredJobs;
-    return filteredJobs.filter((j) =>
+    const source = jobTab === "completed" ? filteredJobsByMonth : filteredJobs;
+    if (!q) return source;
+    return source.filter((j) =>
       [j.job_number, j.customer_name, j.vehicle_registration, j.job_description, j.new_account_number]
         .filter(Boolean).join(" ").toLowerCase().includes(q),
     );
-  }, [filteredJobs, searchTerm]);
+  }, [filteredJobsByMonth, filteredJobs, jobTab, searchTerm]);
 
   const metrics = useMemo(() => {
     const list = filteredJobsSearch;
@@ -361,39 +467,147 @@ export default function JobsTab() {
       </div>
 
       {/* Search + Refresh */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-            {jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {jobTab === "completed" ? "Jobs that have been completed and are ready for invoicing." : "Jobs currently in progress or pending assignment."}
-          </p>
-        </div>
-        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
-          <div className="relative min-w-0 w-full sm:max-w-xs">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      {jobTab === "invoiced" ? (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+              Invoiced Job Cards ({invInvoices.length})
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Job card invoices for the selected period.
+            </p>
+          </div>
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto">
+            <div className="relative min-w-0 w-full sm:w-48">
+              <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <select
+                value={invFcFilter}
+                onChange={(e) => setInvFcFilter(e.target.value)}
+                className="h-10 w-full rounded-md border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              >
+                <option value="">All FCs</option>
+                {invFcUserOptions.map((fc) => (
+                  <option key={fc.id} value={fc.id}>{fc.email}</option>
+                ))}
+              </select>
+            </div>
             <Input
-              placeholder="Search jobs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-10 w-full border-slate-200 pl-10 text-sm"
+              type="month"
+              value={invBillingMonth}
+              onChange={(e) => setInvBillingMonth(e.target.value)}
+              className="h-10 w-44 border-slate-200 text-sm"
+            />
+            <Input
+              placeholder="Search invoices..."
+              value={invSearch}
+              onChange={(e) => setInvSearch(e.target.value)}
+              className="h-10 w-full sm:w-48 border-slate-200 text-sm"
             />
           </div>
-          <Button
-            variant={showAllJobs ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowAllJobs((v) => !v)}
-            className="h-10 shrink-0 whitespace-nowrap"
-          >
-            {showAllJobs ? "All Jobs" : "My Jobs"}
-          </Button>
-          <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 w-full shrink-0 border-slate-200 sm:w-auto">
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
-          </Button>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+              {jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {jobTab === "completed" ? "Jobs that have been completed and are ready for invoicing." : "Jobs currently in progress or pending assignment."}
+            </p>
+          </div>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+            {jobTab === "completed" && (
+              <Input
+                type="month"
+                value={completedMonthFilter}
+                onChange={(e) => setCompletedMonthFilter(e.target.value)}
+                placeholder="Filter by month"
+                className="h-10 w-40 border-slate-200 text-sm"
+              />
+            )}
+            <div className="relative min-w-0 w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search jobs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-10 w-full border-slate-200 pl-10 text-sm"
+              />
+            </div>
+            <Button
+              variant={showAllJobs ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAllJobs((v) => !v)}
+              className="h-10 shrink-0 whitespace-nowrap"
+            >
+              {showAllJobs ? "All Jobs" : "My Jobs"}
+            </Button>
+            <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 w-full shrink-0 border-slate-200 sm:w-auto">
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+          </div>
+        </div>
+      )}
 
+      {/* Invoiced tab: invoice table */}
+      {jobTab === "invoiced" ? (
+        <Card className="mt-4 border-slate-200 shadow-sm">
+          <CardContent className="p-0">
+            {invLoading ? (
+              <div className="flex items-center justify-center py-12 text-sm text-slate-500">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading invoices...
+              </div>
+            ) : invInvoices.length === 0 ? (
+              <div className="py-12 text-center">
+                <FileText className="mx-auto mb-3 h-10 w-10 text-slate-300" />
+                <p className="text-base font-medium text-slate-900">No job card invoices</p>
+                <p className="mt-1 text-sm text-slate-500">No invoiced job cards found for {invBillingMonth}.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Invoice #</th>
+                      <th className="px-3 py-2 text-left">Job #</th>
+                      <th className="px-3 py-2 text-left">Customer</th>
+                      <th className="px-3 py-2 text-left">Vehicle</th>
+                      <th className="px-3 py-2 text-left">Account</th>
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {(invSearch.trim()
+                      ? invInvoices.filter((inv) => {
+                          const q = invSearch.trim().toLowerCase();
+                          return [inv.invoice_number, inv.job_number, inv.customer_name, inv.vehicle_registration, inv.account_number]
+                            .filter(Boolean).join(" ").toLowerCase().includes(q);
+                        })
+                      : invInvoices
+                    ).map((inv, idx) => (
+                      <tr key={inv.id || idx} className="border-b border-slate-100 hover:bg-slate-50/60">
+                        <td className="px-3 py-2 font-medium text-slate-900">{inv.invoice_number || "N/A"}</td>
+                        <td className="px-3 py-2 text-slate-700">{inv.job_number || "N/A"}</td>
+                        <td className="px-3 py-2 text-slate-700">{inv.customer_name || inv.company_name || "N/A"}</td>
+                        <td className="px-3 py-2 text-slate-700">{inv.vehicle_registration || "N/A"}</td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-slate-600">{inv.account_number || "N/A"}</td>
+                        <td className="px-3 py-2 text-slate-600 text-[11px]">
+                          {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) : "N/A"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium text-slate-900">
+                          R {Number(inv.total_amount || 0).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       {/* Mobile card layout */}
       <div className="divide-y divide-slate-100 lg:hidden">
         {loading ? (
@@ -426,9 +640,9 @@ export default function JobsTab() {
                   <p className="truncate text-xs text-slate-500">{job.vehicle_make || ""} {job.vehicle_model || ""}</p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Created</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Date</p>
                   <p className="mt-1 font-medium text-slate-900">
-                    {job.created_at ? new Date(job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) : "N/A"}
+                    {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
                   </p>
                   <p className="text-xs text-slate-500">{job.job_type || "—"}</p>
                 </div>
@@ -468,7 +682,7 @@ export default function JobsTab() {
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Account</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Type</th>
                     <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Status</th>
-                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Created</th>
+                    <th className="px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500">Date</th>
                     <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-slate-500">Actions</th>
                   </tr>
                 </thead>
@@ -507,7 +721,7 @@ export default function JobsTab() {
                           </div>
                         </td>
                         <td className="px-3 py-2 text-slate-700 text-[11px]">
-                          {job.created_at ? new Date(job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                          {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
                         <td className="px-3 py-2 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -516,6 +730,9 @@ export default function JobsTab() {
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleEditAndFinalize(job)} className="hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 h-7 px-2 text-[11px]">
                               <FileEdit className="mr-1 w-3 h-3" /> Edit &amp; Finalize
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setMoveHistoryJob(job)} className="hover:bg-slate-50 text-slate-500 hover:text-slate-700 h-7 px-2 text-[11px]">
+                              <History className="mr-1 w-3 h-3" /> History
                             </Button>
                             <Select disabled={movingJobId === job.id} onValueChange={(value) => handleMoveJob(job, value)}>
                               <SelectTrigger className="h-7 w-[100px] text-[11px]">
@@ -538,6 +755,8 @@ export default function JobsTab() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* ===== EDIT & FINALIZE DIALOG ===== */}
       <Dialog open={showEditDialog} onOpenChange={(open) => { if (!open) { setShowEditDialog(false); setEditingJob(null); } }}>
@@ -809,6 +1028,54 @@ export default function JobsTab() {
         onComplete={handleRefreshJobsAfterInvoice}
         editedProducts={editableProducts}
       />
+
+      {/* ===== MOVE HISTORY DIALOG ===== */}
+      <Dialog open={Boolean(moveHistoryJob)} onOpenChange={(open) => { if (!open) setMoveHistoryJob(null); }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Move History — {moveHistoryJob?.job_number || ""}
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const history = Array.isArray(moveHistoryJob?.move_history) ? moveHistoryJob.move_history : [];
+            if (history.length === 0) {
+              return (
+                <div className="py-8 text-center text-sm text-slate-500">
+                  No move history recorded for this job.
+                </div>
+              );
+            }
+            return (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">User</th>
+                      <th className="px-3 py-2 text-left">From</th>
+                      <th className="px-3 py-2 text-left">To</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {history.map((entry, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/60">
+                        <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                          {entry.moved_at ? new Date(entry.moved_at).toLocaleString("en-ZA") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">{entry.user_email || entry.moved_by || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700">{(entry.from_role || "—").toUpperCase()}</td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{(entry.to_role || "—").toUpperCase()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
