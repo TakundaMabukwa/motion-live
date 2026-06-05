@@ -336,6 +336,11 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   };
 
   const getPartSelectionKey = (source: 'assigned' | 'stock', item: any) => {
+    if (source === 'stock') {
+      const serial = getSerialToken(item);
+      if (!serial) return '';
+      return `stock:${serial}`;
+    }
     const identity = getPartItemIdentity(item);
     if (!identity) return '';
     return `${source}:${identity.type}:${identity.value}`;
@@ -551,7 +556,17 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       const positiveStock = stockItems.filter(
         (item: any) => (parseInt(String(item?.quantity || '0')) || 0) > 0,
       );
-      setTechnicianStock(positiveStock);
+      const seen = new Set<string>();
+      const dedupedStock = positiveStock.filter((item: any) => {
+        const serial = String(item?.serial_number || item?.serialNumber || '').trim();
+        const stockId = String(item?.stock_id || '').trim();
+        if (!serial && !stockId) return true;
+        const key = `${serial}|${stockId}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setTechnicianStock(dedupedStock);
     } catch (error: any) {
       console.error('Error loading technician stock:', error);
       toast.error(error?.message || 'Failed to load technician stock');
@@ -645,7 +660,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           available_stock: parseInt(String(item.quantity || '0')) || 0,
           selected_at: new Date().toISOString(),
           source: 'tech_stock.assigned_parts',
-          boot_transfer_pending: true,
+          boot_transfer_pending: false,
         }));
 
       const selectedDeinstallItems = getDeinstallEquipmentOptions(jobData)
@@ -693,6 +708,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           },
           body: JSON.stringify({
             equipment_used: mergedEquipmentUsed,
+            deduct_tech_stock: selectedStockItems.length > 0,
           }),
         });
 

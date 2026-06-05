@@ -305,104 +305,37 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
   useEffect(() => {
     if (open && job) {
-      (async () => {
-        const latestJob = await fetchLatestJobCard(job);
-        if (isAdminOrRepairFallbackJob(latestJob) && latestJob.vehicle_registration) {
-          try {
-            const regRaw = String(latestJob.vehicle_registration).trim();
-            const regEnc = encodeURIComponent(regRaw);
-            let foundAccountNumber = "";
-            let foundCompany = "";
-            let foundEmail = "";
-            let foundPhone = "";
-            let foundAddress = "";
-            const vipResp = await fetch(`/api/vehicles-ip?registration=${regEnc}`);
-            if (vipResp.ok) {
-              const vipData = await vipResp.json();
-              if (vipData.vehicles && vipData.vehicles.length > 0) {
-                const v = vipData.vehicles[0];
-                foundAccountNumber = v.new_account_number || "";
-                foundCompany = v.company || "";
-                foundEmail = v.email || "";
-                foundPhone = v.cell_no || v.switchboard || "";
-                foundAddress = v.physical_address || "";
-              }
-            }
-            if (!foundAccountNumber) {
-              const faResp = await fetch("/api/vehicles/find-account", {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reg: regRaw }),
-              });
-              if (faResp.ok) {
-                const faData = await faResp.json();
-                if (faData?.found && faData?.new_account_number) {
-                  foundAccountNumber = faData.new_account_number;
-                  foundCompany = faData.company || "";
-                  const custResp = await fetch(`/api/customers/${encodeURIComponent(foundAccountNumber)}`);
-                  if (custResp.ok) {
-                    const custData = await custResp.json();
-                    const c = custData?.customer;
-                    if (c) {
-                      foundCompany = c.company || foundCompany;
-                      foundEmail = c.email || "";
-                      foundPhone = c.cell_no || c.landline_no || c.switchboard || "";
-                      foundAddress = c.physical_address || c.address || "";
-                    }
-                  }
-                }
-              }
-            }
-            if (foundAccountNumber) {
-              try {
-                const ccResp = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(foundAccountNumber)}`);
-                if (ccResp.ok) {
-                  const ccData = await ccResp.json();
-                  const costCenter = Array.isArray(ccData?.costCenters) && ccData.costCenters.find((c) => String(c?.cost_code || "").trim().toUpperCase() === foundAccountNumber.toUpperCase());
-                  if (costCenter) {
-                    foundCompany = costCenter.company || costCenter.legal_name || foundCompany;
-                    foundAddress = [costCenter.physical_address_1, costCenter.physical_address_2, costCenter.physical_address_3, costCenter.physical_area, costCenter.physical_code].map((v) => String(v || "").trim()).filter(Boolean).join("\n") || foundAddress;
-                  }
-                }
-              } catch { /* ignore */ }
-            }
-            if (foundAccountNumber) latestJob.new_account_number = foundAccountNumber;
-            if (foundCompany) latestJob.customer_name = foundCompany;
-            if (foundEmail) latestJob.customer_email = foundEmail;
-            if (foundPhone) latestJob.customer_phone = foundPhone;
-            if (foundAddress) latestJob.customer_address = foundAddress;
-          } catch { /* ignore */ }
-        }
+      // Seed form instantly from job prop — no async wait needed
+      const jobNotes = job.invoice_notes || [job.quote_notes, job.job_description, job.work_notes, job.completion_notes, job.special_instructions, job.customer_feedback].filter(Boolean).join("\n");
+      setInvoiceFormData({
+        clientName: job.customer_name || "",
+        clientEmail: job.customer_email || "",
+        clientPhone: job.customer_phone || "",
+        clientAddress: job.customer_address || "",
+        paymentTerms: "30 days",
+        dueDate: getLocalDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
+        notes: jobNotes || "No special instructions.",
+      });
 
-        // Always fetch cost center info for the client name
-        const accountNumber = String(latestJob?.new_account_number || job?.new_account_number || "").trim();
-        let fetchedCostCenter = null;
-        if (accountNumber) {
-          try {
-            const ccResp = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`);
-            if (ccResp.ok) {
-              const ccData = await ccResp.json();
-              fetchedCostCenter = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === accountNumber.toUpperCase()) : null) || null;
-            }
-          } catch { /* ignore */ }
-        }
+      const annuityItems = getAnnuitySelectionItems(job, externalEditedProducts);
+      setGeneratedInvoice(null);
+      setStoredInvoiceRecord(null);
+      setAnnuitySelectableItems(annuityItems);
+      setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
+      setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
+      latestJobRef.current = job;
 
-        latestJobRef.current = latestJob;
-        const annuityItems = getAnnuitySelectionItems(latestJob, externalEditedProducts);
-        setGeneratedInvoice(null);
-        setStoredInvoiceRecord(null);
-        setSelectedCostCenterInfo(fetchedCostCenter);
-        setAnnuitySelectableItems(annuityItems);
-        setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
-        setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
-        setInvoiceFormData({
-          clientName: fetchedCostCenter?.company || fetchedCostCenter?.legal_name || latestJob.customer_name || "",
-          clientEmail: latestJob.customer_email || "",
-          clientPhone: latestJob.customer_phone || "",
-          clientAddress: "",
-          paymentTerms: "30 days",
-          dueDate: getLocalDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)),
-          notes: [latestJob.quote_notes, latestJob.work_notes, latestJob.completion_notes].filter(Boolean).join("\n"),
-        });
-      })();
+      // Fetch cost center info in background for invoice preview only
+      const accountNumber = String(job?.new_account_number || "").trim();
+      if (accountNumber) {
+        fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((ccData) => {
+            const fetched = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === accountNumber.toUpperCase()) : null) || null;
+            if (fetched) setSelectedCostCenterInfo(fetched);
+          })
+          .catch(() => {});
+      }
     }
   }, [open, job]);
 
@@ -731,6 +664,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const invoiceRecord = invoiceCreateResult?.invoice;
       const invoiceNumber = invoiceRecord?.invoice_number;
       if (!invoiceRecord || !invoiceNumber) throw new Error("Invoice record was not returned");
+
+      fetch(`/api/job-cards/${effectiveJob.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invoice_notes: invoiceFormData.notes }),
+      }).catch((e) => console.error('Failed to save invoice notes to job card:', e));
+
       const invoiceData = {
         invoiceNumber, jobNumber: effectiveJob.job_number, clientInfo: invoiceFormData, jobDetails: effectiveJob,
         generatedAt: invoiceRecord.invoice_date || new Date().toISOString(),

@@ -94,7 +94,7 @@ export default function JobsTab() {
     site_contact_person: "", site_contact_phone: "",
     quotation_subtotal: "0.00", quotation_vat_amount: "0.00", quotation_total_amount: "0.00",
     estimated_cost: "", actual_cost: "", work_notes: "", completion_notes: "",
-    special_instructions: "", customer_feedback: "",
+    special_instructions: "", customer_feedback: "", job_description: "",
   });
   const [editableProducts, setEditableProducts] = useState([]);
   const [finalizing, setFinalizing] = useState(false);
@@ -343,6 +343,7 @@ export default function JobsTab() {
       completion_notes: String(job.completion_notes || ""),
       special_instructions: String(job.special_instructions || ""),
       customer_feedback: String(job.customer_feedback || ""),
+      job_description: String(job.job_description || ""),
     });
     setShowEditDialog(true);
   }, []);
@@ -395,8 +396,16 @@ export default function JobsTab() {
     if (!jobId) return;
     setFinalizing(true);
     try {
-      const patchBody = {};
-      for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback", "order_number", "vehicle_registration", "vehicle_make", "vehicle_model"]) {
+      const notesSections = [
+        formData.job_description && `Job Description: ${formData.job_description}`,
+        formData.work_notes && `Work Notes: ${formData.work_notes}`,
+        formData.completion_notes && `Completion Notes: ${formData.completion_notes}`,
+        formData.special_instructions && `Special Instructions: ${formData.special_instructions}`,
+        formData.customer_feedback && `Customer Feedback: ${formData.customer_feedback}`,
+      ].filter(Boolean).join("\n");
+
+      const patchBody = { invoice_notes: notesSections };
+      for (const key of ["quotation_subtotal", "quotation_total_amount", "work_notes", "completion_notes", "special_instructions", "customer_feedback", "order_number", "vehicle_registration", "vehicle_make", "vehicle_model", "job_description"]) {
         if (formData[key] !== undefined) patchBody[key] = formData[key];
       }
       if (editableProducts.length > 0) {
@@ -948,6 +957,10 @@ export default function JobsTab() {
                       <div className="space-y-2">
                         <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
                         <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} readOnly />
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="job_description">Job Description</Label>
+                        <Textarea id="job_description" value={formData.job_description} onChange={(e) => updateFormField("job_description", e.target.value)} rows={3} />
                       </div>
                       <div className="md:col-span-2 space-y-2">
                         <Label htmlFor="work_notes">Work Notes</Label>

@@ -290,6 +290,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     const transferEquipmentFromAssignedParts = body.transfer_equipment_from_assigned_parts === true;
+    const deductTechStock = body.deduct_tech_stock === true;
 
     // Get current job card to check if it's being completed
     const { data: currentJob, error: fetchError } = await supabase
@@ -368,6 +369,7 @@ export async function PATCH(
     updateData.move_to_role = normalizeMoveToRole(requestedMoveToRole);
 
     delete updateData.transfer_equipment_from_assigned_parts;
+    delete updateData.deduct_tech_stock;
     let pendingTechStockUpdates: Array<{
       rowId: number;
       technicianEmail: string;
@@ -739,6 +741,89 @@ export async function PATCH(
         },
         { status: 500 }
       );
+    }
+
+    // Optional flow: immediately deduct selected items from tech_stock.assigned_parts
+    if (deductTechStock && Array.isArray(body.equipment_used)) {
+      const techStockItems = normalizePartArray(body.equipment_used).filter(
+        (item) => String(item.source || '').trim() === 'tech_stock.assigned_parts',
+      );
+
+      if (techStockItems.length > 0) {
+        const technicianEmail = extractSingleTechnicianEmail(
+          currentJob.technician_phone,
+          user.email,
+        );
+
+        if (!technicianEmail) {
+          console.error('Unable to resolve technician email for stock deduction.');
+          return NextResponse.json(
+            { error: 'Unable to resolve technician email for stock deduction.' },
+            { status: 409 },
+          );
+        }
+
+        const { data: techStockRows, error: techStockError } = await supabase
+          .from('tech_stock')
+          .select('id, assigned_parts, technician_email')
+          .ilike('technician_email', technicianEmail)
+          .order('id', { ascending: true });
+
+        if (techStockError || !techStockRows || techStockRows.length === 0) {
+          console.error('Error fetching tech stock for deduction:', techStockError);
+          return NextResponse.json(
+            { error: 'Technician stock not found for deduction.' },
+            { status: 409 },
+          );
+        }
+
+        const rowStates = new Map<number, { rowId: number; assignedParts: unknown[]; originalAssignedParts: unknown[] }>();
+        for (const row of techStockRows) {
+          const rowId = Number(row.id);
+          if (!Number.isFinite(rowId) || rowId <= 0) continue;
+          rowStates.set(rowId, {
+            rowId,
+            assignedParts: Array.isArray(row.assigned_parts) ? JSON.parse(JSON.stringify(row.assigned_parts)) : [],
+            originalAssignedParts: Array.isArray(row.assigned_parts) ? JSON.parse(JSON.stringify(row.assigned_parts)) : [],
+          });
+        }
+
+        const touchedRowIds = new Set<number>();
+        for (const item of techStockItems) {
+          const locator = parseTransferRowLocator(item.row_id);
+          if (!locator) continue;
+          const rowState = rowStates.get(locator.rowId);
+          if (!rowState) continue;
+          touchedRowIds.add(rowState.rowId);
+          if (locator.index >= 0 && locator.index < rowState.assignedParts.length) {
+            rowState.assignedParts[locator.index] = null;
+          }
+        }
+
+        for (const rowState of rowStates.values()) {
+          if (!touchedRowIds.has(rowState.rowId)) continue;
+          const nextAssignedParts = rowState.assignedParts.flatMap((part: unknown) => {
+            if (!part) return [];
+            if (typeof part !== 'object' || Array.isArray(part)) return [part];
+            const partObj = part as Record<string, unknown>;
+            const remainingQty = toSafeNonNegativeQuantity(partObj.quantity ?? partObj.count ?? partObj.available_stock ?? 0);
+            return remainingQty > 0 ? [partObj] : [];
+          });
+
+          const { error: updateError } = await supabase
+            .from('tech_stock')
+            .update({ assigned_parts: nextAssignedParts })
+            .eq('id', rowState.rowId);
+
+          if (updateError) {
+            console.error('Error deducting tech stock:', updateError);
+            return NextResponse.json(
+              { error: 'Failed to deduct technician stock.' },
+              { status: 500 },
+            );
+          }
+        }
+      }
     }
 
     // If job is being completed, handle vehicle addition and stock deduction

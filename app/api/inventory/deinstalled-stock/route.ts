@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
     const requestedCostCode = getStringValue(body.cost_code).toUpperCase();
     const itemIndex = Number.isFinite(Number(body.item_index)) ? Number(body.item_index) : 0;
     const item = (body.item || {}) as Record<string, unknown>;
+    const explicitTechnicianEmail = getStringValue(body.technician_email);
 
     if (!jobId) {
       return NextResponse.json({ error: 'job_id is required' }, { status: 400 });
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (destination === 'technician') {
-      const technicianEmail = getStringValue(job.technician_phone);
+      const technicianEmail = explicitTechnicianEmail || getStringValue(job.technician_phone);
       if (!technicianEmail) {
         return NextResponse.json(
           { error: 'This job has no technician email assigned' },

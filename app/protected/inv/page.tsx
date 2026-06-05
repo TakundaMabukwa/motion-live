@@ -422,6 +422,18 @@ export default function InventoryPage() {
   const [showMoveToFcDialog, setShowMoveToFcDialog] = useState(false);
   const [pendingMoveJobId, setPendingMoveJobId] = useState<string | null>(null);
   const [moveToFcNote, setMoveToFcNote] = useState("");
+  const [showTechnicianPicker, setShowTechnicianPicker] = useState(false);
+  const [pendingTechnicianMove, setPendingTechnicianMove] = useState<{
+    context: "deinstalled" | "stock-used" | "quotation";
+    item: Record<string, unknown>;
+    index: number;
+  } | null>(null);
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [pendingClientMove, setPendingClientMove] = useState<{
+    context: "deinstalled" | "stock-used" | "quotation";
+    item: Record<string, unknown>;
+    index: number;
+  } | null>(null);
   const router = useRouter();
 
   // IP address assignment state
@@ -1504,29 +1516,55 @@ export default function InventoryPage() {
     return `${jobId}:${context}:${itemId}:${index}`;
   };
 
-  const handleRemoveCompletedPart = async (item: Record<string, unknown>) => {
+  const handleRemoveFromEquipmentUsed = async (item: Record<string, unknown>) => {
     if (!selectedCompletedJob?.id) return;
+    const itemSerial = String(item?.serial_number || item?.serialNumber || '').trim();
+    const itemStockId = String(item?.stock_id || '').trim();
+    if (!itemSerial && !itemStockId) {
+      toast.error('Item has no serial number or stock ID — cannot remove.');
+      return;
+    }
+    const equipmentUsed = Array.isArray(selectedCompletedJob.equipment_used)
+      ? selectedCompletedJob.equipment_used
+      : [];
+    const filtered = equipmentUsed.filter((existing: any) => {
+      const existingSerial = String(existing?.serial_number || existing?.serialNumber || '').trim();
+      const existingStockId = String(existing?.stock_id || '').trim();
+      if (itemSerial && existingSerial) return itemSerial !== existingSerial;
+      if (itemStockId && existingStockId) return itemStockId !== existingStockId;
+      return true;
+    });
+    if (filtered.length === equipmentUsed.length) {
+      toast.error('Item not found in equipment used.');
+      return;
+    }
     try {
-      const response = await fetch(
-        `/api/job-cards/${selectedCompletedJob.id}/unassign-part`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ part: item }),
-        },
+      const response = await fetch(`/api/job-cards/${selectedCompletedJob.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ equipment_used: filtered }),
+      });
+      if (!response.ok) throw new Error('Failed to remove item from equipment used');
+      setSelectedCompletedJob((prev: any) =>
+        prev ? { ...prev, equipment_used: filtered } : prev,
       );
-      if (!response.ok) {
-        const err = await response.json().catch(() => null);
-        throw new Error(err?.error || "Failed to remove part");
-      }
-      toast.success("Part removed from job");
-      if (selectedCompletedJob.id) {
-        handleViewCompletedJobDetails(selectedCompletedJob.id);
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to remove part",
-      );
+      toast.success('Item removed from equipment used');
+    } catch (error: any) {
+      console.error('Error removing item from equipment used:', error);
+      toast.error(error?.message || 'Failed to remove item');
+    }
+  };
+
+  const handleClientStockClick = (
+    context: "deinstalled" | "stock-used" | "quotation",
+    item: Record<string, unknown>,
+    index: number,
+  ) => {
+    if (selectedCompletedJobCostCode) {
+      handleMoveJobItem(context, item, index, "client");
+    } else {
+      setPendingClientMove({ context, item, index });
+      setShowClientPicker(true);
     }
   };
 
@@ -1535,6 +1573,8 @@ export default function InventoryPage() {
     item: Record<string, unknown>,
     index: number,
     destination: "client" | "soltrack" | "technician" | "decommission",
+    technicianEmail?: string,
+    costCodeOverride?: string,
   ) => {
     if (!selectedCompletedJob?.id) {
       toast.error("No completed job selected");
@@ -1552,6 +1592,8 @@ export default function InventoryPage() {
             : "Decommissioning item...";
     setMovingDeinstalledItemKey(`${itemKey}:${destination}`);
 
+    const costCode = costCodeOverride || selectedCompletedJobCostCode || undefined;
+
     try {
       const response = await fetch("/api/inventory/deinstalled-stock", {
         method: "POST",
@@ -1561,9 +1603,10 @@ export default function InventoryPage() {
         body: JSON.stringify({
           job_id: selectedCompletedJob.id,
           destination,
-          cost_code: selectedCompletedJobCostCode || undefined,
+          cost_code: costCode,
           item,
           item_index: index,
+          ...(technicianEmail ? { technician_email: technicianEmail } : {}),
         }),
       });
 
@@ -1600,6 +1643,35 @@ export default function InventoryPage() {
               ? "Item added to technician stock"
               : "Item decommissioned",
       );
+
+      const itemSerial = String(item?.serial_number || item?.serialNumber || '').trim();
+      const itemStockId = String(item?.stock_id || '').trim();
+      if ((itemSerial || itemStockId) && selectedCompletedJob) {
+        const equipmentUsed = Array.isArray(selectedCompletedJob.equipment_used)
+          ? selectedCompletedJob.equipment_used
+          : [];
+        const filtered = equipmentUsed.filter((existing: any) => {
+          const existingSerial = String(existing?.serial_number || existing?.serialNumber || '').trim();
+          const existingStockId = String(existing?.stock_id || '').trim();
+          if (itemSerial && existingSerial) return itemSerial !== existingSerial;
+          if (itemStockId && existingStockId) return itemStockId !== existingStockId;
+          return true;
+        });
+        if (filtered.length < equipmentUsed.length) {
+          const patchResponse = await fetch(`/api/job-cards/${selectedCompletedJob.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ equipment_used: filtered }),
+          });
+          if (patchResponse.ok) {
+            setSelectedCompletedJob((prev: any) =>
+              prev ? { ...prev, equipment_used: filtered } : prev,
+            );
+          } else {
+            console.error('Failed to update equipment_used after move');
+          }
+        }
+      }
     } catch (error) {
       console.error("Error moving item to stock:", error);
       toast.error(error instanceof Error ? error.message : loadingLabel);
@@ -1970,7 +2042,7 @@ export default function InventoryPage() {
     equipmentUsed.forEach((item) => {
       if (isBootStockItem(item)) return;
       const normalized = normalizeStockItem(item, "equipment_used");
-      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ""}`;
+      const key = `${normalized.serialNumber}|${normalized.description}|${normalized.stockId || ""}`;
       merged.set(key, normalized);
     });
 
@@ -1980,7 +2052,7 @@ export default function InventoryPage() {
         part as Record<string, unknown>,
         "parts_required",
       );
-      const key = `${normalized.code}|${normalized.description}|${normalized.stockId || ""}`;
+      const key = `${normalized.serialNumber}|${normalized.description}|${normalized.stockId || ""}`;
       if (!merged.has(key)) {
         merged.set(key, normalized);
       }
@@ -5172,17 +5244,12 @@ export default function InventoryPage() {
               <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h3 className="font-semibold text-blue-900">
-                    {selectedCompletedJobIsInstall
-                      ? "Parts Required Used"
-                      : "Stock Used"}
+                    Equipment Used
                   </h3>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <Badge variant="outline">
-                      {selectedCompletedJobDisplayStockUsed.length} item
-                      {selectedCompletedJobDisplayStockUsed.length === 1 ? "" : "s"}
-                    </Badge>
-                    <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
-                      Parts Required: {selectedCompletedJobPartsUsed.length}
+                      {selectedCompletedJobEquipmentStockUsed.length} item
+                      {selectedCompletedJobEquipmentStockUsed.length === 1 ? "" : "s"}
                     </Badge>
                     {selectedCompletedJobEquipmentUsed.length > 0 && (
                       <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
@@ -5191,15 +5258,13 @@ export default function InventoryPage() {
                     )}
                   </div>
                 </div>
-                {selectedCompletedJobDisplayStockUsed.length === 0 ? (
+                {selectedCompletedJobEquipmentStockUsed.length === 0 ? (
                   <p className="text-sm text-blue-800">
-                    {selectedCompletedJobIsInstall
-                      ? "No parts required recorded on this installation job."
-                      : "No stock used recorded on this job."}
+                    No equipment used recorded on this job.
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {selectedCompletedJobDisplayStockUsed.map((part, index) => (
+                    {selectedCompletedJobEquipmentStockUsed.map((part, index) => (
                       <div
                         key={`${part.code || part.description || "part"}-${index}`}
                         className="rounded-lg border border-blue-100 bg-white p-3"
@@ -5244,7 +5309,7 @@ export default function InventoryPage() {
                             size="sm"
                             variant="destructive"
                             onClick={() =>
-                              handleRemoveCompletedPart(
+                              handleRemoveFromEquipmentUsed(
                                 part.raw as Record<string, unknown>,
                               )
                             }
@@ -5264,11 +5329,10 @@ export default function InventoryPage() {
                               ] === "moved"
                             }
                             onClick={() =>
-                              handleMoveJobItem(
+                              handleClientStockClick(
                                 "stock-used",
                                 part.raw as Record<string, unknown>,
                                 index,
-                                "client",
                               )
                             }
                             className="text-xs"
@@ -5321,14 +5385,14 @@ export default function InventoryPage() {
                                 `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:technician`
                               ] === "moved"
                             }
-                            onClick={() =>
-                              handleMoveJobItem(
-                                "stock-used",
-                                part.raw as Record<string, unknown>,
+                            onClick={() => {
+                              setPendingTechnicianMove({
+                                context: "stock-used",
+                                item: part.raw as Record<string, unknown>,
                                 index,
-                                "technician",
-                              )
-                            }
+                              });
+                              setShowTechnicianPicker(true);
+                            }}
                             className="text-xs"
                           >
                             {movingDeinstalledItemKey ===
@@ -5351,23 +5415,20 @@ export default function InventoryPage() {
                               ] === "moved"
                             }
                             onClick={() =>
-                              handleMoveJobItem(
-                                "stock-used",
+                              handleRemoveFromEquipmentUsed(
                                 part.raw as Record<string, unknown>,
-                                index,
-                                "decommission",
                               )
                             }
                             className="text-xs"
                           >
                             {movingDeinstalledItemKey ===
                             `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission`
-                              ? "Decommissioning..."
+                              ? "Removing..."
                               : movedDeinstalledItems[
                                     `${getMoveItemKey("stock-used", part.raw as Record<string, unknown>, index)}:decommission`
                                   ] === "moved"
-                                ? "Decommissioned"
-                                : "Decommission"}
+                                ? "Removed"
+                                : "Remove from Equipment"}
                           </Button>
                         </div>
                       </div>
@@ -5471,11 +5532,10 @@ export default function InventoryPage() {
                                         ] === "moved"
                                       }
                                       onClick={() =>
-                                        handleMoveJobItem(
+                                        handleClientStockClick(
                                           "deinstalled",
                                           item,
                                           itemIndex,
-                                          "client",
                                         )
                                       }
                                       className="text-xs"
@@ -5517,6 +5577,35 @@ export default function InventoryPage() {
                                             ] === "moved"
                                           ? "Added to Soltrack Stock"
                                           : "Add to Soltrack Stock"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={
+                                        movingDeinstalledItemKey ===
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:technician` ||
+                                        movedDeinstalledItems[
+                                          `${getMoveItemKey("deinstalled", item, itemIndex)}:technician`
+                                        ] === "moved"
+                                      }
+                                      onClick={() => {
+                                        setPendingTechnicianMove({
+                                          context: "deinstalled",
+                                          item,
+                                          index: itemIndex,
+                                        });
+                                        setShowTechnicianPicker(true);
+                                      }}
+                                      className="text-xs"
+                                    >
+                                      {movingDeinstalledItemKey ===
+                                      `${getMoveItemKey("deinstalled", item, itemIndex)}:technician`
+                                        ? "Adding..."
+                                        : movedDeinstalledItems[
+                                              `${getMoveItemKey("deinstalled", item, itemIndex)}:technician`
+                                            ] === "moved"
+                                          ? "Added to Technician Stock"
+                                          : "Add to Technician Stock"}
                                     </Button>
                                     <Button
                                       size="sm"
@@ -5726,11 +5815,10 @@ export default function InventoryPage() {
                                         ] === "moved"
                                       }
                                       onClick={() =>
-                                        handleMoveJobItem(
+                                        handleClientStockClick(
                                           "quotation",
                                           item,
                                           index,
-                                          "client",
                                         )
                                       }
                                       className="min-w-[72px] text-xs"
@@ -6645,6 +6733,126 @@ export default function InventoryPage() {
                 Move to FC
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showTechnicianPicker} onOpenChange={setShowTechnicianPicker}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Technician</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {techStockTechnicians.length === 0 && (
+              <p className="py-4 text-center text-sm text-gray-500">
+                No technicians available
+              </p>
+            )}
+            {techStockTechnicians.map((tech) => {
+              const email = String(tech.technician_email || "").trim();
+              const name = String(tech.display_name || "").trim();
+              return (
+                <button
+                  key={tech.id}
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  onClick={() => {
+                    if (!pendingTechnicianMove) return;
+                    setShowTechnicianPicker(false);
+                    handleMoveJobItem(
+                      pendingTechnicianMove.context,
+                      pendingTechnicianMove.item,
+                      pendingTechnicianMove.index,
+                      "technician",
+                      email,
+                    );
+                    setPendingTechnicianMove(null);
+                  }}
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+                    {(name || email).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {name || "Unnamed"}
+                    </div>
+                    <div className="text-xs text-gray-500">{email}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowTechnicianPicker(false);
+                setPendingTechnicianMove(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showClientPicker} onOpenChange={setShowClientPicker}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Client</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-80 space-y-1 overflow-y-auto">
+            {clientStockClients.length === 0 && (
+              <p className="py-4 text-center text-sm text-gray-500">
+                No clients available
+              </p>
+            )}
+            {clientStockClients.map((client) => {
+              const name = String(client.company || client.cost_code || "").trim();
+              return (
+                <button
+                  key={client.id}
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  onClick={() => {
+                    if (!pendingClientMove) return;
+                    setShowClientPicker(false);
+                    handleMoveJobItem(
+                      pendingClientMove.context,
+                      pendingClientMove.item,
+                      pendingClientMove.index,
+                      "client",
+                      undefined,
+                      client.cost_code,
+                    );
+                    setPendingClientMove(null);
+                  }}
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
+                    {name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {client.company || "Unnamed"}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Code: {client.cost_code}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowClientPicker(false);
+                setPendingClientMove(null);
+              }}
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

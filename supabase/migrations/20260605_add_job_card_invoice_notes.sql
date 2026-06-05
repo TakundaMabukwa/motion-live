@@ -1,0 +1,2 @@
+ALTER TABLE job_cards
+ADD COLUMN IF NOT EXISTS invoice_notes TEXT;

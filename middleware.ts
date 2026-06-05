@@ -3,11 +3,6 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // Skip middleware for API routes to prevent interference
-  if (request.nextUrl.pathname.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
   // Handle session updates using the SSR approach
   const response = await updateSession(request);
 
