@@ -19,12 +19,19 @@ const sanitizeCategoryCode = (value: string): string => {
 
 const extractQuotedIdentifier = (item: Record<string, unknown>): string => {
   const directValue =
+    getStringValue(item.serial_number) ||
+    getStringValue(item.serial) ||
+    getStringValue(item.serialNumber) ||
+    getStringValue(item.SerialNumber) ||
+    getStringValue(item.stock_id) ||
+    getStringValue(item.stockId) ||
+    getStringValue(item.unique_item_id) ||
+    getStringValue(item.uniqueItemId) ||
     getStringValue(item.value) ||
     getStringValue(item.detail_value) ||
     getStringValue(item.detailValue) ||
-    getStringValue(item.serial_number) ||
-    getStringValue(item.serial) ||
-    getStringValue(item.item_serial);
+    getStringValue(item.item_serial) ||
+    getStringValue(item.id);
 
   if (directValue) return directValue;
 
@@ -65,10 +72,7 @@ const deriveSerialNumber = (
   jobNumber: string,
   itemIndex: number
 ): string => {
-  const existing =
-    extractQuotedIdentifier(item) ||
-    getStringValue(item.id);
-
+  const existing = extractQuotedIdentifier(item);
   if (existing) return existing;
 
   const safeJob = sanitizeCategoryCode(jobNumber || 'JOB');
@@ -149,15 +153,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (destination === 'soltrack') {
-      const { data: existingItem } = await supabase
+      const { data: existingSoltrackItem } = await supabase
         .from('inventory_items')
-        .select('id')
+        .select('id, serial_number')
         .eq('serial_number', serialNumber)
         .maybeSingle();
 
-      if (existingItem) {
+      if (existingSoltrackItem) {
         return NextResponse.json(
-          { error: `Item already exists in Soltrack stock with serial ${serialNumber}` },
+          { error: `Item already exists in Soltrack stock (serial: ${existingSoltrackItem.serial_number})` },
           { status: 409 }
         );
       }
@@ -196,10 +200,15 @@ export async function POST(request: NextRequest) {
       }
 
       const techPart = {
-        description: itemName,
-        code: categoryCode,
+        code: getStringValue(item.code) || categoryCode,
+        stock_id: getStringValue(item.stock_id) || getStringValue(item.stockId) || null,
         serial_number: serialNumber,
-        quantity: 1,
+        description: itemName,
+        supplier: getStringValue(item.supplier) || '',
+        quantity: Number(item.quantity) || 1,
+        cost_per_unit: Number(item.cost_per_unit) || 0,
+        total_cost: Number(item.total_cost) || 0,
+        ip_address: getStringValue(item.ip_address) || '',
         notes,
       };
 
@@ -284,7 +293,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existingClientItem } = await supabase
       .from('client_inventory_items')
-      .select('id')
+      .select('id, serial_number')
       .eq('client_code', clientCode)
       .eq('cost_code', costCode)
       .eq('serial_number', serialNumber)
@@ -292,7 +301,7 @@ export async function POST(request: NextRequest) {
 
     if (existingClientItem) {
       return NextResponse.json(
-        { error: `Item already exists in client stock with serial ${serialNumber}` },
+        { error: `Item already exists in client stock (serial: ${existingClientItem.serial_number})` },
         { status: 409 }
       );
     }
@@ -326,3 +335,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
