@@ -308,7 +308,7 @@ function AccountsDashboardContent() {
         throw new Error(payload?.error || "Failed to assign FC");
       }
 
-      toast.success("FC assigned successfully");
+      toast.success(payload?.costCenter?.fc_email ? "FC updated" : "FC assigned successfully");
       setAssignCostCenters((prev) =>
         prev.map((cc) =>
           cc.id === costCenterId ? { ...cc, fc_id: fcUserId } : cc,
@@ -660,7 +660,7 @@ function AccountsDashboardContent() {
               onEscapeKeyDown={(e) => e.preventDefault()}
             >
               <DialogHeader>
-                <DialogTitle>Assign FC to Cost Centers</DialogTitle>
+                <DialogTitle>Assign / Change FC</DialogTitle>
                 <DialogDescription>
                   {assignTargetGroup?.company_group
                     ? `Manage FC assignment for ${assignTargetGroup.company_group}`
@@ -680,7 +680,7 @@ function AccountsDashboardContent() {
                 ) : (
                   <>
                     <div className="flex items-center gap-4">
-                      {(assignCostCenters.some((cc) => !cc.fc_id && cc.id)) ? (
+                      {(assignCostCenters.some((cc) => cc.id)) ? (
                         <>
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -694,7 +694,7 @@ function AccountsDashboardContent() {
                                   setAssignCheckedIds((prev) => {
                                     const next = { ...prev };
                                     assignCostCenters.forEach((cc) => {
-                                      if (!cc.fc_id && cc.id) {
+                                      if (cc.id) {
                                         next[ccKey(cc)] = true;
                                       }
                                     });
@@ -704,7 +704,7 @@ function AccountsDashboardContent() {
                                   setAssignCheckedIds((prev) => {
                                     const next = { ...prev };
                                     assignCostCenters.forEach((cc) => {
-                                      if (!cc.fc_id && cc.id) {
+                                      if (cc.id) {
                                         delete next[ccKey(cc)];
                                       }
                                     });
@@ -726,7 +726,7 @@ function AccountsDashboardContent() {
                                 setAssignSelections((prev) => {
                                   const next = { ...prev };
                                   assignCostCenters.forEach((cc) => {
-                                    if (!cc.fc_id && cc.id) {
+                                    if (cc.id) {
                                       next[cc.id || cc.cost_code] = val;
                                     }
                                   });
@@ -759,41 +759,33 @@ function AccountsDashboardContent() {
                     </div>
                     <div className="border rounded-lg divide-y max-h-72 overflow-y-auto">
                       {assignCostCenters.map((cc) => {
-                        const fcUser = fcUserOptions.find((u) => u.id === cc.fc_id);
                         const ccKey = cc.id || cc.cost_code;
-                        const selectedFc = assignSelections[ccKey] || "";
+                        const selectedFc = assignSelections[ccKey] || cc.fc_id || "";
                         const isAssigning = assignLoadingId === ccKey;
-                        const isUnassigned = !cc.fc_id && !!cc.id;
                         return (
                           <div key={ccKey} className="flex items-center justify-between p-3">
                             <div className="flex items-center gap-3">
-                              {isUnassigned && (
-                                <Checkbox
-                                  checked={!!assignCheckedIds[ccKey]}
-                                  onCheckedChange={(checked) =>
-                                    setAssignCheckedIds((prev) => {
-                                      const next = { ...prev };
-                                      if (checked) {
-                                        next[ccKey] = true;
-                                      } else {
-                                        delete next[ccKey];
-                                      }
-                                      return next;
-                                    })
-                                  }
-                                />
-                              )}
+                              <Checkbox
+                                checked={!!assignCheckedIds[ccKey]}
+                                onCheckedChange={(checked) =>
+                                  setAssignCheckedIds((prev) => {
+                                    const next = { ...prev };
+                                    if (checked) {
+                                      next[ccKey] = true;
+                                    } else {
+                                      delete next[ccKey];
+                                    }
+                                    return next;
+                                  })
+                                }
+                              />
                               <div>
                                 <div className="font-medium text-sm">{cc.company || "N/A"}</div>
                                 <div className="text-gray-500 text-xs">{cc.cost_code || ""}</div>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {cc.fc_id ? (
-                                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
-                                  {fcUser?.email || "Assigned"}
-                                </span>
-                              ) : !cc.id ? (
+                              {!cc.id ? (
                                 <span className="text-xs text-gray-400 italic">Not in DB yet</span>
                               ) : (
                                 <div className="flex items-center gap-2">
@@ -813,7 +805,7 @@ function AccountsDashboardContent() {
                                     onClick={() => handleAssignFcToCostCenter(ccKey, selectedFc)}
                                     className="text-xs h-8"
                                   >
-                                    {isAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : "Assign"}
+                                    {isAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : cc.fc_id ? "Change" : "Assign"}
                                   </Button>
                                 </div>
                               )}

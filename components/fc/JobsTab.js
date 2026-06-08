@@ -317,8 +317,7 @@ export default function JobsTab() {
     const products = parseProducts(job.quotation_products).map((p) => ({ ...p }));
     const prods = products.map((p) => {
       const qty = Math.max(1, Number(p.quantity) || 1);
-      const price = toFiniteNumber(p[getPreferredPriceField(p)]);
-      return { ...p, quantity: qty, total_price: price > 0 ? Number((qty * price).toFixed(2)) : 0 };
+      return { ...p, quantity: qty, total_price: calcProductTotal({ ...p, quantity: qty }) };
     });
     setEditableProducts(prods);
     const sub = prods.reduce((s, p) => s + Number(p.total_price || 0), 0);

@@ -18,8 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Loader2, RefreshCw, Search } from "lucide-react";
+import { Eye, FileDown, Loader2, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
+import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
 
 interface AccountInvoiceRow {
@@ -173,6 +174,209 @@ export default function AccountsInvoicesSection() {
 
   const handleRefresh = async () => {
     await fetchInvoices(searchTerm, selectedMonth);
+  };
+
+  const downloadInvoiceExcel = async (invoice: AccountInvoiceRow) => {
+    const items = Array.isArray(invoice.line_items) ? invoice.line_items : [];
+
+    const toNumber = (value: unknown): number => {
+      const amount = Number.parseFloat(String(value ?? "").replace(/[^0-9.\-]/g, ""));
+      return Number.isFinite(amount) ? amount : 0;
+    };
+    const formatAmt = (v: number) => v.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatTotalAmount = (v: number) => `R ${formatAmt(v)}`;
+    const formatDate = (value: string | null | undefined): string => {
+      if (!value) return new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+      const parsed = new Date(value);
+      if (isNaN(parsed.getTime())) return value;
+      return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    };
+
+    const normalizeLine = (item: Record<string, unknown>) => {
+      const units = Math.max(1, toNumber(item.units ?? item.quantity) || 1);
+      const explicitUnitPrice = toNumber(item.unit_price_without_vat ?? item.unit_price_ex_vat ?? item.unit_price);
+      const explicitLineExVat = toNumber(item.total_excl_vat ?? item.subtotal ?? item.amountExcludingVat);
+      const exVatPerUnit = explicitUnitPrice > 0 ? explicitUnitPrice : explicitLineExVat > 0 ? explicitLineExVat / units : 0;
+      const exVatLineTotal = explicitLineExVat > 0 ? explicitLineExVat : exVatPerUnit * units;
+      const explicitVatAmount = toNumber(item.vat_amount ?? item.vatAmount ?? item.total_vat);
+      const explicitTotalIncl = toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.total_incl ?? item.totalIncl ?? item.totalRentalSub);
+      const vatLineTotal = explicitVatAmount > 0 ? explicitVatAmount : explicitTotalIncl > 0 && exVatLineTotal > 0 ? Math.max(0, explicitTotalIncl - exVatLineTotal) : exVatLineTotal * 0.15;
+      const totalInclLine = exVatLineTotal + vatLineTotal;
+      return {
+        previousReg: String(item.reg || item.previous_reg || "-"),
+        newReg: String(item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-"),
+        itemCode: String(item.item_code || "-"),
+        description: String(item.description || "-"),
+        comments: String(item.category || item.comments || item.company || ""),
+        units,
+        unitPrice: formatAmt(exVatPerUnit),
+        vatAmount: formatAmt(vatLineTotal),
+        vatPercent: String(item.vat_percent || "15%"),
+        totalIncl: formatAmt(totalInclLine),
+        exVat: exVatLineTotal,
+        vat: vatLineTotal,
+        incl: totalInclLine,
+      };
+    };
+    const rows = (items as Record<string, unknown>[]).map(normalizeLine);
+    const totals = rows.reduce((acc, row) => ({
+      totalExVat: acc.totalExVat + row.exVat,
+      totalVat: acc.totalVat + row.vat,
+      discount: 0,
+    }), { totalExVat: 0, totalVat: 0, discount: 0 });
+    const totalInclVat = totals.totalExVat + totals.totalVat;
+
+    const companyName = "Soltrack (PTY) LTD";
+    const companyRegNo = "2018/095975/07";
+    const companyVatNo = "4580161802";
+
+    const clientName = invoice.company_name || "";
+    const clientAddress = invoice.client_address || "";
+    const companyReg = invoice.company_registration_number || "";
+    const customerVat = invoice.customer_vat_number || "";
+    const invoiceNumber = invoice.invoice_number || "PENDING";
+    const invoiceDate = formatDate(invoice.invoice_date);
+    const accountNumber = invoice.account_number;
+    const noteText = invoice.notes || "";
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = "Motion Live";
+    workbook.created = new Date();
+    const ws = workbook.addWorksheet("Invoice");
+    ws.columns = Array.from({ length: 11 }, () => ({ width: 14 }));
+
+    const xeroTeal = "FF1A6B7B";
+    const xeroTealDark = "FF0C4E5E";
+    const white = "FFFFFFFF";
+    const lightGray = "FFF5F5F5";
+    const borderGray = "FFD0D0D0";
+    const darkText = "FF333333";
+
+    const thinBorder = {
+      top: { style: "thin" as const, color: { argb: borderGray } },
+      left: { style: "thin" as const, color: { argb: borderGray } },
+      bottom: { style: "thin" as const, color: { argb: borderGray } },
+      right: { style: "thin" as const, color: { argb: borderGray } },
+    };
+
+    const setCell = (
+      row: number, col: number, value: string | number,
+      opts?: { bold?: boolean; fill?: string; fontColor?: string; align?: "left" | "right" | "center"; fontSize?: number; border?: boolean },
+    ) => {
+      const cell = ws.getCell(row, col);
+      cell.value = value;
+      cell.font = { name: "Calibri", size: opts?.fontSize ?? 10, bold: opts?.bold, color: { argb: opts?.fontColor ?? darkText } };
+      if (opts?.fill) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
+      if (opts?.align) cell.alignment = { horizontal: opts.align, vertical: "middle", wrapText: true };
+      if (opts?.border !== false) cell.border = thinBorder;
+    };
+
+    const merge = (r1: number, c1: number, r2: number, c2: number, value: string, opts?: { bold?: boolean; fill?: string; fontColor?: string; align?: "left" | "right" | "center"; fontSize?: number; border?: boolean }) => {
+      if (r1 !== r2 || c1 !== c2) ws.mergeCells(r1, c1, r2, c2);
+      setCell(r1, c1, value, opts);
+    };
+
+    let row = 1;
+
+    merge(row, 1, row, 11, companyName, { bold: true, fontSize: 14, fontColor: white, fill: xeroTeal, align: "left", border: false });
+    row++;
+    setCell(row, 1, `Reg No: ${companyRegNo}`, { fontSize: 9, border: false });
+    setCell(row, 6, `VAT No.: ${companyVatNo}`, { fontSize: 9, border: false });
+    row += 2;
+
+    merge(row, 1, row, 11, "TAX INVOICE", { bold: true, fontSize: 16, fontColor: white, fill: xeroTeal, align: "center", border: false });
+    row += 2;
+
+    merge(row, 1, row, 2, "", { border: false });
+    setCell(row, 3, "To:", { bold: true, align: "right", border: false });
+    merge(row, 4, row, 6, clientName, { bold: true, fontSize: 11, border: false });
+    merge(row, 7, row, 8, "", { border: false });
+    setCell(row, 9, "", { border: false });
+    row++;
+
+    merge(row, 1, row, 2, "", { border: false });
+    setCell(row, 3, "", { border: false });
+    merge(row, 4, row, 6, `Company Reg: ${companyReg || "-"}`, { fontSize: 9, border: false });
+    setCell(row, 7, "", { border: false });
+    merge(row, 9, row, 11, "", { border: false });
+    row++;
+
+    merge(row, 1, row, 2, "", { border: false });
+    setCell(row, 3, "", { border: false });
+    merge(row, 4, row, 6, clientAddress, { fontSize: 9, border: false });
+    setCell(row, 7, "", { border: false });
+    merge(row, 9, row, 11, "", { border: false });
+    row += 2;
+
+    merge(row, 1, row, 3, `Account: ${accountNumber}`, { bold: true, fontSize: 10, border: false });
+    merge(row, 4, row, 6, `Customer VAT: ${customerVat || "-"}`, { bold: true, fontSize: 10, border: false });
+    merge(row, 7, row, 9, `VAT %: VAT 15%`, { bold: true, fontSize: 10, border: false });
+    merge(row, 10, row, 11, "", { border: false });
+    row++;
+
+    merge(row, 1, row, 3, `Invoice #: ${invoiceNumber}`, { bold: true, fontSize: 10, border: false });
+    merge(row, 4, row, 6, `Date: ${invoiceDate}`, { bold: true, fontSize: 10, border: false });
+    merge(row, 7, row, 9, "", { border: false });
+    merge(row, 10, row, 11, "", { border: false });
+    row += 2;
+
+    const headers = ["Previous Reg", "New Reg", "Item Code", "Description", "Comments", "Units", "Unit Price", "VAT", "VAT %", "Total Incl"];
+    headers.forEach((h, i) => {
+      const isNum = i >= 5;
+      setCell(row, i + 1, h, { bold: true, fill: xeroTealDark, fontColor: white, align: isNum ? "right" : "left", fontSize: 10 });
+    });
+    setCell(row, 11, "", { fill: xeroTealDark, border: false });
+    row++;
+
+    rows.forEach((r, idx) => {
+      const bgColor = idx % 2 === 1 ? lightGray : undefined;
+      const vals: (string | number)[] = [
+        r.previousReg, r.newReg, r.itemCode, r.description, r.comments,
+        r.units, r.unitPrice, r.vatAmount, r.vatPercent, r.totalIncl,
+      ];
+      vals.forEach((v, ci) => {
+        setCell(row, ci + 1, v, { align: ci >= 5 ? "right" : "left", fill: bgColor });
+      });
+      setCell(row, 11, "", { border: false });
+      row++;
+    });
+
+    row += 2;
+
+    merge(row, 1, row, 7, "", { border: false });
+    merge(row, 8, row, 10, "Total Ex. VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 11, formatTotalAmount(totals.totalExVat), { bold: true, align: "right", fill: lightGray });
+    row++;
+
+    merge(row, 1, row, 7, "", { border: false });
+    merge(row, 8, row, 10, "Discount", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 11, formatTotalAmount(totals.discount), { bold: true, align: "right", fill: lightGray });
+    row++;
+
+    merge(row, 1, row, 7, "", { border: false });
+    merge(row, 8, row, 10, "VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 11, formatTotalAmount(totals.totalVat), { bold: true, align: "right", fill: lightGray });
+    row++;
+
+    merge(row, 1, row, 7, "", { bold: true, fill: lightGray });
+    merge(row, 8, row, 10, "Total Incl. VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 11, formatTotalAmount(totalInclVat), { bold: true, align: "right", fill: lightGray });
+    row += 2;
+
+    merge(row, 1, row, 11, `Notes: ${noteText}`, { fontSize: 9, border: false });
+
+    const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+    const safeName = (clientName || accountNumber || "invoice").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeName}_${invoiceNumber}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Invoice downloaded as Excel");
   };
 
   const handleOpenInvoice = async (invoice: AccountInvoiceRow) => {
@@ -342,10 +546,16 @@ export default function AccountsInvoicesSection() {
                       {invoice.created_by_name || "—"}
                     </TableCell>
                     <TableCell className="py-1.5 text-center">
-                      <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
-                        <Eye className="mr-1 w-3 h-3" />
-                        View
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
+                          <Eye className="mr-1 w-3 h-3" />
+                          View
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
+                          <FileDown className="mr-1 w-3 h-3" />
+                          Excel
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
