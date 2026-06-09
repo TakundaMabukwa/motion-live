@@ -1505,14 +1505,12 @@ export default function AdminDashboard() {
 
   const filteredJobCards = sortJobs(
     jobCards.filter((job) => {
-      // Show jobs with no technician assigned that are ready for assignment,
-      // but always include jobs explicitly moved to admin.
-      return (
-        matchesJobSearch(job) &&
-        !isMovedAwayFromAdmin(job) &&
-        (isMovedToAdminJob(job) ||
-          (!job.technician_name && canAssignTechnician(job)))
-      );
+      const role = String(job.role || "").toLowerCase();
+      const moveTo = String(job.move_to || "").toLowerCase();
+      const isAdmin = role === "admin" || moveTo === "admin";
+      const isNotCompleted = job.status !== "completed";
+      const hasNoTechnician = !job.technician_name;
+      return matchesJobSearch(job) && isAdmin && hasNoTechnician && isNotCompleted;
     }),
   );
 
@@ -1528,6 +1526,8 @@ export default function AdminDashboard() {
     jobCards.filter(
       (job) =>
         job.technician_name &&
+        job.status !== "completed" &&
+        job.job_status !== "completed" &&
         matchesJobSearch(job) &&
         !isMovedAwayFromAdmin(job),
     ),

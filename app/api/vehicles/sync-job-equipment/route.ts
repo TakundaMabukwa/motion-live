@@ -497,6 +497,14 @@ function buildVehicleUpdate(
             warning: `No install value found for ${mapping.field}`,
           };
     }
+    if (jobType === "repair") {
+      const update: Record<string, any> = {};
+      if (values.serial) update[serialField] = values.serial;
+      if (values.ip) update[ipField] = values.ip;
+      return Object.keys(update).length
+        ? { update, warning: null }
+        : { update: null, warning: null };
+    }
     return { update: { [serialField]: null, [ipField]: null }, warning: null };
   }
 
@@ -504,7 +512,9 @@ function buildVehicleUpdate(
     const targetField =
       jobType === "install"
         ? pickInstallSlot(vehicle, mapping.field, installSlotValue)
-        : pickDeinstallSlot(vehicle, mapping.field, installSlotValue);
+        : jobType === "repair"
+          ? pickInstallSlot(vehicle, mapping.field, installSlotValue)
+          : pickDeinstallSlot(vehicle, mapping.field, installSlotValue);
 
     if (!targetField) {
       return {
@@ -512,7 +522,18 @@ function buildVehicleUpdate(
         warning:
           jobType === "install"
             ? `No empty slot available for ${mapping.field}`
-            : `No installed slot found to clear for ${mapping.field}`,
+            : jobType === "repair"
+              ? `No slot found for ${mapping.field} to update`
+              : `No installed slot found to clear for ${mapping.field}`,
+      };
+    }
+
+    if (jobType === "repair") {
+      return {
+        update: {
+          [targetField]: installSlotValue || null,
+        },
+        warning: installSlotValue ? null : `No install value found for ${mapping.field}`,
       };
     }
 
@@ -544,6 +565,14 @@ function buildVehicleUpdate(
       };
     }
 
+    return { update: { [mapping.field]: nextValue }, warning: null };
+  }
+
+  if (jobType === "repair") {
+    const nextValue = installValue;
+    if (!nextValue) {
+      return { update: null, warning: null };
+    }
     return { update: { [mapping.field]: nextValue }, warning: null };
   }
 
@@ -648,13 +677,17 @@ const syncJobEquipmentToTable = async (
     jobTypeRaw.includes("de-install") ||
     jobTypeRaw.includes("decomm")
       ? "deinstall"
-      : "install";
+      : jobTypeRaw.includes("repair") ||
+          jobTypeRaw.includes("admin") ||
+          jobTypeRaw.includes("maintenance")
+        ? "repair"
+        : "install";
 
   let createdVehicleId: number | null = null;
   let vehicles = await getVehiclesForJob(supabase, job, tableName);
   const vehicleRegs = getVehicleRegs(job);
 
-  if (jobType === "install") {
+  if (jobType === "install" || jobType === "repair") {
     const costCode = String(job?.new_account_number || "").trim();
     const existingRegKeys = new Set(
       vehicles.map((vehicle) => {
@@ -689,7 +722,7 @@ const syncJobEquipmentToTable = async (
     }
   }
 
-  if (!vehicles.length && jobType === "install") {
+  if (!vehicles.length && (jobType === "install" || jobType === "repair")) {
     const createdVehicle = await createVehicleForJob(supabase, job, undefined, tableName);
     createdVehicleId = createdVehicle?.id ?? null;
     vehicles = [createdVehicle];

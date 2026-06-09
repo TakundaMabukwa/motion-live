@@ -369,7 +369,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ") : "N/A";
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
-    const orderNumber = latestJobRef.current?.order_number || job.order_number || "N/A";
+    const orderNumber = latestJobRef.current?.order_number || effectiveJob?.order_number || "N/A";
     const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || effectiveJob.customer_name || "N/A";
     const effectiveClientName = defaultClientName;
     const isDeinstallJob = (() => {
