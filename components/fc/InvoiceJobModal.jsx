@@ -504,9 +504,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       acc.total += row.totalIncl;
       return acc;
     }, { subtotal: 0, vat: 0, total: 0, discount: 0 });
-    const displayTotals = rawTotals.subtotal > 0
-      ? { subtotal: rawTotals.subtotal, vat: rawTotals.vat, total: rawTotals.total, discount: 0 }
-      : totals;
     return {
       invoiceNumber, invoiceDate: formatDate(invoiceDate), orderNumber, clientName: effectiveClientName,
       clientEmail: storedInvoiceRecord?.client_email || effectiveJob.customer_email || "No email provided",
@@ -516,7 +513,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       customerVatNumber: selectedCostCenterInfo?.vat_number || selectedCostCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
       companyRegistrationNumber: selectedCostCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
       notes: storedInvoiceRecord?.notes || invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
-      hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals: displayTotals, rows,
+      hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals, rows,
     };
   };
 
