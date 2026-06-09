@@ -189,7 +189,9 @@ const getInvoiceVehicles = (job) => {
 const getInvoiceTotals = (job, overrideProducts) => {
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   const computedSubtotal = products.reduce((sum, product) => {
-    const chargeLines = getProductChargeLines(product, job).filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
+    const chargeLines = getProductChargeLines(product, job)
+      .filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0)
+      .filter((chargeLine) => !["subscription_price", "rental_price"].includes(chargeLine.key));
     if (chargeLines.length > 0) {
       return sum + chargeLines.reduce((lineSum, chargeLine) => lineSum + toNumber(chargeLine.subtotal), 0);
     }
