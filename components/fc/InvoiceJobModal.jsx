@@ -496,7 +496,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       }));
     const annuityRows = [...productAnnuityRows, ...manualAnnuityRows];
     const rows = [...productRows, ...annuityRows];
-    const totals = rows.reduce((acc, row) => {
+    const totals = productRows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;
       acc.vat += row.vatAmount;
       acc.total += row.totalIncl;

@@ -219,7 +219,7 @@ export default function AccountsInvoicesSection() {
       };
     };
     const rows = (items as Record<string, unknown>[]).map(normalizeLine);
-    const totals = rows.reduce((acc, row) => ({
+    const totals = rows.filter((row) => row.itemCode !== "Annuity").reduce((acc, row) => ({
       totalExVat: acc.totalExVat + row.exVat,
       totalVat: acc.totalVat + row.vat,
       discount: 0,
