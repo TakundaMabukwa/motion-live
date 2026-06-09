@@ -389,20 +389,18 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
               const productDescription = String(product?.description || "").trim();
               const lineLabel = productName ? `${productName} - ${cl.label}` : cl.label;
               const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
-              const lineVat = Number((cl.subtotal * VAT_RATE).toFixed(2));
-              const lineTotal = Number((cl.subtotal + lineVat).toFixed(2));
               productAnnuityRows.push({
                 key: `product-annuity-${cl.key}-${index}`,
                 previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
                 newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
                 itemCode: "Annuity",
                 description: resolvedDescription,
-                comments: lineLabel,
+                comments: `${lineLabel} - Will be charged on annuity`,
                 qty: cl.qty,
-                unitPrice: cl.unitPrice,
-                vatPercent: "15.00%",
-                vatAmount: lineVat,
-                totalIncl: lineTotal,
+                unitPrice: 0,
+                vatPercent: "0.00%",
+                vatAmount: 0,
+                totalIncl: 0,
               });
             });
             if (mainLines.length > 0) {
@@ -489,7 +487,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
         itemCode: "Annuity",
         description: item.name || "Annuity Item",
-        comments: `Annuity - ${item.name}`,
+        comments: `Annuity - ${item.name} - Will be charged on annuity`,
         qty: item.quantity || 1,
         unitPrice: 0,
         vatPercent: "0.00%",
