@@ -1038,7 +1038,6 @@ export default function JobsTab() {
         open={showFinalInvoiceModal}
         onOpenChange={setShowFinalInvoiceModal}
         onComplete={handleRefreshJobsAfterInvoice}
-        editedProducts={editableProducts}
       />
 
       {/* ===== MOVE HISTORY DIALOG ===== */}
