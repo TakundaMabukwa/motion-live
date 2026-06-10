@@ -628,6 +628,17 @@ async function createVehicleForJob(
   ).trim();
   const costCode = String(job?.new_account_number || "").trim();
 
+  const annuityProducts = parseArray(job?.quotation_products);
+  let totalSub = 0;
+  let totalRental = 0;
+  for (const product of annuityProducts) {
+    const sub = Number(product?.subscription_price || 0);
+    const rental = Number(product?.rental_price || 0);
+    if (Number.isFinite(sub) && sub > 0) totalSub += sub;
+    if (Number.isFinite(rental) && rental > 0) totalRental += rental;
+  }
+  const totalRentalSub = totalSub + totalRental;
+
   const insertData = {
     company: job?.customer_name || null,
     new_account_number: costCode || null,
@@ -641,9 +652,9 @@ async function createVehicleForJob(
     branch: null,
     fleet_number: null,
     engine: null,
-    total_rental: 0,
-    total_sub: Number(job?.quotation_total_amount || 0) || 0,
-    total_rental_sub: Number(job?.quotation_total_amount || 0) || 0,
+    total_rental: Number(totalRental.toFixed(2)),
+    total_sub: Number(totalSub.toFixed(2)),
+    total_rental_sub: Number(totalRentalSub.toFixed(2)),
     vehicle_validated: false,
   };
 
