@@ -328,7 +328,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      refreshInvoiceNumber,
       jobCardId,
       jobNumber,
       quotationNumber,
@@ -394,120 +393,6 @@ export async function POST(request: NextRequest) {
         : null) ||
       (invoiceDate ? toBusinessMiddayIso(invoiceDate) : businessNowInvoiceDate);
 
-    const { data: existingInvoices, error: existingError } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('job_card_id', jobCardId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (existingError) {
-      console.error('Error checking existing invoice:', existingError);
-      return NextResponse.json(
-        {
-          error: 'Failed to check existing invoice',
-          details: existingError.message || null,
-          code: existingError.code || null,
-        },
-        { status: 500 },
-      );
-    }
-
-    const existingInvoiceByJobCardId = Array.isArray(existingInvoices)
-      ? existingInvoices[0] || null
-      : null;
-
-    const resolvedJobNumber = String(jobNumber || jobCard?.job_number || '').trim();
-    const {
-      invoiceId: billingInvoiceId,
-      invoiceNumber: billingInvoiceNumber,
-    } = extractBillingInvoiceIdentity(jobCard?.billing_statuses);
-    const normalizedJobStatus = String(jobCard?.job_status || '')
-      .trim()
-      .toLowerCase();
-
-    let reusableInvoice = existingInvoiceByJobCardId;
-
-    if (!reusableInvoice && resolvedJobNumber) {
-      const { data: jobNumberMatches, error: jobNumberMatchError } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('job_number', resolvedJobNumber)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (jobNumberMatchError) {
-        console.error('Error checking invoice by job_number:', jobNumberMatchError);
-        return NextResponse.json(
-          {
-            error: 'Failed to check existing invoice by job number',
-            details: jobNumberMatchError.message || null,
-            code: jobNumberMatchError.code || null,
-          },
-          { status: 500 },
-        );
-      }
-
-      reusableInvoice = Array.isArray(jobNumberMatches)
-        ? jobNumberMatches[0] || null
-        : null;
-    }
-
-    if (!reusableInvoice && billingInvoiceId) {
-      const { data: billingInvoiceMatch, error: billingInvoiceMatchError } =
-        await supabase
-          .from('invoices')
-          .select('*')
-          .eq('id', billingInvoiceId)
-          .maybeSingle();
-
-      if (billingInvoiceMatchError) {
-        console.error(
-          'Error checking invoice by billing_statuses.invoice_id:',
-          billingInvoiceMatchError,
-        );
-        return NextResponse.json(
-          {
-            error: 'Failed to check invoice linked in billing status',
-            details: billingInvoiceMatchError.message || null,
-            code: billingInvoiceMatchError.code || null,
-          },
-          { status: 500 },
-        );
-      }
-
-      reusableInvoice = billingInvoiceMatch || null;
-    }
-
-    if (!reusableInvoice && billingInvoiceNumber) {
-      const { data: billingNumberMatches, error: billingNumberMatchError } =
-        await supabase
-          .from('invoices')
-          .select('*')
-          .eq('invoice_number', billingInvoiceNumber)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-      if (billingNumberMatchError) {
-        console.error(
-          'Error checking invoice by billing_statuses.invoice_number:',
-          billingNumberMatchError,
-        );
-        return NextResponse.json(
-          {
-            error: 'Failed to check existing invoice by billing invoice number',
-            details: billingNumberMatchError.message || null,
-            code: billingNumberMatchError.code || null,
-          },
-          { status: 500 },
-        );
-      }
-
-      reusableInvoice = Array.isArray(billingNumberMatches)
-        ? billingNumberMatches[0] || null
-        : null;
-    }
-
     const submittedLineItems = Array.isArray(lineItems)
       ? lineItems.filter(
           (item): item is Record<string, unknown> =>
@@ -569,56 +454,6 @@ export async function POST(request: NextRequest) {
       total_amount: resolvedTotalAmount,
       line_items: resolvedLineItems,
     };
-
-    if (reusableInvoice?.id) {
-      const { data: updatedInvoice, error: updateError } = await supabase
-        .from('invoices')
-        .update({
-          ...payload,
-          invoice_number: reusableInvoice.invoice_number,
-          created_by: reusableInvoice.created_by || user.id,
-        })
-        .eq('id', reusableInvoice.id)
-        .select('*')
-        .single();
-
-      if (updateError) {
-        console.error('Error updating invoice:', updateError);
-        return NextResponse.json(
-          {
-            error: 'Failed to refresh invoice',
-            details: updateError.message || null,
-            code: updateError.code || null,
-          },
-          { status: 500 },
-        );
-      }
-
-      return NextResponse.json({
-        invoice: updatedInvoice,
-        reused: true,
-        refreshed: Boolean(refreshInvoiceNumber),
-      });
-    }
-
-    // Safety guard: if billing status already carries an invoice identity but no
-    // matching row was found, do not allocate/store a brand new invoice number.
-    if (
-      billingInvoiceId ||
-      billingInvoiceNumber ||
-      normalizedJobStatus === 'invoiced'
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Job card is already marked as invoiced but no matching stored invoice was found. Invoice number allocation was blocked to prevent duplicates.',
-          billing_invoice_id: billingInvoiceId || null,
-          billing_invoice_number: billingInvoiceNumber || null,
-          job_status: jobCard?.job_status || null,
-        },
-        { status: 409 },
-      );
-    }
 
     let allocatedInvoiceNumber = '';
     let allocationAuditId: string | null = null;
