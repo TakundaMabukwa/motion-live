@@ -773,8 +773,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       if (deferredActions.length > 0) {
         toast.success(`Invoice generated successfully. ${deferredActions.join(" and ")} will be applied after unlock.`);
-      } else if (syncWarnings.length > 0) {
-        toast.success(`Invoice generated. Vehicle equipment updated with ${syncWarnings.length} warning(s).`);
       } else {
         toast.success("Invoice generated successfully!");
       }
