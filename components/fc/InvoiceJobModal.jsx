@@ -838,7 +838,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { resetInvoiceForm(); if (onComplete) onComplete(); } onOpenChange(o); }}>
-      <DialogContent className="w-[96vw] max-w-6xl max-h-[94vh]">
+      <DialogContent
+        className="w-[96vw] max-w-6xl max-h-[94vh]"
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             Generate Invoice - {job?.job_number || ""}
