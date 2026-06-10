@@ -408,7 +408,11 @@ export default function JobsTab() {
         if (formData[key] !== undefined) patchBody[key] = formData[key];
       }
       if (editableProducts.length > 0) {
-        patchBody.quotation_products = editableProducts;
+        const syncedProducts = editableProducts.map((p) => ({
+          ...p,
+          vehicle_plate: formData.vehicle_registration || p.vehicle_plate || "",
+        }));
+        patchBody.quotation_products = syncedProducts;
       }
       const res = await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patchBody),

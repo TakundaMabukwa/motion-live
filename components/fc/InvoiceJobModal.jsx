@@ -778,7 +778,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       } else {
         toast.success("Invoice generated successfully!");
       }
-      if (onComplete) onComplete();
     } catch (error) {
       console.error("Error generating invoice:", error);
       toast.error(error?.message || "Failed to generate invoice");
@@ -842,7 +841,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
   const totals = getInvoiceTotals(job, externalEditedProducts);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) resetInvoiceForm(); onOpenChange(o); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { resetInvoiceForm(); if (onComplete) onComplete(); } onOpenChange(o); }}>
       <DialogContent className="w-[96vw] max-w-6xl max-h-[94vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -993,7 +992,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           </div>
         )}
         <DialogFooter className="pt-4 border-t">
-          <Button variant="outline" onClick={() => { onOpenChange(false); resetInvoiceForm(); }}>Close</Button>
+          <Button variant="outline" onClick={() => { onOpenChange(false); resetInvoiceForm(); if (onComplete) onComplete(); }}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
