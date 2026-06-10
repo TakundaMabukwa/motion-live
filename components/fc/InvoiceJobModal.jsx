@@ -826,8 +826,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const result = await response.json();
       if (result.success) {
         toast.success(`Invoice sent successfully to ${invoiceFormData.clientEmail}`);
-        onOpenChange(false);
-        resetInvoiceForm();
       } else throw new Error(result.error || "Failed to send invoice email");
     } catch (error) {
       toast.error(`Failed to send invoice email: ${error.message}`);
