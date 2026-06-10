@@ -462,7 +462,6 @@ export async function POST(request: NextRequest) {
       const allocation = await allocateTrackedInvoiceNumber(supabase, {
         source: 'api/invoices/job-card',
         userId: user.id,
-        requestKey: jobCardId,
         context: {
           jobCardId,
           jobNumber: jobNumber || null,
