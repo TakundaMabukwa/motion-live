@@ -582,93 +582,25 @@ function buildVehicleUpdate(
 async function getVehiclesForJob(
   supabase: any,
   job: Record<string, any>,
-  tableName: "vehicles" | "vehicles_duplicate" = "vehicles",
+  tableName: "vehicles" | "vehicles_duplicate" = "vehicles_duplicate",
 ) {
   const regs = getVehicleRegs(job);
   if (!regs.length) return [];
 
-  const costCode = String(job?.new_account_number || "").trim();
-  const regFilters = regs.map((reg) => `reg.ilike.${reg}`);
-  const orCondition = regFilters.join(",");
+  const orConditions: string[] = [];
+  for (const reg of regs) {
+    orConditions.push(`reg.ilike.${reg}`);
+    orConditions.push(`fleet_number.ilike.${reg}`);
+  }
 
   const { data, error } = await supabase
     .from(tableName)
     .select("*")
-    .or(orCondition);
+    .or(orConditions.join(","));
   if (error) throw new Error(error.message);
 
   const rows = Array.isArray(data) ? data : [];
-  if (!costCode) return rows;
-
-  return rows.filter((row) => {
-    const rowNewAccount = String(row?.new_account_number || "").trim();
-    const rowAccount = String(row?.account_number || "").trim();
-    return rowNewAccount === costCode || rowAccount === costCode;
-  });
-}
-
-async function createVehicleForJob(
-  supabase: any,
-  job: Record<string, any>,
-  regOverride?: string,
-  tableName: "vehicles" | "vehicles_duplicate" = "vehicles",
-) {
-  const regs = getVehicleRegs(job);
-  const reg = String(
-    regOverride ||
-      regs[0] ||
-      job?.vehicle_registration ||
-      job?.temporary_registration ||
-      buildTemporaryRegistration(
-        job?.id,
-        job?.job_number,
-        job?.quotation_number,
-        job?.new_account_number,
-      ),
-  ).trim();
-  const costCode = String(job?.new_account_number || "").trim();
-
-  const annuityProducts = parseArray(job?.quotation_products);
-  let totalSub = 0;
-  let totalRental = 0;
-  for (const product of annuityProducts) {
-    const sub = Number(product?.subscription_price || 0);
-    const rental = Number(product?.rental_price || 0);
-    if (Number.isFinite(sub) && sub > 0) totalSub += sub;
-    if (Number.isFinite(rental) && rental > 0) totalRental += rental;
-  }
-  const totalRentalSub = totalSub + totalRental;
-
-  const insertData = {
-    company: job?.customer_name || null,
-    new_account_number: costCode || null,
-    account_number: costCode || null,
-    reg,
-    make: job?.vehicle_make || null,
-    model: job?.vehicle_model || null,
-    year: job?.vehicle_year || null,
-    vin: job?.vin_numer || null,
-    colour: null,
-    branch: null,
-    fleet_number: null,
-    engine: null,
-    total_rental: Number(totalRental.toFixed(2)),
-    total_sub: Number(totalSub.toFixed(2)),
-    total_rental_sub: Number(totalRentalSub.toFixed(2)),
-    vehicle_validated: false,
-  };
-
-  const { data, error } = await supabase
-    .from(tableName)
-    .insert(insertData)
-    .select("*")
-    .single();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data;
+  return rows;
 }
 
 const syncJobEquipmentToTable = async (
@@ -694,53 +626,20 @@ const syncJobEquipmentToTable = async (
         ? "repair"
         : "install";
 
-  let createdVehicleId: number | null = null;
   let vehicles = await getVehiclesForJob(supabase, job, tableName);
   const vehicleRegs = getVehicleRegs(job);
-
-  if (jobType === "install" || jobType === "repair") {
-    const costCode = String(job?.new_account_number || "").trim();
-    const existingRegKeys = new Set(
-      vehicles.map((vehicle) => {
-        const reg = String(vehicle?.reg || "")
-          .trim()
-          .toLowerCase();
-        const account = String(
-          vehicle?.new_account_number || vehicle?.account_number || "",
-        )
-          .trim()
-          .toLowerCase();
-        return `${reg}|${account}`;
-      }),
-    );
-
-    for (const reg of vehicleRegs) {
-      const regKey = `${String(reg || "")
-        .trim()
-        .toLowerCase()}|${costCode.toLowerCase()}`;
-      if (!reg || existingRegKeys.has(regKey)) continue;
-      const createdVehicle = await createVehicleForJob(
-        supabase,
-        job,
-        reg,
-        tableName,
-      );
-      if (createdVehicleId == null) {
-        createdVehicleId = createdVehicle?.id ?? null;
-      }
-      vehicles.push(createdVehicle);
-      existingRegKeys.add(regKey);
-    }
-  }
-
-  if (!vehicles.length && (jobType === "install" || jobType === "repair")) {
-    const createdVehicle = await createVehicleForJob(supabase, job, undefined, tableName);
-    createdVehicleId = createdVehicle?.id ?? null;
-    vehicles = [createdVehicle];
-  }
+  const warnings: string[] = [];
 
   if (!vehicles.length) {
-    throw new Error(`No matching vehicle rows found in ${tableName}`);
+    const regDisplay = vehicleRegs[0] || job?.vehicle_registration || job?.temporary_registration || "unknown";
+    warnings.push(`Vehicle ${regDisplay} not found, please add it.`);
+    return {
+      success: true,
+      mode: jobType,
+      updated: 0,
+      warnings,
+      createdVehicleId: null,
+    };
   }
 
   const equipmentUsedItems = parseArray(job?.equipment_used);
@@ -757,12 +656,11 @@ const syncJobEquipmentToTable = async (
       updated: 0,
       warnings: ["No equipment items found on job card"],
       mode: jobType,
-      createdVehicleId,
+      createdVehicleId: null,
     };
   }
 
   let updated = 0;
-  const warnings: string[] = [];
 
   const defaultVehicleReg = String(
     job?.vehicle_registration ||
@@ -839,7 +737,6 @@ const syncJobEquipmentToTable = async (
     mode: jobType,
     updated,
     warnings,
-    createdVehicleId,
   };
 };
 
@@ -847,23 +744,13 @@ export async function syncJobEquipmentToVehicles(
   supabase: Awaited<ReturnType<typeof createClient>>,
   job: Record<string, any>,
 ) {
-  const primaryResult = await syncJobEquipmentToTable(supabase, job, "vehicles");
-  const mirrorResult = await syncJobEquipmentToTable(
-    supabase,
-    job,
-    "vehicles_duplicate",
-  );
+  const result = await syncJobEquipmentToTable(supabase, job, "vehicles_duplicate");
 
   return {
     success: true,
-    mode: primaryResult.mode,
-    updated: primaryResult.updated,
-    warnings: [...primaryResult.warnings, ...mirrorResult.warnings],
-    createdVehicleId: primaryResult.createdVehicleId,
-    mirror: {
-      updated: mirrorResult.updated,
-      createdVehicleId: mirrorResult.createdVehicleId,
-    },
+    mode: result.mode,
+    updated: result.updated,
+    warnings: result.warnings,
   };
 }
 

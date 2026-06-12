@@ -47,7 +47,12 @@ export async function POST(request: NextRequest) {
 
     const match = results.find((v) => String(v.new_account_number || "").trim());
     if (!match) {
-      return NextResponse.json({ found: false });
+      const anyMatch = results[0];
+      return NextResponse.json({
+        found: true,
+        new_account_number: anyMatch.new_account_number || null,
+        company: anyMatch.company || null,
+      });
     }
 
     return NextResponse.json({

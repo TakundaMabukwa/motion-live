@@ -959,17 +959,17 @@ const applyQuoteBillingToTable = async (
     enforceAnnuitySelection: boolean;
   },
 ) => {
-  let created = 0;
   let updated = 0;
   const skipped: any[] = [];
 
   const selectColumns = "*";
 
   for (const [reg, itemsForReg] of itemsByReg.entries()) {
+    const orConditions = [`reg.ilike.${reg}`, `fleet_number.ilike.${reg}`];
     const { data: existingRows, error: findError } = await supabase
       .from(tableName)
       .select(selectColumns)
-      .ilike("reg", reg)
+      .or(orConditions.join(","))
       .limit(20);
 
     if (findError) {
@@ -984,21 +984,12 @@ const applyQuoteBillingToTable = async (
         return rowNewAccount === costCode || rowAccount === costCode;
       }) || null;
 
-    if (!existing && jobType === "deinstall") {
-      skipped.push({ reason: "vehicle_not_found_for_deinstall", reg, table: tableName });
+    if (!existing) {
+      skipped.push({ reason: "vehicle_not_found", reg, table: tableName });
       continue;
     }
 
-    const currentVehicle = existing || {
-      reg,
-      company: customerName,
-      new_account_number: costCode,
-      account_number: costCode,
-      make: vehicleMake,
-      model: vehicleModel,
-      year: vehicleYear,
-      once_off_fees: [],
-    };
+    const currentVehicle = existing;
 
     const columnUpdates: Record<string, any> = {};
     const onceOffFees: Array<Record<string, any>> = [];
@@ -1058,36 +1049,6 @@ const applyQuoteBillingToTable = async (
       continue;
     }
 
-    if (!existing) {
-      const insertData: Record<string, any> = {
-        reg,
-        company: customerName,
-        new_account_number: costCode,
-        account_number: costCode,
-        make: vehicleMake,
-        model: vehicleModel,
-        year: vehicleYear,
-        once_off_fees: onceOffFees,
-      };
-
-      for (const [column, value] of Object.entries(columnUpdates)) {
-        insertData[column] = value;
-      }
-
-      Object.assign(insertData, recalculateVehicleTotals(insertData));
-
-      const { error: insertError } = await supabase
-        .from(tableName)
-        .insert(insertData);
-
-      if (insertError) {
-        throw new Error(`Failed to insert ${tableName} billing: ${insertError.message}`);
-      }
-
-      created += 1;
-      continue;
-    }
-
     const updateData: Record<string, any> = {};
     if (!existing.new_account_number) {
       updateData.new_account_number = costCode;
@@ -1124,7 +1085,7 @@ const applyQuoteBillingToTable = async (
     updated += 1;
   }
 
-  return { created, updated, skipped };
+  return { updated, skipped };
 };
 
 export const applyQuoteBilling = async (
@@ -1216,28 +1177,8 @@ export const applyQuoteBilling = async (
     itemsByReg.get(reg)!.push(item);
   }
 
-  let created = 0;
   let updated = 0;
-  const primaryResult = await applyQuoteBillingToTable(supabase, {
-    tableName: "vehicles",
-    itemsByReg,
-    costCode,
-    customerName,
-    vehicleMake,
-    vehicleModel,
-    vehicleYear,
-    jobType,
-    jobCardId,
-    quotationNumber,
-    invoiceNumber,
-    annuitySelectionKeySet,
-    enforceAnnuitySelection: hasAnnuitySelectionPayload,
-  });
-  created = primaryResult.created;
-  updated = primaryResult.updated;
-  skipped.push(...primaryResult.skipped);
-
-  const mirrorResult = await applyQuoteBillingToTable(supabase, {
+  const result = await applyQuoteBillingToTable(supabase, {
     tableName: "vehicles_duplicate",
     itemsByReg,
     costCode,
@@ -1252,16 +1193,14 @@ export const applyQuoteBilling = async (
     annuitySelectionKeySet,
     enforceAnnuitySelection: hasAnnuitySelectionPayload,
   });
-  skipped.push(...mirrorResult.skipped);
+  updated = result.updated;
+  skipped.push(...result.skipped);
 
   return {
     success: true,
     cost_code: costCode,
     mode: jobType,
-    created,
     updated,
-    mirror_created: mirrorResult.created,
-    mirror_updated: mirrorResult.updated,
     skipped,
   };
 };

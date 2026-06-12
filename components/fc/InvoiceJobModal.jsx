@@ -84,6 +84,16 @@ const isAnnuityProduct = (product) =>
   (toNumber(product?.rental_price) > 0 || toNumber(product?.rental_gross) > 0 ||
    toNumber(product?.subscription_price) > 0 || toNumber(product?.subscription_gross) > 0);
 
+const getAnnuityMultiplier = (annuityFlag) => {
+  const day = new Date().getDate();
+  // Day 28-31 or 1-15: between billing cycles, always double
+  if (day >= 28 || day <= 15) return 2;
+  // Day 16-19: before annuity processing window, single
+  if (day <= 19) return 1;
+  // Day 20-27: annuity processing window, depends on flag
+  return annuityFlag ? 2 : 1;
+};
+
 const getRecurringChargeAmount = (product, priceKey, grossKey) => {
   const priceAmount = toNumber(product?.[priceKey]);
   if (priceAmount > 0) return priceAmount;
@@ -359,9 +369,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     return addressParts.length > 0 ? addressParts.join("\n") : fallbackAddress || "No address provided";
   };
 
-  const buildCompletedJobInvoiceView = () => {
+  const buildCompletedJobInvoiceView = (overrideCostCenterInfo) => {
     const effectiveJob = latestJobRef.current || job;
     if (!effectiveJob) return null;
+    const costCenterInfo = overrideCostCenterInfo || selectedCostCenterInfo;
     const isOnceOffItemInvoice = isOnceOffItemJob(effectiveJob);
     const hideRegistrationColumns = isOnceOffItemInvoice;
     const hideItemCodeColumn = isOnceOffItemInvoice;
@@ -372,7 +383,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
     const orderNumber = latestJobRef.current?.order_number || effectiveJob?.order_number || "N/A";
-    const defaultClientName = selectedCostCenterInfo?.company || selectedCostCenterInfo?.legal_name || storedInvoiceRecord?.client_name || effectiveJob.customer_name || "N/A";
+    const defaultClientName = costCenterInfo?.company || costCenterInfo?.legal_name || storedInvoiceRecord?.client_name || effectiveJob.customer_name || "N/A";
     const effectiveClientName = defaultClientName;
     const isDeinstallJob = (() => {
       const raw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
@@ -386,25 +397,32 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           if (validLines.length > 0) {
             const mainLines = validLines.filter(cl => !["subscription_price", "rental_price"].includes(cl.key));
             const annuityLines = validLines.filter(cl => ["subscription_price", "rental_price"].includes(cl.key));
-            annuityLines.forEach(cl => {
+            const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
+            const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
+            if (annuityLines.length > 0) {
+              const cl = annuityLines[0];
               const productName = String(product?.name || product?.item_code || "").trim();
               const productDescription = String(product?.description || "").trim();
               const lineLabel = productName ? `${productName} - ${cl.label}` : cl.label;
               const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
+              const annuityUnitPrice = cl.unitPrice * annuityMultiplier;
+              const annuitySubtotal = annuityUnitPrice * cl.qty;
+              const annuityVat = Number((annuitySubtotal * VAT_RATE).toFixed(2));
+              const annuityTotal = Number((annuitySubtotal + annuityVat).toFixed(2));
               productAnnuityRows.push({
-                key: `product-annuity-${cl.key}-${index}`,
+                key: `product-annuity-${index}`,
                 previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
                 newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
                 itemCode: "Annuity",
                 description: resolvedDescription,
-                comments: `${lineLabel} - Will be charged on annuity`,
+                comments: annuityMultiplier === 1 ? `${lineLabel} - Annuity` : `${lineLabel} - Double annuity`,
                 qty: cl.qty,
-                unitPrice: 0,
-                vatPercent: "0.00%",
-                vatAmount: 0,
-                totalIncl: 0,
+                unitPrice: annuityUnitPrice,
+                vatPercent: "15.00%",
+                vatAmount: annuityVat,
+                totalIncl: annuityTotal,
               });
-            });
+            }
             if (mainLines.length > 0) {
               return mainLines.map((chargeLine) => {
                 const lineVat = Number((chargeLine.subtotal * VAT_RATE).toFixed(2));
@@ -429,25 +447,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
               });
             }
             return [];
-          }
-          if (isAnnuityProduct(product) && !isDeinstallJob) {
-            const productName = String(product?.name || product?.item_code || "").trim();
-            const productDescription = String(product?.description || "").trim();
-            const resolvedDescription = productDescription || productName || "-";
-            const qty = Math.max(1, toNumber(product?.quantity) || 1);
-            return {
-              key: `${product?.id || product?.name || product?.item_code || "item"}-annuity-${index}`,
-              previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-              newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-              itemCode: "Annuity",
-              description: resolvedDescription,
-              comments: `Annuity - ${productName}`,
-              qty,
-              unitPrice: 0,
-              vatPercent: "0.00%",
-              vatAmount: 0,
-              totalIncl: 0,
-            };
           }
           return [];
         })
@@ -483,22 +482,32 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           }];
     const manualAnnuityRows = (annuitySelectableItems || [])
       .filter((item) => selectedAnnuityItemKeys.includes(item.key))
-      .map((item, idx) => ({
-        key: `annuity-item-${idx}`,
-        previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-        newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-        itemCode: "Annuity",
-        description: item.name || "Annuity Item",
-        comments: `Annuity - ${item.name} - Will be charged on annuity`,
-        qty: item.quantity || 1,
-        unitPrice: 0,
-        vatPercent: "0.00%",
-        vatAmount: 0,
-        totalIncl: 0,
-      }));
+      .map((item, idx) => {
+        const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
+        const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
+        const baseAmount = toNumber(item.rentalAmount || item.subscriptionAmount || 0);
+        const unitPrice = baseAmount * annuityMultiplier;
+        const qty = item.quantity || 1;
+        const subtotal = unitPrice * qty;
+        const vat = Number((subtotal * VAT_RATE).toFixed(2));
+        const total = Number((subtotal + vat).toFixed(2));
+        return {
+          key: `annuity-item-${idx}`,
+          previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+          newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+          itemCode: "Annuity",
+          description: item.name || "Annuity Item",
+          comments: annuityFlag ? `Annuity - ${item.name} - Double annuity` : `Annuity - ${item.name}`,
+          qty,
+          unitPrice,
+          vatPercent: "15.00%",
+          vatAmount: vat,
+          totalIncl: total,
+        };
+      });
     const annuityRows = [...productAnnuityRows, ...manualAnnuityRows];
     const rows = [...productRows, ...annuityRows];
-    const totals = productRows.reduce((acc, row) => {
+    const totals = rows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;
       acc.vat += row.vatAmount;
       acc.total += row.totalIncl;
@@ -508,10 +517,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       invoiceNumber, invoiceDate: formatDate(invoiceDate), orderNumber, clientName: effectiveClientName,
       clientEmail: storedInvoiceRecord?.client_email || effectiveJob.customer_email || "No email provided",
       clientPhone: storedInvoiceRecord?.client_phone || effectiveJob.customer_phone || "No phone provided",
-      clientAddress: buildClientAddress(selectedCostCenterInfo, storedInvoiceRecord?.client_address || effectiveJob.customer_address),
+      clientAddress: buildClientAddress(costCenterInfo, storedInvoiceRecord?.client_address || effectiveJob.customer_address),
       accountNumber: getSelectedInvoiceAccountNumber() || "N/A",
-      customerVatNumber: selectedCostCenterInfo?.vat_number || selectedCostCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
-      companyRegistrationNumber: selectedCostCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
+      customerVatNumber: costCenterInfo?.vat_number || costCenterInfo?.vat_exempt_number || storedInvoiceRecord?.customer_vat_number || "-",
+      companyRegistrationNumber: costCenterInfo?.registration_number || storedInvoiceRecord?.company_registration_number || "-",
       notes: storedInvoiceRecord?.notes || invoiceFormData.notes || effectiveJob.special_instructions || "No special instructions.",
       hideAccountColumn, hideRegistrationColumns, hideItemCodeColumn, totals, rows,
     };
@@ -645,21 +654,85 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     if (!effectiveJob) return;
     setIsGeneratingInvoice(true);
     try {
-      let effectiveAccountNumber = String(effectiveJob?.new_account_number || selectedCostCenterInfo?.cost_code || "").trim();
+      // Fetch cost center info (including annuity_flag) before building invoice
+      let effectiveCostCenterInfo = selectedCostCenterInfo;
+      const effectiveAccountForLookup = String(effectiveJob?.new_account_number || "").trim();
+      if (effectiveAccountForLookup && !effectiveCostCenterInfo) {
+        try {
+          const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(effectiveAccountForLookup)}`);
+          if (ccResponse.ok) {
+            const ccData = await ccResponse.json();
+            effectiveCostCenterInfo = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === effectiveAccountForLookup.toUpperCase()) : null) || null;
+            if (effectiveCostCenterInfo) setSelectedCostCenterInfo(effectiveCostCenterInfo);
+          }
+        } catch { /* ignore */ }
+      }
+
+      let effectiveAccountNumber = String(effectiveJob?.new_account_number || effectiveCostCenterInfo?.cost_code || "").trim();
       if (!effectiveAccountNumber) {
         const reg = String(effectiveJob?.vehicle_registration || "").trim();
         if (!reg) {
           toast.error("Job has no vehicle registration to look up a cost center");
           return;
         }
-        effectiveAccountNumber = await resolveAccountNumber(effectiveJob);
-        if (!effectiveAccountNumber) {
-          toast.error("Vehicle not found, please add it.");
+        try {
+          const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reg, fleet_number: String(effectiveJob?.fleet_number || "").trim() }),
+          });
+          if (!vehicleCheckResponse.ok) {
+            const errBody = await vehicleCheckResponse.json().catch(() => ({}));
+            throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
+          }
+          const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
+          if (!vehicleCheckResult?.found) {
+            toast.error(`Vehicle ${reg} not found, please add it.`);
+            return;
+          }
+          if (vehicleCheckResult?.new_account_number) {
+            effectiveAccountNumber = String(vehicleCheckResult.new_account_number).trim();
+            try {
+              await fetch(`/api/job-cards/${effectiveJob.id}`, {
+                method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ new_account_number: effectiveAccountNumber, ...(vehicleCheckResult.company ? { customer_name: vehicleCheckResult.company } : {}) }),
+              });
+            } catch { /* ignore */ }
+          }
+        } catch (e) {
+          toast.error(`Failed to verify vehicle: ${e.message}`);
           return;
         }
+      } else {
+        // Account number already present — validate vehicle still exists in vehicles_duplicate
+        const vehicleReg = String(effectiveJob?.vehicle_registration || "").trim();
+        const fleetNumber = String(effectiveJob?.fleet_number || "").trim();
+        if (vehicleReg || fleetNumber) {
+          try {
+            const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
+            });
+            if (!vehicleCheckResponse.ok) {
+              const errBody = await vehicleCheckResponse.json().catch(() => ({}));
+              throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
+            }
+            const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
+            if (!vehicleCheckResult?.found) {
+              toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
+              return;
+            }
+          } catch (e) {
+            toast.error(`Failed to verify vehicle: ${e.message}`);
+            return;
+          }
+        }
       }
+
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
-      const invoicePreview = buildCompletedJobInvoiceView();
+
+      const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
       const lineItems = (invoicePreview?.rows || []).map((row) => ({
         previous_reg: row.previousReg, new_reg: row.newReg, item_code: row.itemCode,
         description: row.description, comments: row.comments, quantity: row.qty,
