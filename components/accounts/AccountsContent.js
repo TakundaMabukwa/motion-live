@@ -1435,87 +1435,49 @@ export default function AccountsContent({ activeSection }) {
 
     setIsGeneratingInvoice(true);
     try {
-      // Fetch cost center info (including annuity_flag) before building invoice
+      // Single lookup: find vehicle + cost center in one call
       let effectiveCostCenterInfo = selectedCostCenterInfo;
-      const effectiveAccountForLookup = String(selectedJobForInvoice?.new_account_number || "").trim();
-      if (effectiveAccountForLookup && !effectiveCostCenterInfo) {
+      let effectiveAccountNumber = String(selectedJobForInvoice?.new_account_number || "").trim();
+      const vehicleReg = String(selectedJobForInvoice?.vehicle_registration || "").trim();
+      const fleetNumber = String(selectedJobForInvoice?.fleet_number || "").trim();
+
+      if (!effectiveCostCenterInfo) {
         try {
-          const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(effectiveAccountForLookup)}`);
-          if (ccResponse.ok) {
-            const ccData = await ccResponse.json();
-            effectiveCostCenterInfo = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === effectiveAccountForLookup.toUpperCase()) : null) || null;
-            if (effectiveCostCenterInfo) setSelectedCostCenterInfo(effectiveCostCenterInfo);
+          const lookupResponse = await fetch("/api/cost-centers/vehicle-lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber, account_number: effectiveAccountNumber || undefined }),
+          });
+          if (lookupResponse.ok) {
+            const lookupResult = await lookupResponse.json();
+            if (lookupResult?.cost_center) {
+              effectiveCostCenterInfo = lookupResult.cost_center;
+              setSelectedCostCenterInfo(effectiveCostCenterInfo);
+            }
+            if (lookupResult?.account_number) {
+              effectiveAccountNumber = lookupResult.account_number;
+            }
           }
         } catch { /* ignore */ }
       }
 
-      let effectiveAccountNumber = String(
-        selectedJobForInvoice?.new_account_number ||
-          effectiveCostCenterInfo?.cost_code ||
-          "",
-      ).trim();
-
       if (!effectiveAccountNumber) {
-        const reg = String(
-          selectedJobForInvoice?.vehicle_registration || "",
-        ).trim();
-        if (!reg) {
+        if (!vehicleReg) {
           toast.error("Job has no vehicle registration to look up a cost center");
           return;
         }
+        toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
+        return;
+      }
+
+      // Update job card with account number if we found one
+      if (effectiveAccountNumber && effectiveAccountNumber !== selectedJobForInvoice?.new_account_number) {
         try {
-          const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reg, fleet_number: String(selectedJobForInvoice?.fleet_number || "").trim() }),
+          await fetch(`/api/job-cards/${selectedJobForInvoice.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ new_account_number: effectiveAccountNumber }),
           });
-          if (!vehicleCheckResponse.ok) {
-            const errBody = await vehicleCheckResponse.json().catch(() => ({}));
-            throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
-          }
-          const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
-          if (!vehicleCheckResult?.found) {
-            toast.error(`Vehicle ${reg} not found, please add it.`);
-            return;
-          }
-          if (vehicleCheckResult?.new_account_number) {
-            effectiveAccountNumber = String(vehicleCheckResult.new_account_number).trim();
-            try {
-              await fetch(`/api/job-cards/${selectedJobForInvoice.id}`, {
-                method: "PATCH", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ new_account_number: effectiveAccountNumber, ...(vehicleCheckResult.company ? { customer_name: vehicleCheckResult.company } : {}) }),
-              });
-            } catch { /* ignore */ }
-          }
-        } catch (e) {
-          toast.error(`Failed to verify vehicle: ${e.message}`);
-          return;
-        }
-      } else {
-        // Account number already present — validate vehicle still exists in vehicles_duplicate
-        const vehicleReg = String(selectedJobForInvoice?.vehicle_registration || "").trim();
-        const fleetNumber = String(selectedJobForInvoice?.fleet_number || "").trim();
-        if (vehicleReg || fleetNumber) {
-          try {
-            const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
-            });
-            if (!vehicleCheckResponse.ok) {
-              const errBody = await vehicleCheckResponse.json().catch(() => ({}));
-              throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
-            }
-            const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
-            if (!vehicleCheckResult?.found) {
-              toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
-              return;
-            }
-          } catch (e) {
-            toast.error(`Failed to verify vehicle: ${e.message}`);
-            return;
-          }
-        }
+        } catch { /* ignore */ }
       }
 
       const jobForVehicleSync = effectiveAccountNumber
@@ -1886,17 +1848,23 @@ export default function AccountsContent({ activeSection }) {
 
   useEffect(() => {
     const accountNumber = getSelectedInvoiceAccountNumber();
+    const vehicleReg = String(selectedJobForInvoice?.vehicle_registration || "").trim();
+    const fleetNumber = String(selectedJobForInvoice?.fleet_number || "").trim();
 
-    if (!showInvoiceModal || !accountNumber) {
+    if (!showInvoiceModal) {
+      return;
+    }
+
+    if (!accountNumber && !vehicleReg && !fleetNumber) {
       return;
     }
 
     let cancelled = false;
 
-    const loadCostCenterInfo = async () => {
+    const loadCostCenterInfo = async (ccAccount) => {
       try {
         const response = await fetch(
-          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`,
+          `/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(ccAccount)}`,
         );
 
         if (!response.ok) {
@@ -1909,7 +1877,7 @@ export default function AccountsContent({ activeSection }) {
               (item) =>
                 String(item?.cost_code || "")
                   .trim()
-                  .toUpperCase() === accountNumber.toUpperCase(),
+                  .toUpperCase() === ccAccount.toUpperCase(),
             ) || result.costCenters[0]
           : null;
 
@@ -1923,7 +1891,27 @@ export default function AccountsContent({ activeSection }) {
       }
     };
 
-    loadCostCenterInfo();
+    if (accountNumber) {
+      loadCostCenterInfo(accountNumber);
+    } else if (vehicleReg || fleetNumber) {
+      // Single lookup: find vehicle + cost center in one call
+      fetch("/api/cost-centers/vehicle-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
+      })
+        .then((r) => r.ok ? r.json() : null)
+        .then((result) => {
+          if (!cancelled) {
+            if (result?.cost_center) {
+              setSelectedCostCenterInfo(result.cost_center);
+            } else if (result?.account_number) {
+              loadCostCenterInfo(result.account_number);
+            }
+          }
+        })
+        .catch(() => {});
+    }
 
     return () => {
       cancelled = true;

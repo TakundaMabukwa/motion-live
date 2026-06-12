@@ -336,12 +336,34 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       // Fetch cost center info in background for invoice preview only
       const accountNumber = String(job?.new_account_number || "").trim();
-      if (accountNumber) {
-        fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`)
+      const vehicleReg = String(job?.vehicle_registration || "").trim();
+      const fleetNumber = String(job?.fleet_number || "").trim();
+
+      const fetchCostCenter = (ccAccount) => {
+        fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(ccAccount)}`)
           .then((r) => r.ok ? r.json() : null)
           .then((ccData) => {
-            const fetched = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === accountNumber.toUpperCase()) : null) || null;
+            const fetched = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === ccAccount.toUpperCase()) : null) || null;
             if (fetched) setSelectedCostCenterInfo(fetched);
+          })
+          .catch(() => {});
+      };
+
+      if (accountNumber) {
+        fetchCostCenter(accountNumber);
+      } else if (vehicleReg || fleetNumber) {
+        fetch("/api/cost-centers/vehicle-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((result) => {
+            if (result?.found && result?.cost_center) {
+              setSelectedCostCenterInfo(result.cost_center);
+            } else if (result?.account_number) {
+              fetchCostCenter(result.account_number);
+            }
           })
           .catch(() => {});
       }
@@ -390,8 +412,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
     const productAnnuityRows = [];
+    const seenProductKeys = new Set();
     const productRows = rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
+          const productKey = String(product?.name || product?.item_code || product?.code || "").trim().toLowerCase();
+          if (productKey && seenProductKeys.has(productKey)) return [];
+          if (productKey) seenProductKeys.add(productKey);
+
           const chargeLines = getProductChargeLines(product, effectiveJob);
           const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
           if (validLines.length > 0) {
@@ -654,80 +681,49 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     if (!effectiveJob) return;
     setIsGeneratingInvoice(true);
     try {
-      // Fetch cost center info (including annuity_flag) before building invoice
+      // Single lookup: find vehicle + cost center in one call
       let effectiveCostCenterInfo = selectedCostCenterInfo;
-      const effectiveAccountForLookup = String(effectiveJob?.new_account_number || "").trim();
-      if (effectiveAccountForLookup && !effectiveCostCenterInfo) {
+      let effectiveAccountNumber = String(effectiveJob?.new_account_number || "").trim();
+      const vehicleReg = String(effectiveJob?.vehicle_registration || "").trim();
+      const fleetNumber = String(effectiveJob?.fleet_number || "").trim();
+
+      if (!effectiveCostCenterInfo) {
         try {
-          const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(effectiveAccountForLookup)}`);
-          if (ccResponse.ok) {
-            const ccData = await ccResponse.json();
-            effectiveCostCenterInfo = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === effectiveAccountForLookup.toUpperCase()) : null) || null;
-            if (effectiveCostCenterInfo) setSelectedCostCenterInfo(effectiveCostCenterInfo);
+          const lookupResponse = await fetch("/api/cost-centers/vehicle-lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber, account_number: effectiveAccountNumber || undefined }),
+          });
+          if (lookupResponse.ok) {
+            const lookupResult = await lookupResponse.json();
+            if (lookupResult?.cost_center) {
+              effectiveCostCenterInfo = lookupResult.cost_center;
+              setSelectedCostCenterInfo(effectiveCostCenterInfo);
+            }
+            if (lookupResult?.account_number) {
+              effectiveAccountNumber = lookupResult.account_number;
+            }
           }
         } catch { /* ignore */ }
       }
 
-      let effectiveAccountNumber = String(effectiveJob?.new_account_number || effectiveCostCenterInfo?.cost_code || "").trim();
       if (!effectiveAccountNumber) {
-        const reg = String(effectiveJob?.vehicle_registration || "").trim();
-        if (!reg) {
+        if (!vehicleReg) {
           toast.error("Job has no vehicle registration to look up a cost center");
           return;
         }
+        toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
+        return;
+      }
+
+      // Update job card with account number if we found one
+      if (effectiveAccountNumber && effectiveAccountNumber !== effectiveJob?.new_account_number) {
         try {
-          const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reg, fleet_number: String(effectiveJob?.fleet_number || "").trim() }),
+          await fetch(`/api/job-cards/${effectiveJob.id}`, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ new_account_number: effectiveAccountNumber }),
           });
-          if (!vehicleCheckResponse.ok) {
-            const errBody = await vehicleCheckResponse.json().catch(() => ({}));
-            throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
-          }
-          const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
-          if (!vehicleCheckResult?.found) {
-            toast.error(`Vehicle ${reg} not found, please add it.`);
-            return;
-          }
-          if (vehicleCheckResult?.new_account_number) {
-            effectiveAccountNumber = String(vehicleCheckResult.new_account_number).trim();
-            try {
-              await fetch(`/api/job-cards/${effectiveJob.id}`, {
-                method: "PATCH", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ new_account_number: effectiveAccountNumber, ...(vehicleCheckResult.company ? { customer_name: vehicleCheckResult.company } : {}) }),
-              });
-            } catch { /* ignore */ }
-          }
-        } catch (e) {
-          toast.error(`Failed to verify vehicle: ${e.message}`);
-          return;
-        }
-      } else {
-        // Account number already present — validate vehicle still exists in vehicles_duplicate
-        const vehicleReg = String(effectiveJob?.vehicle_registration || "").trim();
-        const fleetNumber = String(effectiveJob?.fleet_number || "").trim();
-        if (vehicleReg || fleetNumber) {
-          try {
-            const vehicleCheckResponse = await fetch("/api/vehicles/find-account", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
-            });
-            if (!vehicleCheckResponse.ok) {
-              const errBody = await vehicleCheckResponse.json().catch(() => ({}));
-              throw new Error(errBody?.error || `HTTP ${vehicleCheckResponse.status}`);
-            }
-            const vehicleCheckResult = await vehicleCheckResponse.json().catch(() => ({}));
-            if (!vehicleCheckResult?.found) {
-              toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
-              return;
-            }
-          } catch (e) {
-            toast.error(`Failed to verify vehicle: ${e.message}`);
-            return;
-          }
-        }
+        } catch { /* ignore */ }
       }
 
       const jobForVehicleSync = effectiveAccountNumber ? { ...effectiveJob, new_account_number: effectiveAccountNumber } : effectiveJob;
