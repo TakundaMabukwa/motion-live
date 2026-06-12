@@ -43,6 +43,7 @@ export default function CustomerJobCards({
   title,
   emptyTitle,
   emptyDescription,
+  onDataLoaded,
 }) {
   const router = useRouter();
   const [jobCards, setJobCards] = useState([]);
@@ -70,7 +71,9 @@ export default function CustomerJobCards({
         throw new Error('Failed to fetch job cards');
       }
       const data = await response.json();
-      setJobCards(data.job_cards || []);
+      const jobs = data.job_cards || [];
+      setJobCards(jobs);
+      onDataLoaded?.(jobs);
     } catch (error) {
       console.error('Error fetching job cards:', error);
       toast.error('Failed to load job cards');

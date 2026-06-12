@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAccount = false }) {
+export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNumber, strictAccount = false }) {
   const router = useRouter();
   const [clientQuotes, setClientQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +84,9 @@ export default function ClientJobCards({ onQuoteCreated, accountNumber, strictAc
         throw new Error('Failed to fetch client quotes');
       }
       const result = await response.json();
-      setClientQuotes(result.data || []);
+      const data = result.data || [];
+      setClientQuotes(data);
+      onDataLoaded?.(data);
     } catch (error) {
       console.error('Error fetching client quotes:', error);
       toast.error('Failed to fetch client quotes', {

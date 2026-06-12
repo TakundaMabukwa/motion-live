@@ -20,6 +20,7 @@ export default function Layout({ children }) {
   
   // Check if we're viewing a specific account
   const isAccountView = pathname.includes('/protected/fc/accounts/') && pathname.split('/').length > 4;
+  const isClientView = pathname.includes('/protected/fc/client/');
   
   let fcSidebarItems = [];
 
@@ -51,6 +52,7 @@ export default function Layout({ children }) {
         userRole="field_coordinator"
         userName="FC User"
         showSidebar={false}
+        showHeader={!isClientView}
       >
         <ClientsProvider>
           {children}

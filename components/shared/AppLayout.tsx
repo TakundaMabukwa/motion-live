@@ -23,6 +23,7 @@ interface AppLayoutProps {
   userRole: string;
   userName?: string;
   showSidebar?: boolean;
+  showHeader?: boolean;
 }
 
 export default function AppLayout({ 
@@ -32,7 +33,8 @@ export default function AppLayout({
   sidebarItems, 
   userRole, 
   userName = "User", 
-  showSidebar = true 
+  showSidebar = true,
+  showHeader = true,
 }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string>('');
@@ -169,6 +171,7 @@ export default function AppLayout({
       {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
+        {showHeader && (
         <header className="bg-gradient-to-r from-blue-400 to-blue-500 shadow-sm text-white">
           <div className="flex justify-between items-center px-4 py-3">
             <div className="flex items-center space-x-4">
@@ -207,6 +210,7 @@ export default function AppLayout({
             </div>
           </div>
         </header>
+        )}
 
         {/* Main content area */}
         <main className="flex-1 bg-gray-100 overflow-y-auto">

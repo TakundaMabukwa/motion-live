@@ -234,7 +234,7 @@ function AccountsDashboardContent() {
     }
 
     const encodedAccountNumbers = encodeURIComponent(accountNumbers);
-    router.push(`/protected/fc/clients/cost-centers?accounts=${encodedAccountNumbers}`);
+    router.push(`/protected/fc/client/${encodedAccountNumbers}`);
   };
 
   const fetchCostCentersForAssign = async (group) => {
