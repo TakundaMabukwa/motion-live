@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = normalizeSearch(searchParams.get("search"));
     const month = normalizeMonthParam(searchParams.get("month"));
+    const costCodes = normalizeSearch(searchParams.get("cost_codes"));
     const fetchAll = ["1", "true", "yes"].includes(
       String(searchParams.get("all") || "").trim().toLowerCase(),
     );
@@ -69,6 +70,14 @@ export async function GET(request: NextRequest) {
       .order("invoice_date", { ascending: false, nullsFirst: false });
 
     query = fetchAll ? query.range(0, 9999) : query.limit(limit);
+
+    // Filter by cost codes if provided
+    if (costCodes) {
+      const codes = costCodes.split(",").map((c) => c.trim()).filter(Boolean);
+      if (codes.length > 0) {
+        query = query.in("account_number", codes);
+      }
+    }
 
     const { data: invoices, error } = await query;
 
@@ -91,6 +100,14 @@ export async function GET(request: NextRequest) {
     jobCardInvoiceQuery = fetchAll
       ? jobCardInvoiceQuery.range(0, 9999)
       : jobCardInvoiceQuery.limit(limit);
+
+    // Filter job card invoices by cost codes if provided
+    if (costCodes) {
+      const codes = costCodes.split(",").map((c) => c.trim()).filter(Boolean);
+      if (codes.length > 0) {
+        jobCardInvoiceQuery = jobCardInvoiceQuery.in("account_number", codes);
+      }
+    }
 
     const { data: jobCardInvoices, error: jobCardInvoicesError } = await jobCardInvoiceQuery;
 

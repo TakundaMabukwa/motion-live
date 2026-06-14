@@ -2,12 +2,7 @@
 
 import { useFCSidebar } from "@/components/fc/FCSidebarLayout";
 import { Loader2 } from "lucide-react";
-import dynamic from "next/dynamic";
-
-const VehicleValidationEditor = dynamic(
-  () => import("@/components/fc/VehicleValidationEditor"),
-  { loading: () => <div className="flex items-center justify-center h-32"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>, ssr: false },
-);
+import VehicleValidationEditor from "@/components/fc/VehicleValidationEditor";
 
 export default function FCVehiclesPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();

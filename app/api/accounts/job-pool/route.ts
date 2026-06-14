@@ -122,6 +122,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
+    const costCodes = String(searchParams.get("cost_codes") || "").trim();
 
     const {
       data: { user },
@@ -176,6 +177,14 @@ export async function GET(request: NextRequest) {
           `technician_name.ilike.%${escapedSearch}%`,
         ].join(","),
       );
+    }
+
+    // Filter by cost codes if provided
+    if (costCodes) {
+      const codes = costCodes.split(",").map((c) => c.trim()).filter(Boolean);
+      if (codes.length > 0) {
+        query = query.in("new_account_number", codes);
+      }
     }
 
     const { data, error } = await query;

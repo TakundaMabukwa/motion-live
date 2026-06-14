@@ -28,6 +28,7 @@ import {
   Lock,
   FileText,
   X,
+  Clock,
 } from "lucide-react";
 import {
   Collapsible,
@@ -35,6 +36,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import VehicleHistoryDrawer from "@/components/fc/VehicleHistoryDrawer";
 
 const getCurrentBillingMonth = () => {
   const now = new Date();
@@ -320,6 +322,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
   const [showJobCardInvoicePreview, setShowJobCardInvoicePreview] = useState(false);
   const [jobCardInvoicePreview, setJobCardInvoicePreview] = useState(null);
   const [jobCardSearchQuery, setJobCardSearchQuery] = useState("");
+  const [historyVehicle, setHistoryVehicle] = useState(null);
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = costCodeProp || "";
@@ -1991,6 +1994,17 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                                   Done
                                 </span>
                               )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setHistoryVehicle(vehicle);
+                                }}
+                                className="rounded p-1 text-slate-600 hover:bg-slate-200 hover:text-slate-800"
+                                title="View change history"
+                              >
+                                <Clock className="h-4 w-4" />
+                              </button>
                               {expandedVehicles[vehicle.id] ? (
                                 <ChevronUp className="h-5 w-5" />
                               ) : (
@@ -2417,6 +2431,13 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
             </div>
           </div>
         </div>
+      )}
+
+      {historyVehicle && (
+        <VehicleHistoryDrawer
+          vehicle={historyVehicle}
+          onClose={() => setHistoryVehicle(null)}
+        />
       )}
     </div>
   );

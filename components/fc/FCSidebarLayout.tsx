@@ -17,6 +17,7 @@ import {
 
 interface CostCenter {
   cost_code: string;
+  company?: string;
   company_name?: string;
   trading_name?: string;
   legal_names?: string;
@@ -47,7 +48,8 @@ const NAV_ITEMS = [
   { label: "Quotes", href: "/quotes", icon: FileText },
   { label: "Jobs", href: "/jobs", icon: Briefcase },
   { label: "Invoices", href: "/invoices", icon: Receipt },
-  { label: "Vehicles", href: "/vehicles", icon: Car },
+  { label: "Vehicle Validation", href: "/vehicles", icon: Car },
+  { label: "Client Pricing", href: "/pricing", icon: Receipt },
 ];
 
 function CostCenterDropdown({
@@ -62,14 +64,14 @@ function CostCenterDropdown({
   const [open, setOpen] = useState(false);
 
   const displayName = selected
-    ? selected.trading_name || selected.company_name || selected.cost_code
+    ? selected.trading_name || selected.company_name || selected.company || selected.cost_code
     : "Select Cost Center";
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
       >
         <span className="truncate">{displayName}</span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -85,12 +87,12 @@ function CostCenterDropdown({
                   onSelect(cc);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 transition-colors ${
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${
                   selected?.cost_code === cc.cost_code ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
                 }`}
               >
-                <div className="truncate">{cc.trading_name || cc.company_name || cc.cost_code}</div>
-                <div className="text-[10px] text-gray-500 truncate">{cc.cost_code}</div>
+                <div className="truncate font-medium">{cc.trading_name || cc.company_name || cc.company || cc.cost_code}</div>
+                <div className="text-xs text-gray-500 truncate">{cc.cost_code}</div>
               </button>
             ))}
           </div>
@@ -170,14 +172,14 @@ export default function FCSidebarLayout({
         {/* Sidebar - fixed height, matches main navbar color */}
         <aside
           className={`fixed lg:static inset-y-0 left-0 z-50 flex flex-col bg-blue-600 text-white transition-all duration-300 max-h-[100dvh] ${
-            sidebarOpen ? "w-52" : "w-14"
+            sidebarOpen ? "w-56" : "w-14"
           } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         >
           {/* Client Name */}
-          <div className="px-3 py-2 border-b border-white/10 shrink-0">
+          <div className="px-3 py-3 border-b border-white/10 shrink-0">
             {sidebarOpen ? (
-              <p className="text-xs font-semibold text-white truncate">
-                {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || "Client"}
+              <p className="text-sm font-bold text-white truncate">
+                {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
               </p>
             ) : (
               <div className="w-7 h-7 rounded bg-white/20 flex items-center justify-center mx-auto">
@@ -187,7 +189,7 @@ export default function FCSidebarLayout({
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
+          <nav className="flex-1 px-2 py-2 space-y-1 overflow-y-auto">
             {NAV_ITEMS.map((item) => {
               const active = isActive(item.href);
               const href = item.href ? `${basePath}${item.href}` : basePath;
@@ -196,13 +198,13 @@ export default function FCSidebarLayout({
                   key={item.label}
                   href={href}
                   onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-2 px-2.5 py-2 rounded text-xs font-medium transition-all ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded text-sm font-medium transition-all ${
                     active
                       ? "bg-white text-blue-700 shadow-sm"
                       : "text-blue-100 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <item.icon className="h-4 w-4 shrink-0" />
+                  <item.icon className="h-4.5 w-4.5 shrink-0" />
                   {sidebarOpen && <span>{item.label}</span>}
                 </Link>
               );
@@ -235,13 +237,26 @@ export default function FCSidebarLayout({
         {/* Main content - no header */}
         <div className="flex flex-col flex-1 min-w-0 h-[100dvh] overflow-hidden">
           {/* Mobile toggle bar */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border-b border-gray-200 shrink-0 lg:hidden">
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 shrink-0 lg:hidden">
             <button onClick={() => setMobileOpen(!mobileOpen)} className="p-1 rounded hover:bg-gray-100">
               <Menu className="h-4 w-4" />
             </button>
-            <span className="text-xs font-medium text-gray-700 truncate">
-              {selectedCostCenter?.trading_name || selectedCostCenter?.cost_code || ""}
+            <span className="text-sm font-medium text-gray-700 truncate">
+              {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || ""}
             </span>
+          </div>
+
+          {/* Client Info Bar */}
+          <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
+            <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center shrink-0">
+              <Building2 className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-gray-900 truncate">
+                {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
+              </p>
+              <p className="text-[10px] text-gray-500 truncate">{selectedCostCenter?.cost_code || ""}</p>
+            </div>
           </div>
 
           {/* Page content */}

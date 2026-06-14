@@ -163,10 +163,6 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
       setTotalCount(cachedGroupResult.totalCount);
       setIsDataLoaded(true);
 
-      if (cachedGroupResult.companyGroups.length > 0) {
-        await fetchContactInfo(cachedGroupResult.companyGroups);
-      }
-
       return;
     }
 
@@ -197,17 +193,13 @@ export const ClientsProvider: React.FC<ClientsProviderProps> = ({ children }) =>
         totalCount: nextTotalCount,
         cachedAt: Date.now(),
       });
-
-      if (newCompanyGroups.length > 0) {
-        await fetchContactInfo(newCompanyGroups);
-      }
     } catch (error) {
       console.error('Error fetching company groups:', error);
       toast.error('Failed to load company groups');
     } finally {
       setLoading(false);
     }
-  }, [fetchContactInfo]);
+  }, []);
 
   const clearData = useCallback(() => {
     setCompanyGroups([]);

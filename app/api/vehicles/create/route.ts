@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { setVehicleUserContext } from '@/lib/supabase/set-context';
 import { NextResponse } from 'next/server';
 
 // Helper functions for billing lock
@@ -155,6 +156,7 @@ export async function POST(request: Request) {
     delete normalizedVehicleData.color;
     
     const supabase = await createClient();
+    await setVehicleUserContext(supabase);
     const touchedBillableFields = findPresentBillableVehicleFields(normalizedVehicleData);
     const isValidationInsert = normalizedVehicleData.vehicle_validated === true;
     const billingLocked = await isBillingLocked(supabase);

@@ -197,6 +197,65 @@ export async function GET(request: NextRequest) {
       legal_names_list: group.legal_names ? group.legal_names.split(',').map(name => name.trim()) : []
     })) || [];
 
+    // Look up FC assignment for each company group via cost_centers
+    const allAccountCodes = transformedCompanyGroups
+      .flatMap(g => g.all_new_account_numbers ? g.all_new_account_numbers.split(',').map((c: string) => c.trim().toUpperCase()) : [])
+      .filter(Boolean);
+
+    let fcMap: Record<string, { fc_id: string; fc_email: string }> = {};
+    if (allAccountCodes.length > 0) {
+      // Fetch ALL cost centers that have an FC assigned, then match in memory
+      const { data: fcCenters } = await supabase
+        .from('cost_centers')
+        .select('cost_code, fc_id')
+        .not('fc_id', 'is', null);
+
+      if (fcCenters && fcCenters.length > 0) {
+        const uniqueFcIds = [...new Set(fcCenters.map(cc => cc.fc_id).filter(Boolean))];
+        let usersMap: Record<string, string> = {};
+
+        if (uniqueFcIds.length > 0) {
+          const { data: fcUsers } = await supabase
+            .from('users')
+            .select('id, email')
+            .in('id', uniqueFcIds);
+
+          if (fcUsers) {
+            fcUsers.forEach(u => {
+              if (u.id && u.email) usersMap[u.id] = u.email;
+            });
+          }
+        }
+
+        // Build map: cost_code -> fc info
+        fcCenters.forEach(cc => {
+          if (cc.fc_id && cc.cost_code) {
+            const code = cc.cost_code.trim().toUpperCase();
+            if (!fcMap[code]) {
+              fcMap[code] = {
+                fc_id: cc.fc_id,
+                fc_email: usersMap[cc.fc_id] || '',
+              };
+            }
+          }
+        });
+      }
+    }
+
+    // Attach FC info to company groups
+    transformedCompanyGroups.forEach(group => {
+      const codes = group.all_new_account_numbers
+        ? group.all_new_account_numbers.split(',').map((c: string) => c.trim().toUpperCase())
+        : [];
+      for (const code of codes) {
+        if (fcMap[code]) {
+          group.fc_id = fcMap[code].fc_id;
+          group.fc_email = fcMap[code].fc_email;
+          break;
+        }
+      }
+    });
+
     const response = {
       companyGroups: transformedCompanyGroups,
       paymentData,

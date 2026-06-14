@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { setVehicleUserContext } from '@/lib/supabase/set-context';
 import { NextResponse } from 'next/server';
 
 // Helper functions for billing lock
@@ -73,6 +74,7 @@ export async function PUT(request) {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
+    await setVehicleUserContext(supabase);
     const { id, unique_id, ...updateData } = vehicleData;
     const identifier = unique_id || id;
     const identifierField = unique_id ? 'unique_id' : 'id';

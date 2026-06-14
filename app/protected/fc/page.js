@@ -11,13 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
-import { AccountsProvider } from "@/contexts/AccountsContext";
-import AccountsClientsSection from "@/components/accounts/AccountsClientsSection";
 import JobsTab from "@/components/fc/JobsTab";
 import AnnuityBillingTab from "@/components/fc/AnnuityBillingTab";
 import FCQuotesPage from "@/app/protected/fc/quotes/page";
 import {
-  Users,
   Search,
   Plus,
   Loader2,
@@ -26,10 +23,6 @@ import {
   Building,
   FileText,
   CheckCircle,
-  MoreHorizontal,
-  Phone,
-  Mail,
-  MapPin,
   RefreshCw,
   Briefcase,
   Receipt,
@@ -60,9 +53,7 @@ function AccountsDashboardContent() {
   const searchParams = useSearchParams();
   const { 
     companyGroups, 
-    contactInfo, 
     loading, 
-    loadingContacts, 
     totalCount, 
     fetchCompanyGroups, 
     isDataLoaded 
@@ -70,6 +61,7 @@ function AccountsDashboardContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [fcFilter, setFcFilter] = useState("");
+  const [sortDir, setSortDir] = useState("asc");
   const isFirstRender = useRef(true);
   const [fcUserOptions, setFcUserOptions] = useState([]);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -440,12 +432,6 @@ function AccountsDashboardContent() {
               <div className="text-sm text-gray-600">
                 Showing {companyGroups.length} of {totalCount} clients
                 {searchTerm && ` matching "${searchTerm}"`}
-                {loadingContacts && (
-                  <span className="ml-2 text-blue-600">
-                    <Loader2 className="w-3 h-3 inline animate-spin mr-1" />
-                    Loading contact info...
-                  </span>
-                )}
                 {isDataLoaded && (
                   <span className="ml-2 text-green-600">
                     <CheckCircle className="w-3 h-3 inline mr-1" />
@@ -462,8 +448,19 @@ function AccountsDashboardContent() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Client</TableHead>
-                      <TableHead>Contact Info</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>FC</TableHead>
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span>Actions</span>
+                          <button
+                            type="button"
+                            onClick={() => setSortDir((d) => d === "asc" ? "desc" : "asc")}
+                            className="flex items-center gap-0.5 text-[10px] font-medium text-gray-500 hover:text-gray-700"
+                          >
+                            {sortDir === "asc" ? "A→Z" : "Z→A"}
+                          </button>
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -477,139 +474,89 @@ function AccountsDashboardContent() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      companyGroups.map((group) => {
-                        const contact = contactInfo[group.id];
-                        return (
-                          <TableRow key={group.id} className="hover:bg-gray-50">
-                            <TableCell className="font-medium">
-                              <div>
-                                <div className="mb-1 flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    {group.company_group || 'N/A'}
-                                  </Badge>
-                                  {group.validate && (
-                                    <Badge variant="default" className="text-xs bg-green-600">
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Validated
+                      companyGroups
+                        .slice()
+                        .sort((a, b) => {
+                          const aName = (a.company_group || a.legal_names || "").toLowerCase();
+                          const bName = (b.company_group || b.legal_names || "").toLowerCase();
+                          return sortDir === "asc" ? aName.localeCompare(bName) : bName.localeCompare(aName);
+                        })
+                        .map((group) => {
+                          const fcEmail = group.fc_email || null;
+                          const hasFc = !!group.fc_id;
+                          return (
+                            <TableRow key={group.id} className="hover:bg-gray-50">
+                              <TableCell className="font-medium">
+                                <div>
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {group.company_group || 'N/A'}
                                     </Badge>
-                                  )}
+                                    {group.validate && (
+                                      <Badge variant="default" className="text-xs bg-green-600">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Validated
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="font-semibold text-sm">{group.legal_names || 'N/A'}</div>
                                 </div>
-                                <div className="font-semibold text-sm">{group.legal_names || 'N/A'}</div>
-                                <div className="text-xs text-gray-500">
-                                  {group.legal_names_list && group.legal_names_list.length > 0 
-                                    ? `${group.legal_names_list.length} legal entities`
-                                    : 'No legal names'
-                                  }
+                              </TableCell>
+                              <TableCell>
+                                {hasFc ? (
+                                  <span className="text-xs font-medium text-gray-700">{fcEmail}</span>
+                                ) : (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      fetchCostCentersForAssign(group);
+                                    }}
+                                    className="text-[10px] h-6 px-2"
+                                  >
+                                    Assign FC
+                                  </Button>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {hasFc && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        fetchCostCentersForAssign(group);
+                                      }}
+                                      className="text-[10px] h-6 px-2"
+                                    >
+                                      Change FC
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      handleViewDetails(group);
+                                    }}
+                                    className="h-8 px-3 text-xs"
+                                    title="View client"
+                                  >
+                                    View
+                                  </Button>
                                 </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {loadingContacts ? (
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span className="text-sm text-gray-500">Loading...</span>
-                                </div>
-                              ) : contact ? (
-                                <div className="space-y-1">
-                                  {contact.cell_no && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <Phone className="w-3 h-3 text-gray-400" />
-                                      <span>{contact.cell_no}</span>
-                                    </div>
-                                  )}
-                                  {contact.switchboard && !contact.cell_no && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <Phone className="w-3 h-3 text-gray-400" />
-                                      <span>{contact.switchboard}</span>
-                                    </div>
-                                  )}
-                                  {contact.email && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <Mail className="w-3 h-3 text-gray-400" />
-                                      <span className="truncate max-w-[200px]" title={contact.email}>
-                                        {contact.email}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {contact.branch_person_email && !contact.email && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <Mail className="w-3 h-3 text-gray-400" />
-                                      <span className="truncate max-w-[200px]" title={contact.branch_person_email}>
-                                        {contact.branch_person_email}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {contact.physical_address_1 && (
-                                    <div className="flex items-start gap-2 text-sm">
-                                      <MapPin className="w-3 h-3 text-gray-400 mt-0.5" />
-                                      <div className="truncate max-w-[200px]">
-                                        <div title={`${contact.physical_address_1}${contact.physical_area ? `, ${contact.physical_area}` : ''}${contact.physical_province ? `, ${contact.physical_province}` : ''}`}>
-                                          {contact.physical_address_1}
-                                          {contact.physical_area && `, ${contact.physical_area}`}
-                                          {contact.physical_province && `, ${contact.physical_province}`}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {!contact.cell_no && !contact.switchboard && !contact.email && !contact.branch_person_email && !contact.physical_address_1 && (
-                                    <span className="text-sm text-gray-400">No contact info</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-sm text-gray-400">No contact info</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    fetchCostCentersForAssign(group);
-                                  }}
-                                  className="text-xs h-8"
-                                >
-                                  Assign FC
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    const accountNumbers = resolveAccountNumbers(group);
-                                    if (!accountNumbers) {
-                                      toast.error("No account numbers found for this client.");
-                                      return;
-                                    }
-                                    router.push(`/protected/fc/validate?account=${encodeURIComponent(accountNumbers)}`);
-                                  }}
-                                  className="text-xs h-8"
-                                >
-                                  Vehicles
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    handleViewDetails(group);
-                                  }}
-                                  className="h-8 w-8 p-0"
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                     )}
                   </TableBody>
                 </Table>

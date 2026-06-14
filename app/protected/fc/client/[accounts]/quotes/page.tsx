@@ -5,18 +5,9 @@ import { useFCSidebar } from "@/components/fc/FCSidebarLayout";
 import { StatsCard, PageHeader } from "@/components/fc/FCTableComponents";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, Clock, DollarSign, Plus, RefreshCw } from "lucide-react";
-import dynamic from "next/dynamic";
+import ClientJobCards from "@/components/ui-personal/client-job-cards";
+import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 import CreateBOIModal from "@/components/fc/CreateBOIModal";
-
-const ClientJobCards = dynamic(
-  () => import("@/components/ui-personal/client-job-cards"),
-  { loading: () => <div className="py-4 text-center text-xs text-gray-500">Loading table...</div>, ssr: false },
-);
-
-const ClientQuoteForm = dynamic(
-  () => import("@/components/ui-personal/client-quote-form"),
-  { loading: () => <div className="py-4 text-center text-xs text-gray-500">Loading...</div>, ssr: false },
-);
 
 export default function FCQuotesPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
@@ -80,7 +71,7 @@ export default function FCQuotesPage() {
 
       <PageHeader
         title="Quotes Management"
-        subtitle={`Manage quotes for ${selectedCostCenter.trading_name || selectedCostCenter.cost_code}`}
+        subtitle={`Manage quotes for ${selectedCostCenter.trading_name || selectedCostCenter.company || selectedCostCenter.cost_code}`}
         actions={
           <div className="flex items-center gap-1.5">
             <CreateBOIModal />

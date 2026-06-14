@@ -6,7 +6,7 @@ import { StatsCard, PageHeader } from "@/components/fc/FCTableComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Eye, RefreshCw, Receipt, Calendar, Clock, AlertTriangle } from "lucide-react";
+import { Loader2, Search, RefreshCw, Receipt, Clock, AlertTriangle, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
 
@@ -45,10 +45,15 @@ const fmtCurrency = (v) => {
   return `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const statusBadge = (inv) => {
-  const amt = Number(inv?.amount || inv?.total_incl) || 0;
-  if (amt > 10000) return <Badge className="text-[9px] px-1.5 py-0 bg-red-100 text-red-700">Overdue</Badge>;
-  return <Badge className="text-[9px] px-1.5 py-0 bg-green-100 text-green-700">Paid</Badge>;
+const getVehicleReg = (inv) => {
+  if (inv?.vehicle_reg) return inv.vehicle_reg;
+  try {
+    const items = typeof inv?.line_items === "string" ? JSON.parse(inv.line_items) : inv?.line_items;
+    if (Array.isArray(items) && items.length > 0) {
+      return items[0].new_reg || items[0].previous_reg || "N/A";
+    }
+  } catch { /* ignore */ }
+  return "N/A";
 };
 
 export default function FCInvoicesPage() {
@@ -102,24 +107,11 @@ export default function FCInvoicesPage() {
     return <div className="flex items-center justify-center h-32"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>;
   }
 
-  const columns = [
-    { key: "invoice_date", label: "Date", render: (v, row) => <span className="text-gray-600">{fmtDate(row?.invoice_date || row?.created_at)}</span> },
-    { key: "billing_month", label: "Billing Month", render: (v) => <span className="text-gray-600">{fmtMonth(v)}</span> },
-    { key: "invoice_number", label: "Invoice #", className: "font-semibold text-blue-600" },
-    { key: "order_number", label: "Order #", render: (v) => <span className="text-gray-600">{v || "N/A"}</span> },
-    { key: "job_number", label: "Job #", render: (v) => <span className="text-gray-600">{v || "N/A"}</span> },
-    { key: "job_type", label: "Type", render: (v) => <Badge variant="outline" className="text-[9px] px-1 py-0">{v || "N/A"}</Badge> },
-    { key: "vehicle_reg", label: "Reg", render: (v) => <span className="text-gray-600">{v || "N/A"}</span> },
-    { key: "customer", label: "Customer", className: "truncate max-w-[100px]" },
-    { key: "amount", label: "Amount", className: "text-right font-semibold", render: (v, row) => fmtCurrency(row?.amount || row?.total_incl) },
-    { key: "status", label: "Status", render: (_, row) => statusBadge(row) },
-  ];
-
   return (
     <div className="flex flex-col h-full min-h-0">
       <PageHeader
         title="Invoices Management"
-        subtitle={`Manage billing periods and invoices for ${selectedCostCenter.trading_name || selectedCostCenter.cost_code}`}
+        subtitle={`Manage billing periods and invoices for ${selectedCostCenter.trading_name || selectedCostCenter.company || selectedCostCenter.cost_code}`}
         actions={
           <>
             <Input type="month" value={billingMonth} onChange={(e) => setBillingMonth(e.target.value)} className="w-28 h-7 text-xs" />
@@ -130,14 +122,14 @@ export default function FCInvoicesPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mt-3 shrink-0">
-        <StatsCard title={`Total Invoiced (${fmtMonth(billingMonth)})`} value={fmtCurrency(totalAmount)} icon={<Receipt className="h-4 w-4" />} valueColor="text-blue-700" />
-        <StatsCard title="Pending Approval" value={pendingCount} icon={<Clock className="h-4 w-4" />} valueColor="text-yellow-600" subtitle="Requires Review" />
-        <StatsCard title="Overdue Invoices" value={overdueCount} icon={<AlertTriangle className="h-4 w-4" />} valueColor="text-red-600" subtitle="Action required" trend={`${overdueCount} items`} trendColor="text-red-500" />
         <div className="bg-blue-600 text-white rounded-lg p-3 flex flex-col justify-between min-h-[80px]">
           <span className="text-[10px] font-medium text-blue-200 uppercase tracking-wider">Current Billing Month</span>
           <div className="text-xl font-bold">{fmtMonth(billingMonth)}</div>
-          <span className="text-[9px] text-blue-300">Closes in {new Date(new Date(billingMonth).getFullYear(), new Date(billingMonth).getMonth() + 1, 0).getDate() - new Date().getDate()} days</span>
+          <span className="text-[9px] text-blue-300">Closes in {Math.max(0, new Date(new Date(billingMonth).getFullYear(), new Date(billingMonth).getMonth() + 1, 0).getDate() - new Date().getDate())} days</span>
         </div>
+        <StatsCard title="Pending Approval" value={pendingCount} icon={<Clock className="h-4 w-4" />} valueColor="text-yellow-600" subtitle="Requires Review" />
+        <StatsCard title="Overdue Invoices" value={overdueCount} icon={<AlertTriangle className="h-4 w-4" />} valueColor="text-red-600" subtitle="Action required" trend={`${overdueCount} items`} trendColor="text-red-500" />
+        <StatsCard title={`Total Revenue (${fmtMonth(billingMonth)})`} value={fmtCurrency(totalAmount)} icon={<DollarSign className="h-4 w-4" />} valueColor="text-purple-700" subtitle="Invoiced this month" />
       </div>
 
       {/* Search */}
@@ -159,9 +151,15 @@ export default function FCInvoicesPage() {
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-gray-50 z-10">
                 <tr className="border-b border-gray-200">
-                  {columns.map((col) => (
-                    <th key={col.key} className={`px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider ${col.headerClassName || ""}`}>{col.label}</th>
-                  ))}
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Billing Month</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Invoice #</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Order #</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Job #</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Reg</th>
+                  <th className="px-2.5 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                  <th className="px-2.5 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -173,10 +171,9 @@ export default function FCInvoicesPage() {
                     <td className="px-2.5 py-2.5 text-gray-600">{inv?.order_number || "N/A"}</td>
                     <td className="px-2.5 py-2.5 text-gray-600">{inv?.job_number || "N/A"}</td>
                     <td className="px-2.5 py-2.5"><Badge variant="outline" className="text-[9px] px-1.5 py-0">{inv?.job_type || "N/A"}</Badge></td>
-                    <td className="px-2.5 py-2.5 text-gray-600">{inv?.vehicle_reg || "N/A"}</td>
-                    <td className="px-2.5 py-2.5 text-gray-700"><div className="truncate max-w-[120px]" title={inv?.customer}>{inv?.customer || "N/A"}</div></td>
+                    <td className="px-2.5 py-2.5 text-gray-600">{getVehicleReg(inv)}</td>
+                    <td className="px-2.5 py-2.5 text-gray-700"><div className="truncate max-w-[120px]" title={inv?.customer_name || inv?.client_name}>{inv?.customer_name || inv?.client_name || "N/A"}</div></td>
                     <td className="px-2.5 py-2.5 text-right font-semibold text-gray-900">{fmtCurrency(inv?.amount || inv?.total_incl)}</td>
-                    <td className="px-2.5 py-2.5">{statusBadge(inv)}</td>
                   </tr>
                 ))}
               </tbody>

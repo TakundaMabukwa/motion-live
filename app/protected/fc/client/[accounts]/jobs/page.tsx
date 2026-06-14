@@ -5,12 +5,7 @@ import { useFCSidebar } from "@/components/fc/FCSidebarLayout";
 import { StatsCard, PageHeader } from "@/components/fc/FCTableComponents";
 import { Button } from "@/components/ui/button";
 import { Loader2, Briefcase, CheckCircle, Clock, DollarSign, RefreshCw } from "lucide-react";
-import dynamic from "next/dynamic";
-
-const CustomerJobCards = dynamic(
-  () => import("@/components/ui-personal/customer-job-cards"),
-  { loading: () => <div className="py-4 text-center text-xs text-gray-500">Loading table...</div>, ssr: false },
-);
+import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
 
 export default function FCJobsPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
@@ -72,7 +67,7 @@ export default function FCJobsPage() {
 
       <PageHeader
         title="Jobs Management"
-        subtitle={`Job cards for ${selectedCostCenter.trading_name || selectedCostCenter.cost_code}`}
+        subtitle={`Job cards for ${selectedCostCenter.trading_name || selectedCostCenter.company || selectedCostCenter.cost_code}`}
         actions={
           <Button variant="outline" size="sm" onClick={() => setRefreshKey((p) => p + 1)} className="h-7 text-xs">
             <RefreshCw className="h-3 w-3 mr-1" />Refresh

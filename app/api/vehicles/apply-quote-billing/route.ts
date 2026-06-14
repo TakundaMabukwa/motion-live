@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { setVehicleUserContext } from "@/lib/supabase/set-context";
 import { resolveVehicleProductMapping } from "@/lib/vehicle-product-mapping";
 import { buildTemporaryRegistration } from "@/lib/temp-registration";
 
@@ -1216,6 +1217,8 @@ export async function POST(request: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await setVehicleUserContext(supabase);
 
     const body = await request.json();
     if (await isSystemLocked(supabase)) {
