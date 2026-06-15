@@ -11,12 +11,10 @@ import {
   Search,
   Briefcase,
   FileText,
-  Wrench,
-  DollarSign,
-  ChevronRight,
   Eye,
   History,
   FileDown,
+  Info,
 } from "lucide-react";
 import {
   Dialog,
@@ -26,6 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
+import ClientInfoModal from "@/components/fc/ClientInfoModal";
+import FCAnnuityInvoicesSection from "@/components/fc/FCAnnuityInvoicesSection";
+import FCJobCardInvoicesSection from "@/components/fc/FCJobCardInvoicesSection";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-ZA", {
@@ -817,10 +818,15 @@ function ClientAccountsSection({ costCodes, costCode }: { costCodes: string; cos
 // ============================================================
 export default function FCDashboardPage() {
   const { accounts, selectedCostCenter, loading: ctxLoading } = useFCSidebar();
-  const costCode = selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
-  const costCodes = accounts || costCode;
+  const costCode = selectedCostCenter?.cost_code === "all" 
+    ? accounts.split(",")[0] || "" 
+    : selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const costCodes = selectedCostCenter?.cost_code === "all" 
+    ? accounts 
+    : selectedCostCenter?.cost_code || accounts;
 
-  const [activeTab, setActiveTab] = useState("job-pool");
+  const [activeTab, setActiveTab] = useState("annuity");
+  const [showClientInfo, setShowClientInfo] = useState(false);
 
   if (ctxLoading) {
     return (
@@ -835,8 +841,8 @@ export default function FCDashboardPage() {
       {/* Top tabs */}
       <div className="flex items-center gap-1 shrink-0 border-b border-gray-200 pb-2">
         {[
-          { key: "job-pool", label: "Job Pool", icon: Briefcase },
-          { key: "accounts", label: "Accounts", icon: FileText },
+          { key: "annuity", label: "Annuity", icon: FileText },
+          { key: "job-cards", label: "Job Cards", icon: Briefcase },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -851,16 +857,35 @@ export default function FCDashboardPage() {
             {tab.label}
           </button>
         ))}
+        <div className="flex-1" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowClientInfo(true)}
+          className="h-8 text-xs gap-1.5"
+          title="Update client billing info"
+        >
+          <Info className="h-3.5 w-3.5" />
+          Customer Billing Info
+        </Button>
       </div>
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 mt-2">
-        {activeTab === "job-pool" ? (
-          <ClientJobPoolSection costCodes={costCodes} />
+        {activeTab === "annuity" ? (
+          <FCAnnuityInvoicesSection costCodes={costCodes} />
         ) : (
-          <ClientAccountsSection costCodes={costCodes} costCode={costCode} />
+          <FCJobCardInvoicesSection costCodes={costCodes} />
         )}
       </div>
+
+      <ClientInfoModal
+        open={showClientInfo}
+        onOpenChange={setShowClientInfo}
+        costCode={costCode}
+        companyName={selectedCostCenter?.trading_name || selectedCostCenter?.company || selectedCostCenter?.company_name}
+        multipleSelected={accounts.includes(",")}
+      />
     </div>
   );
 }

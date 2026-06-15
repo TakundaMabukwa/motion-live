@@ -6,7 +6,8 @@ import VehicleValidationEditor from "@/components/fc/VehicleValidationEditor";
 
 export default function FCVehiclesPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
-  const costCode = selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const isAll = selectedCostCenter?.cost_code === "all";
+  const costCode = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
   if (!selectedCostCenter) {
     return <div className="flex items-center justify-center h-32"><Loader2 className="h-5 w-5 animate-spin text-blue-600" /></div>;

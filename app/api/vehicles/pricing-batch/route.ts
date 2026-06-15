@@ -22,11 +22,19 @@ export async function PUT(request) {
 
     await setVehicleUserContext(supabase);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('vehicles_duplicate')
       .update({ [field]: value })
-      .eq('new_account_number', costCode)
       .select('id, reg, fleet_number');
+
+    if (costCode.includes(',')) {
+      const codes = costCode.split(',').map(c => c.trim()).filter(Boolean);
+      query = query.in('new_account_number', codes);
+    } else {
+      query = query.eq('new_account_number', costCode);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error batch updating pricing:', error);

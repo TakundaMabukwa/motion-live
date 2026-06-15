@@ -265,7 +265,7 @@ export default function CustomerQuoteForm({ companyName, accountInfo, onQuoteCre
 
   // Product types and categories for filtering
   const productTypes = [
-    "FMS", "BACKUP", "MODULE", "INPUT", "PFK CAMERA", "DASHCAM", "PTT", "DVR CAMERA"
+    "FMS", "BACKUP", "INPUT", "PFK CAMERA", "DASHCAM", "PTT", "DVR CAMERA"
   ];
 
   const productCategories = [

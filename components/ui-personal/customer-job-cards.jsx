@@ -35,6 +35,12 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function CustomerJobCards({
   accountNumber,
@@ -98,10 +104,10 @@ export default function CustomerJobCards({
     setMovingJobId(job.id);
     const destinationLabel =
       destination === 'inv'
-        ? 'Inventory Assign Parts'
+        ? 'Stock Control'
         : destination === 'accounts'
           ? 'Accounts'
-          : 'Admin Awaiting Technician';
+          : 'Helpdesk';
     const loadingToast = toast.loading(`Moving job to ${destinationLabel}...`);
 
     try {
@@ -183,6 +189,28 @@ export default function CustomerJobCards({
       default:
         return status || 'Unknown';
     }
+  };
+
+  const getRoleDisplay = (job) => {
+    const role = String(job?.role || '').trim().toLowerCase();
+
+    if (role === 'inv') {
+      const partsRaw = job.parts_required;
+      let hasParts = false;
+      if (Array.isArray(partsRaw)) hasParts = partsRaw.length > 0;
+      else if (typeof partsRaw === 'string') { try { const p = JSON.parse(partsRaw); hasParts = Array.isArray(p) ? p.length > 0 : !!p; } catch { hasParts = !!partsRaw.trim(); } }
+      else if (partsRaw && typeof partsRaw === 'object') hasParts = Object.keys(partsRaw).length > 0;
+      return hasParts ? 'Stock Control (Parts Assigned)' : 'Stock Control (Awaiting Parts)';
+    }
+    if (role === 'admin') {
+      const hasTech = !!(job.technician_phone || job.technician_name || job.assigned_technician_id);
+      return hasTech ? 'Helpdesk (Tech Assigned)' : 'Helpdesk (Awaiting Tech)';
+    }
+    if (role === 'tech') {
+      return job.technician_name ? `Technician (${job.technician_name})` : 'Technician';
+    }
+    if (role === 'fc') return 'FC';
+    return role || '';
   };
 
   const getJobTypeText = (jobType) => {
@@ -424,7 +452,7 @@ export default function CustomerJobCards({
                     <TableHead>Note</TableHead>
                     <TableHead>Acknowledged</TableHead>
                     <TableHead>Created Date</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Role</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -475,26 +503,34 @@ export default function CustomerJobCards({
                       <TableCell>{formatDate(job.created_at)}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(job.job_status)}>
-                          {getStatusText(job.job_status)}
+                          {getRoleDisplay(job)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Select
-                            disabled={movingJobId === job.id}
-                            onValueChange={(value) => handleMoveJob(job, value)}
-                          >
-                            <SelectTrigger className="w-[135px]">
-                              <SelectValue
-                                placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'}
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="inv">Inventory</SelectItem>
-                              <SelectItem value="accounts">Accounts</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Select
+                                  disabled={movingJobId === job.id}
+                                  onValueChange={(value) => handleMoveJob(job, value)}
+                                >
+                                  <SelectTrigger className="w-[135px]">
+                                    <SelectValue
+                                      placeholder={movingJobId === job.id ? 'Moving...' : 'Move to'}
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="inv">Stock Control</SelectItem>
+                                    <SelectItem value="admin">Helpdesk</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Move this job to another role for processing</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             size="sm"
                             variant="outline"
@@ -538,8 +574,8 @@ export default function CustomerJobCards({
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
-              Sending this job to Inventory will mark the FC note as acknowledged
-              and place it into Inventory Assign Parts.
+              Sending this job to Stock Control will mark the FC note as acknowledged
+              and place it into Stock Control Assign Parts.
             </p>
             {pendingInventoryAcknowledgementJob ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">

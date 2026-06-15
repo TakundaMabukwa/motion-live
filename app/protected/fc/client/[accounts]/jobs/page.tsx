@@ -4,13 +4,21 @@ import { useState, useCallback } from "react";
 import { useFCSidebar } from "@/components/fc/FCSidebarLayout";
 import { StatsCard, PageHeader } from "@/components/fc/FCTableComponents";
 import { Button } from "@/components/ui/button";
-import { Loader2, Briefcase, CheckCircle, Clock, DollarSign, RefreshCw } from "lucide-react";
+import { Loader2, Briefcase, CheckCircle, Clock, DollarSign, RefreshCw, Receipt } from "lucide-react";
 import CustomerJobCards from "@/components/ui-personal/customer-job-cards";
+import FCJobCardInvoicesSection from "@/components/fc/FCJobCardInvoicesSection";
+
+const JOB_TABS = [
+  { id: "job-cards", label: "Job Cards" },
+  { id: "job-invoices", label: "Job Invoices" },
+];
 
 export default function FCJobsPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
-  const accountNumber = selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const isAll = selectedCostCenter?.cost_code === "all";
+  const accountNumber = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
+  const [activeTab, setActiveTab] = useState("job-cards");
   const [stats, setStats] = useState({ total: 0, active: 0, pending: 0, revenue: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -75,21 +83,49 @@ export default function FCJobsPage() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-3 mt-3 shrink-0">
-        <StatsCard title="Total Jobs" value={stats.total} icon={<Briefcase className="h-4 w-4" />} valueColor="text-blue-700" subtitle="All time records" />
-        <StatsCard title="Active" value={stats.active} icon={<CheckCircle className="h-4 w-4" />} valueColor="text-green-600" subtitle="In progress" />
-        <StatsCard title="Pending" value={stats.pending} icon={<Clock className="h-4 w-4" />} valueColor="text-orange-600" subtitle="Awaiting technician" />
-        <StatsCard title="Revenue" value={fmtVal(stats.revenue)} icon={<DollarSign className="h-4 w-4" />} valueColor="text-purple-700" subtitle="Confirmed billing" />
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-1 mt-3 shrink-0">
+        {JOB_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeTab === tab.id
+                ? "bg-blue-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      <div className="fc-jobs flex-1 min-h-0 mt-3 overflow-y-auto">
-        <CustomerJobCards
-          key={refreshKey}
-          accountNumber={accountNumber}
-          strictAccount
-          onDataLoaded={handleDataLoaded}
-        />
-      </div>
+      {activeTab === "job-cards" && (
+        <>
+          <div className="grid grid-cols-4 gap-3 mt-3 shrink-0">
+            <StatsCard title="Total Jobs" value={stats.total} icon={<Briefcase className="h-4 w-4" />} valueColor="text-blue-700" subtitle="All time records" />
+            <StatsCard title="Active" value={stats.active} icon={<CheckCircle className="h-4 w-4" />} valueColor="text-green-600" subtitle="In progress" />
+            <StatsCard title="Pending" value={stats.pending} icon={<Clock className="h-4 w-4" />} valueColor="text-orange-600" subtitle="Awaiting technician" />
+            <StatsCard title="Revenue" value={fmtVal(stats.revenue)} icon={<DollarSign className="h-4 w-4" />} valueColor="text-purple-700" subtitle="Confirmed billing" />
+          </div>
+
+          <div className="fc-jobs flex-1 min-h-0 mt-3 overflow-y-auto">
+            <CustomerJobCards
+              key={refreshKey}
+              accountNumber={accountNumber}
+              strictAccount={!isAll && !!accountNumber}
+              onDataLoaded={handleDataLoaded}
+            />
+          </div>
+        </>
+      )}
+
+      {activeTab === "job-invoices" && (
+        <div className="flex-1 min-h-0 mt-3 overflow-y-auto">
+          <FCJobCardInvoicesSection costCodes={accountNumber} />
+        </div>
+      )}
     </div>
   );
 }

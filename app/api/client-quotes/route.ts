@@ -468,7 +468,12 @@ export async function GET(request: NextRequest) {
     if (accountNumber && accountNumber.trim() !== '') {
       console.log('Filtering quotes by account number:', accountNumber);
 
-      if (strictAccount) {
+      if (accountNumber.includes(',')) {
+        const accountNumbers = [...new Set(
+          accountNumber.split(',').map(acc => acc.trim()).filter(acc => acc.length > 0)
+        )];
+        query = query.in('new_account_number', accountNumbers);
+      } else if (strictAccount) {
         query = query.eq('new_account_number', accountNumber);
       } else {
         // First, find the customer group that contains this account number

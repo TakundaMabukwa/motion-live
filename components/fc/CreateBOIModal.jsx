@@ -6,6 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, Loader2, Package } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const CATEGORIES = [
   "MODULE",
@@ -75,10 +81,10 @@ export default function CreateBOIModal() {
         throw new Error(err.error || "Failed to create product item");
       }
 
-      toast.success(`BOI "${form.product}" created successfully`);
+      toast.success(`Quote product "${form.product}" created successfully`);
       handleClose();
     } catch (error) {
-      toast.error(error.message || "Failed to create product item");
+              toast.error(error.message || "Failed to create quote product");
     } finally {
       setSubmitting(false);
     }
@@ -86,15 +92,24 @@ export default function CreateBOIModal() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : handleClose())}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="flex items-center space-x-2">
-          <Package className="w-4 h-4" />
-          <span>Create BOI</span>
-        </Button>
-      </DialogTrigger>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center space-x-2">
+                <Package className="w-4 h-4" />
+                <span>Create Quote Product</span>
+              </Button>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Create a new product (e.g. Skypro, Beame) to add to quotes</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create BOI (Product Item)</DialogTitle>
+          <DialogTitle>Create Quote Product</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -213,7 +228,7 @@ export default function CreateBOIModal() {
               ) : (
                 <>
                   <Plus className="mr-2 w-4 h-4" />
-                  Create BOI
+                  Create Quote Product
                 </>
               )}
             </Button>

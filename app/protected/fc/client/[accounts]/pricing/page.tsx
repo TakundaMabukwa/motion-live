@@ -51,7 +51,8 @@ const formatLabel = (f) => f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUppe
 
 export default function FCPricingPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
-  const costCode = selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const isAll = selectedCostCenter?.cost_code === "all";
+  const costCode = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);

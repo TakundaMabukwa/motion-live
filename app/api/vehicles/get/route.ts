@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const costCode = searchParams.get('cost_code');
     const billingMonth = searchParams.get('billingMonth') || '';
 
-    if (!costCode) {
+    if (!costCode || costCode.trim() === '') {
       return NextResponse.json(
         { error: 'Cost code required' },
         { status: 400 }
@@ -34,8 +34,14 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('vehicles_duplicate')
       .select('*')
-      .eq('new_account_number', costCode)
       .order('reg', { ascending: true });
+
+    if (costCode.includes(',')) {
+      const codes = costCode.split(',').map(c => c.trim()).filter(Boolean);
+      query = query.in('new_account_number', codes);
+    } else {
+      query = query.eq('new_account_number', costCode);
+    }
 
     const { data, error } = await query;
 

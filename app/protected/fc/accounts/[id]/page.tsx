@@ -675,6 +675,7 @@ function AccountDetailPageContent() {
             <ClientJobCards
               key={refreshKey}
               accountNumber={customer?.new_account_number}
+              companyName={customer?.company || customer?.trading_name}
               strictAccount
               onQuoteCreated={() => {
                 // Refresh the client quotes list

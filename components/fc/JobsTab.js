@@ -15,20 +15,22 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Search, RefreshCw, Loader2,
   Briefcase, CheckCircle2, Clock, AlertTriangle, Users,
   History, Eye, FileEdit, Edit, Car,
-  ArrowUpDown, Activity, FileText, Filter,
+  ArrowUpDown, FileText, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import InvoiceJobModal from "./InvoiceJobModal";
+import AccountsJobPoolSection from "@/components/accounts/AccountsJobPoolSection";
 
 const JOB_TABS = [
-  { id: "not-completed", label: "Not Completed" },
-  { id: "completed", label: "Completed" },
+  { id: "job-pool", label: "Job Pool" },
+  { id: "not-completed", label: "Not Ready For Invoicing" },
+  { id: "completed", label: "Ready For Invoicing" },
   { id: "invoiced", label: "Invoiced" },
 ];
 
@@ -69,6 +71,95 @@ const getProductLineTotal = (p) => {
 };
 const PRICE_FIELDS = ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
 
+const getJobTypeDisplay = (jobType) => {
+  const t = String(jobType || "").toLowerCase().trim();
+  if (t === "admin_created") return "Repair";
+  return jobType || "N/A";
+};
+
+const getCompletionLabel = (jobType) => {
+  const t = String(jobType || "").toLowerCase().trim();
+  if (t === "installation") return "Installation Not Done";
+  if (t === "de_installation" || t === "de-installation") return "De-Installation Not Done";
+  if (t === "repair" || t === "admin_created") return "Repair Not Done";
+  return "Not Done";
+};
+
+const getStageInfo = (job) => {
+  const stages = [];
+  const hasTech = !!(job.technician_name || job.technician_phone || job.assigned_technician_id);
+  const partsRaw = job.parts_required;
+  let hasParts = false;
+  if (Array.isArray(partsRaw)) hasParts = partsRaw.length > 0;
+  else if (typeof partsRaw === "string") { try { const p = JSON.parse(partsRaw); hasParts = Array.isArray(p) ? p.length > 0 : !!p; } catch { hasParts = !!partsRaw.trim(); } }
+  else if (partsRaw && typeof partsRaw === "object") hasParts = Object.keys(partsRaw).length > 0;
+  const hasProducts = !!(job.quotation_products && (
+    (Array.isArray(job.quotation_products) && job.quotation_products.length > 0) ||
+    (typeof job.quotation_products === "string" && job.quotation_products.trim().length > 2)
+  ));
+  const isCompleted = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
+
+  stages.push({ label: hasTech ? "Tech Assigned" : "Awaiting Tech", done: hasTech });
+  stages.push({ label: hasParts ? "Parts Assigned" : "Awaiting Parts", done: hasParts });
+  stages.push({ label: hasProducts ? "Stock Control Added" : "Awaiting Stock Control", done: hasProducts });
+  stages.push({ label: isCompleted ? getJobTypeDisplay(job.job_type) + " Done" : getCompletionLabel(job.job_type), done: isCompleted });
+
+  return stages;
+};
+
+function ProgressButton({ job, onClick }) {
+  const stages = getStageInfo(job);
+  const doneCount = stages.filter((s) => s.done).length;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(job); }}
+      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+    >
+      <CheckCircle2 className="h-3 w-3" />
+      {doneCount}/{stages.length}
+    </button>
+  );
+}
+
+function ProgressDialog({ job, onClose }) {
+  if (!job) return null;
+  const stages = getStageInfo(job);
+  return (
+    <Dialog open={Boolean(job)} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5" />
+            Job Progress — {job.job_number || ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          {stages.map((stage, i) => (
+            <div
+              key={i}
+              className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${
+                stage.done
+                  ? "border-emerald-200 bg-emerald-50"
+                  : "border-slate-200 bg-slate-50"
+              }`}
+            >
+              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
+                stage.done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-500"
+              }`}>
+                {stage.done ? "✓" : "○"}
+              </div>
+              <span className={`text-sm font-medium ${stage.done ? "text-emerald-700" : "text-slate-600"}`}>
+                {stage.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function JobsTab() {
   const router = useRouter();
   const [jobs, setJobs] = useState([]);
@@ -76,7 +167,7 @@ export default function JobsTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [jobTab, setJobTab] = useState("not-completed");
+  const [jobTab, setJobTab] = useState("job-pool");
   const [showAllJobs, setShowAllJobs] = useState(false);
 
   // Edit & Finalize dialog
@@ -101,6 +192,7 @@ export default function JobsTab() {
   const [finalizeError, setFinalizeError] = useState(null);
   const [movingJobId, setMovingJobId] = useState(null);
   const [moveHistoryJob, setMoveHistoryJob] = useState(null);
+  const [progressJob, setProgressJob] = useState(null);
   const [completedMonthFilter, setCompletedMonthFilter] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -232,7 +324,7 @@ export default function JobsTab() {
   const handleMoveJob = useCallback(async (job, destination) => {
     if (!job?.id || !destination) return;
     setMovingJobId(job.id);
-    const destLabel = destination === "inv" ? "Inventory" : destination === "fc" ? "FC" : "Admin Awaiting Technician";
+    const destLabel = destination === "inv" ? "Stock Control" : destination === "fc" ? "FC" : "Helpdesk";
     const loadingToast = toast.loading(`Moving job to ${destLabel}...`);
     try {
       const response = await fetch(`/api/job-cards/${job.id}/move`, {
@@ -454,7 +546,8 @@ export default function JobsTab() {
         ))}
       </div>
 
-      {/* Metrics cards */}
+      {/* Metrics cards - hidden on job-pool tab */}
+      {jobTab !== "job-pool" && (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         {[
           { label: "Total", value: metrics.total, icon: Briefcase, bg: "bg-blue-100 text-blue-700" },
@@ -477,9 +570,10 @@ export default function JobsTab() {
           );
         })}
       </div>
+      )}
 
       {/* Search + Refresh */}
-      {jobTab === "invoiced" ? (
+      {jobTab === "job-pool" ? null : jobTab === "invoiced" ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">
@@ -521,10 +615,10 @@ export default function JobsTab() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-              {jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})
+              {jobTab === "completed" ? "Ready For Invoicing" : jobTab === "job-pool" ? "Job Pool" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              {jobTab === "completed" ? "Jobs that have been completed and are ready for invoicing." : "Jobs currently in progress or pending assignment."}
+              {jobTab === "completed" ? "Jobs completed and ready for invoicing." : jobTab === "job-pool" ? "All open jobs across roles." : "Jobs in progress or pending."}
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
@@ -559,6 +653,11 @@ export default function JobsTab() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Job Pool tab */}
+      {jobTab === "job-pool" && (
+        <AccountsJobPoolSection />
       )}
 
       {/* Invoiced tab: invoice table */}
@@ -625,7 +724,7 @@ export default function JobsTab() {
         {loading ? (
           <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
         ) : filteredJobsSearch.length === 0 ? (
-          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "completed" : "active"} jobs found.</p></div>
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : "not ready for invoicing"} jobs found.</p></div>
         ) : filteredJobsSearch.map((job) => {
           const sb = ((st) => {
             if (st === "completed") return { label: "Completed", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" };
@@ -644,6 +743,9 @@ export default function JobsTab() {
                 </div>
                 <Badge variant="outline" className={`shrink-0 border px-2 py-0.5 text-xs font-semibold ${sb.cls}`}>{sb.label}</Badge>
               </div>
+              <div className="mt-1">
+                <ProgressButton job={job} onClick={setProgressJob} />
+              </div>
 
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-2.5">
@@ -656,7 +758,7 @@ export default function JobsTab() {
                   <p className="mt-1 font-medium text-slate-900">
                     {new Date(job.completion_date || job.created_at).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })}
                   </p>
-                  <p className="text-xs text-slate-500">{job.job_type || "—"}</p>
+                  <p className="text-xs text-slate-500">{getJobTypeDisplay(job.job_type)}</p>
                 </div>
               </div>
 
@@ -676,13 +778,13 @@ export default function JobsTab() {
       {/* Desktop table */}
       <Card className="hidden lg:block">
         <CardHeader className="border-b border-slate-100 pb-3">
-          <CardTitle className="text-base">{jobTab === "completed" ? "Completed" : "Active"} Jobs ({filteredJobsSearch.length})</CardTitle>
+          <CardTitle className="text-base">{jobTab === "completed" ? "Ready For Invoicing" : "Not Ready For Invoicing"} ({filteredJobsSearch.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="py-10 text-center text-sm text-gray-500"><Loader2 className="mx-auto mb-2 w-6 h-6 animate-spin" />Loading jobs...</div>
           ) : filteredJobsSearch.length === 0 ? (
-            <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "completed" : "active"} jobs found.</p></div>
+          <div className="py-10 text-center"><p className="text-base font-medium text-gray-900">No jobs</p><p className="mt-1 text-sm text-gray-500">No {jobTab === "completed" ? "ready for invoicing" : "not ready for invoicing"} jobs found.</p></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] border-collapse text-xs">
@@ -723,13 +825,14 @@ export default function JobsTab() {
                         <td className="px-3 py-2 text-slate-700">
                           <span className="font-mono text-[11px]">{job.new_account_number || "N/A"}</span>
                         </td>
-                        <td className="px-3 py-2 text-slate-700 text-[11px]">{job.job_type || "-"}</td>
+                        <td className="px-3 py-2 text-slate-700 text-[11px]">{getJobTypeDisplay(job.job_type)}</td>
                         <td className="px-3 py-2 text-slate-700">
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Badge variant="outline" className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold ${sb.cls}`}>{sb.label}</Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className={`h-5 rounded-sm border px-1.5 text-[10px] font-semibold w-fit ${sb.cls}`}>{sb.label}</Badge>
                             {job.escalation_role && String(job.escalation_role).toLowerCase() === "fc" && (
-                              <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700">Escalated</Badge>
+                              <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700 w-fit">Escalated</Badge>
                             )}
+                            <ProgressButton job={job} onClick={setProgressJob} />
                           </div>
                         </td>
                         <td className="px-3 py-2 text-slate-700 text-[11px]">
@@ -752,8 +855,8 @@ export default function JobsTab() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="fc">FC</SelectItem>
-                                <SelectItem value="inv">Inventory</SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="inv">Stock Control</SelectItem>
+                                <SelectItem value="admin">Helpdesk</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1091,6 +1194,9 @@ export default function JobsTab() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* ===== JOB PROGRESS DIALOG ===== */}
+      <ProgressDialog job={progressJob} onClose={() => setProgressJob(null)} />
     </div>
   );
 }

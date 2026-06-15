@@ -11,7 +11,8 @@ import CreateBOIModal from "@/components/fc/CreateBOIModal";
 
 export default function FCQuotesPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
-  const accountNumber = selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const isAll = selectedCostCenter?.cost_code === "all";
+  const accountNumber = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
   const [stats, setStats] = useState({ total: 0, pending: 0, draft: 0, totalValue: 0 });
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -96,7 +97,8 @@ export default function FCQuotesPage() {
         <ClientJobCards
           key={refreshKey}
           accountNumber={accountNumber}
-          strictAccount
+          companyName={selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company}
+          strictAccount={!isAll && !!accountNumber}
           onDataLoaded={handleDataLoaded}
           onQuoteCreated={() => { setShowQuoteForm(false); setRefreshKey((p) => p + 1); }}
         />

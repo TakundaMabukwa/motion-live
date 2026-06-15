@@ -326,6 +326,8 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
   const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   const deferredCostCenterSearch = useDeferredValue(costCenterSearch);
   const costCode = costCodeProp || "";
+  const firstCostCode = costCode.includes(',') ? costCode.split(',').map(c => c.trim())[0] : costCode;
+  const isAllMode = costCode.includes(',');
   const lastVehiclesFetchKeyRef = useRef(null);
   const lastInitialCostCenterFetchRef = useRef(null);
   const hasLoadedPrefixCostCentersRef = useRef(false);
@@ -523,13 +525,17 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
 
   const currentCostCenter = useMemo(() => {
     if (!costCode) return null;
+    if (costCode.includes(',')) {
+      const codes = costCode.split(',').map(c => c.trim());
+      return matchingCostCenters.find((item) => codes.includes(item.cost_code)) || matchingCostCenters[0] || null;
+    }
     return (
       matchingCostCenters.find((item) => item.cost_code === costCode) || null
     );
   }, [matchingCostCenters, costCode]);
 
-  const currentCostCenterName = currentCostCenter?.company || costCode || "";
-  const invoicePreviewTitle = currentCostCenterName || costCode || "";
+  const currentCostCenterName = currentCostCenter?.company || firstCostCode || "";
+  const invoicePreviewTitle = currentCostCenterName || firstCostCode || "";
   const selectedBillingMonth = useMemo(() => {
     const normalized = normalizeBillingMonthValue(
       invoiceMonthFilter ? `${invoiceMonthFilter}-01` : FC_BILLING_MONTH,
@@ -661,7 +667,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       try {
         if (active) setLoadingInvoiceHistory(true);
         const query = new URLSearchParams({
-          accountNumber: costCode,
+          accountNumber: firstCostCode,
           billingMonth: selectedBillingMonth,
         });
         const response = await fetch(`/api/invoices/account/history?${query.toString()}`, {
@@ -1144,15 +1150,15 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
     }
 
     const billingMonth = String(selectedBillingMonth || FC_BILLING_MONTH).trim();
-    const cacheKey = [String(costCode).trim().toUpperCase(), billingMonth || "current"].join("::");
+    const cacheKey = [String(firstCostCode).trim().toUpperCase(), billingMonth || "current"].join("::");
 
     try {
       setIsLoadingInvoicePreview(true);
 
-      const previewTitle = currentCostCenterName || costCode;
+      const previewTitle = currentCostCenterName || firstCostCode;
 
       const liveResponse = await fetch(
-        `/api/vehicles/invoice?accountNumber=${encodeURIComponent(costCode)}&billingMonth=${encodeURIComponent(
+        `/api/vehicles/invoice?accountNumber=${encodeURIComponent(firstCostCode)}&billingMonth=${encodeURIComponent(
           billingMonth,
         )}`,
         { cache: "no-store" },
@@ -1186,7 +1192,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       };
 
       const previewPayload = {
-        accountNumber: costCode,
+        accountNumber: firstCostCode,
         accountName: previewTitle,
         company: previewTitle,
         billingMonth: String(invoiceData?.billing_month || billingMonth).trim() || null,
@@ -1231,7 +1237,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cost_code: costCode,
+          cost_code: firstCostCode,
           validated: Boolean(currentCostCenter?.validated),
           billing_month: selectedBillingMonth,
           total_amount_locked: true,
@@ -1251,7 +1257,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
 
       setCostCenterOptions((prev) =>
         prev.map((option) =>
-          option.cost_code === costCode ? { ...option, ...result } : option,
+          option.cost_code === firstCostCode ? { ...option, ...result } : option,
         ),
       );
       const coveredMonthsLabel = coveredMonths
@@ -1283,12 +1289,12 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
 
     const previewInvoice = {
       ...invoice,
-      account_number: invoice?.account_number || costCode || null,
+      account_number: invoice?.account_number || firstCostCode || null,
       company_name:
         invoice?.company_name ||
         invoice?.client_name ||
         currentCostCenterName ||
-        costCode ||
+        firstCostCode ||
         "N/A",
       billing_month: resolvedBillingMonth,
       invoice_date:
@@ -1342,7 +1348,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newVehicleData,
-          new_account_number: costCode,
+          new_account_number: firstCostCode,
           vehicle_validated: true,
         }),
       });
@@ -2020,7 +2026,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                         {editingVehicle === vehicle.id &&
                           (() => {
                             const currentCostCenter =
-                              vehicle.new_account_number || costCode || "";
+                              vehicle.new_account_number || firstCostCode || "";
 
                             return (
                               <div className="mb-4 p-3 border rounded-md bg-slate-50">
@@ -2288,7 +2294,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                       <td className="px-3 py-2">{invoice?.job_number || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.job_type || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.vehicle_registration || "N/A"}</td>
-                      <td className="px-3 py-2">{invoice?.account_number || costCode || "N/A"}</td>
+                      <td className="px-3 py-2">{invoice?.account_number || firstCostCode || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.company_name || invoice?.client_name || "N/A"}</td>
                       <td className="px-3 py-2 text-right">
                         {formatCurrency(Number(invoice?.total_amount || 0))}
@@ -2323,9 +2329,9 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                 <h3 className="text-xl font-semibold text-gray-900">
                   Invoice Preview - {invoicePreviewTitle}
                 </h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  FC view-only invoice preview for {costCode}
-                </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    FC view-only invoice preview for {firstCostCode}
+                  </p>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -2385,8 +2391,8 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                 <h3 className="text-xl font-semibold text-gray-900">
                   Job Card Invoice - {jobCardInvoicePreview?.invoice_number || "N/A"}
                 </h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  View and print invoice for {jobCardInvoicePreview?.account_number || costCode}
+                  <p className="mt-1 text-sm text-gray-500">
+                    View and print invoice for {jobCardInvoicePreview?.account_number || firstCostCode}
                   {jobCardInvoicePreview?.order_number
                     ? ` | Order ${jobCardInvoicePreview.order_number}`
                     : ""}
@@ -2415,7 +2421,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                   jobCardInvoicePreview?.account_number
                 }
                 costCenter={{
-                  accountNumber: jobCardInvoicePreview?.account_number || costCode,
+                  accountNumber: jobCardInvoicePreview?.account_number || firstCostCode,
                   billingMonth:
                     jobCardInvoicePreview?.billing_month ||
                     selectedBillingMonth ||

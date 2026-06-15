@@ -28,6 +28,7 @@ import {
   X,
   Car,
   ArrowLeft,
+  Loader2,
 } from "lucide-react";
 import { FaR } from "react-icons/fa6";
 import { toast } from "sonner";
@@ -412,6 +413,62 @@ export default function ClientQuoteForm({
     quoteFooter:
       "Contact period is 36 months for rental agreements. Rental subject to standard credit checks, supporting documents and application being accepted.",
   });
+
+  // Fetch cost_centers data to pre-fill customer details
+  useEffect(() => {
+    if (mode === "edit" && initialQuote) return;
+    if (!accountInfo?.cost_code) return;
+
+    const fetchCostCenter = async () => {
+      try {
+        const res = await fetch(`/api/cost-centers/client?cost_code=${encodeURIComponent(accountInfo.cost_code)}`);
+        if (!res.ok) return;
+        const result = await res.json();
+        const cc = result.costCenter || result;
+        if (!cc) return;
+
+        const address = [
+          cc.physical_address_1,
+          cc.physical_address_2,
+          cc.physical_address_3,
+          cc.physical_area,
+          cc.physical_code,
+        ].filter(Boolean).join(", ");
+
+        setFormData((prev) => ({
+          ...prev,
+          customerName: cc.legal_name || cc.company || prev.customerName,
+          customerPhone: cc.contact_name || prev.customerPhone,
+          contactPerson: cc.contact_name || prev.contactPerson,
+          customerAddress: address || prev.customerAddress,
+        }));
+      } catch {
+        // silent
+      }
+    };
+    fetchCostCenter();
+  }, [accountInfo?.cost_code, mode, initialQuote]);
+
+  // Fetch logged-in user's email
+  useEffect(() => {
+    if (mode === "edit" && initialQuote) return;
+    const fetchUserEmail = async () => {
+      try {
+        const { createBrowserClient } = await import("@supabase/ssr");
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          setFormData((prev) => ({ ...prev, customerEmail: user.email }));
+        }
+      } catch {
+        // silent
+      }
+    };
+    fetchUserEmail();
+  }, [mode, initialQuote]);
 
   const parseRecoveryHours = useCallback((value) => {
     const numeric = Number(value);
@@ -2130,9 +2187,8 @@ export default function ClientQuoteForm({
                       <SelectValue placeholder="Select destination role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="inv">Inventory</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="accounts">Accounts</SelectItem>
+                      <SelectItem value="inv">Stock Control</SelectItem>
+                      <SelectItem value="admin">Helpdesk</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-blue-700">
@@ -2289,24 +2345,6 @@ export default function ClientQuoteForm({
                     </div>
                   </div>
 
-                  <div className="bg-blue-50 p-4 border border-blue-200 rounded-lg">
-                    <div className="flex justify-between items-center gap-4 text-sm">
-                      <div>
-                        <p className="font-medium text-blue-900">Recovery Summary</p>
-                        <p className="text-blue-700">
-                          {parseRecoveryHours(recoveryQuote.hours) > 0
-                            ? `${recoveryQuote.hours} hour${parseRecoveryHours(recoveryQuote.hours) === 1 ? "" : "s"} x R ${parseRecoveryAmount(recoveryQuote.amount).toFixed(2)}`
-                            : "No hours entered yet"}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-blue-700">Total Amount</p>
-                        <p className="font-semibold text-blue-900">
-                          R {calculateRecoveryTotal(recoveryQuote.hours, recoveryQuote.amount).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             )}
@@ -2317,38 +2355,19 @@ export default function ClientQuoteForm({
                   <CardTitle>Item Being Billed</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="itemBeingBilled">Item Being Billed *</Label>
-                      <Input
-                        id="itemBeingBilled"
-                        placeholder="Enter the item being billed"
-                        value={itemBillingQuote.item}
-                        onChange={(e) =>
-                          setItemBillingQuote((prev) => ({
-                            ...prev,
-                            item: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="itemBillingAmount">Amount *</Label>
-                      <Input
-                        id="itemBillingAmount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Enter amount"
-                        value={itemBillingQuote.amount}
-                        onChange={(e) =>
-                          setItemBillingQuote((prev) => ({
-                            ...prev,
-                            amount: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="itemBeingBilled">Item Being Billed *</Label>
+                    <Input
+                      id="itemBeingBilled"
+                      placeholder="Enter the item being billed"
+                      value={itemBillingQuote.item}
+                      onChange={(e) =>
+                        setItemBillingQuote((prev) => ({
+                          ...prev,
+                          item: e.target.value,
+                        }))
+                      }
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -2397,7 +2416,7 @@ export default function ClientQuoteForm({
 
                         <div className="space-y-2">
                           <Label htmlFor={`calibrationAmount-${entry.id}`}>
-                            Amount Ex VAT *
+                            Amount *
                           </Label>
                           <Input
                             id={`calibrationAmount-${entry.id}`}
@@ -2430,23 +2449,8 @@ export default function ClientQuoteForm({
                   <div className="flex justify-end">
                     <Button type="button" variant="outline" onClick={addCalibrationEntry}>
                       <Plus className="mr-1 w-4 h-4" />
-                      Add Vehicle Amount
+                      Add Vehicle
                     </Button>
-                  </div>
-
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-3 p-3 bg-gray-50 rounded-md text-sm">
-                    <div>
-                      <p className="text-gray-500">Subtotal Ex VAT</p>
-                      <p className="font-semibold">R{calibrationQuoteTotals.subtotal.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">VAT</p>
-                      <p className="font-semibold">R{calibrationQuoteTotals.vat.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500">Total Incl VAT</p>
-                      <p className="font-semibold">R{calibrationQuoteTotals.total.toFixed(2)}</p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -2456,58 +2460,65 @@ export default function ClientQuoteForm({
             {formData.jobType && formData.jobType !== "recovery" && formData.jobType !== "item_billing" && formData.jobType !== "calibration" && (
               <Card>
                 <CardHeader>
-                  <CardTitle>{formData.jobType === 'deinstall' ? 'Add Products' : 'Product Selection'}</CardTitle>
+                  <CardTitle>Product Selection</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Filters */}
-                  <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Search Products</Label>
+                <CardContent className="space-y-3">
+                  {/* Selected items summary */}
+                  {(selectedProducts || []).length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 p-2 bg-blue-50 rounded-md border border-blue-100">
+                      <span className="text-[10px] font-semibold text-blue-600 uppercase">Selected:</span>
+                      {selectedProducts.map((p, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-[11px] font-medium">
+                          {p.name}
+                          <button type="button" onClick={() => removeProduct(i)} className="hover:text-blue-900 ml-0.5">&times;</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Filters row */}
+                  <div className="flex items-end gap-3">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[11px] font-medium text-gray-500">Search</Label>
                       <div className="relative">
-                        <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+                        <Search className="top-1/2 left-2.5 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
                         <Input
                           placeholder="Search products..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10"
+                          className="h-8 text-xs pl-8"
                         />
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label>Type</Label>
+                    <div className="w-36 space-y-1">
+                      <Label className="text-[11px] font-medium text-gray-500">Type</Label>
                       <Select value={selectedType} onValueChange={setSelectedType}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All types" />
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="All" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All types</SelectItem>
+                          <SelectItem value="all">All</SelectItem>
                           {productTypes.map(type => (
                             <SelectItem key={type} value={type}>{type}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label>Category</Label>
+                    <div className="w-36 space-y-1">
+                      <Label className="text-[11px] font-medium text-gray-500">Category</Label>
                       <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="All categories" />
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="All" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All categories</SelectItem>
+                          <SelectItem value="all">All</SelectItem>
                           {productCategories.map(category => (
                             <SelectItem key={category} value={category}>{category}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-
-                  {/* Add Labour Button */}
-                  {formData.jobType !== 'deinstall' && (
-                    <div className="flex justify-end">
+                    {formData.jobType !== 'deinstall' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -2535,26 +2546,26 @@ export default function ClientQuoteForm({
                           };
                           setSelectedProducts(prev => [...(prev || []), labourItem]);
                         }}
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="h-8 text-xs bg-green-600 hover:bg-green-700 text-white shrink-0"
                       >
                         <Plus className="w-3 h-3 mr-1" />
-                        Add Labour Charge
+                        Labour
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Product List */}
                   {loadingProducts ? (
-                    <div className="flex justify-center items-center py-8">
-                      <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                      <span className="ml-2">Loading products...</span>
+                    <div className="flex justify-center items-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                      <span className="ml-2 text-xs text-gray-500">Loading products...</span>
                     </div>
                   ) : productError ? (
-                    <div className="py-4 text-red-600 text-center">{productError}</div>
+                    <div className="py-4 text-red-600 text-xs text-center">{productError}</div>
                   ) : (
                     <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-h-64 overflow-y-auto">
                       {(productItems || []).map((product) => (
-                        <Card key={product.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                        <Card key={product.id} className="hover:shadow-md transition-shadow cursor-pointer group relative">
                           <CardContent className="p-4">
                             <div className="flex justify-between items-start mb-2">
                               <div>
@@ -2565,19 +2576,18 @@ export default function ClientQuoteForm({
                                   <span className="bg-gray-100 px-2 py-1 rounded text-gray-800 text-xs">{product.category}</span>
                                 </div>
                               </div>
-                              <Button
-                                size="sm"
-                                onClick={() => addProduct(product)}
-                                className="bg-blue-600 hover:bg-blue-700"
-                              >
-                                <Plus className="w-3 h-3" />
-                              </Button>
-                            </div>
-                            <div className="space-y-1 text-gray-500 text-xs">
-                              <div>Cash: R {product.price?.toFixed(2) || '0.00'}</div>
-                              <div>Rental: R {product.rental?.toFixed(2) || '0.00'}/month</div>
-                              <div>Installation: R {product.installation?.toFixed(2) || '0.00'}</div>
-                              <div>Subscription: R {product.subscription?.toFixed(2) || '0.00'}/month</div>
+                              <div className="relative">
+                                <div className="opacity-0 group-hover:opacity-100 absolute bottom-full right-0 mb-1 w-48 bg-gray-900 text-white text-[10px] rounded px-2 py-1 pointer-events-none z-10">
+                                  Click to add this product to your quote with default pricing
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => addProduct(product)}
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </Button>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
@@ -2840,248 +2850,9 @@ export default function ClientQuoteForm({
                           </div>
                         )}
 
-                        {/* Pricing Grid */}
-                        <div className="space-y-4">
-                          <div className="gap-4 grid grid-cols-4 pb-2 border-b font-medium text-gray-700 text-sm">
-                            {product.isLabour ? (
-                              <>
-                                <div>Labour Cost ex VAT (Once Off)</div>
-                                <div>Discount</div>
-                                <div>Gross ex VAT</div>
-                                <div>Total (Once Off)</div>
-                              </>
-                            ) : (
-                              <>
-                                <div>Base Price</div>
-                                <div>Discount</div>
-                                <div>Gross Price</div>
-                                <div>Total Price</div>
-                              </>
-                            )}
-                          </div>
-                          
-                          {/* Cash Row / Labour Cost Row */}
-                          <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Labour Cost ex VAT' : 'Cash ex VAT'}</Label>
-                                <Input
-                                  type="number"
-                                  value={product.cashPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "cashPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Discount</Label>
-                                <Input
-                                  type="number"
-                                  value={product.cashDiscount}
-                                  onChange={(e) =>
-                                    updateProduct(index, "cashDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Gross ex VAT' : 'Gross Cash ex VAT'}</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.cashPrice, product.cashDiscount).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Total (Once Off)' : 'Total Cash ex VAT'}</Label>
-                                <Input
-                                  value={(calculateGrossAmount(product.cashPrice, product.cashDiscount) * product.quantity).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-
-                          {/* Rental Row */}
-                          {!product.isLabour && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Rental/Month ex VAT</Label>
-                                <Input
-                                  type="number"
-                                  value={product.rentalPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Rental Discount</Label>
-                                <Input
-                                  type="number"
-                                  value={product.rentalDiscount}
-                                  onChange={(e) =>
-                                    updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Rental/Month ex VAT</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.rentalPrice, product.rentalDiscount).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Rental/Month ex VAT</Label>
-                                <Input
-                                  value={(
-                                    calculateGrossAmount(
-                                      product.rentalPrice,
-                                      product.rentalDiscount,
-                                    ) *
-                                    product.quantity *
-                                    getRecurringMultiplier(product)
-                                  ).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Installation Row */}
-                          {!product.isLabour && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">
-                                  {formData.jobType === 'install' ? 'Once Off Installation' : 'Once Off De-installation'}
-                                </Label>
-                                <Input
-                                  type="number"
-                                  value={formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice}
-                                  onChange={(e) => {
-                                    const field = formData.jobType === 'install' ? 'installationPrice' : 'deInstallationPrice';
-                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
-                                  }}
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">
-                                  {formData.jobType === 'install' ? 'Installation Discount' : 'De-installation Discount'}
-                                </Label>
-                                <Input
-                                  type="number"
-                                  value={formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)}
-                                  onChange={(e) => {
-                                    const field = formData.jobType === 'install' ? 'installationDiscount' : 'deInstallationDiscount';
-                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
-                                  }}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">
-                                  {formData.jobType === 'install' ? 'Gross Once Off Installation' : 'Gross Once Off De-installation'}
-                                </Label>
-                                <Input
-                                  value={calculateGrossAmount(
-                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
-                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
-                                  ).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">
-                                  {formData.jobType === 'install' ? 'Total Once Off Installation' : 'Total Once Off De-installation'}
-                                </Label>
-                                <Input
-                                  value={(calculateGrossAmount(
-                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
-                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
-                                  ) * product.quantity).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Subscription Row */}
-                          {!product.isLabour && (
-                            <div className="items-center gap-4 grid grid-cols-4">
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Monthly Subscription</Label>
-                                <Input
-                                  type="number"
-                                  value={product.subscriptionPrice}
-                                  onChange={(e) =>
-                                    updateProduct(index, "subscriptionPrice", parseFloat(e.target.value) || 0)
-                                  }
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Subscription Discount</Label>
-                                <Input
-                                  type="number"
-                                  value={product.subscriptionDiscount || 0}
-                                  onChange={(e) =>
-                                    updateProduct(index, "subscriptionDiscount", parseFloat(e.target.value) || 0)
-                                  }
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Gross Monthly Subscription</Label>
-                                <Input
-                                  value={calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-gray-600 text-xs">Total Monthly Subscription</Label>
-                                <Input
-                                  value={(
-                                    calculateGrossAmount(
-                                      product.subscriptionPrice,
-                                      product.subscriptionDiscount || 0,
-                                    ) *
-                                    product.quantity *
-                                    getRecurringMultiplier(product)
-                                  ).toFixed(2)}
-                                  readOnly
-                                  className="bg-gray-50"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Product Total */}
-                        <div className="mt-4 pt-4 border-t">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium">Product Total:</span>
-                            <span className="font-bold text-lg">
-                              R {getProductTotal(product).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
+                        {/* Pricing removed - handled separately */}
                       </div>
                     ))}
-
-                    {/* Total Quote Amount */}
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-blue-800">Total Quote Amount:</span>
-                        <span className="font-bold text-2xl text-blue-800">
-                          R {getTotalQuoteAmount.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -3187,14 +2958,14 @@ export default function ClientQuoteForm({
     <div className={embedded ? "flex justify-center items-center" : "z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50"}>
       <div className={embedded ? "flex flex-col bg-white shadow-xl w-full h-full" : "flex flex-col bg-white shadow-xl w-[95%] h-[95%]"}>
         {/* Header */}
-        <div className="flex flex-shrink-0 justify-between items-center p-6 border-b">
+        <div className="flex flex-shrink-0 justify-between items-center px-4 py-2 border-b">
           <div>
-            <h2 className="font-bold text-2xl">
+            <h2 className="font-bold text-base">
               {mode === "edit"
                 ? (isJobEditMode ? "Edit Job Card" : "Edit Client Quotation")
                 : "Client Quotation"}
             </h2>
-            <p className="text-gray-600">
+            <p className="text-gray-500 text-xs">
               {mode === "edit"
                 ? (isJobEditMode ? "Update job card details" : "Update quotation details")
                 : `Create quotation for ${customer?.trading_name || customer?.company}`}
@@ -3202,16 +2973,17 @@ export default function ClientQuoteForm({
           </div>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => onQuoteCreated && onQuoteCreated()}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 h-7 text-xs"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </Button>
         </div>
 
 
         {/* Step Indicator */}
-        <div className="flex flex-shrink-0 justify-center items-center bg-gray-50 px-4 py-1 border-b">
+        <div className="flex flex-shrink-0 justify-center items-center bg-gray-50 px-4 py-0.5 border-b">
           {steps.map((step, index) => {
             const StepIcon = typeof step.icon === "function" ? step.icon : FileText;
             return (
@@ -3244,12 +3016,12 @@ export default function ClientQuoteForm({
         </div>
 
         {/* Content - Scrollable Area */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-4 overflow-y-auto">
           {renderStepContent()}
         </div>
 
         {/* Navigation - Fixed at Bottom */}
-        <div className="flex flex-shrink-0 justify-between items-center p-6 border-t">
+        <div className="flex flex-shrink-0 justify-between items-center px-4 py-2 border-t">
           <Button
             variant="outline"
             onClick={currentStep === 0 ? () => onQuoteCreated && onQuoteCreated() : handlePreviousStep}

@@ -22,6 +22,64 @@ const getAgeTone = (days) => {
   return { accent: "bg-rose-600", ring: "border-rose-100" };
 };
 
+const getCompletionLabel = (jobType) => {
+  const t = String(jobType || "").toLowerCase().trim();
+  if (t === "installation") return "Installation Not Done";
+  if (t === "de_installation" || t === "de-installation") return "De-Installation Not Done";
+  if (t === "repair" || t === "admin_created") return "Repair Not Done";
+  return "Not Done";
+};
+
+const getJobTypeDisplay = (jobType) => {
+  const t = String(jobType || "").toLowerCase().trim();
+  if (t === "admin_created") return "Repair";
+  return jobType || "N/A";
+};
+
+const getRoleDisplay = (job) => {
+  const role = String(job?.role || "").trim().toLowerCase();
+
+  if (role === "inv") {
+    const partsRaw = job.parts_required;
+    let hasParts = false;
+    if (Array.isArray(partsRaw)) hasParts = partsRaw.length > 0;
+    else if (typeof partsRaw === "string") { try { const p = JSON.parse(partsRaw); hasParts = Array.isArray(p) ? p.length > 0 : !!p; } catch { hasParts = !!partsRaw.trim(); } }
+    else if (partsRaw && typeof partsRaw === "object") hasParts = Object.keys(partsRaw).length > 0;
+    return hasParts ? "Stock Control (Parts Assigned)" : "Stock Control (Awaiting Parts)";
+  }
+  if (role === "admin") {
+    const hasTech = !!(job.technician_phone || job.technician_name || job.assigned_technician_id);
+    return hasTech ? "Helpdesk (Tech Assigned)" : "Helpdesk (Awaiting Tech)";
+  }
+  if (role === "tech") {
+    return job.technician_name ? `Technician (${job.technician_name})` : "Technician";
+  }
+  if (role === "fc") return "FC";
+  return role || "";
+};
+
+const getStageInfo = (job) => {
+  const stages = [];
+  const hasTech = !!(job.technician_name || job.technician_phone || job.assigned_technician_id);
+  const partsRaw = job.parts_required;
+  let hasParts = false;
+  if (Array.isArray(partsRaw)) hasParts = partsRaw.length > 0;
+  else if (typeof partsRaw === "string") { try { const p = JSON.parse(partsRaw); hasParts = Array.isArray(p) ? p.length > 0 : !!p; } catch { hasParts = !!partsRaw.trim(); } }
+  else if (partsRaw && typeof partsRaw === "object") hasParts = Object.keys(partsRaw).length > 0;
+  const hasProducts = !!(job.quotation_products && (
+    (Array.isArray(job.quotation_products) && job.quotation_products.length > 0) ||
+    (typeof job.quotation_products === "string" && job.quotation_products.trim().length > 2)
+  ));
+  const isCompleted = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
+
+  stages.push({ label: hasTech ? "Tech Assigned" : "Awaiting Tech", done: hasTech });
+  stages.push({ label: hasParts ? "Parts Assigned" : "Awaiting Parts", done: hasParts });
+  stages.push({ label: hasProducts ? "Stock Control Added" : "Awaiting Stock Control", done: hasProducts });
+  stages.push({ label: isCompleted ? getJobTypeDisplay(job.job_type) + " Done" : getCompletionLabel(job.job_type), done: isCompleted });
+
+  return stages;
+};
+
 const renderColumnSkeleton = (roleKey) => (
   <div key={`job-pool-skeleton-${roleKey}`} className="min-w-[240px] border-r border-slate-200 bg-slate-50/60 p-3 last:border-r-0">
     <div className="h-5 w-20 rounded bg-slate-200 animate-pulse" />
@@ -88,6 +146,14 @@ export default function AccountsJobPoolSection() {
 
   useEffect(() => {
     fetchJobPool();
+  }, [fetchJobPool]);
+
+  // Auto-refresh every 30 seconds for live data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchJobPool();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [fetchJobPool]);
 
   const groupedJobs = useMemo(() => {
@@ -177,6 +243,10 @@ export default function AccountsJobPoolSection() {
                           roleJobs.map((job) => {
                             const ageDays = Number(job.role_age_days || 0);
                             const tone = getAgeTone(ageDays);
+                            const stages = getStageInfo(job);
+                            const doneCount = stages.filter((s) => s.done).length;
+                            const isCompleted = String(job.status || "").toLowerCase() === "completed" || String(job.job_status || "").toLowerCase() === "completed";
+                            const techName = job.technician_name || null;
 
                             return (
                               <article
@@ -186,22 +256,54 @@ export default function AccountsJobPoolSection() {
                                 <div className="flex">
                                   <div className={`w-1 ${tone.accent}`} />
                                   <div className="flex-1 p-2.5">
-                                    <div className="truncate text-[14px] font-bold text-slate-900">
-                                      {job.job_number}
+                                    <div className="flex items-start justify-between gap-1">
+                                      <div className="truncate text-[14px] font-bold text-slate-900">
+                                        {job.job_number}
+                                      </div>
+                                      {isCompleted && (
+                                        <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                                          Ready for Invoicing
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="mt-0.5 line-clamp-2 text-[12px] leading-5 text-slate-500">
-                                      {role.key === "tech"
-                                        ? (job.technician_name ? `${job.technician_name} — ${job.customer_name || "No client"}` : job.customer_name || "No technician")
-                                        : job.customer_name || "Unknown client"}
+                                      {job.customer_name || "Unknown client"}
                                     </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setMoveHistoryJob(job)}
-                                      className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                                    >
-                                      <History className="h-3 w-3" />
-                                      Move History
-                                    </button>
+                                    <div className="mt-1 text-[11px] font-medium text-slate-600">
+                                      {getRoleDisplay(job)}
+                                    </div>
+                                    {techName && (
+                                      <div className="mt-1 text-[11px] font-medium text-blue-600">
+                                        Tech: {techName}
+                                      </div>
+                                    )}
+                                    <div className="mt-1.5 flex flex-wrap gap-0.5">
+                                      {stages.map((stage, si) => (
+                                        <span
+                                          key={si}
+                                          className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[8px] font-medium ${
+                                            stage.done
+                                              ? "bg-emerald-50 text-emerald-700"
+                                              : "bg-slate-100 text-slate-500"
+                                          }`}
+                                        >
+                                          {stage.done ? "✓" : "○"} {stage.label}
+                                        </span>
+                                      ))}
+                                    </div>
+                                    <div className="mt-1.5 flex items-center gap-2">
+                                      <span className="text-[10px] font-semibold text-slate-400">
+                                        {doneCount}/{stages.length}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setMoveHistoryJob(job)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                                      >
+                                        <History className="h-3 w-3" />
+                                        History
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               </article>

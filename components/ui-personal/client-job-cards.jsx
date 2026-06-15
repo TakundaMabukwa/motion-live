@@ -46,8 +46,14 @@ import {
   Edit,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNumber, strictAccount = false }) {
+export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNumber, strictAccount = false, companyName }) {
   const router = useRouter();
   const [clientQuotes, setClientQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -405,7 +411,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
       return;
     }
 
-    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.  Note: This job card will not go to INV(Ria) unless moved to Inventory on Job Cards tab`)) {
+    if (!confirm(`Are you sure you want to approve quote ${quote.job_number}? This will move it to job cards.  Note: This job card will not go to INV(Ria) unless moved to Stock Control on Job Cards tab`)) {
       return;
     }
 
@@ -671,7 +677,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
       <Card>
         <CardHeader>
           <CardTitle>
-            {accountNumber ? `Client Quotes for Account ${accountNumber}` : 'All Client Quotes'}
+            {accountNumber ? `Client Quotes for ${companyName || accountNumber}` : 'All Client Quotes'}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -680,6 +686,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
               <TableHeader>
                 <TableRow>
                   <TableHead>Quote Number</TableHead>
+                  <TableHead>Client Name</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Account</TableHead>
                   <TableHead>Job Type</TableHead>
@@ -694,10 +701,10 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
                   <TableRow key={quote.id}>
                     <TableCell className="font-medium">{quote.job_number}</TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{quote.customer_name || 'N/A'}</div>
-                        <div className="text-gray-500 text-sm">{quote.customer_email || 'N/A'}</div>
-                      </div>
+                      <div className="font-medium">{quote.customer_name || 'N/A'}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-gray-500 text-sm">{quote.customer_email || 'N/A'}</div>
                     </TableCell>
                     <TableCell>
                       <div className="text-gray-600 text-sm">
@@ -714,24 +721,44 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewQuote(quote)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/protected/fc/quotes/${quote.id}/edit?source=client`)}
-                          className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
-                        >
-                          <Edit className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewQuote(quote)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>View quote details</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {quote.status !== 'approved' && quote.status !== 'declined' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => router.push(`/protected/fc/quotes/${quote.id}/edit?source=client`)}
+                                  className="text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                                >
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Edit customer info, products, pricing etc.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         {quote.status !== 'approved' && quote.status !== 'declined' && (
                           <>
                             <Button
@@ -921,9 +948,8 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
                   required
                 >
                   <option value="" disabled>Select a destination</option>
-                  <option value="inv">Inventory</option>
-                  <option value="admin">Admin</option>
-                  <option value="accounts">Accounts</option>
+                  <option value="inv">Stock Control</option>
+                  <option value="admin">Helpdesk</option>
                 </select>
                 <p className="text-xs text-gray-500">
                   Decommission job cards are routed to the selected role after approval.

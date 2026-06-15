@@ -16,6 +16,12 @@ import {
   Building
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function AccountDashboard({ customer, accountNumber, onNewQuote }) {
   const [salesData, setSalesData] = useState({
@@ -140,13 +146,22 @@ export default function AccountDashboard({ customer, accountNumber, onNewQuote }
             <RefreshCw className={`mr-2 w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button 
-            onClick={onNewQuote}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="mr-2 w-4 h-4" />
-            New Quote
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  onClick={onNewQuote}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="mr-2 w-4 h-4" />
+                  New Quote
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create a new quotation for this customer</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 

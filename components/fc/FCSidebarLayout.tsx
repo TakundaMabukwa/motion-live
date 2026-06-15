@@ -63,15 +63,19 @@ function CostCenterDropdown({
 }) {
   const [open, setOpen] = useState(false);
 
-  const displayName = selected
-    ? selected.trading_name || selected.company_name || selected.company || selected.cost_code
-    : "Select Cost Center";
+  const displayName = selected?.cost_code === "all"
+    ? "All"
+    : selected
+      ? selected.trading_name || selected.company_name || selected.company || selected.cost_code
+      : "Select Cost Center";
 
   return (
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded text-white text-sm transition-colors ${
+          open ? "bg-blue-500 ring-2 ring-blue-300" : "bg-white/10 hover:bg-white/20"
+        }`}
       >
         <span className="truncate">{displayName}</span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -80,6 +84,18 @@ function CostCenterDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
+            <button
+              onClick={() => {
+                onSelect({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" } as CostCenter);
+                setOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                selected?.cost_code === "all" ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
+              }`}
+            >
+              <div className="truncate font-medium">All</div>
+              <div className="text-xs text-gray-500 truncate">All cost centers</div>
+            </button>
             {costCenters.map((cc) => (
               <button
                 key={cc.cost_code}
@@ -113,7 +129,7 @@ export default function FCSidebarLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
-  const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>(null);
+  const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" });
   const [loading, setLoading] = useState(true);
 
   const accountsArray = accounts ? accounts.split(",").filter(Boolean) : [];
@@ -133,9 +149,6 @@ export default function FCSidebarLayout({
         if (cancelled) return;
         const centers = Array.isArray(data?.costCenters) ? data.costCenters : [];
         setCostCenters(centers);
-        if (centers.length > 0 && !selectedCostCenter) {
-          setSelectedCostCenter(centers[0]);
-        }
       } catch {
         /* ignore */
       } finally {
@@ -179,7 +192,9 @@ export default function FCSidebarLayout({
           <div className="px-3 py-3 border-b border-white/10 shrink-0">
             {sidebarOpen ? (
               <p className="text-sm font-bold text-white truncate">
-                {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
+                {selectedCostCenter?.cost_code === "all"
+                  ? `${costCenters[0]?.trading_name || costCenters[0]?.company_name || costCenters[0]?.company || "Client"} - All Cost Centers`
+                  : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
               </p>
             ) : (
               <div className="w-7 h-7 rounded bg-white/20 flex items-center justify-center mx-auto">
@@ -253,9 +268,15 @@ export default function FCSidebarLayout({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900 truncate">
-                {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
+                {selectedCostCenter?.cost_code === "all"
+                  ? `${costCenters[0]?.trading_name || costCenters[0]?.company_name || costCenters[0]?.company || "Client"} - All Cost Centers`
+                  : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
               </p>
-              <p className="text-[10px] text-gray-500 truncate">{selectedCostCenter?.cost_code || ""}</p>
+              <p className="text-[10px] text-gray-500 truncate">
+                {selectedCostCenter?.cost_code === "all"
+                  ? "All Cost Centers"
+                  : selectedCostCenter?.cost_code || ""}
+              </p>
             </div>
           </div>
 
