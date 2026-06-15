@@ -54,7 +54,6 @@ export default function ClientInfoModal({ open, onOpenChange, costCode, companyN
   const [formData, setFormData] = useState<Record<string, string>>({});
 
   const isAllSelected = costCode === "all";
-  const shouldShowWarning = multipleSelected || isAllSelected;
 
   const fetchData = useCallback(async () => {
     if (!costCode || !open || isAllSelected) return;
@@ -126,7 +125,7 @@ export default function ClientInfoModal({ open, onOpenChange, costCode, companyN
           <DialogTitle>Customer Billing Info — {companyName || costCode}</DialogTitle>
         </DialogHeader>
 
-        {shouldShowWarning ? (
+        {isAllSelected ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-center">
               <p className="text-sm text-gray-600">Please select a single cost center before editing cost center details.</p>

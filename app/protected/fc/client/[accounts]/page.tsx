@@ -818,12 +818,9 @@ function ClientAccountsSection({ costCodes, costCode }: { costCodes: string; cos
 // ============================================================
 export default function FCDashboardPage() {
   const { accounts, selectedCostCenter, loading: ctxLoading } = useFCSidebar();
-  const costCode = selectedCostCenter?.cost_code === "all" 
-    ? accounts.split(",")[0] || "" 
-    : selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
-  const costCodes = selectedCostCenter?.cost_code === "all" 
-    ? accounts 
-    : selectedCostCenter?.cost_code || accounts;
+  const isAll = selectedCostCenter?.cost_code === "all";
+  const costCode = isAll ? "all" : selectedCostCenter?.cost_code || accounts.split(",")[0] || "";
+  const costCodes = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
   const [activeTab, setActiveTab] = useState("annuity");
   const [showClientInfo, setShowClientInfo] = useState(false);
