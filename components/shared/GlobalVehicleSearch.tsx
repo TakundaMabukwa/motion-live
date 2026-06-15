@@ -15,18 +15,12 @@ import { Badge } from '@/components/ui/badge';
 import {
   Search,
   Car,
-  Hash,
-  Building2,
   ChevronRight,
-  Rows3,
-  CarFront,
   MapPin,
   BadgeInfo,
   Calendar,
   ClipboardList,
   User,
-  Wrench,
-  Clock3,
   Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -116,7 +110,6 @@ const JOB_DETAIL_FIELD_ORDER = [
   'technician_name',
   'technician_phone',
   'role',
-  'move_to',
   'quotation_number',
   'quote_status',
   'order_number',
@@ -182,7 +175,7 @@ function renderValue(value: unknown) {
     if (normalized.length === 0) return <span>-</span>;
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-1">
         {normalized.map((item, index) => {
           if (typeof item === 'string' && looksLikeUrl(item)) {
             return (
@@ -199,13 +192,17 @@ function renderValue(value: unknown) {
           }
 
           if (typeof item === 'object' && item !== null) {
+            const entries = Object.entries(item as Record<string, unknown>);
             return (
-              <pre
-                key={index}
-                className="overflow-x-auto rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-700"
-              >
-                {JSON.stringify(item, null, 2)}
-              </pre>
+              <div key={index} className="text-sm">
+                {entries.map(([k, v]) => (
+                  <span key={k}>
+                    <span className="font-medium text-slate-600">{formatLabel(k)}:</span>{' '}
+                    <span>{v !== null && v !== undefined ? String(v) : '-'}</span>
+                    {index < entries.length - 1 ? ' ' : ''}
+                  </span>
+                ))}
+              </div>
             );
           }
 
@@ -216,10 +213,17 @@ function renderValue(value: unknown) {
   }
 
   if (typeof normalized === 'object') {
+    const entries = Object.entries(normalized as Record<string, unknown>);
+    if (entries.length === 0) return <span>-</span>;
     return (
-      <pre className="overflow-x-auto rounded-lg bg-slate-50 p-2 text-xs leading-5 text-slate-700">
-        {JSON.stringify(normalized, null, 2)}
-      </pre>
+      <div className="space-y-0.5 text-sm">
+        {entries.map(([k, v]) => (
+          <div key={k}>
+            <span className="font-medium text-slate-600">{formatLabel(k)}:</span>{' '}
+            <span>{v !== null && v !== undefined ? String(v) : '-'}</span>
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -434,57 +438,6 @@ export default function GlobalVehicleSearch({
     );
   }, [detailRecord, selectedDetailType]);
 
-  const selectedSummary = useMemo(() => {
-    if (!detailRecord || !selectedDetailType) return [];
-
-    if (selectedDetailType === 'vehicle') {
-      return [
-        { label: 'Reg', value: String(detailRecord.reg || 'No Reg'), tone: 'primary', icon: CarFront },
-        { label: 'Fleet', value: String(detailRecord.fleet_number || 'N/A'), tone: 'neutral', icon: Hash },
-        { label: 'Cost Center', value: String(detailRecord.company || 'N/A'), tone: 'neutral', icon: Building2 },
-        {
-          label: 'Account',
-          value: String(detailRecord.new_account_number || detailRecord.account_number || 'N/A'),
-          tone: 'neutral',
-          icon: Hash,
-        },
-      ];
-    }
-
-    return [
-      { label: 'Job Number', value: String(detailRecord.job_number || 'N/A'), tone: 'primary', icon: ClipboardList },
-      { label: 'Customer', value: String(detailRecord.customer_name || 'N/A'), tone: 'neutral', icon: User },
-      { label: 'Account', value: String(detailRecord.new_account_number || 'N/A'), tone: 'neutral', icon: Hash },
-      { label: 'Vehicle Reg', value: String(detailRecord.vehicle_registration || 'N/A'), tone: 'neutral', icon: CarFront },
-    ];
-  }, [detailRecord, selectedDetailType]);
-
-  const overviewCards = useMemo(() => {
-    if (!detailRecord || !selectedDetailType) return [];
-
-    if (selectedDetailType === 'vehicle') {
-      return [
-        { label: 'Make / Model', value: [detailRecord.make, detailRecord.model].filter(Boolean).join(' ') || 'N/A', icon: Car },
-        { label: 'Branch', value: String(detailRecord.branch || 'N/A'), icon: MapPin },
-        { label: 'Validated', value: String(detailRecord.vehicle_validated ?? 'N/A'), icon: BadgeInfo },
-        { label: 'VIN', value: String(detailRecord.vin || 'N/A'), icon: Hash },
-        { label: 'Year', value: String(detailRecord.year || 'N/A'), icon: Calendar },
-        { label: 'Colour', value: String(detailRecord.colour || 'N/A'), icon: BadgeInfo },
-        { label: 'Engine', value: String(detailRecord.engine || 'N/A'), icon: BadgeInfo },
-      ];
-    }
-
-    return [
-      { label: 'Job Type', value: String(detailRecord.job_type || 'N/A'), icon: Wrench },
-      { label: 'Status', value: String(detailRecord.status || 'N/A'), icon: BadgeInfo },
-      { label: 'Job Status', value: String(detailRecord.job_status || 'N/A'), icon: BadgeInfo },
-      { label: 'Priority', value: String(detailRecord.priority || 'N/A'), icon: BadgeInfo },
-      { label: 'Created', value: String(detailRecord.created_at || 'N/A'), icon: Clock3 },
-      { label: 'Due Date', value: String(detailRecord.due_date || 'N/A'), icon: Calendar },
-      { label: 'Completion Date', value: String(detailRecord.completion_date || 'N/A'), icon: Calendar },
-    ];
-  }, [detailRecord, selectedDetailType]);
-
   const resultCountLabel = useMemo(() => {
     const vehicleCount = results.filter((result) => result.resultType === 'vehicle').length;
     const jobCount = results.filter((result) => result.resultType === 'job_card').length;
@@ -635,69 +588,258 @@ export default function GlobalVehicleSearch({
                       <div className="mt-1 text-sm text-slate-500">Choose a search result to load all stored details.</div>
                     </div>
                   </div>
-                ) : (
+                ) : selectedDetailType === 'job_card' ? (
                   <div className="h-0 min-h-0 flex-1 overflow-y-scroll overscroll-contain p-5 pb-10">
-                    <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-4 shadow-sm">
-                      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800">
-                        <Rows3 className="h-4 w-4 text-blue-600" />
-                        Selected {selectedDetailType === 'vehicle' ? 'Vehicle' : 'Job Card'}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        {selectedSummary.map((item) => {
-                          const Icon = item.icon;
-                          const isPrimary = item.tone === 'primary';
-
-                          return (
-                            <div
-                              key={item.label}
-                              className={`rounded-xl border px-3 py-3 ${
-                                isPrimary ? 'border-blue-200 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-900'
-                              }`}
-                            >
-                              <div className={`mb-2 flex items-center gap-2 text-xs font-medium ${isPrimary ? 'text-blue-100' : 'text-slate-500'}`}>
-                                <Icon className="h-3.5 w-3.5" />
-                                {item.label}
-                              </div>
-                              <div className="break-words text-sm font-semibold leading-snug">{item.value}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                      {overviewCards.map((item) => {
-                        const Icon = item.icon;
-                        return (
-                          <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                            <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
-                              <Icon className="h-3.5 w-3.5" />
-                              {item.label}
-                            </div>
-                            <div className="break-words text-sm font-semibold text-slate-900">{item.value}</div>
+                    {/* Header */}
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500">Job Board</span>
+                            <span className="text-slate-400">|</span>
+                            <span className="text-xs font-medium text-slate-700">{String(detailRecord.job_number || 'N/A')}</span>
                           </div>
-                        );
-                      })}
+                          <h2 className="text-xl font-bold text-slate-900">Job Card: {String(detailRecord.job_number || 'N/A')}</h2>
+                        </div>
+                        <Badge className={`ml-2 ${String(detailRecord.status || '').toLowerCase() === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {String(detailRecord.status || 'N/A')}
+                        </Badge>
+                      </div>
                     </div>
 
-                    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="sticky top-0 z-10 shrink-0 border-b bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
-                        Full {selectedDetailType === 'vehicle' ? 'Vehicle' : 'Job Card'} Record
+                    {/* Top 3 cards: Role, Job Status, Approval */}
+                    <div className="mb-4 grid grid-cols-3 gap-3">
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                        <div className="flex items-center gap-2 text-xs font-medium text-blue-600">
+                          <User className="h-3.5 w-3.5" />
+                          Dispatch Role
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-blue-900">{String(detailRecord.role || 'N/A')}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <ClipboardList className="h-3.5 w-3.5" />
+                          Job Status
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{String(detailRecord.job_status || 'N/A')}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <BadgeInfo className="h-3.5 w-3.5" />
+                          Approval Status
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{String(detailRecord.quote_status || 'N/A')}</div>
+                      </div>
+                    </div>
+
+                    {/* Core Job Details + Assigned Technician */}
+                    <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+                        <div className="flex items-center justify-between border-b px-4 py-3">
+                          <h3 className="text-sm font-semibold text-slate-800">Core Job Details</h3>
+                          <span className="text-xs text-slate-400">Last updated 2 hours ago</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 p-4 text-sm md:grid-cols-4">
+                          <div>
+                            <span className="text-slate-500">Job Type</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.job_type || 'N/A')}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Priority</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.priority || 'N/A')}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Customer Name</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.customer_name || 'N/A')}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Vehicle Reg</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.vehicle_registration || 'N/A')}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Assigned Technician */}
+                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b px-4 py-3">
+                          <h3 className="text-sm font-semibold text-slate-800">Assigned Technician</h3>
+                        </div>
+                        <div className="p-4">
+                          {detailRecord.technician_name ? (
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                                <User className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-slate-900">{String(detailRecord.technician_name)}</p>
+                                <p className="text-xs text-slate-500">Service Field Engineer</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500">No technician assigned</p>
+                          )}
+                          {detailRecord.technician_phone && (
+                            <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+                              <span>{String(detailRecord.technician_phone)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Job Info + Vehicle Details + Financial Summary */}
+                    <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                      {/* Job Information */}
+                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b px-4 py-3">
+                          <h3 className="text-sm font-semibold text-slate-800">Job Information</h3>
+                        </div>
+                        <div className="space-y-3 p-4 text-sm">
+                          <div>
+                            <span className="text-slate-500">Description</span>
+                            <p className="mt-0.5 text-slate-900">{String(detailRecord.job_description || 'N/A')}</p>
+                          </div>
+                          {detailRecord.job_location && (
+                            <div>
+                              <span className="text-slate-500">Location</span>
+                              <p className="mt-0.5 text-slate-900">{String(detailRecord.job_location)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Vehicle Details */}
+                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="border-b px-4 py-3">
+                          <h3 className="text-sm font-semibold text-slate-800">Vehicle Details</h3>
+                        </div>
+                        <div className="space-y-3 p-4 text-sm">
+                          <div>
+                            <span className="text-slate-500">Make / Model</span>
+                            <p className="font-medium text-slate-900">{[detailRecord.vehicle_make, detailRecord.vehicle_model].filter(Boolean).join(' ') || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Registration</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.vehicle_registration || 'N/A')}</p>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Year</span>
+                            <p className="font-medium text-slate-900">{String(detailRecord.vehicle_year || 'N/A')}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Financial Summary */}
+                      <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-600 to-blue-700 p-4 text-white shadow-sm">
+                        <h3 className="text-sm font-semibold text-blue-100">Financial Summary</h3>
+                        <div className="mt-3 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-blue-200">Quoted Total</span>
+                            <span className="font-semibold">{detailRecord.quotation_total_amount ? `R ${detailRecord.quotation_total_amount}` : 'N/A'}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-blue-200">Actual Total</span>
+                            <span className="font-semibold">{detailRecord.actual_cost ? `R ${detailRecord.actual_cost}` : 'N/A'}</span>
+                          </div>
+                        </div>
+                        {detailRecord.quote_status && (
+                          <div className="mt-3 rounded-lg bg-white/20 px-3 py-2">
+                            <div className="text-xs text-blue-200">Quote Status</div>
+                            <div className="mt-0.5 text-sm font-semibold">{String(detailRecord.quote_status)}</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Full Record Table */}
+                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-sm font-semibold text-slate-800">Full Record</h3>
                       </div>
                       <div className="overflow-x-auto">
-                        <table className="w-full min-w-[620px] text-sm">
+                        <table className="w-full min-w-[500px] text-sm">
                           <thead className="bg-slate-50">
                             <tr>
-                              <th className="px-4 py-3 text-left font-semibold text-slate-700">Field</th>
-                              <th className="px-4 py-3 text-left font-semibold text-slate-700">Value</th>
+                              <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Field</th>
+                              <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Value</th>
                             </tr>
                           </thead>
                           <tbody>
                             {detailEntries.map(([key, value], index) => (
                               <tr key={key} className={`border-t align-top ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
-                                <td className="w-[220px] px-4 py-2.5 font-medium text-slate-700">{formatLabel(key)}</td>
-                                <td className="break-words whitespace-pre-wrap px-4 py-2.5 text-slate-900">{renderValue(value)}</td>
+                                <td className="w-[180px] px-4 py-2 font-medium text-slate-600">{formatLabel(key)}</td>
+                                <td className="break-words whitespace-pre-wrap px-4 py-2 text-slate-900">{renderValue(value)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Vehicle detail view */
+                  <div className="h-0 min-h-0 flex-1 overflow-y-scroll overscroll-contain p-5 pb-10">
+                    {/* Header */}
+                    <div className="mb-5 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white">
+                        <Car className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">Vehicle: {String(detailRecord.reg || 'N/A')}</h2>
+                        <p className="text-sm text-slate-500">{String(detailRecord.company || '')}</p>
+                      </div>
+                    </div>
+
+                    {/* Summary cards */}
+                    <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <Car className="h-3.5 w-3.5" />
+                          Make / Model
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{[detailRecord.make, detailRecord.model].filter(Boolean).join(' ') || 'N/A'}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Year
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{String(detailRecord.year || 'N/A')}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <MapPin className="h-3.5 w-3.5" />
+                          Branch
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{String(detailRecord.branch || 'N/A')}</div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <BadgeInfo className="h-3.5 w-3.5" />
+                          Validated
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-slate-900">{String(detailRecord.vehicle_validated ?? 'N/A')}</div>
+                      </div>
+                    </div>
+
+                    {/* Full Record Table */}
+                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b px-4 py-3">
+                        <h3 className="text-sm font-semibold text-slate-800">Full Vehicle Record</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[500px] text-sm">
+                          <thead className="bg-slate-50">
+                            <tr>
+                              <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Field</th>
+                              <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {detailEntries.map(([key, value], index) => (
+                              <tr key={key} className={`border-t align-top ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                                <td className="w-[180px] px-4 py-2 font-medium text-slate-600">{formatLabel(key)}</td>
+                                <td className="break-words whitespace-pre-wrap px-4 py-2 text-slate-900">{renderValue(value)}</td>
                               </tr>
                             ))}
                           </tbody>

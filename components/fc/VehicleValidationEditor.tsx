@@ -295,6 +295,9 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
     total_rental: "0.00",
     total_sub: "0.00",
     total_rental_sub: "0.00",
+    make: "",
+    model: "",
+    engine: "",
   };
   const [newVehicleData, setNewVehicleData] = useState(initialTotalValues);
   const [validationMode, setValidationMode] = useState(false);
@@ -345,7 +348,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
     "once_off_fees",
     "billing_overrides",
   ];
-  const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour"];
+  const defaultVehicleInfoFields = ["reg", "fleet_number", "vin", "colour", "make", "model", "engine"];
   const billingFields = [
     "consultancy",
     "roaming",
@@ -1338,6 +1341,28 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       const totals = calculateTotals(updated);
       return { ...updated, ...totals };
     });
+    if (field === "reg" && value?.trim().length >= 2) {
+      lookupVehicleDetails(value.trim());
+    }
+  };
+
+  const lookupVehicleDetails = async (reg) => {
+    try {
+      const res = await fetch(`/api/vehicles/get?cost_code=${encodeURIComponent(firstCostCode)}`);
+      if (!res.ok) return;
+      const vehicles = await res.json();
+      const match = vehicles.find((v) => v.reg?.toLowerCase() === reg.toLowerCase());
+      if (match) {
+        setNewVehicleData((prev) => ({
+          ...prev,
+          make: prev.make || match.make || "",
+          model: prev.model || match.model || "",
+          engine: prev.engine || match.engine || "",
+        }));
+      }
+    } catch {
+      // ignore lookup errors
+    }
   };
 
   const addVehicle = async () => {

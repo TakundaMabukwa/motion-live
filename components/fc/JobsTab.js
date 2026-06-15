@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Tabs, TabsContent, TabsList, TabsTrigger,
-} from "@/components/ui/tabs";
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -31,7 +31,6 @@ const JOB_TABS = [
   { id: "job-pool", label: "Job Pool" },
   { id: "not-completed", label: "Not Ready For Invoicing" },
   { id: "completed", label: "Ready For Invoicing" },
-  { id: "invoiced", label: "Invoiced" },
 ];
 
 const parseProducts = (val) => {
@@ -177,11 +176,9 @@ export default function JobsTab() {
   // Invoice modal
   const [showFinalInvoiceModal, setShowFinalInvoiceModal] = useState(false);
 
-  // Edit dialog 4-tab state
-  const [editDialogTab, setEditDialogTab] = useState("overview");
   const [formData, setFormData] = useState({
     vehicle_registration: "", order_number: "", vehicle_make: "", vehicle_model: "",
-    vehicle_year: "", vin_number: "", odormeter: "", ip_address: "", job_location: "",
+    vehicle_year: "", vin_number: "", odormeter: "", job_location: "",
     site_contact_person: "", site_contact_phone: "",
     quotation_subtotal: "0.00", quotation_vat_amount: "0.00", quotation_total_amount: "0.00",
     estimated_cost: "", actual_cost: "", work_notes: "", completion_notes: "",
@@ -405,7 +402,6 @@ export default function JobsTab() {
   const handleEditAndFinalize = useCallback((job) => {
     setEditingJob(job);
     setFinalizeError(null);
-    setEditDialogTab("overview");
     const products = parseProducts(job.quotation_products).map((p) => ({ ...p }));
     const prods = products.map((p) => {
       const qty = Math.max(1, Number(p.quantity) || 1);
@@ -421,7 +417,6 @@ export default function JobsTab() {
       vehicle_year: String(job.vehicle_year ?? ""),
       vin_number: String(job.vin_numer || ""),
       odormeter: String(job.odormeter || ""),
-      ip_address: String(job.ip_address || ""),
       job_location: String(job.job_location || ""),
       site_contact_person: String(job.site_contact_person || ""),
       site_contact_phone: String(job.site_contact_phone || ""),
@@ -438,6 +433,26 @@ export default function JobsTab() {
     });
     setShowEditDialog(true);
   }, []);
+
+  useEffect(() => {
+    if (!showEditDialog || !editingJob?.new_account_number) return;
+    const account = editingJob.new_account_number;
+    if (!formData.site_contact_person && !formData.site_contact_phone) {
+      fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(account)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          const cc = d.costCenters?.[0];
+          if (cc) {
+            setFormData((prev) => ({
+              ...prev,
+              site_contact_person: prev.site_contact_person || cc.contact_name || "",
+              site_contact_phone: prev.site_contact_phone || cc.contact_phone || "",
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [showEditDialog, editingJob?.new_account_number]);
 
   const updateFormField = useCallback((field, value) => {
     setFinalizeError(null);
@@ -881,259 +896,239 @@ export default function JobsTab() {
           </DialogHeader>
           {editingJob && (
             <div className="space-y-6">
-              <Tabs value={editDialogTab} onValueChange={(v) => setEditDialogTab(v)} className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="vehicle">Vehicle and Site</TabsTrigger>
-                  <TabsTrigger value="pricing">Pricing and Notes</TabsTrigger>
-                  <TabsTrigger value="finalize">Finalize</TabsTrigger>
-                </TabsList>
-
-                {/* ===== TAB 1: OVERVIEW ===== */}
-                <TabsContent value="overview" className="space-y-4">
-                  <Card>
-                    <CardHeader><CardTitle className="text-lg">Job Snapshot</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-                      <p><strong>Job Number:</strong> {editingJob.job_number || "N/A"}</p>
-                      <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
-                      <p><strong>Account:</strong> {editingJob.new_account_number || "N/A"}</p>
-                      <p><strong>Job Type:</strong> {editingJob.job_type || "N/A"}</p>
-                      <p><strong>Quote:</strong> {editingJob.quotation_number || "N/A"}</p>
-                      <p><strong>Quote Status:</strong> {editingJob.quote_status || "N/A"}</p>
-                      <p><strong>Current Total:</strong> {formatCurrency(formData.quotation_total_amount)}</p>
-                      <p><strong>Products:</strong> {editableProducts.length}</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader><CardTitle className="text-lg">Quotation Products</CardTitle></CardHeader>
-                    <CardContent>
-                      {editableProducts.length === 0 ? (
-                        <p className="text-sm text-gray-500">No quotation products available</p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[860px]">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Item</th>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Qty</th>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Purchase Type</th>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Subscription</th>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Install</th>
-                                <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                              {editableProducts.map((p, i) => (
-                                <tr key={p.id || i}>
-                                  <td className="px-3 py-2 text-sm text-gray-900">{p.name || p.description || `Item ${i + 1}`}</td>
-                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.quantity) || "N/A"}</td>
-                                  <td className="px-3 py-2 text-sm text-gray-700">{p.purchase_type || "N/A"}</td>
-                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.subscription_price) || "N/A"}</td>
-                                  <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.installation_price) || "N/A"}</td>
-                                  <td className="px-3 py-2 text-sm font-medium text-gray-900">{toStringSafe(p.total_price) || "N/A"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* ===== TAB 2: VEHICLE AND SITE ===== */}
-                <TabsContent value="vehicle" className="space-y-4">
-                  <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Car className="w-5 h-5" /> Vehicle and Site Information</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="vehicle_registration">Vehicle Registration *</Label>
-                        <Input id="vehicle_registration" value={formData.vehicle_registration} onChange={(e) => updateFormField("vehicle_registration", e.target.value)} />
+              <Card>
+                <CardHeader><CardTitle className="text-lg">Job Snapshot</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+                  <p><strong>Job Number:</strong> {editingJob.job_number || "N/A"}</p>
+                  <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
+                  <p><strong>Account:</strong> {editingJob.new_account_number || "N/A"}</p>
+                  <p><strong>Job Type:</strong> {editingJob.job_type || "N/A"}</p>
+                  <p><strong>Quote:</strong> {editingJob.quotation_number || "N/A"}</p>
+                  <p><strong>Quote Status:</strong> {editingJob.quote_status || "N/A"}</p>
+                  <p><strong>Current Total:</strong> {formatCurrency(formData.quotation_total_amount)}</p>
+                  <p><strong>Products:</strong> {editableProducts.length}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-lg">Quotation Products</CardTitle></CardHeader>
+                <CardContent>
+                  {editableProducts.length === 0 ? (
+                    <p className="text-sm text-gray-500">No quotation products available</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[860px]">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Item</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Qty</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Purchase Type</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Subscription</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Install</th>
+                            <th className="px-3 py-2 text-left text-xs uppercase text-gray-500">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {editableProducts.map((p, i) => (
+                            <tr key={p.id || i}>
+                              <td className="px-3 py-2 text-sm text-gray-900">{p.name || p.description || `Item ${i + 1}`}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.quantity) || "N/A"}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{p.purchase_type || "N/A"}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.subscription_price) || "N/A"}</td>
+                              <td className="px-3 py-2 text-sm text-gray-700">{toStringSafe(p.installation_price) || "N/A"}</td>
+                              <td className="px-3 py-2 text-sm font-medium text-gray-900">{toStringSafe(p.total_price) || "N/A"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Car className="w-5 h-5" /> Vehicle and Site Information</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle_registration">Vehicle Registration *</Label>
+                    <Input id="vehicle_registration" value={formData.vehicle_registration} onChange={(e) => updateFormField("vehicle_registration", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle_make">Vehicle Make</Label>
+                    <Input id="vehicle_make" value={formData.vehicle_make} onChange={(e) => updateFormField("vehicle_make", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle_model">Vehicle Model</Label>
+                    <Input id="vehicle_model" value={formData.vehicle_model} onChange={(e) => updateFormField("vehicle_model", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle_year">Vehicle Year</Label>
+                    <Input id="vehicle_year" type="number" value={formData.vehicle_year} onChange={(e) => updateFormField("vehicle_year", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vin_number">VIN Number</Label>
+                    <Input id="vin_number" value={formData.vin_number} onChange={(e) => updateFormField("vin_number", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="odormeter">Odometer</Label>
+                    <Input id="odormeter" value={formData.odormeter} onChange={(e) => updateFormField("odormeter", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="job_location">Job Location</Label>
+                    <Input id="job_location" value={formData.job_location} onChange={(e) => updateFormField("job_location", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="site_contact_person">Site Contact Person</Label>
+                    <Input id="site_contact_person" value={formData.site_contact_person} onChange={(e) => updateFormField("site_contact_person", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="site_contact_phone">Site Contact Phone</Label>
+                    <Input id="site_contact_phone" value={formData.site_contact_phone} onChange={(e) => updateFormField("site_contact_phone", e.target.value)} />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-lg">Pricing, Quote and Notes</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {editableProducts.length > 0 && (
+                    <div className="md:col-span-2 space-y-4 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+                      <div>
+                        <h4 className="font-medium text-gray-900">Quotation Items</h4>
+                        <p className="text-sm text-gray-600">Update the item pricing fields below. Totals above will roll up from all items automatically.</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="vehicle_make">Vehicle Make</Label>
-                        <Input id="vehicle_make" value={formData.vehicle_make} onChange={(e) => updateFormField("vehicle_make", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="vehicle_model">Vehicle Model</Label>
-                        <Input id="vehicle_model" value={formData.vehicle_model} onChange={(e) => updateFormField("vehicle_model", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="vehicle_year">Vehicle Year</Label>
-                        <Input id="vehicle_year" type="number" value={formData.vehicle_year} onChange={(e) => updateFormField("vehicle_year", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="vin_number">VIN Number</Label>
-                        <Input id="vin_number" value={formData.vin_number} onChange={(e) => updateFormField("vin_number", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="odormeter">Odometer</Label>
-                        <Input id="odormeter" value={formData.odormeter} onChange={(e) => updateFormField("odormeter", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="ip_address">IP Address</Label>
-                        <Input id="ip_address" value={formData.ip_address} onChange={(e) => updateFormField("ip_address", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="job_location">Job Location</Label>
-                        <Input id="job_location" value={formData.job_location} onChange={(e) => updateFormField("job_location", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="site_contact_person">Site Contact Person</Label>
-                        <Input id="site_contact_person" value={formData.site_contact_person} onChange={(e) => updateFormField("site_contact_person", e.target.value)} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="site_contact_phone">Site Contact Phone</Label>
-                        <Input id="site_contact_phone" value={formData.site_contact_phone} onChange={(e) => updateFormField("site_contact_phone", e.target.value)} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* ===== TAB 3: PRICING AND NOTES ===== */}
-                <TabsContent value="pricing" className="space-y-4">
-                  <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg">Pricing, Quote and Notes</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      {editableProducts.length > 0 && (
-                        <div className="md:col-span-2 space-y-4 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
-                          <div>
-                            <h4 className="font-medium text-gray-900">Quotation Items</h4>
-                            <p className="text-sm text-gray-600">Update the item pricing fields below. Totals above will roll up from all items automatically.</p>
-                          </div>
-                          <div className="space-y-4">
-                            {editableProducts.map((p, i) => {
-                              const activeField = getPreferredPriceField(p);
-                              return (
-                                <div key={p.id || i} className="rounded-lg border bg-white p-4">
-                                  <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                                    <div>
-                                      <p className="font-medium text-gray-900">{p.name || `Item ${i + 1}`}</p>
-                                      <p className="text-sm text-gray-600">{p.description || "No description"}</p>
-                                    </div>
-                                    <div className="text-sm text-gray-600">
-                                      <p><strong>Purchase Type:</strong> {p.purchase_type || "N/A"}</p>
-                                      <p><strong>Category:</strong> {p.category || "N/A"}</p>
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                                    <div className="space-y-2">
-                                      <Label>Quantity</Label>
-                                      <Input type="number" min="0" step="1" value={toStringSafe(p.quantity || 1)} onChange={(e) => handleProductFieldChange(i, "quantity", e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Active Price ({activeField.replace(/_/g, " ")})</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p[activeField] ?? "")} onChange={(e) => handleProductFieldChange(i, activeField, e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Total Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.total_price ?? "")} readOnly className="bg-gray-50" />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Subscription Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.subscription_price ?? "")} onChange={(e) => handleProductFieldChange(i, "subscription_price", e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Rental Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.rental_price ?? "")} onChange={(e) => handleProductFieldChange(i, "rental_price", e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Cash Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.cash_price ?? "")} onChange={(e) => handleProductFieldChange(i, "cash_price", e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Installation Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "installation_price", e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>De-installation Price</Label>
-                                      <Input type="number" min="0" step="0.01" value={toStringSafe(p.de_installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "de_installation_price", e.target.value)} />
-                                    </div>
-                                  </div>
+                      <div className="space-y-4">
+                        {editableProducts.map((p, i) => {
+                          const activeField = getPreferredPriceField(p);
+                          return (
+                            <div key={p.id || i} className="rounded-lg border bg-white p-4">
+                              <div className="mb-4 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                  <p className="font-medium text-gray-900">{p.name || `Item ${i + 1}`}</p>
+                                  <p className="text-sm text-gray-600">{p.description || "No description"}</p>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label htmlFor="quotation_subtotal">Quotation Subtotal</Label>
-                        <Input id="quotation_subtotal" type="number" step="0.01" value={formData.quotation_subtotal} onChange={(e) => handleSubtotalChange(e.target.value)} readOnly={editableProducts.length > 0} />
+                                <div className="text-sm text-gray-600">
+                                  <p><strong>Purchase Type:</strong> {p.purchase_type || "N/A"}</p>
+                                  <p><strong>Category:</strong> {p.category || "N/A"}</p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                                <div className="space-y-2">
+                                  <Label>Quantity</Label>
+                                  <Input type="number" min="0" step="1" value={toStringSafe(p.quantity || 1)} onChange={(e) => handleProductFieldChange(i, "quantity", e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Active Price ({activeField.replace(/_/g, " ")})</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p[activeField] ?? "")} onChange={(e) => handleProductFieldChange(i, activeField, e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Total Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.total_price ?? "")} readOnly className="bg-gray-50" />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Subscription Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.subscription_price ?? "")} onChange={(e) => handleProductFieldChange(i, "subscription_price", e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Rental Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.rental_price ?? "")} onChange={(e) => handleProductFieldChange(i, "rental_price", e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Cash Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.cash_price ?? "")} onChange={(e) => handleProductFieldChange(i, "cash_price", e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Installation Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "installation_price", e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>De-installation Price</Label>
+                                  <Input type="number" min="0" step="0.01" value={toStringSafe(p.de_installation_price ?? "")} onChange={(e) => handleProductFieldChange(i, "de_installation_price", e.target.value)} />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
-                        <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} readOnly />
-                      </div>
-                      <div className="md:col-span-2 space-y-2">
-                        <Label htmlFor="job_description">Job Description</Label>
-                        <Textarea id="job_description" value={formData.job_description} onChange={(e) => updateFormField("job_description", e.target.value)} rows={3} />
-                      </div>
-                      <div className="md:col-span-2 space-y-2">
-                        <Label htmlFor="work_notes">Work Notes</Label>
-                        <Textarea id="work_notes" value={formData.work_notes} onChange={(e) => updateFormField("work_notes", e.target.value)} rows={3} />
-                      </div>
-                      <div className="md:col-span-2 space-y-2">
-                        <Label htmlFor="completion_notes">Completion Notes</Label>
-                        <Textarea id="completion_notes" value={formData.completion_notes} onChange={(e) => updateFormField("completion_notes", e.target.value)} rows={3} />
-                      </div>
-                      <div className="md:col-span-2 space-y-2">
-                        <Label htmlFor="special_instructions">Special Instructions</Label>
-                        <Textarea id="special_instructions" value={formData.special_instructions} onChange={(e) => updateFormField("special_instructions", e.target.value)} rows={3} />
-                      </div>
-                      <div className="md:col-span-2 space-y-2">
-                        <Label htmlFor="customer_feedback">Customer Feedback</Label>
-                        <Textarea id="customer_feedback" value={formData.customer_feedback} onChange={(e) => updateFormField("customer_feedback", e.target.value)} rows={2} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* ===== TAB 4: FINALIZE ===== */}
-                <TabsContent value="finalize" className="space-y-4">
-                  <Card>
-                    <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-5 h-5 text-green-600" /> Finalize and Generate Invoice</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="order_number">Order Number</Label>
-                        <Input id="order_number" value={formData.order_number} onChange={(e) => updateFormField("order_number", e.target.value)} placeholder="Order number (Optional)" />
-                        <p className="text-sm text-gray-500">Optional. Leave blank if there is no order number yet.</p>
-                      </div>
-                      <div className="rounded-lg bg-blue-50 p-4">
-                        <h4 className="mb-2 font-medium text-blue-900">Final Review</h4>
-                        <div className="grid grid-cols-1 gap-1 text-sm text-blue-900 md:grid-cols-2">
-                          <p><strong>Job:</strong> {editingJob.job_number || editingJob.id}</p>
-                          <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
-                          <p><strong>Account Code:</strong> {editingJob.new_account_number || "N/A"}</p>
-                          <p><strong>Order Number:</strong> {formData.order_number || "Not set"}</p>
-                          <p><strong>Vehicle:</strong> {formData.vehicle_registration || "Not set"}</p>
-                          <p><strong>IP Address:</strong> {formData.ip_address || "Not set"}</p>
-                          <p><strong>Total:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : "Not set"}</p>
-                          <p><strong>Products:</strong> {editableProducts.length}</p>
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-900">
-                        <p>This will update the job card details and generate an invoice using the document sequence.</p>
-                      </div>
-                      {finalizeError && (
-                        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-                          <p className="font-medium">Error</p>
-                          <p>{finalizeError}</p>
-                        </div>
-                      )}
-                      <div className="flex justify-end gap-3">
-                        <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingJob(null); }} disabled={finalizing}>Cancel</Button>
-                        <Button onClick={handleFinalizeClick} disabled={finalizing} className="bg-green-600 hover:bg-green-700">
-                          {finalizing ? (
-                            <><div className="mr-2 w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Finalizing...</>
-                          ) : (
-                            <><CheckCircle2 className="mr-2 w-4 h-4" /> Finalize</>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="quotation_subtotal">Quotation Subtotal</Label>
+                    <Input id="quotation_subtotal" type="number" step="0.01" value={formData.quotation_subtotal} onChange={(e) => handleSubtotalChange(e.target.value)} readOnly={editableProducts.length > 0} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quotation_total_amount">Quotation Total *</Label>
+                    <Input id="quotation_total_amount" type="number" step="0.01" value={formData.quotation_total_amount} readOnly />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="job_description">Job Description</Label>
+                    <Textarea id="job_description" value={formData.job_description} onChange={(e) => updateFormField("job_description", e.target.value)} rows={3} />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="work_notes">Work Notes</Label>
+                    <Textarea id="work_notes" value={formData.work_notes} onChange={(e) => updateFormField("work_notes", e.target.value)} rows={3} />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="completion_notes">Completion Notes</Label>
+                    <Textarea id="completion_notes" value={formData.completion_notes} onChange={(e) => updateFormField("completion_notes", e.target.value)} rows={3} />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="special_instructions">Special Instructions</Label>
+                    <Textarea id="special_instructions" value={formData.special_instructions} onChange={(e) => updateFormField("special_instructions", e.target.value)} rows={3} />
+                  </div>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="customer_feedback">Customer Feedback</Label>
+                    <Textarea id="customer_feedback" value={formData.customer_feedback} onChange={(e) => updateFormField("customer_feedback", e.target.value)} rows={2} />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-5 h-5 text-green-600" /> Finalize and Invoice</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="order_number">Order Number</Label>
+                    <Input id="order_number" value={formData.order_number} onChange={(e) => updateFormField("order_number", e.target.value)} placeholder="Order number (Optional)" />
+                    <p className="text-sm text-gray-500">Optional. Leave blank if there is no order number yet.</p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 p-4">
+                    <h4 className="mb-2 font-medium text-blue-900">Final Review</h4>
+                    <div className="grid grid-cols-1 gap-1 text-sm text-blue-900 md:grid-cols-2">
+                      <p><strong>Job:</strong> {editingJob.job_number || editingJob.id}</p>
+                      <p><strong>Client:</strong> {editingJob.customer_name || "N/A"}</p>
+                      <p><strong>Account Code:</strong> {editingJob.new_account_number || "N/A"}</p>
+                      <p><strong>Order Number:</strong> {formData.order_number || "Not set"}</p>
+                      <p><strong>Vehicle:</strong> {formData.vehicle_registration || "Not set"}</p>
+                      <p><strong>Total:</strong> {formData.quotation_total_amount ? `R ${formData.quotation_total_amount}` : "Not set"}</p>
+                      <p><strong>Products:</strong> {editableProducts.length}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-900">
+                    <p>This will update the job card details and generate an invoice using the document sequence.</p>
+                  </div>
+                  {finalizeError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                      <p className="font-medium">Error</p>
+                      <p>{finalizeError}</p>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingJob(null); }} disabled={finalizing}>Cancel</Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button onClick={handleFinalizeClick} disabled={finalizing} className="bg-green-600 hover:bg-green-700">
+                            {finalizing ? (
+                              <><div className="mr-2 w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Finalizing...</>
+                            ) : (
+                              <><CheckCircle2 className="mr-2 w-4 h-4" /> Finalize and Invoice</>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Saves all job card changes and generates an invoice using the document sequence. The job will move to Invoiced status.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </DialogContent>
