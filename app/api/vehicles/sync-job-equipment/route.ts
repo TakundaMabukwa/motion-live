@@ -499,12 +499,10 @@ function buildVehicleUpdate(
           };
     }
     if (jobType === "repair") {
-      const update: Record<string, any> = {};
-      if (values.serial) update[serialField] = values.serial;
-      if (values.ip) update[ipField] = values.ip;
-      return Object.keys(update).length
-        ? { update, warning: null }
-        : { update: null, warning: null };
+      return {
+        update: { [serialField]: values.serial || null, [ipField]: values.ip || null },
+        warning: null,
+      };
     }
     return { update: { [serialField]: null, [ipField]: null }, warning: null };
   }
