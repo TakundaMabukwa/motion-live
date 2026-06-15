@@ -129,6 +129,7 @@ export default function FCSidebarLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [clientName, setClientName] = useState<string>("");
   const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" });
   const [loading, setLoading] = useState(true);
 
@@ -149,6 +150,10 @@ export default function FCSidebarLayout({
         if (cancelled) return;
         const centers = Array.isArray(data?.costCenters) ? data.costCenters : [];
         setCostCenters(centers);
+        // Set client name from first cost center's company (common for all)
+        if (centers.length > 0) {
+          setClientName(centers[0]?.company || centers[0]?.trading_name || centers[0]?.company_name || "Client");
+        }
       } catch {
         /* ignore */
       } finally {
@@ -193,7 +198,7 @@ export default function FCSidebarLayout({
             {sidebarOpen ? (
               <p className="text-sm font-bold text-white truncate">
                 {selectedCostCenter?.cost_code === "all"
-                  ? `${costCenters[0]?.trading_name || costCenters[0]?.company_name || costCenters[0]?.company || "Client"} - All Cost Centers`
+                  ? clientName
                   : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
               </p>
             ) : (
@@ -257,7 +262,9 @@ export default function FCSidebarLayout({
               <Menu className="h-4 w-4" />
             </button>
             <span className="text-sm font-medium text-gray-700 truncate">
-              {selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || ""}
+              {selectedCostCenter?.cost_code === "all"
+                ? clientName
+                : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || ""}
             </span>
           </div>
 
@@ -269,7 +276,7 @@ export default function FCSidebarLayout({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-gray-900 truncate">
                 {selectedCostCenter?.cost_code === "all"
-                  ? `${costCenters[0]?.trading_name || costCenters[0]?.company_name || costCenters[0]?.company || "Client"} - All Cost Centers`
+                  ? clientName
                   : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
               </p>
               <p className="text-[10px] text-gray-500 truncate">
