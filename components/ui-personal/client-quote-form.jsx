@@ -1664,7 +1664,7 @@ export default function ClientQuoteForm({
         odormeter: formData.odormeter || '',
         
         // Account information (for internal quotes)
-        new_account_number: accountInfo?.new_account_number || customer?.new_account_number || null,
+        new_account_number: accountInfo?.new_account_number || customer?.new_account_number || accountInfo?.cost_code || customer?.cost_code || null,
         cost_center_code:
           accountInfo?.cost_center_code ||
           customer?.cost_center_code ||
