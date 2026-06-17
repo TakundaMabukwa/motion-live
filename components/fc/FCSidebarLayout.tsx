@@ -153,9 +153,15 @@ export default function FCSidebarLayout({
         // Set client name from first cost center's company (common for all)
         if (centers.length > 0) {
           setClientName(centers[0]?.company || centers[0]?.trading_name || centers[0]?.company_name || "Client");
-          // If only one cost center, default to it instead of "All"
+          // If only one cost center in URL or one returned, default to it instead of "All"
+          const isSingleAccount = !accounts.includes(",");
           if (centers.length === 1) {
             setSelectedCostCenter(centers[0]);
+          } else if (isSingleAccount) {
+            const match = centers.find(
+              (c) => c.cost_code === accounts || c.cost_center_code === accounts
+            );
+            if (match) setSelectedCostCenter(match);
           }
         }
       } catch {
