@@ -1318,11 +1318,12 @@ export default function ClientQuoteForm({
     // Regular products: sum all applicable pricing tiers
     let total = 0;
     const recurringMultiplier = getRecurringMultiplier(product);
-    const isPurchase = product.purchaseType === 'purchase';
-    const isRental = product.purchaseType === 'rental';
+    const purchaseType = product.purchaseType || 'purchase';
+    const isPurchase = purchaseType === 'purchase';
+    const isRental = purchaseType === 'rental';
     
-    if (isPurchase) {
-      // Cash price calculation
+    // Cash price is included for purchase, labour, and service types
+    if (isPurchase || purchaseType === 'service') {
       const cashGross = calculateGrossAmount(product.cashPrice, product.cashDiscount);
       total += cashGross;
     } else if (isRental) {
