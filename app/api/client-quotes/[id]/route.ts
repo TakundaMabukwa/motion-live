@@ -220,6 +220,7 @@ export async function PUT(
         clientQuote.job_type || clientQuote.quotation_job_type,
       );
       const isCalibration = normalizedQuoteJobType.includes('calibration');
+      const isItemBilling = normalizedQuoteJobType.includes('item_billing');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
       const missingDeinstallAnnuityLabels = quotationProducts
         .map((line, index) => ({ line, index }))
@@ -326,7 +327,7 @@ export async function PUT(
           : { status: 'pending' };
       const approvalTimestamp = new Date().toISOString();
       const shouldRouteDecommission = isDecommissionJobCard && routingDestination !== 'none';
-      const shouldAutoCompleteToAccounts = isCalibration && !shouldRouteDecommission;
+      const shouldAutoCompleteToAccounts = (isCalibration || isItemBilling) && !shouldRouteDecommission;
       const shouldRouteToInventory = !shouldRouteDecommission && !shouldAutoCompleteToAccounts;
       const jobCardLifecycleFields = shouldAutoCompleteToAccounts
         ? {
@@ -508,7 +509,9 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         message: shouldAutoCompleteToAccounts
-          ? 'Calibration quote approved and moved to Accounts'
+          ? isCalibration
+            ? 'Calibration quote approved and moved to Accounts'
+            : 'Quote approved and completed'
           : shouldRouteToInventory
           ? 'Client quote approved and copied to job cards (role set to FC)'
           : 'Client quote approved and copied to job cards successfully',
