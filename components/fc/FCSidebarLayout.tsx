@@ -153,6 +153,10 @@ export default function FCSidebarLayout({
         // Set client name from first cost center's company (common for all)
         if (centers.length > 0) {
           setClientName(centers[0]?.company || centers[0]?.trading_name || centers[0]?.company_name || "Client");
+          // If only one cost center, default to it instead of "All"
+          if (centers.length === 1) {
+            setSelectedCostCenter(centers[0]);
+          }
         }
       } catch {
         /* ignore */
