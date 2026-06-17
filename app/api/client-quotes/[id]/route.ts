@@ -327,14 +327,24 @@ export async function PUT(
           : { status: 'pending' };
       const approvalTimestamp = new Date().toISOString();
       const shouldRouteDecommission = isDecommissionJobCard && routingDestination !== 'none';
-      const shouldAutoCompleteToAccounts = (isCalibration || isItemBilling) && !shouldRouteDecommission;
-      const shouldRouteToInventory = !shouldRouteDecommission && !shouldAutoCompleteToAccounts;
+      const shouldAutoCompleteToAccounts = isCalibration && !shouldRouteDecommission;
+      const shouldAutoCompleteItemBilling = isItemBilling && !shouldRouteDecommission;
+      const shouldRouteToInventory = !shouldRouteDecommission && !shouldAutoCompleteToAccounts && !shouldAutoCompleteItemBilling;
       const jobCardLifecycleFields = shouldAutoCompleteToAccounts
         ? {
             status: 'completed',
             job_status: 'Completed',
             role: 'accounts' as const,
             move_to: 'accounts' as const,
+            completion_date: approvalTimestamp,
+            end_time: approvalTimestamp,
+          }
+        : shouldAutoCompleteItemBilling
+        ? {
+            status: 'completed',
+            job_status: 'Completed',
+            role: 'fc' as const,
+            move_to: 'fc' as const,
             completion_date: approvalTimestamp,
             end_time: approvalTimestamp,
           }
@@ -509,9 +519,9 @@ export async function PUT(
       return NextResponse.json({
         success: true,
         message: shouldAutoCompleteToAccounts
-          ? isCalibration
             ? 'Calibration quote approved and moved to Accounts'
-            : 'Quote approved and completed'
+          : shouldAutoCompleteItemBilling
+          ? 'Item billing quote approved and completed'
           : shouldRouteToInventory
           ? 'Client quote approved and copied to job cards (role set to FC)'
           : 'Client quote approved and copied to job cards successfully',
