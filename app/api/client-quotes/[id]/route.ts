@@ -220,7 +220,7 @@ export async function PUT(
         clientQuote.job_type || clientQuote.quotation_job_type,
       );
       const isCalibration = normalizedQuoteJobType.includes('calibration');
-      const isItemBilling = normalizedQuoteJobType.includes('item_billing');
+      const isItemBilling = normalizedQuoteJobType.includes('itembilling');
       const quotationProducts = parseQuoteLineItems(clientQuote.quotation_products);
       const missingDeinstallAnnuityLabels = quotationProducts
         .map((line, index) => ({ line, index }))
