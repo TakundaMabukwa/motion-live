@@ -8,9 +8,10 @@ import { Loader2, FileText, Clock, DollarSign, Plus, RefreshCw } from "lucide-re
 import ClientJobCards from "@/components/ui-personal/client-job-cards";
 import ClientQuoteForm from "@/components/ui-personal/client-quote-form";
 import CreateBOIModal from "@/components/fc/CreateBOIModal";
+import { toast } from "sonner";
 
 export default function FCQuotesPage() {
-  const { selectedCostCenter, accounts } = useFCSidebar();
+  const { selectedCostCenter, accounts, setHighlightDropdown } = useFCSidebar();
   const isAll = selectedCostCenter?.cost_code === "all";
   const accountNumber = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
   const firstAccount = accounts?.split(",")[0]?.trim() || "";
@@ -77,7 +78,14 @@ export default function FCQuotesPage() {
         actions={
           <div className="flex items-center gap-1.5">
             <CreateBOIModal />
-            <Button onClick={() => setShowQuoteForm(true)} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => {
+              if (isAll) {
+                toast.error("Please select a cost center", { description: "Choose a specific cost center from the sidebar to create a quote." });
+                setHighlightDropdown(true);
+                return;
+              }
+              setShowQuoteForm(true);
+            }} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
               <Plus className="h-3 w-3 mr-1" />New Quote
             </Button>
             <Button variant="outline" size="sm" onClick={() => setRefreshKey((p) => p + 1)} className="h-7 text-xs">

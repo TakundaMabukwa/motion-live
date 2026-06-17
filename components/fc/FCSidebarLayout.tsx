@@ -30,6 +30,8 @@ interface FCSidebarContextValue {
   selectedCostCenter: CostCenter | null;
   setSelectedCostCenter: (cc: CostCenter) => void;
   loading: boolean;
+  highlightDropdown: boolean;
+  setHighlightDropdown: (v: boolean) => void;
 }
 
 const FCSidebarContext = createContext<FCSidebarContextValue>({
@@ -39,6 +41,8 @@ const FCSidebarContext = createContext<FCSidebarContextValue>({
   selectedCostCenter: null,
   setSelectedCostCenter: () => {},
   loading: true,
+  highlightDropdown: false,
+  setHighlightDropdown: () => {},
 });
 
 export const useFCSidebar = () => useContext(FCSidebarContext);
@@ -56,12 +60,18 @@ function CostCenterDropdown({
   costCenters,
   selected,
   onSelect,
+  highlight,
 }: {
   costCenters: CostCenter[];
   selected: CostCenter | null;
   onSelect: (cc: CostCenter) => void;
+  highlight?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (highlight) setOpen(true);
+  }, [highlight]);
 
   const displayName = selected?.cost_code === "all"
     ? "All"
@@ -74,7 +84,7 @@ function CostCenterDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded text-white text-sm transition-colors ${
-          open ? "bg-blue-500 ring-2 ring-blue-300" : "bg-white/10 hover:bg-white/20"
+          open ? "bg-blue-500 ring-2 ring-blue-300" : highlight ? "bg-blue-500 animate-pulse ring-2 ring-yellow-300" : "bg-white/10 hover:bg-white/20"
         }`}
       >
         <span className="truncate">{displayName}</span>
@@ -131,6 +141,7 @@ export default function FCSidebarLayout({
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [clientName, setClientName] = useState<string>("");
   const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" });
+  const [highlightDropdown, setHighlightDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const accountsArray = accounts ? accounts.split(",").filter(Boolean) : [];
@@ -177,6 +188,7 @@ export default function FCSidebarLayout({
 
   const handleCostCenterSelect = useCallback((cc: CostCenter) => {
     setSelectedCostCenter(cc);
+    setHighlightDropdown(false);
   }, []);
 
   const isActive = (href: string) => {
@@ -189,7 +201,7 @@ export default function FCSidebarLayout({
 
   return (
     <FCSidebarContext.Provider
-      value={{ accounts, accountsArray, costCenters, selectedCostCenter, setSelectedCostCenter: handleCostCenterSelect, loading }}
+      value={{ accounts, accountsArray, costCenters, selectedCostCenter, setSelectedCostCenter: handleCostCenterSelect, loading, highlightDropdown, setHighlightDropdown }}
     >
       <div className="flex h-[100dvh] overflow-hidden">
         {/* Mobile overlay */}
@@ -248,6 +260,7 @@ export default function FCSidebarLayout({
                 costCenters={costCenters}
                 selected={selectedCostCenter}
                 onSelect={handleCostCenterSelect}
+                highlight={highlightDropdown}
               />
             </div>
           )}
