@@ -115,6 +115,7 @@ export default function FCJobsPage() {
               key={refreshKey}
               accountNumber={accountNumber}
               strictAccount={!isAll && !!accountNumber}
+              displayLabel={isAll ? "All Cost Centers" : (selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company)}
               onDataLoaded={handleDataLoaded}
             />
           </div>

@@ -49,6 +49,7 @@ export default function CustomerJobCards({
   title,
   emptyTitle,
   emptyDescription,
+  displayLabel,
   onDataLoaded,
 }) {
   const router = useRouter();
@@ -315,8 +316,8 @@ export default function CustomerJobCards({
 
   const effectiveTitle = title || (
     notesOnly
-      ? (accountNumber ? `Jobs from Ria for ${accountNumber}` : 'Jobs from Ria')
-      : (accountNumber ? `Job Cards for ${accountNumber}` : 'All Job Cards')
+      ? (accountNumber ? `Jobs from Ria for ${displayLabel || accountNumber}` : 'Jobs from Ria')
+      : (accountNumber ? `Job Cards for ${displayLabel || accountNumber}` : 'All Job Cards')
   );
 
   const effectiveEmptyTitle = emptyTitle || (
@@ -328,8 +329,8 @@ export default function CustomerJobCards({
       ? (
           accountNumber
             ? (searchTerm
-                ? `No note-returned jobs for ${accountNumber} match your search criteria.`
-                : `No jobs with FC notes were returned for ${accountNumber} yet.`)
+                ? `No note-returned jobs for ${displayLabel || accountNumber} match your search criteria.`
+                : `No jobs with FC notes were returned for ${displayLabel || accountNumber} yet.`)
             : (searchTerm
                 ? 'No note-returned jobs match your search criteria.'
                 : 'No jobs with FC notes were returned yet.')
@@ -337,8 +338,8 @@ export default function CustomerJobCards({
       : (
           accountNumber
             ? (searchTerm
-                ? `No job cards for ${accountNumber} match your search criteria.`
-                : `No job cards have been created for ${accountNumber} yet.`)
+                ? `No job cards for ${displayLabel || accountNumber} match your search criteria.`
+                : `No job cards have been created for ${displayLabel || accountNumber} yet.`)
             : (searchTerm
                 ? 'No job cards match your search criteria.'
                 : 'No job cards have been created yet.')
@@ -381,7 +382,7 @@ export default function CustomerJobCards({
           <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
           <Input
             placeholder={accountNumber ? 
-              `Search jobs for ${accountNumber} by job number, customer, quote, reg, type, address, or note...` : 
+              `Search jobs for ${displayLabel || accountNumber} by job number, customer, quote, reg, type, address, or note...` : 
               "Search all jobs by job number, customer, quote, reg, type, address, or note..."
             }
             value={searchTerm}
@@ -413,7 +414,7 @@ export default function CustomerJobCards({
       <div className="flex justify-between items-center text-gray-600 text-sm">
         <span>
           {accountNumber ? 
-            `Showing ${filteredJobCards.length} of ${searchBaseJobs.length} ${notesOnly ? 'jobs with FC notes' : 'job cards'} for ${accountNumber}` :
+            `Showing ${filteredJobCards.length} of ${searchBaseJobs.length} ${notesOnly ? 'jobs with FC notes' : 'job cards'} for ${displayLabel || accountNumber}` :
             `Showing ${filteredJobCards.length} of ${searchBaseJobs.length} ${notesOnly ? 'jobs with FC notes' : 'job cards'}`
           }
           {searchTerm && !searchTerm.startsWith('status:') && (

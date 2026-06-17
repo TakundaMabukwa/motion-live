@@ -614,7 +614,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
         <div className="flex-1">
           <Input
             type="text"
-            placeholder={accountNumber ? `Search quotes for account ${accountNumber} by quote number, customer, type, or vehicle reg...` : "Search quotes by quote number, customer, account, type, or vehicle reg..."}
+            placeholder={accountNumber ? `Search quotes for ${companyName || accountNumber} by quote number, customer, type, or vehicle reg...` : "Search quotes by quote number, customer, account, type, or vehicle reg..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full"
@@ -662,7 +662,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
         <span>
           Showing {filteredClientQuotes.length} of {clientQuotes.length} client quotes
           {accountNumber && (
-            <span className="ml-2">for account {accountNumber}</span>
+            <span className="ml-2">for {companyName || accountNumber}</span>
           )}
           {searchTerm && (
             <span className="ml-2">filtered by "{searchTerm}"</span>
@@ -821,7 +821,7 @@ export default function ClientJobCards({ onQuoteCreated, onDataLoaded, accountNu
                 {searchTerm || selectedFilter !== "all" 
                   ? "Try adjusting your search or filter criteria."
                   : accountNumber 
-                    ? `No client quotes have been created for account ${accountNumber} yet.`
+                    ? `No client quotes have been created for ${companyName || accountNumber} yet.`
                     : "No client quotes have been created yet."
                 }
               </p>

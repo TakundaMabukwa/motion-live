@@ -98,7 +98,7 @@ export default function FCQuotesPage() {
         <ClientJobCards
           key={refreshKey}
           accountNumber={accountNumber}
-          companyName={selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company}
+          companyName={isAll ? "All Cost Centers" : (selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company)}
           strictAccount={!isAll && !!accountNumber}
           onDataLoaded={handleDataLoaded}
           onQuoteCreated={() => { setShowQuoteForm(false); setRefreshKey((p) => p + 1); }}
