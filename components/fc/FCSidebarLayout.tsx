@@ -199,7 +199,7 @@ export default function FCSidebarLayout({
               <p className="text-sm font-bold text-white truncate">
                 {selectedCostCenter?.cost_code === "all"
                   ? clientName
-                  : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
+                  : selectedCostCenter?.company || selectedCostCenter?.trading_name || selectedCostCenter?.company_name || "Client"}
               </p>
             ) : (
               <div className="w-7 h-7 rounded bg-white/20 flex items-center justify-center mx-auto">
@@ -264,7 +264,7 @@ export default function FCSidebarLayout({
             <span className="text-sm font-medium text-gray-700 truncate">
               {selectedCostCenter?.cost_code === "all"
                 ? clientName
-                : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || ""}
+                : selectedCostCenter?.company || selectedCostCenter?.trading_name || selectedCostCenter?.company_name || ""}
             </span>
           </div>
 
@@ -277,7 +277,7 @@ export default function FCSidebarLayout({
               <p className="text-sm font-bold text-gray-900 truncate">
                 {selectedCostCenter?.cost_code === "all"
                   ? clientName
-                  : selectedCostCenter?.trading_name || selectedCostCenter?.company_name || selectedCostCenter?.company || "Client"}
+                  : selectedCostCenter?.company || selectedCostCenter?.trading_name || selectedCostCenter?.company_name || "Client"}
               </p>
               <p className="text-[10px] text-gray-500 truncate">
                 {selectedCostCenter?.cost_code === "all"
