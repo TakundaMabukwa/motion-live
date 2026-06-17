@@ -2264,39 +2264,41 @@ export default function ClientQuoteForm({
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Vehicle Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle_registration">Vehicle Registration</Label>
-                    <Input
-                      id="vehicle_registration"
-                      value={formData.vehicle_registration}
-                      onChange={(e) => setFormData({ ...formData, vehicle_registration: e.target.value })}
-                    />
+            {formData.jobType !== "item_billing" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Vehicle Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicle_registration">Vehicle Registration</Label>
+                      <Input
+                        id="vehicle_registration"
+                        value={formData.vehicle_registration}
+                        onChange={(e) => setFormData({ ...formData, vehicle_registration: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicle_make">Vehicle Make</Label>
+                      <Input
+                        id="vehicle_make"
+                        value={formData.vehicle_make}
+                        onChange={(e) => setFormData({ ...formData, vehicle_make: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicle_model">Vehicle Model</Label>
+                      <Input
+                        id="vehicle_model"
+                        value={formData.vehicle_model}
+                        onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle_make">Vehicle Make</Label>
-                    <Input
-                      id="vehicle_make"
-                      value={formData.vehicle_make}
-                      onChange={(e) => setFormData({ ...formData, vehicle_make: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="vehicle_model">Vehicle Model</Label>
-                    <Input
-                      id="vehicle_model"
-                      value={formData.vehicle_model}
-                      onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </div>
         );
       case 2:
