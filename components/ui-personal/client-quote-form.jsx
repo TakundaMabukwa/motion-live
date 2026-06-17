@@ -2871,7 +2871,135 @@ export default function ClientQuoteForm({
                           </div>
                         )}
 
-                        {/* Pricing removed - handled separately */}
+                        {(formData.jobType === 'install' || formData.jobType === 'deinstall') && !product.isLabour && (
+                          <div className="mt-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                            <p className="mb-2 font-medium text-gray-700 text-xs">Pricing</p>
+                            <div className="gap-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Cash Price</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={product.cashPrice || ""}
+                                  onChange={(e) => updateProduct(index, "cashPrice", parseFloat(e.target.value) || 0)}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Cash Discount</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={product.cashDiscount || ""}
+                                  onChange={(e) => updateProduct(index, "cashDiscount", parseFloat(e.target.value) || 0)}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                              {formData.purchaseType === 'rental' && (
+                                <>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Rental Price</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.rentalPrice || ""}
+                                      onChange={(e) => updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Rental Discount</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.rentalDiscount || ""}
+                                      onChange={(e) => updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                              {formData.jobType === 'install' && (
+                                <>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Installation Price</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.installationPrice || ""}
+                                      onChange={(e) => updateProduct(index, "installationPrice", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">Installation Discount</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.installationDiscount || ""}
+                                      onChange={(e) => updateProduct(index, "installationDiscount", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                              {formData.jobType === 'deinstall' && (
+                                <>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">De-installation Price</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.deInstallationPrice || ""}
+                                      onChange={(e) => updateProduct(index, "deInstallationPrice", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px]">De-installation Discount</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={product.deInstallationDiscount || ""}
+                                      onChange={(e) => updateProduct(index, "deInstallationDiscount", parseFloat(e.target.value) || 0)}
+                                      className="h-7 text-xs"
+                                    />
+                                  </div>
+                                </>
+                              )}
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Subscription Price</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={product.subscriptionPrice || ""}
+                                  onChange={(e) => updateProduct(index, "subscriptionPrice", parseFloat(e.target.value) || 0)}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px]">Subscription Discount</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={product.subscriptionDiscount || ""}
+                                  onChange={(e) => updateProduct(index, "subscriptionDiscount", parseFloat(e.target.value) || 0)}
+                                  className="h-7 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
