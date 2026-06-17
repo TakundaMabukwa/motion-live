@@ -2871,137 +2871,248 @@ export default function ClientQuoteForm({
                           </div>
                         )}
 
-                        {(formData.jobType === 'install' || formData.jobType === 'deinstall') && !product.isLabour && (
-                          <div className="mt-4 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                            <p className="mb-2 font-medium text-gray-700 text-xs">Pricing</p>
-                            <div className="gap-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                        {/* Pricing Grid */}
+                        <div className="space-y-4">
+                          <div className="gap-4 grid grid-cols-4 pb-2 border-b font-medium text-gray-700 text-sm">
+                            {product.isLabour ? (
+                              <>
+                                <div>Labour Cost ex VAT (Once Off)</div>
+                                <div>Discount</div>
+                                <div>Gross ex VAT</div>
+                                <div>Total (Once Off)</div>
+                              </>
+                            ) : (
+                              <>
+                                <div>Base Price</div>
+                                <div>Discount</div>
+                                <div>Gross Price</div>
+                                <div>Total Price</div>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Cash Row / Labour Cost Row */}
+                          <div className="items-center gap-4 grid grid-cols-4">
                               <div className="space-y-1">
-                                <Label className="text-[10px]">Cash Price</Label>
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Labour Cost ex VAT' : 'Cash ex VAT'}</Label>
                                 <Input
                                   type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={product.cashPrice || ""}
-                                  onChange={(e) => updateProduct(index, "cashPrice", parseFloat(e.target.value) || 0)}
-                                  className="h-7 text-xs"
+                                  value={product.cashPrice}
+                                  onChange={(e) =>
+                                    updateProduct(index, "cashPrice", parseFloat(e.target.value) || 0)
+                                  }
+                                  className="bg-gray-50"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px]">Cash Discount</Label>
+                                <Label className="text-gray-600 text-xs">Discount</Label>
                                 <Input
                                   type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={product.cashDiscount || ""}
-                                  onChange={(e) => updateProduct(index, "cashDiscount", parseFloat(e.target.value) || 0)}
-                                  className="h-7 text-xs"
-                                />
-                              </div>
-                              {formData.purchaseType === 'rental' && (
-                                <>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">Rental Price</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.rentalPrice || ""}
-                                      onChange={(e) => updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">Rental Discount</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.rentalDiscount || ""}
-                                      onChange={(e) => updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                </>
-                              )}
-                              {formData.jobType === 'install' && (
-                                <>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">Installation Price</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.installationPrice || ""}
-                                      onChange={(e) => updateProduct(index, "installationPrice", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">Installation Discount</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.installationDiscount || ""}
-                                      onChange={(e) => updateProduct(index, "installationDiscount", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                </>
-                              )}
-                              {formData.jobType === 'deinstall' && (
-                                <>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">De-installation Price</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.deInstallationPrice || ""}
-                                      onChange={(e) => updateProduct(index, "deInstallationPrice", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-[10px]">De-installation Discount</Label>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={product.deInstallationDiscount || ""}
-                                      onChange={(e) => updateProduct(index, "deInstallationDiscount", parseFloat(e.target.value) || 0)}
-                                      className="h-7 text-xs"
-                                    />
-                                  </div>
-                                </>
-                              )}
-                              <div className="space-y-1">
-                                <Label className="text-[10px]">Subscription Price</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={product.subscriptionPrice || ""}
-                                  onChange={(e) => updateProduct(index, "subscriptionPrice", parseFloat(e.target.value) || 0)}
-                                  className="h-7 text-xs"
+                                  value={product.cashDiscount}
+                                  onChange={(e) =>
+                                    updateProduct(index, "cashDiscount", parseFloat(e.target.value) || 0)
+                                  }
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px]">Subscription Discount</Label>
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Gross ex VAT' : 'Gross Cash ex VAT'}</Label>
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={product.subscriptionDiscount || ""}
-                                  onChange={(e) => updateProduct(index, "subscriptionDiscount", parseFloat(e.target.value) || 0)}
-                                  className="h-7 text-xs"
+                                  value={calculateGrossAmount(product.cashPrice, product.cashDiscount).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">{product.isLabour ? 'Total (Once Off)' : 'Total Cash ex VAT'}</Label>
+                                <Input
+                                  value={(calculateGrossAmount(product.cashPrice, product.cashDiscount) * product.quantity).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
                                 />
                               </div>
                             </div>
+
+                          {/* Rental Row */}
+                          {!product.isLabour && (
+                            <div className="items-center gap-4 grid grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Rental/Month ex VAT</Label>
+                                <Input
+                                  type="number"
+                                  value={product.rentalPrice}
+                                  onChange={(e) =>
+                                    updateProduct(index, "rentalPrice", parseFloat(e.target.value) || 0)
+                                  }
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Rental Discount</Label>
+                                <Input
+                                  type="number"
+                                  value={product.rentalDiscount}
+                                  onChange={(e) =>
+                                    updateProduct(index, "rentalDiscount", parseFloat(e.target.value) || 0)
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Gross Rental/Month ex VAT</Label>
+                                <Input
+                                  value={calculateGrossAmount(product.rentalPrice, product.rentalDiscount).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Total Rental/Month ex VAT</Label>
+                                <Input
+                                  value={(
+                                    calculateGrossAmount(
+                                      product.rentalPrice,
+                                      product.rentalDiscount,
+                                    ) *
+                                    product.quantity *
+                                    getRecurringMultiplier(product)
+                                  ).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Installation Row */}
+                          {!product.isLabour && (
+                            <div className="items-center gap-4 grid grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Once Off Installation' : 'Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice}
+                                  onChange={(e) => {
+                                    const field = formData.jobType === 'install' ? 'installationPrice' : 'deInstallationPrice';
+                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
+                                  }}
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Installation Discount' : 'De-installation Discount'}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  value={formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)}
+                                  onChange={(e) => {
+                                    const field = formData.jobType === 'install' ? 'installationDiscount' : 'deInstallationDiscount';
+                                    updateProduct(index, field, parseFloat(e.target.value) || 0);
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Gross Once Off Installation' : 'Gross Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  value={calculateGrossAmount(
+                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
+                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
+                                  ).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">
+                                  {formData.jobType === 'install' ? 'Total Once Off Installation' : 'Total Once Off De-installation'}
+                                </Label>
+                                <Input
+                                  value={(calculateGrossAmount(
+                                    formData.jobType === 'install' ? product.installationPrice : product.deInstallationPrice,
+                                    formData.jobType === 'install' ? (product.installationDiscount || 0) : (product.deInstallationDiscount || 0)
+                                  ) * product.quantity).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Subscription Row */}
+                          {!product.isLabour && (
+                            <div className="items-center gap-4 grid grid-cols-4">
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Monthly Subscription</Label>
+                                <Input
+                                  type="number"
+                                  value={product.subscriptionPrice}
+                                  onChange={(e) =>
+                                    updateProduct(index, "subscriptionPrice", parseFloat(e.target.value) || 0)
+                                  }
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Subscription Discount</Label>
+                                <Input
+                                  type="number"
+                                  value={product.subscriptionDiscount || 0}
+                                  onChange={(e) =>
+                                    updateProduct(index, "subscriptionDiscount", parseFloat(e.target.value) || 0)
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Gross Monthly Subscription</Label>
+                                <Input
+                                  value={calculateGrossAmount(product.subscriptionPrice, product.subscriptionDiscount || 0).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-gray-600 text-xs">Total Monthly Subscription</Label>
+                                <Input
+                                  value={(
+                                    calculateGrossAmount(
+                                      product.subscriptionPrice,
+                                      product.subscriptionDiscount || 0,
+                                    ) *
+                                    product.quantity *
+                                    getRecurringMultiplier(product)
+                                  ).toFixed(2)}
+                                  readOnly
+                                  className="bg-gray-50"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Product Total */}
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">Product Total:</span>
+                            <span className="font-bold text-lg">
+                              R {getProductTotal(product).toFixed(2)}
+                            </span>
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
+
+                    {/* Total Quote Amount */}
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-blue-800">Total Quote Amount:</span>
+                        <span className="font-bold text-2xl text-blue-800">
+                          R {getTotalQuoteAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
