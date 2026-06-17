@@ -13,6 +13,7 @@ export default function FCQuotesPage() {
   const { selectedCostCenter, accounts } = useFCSidebar();
   const isAll = selectedCostCenter?.cost_code === "all";
   const accountNumber = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
+  const firstAccount = accounts?.split(",")[0]?.trim() || "";
 
   const [stats, setStats] = useState({ total: 0, pending: 0, draft: 0, totalValue: 0 });
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -114,7 +115,7 @@ export default function FCQuotesPage() {
             <ClientQuoteForm
               customer={selectedCostCenter}
               vehicles={[]}
-              accountInfo={selectedCostCenter}
+              accountInfo={isAll ? { ...selectedCostCenter, cost_code: firstAccount, cost_center_code: firstAccount } : selectedCostCenter}
               onQuoteCreated={() => { setShowQuoteForm(false); setRefreshKey((p) => p + 1); }}
             />
           </div>
