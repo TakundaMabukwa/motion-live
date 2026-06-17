@@ -153,15 +153,15 @@ export default function FCSidebarLayout({
         // Set client name from first cost center's company (common for all)
         if (centers.length > 0) {
           setClientName(centers[0]?.company || centers[0]?.trading_name || centers[0]?.company_name || "Client");
-          // If only one cost center in URL or one returned, default to it instead of "All"
-          const isSingleAccount = !accounts.includes(",");
-          if (centers.length === 1) {
-            setSelectedCostCenter(centers[0]);
-          } else if (isSingleAccount) {
+          // If there's effectively only one unique account, default to that cost center
+          const uniqueAccounts = [...new Set(accountsArray)];
+          if (uniqueAccounts.length === 1) {
             const match = centers.find(
-              (c) => c.cost_code === accounts || c.cost_center_code === accounts
+              (c) => c.cost_code === uniqueAccounts[0] || c.cost_center_code === uniqueAccounts[0]
             );
             if (match) setSelectedCostCenter(match);
+          } else if (centers.length === 1) {
+            setSelectedCostCenter(centers[0]);
           }
         }
       } catch {
