@@ -199,7 +199,14 @@ export async function GET(request: NextRequest) {
       let query = supabase.from('job_cards').select(fields).order('created_at', { ascending: false });
 
       if (accountNumber) {
-        query = query.eq('new_account_number', accountNumber);
+        if (accountNumber.includes(',')) {
+          const accountNumbers = [...new Set(
+            accountNumber.split(',').map(a => a.trim()).filter(Boolean)
+          )];
+          query = query.in('new_account_number', accountNumbers);
+        } else {
+          query = query.eq('new_account_number', accountNumber);
+        }
       }
 
       if (escalationRole) {
@@ -237,7 +244,14 @@ export async function GET(request: NextRequest) {
       let countQuery = supabase.from('job_cards').select('id', { count: 'exact', head: true });
 
       if (accountNumber) {
-        countQuery = countQuery.eq('new_account_number', accountNumber);
+        if (accountNumber.includes(',')) {
+          const accountNumbers = [...new Set(
+            accountNumber.split(',').map(a => a.trim()).filter(Boolean)
+          )];
+          countQuery = countQuery.in('new_account_number', accountNumbers);
+        } else {
+          countQuery = countQuery.eq('new_account_number', accountNumber);
+        }
       }
 
       if (escalationRole) {
