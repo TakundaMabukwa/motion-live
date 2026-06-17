@@ -2355,19 +2355,38 @@ export default function ClientQuoteForm({
                   <CardTitle>Item Being Billed</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="itemBeingBilled">Item Being Billed *</Label>
-                    <Input
-                      id="itemBeingBilled"
-                      placeholder="Enter the item being billed"
-                      value={itemBillingQuote.item}
-                      onChange={(e) =>
-                        setItemBillingQuote((prev) => ({
-                          ...prev,
-                          item: e.target.value,
-                        }))
-                      }
-                    />
+                  <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="itemBeingBilled">Item Being Billed *</Label>
+                      <Input
+                        id="itemBeingBilled"
+                        placeholder="Enter the item being billed"
+                        value={itemBillingQuote.item}
+                        onChange={(e) =>
+                          setItemBillingQuote((prev) => ({
+                            ...prev,
+                            item: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="itemBillingAmount">Amount *</Label>
+                      <Input
+                        id="itemBillingAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Enter amount"
+                        value={itemBillingQuote.amount}
+                        onChange={(e) =>
+                          setItemBillingQuote((prev) => ({
+                            ...prev,
+                            amount: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
