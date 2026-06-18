@@ -77,9 +77,19 @@ function AccountsDashboardContent() {
   const getInitialTab = () => {
     if (typeof window === "undefined") return "global";
     const stored = normalizeFcTab(window.localStorage.getItem("fc_active_tab"));
+    const day = new Date().getDate();
+    if (stored === "annuity-billing" && (day < 20 || day > 27)) return "global";
     return stored || "global";
   };
   const [activeTab, setActiveTab] = useState(getInitialTab);
+
+  // Redirect away from annuity-billing when outside allowed days
+  const annuityDay = new Date().getDate();
+  useEffect(() => {
+    if (activeTab === "annuity-billing" && (annuityDay < 20 || annuityDay > 27)) {
+      setActiveTabWithPersistence("global");
+    }
+  }, []);
   const lastCompaniesRefreshRef = useRef(0);
 
   
@@ -855,7 +865,9 @@ function AccountsDashboardContent() {
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'jobs', label: 'Jobs', icon: Briefcase, type: 'tab' },
-            { id: 'annuity-billing', label: 'Annuity Billing', icon: FileText, type: 'tab' },
+            ...(new Date().getDate() >= 20 && new Date().getDate() <= 27
+              ? [{ id: 'annuity-billing', label: 'Annuity Billing', icon: FileText, type: 'tab' }]
+              : []),
             { id: 'quotes', label: 'Quotes', icon: Receipt, type: 'tab' }
           ].map((navItem) => {
             const Icon = navItem.icon;
