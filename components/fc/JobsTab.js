@@ -167,6 +167,7 @@ export default function JobsTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [jobTab, setJobTab] = useState("job-pool");
+  const [showAllJobs, setShowAllJobs] = useState(true);
   // Edit & Finalize dialog
   const [editingJob, setEditingJob] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -213,11 +214,12 @@ export default function JobsTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchJobs = useCallback(async (search = "") => {
+  const fetchJobs = useCallback(async (search = "", all = true) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      if (!all) params.set("allJobs", "false");
       const response = await fetch(`/api/fc/jobs?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch jobs");
       const data = await response.json();
@@ -230,7 +232,7 @@ export default function JobsTab() {
     }
   }, []);
 
-  useEffect(() => { fetchJobs(debouncedSearch); }, [debouncedSearch, fetchJobs]);
+  useEffect(() => { fetchJobs(debouncedSearch, showAllJobs); }, [debouncedSearch, showAllJobs, fetchJobs]);
 
   // Load FC users and cost centers for invoiced tab
   useEffect(() => {
@@ -312,7 +314,7 @@ export default function JobsTab() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchJobs(debouncedSearch);
+    await fetchJobs(debouncedSearch, showAllJobs);
   };
 
   const handleMoveJob = useCallback(async (job, destination) => {
@@ -336,14 +338,14 @@ export default function JobsTab() {
       }
       toast.dismiss(loadingToast);
       toast.success(`Job moved to ${destLabel}`);
-      await fetchJobs(debouncedSearch);
+      await fetchJobs(debouncedSearch, showAllJobs);
     } catch (error) {
       toast.dismiss(loadingToast);
       toast.error(error.message || `Failed to move job to ${destLabel}`);
     } finally {
       setMovingJobId(null);
     }
-  }, [fetchJobs, debouncedSearch]);
+  }, [fetchJobs, debouncedSearch, showAllJobs]);
 
   const getJobStatus = useCallback((job) => {
     const s = String(job.status || "").toLowerCase().trim();
@@ -542,7 +544,7 @@ export default function JobsTab() {
     setEditingJob(null);
     setShowFinalInvoiceModal(false);
     handleRefresh();
-  }, []);
+  }, [handleRefresh]);
 
   return (
     <div className="min-w-0 w-full space-y-4">
@@ -652,6 +654,14 @@ export default function JobsTab() {
                 className="h-10 w-full border-slate-200 pl-10 text-sm"
               />
             </div>
+            <Button
+              variant={showAllJobs ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAllJobs((v) => !v)}
+              className="h-10 shrink-0 whitespace-nowrap"
+            >
+              {showAllJobs ? "All Jobs" : "My Jobs"}
+            </Button>
             <Button variant="outline" onClick={handleRefresh} disabled={refreshing} className="h-10 w-full shrink-0 border-slate-200 sm:w-auto">
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
             </Button>
