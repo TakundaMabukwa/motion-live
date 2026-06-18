@@ -120,12 +120,7 @@ export async function GET(request: NextRequest) {
           .filter(Boolean)
       )];
 
-      if (fcCostCodes.length === 0) {
-        return NextResponse.json({
-          jobs: [], total: 0,
-          stats: { total: 0, completed: 0, inProgress: 0, pending: 0, unassigned: 0 },
-        });
-      }
+      // No assigned cost centers — skip cost code filtering
     }
 
     let query = supabase
