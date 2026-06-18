@@ -13,7 +13,6 @@ import GlobalView from "@/components/ui-personal/global-view";
 import { useClients } from "@/contexts/ClientsContext";
 import JobsTab from "@/components/fc/JobsTab";
 import AnnuityBillingTab from "@/components/fc/AnnuityBillingTab";
-import AccountsJobPoolSection from "@/components/accounts/AccountsJobPoolSection";
 import FCQuotesPage from "@/app/protected/fc/quotes/page";
 import {
   Users,
@@ -40,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-const FC_TAB_IDS = ["global", "companies", "jobs", "job-pool", "annuity-billing", "quotes"];
+const FC_TAB_IDS = ["global", "companies", "jobs", "annuity-billing", "quotes"];
 
 const normalizeFcTab = (value) => {
   const raw = String(value || "").trim().toLowerCase();
@@ -790,9 +789,6 @@ function AccountsDashboardContent() {
       case 'jobs':
         return <JobsTab />;
 
-      case 'job-pool':
-        return <AccountsJobPoolSection />;
-
       case 'annuity-billing':
         return <AnnuityBillingTab />;
 
@@ -859,7 +855,6 @@ function AccountsDashboardContent() {
             { id: 'global', label: 'Global View', icon: Globe, type: 'tab' },
             { id: 'companies', label: 'Clients', icon: Building, type: 'tab' },
             { id: 'jobs', label: 'Jobs', icon: Briefcase, type: 'tab' },
-            { id: 'job-pool', label: 'Job Pool', icon: Users, type: 'tab' },
             { id: 'annuity-billing', label: 'Annuity Billing', icon: FileText, type: 'tab' },
             { id: 'quotes', label: 'Quotes', icon: Receipt, type: 'tab' }
           ].map((navItem) => {
@@ -868,8 +863,7 @@ function AccountsDashboardContent() {
                            (navItem.id === 'companies' && activeTab === 'companies') ||
                            (navItem.id === 'jobs' && activeTab === 'jobs') ||
                            (navItem.id === 'annuity-billing' && activeTab === 'annuity-billing') ||
-                           (navItem.id === 'quotes' && activeTab === 'quotes') ||
-                           (navItem.id === 'job-pool' && activeTab === 'job-pool');
+                           (navItem.id === 'quotes' && activeTab === 'quotes');
             
             return (
               <button
