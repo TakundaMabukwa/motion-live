@@ -47,8 +47,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Role-based routing
-  if (user && role && !isFirstLogin) {
+  // Role-based routing (skip for API routes)
+  if (user && role && !isFirstLogin && !request.nextUrl.pathname.startsWith('/api')) {
     const currentPath = request.nextUrl.pathname.split('/')[2];
     const allowedRoles = ['accounts', 'admin', 'fc', 'inv', 'master', 'tech'];
 
