@@ -29,7 +29,7 @@ export default function UniversalLayout({ children, currentRole }: UniversalLayo
   }, []);
 
   return (
-    <div className="h-screen bg-background overflow-hidden">
+    <div className="min-h-screen bg-background">
       {userRole === 'master' && (
         <div className="fixed top-4 right-4 z-50">
           <RoleSwitcher currentRole={currentRole} userRole={userRole} />
