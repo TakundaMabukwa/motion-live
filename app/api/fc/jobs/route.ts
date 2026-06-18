@@ -137,7 +137,6 @@ export async function GET(request: NextRequest) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
 
-    query = query.not("move_to", "ilike", "accounts");
     query = query.order("created_at", { ascending: false });
 
     const { data, error } = await query;
@@ -190,10 +189,6 @@ export async function GET(request: NextRequest) {
     const allJobs = jobs.filter((job) => {
       const jobStatus = normalizeToken(job.job_status);
       const status = normalizeToken(job.status);
-      const moveTo = normalizeToken(job.move_to);
-
-      const isForwardedAway = moveTo !== "fc" && moveTo !== "";
-      if (isForwardedAway) return false;
 
       if (jobStatus === "invoiced" || status === "invoiced") return false;
 
