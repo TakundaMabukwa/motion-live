@@ -657,6 +657,11 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const vehicleReg = String(effectiveJob?.vehicle_registration || "").trim();
       const fleetNumber = String(effectiveJob?.fleet_number || "").trim();
 
+      // Fallback: use cost center's cost_code if job has no account number
+      if (!effectiveAccountNumber && effectiveCostCenterInfo?.cost_code) {
+        effectiveAccountNumber = String(effectiveCostCenterInfo.cost_code).trim();
+      }
+
       if (!effectiveCostCenterInfo) {
         try {
           const lookupResponse = await fetch("/api/cost-centers/vehicle-lookup", {
