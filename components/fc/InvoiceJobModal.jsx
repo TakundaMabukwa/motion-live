@@ -651,7 +651,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     if (!effectiveJob) return;
     setIsGeneratingInvoice(true);
     try {
-      // Single lookup: find vehicle + cost center in one call
       let effectiveCostCenterInfo = selectedCostCenterInfo;
       let effectiveAccountNumber = String(effectiveJob?.new_account_number || "").trim();
       const vehicleReg = String(effectiveJob?.vehicle_registration || "").trim();
@@ -662,25 +661,27 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         effectiveAccountNumber = String(effectiveCostCenterInfo.cost_code).trim();
       }
 
-      if (!effectiveCostCenterInfo) {
+      // Still no account? Try vehicle lookup by reg/fleet_number
+      if (!effectiveAccountNumber) {
         try {
           const lookupResponse = await fetch("/api/cost-centers/vehicle-lookup", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber, account_number: effectiveAccountNumber || undefined }),
+            body: JSON.stringify({ reg: vehicleReg, fleet_number: fleetNumber }),
           });
           if (lookupResponse.ok) {
             const lookupResult = await lookupResponse.json();
             if (lookupResult?.account_number) {
               effectiveAccountNumber = lookupResult.account_number;
-              // Fetch cost center info from account number
-              const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(lookupResult.account_number)}`);
-              if (ccResponse.ok) {
-                const ccData = await ccResponse.json();
-                const cc = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === lookupResult.account_number.toUpperCase()) : null) || null;
-                if (cc) {
-                  effectiveCostCenterInfo = cc;
-                  setSelectedCostCenterInfo(cc);
+              if (!effectiveCostCenterInfo) {
+                const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(lookupResult.account_number)}`);
+                if (ccResponse.ok) {
+                  const ccData = await ccResponse.json();
+                  const cc = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === lookupResult.account_number.toUpperCase()) : null) || null;
+                  if (cc) {
+                    effectiveCostCenterInfo = cc;
+                    setSelectedCostCenterInfo(cc);
+                  }
                 }
               }
             }
@@ -688,13 +689,23 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         } catch { /* ignore */ }
       }
 
-      if (!effectiveAccountNumber) {
+      const isRepairOrAdmin = ["repair", "admin_created"].includes(
+        String(effectiveJob?.job_type || "").toLowerCase()
+      );
+
+      // For repair/admin jobs, vehicle existence is enough — account number is optional
+      if (!effectiveAccountNumber && !isRepairOrAdmin) {
         if (!vehicleReg) {
           toast.error("Job has no vehicle registration to look up a cost center");
           return;
         }
         toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
         return;
+      }
+
+      // For repair/admin with no reg and no account, just warn but continue
+      if (!effectiveAccountNumber && !vehicleReg) {
+        toast.warning("No vehicle registration or account number — billing steps will be skipped.");
       }
 
       // Update job card with account number if we found one
