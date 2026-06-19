@@ -359,9 +359,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         })
           .then((r) => r.ok ? r.json() : null)
           .then((result) => {
-            if (result?.found && result?.cost_center) {
-              setSelectedCostCenterInfo(result.cost_center);
-            } else if (result?.account_number) {
+            if (result?.account_number) {
               fetchCostCenter(result.account_number);
             }
           })
@@ -668,12 +666,18 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           });
           if (lookupResponse.ok) {
             const lookupResult = await lookupResponse.json();
-            if (lookupResult?.cost_center) {
-              effectiveCostCenterInfo = lookupResult.cost_center;
-              setSelectedCostCenterInfo(effectiveCostCenterInfo);
-            }
             if (lookupResult?.account_number) {
               effectiveAccountNumber = lookupResult.account_number;
+              // Fetch cost center info from account number
+              const ccResponse = await fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(lookupResult.account_number)}`);
+              if (ccResponse.ok) {
+                const ccData = await ccResponse.json();
+                const cc = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === lookupResult.account_number.toUpperCase()) : null) || null;
+                if (cc) {
+                  effectiveCostCenterInfo = cc;
+                  setSelectedCostCenterInfo(cc);
+                }
+              }
             }
           }
         } catch { /* ignore */ }

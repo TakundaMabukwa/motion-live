@@ -966,7 +966,7 @@ const applyQuoteBillingToTable = async (
   const selectColumns = "*";
 
   for (const [reg, itemsForReg] of itemsByReg.entries()) {
-    const orConditions = [`reg.ilike.${reg}`, `fleet_number.ilike.${reg}`];
+    const orConditions = [`reg.ilike.%${reg}%`, `fleet_number.ilike.%${reg}%`];
     const { data: existingRows, error: findError } = await supabase
       .from(tableName)
       .select(selectColumns)
@@ -978,12 +978,7 @@ const applyQuoteBillingToTable = async (
     }
 
     const matchingRows = Array.isArray(existingRows) ? existingRows : [];
-    const existing =
-      matchingRows.find((row) => {
-        const rowNewAccount = String(row?.new_account_number || "").trim();
-        const rowAccount = String(row?.account_number || "").trim();
-        return rowNewAccount === costCode || rowAccount === costCode;
-      }) || null;
+    const existing = matchingRows[0] || null;
 
     if (!existing) {
       skipped.push({ reason: "vehicle_not_found", reg, table: tableName });

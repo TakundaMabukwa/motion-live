@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
 
     let resolvedAccountNumber = account_number || null;
 
-    // If no account_number provided, find vehicle first
     if (!resolvedAccountNumber && (reg || fleet_number)) {
       const filters: string[] = [];
       if (reg) {
@@ -41,27 +40,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Lookup cost center if we have an account number
-    let costCenter = null;
-    if (resolvedAccountNumber) {
-      const { data: ccRows, error: ccError } = await supabase
-        .from("cost_centers")
-        .select("*")
-        .ilike("cost_code", resolvedAccountNumber)
-        .limit(1);
-
-      if (!ccError && ccRows?.length) {
-        costCenter = ccRows[0];
-      }
-    }
-
     return NextResponse.json({
-      found: Boolean(costCenter),
+      found: Boolean(resolvedAccountNumber),
       account_number: resolvedAccountNumber,
-      cost_center: costCenter,
     });
   } catch (error) {
-    console.error("Error in vehicle-cost-center lookup:", error);
+    console.error("Error in vehicle lookup:", error);
     return NextResponse.json(
       { found: false, error: "Internal Server Error" },
       { status: 500 },

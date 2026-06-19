@@ -588,8 +588,8 @@ async function getVehiclesForJob(
 
   const orConditions: string[] = [];
   for (const reg of regs) {
-    orConditions.push(`reg.ilike.${reg}`);
-    orConditions.push(`fleet_number.ilike.${reg}`);
+    orConditions.push(`reg.ilike.%${reg}%`);
+    orConditions.push(`fleet_number.ilike.%${reg}%`);
   }
 
   const { data, error } = await supabase
