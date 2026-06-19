@@ -953,8 +953,14 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       if (!affectsTotals(field)) {
         return updated;
       }
-      const totals = calculateTotals(updated);
-      return { ...updated, ...totals };
+      const oldValue = parseAmount(prev[field]);
+      const newValue = parseAmount(value);
+      const delta = newValue - oldValue;
+      const currentTotal = parseAmount(prev.total_rental_sub);
+      return {
+        ...updated,
+        total_rental_sub: (currentTotal + delta).toFixed(2),
+      };
     });
   };
 
