@@ -244,7 +244,7 @@ export async function PUT(request) {
       );
     }
 
-    return NextResponse.json(updatedVehicle);
+    return NextResponse.json(data[0]);
   } catch (error) {
     console.error('Error in vehicle update API:', error);
     const errMsg = error instanceof Error ? error.message : String(error);
