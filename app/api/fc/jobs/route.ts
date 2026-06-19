@@ -123,8 +123,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("job_cards")
-      .select("*")
-      .eq("role", "fc");
+      .select("*");
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
