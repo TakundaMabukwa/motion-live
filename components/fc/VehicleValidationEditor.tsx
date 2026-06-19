@@ -895,8 +895,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
 
   const startEdit = (vehicle) => {
     setEditingVehicle(vehicle.id);
-    const totals = calculateTotals(vehicle);
-    setEditedData({ ...vehicle, ...totals });
+    setEditedData({ ...vehicle });
     setAddItemState((prev) => ({
       ...prev,
       [`vehicle-${vehicle.id}`]: prev[`vehicle-${vehicle.id}`] || { added: [] },
