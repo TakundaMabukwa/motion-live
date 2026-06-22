@@ -125,8 +125,8 @@ export async function GET(request: NextRequest) {
       .from("job_cards")
       .select("*");
 
-    if (!showAllJobs && isFc && fcCostCodes.length > 0) {
-      query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
+    if (!showAllJobs && isFc) {
+      query = query.or(`assigned_technician_id.eq.${user.id},technician_name.ilike.%${user.email || ""}%`);
     }
 
     query = query.order("created_at", { ascending: false });
