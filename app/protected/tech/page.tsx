@@ -448,6 +448,18 @@ export default function Dashboard() {
   const myJobs = nonCompletedUserJobs.filter((job) =>
     isAssignedToCurrentUserByTechnicianPhone(job),
   );
+
+  // Debug logging
+  if (userJobs.length > 0) {
+    const assignedToMe = userJobs.filter((job) => isAssignedToCurrentUserByTechnicianPhone(job));
+    console.log(`[Tech Page] userJobs: ${userJobs.length}, nonCompleted: ${nonCompletedUserJobs.length}, assignedToMe: ${assignedToMe.length}, myJobs: ${myJobs.length}`);
+    console.log(`[Tech Page] userEmail: ${userEmail}`);
+    console.log(`[Tech Page] Sample jobs NOT in myJobs:`);
+    userJobs.filter((j) => !isAssignedToCurrentUserByTechnicianPhone(j)).slice(0, 5).forEach((j) => {
+      console.log(`  - ${j.job_number}: tech_phone="${j.technician_phone}", tech_name="${j.technician_name}", role="${j.role}", move_to="${j.move_to}", job_status="${j.job_status}"`);
+    });
+  }
+
   const allJobs = jobPoolForTeamViews.filter((job) => !isEscalatedToTech(job));
   const displayedJobs =
     activeJobsView === 'my-jobs'
