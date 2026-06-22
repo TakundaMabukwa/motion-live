@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
     const showAllJobs = searchParams.get("allJobs") === "true";
-    const statusFilter = String(searchParams.get("status") || "").trim().toLowerCase();
 
     const { data: userData } = await supabase
       .from("users")
@@ -106,12 +105,28 @@ export async function GET(request: NextRequest) {
 
     const isFc = userData?.role === "fc";
 
+    let fcCostCodes: string[] = [];
+
+    if (isFc) {
+      const { data: fcCostCenters } = await supabase
+        .from("cost_centers")
+        .select("cost_code")
+        .eq("fc_id", user.id)
+        .not("cost_code", "is", null);
+
+      fcCostCodes = [...new Set(
+        (fcCostCenters || [])
+          .map((cc: any) => String(cc.cost_code || "").trim())
+          .filter(Boolean)
+      )];
+    }
+
     let query = supabase
       .from("job_cards")
       .select("*");
 
-    if (!showAllJobs) {
-      query = query.or(`assigned_technician_id.eq.${user.id},technician_phone.eq.${user.email}`);
+    if (!showAllJobs && isFc && fcCostCodes.length > 0) {
+      query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
 
     query = query.order("created_at", { ascending: false });
@@ -194,21 +209,9 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
-    // Apply status filter
-    const statusFiltered = statusFilter
-      ? allJobs.filter((job) => {
-          const s = normalizeToken(job.status);
-          const js = normalizeToken(job.job_status);
-          const isCompleted = s === "completed" || js === "completed";
-          if (statusFilter === "completed") return isCompleted;
-          if (statusFilter === "not-completed") return !isCompleted;
-          return true;
-        })
-      : allJobs;
-
     // Apply search filter
     const searchResults = search
-      ? statusFiltered.filter((job) => {
+      ? allJobs.filter((job) => {
           const q = search.toLowerCase();
           return [
             job.job_number,

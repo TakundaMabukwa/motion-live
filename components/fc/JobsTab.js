@@ -214,13 +214,12 @@ export default function JobsTab() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const fetchJobs = useCallback(async (search = "", all = true, status = "") => {
+  const fetchJobs = useCallback(async (search = "", all = true) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (!all) params.set("allJobs", "false");
-      if (status) params.set("status", status);
       const response = await fetch(`/api/fc/jobs?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch jobs");
       const data = await response.json();
@@ -233,7 +232,7 @@ export default function JobsTab() {
     }
   }, []);
 
-  useEffect(() => { fetchJobs(debouncedSearch, showAllJobs, jobTab === "completed" ? "completed" : jobTab === "not-completed" ? "not-completed" : ""); }, [debouncedSearch, showAllJobs, fetchJobs, jobTab]);
+  useEffect(() => { fetchJobs(debouncedSearch, showAllJobs); }, [debouncedSearch, showAllJobs, fetchJobs]);
 
   // Load FC users and cost centers for invoiced tab
   useEffect(() => {
@@ -315,7 +314,7 @@ export default function JobsTab() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchJobs(debouncedSearch, showAllJobs, jobTab === "completed" ? "completed" : jobTab === "not-completed" ? "not-completed" : "");
+    await fetchJobs(debouncedSearch, showAllJobs);
   };
 
   const handleMoveJob = useCallback(async (job, destination) => {
@@ -339,14 +338,14 @@ export default function JobsTab() {
       }
       toast.dismiss(loadingToast);
       toast.success(`Job moved to ${destLabel}`);
-      await fetchJobs(debouncedSearch, showAllJobs, jobTab === "completed" ? "completed" : jobTab === "not-completed" ? "not-completed" : "");
+      await fetchJobs(debouncedSearch, showAllJobs);
     } catch (error) {
       toast.dismiss(loadingToast);
       toast.error(error.message || `Failed to move job to ${destLabel}`);
     } finally {
       setMovingJobId(null);
     }
-  }, [fetchJobs, debouncedSearch, showAllJobs, jobTab]);
+  }, [fetchJobs, debouncedSearch, showAllJobs]);
 
   const getJobStatus = useCallback((job) => {
     const s = String(job.status || "").toLowerCase().trim();
@@ -359,8 +358,10 @@ export default function JobsTab() {
   }, []);
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter((j) => getJobStatus(j) !== "invoiced");
-  }, [jobs, getJobStatus]);
+    const visible = jobs.filter((j) => getJobStatus(j) !== "invoiced");
+    if (jobTab === "completed") return visible.filter((j) => getJobStatus(j) === "completed");
+    return visible.filter((j) => getJobStatus(j) !== "completed");
+  }, [jobs, jobTab, getJobStatus]);
 
   const filteredJobsByMonth = useMemo(() => {
     if (jobTab !== "completed" || !completedMonthFilter) return filteredJobs;

@@ -40,7 +40,6 @@ export function isJobMovedAwayFromTech(job: {
 
   if (escalationRole && NON_TECH_QUEUE_ROLES.has(escalationRole)) return true;
   if (moveTo && NON_TECH_QUEUE_ROLES.has(moveTo)) return true;
-  if (role && NON_TECH_QUEUE_ROLES.has(role)) return true;
 
   return false;
 }
