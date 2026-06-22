@@ -299,18 +299,35 @@ export default function AnnuityBillingTab() {
     previewWindow.document.close();
 
     const logoUrl = `${window.location.origin}/soltrack_logo.png`;
-    const invoicePages = invoices
-      .map(({ accountNumber, invoiceData }) => {
-        const invoiceView = buildInvoiceView({
-          activeInvoiceData: invoiceData,
-          customerInfo: null,
-          clientLegalName: invoiceData?.company_name || accountNumber,
-          costCenter: { accountNumber, billingMonth: invoiceData?.billing_month },
-          editableNotes: invoiceData?.notes || "",
-        });
-        return buildInvoicePrintableHtml({ logoUrl, invoiceView });
-      })
-      .join("");
+
+    // buildInvoicePrintableHtml returns a full HTML doc with styles.
+    // Extract the styles from the first invoice and the invoice-page divs from all.
+    const allHtml = invoices.map(({ accountNumber, invoiceData }) => {
+      const invoiceView = buildInvoiceView({
+        activeInvoiceData: invoiceData,
+        customerInfo: null,
+        clientLegalName: invoiceData?.company_name || accountNumber,
+        costCenter: { accountNumber, billingMonth: invoiceData?.billing_month },
+        editableNotes: invoiceData?.notes || "",
+      });
+      return buildInvoicePrintableHtml({ logoUrl, invoiceView });
+    });
+
+    // Extract <style> from the first page (shared across all)
+    const styleMatch = allHtml[0]?.match(/<style>([\s\S]*?)<\/style>/);
+    const sharedStyles = styleMatch ? styleMatch[1] : "";
+
+    // Extract just the <div class="invoice-page"> content from each full HTML doc
+    const extractInvoicePage = (html) => {
+      const startMarker = '<div class="invoice-page">';
+      const startIdx = html?.indexOf(startMarker);
+      if (startIdx === undefined || startIdx < 0) return "";
+      // Take from startMarker to end, then strip trailing </body></html>
+      let content = html.slice(startIdx);
+      content = content.replace(/<\/body>\s*<\/html>\s*$/, "");
+      return content;
+    };
+    const invoicePageDivs = allHtml.map(extractInvoicePage).filter(Boolean).join("\n");
 
     previewWindow.document.open();
     previewWindow.document.write(`
@@ -319,12 +336,13 @@ export default function AnnuityBillingTab() {
         <head>
           <meta charset="utf-8" />
           <title>All Client Invoices</title>
+          <style>${sharedStyles}</style>
         </head>
         <body>
-          <div class="invoice-toolbar" style="position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #e5e7eb;padding:8px 16px;display:flex;gap:8px;align-items:center;justify-content:center;">
-            <button style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;cursor:pointer;" type="button" data-role="print-invoices">Print</button>
+          <div class="invoice-toolbar">
+            <button class="invoice-print-btn" type="button" data-role="print-invoices">Print</button>
           </div>
-          ${invoicePages}
+          ${invoicePageDivs}
           <script>
             document.querySelector('[data-role="print-invoices"]')?.addEventListener('click', function() { window.print(); });
           <\/script>
