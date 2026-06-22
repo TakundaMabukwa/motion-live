@@ -329,13 +329,14 @@ export default function Dashboard() {
     const normalizedUserEmail = String(userEmail || '').trim().toLowerCase();
     if (!normalizedUserEmail) return false;
 
-    const emailTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
-    const inlineEmailTokens = extractEmails(job.technician_phone);
+    const phoneEmailTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
+    const phoneInlineEmails = extractEmails(job.technician_phone);
 
-    return (
-      emailTokens.includes(normalizedUserEmail) ||
-      inlineEmailTokens.includes(normalizedUserEmail)
-    );
+    const nameEmailTokens = splitCsv(job.technician_name).map((token) => token.toLowerCase());
+    const nameInlineEmails = extractEmails(job.technician_name);
+
+    const allEmails = [...new Set([...phoneEmailTokens, ...phoneInlineEmails, ...nameEmailTokens, ...nameInlineEmails])];
+    return allEmails.includes(normalizedUserEmail);
   };
 
   const parseQuotationProducts = (quotationProducts: unknown): Array<Record<string, unknown>> => {
