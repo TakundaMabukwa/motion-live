@@ -81,7 +81,8 @@ export async function GET(request: NextRequest) {
     // Order by creation date
     query = query.order('created_at', { ascending: false });
 
-    const { data, error } = await query;
+    // Bypass Supabase default 1000-row limit
+    const { data, error } = await query.range(0, 9999);
 
     if (error) {
       console.error('Error fetching admin jobs:', error);
