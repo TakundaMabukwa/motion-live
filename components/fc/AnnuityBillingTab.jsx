@@ -69,27 +69,17 @@ const escapeHtml = (str) => {
 };
 
 const COMPANY_INFO = {
-  name: "SOLTRACK (PTY) LTD",
-  regNo: "2004/022839/07",
-  vatNo: "4320268485",
+  name: "Soltrack (PTY) LTD",
+  regNo: "2018/095975/07",
+  vatNo: "4580161802",
   headOffice: [
-    "Plot 55, Tswelelang Village",
-    "Mafikeng Road",
-    "Lichtenburg, 2740",
+    "8 Viscount Road",
+    "Viscount office park, Block C unit 4 & 5",
+    "Bedfordview, 2008",
   ],
-  postal: [
-    "PO Box 2732",
-    "Lichtenburg, 2740",
-  ],
-  contact: [
-    "Tel: 018 632 5120/1",
-    "Email: accounts@soltrack.co.za",
-  ],
-  banking: [
-    "ABSA Bank",
-    "Account No: 4081037666",
-    "Branch Code: 632005",
-  ],
+  postal: ["P.O Box 95603", "Grant Park 2051"],
+  contact: ["Phone: 011 824 0066", "Email: accounts@soltrack.co.za", "Website: www.soltrack.co.za"],
+  banking: ["Nedbank Northrand", "Code - 146905", "A/C No. - 1469109069"],
 };
 
 export default function AnnuityBillingTab() {
