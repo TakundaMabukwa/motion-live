@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
     const showAllJobs = searchParams.get("allJobs") === "true";
+    const statusFilter = String(searchParams.get("status") || "").trim().toLowerCase();
 
     const { data: userData } = await supabase
       .from("users")
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
       .select("*");
 
     if (!showAllJobs && isFc) {
-      query = query.or(`assigned_technician_id.eq.${user.id},technician_name.ilike.%${user.email || ""}%`);
+      query = query.or(`assigned_technician_id.eq.${user.id},technician_phone.ilike.%${user.email || ""}%`);
     }
 
     query = query.order("created_at", { ascending: false });
@@ -209,9 +210,21 @@ export async function GET(request: NextRequest) {
       return true;
     });
 
+    // Apply status filter
+    const statusFiltered = statusFilter
+      ? allJobs.filter((job) => {
+          const s = normalizeToken(job.status);
+          const js = normalizeToken(job.job_status);
+          const isCompleted = s === "completed" || js === "completed";
+          if (statusFilter === "completed") return isCompleted;
+          if (statusFilter === "not-completed") return !isCompleted;
+          return true;
+        })
+      : allJobs;
+
     // Apply search filter
     const searchResults = search
-      ? allJobs.filter((job) => {
+      ? statusFiltered.filter((job) => {
           const q = search.toLowerCase();
           return [
             job.job_number,
