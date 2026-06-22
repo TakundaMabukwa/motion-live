@@ -112,8 +112,11 @@ export default function Dashboard() {
       setUserEmail(userData.user.email);
       setActiveJobsView(userData.isTechAdmin ? 'all-jobs' : 'my-jobs');
       
-      let jobsUrl = '/api/jobs';
-      const jobsResponse = await fetch(`${jobsUrl}?t=${Date.now()}`, {
+      const jobsParams = new URLSearchParams({ t: String(Date.now()) });
+      if (!userData.isTechAdmin) {
+        jobsParams.set('technician', userData.user.email);
+      }
+      const jobsResponse = await fetch(`/api/jobs?${jobsParams.toString()}`, {
         cache: 'no-store',
       });
       if (!jobsResponse.ok) {
@@ -444,22 +447,9 @@ export default function Dashboard() {
   const assignedActiveJobs = activeUserJobs.filter((job) => Boolean(getAssignedTechnicianLabel(job)));
   const jobPoolForTeamViews = userInfo?.isTechAdmin ? activeUserJobs : assignedActiveJobs;
   const escalationJobs = jobPoolForTeamViews.filter((job) => isEscalatedToTech(job));
-  // Assigned techs should still see escalated jobs in My Jobs; the Escalations tab is an extra view, not an exclusion.
   const myJobs = nonCompletedUserJobs.filter((job) =>
     isAssignedToCurrentUserByTechnicianPhone(job),
   );
-
-  // Debug logging
-  if (userJobs.length > 0) {
-    const assignedToMe = userJobs.filter((job) => isAssignedToCurrentUserByTechnicianPhone(job));
-    console.log(`[Tech Page] userJobs: ${userJobs.length}, nonCompleted: ${nonCompletedUserJobs.length}, assignedToMe: ${assignedToMe.length}, myJobs: ${myJobs.length}`);
-    console.log(`[Tech Page] userEmail: ${userEmail}`);
-    console.log(`[Tech Page] Sample jobs NOT in myJobs:`);
-    userJobs.filter((j) => !isAssignedToCurrentUserByTechnicianPhone(j)).slice(0, 5).forEach((j) => {
-      console.log(`  - ${j.job_number}: tech_phone="${j.technician_phone}", tech_name="${j.technician_name}", role="${j.role}", move_to="${j.move_to}", job_status="${j.job_status}"`);
-    });
-  }
-
   const allJobs = jobPoolForTeamViews.filter((job) => !isEscalatedToTech(job));
   const displayedJobs =
     activeJobsView === 'my-jobs'

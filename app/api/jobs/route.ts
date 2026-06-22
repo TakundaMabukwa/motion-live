@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('job_cards')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(0, 9999);
 
     // Apply filters
     if (status) {
@@ -68,7 +69,18 @@ export async function GET(request: NextRequest) {
     if (!technician) {
       console.log('Jobs API - No technician filter, showing all jobs');
     } else {
-      console.log('Jobs API - Filtering by technician (csv-aware):', technician);
+      console.log('Jobs API - Filtering by technician (db-level):', technician);
+      const normalizedEmail = technician.trim().toLowerCase();
+      const prefix = normalizedEmail.split('@')[0] || '';
+      const cleaned = prefix.replace(/[._-]/g, ' ');
+      const nameVariants = [prefix, cleaned, ...cleaned.split(' ')].filter(Boolean).map((t) => t.toLowerCase());
+      const ilikeVariants = [normalizedEmail, ...nameVariants];
+      const orParts: string[] = [];
+      for (const variant of ilikeVariants) {
+        orParts.push(`technician_phone.ilike.%${variant}%`);
+        orParts.push(`technician_name.ilike.%${variant}%`);
+      }
+      query = query.or(orParts.join(','));
     }
     if (role && role !== 'all') {
       if (role === 'tech') {
@@ -88,9 +100,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
     }
 
-    const filteredJobs = technician
-      ? (data || []).filter((job) => isJobAssignedToTechnician(job, technician))
-      : (data || []);
+    const filteredJobs = data || [];
 
     // Transform the data to match the expected format
     const transformedQuotes = filteredJobs.map(job => {
