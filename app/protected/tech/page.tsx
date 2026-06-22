@@ -325,18 +325,33 @@ export default function Dashboard() {
       .toLowerCase()
       .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || [];
 
+  const normalizeToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const getTechnicianCandidates = (email: string | null | undefined) => {
+    const prefix = String(email || '').split('@')[0] || '';
+    const cleaned = prefix.replace(/[._-]/g, ' ');
+    return [String(email || '').trim().toLowerCase(), prefix, cleaned, ...cleaned.split(' ')]
+      .filter(Boolean)
+      .map((value, index) => (index === 0 ? String(value).toLowerCase() : normalizeToken(String(value))));
+  };
+
   const isAssignedToCurrentUserByTechnicianPhone = (job: Job) => {
     const normalizedUserEmail = String(userEmail || '').trim().toLowerCase();
     if (!normalizedUserEmail) return false;
 
-    const phoneEmailTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
-    const phoneInlineEmails = extractEmails(job.technician_phone);
+    const phoneTokens = splitCsv(job.technician_phone).map((token) => token.toLowerCase());
+    const nameTokens = splitCsv(job.technician_name).map((token) => normalizeToken(token));
+    const inlineEmails = (
+      `${String(job.technician_phone || '')},${String(job.technician_name || '')}`
+        .toLowerCase()
+        .match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || []
+    );
 
-    const nameEmailTokens = splitCsv(job.technician_name).map((token) => token.toLowerCase());
-    const nameInlineEmails = extractEmails(job.technician_name);
+    if (phoneTokens.includes(normalizedUserEmail)) return true;
+    if (inlineEmails.includes(normalizedUserEmail)) return true;
 
-    const allEmails = [...new Set([...phoneEmailTokens, ...phoneInlineEmails, ...nameEmailTokens, ...nameInlineEmails])];
-    return allEmails.includes(normalizedUserEmail);
+    const candidates = getTechnicianCandidates(userEmail).slice(1);
+    return candidates.some((candidate) => nameTokens.includes(candidate));
   };
 
   const parseQuotationProducts = (quotationProducts: unknown): Array<Record<string, unknown>> => {
