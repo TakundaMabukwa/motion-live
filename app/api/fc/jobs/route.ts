@@ -106,28 +106,12 @@ export async function GET(request: NextRequest) {
 
     const isFc = userData?.role === "fc";
 
-    let fcCostCodes: string[] = [];
-
-    if (isFc) {
-      const { data: fcCostCenters } = await supabase
-        .from("cost_centers")
-        .select("cost_code")
-        .eq("fc_id", user.id)
-        .not("cost_code", "is", null);
-
-      fcCostCodes = [...new Set(
-        (fcCostCenters || [])
-          .map((cc: any) => String(cc.cost_code || "").trim())
-          .filter(Boolean)
-      )];
-    }
-
     let query = supabase
       .from("job_cards")
       .select("*");
 
-    if (!showAllJobs && isFc) {
-      query = query.or(`assigned_technician_id.eq.${user.id},technician_phone.ilike.%${user.email || ""}%`);
+    if (!showAllJobs) {
+      query = query.or(`assigned_technician_id.eq.${user.id},technician_phone.eq.${user.email}`);
     }
 
     query = query.order("created_at", { ascending: false });
