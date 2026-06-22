@@ -246,7 +246,7 @@ export async function GET() {
     const { data: fcUsers, error: fcUsersError } = await supabase
       .from("users")
       .select("email")
-      .eq("role", "fc")
+      .or("role.eq.fc,secondary_role.eq.fc")
       .not("email", "is", null)
       .order("email", { ascending: true });
 

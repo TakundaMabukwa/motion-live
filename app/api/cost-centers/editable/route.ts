@@ -37,10 +37,10 @@ export async function GET() {
     // Check if the user is an FC to apply fc_id filtering
     const { data: userData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
-    const isFcUser = userData?.role === "fc";
+    const isFcUser = userData?.role === "fc" || userData?.secondary_role === "fc";
 
     let query = supabase
       .from("cost_centers")
@@ -91,10 +91,10 @@ export async function PATCH(request: NextRequest) {
     // For FC users, verify ownership before update
     const { data: patchUserData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
-    if (patchUserData?.role === "fc") {
+    if (patchUserData?.role === "fc" || patchUserData?.secondary_role === "fc") {
       const { data: ownerCheck } = await supabase
         .from("cost_centers")
         .select("id")
@@ -170,10 +170,10 @@ export async function PUT(request: NextRequest) {
     // For FC users, verify ownership before batch update
     const { data: putUserData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
-    const isPutFcUser = putUserData?.role === "fc";
+    const isPutFcUser = putUserData?.role === "fc" || putUserData?.secondary_role === "fc";
 
     const updates = await Promise.all(
       rows.map(async (row) => {

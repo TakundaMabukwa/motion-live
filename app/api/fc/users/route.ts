@@ -16,14 +16,14 @@ export async function GET() {
 
     const { data: currentUserData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
 
     const { data: fcUsers, error } = await supabase
       .from("users")
       .select("id, email")
-      .eq("role", "fc")
+      .or("role.eq.fc,secondary_role.eq.fc")
       .not("email", "is", null)
       .order("email", { ascending: true });
 

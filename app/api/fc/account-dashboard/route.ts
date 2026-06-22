@@ -35,11 +35,11 @@ export async function GET(request: NextRequest) {
     // Only require FC ownership if the user is an FC role
     const { data: acctUserData } = await supabase
       .from('users')
-      .select('role')
+      .select('role, secondary_role')
       .eq('id', user.id)
       .single();
 
-    if (acctUserData?.role === 'fc' && !fcCostCenter) {
+    if ((acctUserData?.role === 'fc' || acctUserData?.secondary_role === 'fc') && !fcCostCenter) {
       return NextResponse.json(
         { error: "You don't have access to this account" },
         { status: 403 },

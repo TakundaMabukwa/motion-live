@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
 
     // Run all checks in parallel
     const [fcUserResult, callerResult, costCenterResult] = await Promise.all([
-      supabase.from("users").select("id, email").eq("id", fcUserId).eq("role", "fc").maybeSingle(),
-      supabase.from("users").select("role").eq("id", user.id).single(),
+      supabase.from("users").select("id, email").or("role.eq.fc,secondary_role.eq.fc").eq("id", fcUserId).maybeSingle(),
+      supabase.from("users").select("role, secondary_role").eq("id", user.id).single(),
       supabase.from("cost_centers").select("id, fc_id").eq("id", costCenterId).maybeSingle(),
     ]);
 

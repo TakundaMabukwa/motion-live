@@ -34,13 +34,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Verify all target FC users have role 'fc' (deduplicate)
+    // Verify all target FC users have FC role (deduplicate)
     const uniqueFcUserIds = [...new Set(assignments.map((a) => a.fcUserId))];
     const { data: fcUsers, error: fcUsersError } = await supabase
       .from("users")
       .select("id, email")
       .in("id", uniqueFcUserIds)
-      .eq("role", "fc");
+      .or("role.eq.fc,secondary_role.eq.fc");
 
     if (fcUsersError || !fcUsers || fcUsers.length !== uniqueFcUserIds.length) {
       return NextResponse.json(
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Get caller role
     const { data: callerData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
 

@@ -398,10 +398,10 @@ export async function POST(request: NextRequest) {
         // Auto-assign fc_id if the creating user is an FC role
         const { data: postCcUserData } = await supabase
           .from("users")
-          .select("role")
+          .select("role, secondary_role")
           .eq("id", user.id)
           .single();
-        const ccFcId = postCcUserData?.role === "fc" ? user.id : null;
+        const ccFcId = postCcUserData?.role === "fc" || postCcUserData?.secondary_role === "fc" ? user.id : null;
 
         const { error: costCenterInsertError } = await supabase
           .from("cost_centers")

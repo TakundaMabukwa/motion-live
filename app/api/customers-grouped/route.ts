@@ -30,12 +30,12 @@ export async function GET(request: NextRequest) {
     if (!targetFcId) {
       const { data: userData } = await supabase
         .from('users')
-        .select('role')
+        .select('role, secondary_role')
         .eq('id', user.id)
         .single();
 
-      // Auto-filter for FC users to their own assigned clients
-      if (userData?.role === 'fc') {
+      // Auto-filter for FC users (including dual-role master/fc) to their own assigned clients
+      if (userData?.role === 'fc' || userData?.secondary_role === 'fc') {
         targetFcId = user.id;
       }
     }

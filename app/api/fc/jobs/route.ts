@@ -99,11 +99,11 @@ export async function GET(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
 
-    const isFc = userData?.role === "fc";
+    const isFc = userData?.role === "fc" || userData?.secondary_role === "fc";
 
     let fcCostCodes: string[] = [];
 

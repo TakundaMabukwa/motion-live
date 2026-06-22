@@ -79,10 +79,10 @@ export async function GET(request) {
     // Check if the user is an FC to apply fc_id filtering
     const { data: userData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
-    const isFcUser = userData?.role === "fc";
+    const isFcUser = userData?.role === "fc" || userData?.secondary_role === "fc";
 
     const { searchParams } = new URL(request.url);
     const accounts = searchParams.get("accounts");
@@ -374,10 +374,10 @@ export async function POST(request) {
     // Auto-assign fc_id if the user is an FC role
     const { data: postUserData } = await supabase
       .from("users")
-      .select("role")
+      .select("role, secondary_role")
       .eq("id", user.id)
       .single();
-    const fcId = postUserData?.role === "fc" ? user.id : null;
+    const fcId = postUserData?.role === "fc" || postUserData?.secondary_role === "fc" ? user.id : null;
 
     const { data: insertedCenter, error: insertError } = await supabase
       .from("cost_centers")

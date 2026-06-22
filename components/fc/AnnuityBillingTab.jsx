@@ -678,7 +678,6 @@ export default function AnnuityBillingTab() {
                       <TableHead className="w-[54px] text-center text-[11px] px-2">Use</TableHead>
                       <TableHead className="text-[11px] px-2">Cost Center</TableHead>
                       <TableHead className="text-[11px] px-2">Client</TableHead>
-                      <TableHead className="text-right text-[11px] px-2">Vehicles</TableHead>
                       <TableHead className="text-right text-[11px] px-2">Total Ex VAT</TableHead>
                       <TableHead className="text-right text-[11px] px-2">VAT</TableHead>
                       <TableHead className="text-right text-[11px] px-2">Total Incl VAT</TableHead>
@@ -688,7 +687,7 @@ export default function AnnuityBillingTab() {
                   <TableBody>
                     {filteredPreviewRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                        <TableCell colSpan={8} className="py-8 text-center text-sm text-gray-500">
                           No cost centers found for the selected period and filter.
                         </TableCell>
                       </TableRow>
@@ -719,7 +718,6 @@ export default function AnnuityBillingTab() {
                             </TableCell>
                             <TableCell className="font-medium px-2 py-1">{row.accountNumber}</TableCell>
                             <TableCell className="px-2 py-1">{row.companyName || row.accountNumber}</TableCell>
-                            <TableCell className="text-right px-2 py-1">{row.vehicleCount}</TableCell>
                             <TableCell className="text-right px-2 py-1">{formatCurrency(row.subtotal)}</TableCell>
                             <TableCell className="text-right px-2 py-1">{formatCurrency(row.vatAmount)}</TableCell>
                             <TableCell className="text-right px-2 py-1">{formatCurrency(row.totalAmount)}</TableCell>
@@ -739,7 +737,7 @@ export default function AnnuityBillingTab() {
                           </TableRow>,
                           isExpanded ? (
                             <TableRow key={`preview-details-${row.accountNumber}`}>
-                              <TableCell colSpan={9} className="bg-gray-50 px-2 py-2">
+                              <TableCell colSpan={8} className="bg-gray-50 px-2 py-2">
                                 <div className="rounded border bg-white overflow-hidden">
                                   <div className="px-2 py-1 text-[11px] text-gray-600 border-b">
                                     Billing Date:{" "}
@@ -798,14 +796,10 @@ export default function AnnuityBillingTab() {
 
               {/* Totals Summary */}
               <div className="rounded-md bg-gray-50 border px-4 py-3">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                   <div>
                     <div className="text-gray-500">Selected Cost Centers</div>
                     <div className="font-semibold text-gray-900">{selectedRows.length}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Vehicles</div>
-                    <div className="font-semibold text-gray-900">{previewTotals.vehicleCount}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Total Ex VAT (Annuity)</div>
