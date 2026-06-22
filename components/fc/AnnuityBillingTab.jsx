@@ -28,6 +28,7 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import { buildInvoiceView, buildInvoicePrintableHtml } from "@/components/inv/components/invoice-report";
 
 const toNumber = (v) => {
   const n = Number(v);
@@ -60,26 +61,6 @@ const getBillingInvoiceDate = (billingMonth) => {
   const lastDay = new Date(year, month + 1, 0).getDate();
   const invoiceDay = Math.min(30, lastDay);
   return new Date(year, month, invoiceDay).toISOString();
-};
-
-const escapeHtml = (str) => {
-  const s = String(str || "");
-  const map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
-  return s.replace(/[&<>"']/g, (ch) => map[ch]);
-};
-
-const COMPANY_INFO = {
-  name: "Soltrack (PTY) LTD",
-  regNo: "2018/095975/07",
-  vatNo: "4580161802",
-  headOffice: [
-    "8 Viscount Road",
-    "Viscount office park, Block C unit 4 & 5",
-    "Bedfordview, 2008",
-  ],
-  postal: ["P.O Box 95603", "Grant Park 2051"],
-  contact: ["Phone: 011 824 0066", "Email: accounts@soltrack.co.za", "Website: www.soltrack.co.za"],
-  banking: ["Nedbank Northrand", "Code - 146905", "A/C No. - 1469109069"],
 };
 
 export default function AnnuityBillingTab() {
@@ -307,89 +288,6 @@ export default function AnnuityBillingTab() {
     });
   };
 
-  const buildInvoiceStyles = () => `
-    body {
-      margin: 0;
-      padding: 0;
-      background: #f4f4f5;
-      font-family: Arial, sans-serif;
-      color: #111827;
-    }
-    .invoice-toolbar {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      background: #fff;
-      border-bottom: 1px solid #e5e7eb;
-      padding: 8px 16px;
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      justify-content: center;
-    }
-    .invoice-print-btn {
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 20px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .invoice-print-btn:hover { background: #1d4ed8; }
-    .invoice-page {
-      page-break-after: always;
-      background: #fff;
-      max-width: 900px;
-      margin: 12px auto;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .invoice-sheet { padding: 20px 24px; }
-    .invoice-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    .invoice-logo { max-width: 140px; }
-    .invoice-company { text-align: right; font-size: 11px; line-height: 1.5; color: #374151; }
-    .invoice-rule { border-top: 2px solid #2563eb; margin: 12px 0; }
-    .invoice-title { font-size: 22px; font-weight: 700; color: #1e3a5f; letter-spacing: 1px; margin-bottom: 14px; }
-    .invoice-party-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 14px; }
-    .invoice-client-block { font-size: 12px; line-height: 1.6; flex: 1; }
-    .invoice-client-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: #111827; }
-    .invoice-client-name-row { margin-bottom: 2px; }
-    .invoice-client-edit-row { font-size: 11px; margin: 2px 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-    .invoice-inline-input { border: 1px solid #d1d5db; border-radius: 4px; padding: 2px 6px; font-size: 11px; width: 160px; }
-    .invoice-inline-save { background: #2563eb; color: #fff; border: none; border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer; }
-    .invoice-inline-save:hover { background: #1d4ed8; }
-    .invoice-inline-status { font-size: 10px; color: #059669; }
-    .invoice-meta { text-align: right; font-size: 12px; min-width: 200px; }
-    .invoice-meta-label { font-weight: 700; color: #374151; margin-top: 4px; }
-    .invoice-meta-value { color: #111827; }
-    .invoice-summary-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11px; }
-    .invoice-summary-table th { background: #f3f4f6; padding: 5px 8px; text-align: left; border: 1px solid #e5e7eb; font-weight: 600; color: #374151; }
-    .invoice-summary-table td { padding: 5px 8px; border: 1px solid #e5e7eb; color: #111827; }
-    .invoice-table { width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e5e7eb; }
-    .invoice-table th { background: #1e3a5f; color: #fff; padding: 6px 8px; text-align: left; font-weight: 600; font-size: 10px; white-space: nowrap; }
-    .invoice-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; color: #111827; }
-    .invoice-body-spacer td { height: 4px; background: #f9fafb; }
-    .col-center { text-align: center; }
-    .col-right { text-align: right; }
-    .invoice-notes-totals { display: flex; justify-content: space-between; gap: 20px; margin-top: 14px; }
-    .invoice-notes { font-size: 11px; flex: 1; }
-    .invoice-totals-table { border-collapse: collapse; font-size: 12px; min-width: 200px; }
-    .invoice-totals-table td { padding: 4px 12px; }
-    .invoice-totals-table .label { text-align: right; color: #374151; }
-    .invoice-totals-table .value { text-align: right; font-weight: 600; color: #111827; }
-    .grand-total td { font-size: 14px; font-weight: 700; color: #111827; border-top: 2px solid #111827; padding-top: 6px; }
-    .invoice-footer-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 9px; color: #6b7280; }
-    .invoice-footer-table td { padding: 6px 8px; vertical-align: top; border: 1px solid #e5e7eb; width: 25%; }
-    @media print {
-      body { background: #fff; }
-      .invoice-toolbar { display: none; }
-      .invoice-page { box-shadow: none; border-radius: 0; margin: 0; }
-      .invoice-sheet { padding: 16px; }
-    }
-  `;
-
   const renderInvoicesToPreviewWindow = (invoices) => {
     const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
@@ -403,177 +301,14 @@ export default function AnnuityBillingTab() {
     const logoUrl = `${window.location.origin}/soltrack_logo.png`;
     const invoicePages = invoices
       .map(({ accountNumber, invoiceData }) => {
-        const items = extractInvoiceItems(invoiceData);
-        const rows = items.map((item) => {
-          const exVat = toNumber(
-            item.unit_price_without_vat ??
-              item.amountExcludingVat ??
-              item.total_excl_vat ??
-              item.unit_price,
-          );
-          const vatAmt = toNumber(item.vat_amount) || exVat * VAT_RATE;
-          const totalIncl =
-            toNumber(item.total_including_vat ?? item.total_incl_vat ?? item.totalRentalSub) ||
-            exVat + vatAmt;
-          return {
-            previousReg: String(item.previous_reg || item.reg || "-"),
-            newReg: String(item.new_reg || item.fleetNumber || item.reg || "-"),
-            itemCode: String(item.item_code || "-"),
-            description: String(item.description || "-"),
-            comments: String(item.company || ""),
-            units: String(item.units || item.quantity || 1),
-            unitPrice: formatCurrency(exVat),
-            vatAmount: formatCurrency(vatAmt),
-            totalIncl: formatCurrency(totalIncl),
-            exVat,
-            vat: vatAmt,
-            incl: totalIncl,
-          };
+        const invoiceView = buildInvoiceView({
+          activeInvoiceData: invoiceData,
+          customerInfo: null,
+          clientLegalName: invoiceData?.company_name || accountNumber,
+          costCenter: { accountNumber, billingMonth: invoiceData?.billing_month },
+          editableNotes: invoiceData?.notes || "",
         });
-        const totals = rows.reduce(
-          (acc, row) => ({
-            subtotal: acc.subtotal + row.exVat,
-            vat: acc.vat + row.vat,
-            total: acc.total + row.incl,
-          }),
-          { subtotal: 0, vat: 0, total: 0 },
-        );
-        const rowMarkup =
-          rows
-            .map(
-              (row) => `
-              <tr>
-                <td>${escapeHtml(row.previousReg)}</td>
-                <td>${escapeHtml(row.newReg)}</td>
-                <td>${escapeHtml(row.itemCode)}</td>
-                <td>${escapeHtml(row.description)}</td>
-                <td>${escapeHtml(row.comments)}</td>
-                <td class="col-center">${escapeHtml(row.units)}</td>
-                <td class="col-right">${escapeHtml(row.unitPrice)}</td>
-                <td class="col-right">${escapeHtml(row.vatAmount)}</td>
-                <td class="col-center">15%</td>
-                <td class="col-right">${escapeHtml(row.totalIncl)}</td>
-              </tr>
-            `,
-            )
-            .join("") ||
-          '<tr><td colspan="10">No invoice rows available</td></tr>';
-
-        return `
-          <div class="invoice-page" data-account-number="${escapeHtml(accountNumber)}" data-billing-month="${escapeHtml(String(invoiceData?.billing_month || ""))}" data-company-name="${escapeHtml(invoiceData?.company_name || accountNumber)}">
-            <div class="invoice-sheet">
-              <div class="invoice-top">
-                <div>
-                  <img src="${escapeHtml(logoUrl)}" alt="Soltrack Logo" class="invoice-logo" />
-                </div>
-                <div class="invoice-company">
-                  <strong>${escapeHtml(COMPANY_INFO.name)}</strong>
-                  <div>Reg No: ${escapeHtml(COMPANY_INFO.regNo)}</div>
-                  <div>VAT No.: ${escapeHtml(COMPANY_INFO.vatNo)}</div>
-                </div>
-              </div>
-              <div class="invoice-rule"></div>
-              <div class="invoice-title">Tax Invoice</div>
-              <div class="invoice-party-row">
-                <div class="invoice-client-block">
-                  <div class="invoice-client-name-row">
-                    <div class="invoice-client-name">${escapeHtml(invoiceData?.company_name || accountNumber)}</div>
-                  </div>
-                  <div class="invoice-client-edit-row">
-                    <strong>Company Reg:</strong>
-                    <input class="invoice-inline-input" value="${escapeHtml(invoiceData?.company_registration_number || "")}" data-role="company-registration-number" placeholder="Enter company registration number" />
-                    <button class="invoice-inline-save" type="button" data-role="save-company-details">Save</button>
-                    <span class="invoice-inline-status" data-role="company-save-status"></span>
-                  </div>
-                  <div>${escapeHtml(String(invoiceData?.client_address || "")).replace(/\n/g, "<br />")}</div>
-                </div>
-                <div class="invoice-meta">
-                  <div class="invoice-meta-label">TAX INVOICE :</div>
-                  <div class="invoice-meta-value">${escapeHtml(invoiceData?.invoice_number || "PENDING")}</div>
-                  <div class="invoice-meta-label">Date:</div>
-                  <div class="invoice-meta-value">${escapeHtml(formatCompactDate(invoiceData?.invoice_date || getBillingInvoiceDate(invoiceData?.billing_month)))}</div>
-                </div>
-              </div>
-              <table class="invoice-summary-table">
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Your Reference</th>
-                    <th>VAT %</th>
-                    <th>Customer Vat Number</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>${escapeHtml(accountNumber)}</td>
-                    <td>${escapeHtml(invoiceData?.company_name || accountNumber)}</td>
-                    <td>VAT 15%</td>
-                    <td>
-                      <div class="invoice-editable-cell">
-                        <input class="invoice-inline-input" value="${escapeHtml(invoiceData?.customer_vat_number || "")}" data-role="vat-number" />
-                        <button class="invoice-inline-save" type="button" data-role="save-vat-number">Save</button>
-                        <span class="invoice-inline-status" data-role="vat-save-status"></span>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <table class="invoice-table">
-                <thead>
-                  <tr>
-                    <th>Previous Reg</th>
-                    <th>New Reg</th>
-                    <th>Item Code</th>
-                    <th>Description</th>
-                    <th>Comments</th>
-                    <th class="col-center">Units</th>
-                    <th class="col-right">Unit Price</th>
-                    <th class="col-right">Vat</th>
-                    <th class="col-center">Vat%</th>
-                    <th class="col-right">Total Incl</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rowMarkup}
-                  <tr class="invoice-body-spacer"><td colspan="10"></td></tr>
-                </tbody>
-              </table>
-              <div class="invoice-notes-totals">
-                <div class="invoice-notes"><strong>Notes:</strong> ${escapeHtml(invoiceData?.notes || "").replace(/\n/g, "<br />")}</div>
-                <table class="invoice-totals-table">
-                  <tbody>
-                    <tr>
-                      <td class="label">Total Ex. VAT</td>
-                      <td class="value">${escapeHtml(formatCurrency(toNumber(invoiceData?.subtotal) || totals.subtotal))}</td>
-                    </tr>
-                    <tr>
-                      <td class="label">Discount</td>
-                      <td class="value">R 0.00</td>
-                    </tr>
-                    <tr>
-                      <td class="label">VAT</td>
-                      <td class="value">${escapeHtml(formatCurrency(toNumber(invoiceData?.vat_amount) || totals.vat))}</td>
-                    </tr>
-                    <tr class="grand-total">
-                      <td class="label">Total Incl. VAT</td>
-                      <td class="value">${escapeHtml(formatCurrency(toNumber(invoiceData?.total_amount) || totals.total))}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <table class="invoice-footer-table">
-                <tbody>
-                  <tr>
-                    <td><strong>Head Office:</strong>${COMPANY_INFO.headOffice.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-                    <td><strong>Postal Address:</strong>${COMPANY_INFO.postal.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-                    <td><strong>Contact Details</strong>${COMPANY_INFO.contact.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-                    <td><strong>${escapeHtml(COMPANY_INFO.name)}</strong>${COMPANY_INFO.banking.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        `;
+        return buildInvoicePrintableHtml({ logoUrl, invoiceView });
       })
       .join("");
 
@@ -584,102 +319,15 @@ export default function AnnuityBillingTab() {
         <head>
           <meta charset="utf-8" />
           <title>All Client Invoices</title>
-          <style>${buildInvoiceStyles()}</style>
         </head>
         <body>
-          <div class="invoice-toolbar">
-            <button class="invoice-print-btn" type="button" data-role="print-invoices">Print</button>
+          <div class="invoice-toolbar" style="position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #e5e7eb;padding:8px 16px;display:flex;gap:8px;align-items:center;justify-content:center;">
+            <button style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;cursor:pointer;" type="button" data-role="print-invoices">Print</button>
           </div>
           ${invoicePages}
           <script>
-            (function () {
-              const printButton = document.querySelector('[data-role="print-invoices"]');
-              if (printButton) {
-                printButton.addEventListener('click', function() {
-                  window.print();
-                });
-              }
-              async function saveVatNumber(page) {
-                const input = page.querySelector('[data-role="vat-number"]');
-                const button = page.querySelector('[data-role="save-vat-number"]');
-                const status = page.querySelector('[data-role="vat-save-status"]');
-                const accountNumber = page.getAttribute('data-account-number') || '';
-                const billingMonth = page.getAttribute('data-billing-month') || '';
-                const customerVatNumber = input && input.value ? input.value.trim() : '';
-                if (!accountNumber || !billingMonth) {
-                  if (status) status.textContent = 'Missing account or month';
-                  return;
-                }
-                if (button) button.disabled = true;
-                if (status) status.textContent = 'Saving...';
-                try {
-                  const response = await fetch('/api/invoices/bulk-account', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountNumber, billingMonth, customerVatNumber }),
-                  });
-                  if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to save VAT number');
-                  }
-                  if (status) status.textContent = 'Saved';
-                } catch (error) {
-                  if (status) status.textContent = error && error.message ? error.message : 'Save failed';
-                } finally {
-                  if (button) button.disabled = false;
-                }
-              }
-              async function saveCompanyDetails(page) {
-                const companyRegistrationInput = page.querySelector('[data-role="company-registration-number"]');
-                const button = page.querySelector('[data-role="save-company-details"]');
-                const status = page.querySelector('[data-role="company-save-status"]');
-                const accountNumber = page.getAttribute('data-account-number') || '';
-                const billingMonth = page.getAttribute('data-billing-month') || '';
-                const companyName = page.getAttribute('data-company-name') || '';
-                const companyRegistrationNumber = companyRegistrationInput && companyRegistrationInput.value ? companyRegistrationInput.value.trim() : '';
-                if (!accountNumber || !billingMonth) {
-                  if (status) status.textContent = 'Missing account or month';
-                  return;
-                }
-                if (!companyName) {
-                  if (status) status.textContent = 'Enter a client name';
-                  return;
-                }
-                if (button) button.disabled = true;
-                if (status) status.textContent = 'Saving...';
-                try {
-                  const response = await fetch('/api/invoices/bulk-account', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountNumber, billingMonth, companyName, companyRegistrationNumber }),
-                  });
-                  if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.error || 'Failed to save company details');
-                  }
-                  if (status) status.textContent = 'Saved';
-                } catch (error) {
-                  if (status) status.textContent = error && error.message ? error.message : 'Save failed';
-                } finally {
-                  if (button) button.disabled = false;
-                }
-              }
-              document.querySelectorAll('.invoice-page').forEach(function(page) {
-                const companyButton = page.querySelector('[data-role="save-company-details"]');
-                if (companyButton) {
-                  companyButton.addEventListener('click', function() {
-                    saveCompanyDetails(page);
-                  });
-                }
-                const vatButton = page.querySelector('[data-role="save-vat-number"]');
-                if (vatButton) {
-                  vatButton.addEventListener('click', function() {
-                    saveVatNumber(page);
-                  });
-                }
-              });
-            })();
-          </script>
+            document.querySelector('[data-role="print-invoices"]')?.addEventListener('click', function() { window.print(); });
+          <\/script>
         </body>
       </html>
     `);
