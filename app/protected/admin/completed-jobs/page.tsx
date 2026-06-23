@@ -195,7 +195,9 @@ export function AwaitingTestingContent({
             normalizedStatus === "completed" ||
             normalizedJobStatus === "completed";
 
-          return isCompleted && normalizedRole === "admin";
+          const normalizedMoveTo = String(job.move_to || "").trim().toLowerCase();
+
+          return isCompleted && (normalizedRole === "admin" || normalizedMoveTo === "admin");
         },
       );
       setJobs(completedJobs);
