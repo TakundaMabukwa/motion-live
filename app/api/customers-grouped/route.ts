@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
         .eq('id', user.id)
         .single();
 
-      // Auto-filter for FC users (including dual-role master/fc) to their own assigned clients
-      if (userData?.role === 'fc' || userData?.secondary_role === 'fc') {
+      // Auto-filter only for pure FC users (role='fc') to their own assigned clients
+      // Dual-role master/fc users are NOT auto-filtered — they see all clients by default
+      // and their FC clients are shown when explicitly selecting their cost center
+      if (userData?.role === 'fc') {
         targetFcId = user.id;
       }
     }
