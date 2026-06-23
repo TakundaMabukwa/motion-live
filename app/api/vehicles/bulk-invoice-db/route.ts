@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
           if (lower === 'maysene_software_development') return 'Monthly Service - Maysene Software Development';
           if (lower === 'waterford_software_development') return 'Monthly Service - Waterford Software Development';
           if (lower === 'klaver_software_development') return 'Monthly Service - Klaver Software Development';
-          if (lower === 'advatrans_software_development') return 'Monthly Service - Advatrans Software Development';
+          if (lower === 'advertrans_software_development') return 'Monthly Service - Advertrans Software Development';
           if (lower === 'tt_linehaul_software_development') return 'Monthly Service - TT Linehaul Software Development';
           if (lower === 'tt_express_software_development') return 'Monthly Service - TT Express Software Development';
           if (lower === 'tt_fmcg_software_development') return 'Monthly Service - TT FMCG Software Development';
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
         // Check all equipment columns
         Object.keys(v).forEach(key => {
-          if (key.includes('_rental') || key.includes('_sub') || ['roaming', 'maintenance', 'after_hours', 'controlroom', 'consultancy', 'software', 'additional_data', 'eps_software_development', 'maysene_software_development', 'waterford_software_development', 'klaver_software_development', 'advatrans_software_development', 'tt_linehaul_software_development', 'tt_express_software_development', 'tt_fmcg_software_development', 'rapid_freight_software_development', 'remco_freight_software_development', 'vt_logistics_software_development', 'epilite_software_development'].includes(key)) {
+          if (key.includes('_rental') || key.includes('_sub') || ['roaming', 'maintenance', 'after_hours', 'controlroom', 'consultancy', 'software', 'additional_data', 'eps_software_development', 'maysene_software_development', 'waterford_software_development', 'klaver_software_development', 'advertrans_software_development', 'tt_linehaul_software_development', 'tt_express_software_development', 'tt_fmcg_software_development', 'rapid_freight_software_development', 'remco_freight_software_development', 'vt_logistics_software_development', 'epilite_software_development'].includes(key)) {
             const value = parseFloat(v[key]);
             if (value && value > 0 && !['total_rental', 'total_sub', 'total_rental_sub'].includes(key)) {
               lineItems.push({ column: key, amount: value, description: getDescription(key), code: key.toUpperCase().replace(/_/g, ' ') });

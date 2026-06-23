@@ -18,7 +18,7 @@ SET
       'controlroom', 'driver_app', 'yotg_software_development',
       'eps_software_development', 'maysene_software_development',
       'waterford_software_development', 'klaver_software_development',
-      'advatrans_software_development', 'tt_linehaul_software_development',
+      'advertrans_software_development', 'tt_linehaul_software_development',
       'tt_express_software_development', 'tt_fmcg_software_development',
       'rapid_freight_software_development', 'remco_freight_software_development',
       'vt_logistics_software_development', 'epilite_software_development'
@@ -33,7 +33,7 @@ SET
       'controlroom', 'driver_app', 'yotg_software_development',
       'eps_software_development', 'maysene_software_development',
       'waterford_software_development', 'klaver_software_development',
-      'advatrans_software_development', 'tt_linehaul_software_development',
+      'advertrans_software_development', 'tt_linehaul_software_development',
       'tt_express_software_development', 'tt_fmcg_software_development',
       'rapid_freight_software_development', 'remco_freight_software_development',
       'vt_logistics_software_development', 'epilite_software_development'

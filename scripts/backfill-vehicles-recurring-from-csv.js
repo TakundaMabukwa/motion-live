@@ -54,7 +54,7 @@ const SERVICE_ONLY_FIELDS = new Set([
   "maysene_software_development",
   "waterford_software_development",
   "klaver_software_development",
-  "advatrans_software_development",
+  "advertrans_software_development",
   "tt_linehaul_software_development",
   "tt_express_software_development",
   "tt_fmcg_software_development",

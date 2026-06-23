@@ -940,8 +940,8 @@ const normalizeInvoiceLine = (item) => {
   const totalInclLine = exVatLineTotal + vatLineTotal;
 
   return {
-    previousReg: item.reg || item.previous_reg || "-",
-    newReg: item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-",
+    previousReg: item.reg || "-",
+    newReg: item.reg || "-",
     itemCode: item.item_code || "-",
     description: item.description || "-",
     comments: item.category || item.comments || item.company || "",

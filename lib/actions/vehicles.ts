@@ -215,7 +215,7 @@ export interface Vehicle {
   maysene_software_development: string | null;
   waterford_software_development: string | null;
   klaver_software_development: string | null;
-  advatrans_software_development: string | null;
+  advertrans_software_development: string | null;
   tt_linehaul_software_development: string | null;
   tt_express_software_development: string | null;
   tt_fmcg_software_development: string | null;

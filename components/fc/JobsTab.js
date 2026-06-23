@@ -219,7 +219,7 @@ export default function JobsTab() {
       setLoading(true);
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      if (!all) params.set("allJobs", "false");
+      params.set("allJobs", all ? "true" : "false");
       const response = await fetch(`/api/fc/jobs?${params.toString()}`, { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to fetch jobs");
       const data = await response.json();
