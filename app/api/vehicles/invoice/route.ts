@@ -1045,9 +1045,9 @@ export async function GET(request: NextRequest) {
         billedItemLabels.push(normalizeBillingLabel(key));
       });
 
+      const totalExVat = toAmount(vehicle.total_rental_sub) || toAmount(vehicle.total_rental) + toAmount(vehicle.total_sub);
       const monthlyRental = toAmount(vehicle.total_rental);
       const monthlySub = toAmount(vehicle.total_sub);
-      const totalExVat = monthlyRental + monthlySub;
 
       if (totalExVat > 0) {
         const uniqueLabels = Array.from(
@@ -1079,40 +1079,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const storedLineItems =
-      Array.isArray(storedInvoice?.line_items) && storedInvoice.line_items.length > 0
-        ? storedInvoice.line_items
-        : [];
-    const useStoredLineItems =
-      !forceRebuildFromVehicles &&
-      storedInvoice?.invoice_locked &&
-      storedLineItems.length > 0 &&
-      !hasLegacyStoredLineItems(storedLineItems);
-    const resolvedLineItems = useStoredLineItems ? storedLineItems : invoiceItems;
+    // Always use live rebuilt data from vehicles — never use stored/locked line items
+    const resolvedLineItems = invoiceItems;
 
     const lineItemFinancials = calculateInvoiceFinancials(resolvedLineItems);
-    const storedSubtotal = parseFloat(String(storedInvoice?.subtotal ?? ''));
-    const storedVat = parseFloat(String(storedInvoice?.vat_amount ?? ''));
-    const storedTotal = parseFloat(String(storedInvoice?.total_amount ?? ''));
-    const storedMatchesLineItems =
-      Math.abs((Number.isFinite(storedSubtotal) ? storedSubtotal : 0) - lineItemFinancials.subtotal) < 0.01 &&
-      Math.abs((Number.isFinite(storedVat) ? storedVat : 0) - lineItemFinancials.vatAmount) < 0.01 &&
-      Math.abs((Number.isFinite(storedTotal) ? storedTotal : 0) - lineItemFinancials.totalAmount) < 0.01;
 
-    const resolvedSubtotal =
-      useStoredLineItems && Number.isFinite(storedSubtotal) && storedMatchesLineItems
-        ? storedSubtotal
-        : lineItemFinancials.subtotal;
-
-    const resolvedVat =
-      useStoredLineItems && Number.isFinite(storedVat) && storedMatchesLineItems
-        ? storedVat
-        : lineItemFinancials.vatAmount;
-
-    const resolvedTotal =
-      useStoredLineItems && Number.isFinite(storedTotal) && storedMatchesLineItems
-        ? storedTotal
-        : lineItemFinancials.totalAmount;
+    const resolvedSubtotal = lineItemFinancials.subtotal;
+    const resolvedVat = lineItemFinancials.vatAmount;
+    const resolvedTotal = lineItemFinancials.totalAmount;
 
     // Calculate invoice date - use stored invoice date or current date
     let invoiceDate: string;
@@ -1138,7 +1112,7 @@ export async function GET(request: NextRequest) {
       group_summaries: groupSummaries,
     };
 
-    if (storedInvoice?.id && !useStoredLineItems) {
+    if (storedInvoice?.id) {
       const { error: syncInvoiceError } = await supabase
         .from('account_invoices')
         .update({
@@ -1155,33 +1129,7 @@ export async function GET(request: NextRequest) {
         .eq('id', storedInvoice.id);
 
       if (syncInvoiceError) {
-        console.error('Error syncing unlocked account invoice from vehicles_duplicate:', syncInvoiceError);
-      }
-    } else if (storedInvoice?.id) {
-      const currentCompanyName = normalizeTextValue(storedInvoice.company_name);
-      const currentClientAddress = normalizeTextValue(storedInvoice.client_address);
-      const currentVatNumber = normalizeTextValue(storedInvoice.customer_vat_number);
-      const currentRegistrationNumber = normalizeTextValue(storedInvoice.company_registration_number);
-
-      if (
-        currentCompanyName !== normalizeTextValue(companyName) ||
-        currentClientAddress !== normalizeTextValue(clientAddress) ||
-        currentVatNumber !== normalizeTextValue(customerVatNumber) ||
-        currentRegistrationNumber !== normalizeTextValue(companyRegistrationNumber)
-      ) {
-        const { error: syncInvoiceError } = await supabase
-          .from('account_invoices')
-          .update({
-            company_name: companyName || null,
-            client_address: clientAddress || null,
-            customer_vat_number: customerVatNumber || null,
-            company_registration_number: companyRegistrationNumber || null,
-          })
-          .eq('id', storedInvoice.id);
-
-        if (syncInvoiceError) {
-          console.error('Error syncing stored account invoice client info:', syncInvoiceError);
-        }
+        console.error('Error syncing account invoice from live vehicles:', syncInvoiceError);
       }
     }
 

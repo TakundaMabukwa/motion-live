@@ -919,6 +919,16 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
   };
 
   const cancelEdit = () => {
+    const hasPendingCostCenterChange =
+      editingVehicle !== null &&
+      costCenterSearch.trim() !== "" &&
+      !targetCostCenterByVehicle[editingVehicle];
+
+    if (hasPendingCostCenterChange) {
+      toast.error("Please select a cost center from the dropdown, or clear the field to cancel.");
+      return;
+    }
+
     if (editingVehicle !== null) {
       setAddItemState((prev) => {
         const next = { ...prev };
@@ -1018,6 +1028,17 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       targetCostCenterByVehicle[currentVehicle.id] || "";
     const currentCostCenter =
       currentVehicle.new_account_number || costCode || "";
+
+    if (costCenterSearch.trim() !== "" && !selectedTargetCostCenter) {
+      toast.error("Please select a cost center from the dropdown, or clear the field.");
+      return;
+    }
+
+    if (selectedTargetCostCenter && (selectedTargetCostCenter === "all" || selectedTargetCostCenter.trim() === "")) {
+      toast.error("Please select a specific cost center — 'All' is not allowed.");
+      return;
+    }
+
     const isMovingCostCenter = Boolean(
       selectedTargetCostCenter &&
       selectedTargetCostCenter !== currentCostCenter,
@@ -2066,7 +2087,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                                       Current Cost Center
                                     </Label>
                                     <p className="text-sm font-medium text-gray-900">
-                                      {currentCostCenter || "N/A"}
+                                      {currentCostCenter?.company || currentCostCenter?.cost_code || costCode || "N/A"}
                                     </p>
                                   </div>
                                   <div className="flex-1">
@@ -2076,23 +2097,42 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                                     >
                                       Cost Center
                                     </Label>
-                                    <Input
-                                      id={`move-cc-${vehicle.id}`}
-                                      value={costCenterSearch}
-                                      onChange={(e) => {
-                                        setCostCenterSearch(e.target.value);
-                                        setCostCenterDropdownOpen(true);
-                                      }}
-                                      onFocus={() => {
-                                        setCostCenterDropdownOpen(true);
-                                        loadPrefixCostCenters().catch((error) => {
-                                          console.error("Error loading cost centers:", error);
-                                          toast.error(`Failed to load cost centers: ${error.message}`);
-                                        });
-                                      }}
-                                      placeholder="Search any cost center..."
-                                      className="mt-1 h-9 text-sm bg-white"
-                                    />
+                                    <div className="relative mt-1">
+                                      <Input
+                                        id={`move-cc-${vehicle.id}`}
+                                        value={costCenterSearch}
+                                        onChange={(e) => {
+                                          setCostCenterSearch(e.target.value);
+                                          setCostCenterDropdownOpen(true);
+                                        }}
+                                        onFocus={() => {
+                                          setCostCenterDropdownOpen(true);
+                                          loadPrefixCostCenters().catch((error) => {
+                                            console.error("Error loading cost centers:", error);
+                                            toast.error(`Failed to load cost centers: ${error.message}`);
+                                          });
+                                        }}
+                                        placeholder="Search by name or code..."
+                                        className="h-9 text-sm bg-white pr-8"
+                                      />
+                                      {costCenterSearch && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setCostCenterSearch("");
+                                            setTargetCostCenterByVehicle((prev) => {
+                                              const next = { ...prev };
+                                              delete next[vehicle.id];
+                                              return next;
+                                            });
+                                            setCostCenterDropdownOpen(false);
+                                          }}
+                                          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
+                                    </div>
                                     {costCenterDropdownOpen && (
                                       <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
                                         {filteredCostCenters.length > 0 ? (
@@ -2109,7 +2149,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                                                   }),
                                                 );
                                                 setCostCenterSearch(
-                                                  formatCostCenterOption(item),
+                                                  item.company || item.cost_code,
                                                 );
                                                 setCostCenterDropdownOpen(
                                                   false,
@@ -2123,7 +2163,10 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                                                   : ""
                                               }`}
                                             >
-                                              {formatCostCenterOption(item)}
+                                              <span className="font-medium">{item.company || item.cost_code}</span>
+                                              {item.company && (
+                                                <span className="ml-2 text-xs text-gray-400">{item.cost_code}</span>
+                                              )}
                                             </button>
                                           ))
                                         ) : (
