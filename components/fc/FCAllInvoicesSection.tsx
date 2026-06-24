@@ -246,6 +246,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accountNumber: creditNoteInvoice.account_number,
+          clientName: creditNoteInvoice.company_name || null,
           billingMonth,
           creditNoteDate,
           amount: numericAmount,

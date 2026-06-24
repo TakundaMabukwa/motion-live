@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const accountNumber = String(body?.accountNumber || "").trim();
+    const clientName = String(body?.clientName || "").trim() || null;
     const billingMonth = String(body?.billingMonth || "").trim();
     const creditNoteDate = String(body?.creditNoteDate || "").trim();
     const amount = Number(body?.amount);
@@ -92,18 +93,22 @@ export async function POST(request: NextRequest) {
 
     const billingMonthDate = billingMonth.length === 7 ? `${billingMonth}-01` : billingMonth;
 
-    const { data: costCenter } = await serviceSupabase
-      .from("cost_centers")
-      .select("company_name")
-      .eq("account_number", accountNumber)
-      .maybeSingle();
+    let resolvedClientName = clientName;
+    if (!resolvedClientName) {
+      const { data: costCenter } = await serviceSupabase
+        .from("cost_centers")
+        .select("company_name")
+        .eq("account_number", accountNumber)
+        .maybeSingle();
+      resolvedClientName = costCenter?.company_name || null;
+    }
 
     const { data: creditNote, error: insertError } = await serviceSupabase
       .from("credit_notes")
       .insert({
         credit_note_number: "",
         account_number: accountNumber,
-        client_name: costCenter?.company_name || null,
+        client_name: resolvedClientName,
         billing_month_applies_to: billingMonthDate,
         credit_note_date: creditNoteDate ? new Date(creditNoteDate).toISOString() : new Date().toISOString(),
         amount,
