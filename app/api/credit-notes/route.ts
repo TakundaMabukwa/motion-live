@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Amount must be greater than 0." }, { status: 400 });
     }
 
-    const billingMonthDate = `${billingMonth}-01`;
+    const billingMonthDate = billingMonth.length === 7 ? `${billingMonth}-01` : billingMonth;
 
     const { data: costCenter } = await serviceSupabase
       .from("cost_centers")

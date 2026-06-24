@@ -15,11 +15,6 @@ export default function MasterLayout({
 
   const navigation = [
     { name: 'Credit Notes', href: '/protected/master/credit-notes', icon: Receipt },
-    { name: 'Home', href: '/protected/master', icon: Home },
-    { name: 'User Activity', href: '/protected/master/user-activity', icon: Activity },
-    { name: 'Invoices', href: '/protected/master/invoices', icon: FileText },
-    { name: 'Stock Orders', href: '/protected/master/stock-orders', icon: Package },
-    { name: 'Pricing', href: '/protected/master/pricing', icon: FileText },
   ];
 
   return (
