@@ -96,11 +96,22 @@ export async function POST(request: NextRequest) {
       .eq("account_number", accountNumber)
       .maybeSingle();
 
-    const { data: numberResult } = await serviceSupabase.rpc("allocate_document_number", {
-      p_prefix: "CN",
-    });
+    const { data: existingCNs } = await serviceSupabase
+      .from("credit_notes")
+      .select("credit_note_number")
+      .like("credit_note_number", "CN-%")
+      .order("credit_note_number", { ascending: false })
+      .limit(1);
 
-    const creditNoteNumber = numberResult || `CN-${Date.now()}`;
+    let nextNum = Date.now();
+    if (existingCNs && existingCNs.length > 0) {
+      const last = existingCNs[0].credit_note_number || "";
+      const match = last.match(/CN-(\d+)/);
+      if (match) {
+        nextNum = Number(match[1]) + 1;
+      }
+    }
+    const creditNoteNumber = `CN-${nextNum}`;
 
     const { data: creditNote, error: insertError } = await serviceSupabase
       .from("credit_notes")
