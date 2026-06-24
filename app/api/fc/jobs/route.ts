@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 
     query = query.order("created_at", { ascending: false });
 
-    const { data, error } = await query;
+    const { data, error } = await query.range(0, 9999);
 
     if (error) {
       console.error("Error fetching FC jobs:", error);
