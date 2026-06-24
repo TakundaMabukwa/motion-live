@@ -3489,6 +3489,7 @@ export default function AccountsContent({ activeSection }) {
     return `${labels.slice(0, 2).join(", ")} +${labels.length - 2} more`;
   };
 
+
   const getOverdueStatus = (totalOverdue) => {
     if (totalOverdue === 0) return "current";
     if (totalOverdue < 1000) return "low";
