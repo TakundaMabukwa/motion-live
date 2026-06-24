@@ -23,9 +23,25 @@ export async function PATCH(
 
     const { id } = await params;
 
+    const { data: numberResult, error: seqError } = await serviceSupabase.rpc("allocate_document_number", {
+      sequence_name: "credit_note",
+      prefix: "CN",
+    });
+
+    if (seqError || !numberResult) {
+      console.error("Error allocating credit note number:", seqError);
+      return NextResponse.json({ error: "Failed to generate credit note number" }, { status: 500 });
+    }
+
+    const creditNoteNumber = String(numberResult).trim();
+
     const { data, error } = await serviceSupabase
       .from("credit_notes")
-      .update({ approved: true, updated_at: new Date().toISOString() })
+      .update({
+        credit_note_number: creditNoteNumber,
+        approved: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", id)
       .select()
       .maybeSingle();

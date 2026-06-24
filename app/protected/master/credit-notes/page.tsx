@@ -28,6 +28,7 @@ interface CreditNote {
   created_by_email: string | null;
   approved: boolean | null;
   decline_reason: string | null;
+  invoice_credited: string | null;
 }
 
 export default function CreditNotesPage() {
@@ -194,6 +195,7 @@ export default function CreditNotesPage() {
                 <th className="px-2 py-2 text-right font-semibold text-gray-500">Amount</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Status</th>
                 <th className="px-2 py-2 text-center font-semibold text-gray-500">Approved</th>
+                <th className="px-2 py-2 text-left font-semibold text-gray-500">Invoice Credited</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Decline Reason</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Ref</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Created By</th>
@@ -216,6 +218,7 @@ export default function CreditNotesPage() {
                       <Badge variant="outline" className="text-[10px] text-gray-400">No</Badge>
                     )}
                   </td>
+                  <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap text-[10px]">{cn.invoice_credited || "—"}</td>
                   <td className="px-2 py-1.5 text-gray-600 max-w-[120px] truncate text-[10px]" title={cn.decline_reason || ""}>
                     {cn.decline_reason || "—"}
                   </td>

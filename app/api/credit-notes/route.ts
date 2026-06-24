@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       const q = search.toLowerCase();
       results = results.filter((cn: any) =>
-        [cn.credit_note_number, cn.account_number, cn.client_name, cn.reference, cn.reason]
+        [cn.credit_note_number, cn.account_number, cn.client_name, cn.reference, cn.reason, cn.invoice_credited]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -77,6 +77,8 @@ export async function POST(request: NextRequest) {
     const amount = Number(body?.amount);
     const reference = String(body?.reference || "").trim() || null;
     const comment = String(body?.comment || "").trim() || null;
+    const reason = String(body?.reason || "").trim() || null;
+    const invoiceCredited = String(body?.invoiceCredited || "").trim() || null;
 
     if (!accountNumber) {
       return NextResponse.json({ error: "Account number is required." }, { status: 400 });
@@ -96,27 +98,10 @@ export async function POST(request: NextRequest) {
       .eq("account_number", accountNumber)
       .maybeSingle();
 
-    const { data: existingCNs } = await serviceSupabase
-      .from("credit_notes")
-      .select("credit_note_number")
-      .like("credit_note_number", "CN-%")
-      .order("credit_note_number", { ascending: false })
-      .limit(1);
-
-    let nextNum = Date.now();
-    if (existingCNs && existingCNs.length > 0) {
-      const last = existingCNs[0].credit_note_number || "";
-      const match = last.match(/CN-(\d+)/);
-      if (match) {
-        nextNum = Number(match[1]) + 1;
-      }
-    }
-    const creditNoteNumber = `CN-${nextNum}`;
-
     const { data: creditNote, error: insertError } = await serviceSupabase
       .from("credit_notes")
       .insert({
-        credit_note_number: creditNoteNumber,
+        credit_note_number: "",
         account_number: accountNumber,
         client_name: costCenter?.company_name || null,
         billing_month_applies_to: billingMonthDate,
@@ -126,6 +111,8 @@ export async function POST(request: NextRequest) {
         unapplied_amount: 0,
         reference,
         comment,
+        reason,
+        invoice_credited: invoiceCredited,
         status: "applied",
         created_by: user.id,
         created_by_email: user.email || null,

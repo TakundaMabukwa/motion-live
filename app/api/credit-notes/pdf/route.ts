@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date") || "";
     const reason = searchParams.get("reason") || "";
     const reference = searchParams.get("reference") || "";
+    const invoiceCredited = searchParams.get("invoice_credited") || "";
 
     const formatDate = (d: string) => {
       if (!d) return "N/A";
@@ -71,6 +72,10 @@ export async function GET(request: NextRequest) {
     <div class="detail-group">
       <div class="detail-label">Account Number</div>
       <div class="detail-value">${accountNumber}</div>
+    </div>
+    <div class="detail-group">
+      <div class="detail-label">Invoice Credited</div>
+      <div class="detail-value">${invoiceCredited || "N/A"}</div>
     </div>
     <div class="detail-group">
       <div class="detail-label">Credit Note Date</div>

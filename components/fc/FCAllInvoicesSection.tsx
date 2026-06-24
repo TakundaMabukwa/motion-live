@@ -105,6 +105,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [creditNoteAmount, setCreditNoteAmount] = useState("");
   const [creditNoteReference, setCreditNoteReference] = useState("");
   const [creditNoteComment, setCreditNoteComment] = useState("");
+  const [creditNoteReason, setCreditNoteReason] = useState("");
   const [processingCreditNote, setProcessingCreditNote] = useState(false);
 
   const fetchInvoices = async (search = "", month = selectedMonth) => {
@@ -205,8 +206,9 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     const d = new Date();
     setCreditNoteDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
     setCreditNoteAmount("");
-    setCreditNoteReference("");
+    setCreditNoteReference(invoice.invoice_number || "");
     setCreditNoteComment("");
+    setCreditNoteReason("");
     setShowCreditNoteModal(true);
   };
 
@@ -216,6 +218,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     setCreditNoteAmount("");
     setCreditNoteReference("");
     setCreditNoteComment("");
+    setCreditNoteReason("");
   };
 
   const handleConfirmCreditNote = async () => {
@@ -248,6 +251,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           amount: numericAmount,
           reference: creditNoteReference,
           comment: creditNoteComment,
+          reason: creditNoteReason,
+          invoiceCredited: creditNoteInvoice.invoice_number || null,
         }),
       });
 
@@ -701,38 +706,67 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       </Dialog>
 
       {showCreditNoteModal && creditNoteInvoice && (
-        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
-          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-2xl max-h-[90vh]">
-            <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
-              <h3 className="font-semibold text-gray-900 text-lg">
-                Credit Note: {creditNoteInvoice.company_name || creditNoteInvoice.account_number}
-              </h3>
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black/50 p-4">
+          <div className="flex flex-col bg-white shadow-2xl rounded-xl w-full max-w-2xl max-h-[90vh]">
+            <div className="flex flex-shrink-0 justify-between items-center px-6 py-4 border-b border-slate-200">
+              <div>
+                <h3 className="font-semibold text-slate-900 text-lg">Create Credit Note</h3>
+                <p className="text-slate-500 text-sm mt-0.5">{creditNoteInvoice.company_name || creditNoteInvoice.account_number}</p>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={closeCreditNoteModal}
                 disabled={processingCreditNote}
-                className="disabled:opacity-50 text-gray-400 hover:text-gray-600"
+                className="text-slate-400 hover:text-slate-600"
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
 
-            <div className="flex-1 space-y-5 p-6 overflow-y-auto">
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-slate-50 p-4 border rounded-lg text-sm">
-                <div>
-                  <div className="text-slate-500">Account</div>
-                  <div className="font-medium text-slate-900">{creditNoteInvoice.account_number}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">Client</div>
-                  <div className="font-medium text-slate-900">{creditNoteInvoice.company_name || "-"}</div>
+            <div className="flex-1 space-y-4 p-6 overflow-y-auto">
+              <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Invoice Being Credited</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div className="text-slate-500 text-xs">Invoice Number</div>
+                    <div className="font-medium text-slate-900">{creditNoteInvoice.invoice_number || "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-xs">Account</div>
+                    <div className="font-medium text-slate-900">{creditNoteInvoice.account_number}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-xs">Client</div>
+                    <div className="font-medium text-slate-900">{creditNoteInvoice.company_name || "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-xs">Invoice Amount</div>
+                    <div className="font-medium text-slate-900">{formatCurrency(creditNoteInvoice.total_amount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-xs">Balance Due</div>
+                    <div className="font-medium text-slate-900">{formatCurrency(creditNoteInvoice.balance_due)}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-xs">Billing Month</div>
+                    <div className="font-medium text-slate-900">{creditNoteInvoice.billing_month || "N/A"}</div>
+                  </div>
                 </div>
               </div>
 
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Invoice Credited</label>
+                <Input
+                  value={creditNoteInvoice.invoice_number || ""}
+                  disabled
+                  className="bg-slate-50 text-slate-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="font-medium text-slate-700 text-sm">Credit note date</label>
+                  <label className="font-medium text-slate-700 text-sm">Credit Note Date</label>
                   <Input
                     type="date"
                     value={creditNoteDate}
@@ -751,17 +785,26 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     disabled={processingCreditNote}
                     placeholder="0.00"
                   />
-                  <p className="text-slate-500 text-xs">
-                    Note: Credit note amount is captured ex-VAT.
-                  </p>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="font-medium text-slate-700 text-sm">Reference</label>
                   <Input
                     value={creditNoteReference}
                     onChange={(e) => setCreditNoteReference(e.target.value)}
                     disabled={processingCreditNote}
-                    placeholder="Free text reference"
+                    placeholder="Invoice number or reference"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Reason</label>
+                  <Input
+                    value={creditNoteReason}
+                    onChange={(e) => setCreditNoteReason(e.target.value)}
+                    disabled={processingCreditNote}
+                    placeholder="Reason for credit note"
                   />
                 </div>
               </div>
@@ -772,40 +815,38 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                   value={creditNoteComment}
                   onChange={(e) => setCreditNoteComment(e.target.value)}
                   disabled={processingCreditNote}
-                  rows={4}
-                  placeholder="Free text comment"
-                  className="px-3 py-2 border rounded-md w-full"
+                  rows={3}
+                  placeholder="Additional comments"
+                  className="px-3 py-2 border border-slate-200 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="text-blue-700">Current Balance</div>
-                  <div className="font-semibold text-slate-900">
-                    {formatCurrency(creditNoteInvoice.balance_due)}
-                  </div>
+                  <div className="text-blue-700 text-xs font-medium">Current Balance</div>
+                  <div className="font-semibold text-slate-900">{formatCurrency(creditNoteInvoice.balance_due)}</div>
                 </div>
                 <div>
-                  <div className="text-blue-700">After Credit</div>
+                  <div className="text-blue-700 text-xs font-medium">After Credit</div>
                   <div className="font-semibold text-slate-900">
                     {formatCurrency(
-                      Math.max(
-                        0,
-                        Number(creditNoteInvoice.balance_due || 0) -
-                          Number(String(creditNoteAmount || "").replace(/,/g, "")),
-                      ),
+                      Math.max(0, Number(creditNoteInvoice.balance_due || 0) - Number(String(creditNoteAmount || "").replace(/,/g, "")))
                     )}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-shrink-0 justify-end gap-3 p-6 border-gray-200 border-t">
-              <Button variant="outline" onClick={closeCreditNoteModal} disabled={processingCreditNote}>
+            <div className="flex flex-shrink-0 justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
+              <Button variant="outline" onClick={closeCreditNoteModal} disabled={processingCreditNote} className="border-slate-200">
                 Cancel
               </Button>
-              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote}>
-                {processingCreditNote ? "Applying..." : "Apply Credit Note"}
+              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote} className="bg-blue-600 hover:bg-blue-700">
+                {processingCreditNote ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</>
+                ) : (
+                  "Apply Credit Note"
+                )}
               </Button>
             </div>
           </div>
