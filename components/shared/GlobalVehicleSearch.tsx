@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import EditFinalizeModal from '@/components/fc/EditFinalizeModal';
 
 type VehicleSearchItem = {
   id: number | string;
@@ -301,6 +302,8 @@ export default function GlobalVehicleSearch({
   const [detailRecord, setDetailRecord] = useState<DetailRecord | null>(null);
   const detailCacheRef = useRef<Record<string, DetailRecord>>({});
   const router = useRouter();
+  const [editFinalizeOpen, setEditFinalizeOpen] = useState(false);
+  const [editFinalizeJob, setEditFinalizeJob] = useState<JobCardSearchItem | null>(null);
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -615,7 +618,8 @@ export default function GlobalVehicleSearch({
                           size="sm"
                           onClick={() => {
                             setOpen(false);
-                            router.push(`/protected/fc/jobs/${detailRecord.id}/edit`);
+                            setEditFinalizeJob(detailRecord as JobCardSearchItem);
+                            setEditFinalizeOpen(true);
                           }}
                         >
                           <FileText className="mr-1.5 h-3.5 w-3.5" />
@@ -881,6 +885,15 @@ export default function GlobalVehicleSearch({
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditFinalizeModal
+        job={editFinalizeJob}
+        open={editFinalizeOpen}
+        onOpenChange={setEditFinalizeOpen}
+        onComplete={() => {
+          setEditFinalizeJob(null);
+        }}
+      />
     </>
   );
 }
