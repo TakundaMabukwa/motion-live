@@ -30,6 +30,13 @@ const getCompletionLabel = (jobType) => {
   return "Not Done";
 };
 
+const formatRoleLabel = (role) => {
+  if (!role) return "—";
+  const r = String(role).toLowerCase().trim();
+  if (r === "inv") return "Stock Control";
+  return role.toUpperCase();
+};
+
 const getJobTypeDisplay = (jobType) => {
   const t = String(jobType || "").toLowerCase().trim();
   if (t === "admin_created") return "Repair";
@@ -278,7 +285,7 @@ export default function AccountsJobPoolSection() {
                                       </div>
                                     )}
                                     <div className="mt-1.5 flex flex-wrap gap-0.5">
-                                      {stages.map((stage, si) => (
+                                      {stages.filter((s) => !(s.label === "Awaiting Parts" && !s.done)).map((stage, si) => (
                                         <span
                                           key={si}
                                           className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[8px] font-medium ${
@@ -352,8 +359,8 @@ export default function AccountsJobPoolSection() {
                           {entry.moved_at ? new Date(entry.moved_at).toLocaleString("en-ZA") : "—"}
                         </td>
                         <td className="px-3 py-2 text-slate-700">{entry.user_email || entry.moved_by || "—"}</td>
-                        <td className="px-3 py-2 text-slate-700">{(entry.from_role || "—").toUpperCase()}</td>
-                        <td className="px-3 py-2 font-medium text-slate-900">{(entry.to_role || "—").toUpperCase()}</td>
+                        <td className="px-3 py-2 text-slate-700">{formatRoleLabel(entry.from_role)}</td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{formatRoleLabel(entry.to_role)}</td>
                       </tr>
                     ))}
                   </tbody>

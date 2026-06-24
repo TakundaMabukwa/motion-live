@@ -129,13 +129,14 @@ export async function GET(request: NextRequest) {
 
     let query = serviceSupabase
       .from("job_cards")
-      .select("*");
+      .select("*")
+      .neq("status", "invoiced")
+      .neq("job_status", "invoiced")
+      .order("created_at", { ascending: false });
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
-
-    query = query.order("created_at", { ascending: false });
 
     const { data, error } = await query.range(0, 9999);
 
@@ -149,73 +150,24 @@ export async function GET(request: NextRequest) {
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
 
-    // Get invoice records for all jobs
-    const jobIds = jobs.map((j) => String(j.id)).filter(Boolean);
-    const jobNumbers = jobs.map((j) => String(j.job_number)).filter(Boolean);
-
-    const invoicedJobIdSet = new Set<string>();
-    const invoicedJobNumberSet = new Set<string>();
-
-    if (jobIds.length > 0) {
-      const { data: invoiceRows } = await serviceSupabase
-        .from("invoices")
-        .select("job_card_id, job_number")
-        .in("job_card_id", jobIds);
-
-      if (invoiceRows) {
-        for (const row of invoiceRows) {
-          if (row.job_card_id) invoicedJobIdSet.add(String(row.job_card_id));
-          if (row.job_number) invoicedJobNumberSet.add(String(row.job_number));
-        }
-      }
-    }
-
-    if (jobNumbers.length > 0) {
-      const { data: invoiceRowsByNumber } = await serviceSupabase
-        .from("invoices")
-        .select("job_card_id, job_number")
-        .in("job_number", jobNumbers);
-
-      if (invoiceRowsByNumber) {
-        for (const row of invoiceRowsByNumber) {
-          if (row.job_card_id) invoicedJobIdSet.add(String(row.job_card_id));
-          if (row.job_number) invoicedJobNumberSet.add(String(row.job_number));
-        }
-      }
-    }
-
     const allJobs = jobs.filter((job) => {
-      const jobStatus = normalizeToken(job.job_status);
-      const status = normalizeToken(job.status);
       const role = normalizeToken(job.role);
       const moveTo = normalizeToken(job.move_to);
+      const isFcJob = role === "fc" || moveTo === "fc";
+      if (isFcJob) return true;
 
-      const isReturnedToFc = role === "fc" || moveTo === "fc";
+      const billingRaw = job.billing_statuses;
+      const billing = typeof billingRaw === "string"
+        ? (() => { try { return JSON.parse(billingRaw); } catch { return null; } })()
+        : (billingRaw && typeof billingRaw === "object" ? billingRaw : null);
 
-      if (jobStatus === "invoiced" || status === "invoiced") {
-        if (!isReturnedToFc) return false;
-      }
-
-      if (!isReturnedToFc) {
-        const jobId = String(job.id || "").trim();
-        const jobNum = String(job.job_number || "").trim();
-        if (invoicedJobIdSet.has(jobId) || invoicedJobNumberSet.has(jobNum)) {
-          return false;
-        }
-
-        const billingRaw = job.billing_statuses;
-        const billing = typeof billingRaw === "string"
-          ? (() => { try { return JSON.parse(billingRaw); } catch { return null; } })()
-          : (billingRaw && typeof billingRaw === "object" ? billingRaw : null);
-
-        if (billing) {
-          const inv = (billing as Record<string, unknown>).invoice;
-          if (inv === true) return false;
-          if (typeof inv === "object" && inv !== null) {
-            const invObj = inv as Record<string, unknown>;
-            if (invObj.done === true || invObj.invoice_id || invObj.invoice_number || invObj.reference) {
-              return false;
-            }
+      if (billing) {
+        const inv = (billing as Record<string, unknown>).invoice;
+        if (inv === true) return false;
+        if (typeof inv === "object" && inv !== null) {
+          const invObj = inv as Record<string, unknown>;
+          if (invObj.done === true || invObj.invoice_id || invObj.invoice_number || invObj.reference) {
+            return false;
           }
         }
       }
