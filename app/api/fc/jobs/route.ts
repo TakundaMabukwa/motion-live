@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 interface JobRecord {
   id: string;
@@ -105,10 +106,15 @@ export async function GET(request: NextRequest) {
 
     const isFc = userData?.role === "fc" || userData?.secondary_role === "fc";
 
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     let fcCostCodes: string[] = [];
 
     if (isFc) {
-      const { data: fcCostCenters } = await supabase
+      const { data: fcCostCenters } = await serviceSupabase
         .from("cost_centers")
         .select("cost_code")
         .eq("fc_id", user.id)
@@ -121,7 +127,7 @@ export async function GET(request: NextRequest) {
       )];
     }
 
-    let query = supabase
+    let query = serviceSupabase
       .from("job_cards")
       .select("*");
 
@@ -151,7 +157,7 @@ export async function GET(request: NextRequest) {
     const invoicedJobNumberSet = new Set<string>();
 
     if (jobIds.length > 0) {
-      const { data: invoiceRows } = await supabase
+      const { data: invoiceRows } = await serviceSupabase
         .from("invoices")
         .select("job_card_id, job_number")
         .in("job_card_id", jobIds);
@@ -165,7 +171,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (jobNumbers.length > 0) {
-      const { data: invoiceRowsByNumber } = await supabase
+      const { data: invoiceRowsByNumber } = await serviceSupabase
         .from("invoices")
         .select("job_card_id, job_number")
         .in("job_number", jobNumbers);
