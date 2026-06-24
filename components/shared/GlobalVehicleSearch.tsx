@@ -22,8 +22,11 @@ import {
   ClipboardList,
   User,
   Link as LinkIcon,
+  FileText,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 type VehicleSearchItem = {
   id: number | string;
@@ -297,6 +300,7 @@ export default function GlobalVehicleSearch({
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [detailRecord, setDetailRecord] = useState<DetailRecord | null>(null);
   const detailCacheRef = useRef<Record<string, DetailRecord>>({});
+  const router = useRouter();
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -604,6 +608,30 @@ export default function GlobalVehicleSearch({
                         <Badge className={`ml-2 ${String(detailRecord.status || '').toLowerCase() === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                           {String(detailRecord.status || 'N/A')}
                         </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setOpen(false);
+                            router.push(`/protected/fc/jobs/${detailRecord.id}/edit`);
+                          }}
+                        >
+                          <FileText className="mr-1.5 h-3.5 w-3.5" />
+                          Edit & Finalize
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setOpen(false);
+                            router.push(`/protected/fc/jobs/${detailRecord.id}`);
+                          }}
+                        >
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                          View
+                        </Button>
                       </div>
                     </div>
 
