@@ -19,7 +19,7 @@ export default function MasterLayout({
 
   return (
     <UniversalLayout currentRole="master">
-      <div className="flex bg-gray-50 min-h-screen">
+      <div className="flex bg-gray-50 min-h-screen w-100">
         {/* Sidebar */}
         <div className="bg-white shadow-lg w-64">
           <div className="p-6 border-b">
@@ -53,7 +53,7 @@ export default function MasterLayout({
         </div>
 
         {/* Main Content */}
-        <div className="flex-1">
+        <div className="flex-1 w-screen">
           {children}
         </div>
       </div>

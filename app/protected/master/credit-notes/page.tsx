@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Loader2, Eye, Filter } from "lucide-react";
+import { Search, Loader2, Eye, Filter, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 interface CreditNote {
   id: string;
@@ -93,6 +94,21 @@ export default function CreditNotesPage() {
     }
   };
 
+  const handleApprove = async (cn: CreditNote) => {
+    try {
+      const response = await fetch(`/api/credit-notes/${cn.id}/approve`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "Failed to approve");
+      toast.success(`${cn.credit_note_number} approved.`);
+      fetchCreditNotes();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve credit note.");
+    }
+  };
+
   const handleViewPdf = (cn: CreditNote) => {
     const params = new URLSearchParams({
       credit_note_number: cn.credit_note_number,
@@ -149,24 +165,21 @@ export default function CreditNotesPage() {
           No credit notes found.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <div className="overflow rounded-lg border border-gray-200 bg-white w-screen">
+          <table className="min-w-full divide-y divide-gray-200 text-sm ">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">CN #</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Account</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Client</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Billing Month</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Amount</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Applied</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Unapplied</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Approved</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Reason</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Decline Reason</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Reference</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Created By</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
@@ -178,28 +191,33 @@ export default function CreditNotesPage() {
                   <td className="px-4 py-3 text-gray-700">{formatDate(cn.billing_month_applies_to)}</td>
                   <td className="px-4 py-3 text-gray-700">{formatDate(cn.credit_note_date)}</td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">{formatCurrency(cn.amount)}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">{formatCurrency(cn.applied_amount)}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">{formatCurrency(cn.unapplied_amount)}</td>
                   <td className="px-4 py-3">{getStatusBadge(cn.status)}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-xs font-semibold ${cn.approved ? "text-green-600" : "text-gray-500"}`}>
-                      {cn.approved ? "Yes" : "No"}
-                    </span>
+                    {cn.approved ? (
+                      <Badge className="bg-green-100 text-green-700 border-green-200">Approved</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-gray-400">Pending</Badge>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate" title={cn.reason || ""}>
-                    {cn.reason || "N/A"}
+                  <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate" title={cn.decline_reason || ""}>
+                    {cn.decline_reason || "—"}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-600">{cn.reference || "N/A"}</td>
                   <td className="px-4 py-3 text-xs text-gray-600">{cn.created_by_email || "N/A"}</td>
                   <td className="px-4 py-3 text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewPdf(cn)}
-                      className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    >
-                      <Eye className="mr-1 h-3.5 w-3.5" /> View PDF
-                    </Button>
+                    {!cn.approved ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-2 text-green-600 hover:bg-green-50"
+                        onClick={() => handleApprove(cn)}
+                      >
+                        <CheckCircle2 className="mr-1 w-3 h-3" />
+                        Approve
+                      </Button>
+                    ) : (
+                      <span className="text-[11px] text-gray-400">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
