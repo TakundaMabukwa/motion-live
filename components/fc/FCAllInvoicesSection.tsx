@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, FileDown, Loader2, RefreshCw, Search } from "lucide-react";
+import { Eye, FileDown, FileText, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
@@ -95,6 +95,17 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card">("all");
+
+  const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
+  const [creditNoteInvoice, setCreditNoteInvoice] = useState<InvoiceRow | null>(null);
+  const [creditNoteDate, setCreditNoteDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [creditNoteAmount, setCreditNoteAmount] = useState("");
+  const [creditNoteReference, setCreditNoteReference] = useState("");
+  const [creditNoteComment, setCreditNoteComment] = useState("");
+  const [processingCreditNote, setProcessingCreditNote] = useState(false);
 
   const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
@@ -182,6 +193,78 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
   const handleRefresh = async () => {
     await fetchInvoices(searchTerm, selectedMonth);
+  };
+
+  const openCreditNoteModal = (invoice: InvoiceRow) => {
+    const accountNumber = String(invoice?.account_number || "").trim();
+    if (!accountNumber) {
+      toast.error("No account number found for this invoice.");
+      return;
+    }
+    setCreditNoteInvoice(invoice);
+    const d = new Date();
+    setCreditNoteDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    setCreditNoteAmount("");
+    setCreditNoteReference("");
+    setCreditNoteComment("");
+    setShowCreditNoteModal(true);
+  };
+
+  const closeCreditNoteModal = () => {
+    setShowCreditNoteModal(false);
+    setCreditNoteInvoice(null);
+    setCreditNoteAmount("");
+    setCreditNoteReference("");
+    setCreditNoteComment("");
+  };
+
+  const handleConfirmCreditNote = async () => {
+    if (!creditNoteInvoice?.account_number) {
+      toast.error("No account number found for this invoice.");
+      return;
+    }
+
+    const numericAmount = Number(String(creditNoteAmount || "").replace(/,/g, ""));
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      toast.error("Enter a credit note amount greater than 0.");
+      return;
+    }
+
+    const billingMonth = creditNoteInvoice.billing_month || selectedMonth;
+    if (!billingMonth) {
+      toast.error("Unable to determine the billing month for this credit note.");
+      return;
+    }
+
+    setProcessingCreditNote(true);
+    try {
+      const response = await fetch("/api/credit-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountNumber: creditNoteInvoice.account_number,
+          billingMonth,
+          creditNoteDate,
+          amount: numericAmount,
+          reference: creditNoteReference,
+          comment: creditNoteComment,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to apply credit note");
+      }
+
+      toast.success(`${result?.creditNote?.credit_note_number || "Credit note"} applied to ${creditNoteInvoice.account_number}.`);
+      closeCreditNoteModal();
+      await fetchInvoices(searchTerm, selectedMonth);
+    } catch (error) {
+      console.error("Error applying credit note:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to apply credit note.");
+    } finally {
+      setProcessingCreditNote(false);
+    }
   };
 
   const downloadInvoiceExcel = async (invoice: InvoiceRow) => {
@@ -453,11 +536,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
               key={opt}
               type="button"
               onClick={() => setSourceFilter(opt)}
-              className={`px-2.5 h-7 text-[11px] font-medium transition-colors ${
-                sourceFilter === opt
+              className={`px-2.5 h-7 text-[11px] font-medium transition-colors ${sourceFilter === opt
                   ? "bg-primary text-primary-foreground"
                   : "bg-background text-muted-foreground hover:bg-accent"
-              }`}
+                }`}
             >
               {opt === "all" ? "All" : opt === "annuity" ? "Annuity" : "Job Card"}
             </button>
@@ -502,7 +584,6 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                 <TableHead className="py-2 text-xs">Billing Month</TableHead>
                 <TableHead className="py-2 text-xs text-right">Total</TableHead>
                 <TableHead className="py-2 text-xs text-right">Balance</TableHead>
-                <TableHead className="py-2 text-xs">Status</TableHead>
                 <TableHead className="py-2 text-xs">Source</TableHead>
                 <TableHead className="py-2 text-xs">Created By</TableHead>
                 <TableHead className="py-2 text-xs text-center">Action</TableHead>
@@ -543,11 +624,6 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     <TableCell className="py-1.5 text-right">{formatCurrency(invoice.total_amount)}</TableCell>
                     <TableCell className="py-1.5 text-right">{formatCurrency(invoice.balance_due)}</TableCell>
                     <TableCell className="py-1.5">
-                      <Badge className={`${getStatusTone(invoice.payment_status)} text-[10px] px-1.5 py-0`}>
-                        {String(invoice.payment_status || "pending")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-1.5">
                       {invoice.source_type === "account_invoice" ? (
                         <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Annuity</Badge>
                       ) : (
@@ -566,6 +642,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                         <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
                           <FileDown className="mr-1 w-3 h-3" />
                           Excel
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
+                          <FileText className="mr-1 w-3 h-3" />
+                          Credit Note
                         </Button>
                       </div>
                     </TableCell>
@@ -619,6 +699,118 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {showCreditNoteModal && creditNoteInvoice && (
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 p-4">
+          <div className="flex flex-col bg-white shadow-xl rounded-lg w-full max-w-2xl max-h-[90vh]">
+            <div className="flex flex-shrink-0 justify-between items-center p-6 border-gray-200 border-b">
+              <h3 className="font-semibold text-gray-900 text-lg">
+                Credit Note: {creditNoteInvoice.company_name || creditNoteInvoice.account_number}
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeCreditNoteModal}
+                disabled={processingCreditNote}
+                className="disabled:opacity-50 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-5 p-6 overflow-y-auto">
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-slate-50 p-4 border rounded-lg text-sm">
+                <div>
+                  <div className="text-slate-500">Account</div>
+                  <div className="font-medium text-slate-900">{creditNoteInvoice.account_number}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Client</div>
+                  <div className="font-medium text-slate-900">{creditNoteInvoice.company_name || "-"}</div>
+                </div>
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Credit note date</label>
+                  <Input
+                    type="date"
+                    value={creditNoteDate}
+                    onChange={(e) => setCreditNoteDate(e.target.value)}
+                    disabled={processingCreditNote}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Amount (Ex VAT)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={creditNoteAmount}
+                    onChange={(e) => setCreditNoteAmount(e.target.value)}
+                    disabled={processingCreditNote}
+                    placeholder="0.00"
+                  />
+                  <p className="text-slate-500 text-xs">
+                    Note: Credit note amount is captured ex-VAT.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Reference</label>
+                  <Input
+                    value={creditNoteReference}
+                    onChange={(e) => setCreditNoteReference(e.target.value)}
+                    disabled={processingCreditNote}
+                    placeholder="Free text reference"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Comment</label>
+                <textarea
+                  value={creditNoteComment}
+                  onChange={(e) => setCreditNoteComment(e.target.value)}
+                  disabled={processingCreditNote}
+                  rows={4}
+                  placeholder="Free text comment"
+                  className="px-3 py-2 border rounded-md w-full"
+                />
+              </div>
+
+              <div className="gap-4 grid grid-cols-1 md:grid-cols-2 bg-blue-50 p-4 border border-blue-200 rounded-lg text-sm">
+                <div>
+                  <div className="text-blue-700">Current Balance</div>
+                  <div className="font-semibold text-slate-900">
+                    {formatCurrency(creditNoteInvoice.balance_due)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-blue-700">After Credit</div>
+                  <div className="font-semibold text-slate-900">
+                    {formatCurrency(
+                      Math.max(
+                        0,
+                        Number(creditNoteInvoice.balance_due || 0) -
+                          Number(String(creditNoteAmount || "").replace(/,/g, "")),
+                      ),
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-shrink-0 justify-end gap-3 p-6 border-gray-200 border-t">
+              <Button variant="outline" onClick={closeCreditNoteModal} disabled={processingCreditNote}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmCreditNote} disabled={processingCreditNote}>
+                {processingCreditNote ? "Applying..." : "Apply Credit Note"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

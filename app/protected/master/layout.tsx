@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, FileText, Package, Activity } from 'lucide-react';
+import { Home, Users, FileText, Package, Activity, Receipt } from 'lucide-react';
 import { LogoutButton } from '@/components/logout-button';
 import UniversalLayout from '@/components/shared/UniversalLayout';
 
@@ -14,6 +14,7 @@ export default function MasterLayout({
   const pathname = usePathname();
 
   const navigation = [
+    { name: 'Credit Notes', href: '/protected/master/credit-notes', icon: Receipt },
     { name: 'Home', href: '/protected/master', icon: Home },
     { name: 'User Activity', href: '/protected/master/user-activity', icon: Activity },
     { name: 'Invoices', href: '/protected/master/invoices', icon: FileText },
