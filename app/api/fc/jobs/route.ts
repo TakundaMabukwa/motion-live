@@ -187,27 +187,35 @@ export async function GET(request: NextRequest) {
     const allJobs = jobs.filter((job) => {
       const jobStatus = normalizeToken(job.job_status);
       const status = normalizeToken(job.status);
+      const role = normalizeToken(job.role);
+      const moveTo = normalizeToken(job.move_to);
 
-      if (jobStatus === "invoiced" || status === "invoiced") return false;
+      const isReturnedToFc = role === "fc" || moveTo === "fc";
 
-      const jobId = String(job.id || "").trim();
-      const jobNum = String(job.job_number || "").trim();
-      if (invoicedJobIdSet.has(jobId) || invoicedJobNumberSet.has(jobNum)) {
-        return false;
+      if (jobStatus === "invoiced" || status === "invoiced") {
+        if (!isReturnedToFc) return false;
       }
 
-      const billingRaw = job.billing_statuses;
-      const billing = typeof billingRaw === "string"
-        ? (() => { try { return JSON.parse(billingRaw); } catch { return null; } })()
-        : (billingRaw && typeof billingRaw === "object" ? billingRaw : null);
+      if (!isReturnedToFc) {
+        const jobId = String(job.id || "").trim();
+        const jobNum = String(job.job_number || "").trim();
+        if (invoicedJobIdSet.has(jobId) || invoicedJobNumberSet.has(jobNum)) {
+          return false;
+        }
 
-      if (billing) {
-        const inv = (billing as Record<string, unknown>).invoice;
-        if (inv === true) return false;
-        if (typeof inv === "object" && inv !== null) {
-          const invObj = inv as Record<string, unknown>;
-          if (invObj.done === true || invObj.invoice_id || invObj.invoice_number || invObj.reference) {
-            return false;
+        const billingRaw = job.billing_statuses;
+        const billing = typeof billingRaw === "string"
+          ? (() => { try { return JSON.parse(billingRaw); } catch { return null; } })()
+          : (billingRaw && typeof billingRaw === "object" ? billingRaw : null);
+
+        if (billing) {
+          const inv = (billing as Record<string, unknown>).invoice;
+          if (inv === true) return false;
+          if (typeof inv === "object" && inv !== null) {
+            const invObj = inv as Record<string, unknown>;
+            if (invObj.done === true || invObj.invoice_id || invObj.invoice_number || invObj.reference) {
+              return false;
+            }
           }
         }
       }
