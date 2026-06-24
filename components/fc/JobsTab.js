@@ -70,6 +70,13 @@ const getProductLineTotal = (p) => {
 };
 const PRICE_FIELDS = ["cash_price","rental_price","subscription_price","installation_price","de_installation_price"];
 
+const formatRoleLabel = (role) => {
+  if (!role) return "—";
+  const r = String(role).toLowerCase().trim();
+  if (r === "inv") return "Stock Control";
+  return role.toUpperCase();
+};
+
 const getJobTypeDisplay = (jobType) => {
   const t = String(jobType || "").toLowerCase().trim();
   if (t === "admin_created") return "Repair";
@@ -199,7 +206,7 @@ export default function JobsTab() {
   const [movingJobId, setMovingJobId] = useState(null);
   const [moveHistoryJob, setMoveHistoryJob] = useState(null);
   const [progressJob, setProgressJob] = useState(null);
-  const [completedMonthFilter, setCompletedMonthFilter] = useState("");
+
 
   // Invoiced tab state
   const [invFcFilter, setInvFcFilter] = useState("");
@@ -370,24 +377,14 @@ export default function JobsTab() {
     return visible.filter((j) => getJobStatus(j) !== "completed");
   }, [jobs, jobTab, getJobStatus]);
 
-  const filteredJobsByMonth = useMemo(() => {
-    if (jobTab !== "completed" || !completedMonthFilter) return filteredJobs;
-    return filteredJobs.filter((j) => {
-      const d = j.completion_date || j.updated_at || "";
-      const m = d.slice(0, 7);
-      return m === completedMonthFilter;
-    });
-  }, [filteredJobs, jobTab, completedMonthFilter]);
-
   const filteredJobsSearch = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    const source = jobTab === "completed" ? filteredJobsByMonth : filteredJobs;
-    if (!q) return source;
-    return source.filter((j) =>
+    if (!q) return filteredJobs;
+    return filteredJobs.filter((j) =>
       [j.job_number, j.customer_name, j.vehicle_registration, j.job_description, j.new_account_number]
         .filter(Boolean).join(" ").toLowerCase().includes(q),
     );
-  }, [filteredJobsByMonth, filteredJobs, jobTab, searchTerm]);
+  }, [filteredJobs, searchTerm]);
 
   const metrics = useMemo(() => {
     const list = filteredJobsSearch;
@@ -643,15 +640,6 @@ export default function JobsTab() {
             </p>
           </div>
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
-            {jobTab === "completed" && (
-              <Input
-                type="month"
-                value={completedMonthFilter}
-                onChange={(e) => setCompletedMonthFilter(e.target.value)}
-                placeholder="Filter by month"
-                className="h-10 w-40 border-slate-200 text-sm"
-              />
-            )}
             <div className="relative min-w-0 w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
@@ -1184,8 +1172,8 @@ export default function JobsTab() {
                           {entry.moved_at ? new Date(entry.moved_at).toLocaleString("en-ZA") : "—"}
                         </td>
                         <td className="px-3 py-2 text-slate-700">{entry.user_email || entry.moved_by || "—"}</td>
-                        <td className="px-3 py-2 text-slate-700">{(entry.from_role || "—").toUpperCase()}</td>
-                        <td className="px-3 py-2 font-medium text-slate-900">{(entry.to_role || "—").toUpperCase()}</td>
+                        <td className="px-3 py-2 text-slate-700">{formatRoleLabel(entry.from_role)}</td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{formatRoleLabel(entry.to_role)}</td>
                       </tr>
                     ))}
                   </tbody>
