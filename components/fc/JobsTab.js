@@ -106,17 +106,27 @@ const getStageInfo = (job) => {
   return stages;
 };
 
-function ProgressButton({ job, onClick }) {
+function StageBadges({ job, onClick }) {
   const stages = getStageInfo(job);
-  const doneCount = stages.filter((s) => s.done).length;
+  const doneStages = stages.filter((s) => s.done);
+  const pendingStages = stages.filter((s) => !s.done);
   return (
     <button
       type="button"
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(job); }}
-      className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+      className="flex flex-wrap items-center gap-1 text-left"
     >
-      <CheckCircle2 className="h-3 w-3" />
-      {doneCount}/{stages.length}
+      {doneStages.map((s, i) => (
+        <span key={`done-${i}`} className="inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+          <CheckCircle2 className="h-2.5 w-2.5" />
+          {s.label}
+        </span>
+      ))}
+      {pendingStages.map((s, i) => (
+        <span key={`pend-${i}`} className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+          {s.label}
+        </span>
+      ))}
     </button>
   );
 }
@@ -189,10 +199,7 @@ export default function JobsTab() {
   const [movingJobId, setMovingJobId] = useState(null);
   const [moveHistoryJob, setMoveHistoryJob] = useState(null);
   const [progressJob, setProgressJob] = useState(null);
-  const [completedMonthFilter, setCompletedMonthFilter] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const [completedMonthFilter, setCompletedMonthFilter] = useState("");
 
   // Invoiced tab state
   const [invFcFilter, setInvFcFilter] = useState("");
@@ -758,7 +765,7 @@ export default function JobsTab() {
                 <Badge variant="outline" className={`shrink-0 border px-2 py-0.5 text-xs font-semibold ${sb.cls}`}>{sb.label}</Badge>
               </div>
               <div className="mt-1">
-                <ProgressButton job={job} onClick={setProgressJob} />
+                <StageBadges job={job} onClick={setProgressJob} />
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -846,7 +853,7 @@ export default function JobsTab() {
                             {job.escalation_role && String(job.escalation_role).toLowerCase() === "fc" && (
                               <Badge variant="outline" className="h-5 rounded-sm border border-orange-200 bg-orange-50 px-1.5 text-[10px] font-semibold text-orange-700 w-fit">Escalated</Badge>
                             )}
-                            <ProgressButton job={job} onClick={setProgressJob} />
+                            <StageBadges job={job} onClick={setProgressJob} />
                           </div>
                         </td>
                         <td className="px-3 py-2 text-slate-700 text-[11px]">
