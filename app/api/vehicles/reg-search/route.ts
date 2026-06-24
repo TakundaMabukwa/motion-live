@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const buildQuery = (start: number, end: number) => {
       let query = supabase
-        .from('vehicles')
+        .from('vehicles_duplicate')
         .select(selectColumns)
         .order('reg', { ascending: true })
         .range(start, end);
