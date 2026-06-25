@@ -111,7 +111,7 @@ interface Technician {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("all-jobs");
+  const [activeTab, setActiveTab] = useState("escalations");
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1595,243 +1595,243 @@ export default function AdminDashboard() {
   ];
 
   const tabItems = [
-    {
-      value: "all-jobs",
-      label: "Awaiting Technician",
-      icon: BarChart3,
-      content: (
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="font-semibold text-gray-900 text-xl">
-                Jobs Ready for Technician
-              </h2>
-              <p className="mt-1 text-gray-600 text-sm">
-                Showing jobs with parts assigned and no technician assigned
-              </p>
-            </div>
-            <Button
-              onClick={() => fetchJobCards(true)}
-              variant="outline"
-              size="icon"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
+    // {
+    //   value: "all-jobs",
+    //   label: "Awaiting Technician",
+    //   icon: BarChart3,
+    //   content: (
+    //     <div className="space-y-6">
+    //       {/* Header */}
+    //       <div className="flex justify-between items-center">
+    //         <div>
+    //           <h2 className="font-semibold text-gray-900 text-xl">
+    //             Jobs Ready for Technician
+    //           </h2>
+    //           <p className="mt-1 text-gray-600 text-sm">
+    //             Showing jobs with parts assigned and no technician assigned
+    //           </p>
+    //         </div>
+    //         <Button
+    //           onClick={() => fetchJobCards(true)}
+    //           variant="outline"
+    //           size="icon"
+    //         >
+    //           <RefreshCw className="w-4 h-4" />
+    //         </Button>
+    //       </div>
 
-          {/* Filters */}
-          <div className="flex sm:flex-row flex-col gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
-                <Input
-                  placeholder="Search jobs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="on_hold">On Hold</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by job type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="install">Install</SelectItem>
-                <SelectItem value="deinstall">Deinstall</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="repair">Repair</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={partsFilter} onValueChange={setPartsFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by parts" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Parts</SelectItem>
-                <SelectItem value="with_parts">With Parts</SelectItem>
-                <SelectItem value="without_parts">Without Parts</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={() => fetchJobCards(true)}
-              variant="outline"
-              size="icon"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-          </div>
+    //       {/* Filters */}
+    //       <div className="flex sm:flex-row flex-col gap-4">
+    //         <div className="flex-1">
+    //           <div className="relative">
+    //             <Search className="top-1/2 left-3 absolute w-4 h-4 text-gray-400 -translate-y-1/2 transform" />
+    //             <Input
+    //               placeholder="Search jobs..."
+    //               value={searchTerm}
+    //               onChange={(e) => setSearchTerm(e.target.value)}
+    //               className="pl-10"
+    //             />
+    //           </div>
+    //         </div>
+    //         <Select value={statusFilter} onValueChange={setStatusFilter}>
+    //           <SelectTrigger className="w-48">
+    //             <SelectValue placeholder="Filter by status" />
+    //           </SelectTrigger>
+    //           <SelectContent>
+    //             <SelectItem value="all">All Status</SelectItem>
+    //             <SelectItem value="pending">Pending</SelectItem>
+    //             <SelectItem value="in_progress">In Progress</SelectItem>
+    //             <SelectItem value="completed">Completed</SelectItem>
+    //             <SelectItem value="cancelled">Cancelled</SelectItem>
+    //             <SelectItem value="on_hold">On Hold</SelectItem>
+    //           </SelectContent>
+    //         </Select>
+    //         <Select value={jobTypeFilter} onValueChange={setJobTypeFilter}>
+    //           <SelectTrigger className="w-48">
+    //             <SelectValue placeholder="Filter by job type" />
+    //           </SelectTrigger>
+    //           <SelectContent>
+    //             <SelectItem value="all">All Types</SelectItem>
+    //             <SelectItem value="install">Install</SelectItem>
+    //             <SelectItem value="deinstall">Deinstall</SelectItem>
+    //             <SelectItem value="maintenance">Maintenance</SelectItem>
+    //             <SelectItem value="repair">Repair</SelectItem>
+    //           </SelectContent>
+    //         </Select>
+    //         <Select value={partsFilter} onValueChange={setPartsFilter}>
+    //           <SelectTrigger className="w-48">
+    //             <SelectValue placeholder="Filter by parts" />
+    //           </SelectTrigger>
+    //           <SelectContent>
+    //             <SelectItem value="all">All Parts</SelectItem>
+    //             <SelectItem value="with_parts">With Parts</SelectItem>
+    //             <SelectItem value="without_parts">Without Parts</SelectItem>
+    //           </SelectContent>
+    //         </Select>
+    //         <Button
+    //           onClick={() => fetchJobCards(true)}
+    //           variant="outline"
+    //           size="icon"
+    //         >
+    //           <RefreshCw className="w-4 h-4" />
+    //         </Button>
+    //       </div>
 
-          {/* Job Cards Table */}
-          <div className="rounded-lg border bg-white shadow-sm">
-            <div className="relative w-full overflow-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300"
-                        />
-                        <span>Job Number</span>
-                      </div>
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Description
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Customer
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Vehicle
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Schedule
-                    </th>
-                    <th className="py-3 px-4 text-left font-medium text-gray-500">
-                      Created
-                    </th>
-                    <th className="py-3 px-4 text-right font-medium text-gray-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-4 text-center">
-                        <div className="flex justify-center items-center py-8">
-                          <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
-                          <span className="ml-2">Loading job cards...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : filteredJobCards.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-4 text-center">
-                        <p className="text-gray-500 py-8">No job cards found</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredJobCards.map((job) => {
-                      return (
-                        <tr key={job.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4 align-middle">
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-gray-300"
-                              />
-                              <div>
-                                <div className="font-medium">
-                                  {job.job_number}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {(job.job_type || "job").toUpperCase()}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="truncate max-w-[250px]">
-                              {job.job_description || "No description"}
-                            </div>
-                            <div className="mt-1 text-xs text-gray-500">
-                              Client: {job.customer_name || "N/A"} | Reg:{" "}
-                              {job.vehicle_registration || "N/A"}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">
-                              {job.customer_name || "N/A"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {job.contact_person || "No contact person"}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="text-sm font-medium">
-                              {job.vehicle_registration || "N/A"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {[job.vehicle_make, job.vehicle_model]
-                                .filter(Boolean)
-                                .join(" ") || "No vehicle details"}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="text-sm">
-                              {job.job_date
-                                ? new Date(job.job_date).toLocaleDateString()
-                                : "Not scheduled"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {formatStartTimeClock(job.start_time)}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle text-gray-600">
-                            {new Date(job.created_at).toLocaleDateString()}
-                            <div className="text-xs text-gray-500 mt-1">
-                              {job.customer_phone ||
-                                job.customer_email ||
-                                "No contact"}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 align-middle">
-                            <div className="flex justify-end gap-2">
-                              {renderMoveJobSelect(job)}
-                              <Button
-                                onClick={() => handleViewJob(job)}
-                                variant="outline"
-                                size="sm"
-                                className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-                              >
-                                View
-                              </Button>
-                              <Button
-                                onClick={() => handleAssignTechnician(job)}
-                                variant="default"
-                                size="sm"
-                                className="bg-black hover:bg-gray-800 text-white"
-                                disabled={!canAssignTechnician(job)}
-                                title={
-                                  !canAssignTechnician(job)
-                                    ? "Parts must be assigned before technician can be assigned"
-                                    : ""
-                                }
-                              >
-                                <UserPlus className="w-4 h-4 mr-2" />
-                                Assign
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ),
-    },
+    //       {/* Job Cards Table */}
+    //       <div className="rounded-lg border bg-white shadow-sm">
+    //         <div className="relative w-full overflow-auto">
+    //           <table className="w-full border-collapse text-sm">
+    //             <thead>
+    //               <tr className="bg-gray-50 border-b">
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   <div className="flex items-center gap-1">
+    //                     <input
+    //                       type="checkbox"
+    //                       className="h-4 w-4 rounded border-gray-300"
+    //                     />
+    //                     <span>Job Number</span>
+    //                   </div>
+    //                 </th>
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   Description
+    //                 </th>
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   Customer
+    //                 </th>
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   Vehicle
+    //                 </th>
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   Schedule
+    //                 </th>
+    //                 <th className="py-3 px-4 text-left font-medium text-gray-500">
+    //                   Created
+    //                 </th>
+    //                 <th className="py-3 px-4 text-right font-medium text-gray-500">
+    //                   Actions
+    //                 </th>
+    //               </tr>
+    //             </thead>
+    //             <tbody>
+    //               {loading ? (
+    //                 <tr>
+    //                   <td colSpan={7} className="p-4 text-center">
+    //                     <div className="flex justify-center items-center py-8">
+    //                       <div className="border-b-2 border-blue-600 rounded-full w-8 h-8 animate-spin"></div>
+    //                       <span className="ml-2">Loading job cards...</span>
+    //                     </div>
+    //                   </td>
+    //                 </tr>
+    //               ) : filteredJobCards.length === 0 ? (
+    //                 <tr>
+    //                   <td colSpan={7} className="p-4 text-center">
+    //                     <p className="text-gray-500 py-8">No job cards found</p>
+    //                   </td>
+    //                 </tr>
+    //               ) : (
+    //                 filteredJobCards.map((job) => {
+    //                   return (
+    //                     <tr key={job.id} className="border-b hover:bg-gray-50">
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="flex items-center gap-3">
+    //                           <input
+    //                             type="checkbox"
+    //                             className="h-4 w-4 rounded border-gray-300"
+    //                           />
+    //                           <div>
+    //                             <div className="font-medium">
+    //                               {job.job_number}
+    //                             </div>
+    //                             <div className="text-xs text-gray-500">
+    //                               {(job.job_type || "job").toUpperCase()}
+    //                             </div>
+    //                           </div>
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="truncate max-w-[250px]">
+    //                           {job.job_description || "No description"}
+    //                         </div>
+    //                         <div className="mt-1 text-xs text-gray-500">
+    //                           Client: {job.customer_name || "N/A"} | Reg:{" "}
+    //                           {job.vehicle_registration || "N/A"}
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="text-sm font-medium">
+    //                           {job.customer_name || "N/A"}
+    //                         </div>
+    //                         <div className="text-xs text-gray-500">
+    //                           {job.contact_person || "No contact person"}
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="text-sm font-medium">
+    //                           {job.vehicle_registration || "N/A"}
+    //                         </div>
+    //                         <div className="text-xs text-gray-500">
+    //                           {[job.vehicle_make, job.vehicle_model]
+    //                             .filter(Boolean)
+    //                             .join(" ") || "No vehicle details"}
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="text-sm">
+    //                           {job.job_date
+    //                             ? new Date(job.job_date).toLocaleDateString()
+    //                             : "Not scheduled"}
+    //                         </div>
+    //                         <div className="text-xs text-gray-500">
+    //                           {formatStartTimeClock(job.start_time)}
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle text-gray-600">
+    //                         {new Date(job.created_at).toLocaleDateString()}
+    //                         <div className="text-xs text-gray-500 mt-1">
+    //                           {job.customer_phone ||
+    //                             job.customer_email ||
+    //                             "No contact"}
+    //                         </div>
+    //                       </td>
+    //                       <td className="py-3 px-4 align-middle">
+    //                         <div className="flex justify-end gap-2">
+    //                           {renderMoveJobSelect(job)}
+    //                           <Button
+    //                             onClick={() => handleViewJob(job)}
+    //                             variant="outline"
+    //                             size="sm"
+    //                             className="border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+    //                           >
+    //                             View
+    //                           </Button>
+    //                           <Button
+    //                             onClick={() => handleAssignTechnician(job)}
+    //                             variant="default"
+    //                             size="sm"
+    //                             className="bg-black hover:bg-gray-800 text-white"
+    //                             disabled={!canAssignTechnician(job)}
+    //                             title={
+    //                               !canAssignTechnician(job)
+    //                                 ? "Parts must be assigned before technician can be assigned"
+    //                                 : ""
+    //                             }
+    //                           >
+    //                             <UserPlus className="w-4 h-4 mr-2" />
+    //                             Assign
+    //                           </Button>
+    //                         </div>
+    //                       </td>
+    //                     </tr>
+    //                   );
+    //                 })
+    //               )}
+    //             </tbody>
+    //           </table>
+    //         </div>
+    //       </div>
+    //     </div>
+    //   ),
+    // },
     {
       value: "escalations",
       label: "Escalations",

@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
+import
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-ZA", {
@@ -99,7 +100,8 @@ export default function AnnuityInvoiceTab({ costCenters = [] }) {
   const [editableAddress, setEditableAddress] = useState("");
   const [editableRegNumber, setEditableRegNumber] = useState("");
   const [editableNotes, setEditableNotes] = useState("");
-
+  const [searchInvoice, setSearchInvoice] = useState("");
+  
   // Compute live totals inline (no memo, always fresh)
   const sourceItems = Array.isArray(invoiceData?.invoiceItems)
     ? invoiceData.invoiceItems

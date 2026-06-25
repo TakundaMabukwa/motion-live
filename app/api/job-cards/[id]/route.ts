@@ -497,7 +497,43 @@ export async function PATCH(
           const requiresIdentityCheck = hasStrongPartIdentity(normalizedSelected);
           let remainingQty = toSafePositiveQuantity(normalizedSelected.quantity);
 
-          const locatedPart = rowState.assignedParts[rowLocator.index];
+          const serialForLookup = resolvePartSerialToken(normalizedSelected);
+          const stockIdForLookup = normalizeToken(normalizedSelected.stock_id ?? normalizedSelected.id);
+
+          let locatedPart = rowState.assignedParts[rowLocator.index];
+          if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
+            let fallbackPart: unknown = null;
+            if (serialForLookup) {
+              const serialMatches = rowState.assignedParts.filter(
+                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
+                  resolvePartSerialToken(p as Record<string, unknown>) === serialForLookup,
+              );
+              if (serialMatches.length === 1) {
+                fallbackPart = serialMatches[0];
+              } else if (serialMatches.length > 1 && stockIdForLookup) {
+                fallbackPart = serialMatches.find(
+                  (p) => normalizeToken((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id) === stockIdForLookup,
+                );
+              }
+            }
+            if (!fallbackPart && stockIdForLookup) {
+              fallbackPart = rowState.assignedParts.find(
+                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
+                  normalizeToken((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id) === stockIdForLookup,
+              );
+            }
+            if (!fallbackPart || typeof fallbackPart !== 'object' || Array.isArray(fallbackPart)) {
+              return NextResponse.json(
+                {
+                  error:
+                    'Selected technician stock item is stale. Please refresh and try again.',
+                },
+                { status: 409 },
+              );
+            }
+            locatedPart = fallbackPart;
+          }
+
           if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
             return NextResponse.json(
               {

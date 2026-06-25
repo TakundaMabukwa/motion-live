@@ -633,13 +633,37 @@ export async function PUT(request: NextRequest, { params }) {
           const requiresIdentityCheck = hasStrongPartIdentity(normalizedSelected);
           let remainingQty = toSafePositiveQuantity(normalizedSelected.quantity);
 
-          const locatedPart = rowState.assignedParts[rowLocator.index];
+          const serialForLookup = resolvePartSerialToken(normalizedSelected);
+          const stockIdForLookup = String(normalizedSelected.stock_id || normalizedSelected.id || '').trim();
+
+          let locatedPart = rowState.assignedParts[rowLocator.index];
           if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
-            return {
-              success: false,
-              warning:
-                'Selected technician stock item is stale. Please refresh and try again.',
-            };
+            if (serialForLookup) {
+              const serialMatches = rowState.assignedParts.filter(
+                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
+                  resolvePartSerialToken(p as Record<string, unknown>) === serialForLookup,
+              );
+              if (serialMatches.length === 1) {
+                locatedPart = serialMatches[0];
+              } else if (serialMatches.length > 1 && stockIdForLookup) {
+                locatedPart = serialMatches.find(
+                  (p) => String((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id ?? '') === stockIdForLookup,
+                );
+              }
+            }
+            if (!locatedPart && stockIdForLookup) {
+              locatedPart = rowState.assignedParts.find(
+                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
+                  String((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id ?? '') === stockIdForLookup,
+              );
+            }
+            if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
+              return {
+                success: false,
+                warning:
+                  'Selected technician stock item is stale. Please refresh and try again.',
+              };
+            }
           }
 
           const locatedCandidate = normalizePartRecord(
