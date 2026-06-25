@@ -31,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
-import
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-ZA", {
