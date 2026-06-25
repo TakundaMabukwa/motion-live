@@ -1,0 +1,122 @@
+stock for SOL-959975 = parts required for SOL-959975 = [
+  {
+    "code": "440FT09",
+    "quantity": 1,
+    "stock_id": 22731,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "BEAME BEACON U0061MT-MK6",
+    "cost_per_unit": 0,
+    "serial_number": "75311321"
+  },
+  {
+    "code": "SIM_MACHINE2MACHINE_LITE",
+    "quantity": 1,
+    "stock_id": 32816,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "Machine2Machine Lite",
+    "cost_per_unit": 0,
+    "serial_number": "8932000000030113233"
+  },
+  {
+    "code": "P03STARLINK3G",
+    "quantity": 1,
+    "stock_id": 32815,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "Skylink PRO 2G 3G 4G",
+    "cost_per_unit": 0,
+    "serial_number": "61.251.1.130"
+  }
+]
+
+
+
+parts required for SOL-624255 = [
+  {
+    "code": "P03STARLINK3G",
+    "quantity": 1,
+    "stock_id": 25650,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "Skylink PRO 2G 3G 4G",
+    "cost_per_unit": 0,
+    "serial_number": "61.251.1.130"
+  },
+  {
+    "code": "P05KITNZR",
+    "quantity": 1,
+    "stock_id": 32653,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "SKY - STARLINK SPARE HARNESS",
+    "cost_per_unit": 0,
+    "serial_number": "EIKK00082387500"
+  },
+  {
+    "code": "SIM_MACHINE2MACHINE_LITE",
+    "quantity": 1,
+    "stock_id": 31155,
+    "supplier": "N/A",
+    "ip_address": "",
+    "total_cost": 0,
+    "description": "Machine2Machine Lite",
+    "cost_per_unit": 0,
+    "serial_number": "89320000000030113233"
+  }
+]
+
+
+equipment-used for SOL-624255 = [
+  {
+    "code": "SIM_MACHINE2MACHINE_LITE",
+    "row_id": "3-assigned-122",
+    "source": "tech_stock.assigned_parts",
+    "quantity": 1,
+    "stock_id": "31262",
+    "supplier": "N/A",
+    "ip_address": "",
+    "stock_type": "",
+    "description": "Machine2Machine Lite",
+    "selected_at": "2026-06-23T10:08:55.082Z",
+    "serial_number": "89550000000016722363",
+    "available_stock": 1,
+    "boot_transfer_pending": false
+  },
+  {
+    "code": "P03STARLINK3G",
+    "row_id": "3-assigned-123",
+    "source": "tech_stock.assigned_parts",
+    "quantity": 1,
+    "stock_id": "35159",
+    "supplier": "N/A",
+    "ip_address": "",
+    "stock_type": "",
+    "description": "Skylink PRO 2G 3G 4G",
+    "selected_at": "2026-06-23T10:08:55.082Z",
+    "serial_number": "56.7.3.233",
+    "available_stock": 1,
+    "boot_transfer_pending": false
+  },
+  {
+    "code": "440FT09",
+    "row_id": "3-assigned-124",
+    "source": "tech_stock.assigned_parts",
+    "quantity": 1,
+    "stock_id": "35160",
+    "supplier": "N/A",
+    "ip_address": "",
+    "stock_type": "",
+    "description": "BEAME BEACON U0061MT-MK6",
+    "selected_at": "2026-06-23T10:08:55.082Z",
+    "serial_number": "75320705",
+    "available_stock": 1,
+    "boot_transfer_pending": false
+  }
+]

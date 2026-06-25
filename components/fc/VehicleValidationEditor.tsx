@@ -25,7 +25,6 @@ import {
   Trash2,
   Check,
   Search,
-  Lock,
   FileText,
   X,
   Clock,
@@ -302,7 +301,6 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
   const [newVehicleData, setNewVehicleData] = useState(initialTotalValues);
   const [validationMode, setValidationMode] = useState(false);
   const [savingField, setSavingField] = useState(null);
-  const [lockingCostCenterTotal, setLockingCostCenterTotal] = useState(false);
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   const [isLoadingInvoicePreview, setIsLoadingInvoicePreview] = useState(false);
   const [invoicePreviewCostCenter, setInvoicePreviewCostCenter] = useState(null);
@@ -457,10 +455,6 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
     if (!Number.isFinite(parsed) || parsed <= 0) return 1;
     return Math.min(12, parsed);
   }, [billingCycleMultiplier]);
-  const lockAmountForSelectedMonth = useMemo(
-    () => Number((filteredVehiclesGrandTotal * billingCycleMultiplierValue).toFixed(2)),
-    [filteredVehiclesGrandTotal, billingCycleMultiplierValue],
-  );
 
 
   const matchingCostCenters = useMemo(() => {
@@ -537,7 +531,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
     );
   }, [matchingCostCenters, costCode]);
 
-  const currentCostCenterName = currentCostCenter?.company || firstCostCode || "";
+  const currentCostCenterName = isAllMode ? "All Cost Centers" : currentCostCenter?.company || firstCostCode || "";
   const invoicePreviewTitle = currentCostCenterName || firstCostCode || "";
   const selectedBillingMonth = useMemo(() => {
     const normalized = normalizeBillingMonthValue(
@@ -565,19 +559,6 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
         .join(", "),
     [selectedCoveredBillingMonths],
   );
-  const canLockForSelectedMonths = useMemo(() => {
-    const normalizedMonths = selectedCoveredBillingMonths
-      .map((month) => normalizeBillingMonthValue(month))
-      .filter(Boolean);
-    return (
-      normalizedMonths.length === billingCycleMultiplierValue &&
-      normalizedMonths.includes(selectedBillingMonth)
-    );
-  }, [
-    selectedCoveredBillingMonths,
-    billingCycleMultiplierValue,
-    selectedBillingMonth,
-  ]);
   const costCenterLockedMonth = normalizeBillingMonthValue(
     currentCostCenter?.total_amount_locked_at,
   );
@@ -1237,68 +1218,6 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
       toast.error(error?.message || "Failed to load invoice preview");
     } finally {
       setIsLoadingInvoicePreview(false);
-    }
-  };
-
-  const lockCostCenterTotal = async () => {
-    if (!costCode) {
-      toast.error("No cost center provided");
-      return;
-    }
-    const coveredMonths = selectedCoveredBillingMonths
-      .map((month) => normalizeBillingMonthValue(month))
-      .filter(Boolean);
-    const selectedMonthIsIncluded = coveredMonths.includes(selectedBillingMonth);
-    if (coveredMonths.length !== billingCycleMultiplierValue) {
-      toast.error(
-        `Specify exactly ${billingCycleMultiplierValue} billing month${billingCycleMultiplierValue > 1 ? "s" : ""} before locking`,
-      );
-      return;
-    }
-    if (!selectedMonthIsIncluded) {
-      toast.error("Covered billing months must include the selected Billing Month");
-      return;
-    }
-
-    try {
-      setLockingCostCenterTotal(true);
-      const response = await fetch("/api/cost-centers/validate", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cost_code: firstCostCode,
-          validated: Boolean(currentCostCenter?.validated),
-          billing_month: selectedBillingMonth,
-          total_amount_locked: true,
-          total_amount_locked_value: lockAmountForSelectedMonth,
-          total_amount_locked_multiplier: billingCycleMultiplierValue,
-          total_amount_locked_billing_months: coveredMonths,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result?.details || result?.error || "Failed to lock total amount",
-        );
-      }
-
-      setCostCenterOptions((prev) =>
-        prev.map((option) =>
-          option.cost_code === firstCostCode ? { ...option, ...result } : option,
-        ),
-      );
-      const coveredMonthsLabel = coveredMonths
-        .map((month) => formatBillingMonthLabel(month))
-        .join(", ");
-      toast.success(
-        `Locked ${formatCurrency(lockAmountForSelectedMonth)} (${billingCycleMultiplierValue}x) for ${coveredMonthsLabel}`,
-      );
-    } catch (error) {
-      toast.error("Failed to lock total amount: " + error.message);
-    } finally {
-      setLockingCostCenterTotal(false);
     }
   };
 
@@ -2194,109 +2113,91 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
               })()}
             </Collapsible>
           ))}
-          <Card className="border-slate-200 bg-white shadow-sm">
-            <CardContent className="px-6 py-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                    Grand Total
-                  </p>
-                  <p className="mt-1 text-3xl font-bold text-slate-900">
-                    {formatCurrency(filteredVehiclesGrandTotal)}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Total total_rental_sub for the currently visible vehicles.
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Lock amount ({billingCycleMultiplierValue}x):{" "}
-                    <span className="font-semibold text-slate-800">
-                      {formatCurrency(lockAmountForSelectedMonth)}
-                    </span>
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Covered months:{" "}
-                    <span className="font-semibold text-slate-800">
-                      {selectedCoveredBillingMonthsLabel || "None"}
-                    </span>
-                  </p>
-                  {!canLockForSelectedMonths && (
-                    <p className="mt-1 text-xs font-medium text-amber-700">
-                      Covered months must include {formatBillingMonthLabel(selectedBillingMonth)} and match {billingCycleMultiplierValue} month{billingCycleMultiplierValue > 1 ? "s" : ""}.
+          {isAllMode ? (
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardContent className="px-6 py-5 text-center text-sm text-gray-500">
+                Please select a cost center to preview invoices.
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardContent className="px-6 py-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Previous month
                     </p>
-                  )}
-                </div>
-                <div className="flex flex-col items-start gap-3 md:items-end">
-                  <Button
-                    onClick={handleShowInvoicePreview}
-                    disabled={isLoadingInvoicePreview}
-                    variant="outline"
-                    className="min-w-[170px]"
-                  >
-                    {isLoadingInvoicePreview ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileText className="mr-2 h-4 w-4" />
-                    )}
-                    {isLoadingInvoicePreview ? "Loading Invoice..." : "View Invoice"}
-                  </Button>
-                  {isCostCenterLockedForSelectedMonth && (
-                    <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                      <div className="font-semibold">Total locked</div>
-                      <div className="mt-1 text-base font-semibold text-blue-950">
-                        {currentCostCenter?.total_amount_locked_value != null
-                          ? formatCurrency(currentCostCenter.total_amount_locked_value)
-                          : formatCurrency(filteredVehiclesGrandTotal)}
+                    <p className="mt-1 text-3xl font-bold text-slate-900">
+                      {formatCurrency(filteredVehiclesGrandTotal)}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Total total_rental_sub for the currently visible vehicles.
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Covered months:{" "}
+                      <span className="font-semibold text-slate-800">
+                        {selectedCoveredBillingMonthsLabel || "None"}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-start gap-3 md:items-end">
+                    <Button
+                      onClick={handleShowInvoicePreview}
+                      disabled={isLoadingInvoicePreview}
+                      variant="outline"
+                      className="min-w-[170px]"
+                    >
+                      {isLoadingInvoicePreview ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="mr-2 h-4 w-4" />
+                      )}
+                      {isLoadingInvoicePreview ? "Loading Invoice..." : "View Invoice"}
+                    </Button>
+                    {isCostCenterLockedForSelectedMonth && (
+                      <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                        <div className="font-semibold">Previous month</div>
+                        <div className="mt-1 text-base font-semibold text-blue-950">
+                          {currentCostCenter?.total_amount_locked_value != null
+                            ? formatCurrency(currentCostCenter.total_amount_locked_value)
+                            : formatCurrency(filteredVehiclesGrandTotal)}
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-blue-700">
+                          <div>
+                            <span className="font-semibold">Locked By:</span>{" "}
+                            {currentCostCenter?.total_amount_locked_by_email || currentCostCenter?.total_amount_locked_by || "Current user"}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Locked At:</span>{" "}
+                            {currentCostCenter?.total_amount_locked_at
+                              ? new Date(currentCostCenter.total_amount_locked_at).toLocaleString("en-ZA")
+                              : "Pending"}
+                          </div>
+                          <div>
+                            <span className="font-semibold">Billing X:</span>{" "}
+                            {Number.parseInt(
+                              String(currentCostCenter?.total_amount_locked_multiplier || "1"),
+                              10,
+                            ) || 1}
+                            x
+                          </div>
+                          <div>
+                            <span className="font-semibold">Covered Months:</span>{" "}
+                            {Array.isArray(currentCostCenter?.total_amount_locked_billing_months) &&
+                            currentCostCenter.total_amount_locked_billing_months.length > 0
+                              ? currentCostCenter.total_amount_locked_billing_months
+                                  .map((month) => formatBillingMonthLabel(month))
+                                  .join(", ")
+                              : formatBillingMonthLabel(selectedBillingMonth)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-2 space-y-1 text-xs text-blue-700">
-                        <div>
-                          <span className="font-semibold">Locked By:</span>{" "}
-                          {currentCostCenter?.total_amount_locked_by_email || currentCostCenter?.total_amount_locked_by || "Current user"}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Locked At:</span>{" "}
-                          {currentCostCenter?.total_amount_locked_at
-                            ? new Date(currentCostCenter.total_amount_locked_at).toLocaleString("en-ZA")
-                            : "Pending"}
-                        </div>
-                        <div>
-                          <span className="font-semibold">Billing X:</span>{" "}
-                          {Number.parseInt(
-                            String(currentCostCenter?.total_amount_locked_multiplier || "1"),
-                            10,
-                          ) || 1}
-                          x
-                        </div>
-                        <div>
-                          <span className="font-semibold">Covered Months:</span>{" "}
-                          {Array.isArray(currentCostCenter?.total_amount_locked_billing_months) &&
-                          currentCostCenter.total_amount_locked_billing_months.length > 0
-                            ? currentCostCenter.total_amount_locked_billing_months
-                                .map((month) => formatBillingMonthLabel(month))
-                                .join(", ")
-                            : formatBillingMonthLabel(selectedBillingMonth)}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <Button
-                    onClick={lockCostCenterTotal}
-                    disabled={lockingCostCenterTotal || !canLockForSelectedMonths}
-                    variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
-                    className="min-w-[170px]"
-                  >
-                    {lockingCostCenterTotal ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : isCostCenterLockedForSelectedMonth ? (
-                      <Check className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Lock className="mr-2 h-4 w-4" />
                     )}
-                    Lock Total ({billingCycleMultiplierValue}x)
-                  </Button>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
         </>
@@ -2431,25 +2332,6 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                   quote_notes: "",
                 }}
                 viewOnly
-                extraActions={
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={lockCostCenterTotal}
-                      disabled={lockingCostCenterTotal || !canLockForSelectedMonths}
-                      variant={isCostCenterLockedForSelectedMonth ? "secondary" : "default"}
-                      className="flex items-center gap-2"
-                    >
-                      {lockingCostCenterTotal ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : isCostCenterLockedForSelectedMonth ? (
-                        <Check className="h-4 w-4" />
-                      ) : (
-                        <Lock className="h-4 w-4" />
-                      )}
-                      Lock Total ({billingCycleMultiplierValue}x)
-                    </Button>
-                  </div>
-                }
               />
             </div>
           </div>
