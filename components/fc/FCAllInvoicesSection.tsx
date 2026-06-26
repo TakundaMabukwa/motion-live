@@ -742,8 +742,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                       {invoice.source_type === "credit_note" ? (
                         invoice.approved ? (
                           <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0">Yes</Badge>
+                        ) : invoice.decline_reason ? (
+                          <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0">Declined</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0">No</Badge>
+                          <Badge className="bg-yellow-100 text-yellow-800 text-[10px] px-1.5 py-0">Waiting for approval</Badge>
                         )
                       ) : (
                         "—"
