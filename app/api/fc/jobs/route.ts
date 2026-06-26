@@ -130,31 +130,37 @@ export async function GET(request: NextRequest) {
     let query = serviceSupabase
       .from("job_cards")
       .select("*")
-      .neq("status", "invoiced")
-      .neq("job_status", "invoiced")
       .order("created_at", { ascending: false });
 
     if (!showAllJobs && isFc && fcCostCodes.length > 0) {
       query = query.in("new_account_number", fcCostCodes.map((c) => c.replace(/[^-.\w]/g, "")));
     }
 
-    const { data, error } = await query.range(0, 9999);
-
-    if (error) {
-      console.error("Error fetching FC jobs:", error);
-      return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
+    // Fetch in batches — Supabase PostgREST caps at 1000 rows per request
+    const BATCH = 1000;
+    let from = 0;
+    let allRows: JobRecord[] = [];
+    while (true) {
+      const { data: batch, error } = await query.range(from, from + BATCH - 1);
+      if (error) {
+        console.error("Error fetching FC jobs:", error);
+        return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 });
+      }
+      const rows = (batch || []) as unknown as JobRecord[];
+      allRows = allRows.concat(rows);
+      if (rows.length < BATCH) break;
+      from += BATCH;
     }
 
-    const jobs = (data || []) as unknown as JobRecord[];
+    const jobs = allRows;
 
     const normalizeToken = (value: unknown) =>
       String(value || "").trim().toLowerCase();
 
     const allJobs = jobs.filter((job) => {
-      const role = normalizeToken(job.role);
-      const moveTo = normalizeToken(job.move_to);
-      const isFcJob = role === "fc" || moveTo === "fc";
-      if (isFcJob) return true;
+      const s = normalizeToken(job.status);
+      const js = normalizeToken(job.job_status);
+      if (s === "invoiced" || js === "invoiced") return false;
 
       const billingRaw = job.billing_statuses;
       const billing = typeof billingRaw === "string"
