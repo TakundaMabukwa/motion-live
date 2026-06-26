@@ -27,16 +27,6 @@ const getMonthKeyFromValue = (value: unknown) => {
   return `${year}-${month}`;
 };
 
-const buildInvoiceMergeKey = (invoice: Record<string, unknown>) => {
-  const invoiceNumber = String(invoice?.invoice_number || "").trim().toUpperCase();
-  if (invoiceNumber) return `inv:${invoiceNumber}`;
-  const fallbackId = String(invoice?.id || "").trim();
-  if (fallbackId) return `id:${fallbackId}`;
-  const account = String(invoice?.account_number || "").trim().toUpperCase();
-  const invoiceDate = String(invoice?.invoice_date || invoice?.created_at || "").trim();
-  return `fallback:${account}:${invoiceDate}`;
-};
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -51,8 +41,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const search = normalizeSearch(searchParams.get("search"));
+    const clientName = normalizeSearch(searchParams.get("client_name"));
     const month = normalizeMonthParam(searchParams.get("month"));
     const costCodes = normalizeSearch(searchParams.get("cost_codes"));
+    const sourceType = normalizeSearch(searchParams.get("source_type")).toLowerCase();
     const fetchAll = ["1", "true", "yes"].includes(
       String(searchParams.get("all") || "").trim().toLowerCase(),
     );
@@ -61,6 +53,7 @@ export async function GET(request: NextRequest) {
       5000,
     );
 
+    // Fetch ALL invoices — no case-sensitive .in() filter; filter in code instead
     let query = supabase
       .from("account_invoices")
       .select(
@@ -70,14 +63,6 @@ export async function GET(request: NextRequest) {
       .order("invoice_date", { ascending: false, nullsFirst: false });
 
     query = fetchAll ? query.range(0, 9999) : query.limit(limit);
-
-    // Filter by cost codes if provided
-    if (costCodes) {
-      const codes = costCodes.split(",").map((c) => c.trim()).filter(Boolean);
-      if (codes.length > 0) {
-        query = query.in("account_number", codes);
-      }
-    }
 
     const { data: invoices, error } = await query;
 
@@ -100,14 +85,6 @@ export async function GET(request: NextRequest) {
     jobCardInvoiceQuery = fetchAll
       ? jobCardInvoiceQuery.range(0, 9999)
       : jobCardInvoiceQuery.limit(limit);
-
-    // Filter job card invoices by cost codes if provided
-    if (costCodes) {
-      const codes = costCodes.split(",").map((c) => c.trim()).filter(Boolean);
-      if (codes.length > 0) {
-        jobCardInvoiceQuery = jobCardInvoiceQuery.in("account_number", codes);
-      }
-    }
 
     const { data: jobCardInvoices, error: jobCardInvoicesError } = await jobCardInvoiceQuery;
 
@@ -199,25 +176,11 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    const mergedByInvoiceKey = new Map<string, Record<string, unknown>>();
-    for (const row of normalizedJobCardInvoices) {
-      mergedByInvoiceKey.set(buildInvoiceMergeKey(row), row);
-    }
-
-    for (const row of accountRows) {
-      const key = buildInvoiceMergeKey(row);
-      if (mergedByInvoiceKey.has(key)) {
-        const existing = mergedByInvoiceKey.get(key)!;
-        mergedByInvoiceKey.set(key, { ...existing, ...row });
-      } else {
-        mergedByInvoiceKey.set(key, row);
-      }
-    }
-
-    const mergedRows = Array.from(mergedByInvoiceKey.values());
+    // Combine both tables — no merge, no dedup, every invoice counted individually
+    const allRows = [...accountRows, ...normalizedJobCardInvoices];
 
     const searchFilteredRows = search
-      ? mergedRows.filter((invoice) => {
+      ? allRows.filter((invoice) => {
           const needle = search.toLowerCase();
           return [
             invoice?.invoice_number,
@@ -227,7 +190,7 @@ export async function GET(request: NextRequest) {
             invoice?.company_registration_number,
           ].some((value) => String(value || "").toLowerCase().includes(needle));
         })
-      : mergedRows;
+      : allRows;
 
     const monthFilteredRows = month
       ? searchFilteredRows.filter((invoice) => {
@@ -237,12 +200,41 @@ export async function GET(request: NextRequest) {
         })
       : searchFilteredRows;
 
+    const sourceTypeFilteredRows = sourceType && sourceType !== "all"
+      ? monthFilteredRows.filter((invoice) => {
+          const st = String(invoice?.source_type || "").trim().toLowerCase();
+          if (sourceType === "annuity") return st === "account_invoice";
+          if (sourceType === "job_card" || sourceType === "jobcard") return st === "job_card_invoice";
+          return true;
+        })
+      : monthFilteredRows;
+
+    // Cost codes filter — case-insensitive, in code
+    const costCodesList = costCodes
+      ? costCodes.split(",").map((c) => c.trim().toUpperCase()).filter(Boolean)
+      : [];
+    const costCodesFilteredRows = costCodesList.length > 0
+      ? sourceTypeFilteredRows.filter((invoice) => {
+          const acct = String(invoice?.account_number || "").trim().toUpperCase();
+          return costCodesList.includes(acct);
+        })
+      : sourceTypeFilteredRows;
+
+    // Client name filter — case-insensitive partial match
+    const clientNameFilteredRows = clientName
+      ? costCodesFilteredRows.filter((invoice) => {
+          const name = String(invoice?.company_name || "").trim().toLowerCase();
+          return name.includes(clientName.toLowerCase());
+        })
+      : costCodesFilteredRows;
+
     let costCentersByCode = new Map<string, Record<string, unknown>>();
     const { data: allCostCenters, error: allCostCentersError } = await supabase
       .from("cost_centers")
       .select(
         "cost_code, company, legal_name, vat_number, registration_number, physical_address_1, physical_address_2, physical_address_3, physical_area, physical_code",
-      );
+      )
+      .range(0, 9999);
 
     if (allCostCentersError) {
       console.error("Failed to fetch cost centers for invoice enrichment:", allCostCentersError);
@@ -255,7 +247,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const invoicesWithCustomerInfo = monthFilteredRows.map((invoice) => {
+    const invoicesWithCustomerInfo = clientNameFilteredRows.map((invoice) => {
       const accountNumber = String(invoice?.account_number || "").trim();
       const costCenter = costCentersByCode.get(accountNumber.toUpperCase()) || null;
       const costCenterAddress = [

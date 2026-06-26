@@ -8,7 +8,7 @@ export default function MasterDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/protected/master/credit-notes");
+    router.replace("/protected/master/fc-annuity");
   }, [router]);
 
   return (

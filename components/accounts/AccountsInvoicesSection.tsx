@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, FileDown, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Eye, FileDown, Loader2, RefreshCw, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
@@ -84,14 +84,19 @@ export default function AccountsInvoicesSection() {
   const [refreshing, setRefreshing] = useState(false);
   const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [sourceType, setSourceType] = useState<"all" | "annuity" | "job_card">("all");
   const [selectedInvoice, setSelectedInvoice] = useState<AccountInvoiceRow | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [viewerOrderNumber, setViewerOrderNumber] = useState<string | null>(null);
   const [lookupInvoiceNumber, setLookupInvoiceNumber] = useState("");
+  const [clientNameSearch, setClientNameSearch] = useState("");
+  const [clientNameSearching, setClientNameSearching] = useState(false);
   const [lookupSearching, setLookupSearching] = useState(false);
+  const [sortBy, setSortBy] = useState<"invoice_number" | "company_name" | "total_amount" | "billing_month">("invoice_number");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const originalInvoicesRef = useRef<AccountInvoiceRow[] | null>(null);
 
-  const fetchInvoices = async (month = selectedMonth) => {
+  const fetchInvoices = async (month = selectedMonth, source = sourceType, clientNameFilter = "") => {
     try {
       const isRefresh = !loading;
       if (isRefresh) {
@@ -104,6 +109,12 @@ export default function AccountsInvoicesSection() {
       query.set("all", "1");
       if (month.trim()) {
         query.set("month", month.trim());
+      }
+      if (source && source !== "all") {
+        query.set("source_type", source);
+      }
+      if (clientNameFilter.trim()) {
+        query.set("client_name", clientNameFilter.trim());
       }
 
       const response = await fetch(`/api/accounts/invoices?${query.toString()}`, {
@@ -127,13 +138,43 @@ export default function AccountsInvoicesSection() {
   };
 
   useEffect(() => {
-    fetchInvoices(selectedMonth);
-  }, [selectedMonth]);
+    fetchInvoices(selectedMonth, sourceType);
+  }, [selectedMonth, sourceType]);
 
   const totalInvoiceValue = invoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
+  const toggleSort = (field: typeof sortBy) => {
+    if (sortBy === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortIcon = (field: typeof sortBy) => {
+    if (sortBy !== field) return <ArrowUpDown className="w-3 h-3 text-gray-300" />;
+    return sortDir === "asc"
+      ? <ArrowUp className="w-3 h-3 text-gray-600" />
+      : <ArrowDown className="w-3 h-3 text-gray-600" />;
+  };
+
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === "invoice_number") {
+      cmp = String(a.invoice_number || "").localeCompare(String(b.invoice_number || ""));
+    } else if (sortBy === "company_name") {
+      cmp = String(a.company_name || "").localeCompare(String(b.company_name || ""));
+    } else if (sortBy === "total_amount") {
+      cmp = Number(a.total_amount || 0) - Number(b.total_amount || 0);
+    } else if (sortBy === "billing_month") {
+      cmp = String(a.billing_month || "").localeCompare(String(b.billing_month || ""));
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
   const handleRefresh = async () => {
-    await fetchInvoices(selectedMonth);
+    await fetchInvoices(selectedMonth, sourceType);
   };
 
   const handleLookupSearch = async () => {
@@ -178,7 +219,36 @@ export default function AccountsInvoicesSection() {
   const handleLookupClear = () => {
     originalInvoicesRef.current = null;
     setLookupInvoiceNumber("");
-    fetchInvoices(selectedMonth);
+    setClientNameSearch("");
+    fetchInvoices(selectedMonth, sourceType);
+  };
+
+  const handleClientNameSearch = async () => {
+    const name = clientNameSearch.trim();
+    if (!name) {
+      toast.error("Please enter a client name to search");
+      return;
+    }
+
+    if (originalInvoicesRef.current === null) {
+      originalInvoicesRef.current = [...invoices];
+    }
+
+    setClientNameSearching(true);
+    try {
+      await fetchInvoices(selectedMonth, sourceType, name);
+      toast.success(`Showing invoices for "${name}"`);
+    } catch (error) {
+      console.error("Client name search error:", error);
+      toast.error("Search failed");
+    } finally {
+      setClientNameSearching(false);
+    }
+  };
+
+  const handleClientNameClear = () => {
+    setClientNameSearch("");
+    fetchInvoices(selectedMonth, sourceType);
   };
 
   const downloadInvoiceExcel = async (invoice: AccountInvoiceRow) => {
@@ -424,7 +494,77 @@ export default function AccountsInvoicesSection() {
       </div>
 
       <div className="flex items-center gap-3 p-3 rounded-lg border bg-slate-50">
-        <div className="relative flex-1 max-w-xs">
+        <Input
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="h-8 w-40 text-sm"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => setSelectedMonth(currentMonth)}
+        >
+          Current
+        </Button>
+
+        <div className="flex items-center rounded-lg border bg-white overflow-hidden">
+          {([
+            { value: "all", label: "All" },
+            { value: "annuity", label: "Annuity" },
+            { value: "job_card", label: "Job Card" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setSourceType(opt.value)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                sourceType === opt.value
+                  ? "bg-gray-900 text-white"
+                  : "bg-white text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1" />
+
+        <div className="relative max-w-xs">
+          <Search className="top-1/2 left-2.5 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
+          <Input
+            type="text"
+            placeholder="Search client name..."
+            value={clientNameSearch}
+            onChange={(e) => setClientNameSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleClientNameSearch(); }}
+            className="pl-8 h-8 text-sm"
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleClientNameSearch}
+          disabled={clientNameSearching}
+        >
+          {clientNameSearching ? (
+            <Loader2 className="mr-1 w-3 h-3 animate-spin" />
+          ) : (
+            <Search className="mr-1 w-3 h-3" />
+          )}
+          {clientNameSearching ? "Searching..." : "Search"}
+        </Button>
+        {clientNameSearch && (
+          <Button type="button" variant="outline" size="sm" onClick={handleClientNameClear}>
+            <X className="mr-1 w-3 h-3" />
+            Clear
+          </Button>
+        )}
+
+        <div className="relative max-w-xs">
           <Search className="top-1/2 left-2.5 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
           <Input
             type="text"
@@ -451,12 +591,9 @@ export default function AccountsInvoicesSection() {
         {originalInvoicesRef.current !== null && (
           <Button type="button" variant="outline" size="sm" onClick={handleLookupClear}>
             <X className="mr-1 w-3 h-3" />
-            Clear
+            Clear All
           </Button>
         )}
-        <span className="text-[11px] text-slate-400">
-          Searches both annuity and job card invoices
-        </span>
       </div>
 
       <div className="flex items-center gap-4 text-xs">
@@ -473,12 +610,20 @@ export default function AccountsInvoicesSection() {
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
-                <TableHead className="py-2 text-xs">Invoice No</TableHead>
+                <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => toggleSort("invoice_number")}>
+                  <span className="flex items-center gap-1">Invoice No {sortIcon("invoice_number")}</span>
+                </TableHead>
                 <TableHead className="py-2 text-xs">Order No</TableHead>
                 <TableHead className="py-2 text-xs">Account</TableHead>
-                <TableHead className="py-2 text-xs">Company</TableHead>
-                <TableHead className="py-2 text-xs">Billing Month</TableHead>
-                <TableHead className="py-2 text-xs text-right">Total</TableHead>
+                <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => toggleSort("company_name")}>
+                  <span className="flex items-center gap-1">Company {sortIcon("company_name")}</span>
+                </TableHead>
+                <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => toggleSort("billing_month")}>
+                  <span className="flex items-center gap-1">Billing Month {sortIcon("billing_month")}</span>
+                </TableHead>
+                <TableHead className="py-2 text-xs text-right cursor-pointer select-none" onClick={() => toggleSort("total_amount")}>
+                  <span className="flex items-center gap-1 justify-end">Total {sortIcon("total_amount")}</span>
+                </TableHead>
                 <TableHead className="py-2 text-xs text-right">Balance</TableHead>
                 <TableHead className="py-2 text-xs">Status</TableHead>
                 <TableHead className="py-2 text-xs">Source</TableHead>
@@ -501,7 +646,7 @@ export default function AccountsInvoicesSection() {
                   </TableCell>
                 </TableRow>
               ) : (
-                [...invoices].sort((a, b) => String(a.invoice_number || "").localeCompare(String(b.invoice_number || ""))).map((invoice) => (
+                sortedInvoices.map((invoice) => (
                   <TableRow key={invoice.id} className="text-xs">
                     <TableCell className="py-1.5 font-medium">
                       {invoice.invoice_number || "PENDING"}
