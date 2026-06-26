@@ -113,8 +113,8 @@ export async function GET(request: NextRequest) {
         const cnMonth = getMonthKey(cn.billing_month_applies_to);
         if (cnMonth !== month) continue;
       }
-      // Only include approved credit notes (not declined)
-      if (cn.decline_reason) continue;
+      // Only include approved credit notes (not declined or pending)
+      if (cn.approved !== true || cn.decline_reason) continue;
       const key = norm(cn.account_number);
       if (!key) continue;
       if (!creditNoteByCode.has(key)) creditNoteByCode.set(key, []);

@@ -122,6 +122,10 @@ export default function FcAnnuityPage() {
   const filterClients = (clients: ClientRow[]) =>
     sourceFilter === "all" ? clients : clients.filter((c) => hasSource(c, sourceFilter));
 
+  const totalClients = fcGroups.reduce((sum, fc) => sum + fc.client_count, 0);
+  const clientsNotRan = fcGroups.reduce((sum, fc) =>
+    sum + fc.clients.filter((c) => c.annuity_flag && !c.annuity_invoice_number).length, 0);
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
@@ -136,7 +140,7 @@ export default function FcAnnuityPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-6 gap-3">
+      <div className="grid grid-cols-5 gap-3">
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Annuity</div>
@@ -157,20 +161,16 @@ export default function FcAnnuityPage() {
         </Card>
         <Card>
           <CardContent className="p-3">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total Ex VAT</div>
-            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalExVat)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total VAT</div>
-            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalVat)}</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Annuity Not Ran</div>
+            <div className="text-lg font-bold text-red-600 mt-0.5">{clientsNotRan}</div>
+            <div className="text-[10px] text-gray-400">of {totalClients} clients</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total Incl VAT</div>
             <div className="text-lg font-bold text-green-600 mt-0.5">{fmt(summary.totalInclVat)}</div>
+            <div className="text-[10px] text-gray-400">VAT: {fmt(summary.totalVat)}</div>
           </CardContent>
         </Card>
       </div>
@@ -180,7 +180,6 @@ export default function FcAnnuityPage() {
         <Input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="h-8 w-40 text-sm" />
         <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedMonth(currentMonth)}>Current</Button>
         <div className="flex-1" />
-        {/* Source Filter Tabs */}
         <div className="flex rounded-lg border bg-white overflow-hidden">
           {SOURCE_TABS.map((tab) => (
             <button
@@ -230,7 +229,6 @@ export default function FcAnnuityPage() {
                 const isUnallocated = fc.fc_id === "unallocated";
                 const isOpen = expanded.has(fc.fc_id);
                 const filteredClients = filterClients(fc.clients);
-                const fcCreditNoteTotal = filteredClients.reduce((sum, c) => sum + c.credit_total, 0);
 
                 return (
                   <Fragment key={fc.fc_id}>
@@ -238,12 +236,15 @@ export default function FcAnnuityPage() {
                       className={`${isUnallocated ? "bg-orange-50" : "bg-slate-100"} cursor-pointer hover:brightness-95`}
                       onClick={() => toggleFc(fc.fc_id)}
                     >
-                      <td colSpan={9} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
-                        <span className="flex items-center gap-2 flex-wrap">
-                          {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
-                          {fc.fc_email}
+                      <td colSpan={9} className="px-4 py-2.5">
+                        <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                          <span className="flex items-center gap-1.5 font-semibold text-slate-700">
+                            {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                            {fc.fc_email}
+                          </span>
+
                           {isUnallocated ? (
-                            <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">No FC Assigned</Badge>
+                            <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">No FC</Badge>
                           ) : fc.all_annuity_done ? (
                             <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
                               <CheckCircle2 className="w-2.5 h-2.5" /> Done
@@ -253,18 +254,26 @@ export default function FcAnnuityPage() {
                               <XCircle className="w-2.5 h-2.5" /> Not Done
                             </Badge>
                           )}
-                          <span className="font-normal text-slate-400">
-                            {fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced
-                          </span>
-                          <span className="font-normal text-slate-500">
-                            &middot; Annuity: <strong>{fmt(fc.annuity_total)}</strong>
-                            &middot; Job Cards: <strong>{fmt(fc.job_card_total)}</strong>
+
+                          <span className="text-slate-400">{fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced</span>
+
+                          <div className="flex items-center gap-4 ml-auto font-medium">
+                            <span className="text-slate-600">
+                              Annuity: <strong className="text-slate-800">{fmt(fc.annuity_total)}</strong>
+                            </span>
+                            <span className="text-slate-600">
+                              Job Cards: <strong className="text-slate-800">{fmt(fc.job_card_total)}</strong>
+                            </span>
                             {fc.credit_total > 0 && (
-                              <span className="text-red-600"> &middot; CN: <strong>-{fmt(fc.credit_total)}</strong></span>
+                              <span className="text-red-600">
+                                CN: <strong>-{fmt(fc.credit_total)}</strong>
+                              </span>
                             )}
-                            &middot; Net: <strong>{fmt(fc.total_invoiced)}</strong>
-                          </span>
-                        </span>
+                            <span className="text-slate-800 border-l border-slate-300 pl-4">
+                              Net: <strong>{fmt(fc.total_invoiced)}</strong>
+                            </span>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                     {isOpen && filteredClients.map((c, i) => (
@@ -273,7 +282,9 @@ export default function FcAnnuityPage() {
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
                         <td className="px-4 py-2 text-[11px] text-center">
                           {c.annuity_flag && c.annuity_invoice_number ? (
-                            <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Yes</Badge>
+                            <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0">Yes</Badge>
+                          ) : c.annuity_flag ? (
+                            <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0">No</Badge>
                           ) : (
                             <span className="text-gray-400 text-[10px]">—</span>
                           )}
