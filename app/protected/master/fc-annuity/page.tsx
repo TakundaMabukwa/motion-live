@@ -11,12 +11,19 @@ interface ClientRow {
   cost_code: string;
   company: string;
   annuity_flag: boolean;
-  invoice_number: string | null;
-  invoice_count: number;
-  total_amount: number;
+  annuity_invoice_number: string | null;
+  annuity_invoice_count: number;
+  annuity_subtotal: number;
+  annuity_total: number;
+  job_card_invoice_number: string | null;
+  job_card_invoice_count: number;
+  job_card_subtotal: number;
+  job_card_total: number;
+  credit_note_count: number;
+  credit_total: number;
   subtotal: number;
   vat_amount: number;
-
+  total_amount: number;
 }
 
 interface FcGroup {
@@ -26,6 +33,9 @@ interface FcGroup {
   total_invoiced: number;
   total_ex_vat: number;
   total_vat: number;
+  annuity_total: number;
+  job_card_total: number;
+  credit_total: number;
   client_count: number;
   invoiced_client_count: number;
   all_annuity_done: boolean;
@@ -35,23 +45,34 @@ interface OverviewSummary {
   totalExVat: number;
   totalVat: number;
   totalInclVat: number;
+  totalAnnuity: number;
+  totalJobCards: number;
+  totalCreditNotes: number;
   fcsDone: number;
   fcsTotal: number;
 }
 
+type SourceFilter = "all" | "annuity" | "job_card" | "credit_notes";
+
 const fmt = (v: unknown) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 2 }).format(Number(v || 0));
 
-
+const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "annuity", label: "Annuity" },
+  { value: "job_card", label: "Job Card" },
+  { value: "credit_notes", label: "Credit Notes" },
+];
 
 export default function FcAnnuityPage() {
   const [fcGroups, setFcGroups] = useState<FcGroup[]>([]);
-  const [summary, setSummary] = useState<OverviewSummary>({ totalExVat: 0, totalVat: 0, totalInclVat: 0, fcsDone: 0, fcsTotal: 0 });
+  const [summary, setSummary] = useState<OverviewSummary>({ totalExVat: 0, totalVat: 0, totalInclVat: 0, totalAnnuity: 0, totalJobCards: 0, totalCreditNotes: 0, fcsDone: 0, fcsTotal: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   const toggleFc = (id: string) =>
     setExpanded((prev) => {
@@ -73,6 +94,9 @@ export default function FcAnnuityPage() {
         totalExVat: data.totalExVat || 0,
         totalVat: data.totalVat || 0,
         totalInclVat: data.totalInclVat || 0,
+        totalAnnuity: data.totalAnnuity || 0,
+        totalJobCards: data.totalJobCards || 0,
+        totalCreditNotes: data.totalCreditNotes || 0,
         fcsDone: data.fcsDone || 0,
         fcsTotal: data.fcsTotal || 0,
       });
@@ -86,12 +110,24 @@ export default function FcAnnuityPage() {
 
   useEffect(() => { fetchData(selectedMonth); }, [selectedMonth]);
 
+  const hasSource = (c: ClientRow, filter: SourceFilter) => {
+    switch (filter) {
+      case "annuity": return c.annuity_invoice_count > 0;
+      case "job_card": return c.job_card_invoice_count > 0;
+      case "credit_notes": return c.credit_note_count > 0;
+      default: return true;
+    }
+  };
+
+  const filterClients = (clients: ClientRow[]) =>
+    sourceFilter === "all" ? clients : clients.filter((c) => hasSource(c, sourceFilter));
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="font-bold text-gray-900 text-xl">FC Annuity Overview</h1>
-          <p className="text-xs text-gray-500">All FC clients, annuity flagged items with invoice amounts</p>
+          <p className="text-xs text-gray-500">Annuity, job card invoices &amp; credit notes per FC</p>
         </div>
         <Button onClick={() => fetchData(selectedMonth)} disabled={refreshing} variant="outline" size="sm">
           {refreshing ? <Loader2 className="mr-1 w-3 h-3 animate-spin" /> : <RefreshCw className="mr-1 w-3 h-3" />}
@@ -100,31 +136,66 @@ export default function FcAnnuityPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-6 gap-3">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Total Ex VAT</div>
-            <div className="text-xl font-bold text-gray-900 mt-1">{fmt(summary.totalExVat)}</div>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Annuity</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalAnnuity)}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Total VAT</div>
-            <div className="text-xl font-bold text-gray-900 mt-1">{fmt(summary.totalVat)}</div>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Job Cards</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalJobCards)}</div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Total Incl VAT</div>
-            <div className="text-xl font-bold text-green-600 mt-1">{fmt(summary.totalInclVat)}</div>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Credit Notes</div>
+            <div className="text-lg font-bold text-red-600 mt-0.5">-{fmt(summary.totalCreditNotes)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total Ex VAT</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalExVat)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total VAT</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalVat)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total Incl VAT</div>
+            <div className="text-lg font-bold text-green-600 mt-0.5">{fmt(summary.totalInclVat)}</div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Filter Bar */}
       <div className="flex items-center gap-3 p-3 rounded-lg border bg-slate-50">
         <Input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="h-8 w-40 text-sm" />
         <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedMonth(currentMonth)}>Current</Button>
         <div className="flex-1" />
+        {/* Source Filter Tabs */}
+        <div className="flex rounded-lg border bg-white overflow-hidden">
+          {SOURCE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setSourceFilter(tab.value)}
+              className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                sourceFilter === tab.value
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div className="text-xs text-slate-500 space-x-3">
           <span><strong className="text-slate-700">{summary.fcsTotal}</strong> FCs</span>
           <span>&middot;</span>
@@ -145,27 +216,30 @@ export default function FcAnnuityPage() {
               <tr>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-left uppercase tracking-wider">Account</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-left uppercase tracking-wider">Company</th>
-                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Annuity Ran</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Annuity</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Invoice #</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Job Cards</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">CN</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Ex VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Incl VAT</th>
-
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {fcGroups.map((fc) => {
                 const isUnallocated = fc.fc_id === "unallocated";
                 const isOpen = expanded.has(fc.fc_id);
+                const filteredClients = filterClients(fc.clients);
+                const fcCreditNoteTotal = filteredClients.reduce((sum, c) => sum + c.credit_total, 0);
+
                 return (
                   <Fragment key={fc.fc_id}>
-                    {/* FC group header row — clickable */}
                     <tr
                       className={`${isUnallocated ? "bg-orange-50" : "bg-slate-100"} cursor-pointer hover:brightness-95`}
                       onClick={() => toggleFc(fc.fc_id)}
                     >
-                      <td colSpan={7} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
-                        <span className="flex items-center gap-2">
+                      <td colSpan={9} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
+                        <span className="flex items-center gap-2 flex-wrap">
                           {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                           {fc.fc_email}
                           {isUnallocated ? (
@@ -180,40 +254,60 @@ export default function FcAnnuityPage() {
                             </Badge>
                           )}
                           <span className="font-normal text-slate-400">
-                            {fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced &middot; {fmt(fc.total_invoiced)} incl VAT
+                            {fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced
+                          </span>
+                          <span className="font-normal text-slate-500">
+                            &middot; Annuity: <strong>{fmt(fc.annuity_total)}</strong>
+                            &middot; Job Cards: <strong>{fmt(fc.job_card_total)}</strong>
+                            {fc.credit_total > 0 && (
+                              <span className="text-red-600"> &middot; CN: <strong>-{fmt(fc.credit_total)}</strong></span>
+                            )}
+                            &middot; Net: <strong>{fmt(fc.total_invoiced)}</strong>
                           </span>
                         </span>
                       </td>
                     </tr>
-                    {/* Client rows — only when expanded */}
-                    {isOpen && fc.clients.map((c, i) => (
+                    {isOpen && filteredClients.map((c, i) => (
                       <tr key={`${fc.fc_id}-${c.cost_code}`} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
                         <td className="px-4 py-2 text-[11px] text-center">
-                          {c.annuity_flag && c.invoice_number ? (
+                          {c.annuity_flag && c.annuity_invoice_number ? (
                             <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Yes</Badge>
                           ) : (
                             <span className="text-gray-400 text-[10px]">—</span>
                           )}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-center font-mono text-gray-700">
-                          {c.invoice_number || "—"}
+                          {c.annuity_invoice_number || c.job_card_invoice_number || "—"}
+                        </td>
+                        <td className="px-4 py-2 text-[11px] text-center">
+                          {c.job_card_invoice_count > 0 ? (
+                            <Badge className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0">{c.job_card_invoice_count}</Badge>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-[11px] text-center">
+                          {c.credit_note_count > 0 ? (
+                            <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0">{c.credit_note_count}</Badge>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.invoice_number ? fmt(c.subtotal) : <span className="text-gray-300">—</span>}
+                          {c.total_amount !== 0 ? fmt(c.subtotal) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.invoice_number ? fmt(c.vat_amount) : <span className="text-gray-300">—</span>}
+                          {c.total_amount !== 0 ? fmt(c.vat_amount) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right font-semibold">
-                          {c.invoice_number ? (
-                            <span className="text-gray-900">{fmt(c.total_amount)}</span>
+                          {c.total_amount !== 0 ? (
+                            <span className={c.total_amount < 0 ? "text-red-600" : "text-gray-900"}>{fmt(c.total_amount)}</span>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
                         </td>
-
                       </tr>
                     ))}
                   </Fragment>

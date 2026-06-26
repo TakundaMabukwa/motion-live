@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid month format. Use YYYY-MM." }, { status: 400 });
     }
 
-    // 1. Get ALL cost centres (including those with no fc_id)
+    // 1. Get ALL cost centres
     const { data: allCCs, error: ccError } = await supabase
       .from("cost_centers")
       .select("id, cost_code, company, legal_name, fc_id, annuity_flag")
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ fcGroups: [], totalExVat: 0, totalVat: 0, totalInclVat: 0, fcsDone: 0, fcsTotal: 0 });
     }
 
-    // 2. Get unique FC user IDs and look up their emails
+    // 2. Get FC user emails
     const fcIds = Array.from(new Set(ccList.map((cc) => String(cc.fc_id || "")).filter(Boolean)));
 
     const { data: fcUsers } = await supabase
@@ -57,171 +57,214 @@ export async function GET(request: NextRequest) {
       fcEmailMap.set(String(u.id), String(u.email || ""));
     });
 
-    // 3. Fetch ALL account_invoices — no date filter, filter in code
-    const { data: invoices, error: invError } = await supabase
-      .from("account_invoices")
-      .select("account_number, billing_month, invoice_number, total_amount, subtotal, vat_amount, payment_status")
-      .range(0, 9999);
+    // 3. Fetch ALL invoices from all three sources in parallel
+    const [annuityResult, jobCardResult, creditNoteResult] = await Promise.all([
+      supabase
+        .from("account_invoices")
+        .select("account_number, billing_month, invoice_number, total_amount, subtotal, vat_amount, payment_status")
+        .range(0, 9999),
+      supabase
+        .from("invoices")
+        .select("account_number, invoice_number, invoice_date, total_amount, subtotal, vat_amount")
+        .range(0, 9999),
+      supabase
+        .from("credit_notes")
+        .select("account_number, billing_month_applies_to, credit_note_number, amount, approved, decline_reason, status")
+        .range(0, 9999),
+    ]);
 
-    if (invError) {
-      return NextResponse.json({ error: invError.message }, { status: 500 });
-    }
+    if (annuityResult.error) return NextResponse.json({ error: annuityResult.error.message }, { status: 500 });
+    if (jobCardResult.error) return NextResponse.json({ error: jobCardResult.error.message }, { status: 500 });
+    if (creditNoteResult.error) return NextResponse.json({ error: creditNoteResult.error.message }, { status: 500 });
 
-    // 4. Filter invoices by month in code, build lookup: NORMALIZED account_number -> invoice[]
-    const allInvoices = Array.isArray(invoices) ? invoices : [];
-    const invoiceByCode = new Map<string, typeof allInvoices>();
+    const allAnnuityInvoices = Array.isArray(annuityResult.data) ? annuityResult.data : [];
+    const allJobCardInvoices = Array.isArray(jobCardResult.data) ? jobCardResult.data : [];
+    const allCreditNotes = Array.isArray(creditNoteResult.data) ? creditNoteResult.data : [];
 
-    for (const inv of allInvoices) {
-      // Filter by month if provided
+    // 4. Filter by month and build lookups by NORMALIZED account_number
+    const annuityByCode = new Map<string, typeof allAnnuityInvoices>();
+    const jobCardByCode = new Map<string, typeof allJobCardInvoices>();
+    const creditNoteByCode = new Map<string, typeof allCreditNotes>();
+
+    for (const inv of allAnnuityInvoices) {
       if (month) {
         const invMonth = getMonthKey(inv.billing_month);
         if (invMonth !== month) continue;
       }
       const key = norm(inv.account_number);
       if (!key) continue;
-      if (!invoiceByCode.has(key)) invoiceByCode.set(key, []);
-      invoiceByCode.get(key)!.push(inv);
+      if (!annuityByCode.has(key)) annuityByCode.set(key, []);
+      annuityByCode.get(key)!.push(inv);
     }
 
-    // 5. Group cost centres by fc_id (or "unallocated"), deduplicate by cost_code
+    for (const inv of allJobCardInvoices) {
+      if (month) {
+        const invMonth = getMonthKey(inv.invoice_date);
+        if (invMonth !== month) continue;
+      }
+      const key = norm(inv.account_number);
+      if (!key) continue;
+      if (!jobCardByCode.has(key)) jobCardByCode.set(key, []);
+      jobCardByCode.get(key)!.push(inv);
+    }
+
+    for (const cn of allCreditNotes) {
+      if (month) {
+        const cnMonth = getMonthKey(cn.billing_month_applies_to);
+        if (cnMonth !== month) continue;
+      }
+      // Only include approved credit notes (not declined)
+      if (cn.decline_reason) continue;
+      const key = norm(cn.account_number);
+      if (!key) continue;
+      if (!creditNoteByCode.has(key)) creditNoteByCode.set(key, []);
+      creditNoteByCode.get(key)!.push(cn);
+    }
+
+    // 5. Group cost centres by fc_id (or "unallocated"), deduplicate globally
     const ccsByFc = new Map<string, typeof ccList>();
     const unallocatedCCs: typeof ccList = [];
+    const seenCostCodes = new Set<string>();
 
     for (const cc of ccList) {
       const fcId = String(cc.fc_id || "").trim();
-      if (!fcId) {
-        unallocatedCCs.push(cc);
-        continue;
-      }
-      if (!ccsByFc.has(fcId)) ccsByFc.set(fcId, []);
-      const list = ccsByFc.get(fcId)!;
+      if (!fcId) continue;
       const code = norm(cc.cost_code);
-      if (code && list.some((existing) => norm(existing.cost_code) === code)) continue;
-      list.push(cc);
+      if (code && seenCostCodes.has(code)) continue;
+      if (code) seenCostCodes.add(code);
+      if (!ccsByFc.has(fcId)) ccsByFc.set(fcId, []);
+      ccsByFc.get(fcId)!.push(cc);
     }
 
-    // 6. Build client rows — sum all invoices per account
+    for (const cc of ccList) {
+      const fcId = String(cc.fc_id || "").trim();
+      if (fcId) continue;
+      const code = norm(cc.cost_code);
+      if (code && seenCostCodes.has(code)) continue;
+      if (code) seenCostCodes.add(code);
+      unallocatedCCs.push(cc);
+    }
+
+    // 6. Build client rows with all three sources
     const buildClients = (ccs: typeof ccList) => {
-      const rows = ccs.map((cc) => {
+      return ccs.map((cc) => {
         const code = norm(cc.cost_code);
-        const invs = invoiceByCode.get(code) || [];
+        const annuityInvs = annuityByCode.get(code) || [];
+        const jobCardInvs = jobCardByCode.get(code) || [];
+        const creditNotes = creditNoteByCode.get(code) || [];
 
-        let totalAmount = 0;
-        let totalSub = 0;
-        let totalVat = 0;
-        let invoiceNumber: string | null = null;
-        let paymentStatus: string | null = null;
-
-        for (const inv of invs) {
-          totalAmount += Number(inv.total_amount || 0);
-          totalSub += Number(inv.subtotal || 0);
-          totalVat += Number(inv.vat_amount || 0);
-          if (!invoiceNumber) invoiceNumber = inv.invoice_number || "PENDING";
-          if (!paymentStatus) paymentStatus = inv.payment_status || "pending";
+        // Annuity totals
+        let annuityTotal = 0;
+        let annuitySub = 0;
+        let annuityInvoiceNumber: string | null = null;
+        for (const inv of annuityInvs) {
+          annuityTotal += Number(inv.total_amount || 0);
+          annuitySub += Number(inv.subtotal || 0);
+          if (!annuityInvoiceNumber) annuityInvoiceNumber = inv.invoice_number || "PENDING";
         }
+
+        // Job card totals
+        let jobCardTotal = 0;
+        let jobCardSub = 0;
+        let jobCardInvoiceNumber: string | null = null;
+        for (const inv of jobCardInvs) {
+          jobCardTotal += Number(inv.total_amount || 0);
+          jobCardSub += Number(inv.subtotal || 0);
+          if (!jobCardInvoiceNumber) jobCardInvoiceNumber = inv.invoice_number || null;
+        }
+
+        // Credit note totals (deducted)
+        let creditTotal = 0;
+        for (const cn of creditNotes) {
+          creditTotal += Number(cn.amount || 0);
+        }
+
+        const combinedTotal = annuityTotal + jobCardTotal - creditTotal;
+        const combinedSub = annuitySub + jobCardSub - creditTotal;
+        const combinedVat = combinedTotal - combinedSub;
 
         return {
           cost_code: cc.cost_code || "—",
           company: cc.company || cc.legal_name || cc.cost_code || "—",
           annuity_flag: Boolean(cc.annuity_flag),
-          invoice_number: invs.length > 0 ? invoiceNumber : null,
-          invoice_count: invs.length,
-          subtotal: totalSub,
-          vat_amount: totalVat,
-          total_amount: totalAmount,
-          payment_status: invs.length > 0 ? paymentStatus : null,
+          annuity_invoice_number: annuityInvs.length > 0 ? annuityInvoiceNumber : null,
+          annuity_invoice_count: annuityInvs.length,
+          annuity_subtotal: annuitySub,
+          annuity_total: annuityTotal,
+          job_card_invoice_number: jobCardInvs.length > 0 ? jobCardInvoiceNumber : null,
+          job_card_invoice_count: jobCardInvs.length,
+          job_card_subtotal: jobCardSub,
+          job_card_total: jobCardTotal,
+          credit_note_count: creditNotes.length,
+          credit_total: creditTotal,
+          subtotal: combinedSub,
+          vat_amount: combinedVat,
+          total_amount: combinedTotal,
         };
-      });
-
-      rows.sort((a, b) => b.total_amount - a.total_amount);
-
-      return rows;
+      }).sort((a, b) => b.total_amount - a.total_amount);
     };
 
     // 7. Build FC groups
     let totalExVat = 0;
     let totalVat = 0;
     let totalInclVat = 0;
+    let totalAnnuity = 0;
+    let totalJobCards = 0;
+    let totalCreditNotes = 0;
     let fcsDone = 0;
 
-    const fcGroups = fcIds
-      .map((fcId) => {
-        const myCCs = ccsByFc.get(fcId) || [];
-        const fcEmail = fcEmailMap.get(fcId) || "unknown";
-
-        const clients = buildClients(myCCs);
-
-        // Done = ALL clients under this FC have at least one invoice for the month
-        const allDone = clients.length > 0 && clients.every((c) => c.invoice_count > 0);
-
-        let groupTotal = 0;
-        let groupSub = 0;
-        let groupVat = 0;
-        let invoicedTotal = 0;
-        let invoicedSub = 0;
-        let invoicedVat = 0;
-        clients.forEach((c) => {
-          groupSub += c.subtotal;
-          groupVat += c.vat_amount;
-          groupTotal += c.total_amount;
-          if (c.invoice_number) {
-            invoicedSub += c.subtotal;
-            invoicedVat += c.vat_amount;
-            invoicedTotal += c.total_amount;
-          }
-        });
-
-        totalExVat += invoicedSub;
-        totalVat += invoicedVat;
-        totalInclVat += invoicedTotal;
-        if (allDone) fcsDone++;
-
-        return {
-          fc_id: fcId,
-          fc_email: fcEmail,
-          clients,
-          total_invoiced: invoicedTotal,
-          total_ex_vat: invoicedSub,
-          total_vat: invoicedVat,
-          client_count: clients.length,
-          invoiced_client_count: clients.filter((c) => c.invoice_number).length,
-          all_annuity_done: allDone,
-        };
-      })
-      .filter((g) => g.client_count > 0);
-
-    // 8. Unallocated group (clients with no fc_id)
-    if (unallocatedCCs.length > 0) {
-      const clients = buildClients(unallocatedCCs);
+    const buildFcGroup = (fcId: string, fcEmail: string, myCCs: typeof ccList) => {
+      const clients = buildClients(myCCs);
 
       let invoicedTotal = 0;
       let invoicedSub = 0;
-      let invoicedVat = 0;
+      let fcAnnuity = 0;
+      let fcJobCards = 0;
+      let fcCreditNotes = 0;
+      let hasAnyInvoice = false;
+
       clients.forEach((c) => {
-        if (c.invoice_number) {
-          invoicedSub += c.subtotal;
-          invoicedVat += c.vat_amount;
-          invoicedTotal += c.total_amount;
-        }
+        hasAnyInvoice = hasAnyInvoice || c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0;
+        invoicedSub += c.subtotal;
+        invoicedTotal += c.total_amount;
+        fcAnnuity += c.annuity_total;
+        fcJobCards += c.job_card_total;
+        fcCreditNotes += c.credit_total;
       });
 
-      const allDone = clients.length > 0 && clients.every((c) => c.invoice_count > 0);
+      const allDone = clients.length > 0 && clients.every((c) => c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0);
 
       totalExVat += invoicedSub;
-      totalVat += invoicedVat;
+      totalVat += invoicedTotal - invoicedSub;
       totalInclVat += invoicedTotal;
+      totalAnnuity += fcAnnuity;
+      totalJobCards += fcJobCards;
+      totalCreditNotes += fcCreditNotes;
+      if (allDone) fcsDone++;
 
-      fcGroups.push({
-        fc_id: "unallocated",
-        fc_email: "Unallocated",
+      return {
+        fc_id: fcId,
+        fc_email: fcEmail,
         clients,
         total_invoiced: invoicedTotal,
         total_ex_vat: invoicedSub,
-        total_vat: invoicedVat,
+        total_vat: invoicedTotal - invoicedSub,
+        annuity_total: fcAnnuity,
+        job_card_total: fcJobCards,
+        credit_total: fcCreditNotes,
         client_count: clients.length,
-        invoiced_client_count: clients.filter((c) => c.invoice_number).length,
+        invoiced_client_count: clients.filter((c) => c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0).length,
         all_annuity_done: allDone,
-      });
+      };
+    };
+
+    const fcGroups = fcIds
+      .map((fcId) => buildFcGroup(fcId, fcEmailMap.get(fcId) || "unknown", ccsByFc.get(fcId) || []))
+      .filter((g) => g.client_count > 0);
+
+    // 8. Unallocated group
+    if (unallocatedCCs.length > 0) {
+      fcGroups.push(buildFcGroup("unallocated", "Unallocated", unallocatedCCs));
     }
 
     fcGroups.sort((a, b) => {
@@ -236,6 +279,9 @@ export async function GET(request: NextRequest) {
       totalExVat,
       totalVat,
       totalInclVat,
+      totalAnnuity,
+      totalJobCards,
+      totalCreditNotes,
       fcsDone,
       fcsTotal: fcGroups.length,
     });
