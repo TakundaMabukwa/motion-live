@@ -41,6 +41,7 @@ interface AccountCreditNoteRow {
   customer_vat_number: string | null;
   company_registration_number: string | null;
   client_address: string | null;
+  invoice_credited: string | null;
   created_at?: string | null;
 }
 
@@ -78,12 +79,11 @@ const getStatusTone = (status: string | null) => {
 };
 
 const buildCreditNoteDescription = (creditNote: AccountCreditNoteRow) => {
-  const description = [creditNote.comment, creditNote.reason, creditNote.reference]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean)
-    .join(" | ");
-
-  return description || `Credit Note ${creditNote.credit_note_number || "N/A"}`;
+  const parts = [];
+  if (creditNote.invoice_credited) parts.push(`Invoice: ${creditNote.invoice_credited}`);
+  if (creditNote.comment) parts.push(creditNote.comment);
+  if (creditNote.reason) parts.push(creditNote.reason);
+  return parts.join(" | ") || `Credit Note ${creditNote.credit_note_number || "N/A"}`;
 };
 
 const buildCreditNoteLineItems = (creditNote: AccountCreditNoteRow) => {
@@ -94,7 +94,7 @@ const buildCreditNoteLineItems = (creditNote: AccountCreditNoteRow) => {
       new_reg: "-",
       item_code: "CREDIT-NOTE",
       description: buildCreditNoteDescription(creditNote),
-      comments: "Credit Note Amount (Excl. VAT)",
+      comments: buildCreditNoteDescription(creditNote),
       units: 1,
       quantity: 1,
       unit_price_without_vat: amountExVat,
@@ -106,7 +106,6 @@ const buildCreditNoteLineItems = (creditNote: AccountCreditNoteRow) => {
       reg: "-",
       fleetNumber: "-",
       company: creditNote.company_name || creditNote.account_number || "",
-      category: "Credit Note",
     },
   ];
 };

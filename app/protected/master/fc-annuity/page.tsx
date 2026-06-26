@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle2, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface ClientRow {
   cost_code: string;
@@ -57,6 +57,14 @@ export default function FcAnnuityPage() {
   const [refreshing, setRefreshing] = useState(false);
   const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleFc = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   const fetchData = async (month = selectedMonth) => {
     try {
@@ -154,12 +162,17 @@ export default function FcAnnuityPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {fcGroups.map((fc) => {
                 const isUnallocated = fc.fc_id === "unallocated";
+                const isOpen = expanded.has(fc.fc_id);
                 return (
                   <Fragment key={fc.fc_id}>
-                    {/* FC group header row */}
-                    <tr className={isUnallocated ? "bg-orange-50" : "bg-slate-100"}>
+                    {/* FC group header row — clickable */}
+                    <tr
+                      className={`${isUnallocated ? "bg-orange-50" : "bg-slate-100"} cursor-pointer hover:brightness-95`}
+                      onClick={() => toggleFc(fc.fc_id)}
+                    >
                       <td colSpan={8} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
                         <span className="flex items-center gap-2">
+                          {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                           {fc.fc_email}
                           {isUnallocated ? (
                             <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">No FC Assigned</Badge>
@@ -178,8 +191,8 @@ export default function FcAnnuityPage() {
                         </span>
                       </td>
                     </tr>
-                    {/* Client rows */}
-                    {fc.clients.map((c, i) => (
+                    {/* Client rows — only when expanded */}
+                    {isOpen && fc.clients.map((c, i) => (
                       <tr key={`${fc.fc_id}-${c.cost_code}`} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>

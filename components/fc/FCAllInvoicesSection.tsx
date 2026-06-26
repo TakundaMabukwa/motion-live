@@ -48,6 +48,7 @@ interface InvoiceRow {
   decline_reason?: string | null;
   approved?: boolean | null;
   created_by_email?: string | null;
+  invoice_credited?: string | null;
 }
 
 const formatCurrency = (value: unknown) =>
@@ -79,6 +80,38 @@ const getStatusTone = (status: string | null) => {
     default:
       return "bg-blue-100 text-blue-800";
   }
+};
+
+const buildCreditNoteDescription = (invoice: InvoiceRow) => {
+  const parts = [];
+  if (invoice.invoice_credited) parts.push(`Invoice: ${invoice.invoice_credited}`);
+  if (invoice.notes) parts.push(invoice.notes);
+  if (invoice.decline_reason) parts.push(invoice.decline_reason);
+  return parts.join(" | ") || `Credit Note ${invoice.invoice_number || "N/A"}`;
+};
+
+const buildCreditNoteLineItems = (invoice: InvoiceRow) => {
+  const amountExVat = Number(invoice.total_amount || 0);
+  return [
+    {
+      previous_reg: "-",
+      new_reg: "-",
+      item_code: "CREDIT-NOTE",
+      description: buildCreditNoteDescription(invoice),
+      comments: buildCreditNoteDescription(invoice),
+      units: 1,
+      quantity: 1,
+      unit_price_without_vat: amountExVat,
+      amountExcludingVat: amountExVat,
+      vat_percent: "15.00%",
+      vat_amount: amountExVat * 0.15,
+      total_incl_vat: amountExVat * 1.15,
+      total_including_vat: amountExVat * 1.15,
+      reg: "-",
+      fleetNumber: "-",
+      company: invoice.company_name || invoice.account_number || "",
+    },
+  ];
 };
 
 interface FCAllInvoicesSectionProps {
@@ -157,7 +190,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           billing_month: String(cn?.billing_month_applies_to || "").trim() || null,
           invoice_number: String(cn?.credit_note_number || "").trim() || null,
           invoice_date: String(cn?.credit_note_date || "").trim() || null,
-          total_amount: -(Number(cn?.amount || 0)),
+          total_amount: Number(cn?.amount || 0),
           paid_amount: Number(cn?.applied_amount || 0),
           balance_due: Number(cn?.unapplied_amount || 0),
           payment_status: String(cn?.status || "applied").trim(),
@@ -176,6 +209,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           decline_reason: cn?.decline_reason ? String(cn.decline_reason) : null,
           approved: cn?.approved === true ? true : false,
           created_by_email: String(cn?.created_by_email || "").trim() || null,
+          invoice_credited: String(cn?.invoice_credited || cn?.reference || "").trim() || null,
         }));
         invoiceRows = [...creditNoteRows, ...invoiceRows];
       }
@@ -745,7 +779,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         <DialogContent className="max-w-7xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedInvoice?.invoice_number || "Invoice Preview"}
+              {selectedInvoice?.source_type === "credit_note"
+                ? `${selectedInvoice?.invoice_number || "Credit Note"} — ${selectedInvoice?.invoice_credited || ""}`
+                : selectedInvoice?.invoice_number || "Invoice Preview"
+              }
             </DialogTitle>
             {viewerOrderNumber ? (
               <p className="text-xs text-slate-500">
@@ -756,6 +793,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           {selectedInvoice ? (
             <InvoiceReportComponent
               viewOnly
+              documentTitle={selectedInvoice.source_type === "credit_note" ? "Tax Credit Note" : "Tax Invoice"}
+              documentNumberLabel={selectedInvoice.source_type === "credit_note" ? "TAX CREDIT NOTE" : "TAX INVOICE"}
               clientLegalName={selectedInvoice.company_name || selectedInvoice.account_number}
               costCenter={{
                 accountNumber: selectedInvoice.account_number,
@@ -775,9 +814,15 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                 company_registration_number: selectedInvoice.company_registration_number,
                 client_address: selectedInvoice.client_address,
                 company_name: selectedInvoice.company_name,
-                line_items: Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
-                invoice_items: Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
-                invoiceItems: Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
+                line_items: selectedInvoice.source_type === "credit_note"
+                  ? buildCreditNoteLineItems(selectedInvoice)
+                  : Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
+                invoice_items: selectedInvoice.source_type === "credit_note"
+                  ? buildCreditNoteLineItems(selectedInvoice)
+                  : Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
+                invoiceItems: selectedInvoice.source_type === "credit_note"
+                  ? buildCreditNoteLineItems(selectedInvoice)
+                  : Array.isArray(selectedInvoice.line_items) ? selectedInvoice.line_items : [],
               }}
             />
           ) : null}

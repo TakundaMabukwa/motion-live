@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
     const buildClients = (ccs: typeof ccList) => {
       const rows = ccs.map((cc) => {
         const code = norm(cc.cost_code);
-        const inv = cc.annuity_flag ? invoiceByCode.get(code) || null : null;
+        // Look up invoice for ALL clients, not just annuity-flagged
+        const inv = invoiceByCode.get(code) || null;
         const amount = inv ? Number(inv.total_amount || 0) : 0;
         const sub = inv ? Number(inv.subtotal || 0) : 0;
         const vat = inv ? Number(inv.vat_amount || 0) : 0;
@@ -137,25 +138,23 @@ export async function GET(request: NextRequest) {
 
         const clients = buildClients(myCCs);
 
-        // Annuity done = ALL clients under this FC are annuity-flagged
+        // Done = ALL clients under this FC have an invoice for the month
         const annuityClients = clients.filter((c) => c.annuity_flag);
-        const annuityDone = clients.length > 0 && annuityClients.length === clients.length;
+        const allDone = clients.length > 0 && clients.every((c) => c.invoice_number && c.invoice_number !== "PENDING");
 
         let groupTotal = 0;
         let groupSub = 0;
         let groupVat = 0;
         clients.forEach((c) => {
-          if (c.annuity_flag) {
-            groupSub += c.subtotal;
-            groupVat += c.vat_amount;
-            groupTotal += c.total_amount;
-          }
+          groupSub += c.subtotal;
+          groupVat += c.vat_amount;
+          groupTotal += c.total_amount;
         });
 
         totalExVat += groupSub;
         totalVat += groupVat;
         totalInclVat += groupTotal;
-        if (annuityDone) fcsDone++;
+        if (allDone) fcsDone++;
 
         return {
           fc_id: fcId,
@@ -166,7 +165,7 @@ export async function GET(request: NextRequest) {
           total_vat: groupVat,
           client_count: clients.length,
           annuity_client_count: annuityClients.length,
-          all_annuity_done: annuityDone,
+          all_annuity_done: allDone,
         };
       })
       .filter((g) => g.client_count > 0);
@@ -179,12 +178,12 @@ export async function GET(request: NextRequest) {
       let groupSub = 0;
       let groupVat = 0;
       clients.forEach((c) => {
-        if (c.annuity_flag) {
-          groupSub += c.subtotal;
-          groupVat += c.vat_amount;
-          groupTotal += c.total_amount;
-        }
+        groupSub += c.subtotal;
+        groupVat += c.vat_amount;
+        groupTotal += c.total_amount;
       });
+
+      const allDone = clients.length > 0 && clients.every((c) => c.invoice_number && c.invoice_number !== "PENDING");
 
       totalExVat += groupSub;
       totalVat += groupVat;
@@ -199,7 +198,7 @@ export async function GET(request: NextRequest) {
         total_vat: groupVat,
         client_count: clients.length,
         annuity_client_count: clients.filter((c) => c.annuity_flag).length,
-        all_annuity_done: false,
+        all_annuity_done: allDone,
       });
     }
 

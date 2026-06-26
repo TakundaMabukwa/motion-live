@@ -107,7 +107,14 @@ export default function CreditNotesPage() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result?.error || "Failed to approve");
       toast.success(`${cn.credit_note_number} approved.`);
-      fetchCreditNotes();
+      // Update local state instead of refetching
+      setCreditNotes((prev) =>
+        prev.map((n) =>
+          n.id === cn.id
+            ? { ...n, approved: true, status: "applied", credit_note_number: result?.creditNote?.credit_note_number || n.credit_note_number }
+            : n
+        )
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to approve credit note.");
     }
@@ -136,7 +143,14 @@ export default function CreditNotesPage() {
       toast.success(`${declineModalCn.credit_note_number} declined.`);
       setDeclineModalCn(null);
       setDeclineReason("");
-      fetchCreditNotes();
+      // Update local state instead of refetching
+      setCreditNotes((prev) =>
+        prev.map((cn) =>
+          cn.id === declineModalCn.id
+            ? { ...cn, approved: false, status: "declined", decline_reason: declineReason.trim() }
+            : cn
+        )
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to decline credit note.");
     } finally {
@@ -189,15 +203,14 @@ export default function CreditNotesPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">CN #</th>
-                <th className="px-2 py-2 text-left font-semibold text-gray-500">Account</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Client</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Billing</th>
                 <th className="px-2 py-2 text-right font-semibold text-gray-500">Amount</th>
-                <th className="px-2 py-2 text-left font-semibold text-gray-500">Status</th>
                 <th className="px-2 py-2 text-center font-semibold text-gray-500">Approved</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Invoice Credited</th>
+                <th className="px-2 py-2 text-left font-semibold text-gray-500">Comment</th>
+                <th className="px-2 py-2 text-left font-semibold text-gray-500">Reason</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Decline Reason</th>
-                <th className="px-2 py-2 text-left font-semibold text-gray-500">Ref</th>
                 <th className="px-2 py-2 text-left font-semibold text-gray-500">Created By</th>
                 <th className="px-2 py-2 text-center font-semibold text-gray-500">Action</th>
               </tr>
@@ -206,11 +219,9 @@ export default function CreditNotesPage() {
               {creditNotes.map((cn) => (
                 <tr key={cn.id} className="hover:bg-gray-50">
                   <td className="px-2 py-1.5 font-medium text-gray-900 whitespace-nowrap">{cn.credit_note_number}</td>
-                  <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{cn.account_number}</td>
                   <td className="px-2 py-1.5 text-gray-700 max-w-[120px] truncate" title={cn.client_name || ""}>{cn.client_name || "N/A"}</td>
                   <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{formatDate(cn.billing_month_applies_to)}</td>
                   <td className="px-2 py-1.5 text-right font-medium text-gray-900 whitespace-nowrap">{formatCurrency(cn.amount)}</td>
-                  <td className="px-2 py-1.5">{getStatusBadge(cn.status)}</td>
                   <td className="px-2 py-1.5 text-center">
                     {cn.approved ? (
                       <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">Yes</Badge>
@@ -219,13 +230,18 @@ export default function CreditNotesPage() {
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap text-[10px]">{cn.invoice_credited || "—"}</td>
-                  <td className="px-2 py-1.5 text-gray-600 max-w-[120px] truncate text-[10px]" title={cn.decline_reason || ""}>
+                  <td className="px-2 py-1.5 text-gray-600 max-w-[200px] text-[10px] whitespace-pre-wrap break-words" title={cn.comment || ""}>
+                    {cn.comment || "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-gray-600 max-w-[200px] text-[10px] whitespace-pre-wrap break-words" title={cn.reason || ""}>
+                    {cn.reason || "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-gray-600 max-w-[200px] text-[10px] whitespace-pre-wrap break-words text-red-600" title={cn.decline_reason || ""}>
                     {cn.decline_reason || "—"}
                   </td>
-                  <td className="px-2 py-1.5 text-gray-600 max-w-[80px] truncate" title={cn.reference || ""}>{cn.reference || "—"}</td>
                   <td className="px-2 py-1.5 text-gray-600 max-w-[120px] truncate" title={cn.created_by_email || ""}>{cn.created_by_email || "—"}</td>
                   <td className="px-2 py-1.5 text-center whitespace-nowrap">
-                    {!cn.approved ? (
+                    {!cn.approved && !cn.decline_reason ? (
                       <div className="flex items-center justify-center gap-1">
                         <Button
                           size="sm"
