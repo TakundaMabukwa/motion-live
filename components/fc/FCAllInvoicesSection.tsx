@@ -946,21 +946,6 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                   className="px-3 py-2 border border-slate-200 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-blue-700 text-xs font-medium">Current Balance</div>
-                  <div className="font-semibold text-slate-900">{formatCurrency(creditNoteInvoice.balance_due)}</div>
-                </div>
-                <div>
-                  <div className="text-blue-700 text-xs font-medium">After Credit</div>
-                  <div className="font-semibold text-slate-900">
-                    {formatCurrency(
-                      Math.max(0, Number(creditNoteInvoice.balance_due || 0) - Number(String(creditNoteAmount || "").replace(/,/g, "")))
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="flex flex-shrink-0 justify-end gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">

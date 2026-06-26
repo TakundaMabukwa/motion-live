@@ -20,6 +20,7 @@ interface ClientRow {
   job_card_subtotal: number;
   job_card_total: number;
   credit_note_count: number;
+  credit_note_number: string | null;
   credit_total: number;
   subtotal: number;
   vat_amount: number;
@@ -56,6 +57,9 @@ type SourceFilter = "all" | "annuity" | "job_card" | "credit_notes";
 
 const fmt = (v: unknown) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 2 }).format(Number(v || 0));
+
+const creditExVat = (inclVat: number) => inclVat / 1.15;
+const creditVat = (inclVat: number) => inclVat - inclVat / 1.15;
 
 const SOURCE_TABS: { value: SourceFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -121,14 +125,22 @@ export default function FcAnnuityPage() {
 
   const getFcFilteredTotals = (fc: FcGroup) => {
     if (sourceFilter === "all") {
-      return { annuity: fc.annuity_total, jobCards: fc.job_card_total, credit: fc.credit_total, net: fc.total_invoiced, clientCount: fc.client_count, invoicedCount: fc.invoiced_client_count };
+      return { annuity: fc.annuity_total, jobCards: fc.job_card_total, credit: fc.credit_total, net: fc.total_invoiced, exVat: fc.total_ex_vat, vat: fc.total_vat, clientCount: fc.client_count, invoicedCount: fc.invoiced_client_count };
     }
     const filtered = fc.clients.filter((c) => hasSource(c, sourceFilter));
+    let exVat = 0, net = 0;
+    for (const c of filtered) {
+      if (sourceFilter === "annuity") { exVat += c.annuity_subtotal; net += c.annuity_total; }
+      else if (sourceFilter === "job_card") { exVat += c.job_card_subtotal; net += c.job_card_total; }
+      else if (sourceFilter === "credit_notes") { exVat += creditExVat(c.credit_total); net += c.credit_total; }
+    }
     return {
       annuity: filtered.reduce((s, c) => s + c.annuity_total, 0),
       jobCards: filtered.reduce((s, c) => s + c.job_card_total, 0),
       credit: filtered.reduce((s, c) => s + c.credit_total, 0),
-      net: filtered.reduce((s, c) => s + c.total_amount, 0),
+      net,
+      exVat,
+      vat: net - exVat,
       clientCount: filtered.length,
       invoicedCount: filtered.filter((c) => c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0).length,
     };
@@ -140,11 +152,19 @@ export default function FcAnnuityPage() {
     for (const fc of fcGroups) {
       const filtered = fc.clients.filter((c) => hasSource(c, sourceFilter));
       for (const c of filtered) {
-        annuity += c.annuity_total;
-        jobCards += c.job_card_total;
-        credit += c.credit_total;
-        inclVat += c.total_amount;
-        exVat += c.subtotal;
+        if (sourceFilter === "annuity") {
+          annuity += c.annuity_total;
+          exVat += c.annuity_subtotal;
+          inclVat += c.annuity_total;
+        } else if (sourceFilter === "job_card") {
+          jobCards += c.job_card_total;
+          exVat += c.job_card_subtotal;
+          inclVat += c.job_card_total;
+        } else if (sourceFilter === "credit_notes") {
+          credit += c.credit_total;
+          exVat += creditExVat(c.credit_total);
+          inclVat += c.credit_total;
+        }
       }
     }
     return { totalAnnuity: annuity, totalJobCards: jobCards, totalCreditNotes: credit, totalExVat: exVat, totalVat: inclVat - exVat, totalInclVat: inclVat, fcsDone: summary.fcsDone, fcsTotal: summary.fcsTotal };
@@ -205,7 +225,7 @@ export default function FcAnnuityPage() {
 
       {/* Filter Bar */}
       <div className="flex items-center gap-3 p-3 rounded-lg border bg-slate-50">
-        <Input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="h-8 w-40 text-sm" />
+        <Input type="month" value={selectedMonth} min="2026-04" onChange={(e) => setSelectedMonth(e.target.value)} className="h-8 w-40 text-sm" />
         <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedMonth(currentMonth)}>Current</Button>
         <div className="flex-1" />
         <div className="flex rounded-lg border bg-white overflow-hidden">
@@ -242,11 +262,12 @@ export default function FcAnnuityPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-left uppercase tracking-wider">Account</th>
-                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-left uppercase tracking-wider">Company</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-left uppercase tracking-wider">Client</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Status</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Annuity</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Invoice #</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Job Cards</th>
-                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">CN</th>
+                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Credit Note</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Ex VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Incl VAT</th>
@@ -265,51 +286,57 @@ export default function FcAnnuityPage() {
                       className={`${isUnallocated ? "bg-orange-50" : "bg-slate-100"} cursor-pointer hover:brightness-95`}
                       onClick={() => toggleFc(fc.fc_id)}
                     >
-                      <td colSpan={9} className="px-4 py-2.5">
-                        <div className="flex items-center gap-3 flex-wrap text-[11px]">
-                          <span className="flex items-center gap-1.5 font-semibold text-slate-700">
-                            {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
-                            {fc.fc_email}
-                          </span>
-
-                          {isUnallocated ? (
-                            <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">No FC</Badge>
-                          ) : fc.all_annuity_done ? (
-                            <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> Done
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
-                              <XCircle className="w-2.5 h-2.5" /> Not Done
-                            </Badge>
-                          )}
-
-                          <span className="text-slate-400">{ft.clientCount} clients &middot; {ft.invoicedCount} invoiced</span>
-
-                          <div className="flex items-center gap-4 ml-auto font-medium">
-                            {sourceFilter === "all" || sourceFilter === "annuity" ? (
-                              <span className="text-slate-600">
-                                Annuity: <strong className="text-slate-800">{fmt(ft.annuity)}</strong>
-                              </span>
-                            ) : null}
-                            {sourceFilter === "all" || sourceFilter === "job_card" ? (
-                              <span className="text-slate-600">
-                                Job Cards: <strong className="text-slate-800">{fmt(ft.jobCards)}</strong>
-                              </span>
-                            ) : null}
-                            {(sourceFilter === "all" || sourceFilter === "credit_notes") && ft.credit > 0 && (
-                              <span className="text-red-600">
-                                CN: <strong>-{fmt(ft.credit)}</strong>
-                              </span>
-                            )}
-                            <span className="text-slate-800 border-l border-slate-300 pl-4">
-                              Net: <strong>{fmt(ft.net)}</strong>
-                            </span>
-                          </div>
-                        </div>
+                      <td className="px-4 py-2 text-[11px] font-semibold text-slate-700">
+                        <span className="flex items-center gap-1.5">
+                          {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                          {fc.fc_email.split("@")[0]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-slate-500">
+                        {ft.clientCount} clients &middot; {ft.invoicedCount} invoiced
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-center">
+                        {isUnallocated ? (
+                          <Badge className="bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0">No FC</Badge>
+                        ) : fc.all_annuity_done ? (
+                          <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Done
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
+                            <XCircle className="w-2.5 h-2.5" /> Not Done
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-right font-medium text-slate-700">
+                        {sourceFilter === "all" || sourceFilter === "annuity" ? fmt(ft.annuity) : fmt(0)}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-center text-slate-400">—</td>
+                      <td className="px-4 py-2 text-[11px] text-right font-medium text-slate-700">
+                        {sourceFilter === "all" || sourceFilter === "job_card" ? fmt(ft.jobCards) : fmt(0)}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-right font-medium">
+                        {(sourceFilter === "all" || sourceFilter === "credit_notes") && ft.credit > 0 ? (
+                          <span className="text-red-600">-{fmt(ft.credit)}</span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-right text-slate-500">
+                        {fmt(ft.exVat)}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-right text-slate-500">
+                        {fmt(ft.vat)}
+                      </td>
+                      <td className="px-4 py-2 text-[11px] text-right font-semibold text-slate-800">
+                        {fmt(ft.net)}
                       </td>
                     </tr>
-                    {isOpen && displayClients.map((c, i) => (
+                    {isOpen && displayClients.map((c, i) => {
+                      const exVat = sourceFilter === "annuity" ? c.annuity_subtotal : sourceFilter === "job_card" ? c.job_card_subtotal : sourceFilter === "credit_notes" ? creditExVat(c.credit_total) : c.subtotal;
+                      const vat = sourceFilter === "annuity" ? c.annuity_total - c.annuity_subtotal : sourceFilter === "job_card" ? c.job_card_total - c.job_card_subtotal : sourceFilter === "credit_notes" ? creditVat(c.credit_total) : c.vat_amount;
+                      const inclVat = sourceFilter === "annuity" ? c.annuity_total : sourceFilter === "job_card" ? c.job_card_total : sourceFilter === "credit_notes" ? c.credit_total : c.total_amount;
+                      return (
                       <tr key={`${fc.fc_id}-${c.cost_code}`} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
@@ -333,27 +360,28 @@ export default function FcAnnuityPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-center">
-                          {c.credit_note_count > 0 ? (
-                            <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0">{c.credit_note_count}</Badge>
+                          {c.credit_note_number ? (
+                            <span className="text-[10px] font-mono text-red-700">{c.credit_note_number}</span>
                           ) : (
                             <span className="text-gray-400 text-[10px]">—</span>
                           )}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.total_amount !== 0 ? fmt(c.subtotal) : <span className="text-gray-300">—</span>}
+                          {inclVat !== 0 ? fmt(exVat) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.total_amount !== 0 ? fmt(c.vat_amount) : <span className="text-gray-300">—</span>}
+                          {inclVat !== 0 ? fmt(vat) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right font-semibold">
-                          {c.total_amount !== 0 ? (
-                            <span className={c.total_amount < 0 ? "text-red-600" : "text-gray-900"}>{fmt(c.total_amount)}</span>
+                          {inclVat !== 0 ? (
+                            <span className={inclVat < 0 ? "text-red-600" : "text-gray-900"}>{fmt(inclVat)}</span>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </Fragment>
                 );
               })}

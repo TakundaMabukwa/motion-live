@@ -173,14 +173,20 @@ export async function GET(request: NextRequest) {
           if (!jobCardInvoiceNumber) jobCardInvoiceNumber = inv.invoice_number || null;
         }
 
-        // Credit note totals (deducted)
+        // Credit note totals (deducted) — amount is incl VAT
         let creditTotal = 0;
+        let creditNoteNumber: string | null = null;
         for (const cn of creditNotes) {
           creditTotal += Number(cn.amount || 0);
+          if (!creditNoteNumber) creditNoteNumber = cn.credit_note_number || null;
         }
 
+        // Derive credit ex-VAT and VAT (15% standard rate)
+        const creditExVat = creditTotal / 1.15;
+        const creditVat = creditTotal - creditExVat;
+
         const combinedTotal = annuityTotal + jobCardTotal - creditTotal;
-        const combinedSub = annuitySub + jobCardSub - creditTotal;
+        const combinedSub = annuitySub + jobCardSub - creditExVat;
         const combinedVat = combinedTotal - combinedSub;
 
         return {
@@ -196,12 +202,13 @@ export async function GET(request: NextRequest) {
           job_card_subtotal: jobCardSub,
           job_card_total: jobCardTotal,
           credit_note_count: creditNotes.length,
+          credit_note_number: creditNoteNumber,
           credit_total: creditTotal,
           subtotal: combinedSub,
           vat_amount: combinedVat,
           total_amount: combinedTotal,
         };
-      }).sort((a, b) => b.total_amount - a.total_amount);
+      }).sort((a, b) => a.company.localeCompare(b.company));
     };
 
     // 7. Build FC groups
