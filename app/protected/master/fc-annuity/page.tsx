@@ -12,10 +12,11 @@ interface ClientRow {
   company: string;
   annuity_flag: boolean;
   invoice_number: string | null;
+  invoice_count: number;
   total_amount: number;
   subtotal: number;
   vat_amount: number;
-  payment_status: string | null;
+
 }
 
 interface FcGroup {
@@ -26,7 +27,7 @@ interface FcGroup {
   total_ex_vat: number;
   total_vat: number;
   client_count: number;
-  annuity_client_count: number;
+  invoiced_client_count: number;
   all_annuity_done: boolean;
 }
 
@@ -41,14 +42,7 @@ interface OverviewSummary {
 const fmt = (v: unknown) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 2 }).format(Number(v || 0));
 
-const statusColor = (s: string | null) => {
-  switch (s?.toLowerCase()) {
-    case "paid": return "bg-green-100 text-green-800";
-    case "partial": return "bg-yellow-100 text-yellow-800";
-    case "overdue": return "bg-red-100 text-red-800";
-    default: return "bg-blue-100 text-blue-800";
-  }
-};
+
 
 export default function FcAnnuityPage() {
   const [fcGroups, setFcGroups] = useState<FcGroup[]>([]);
@@ -156,7 +150,7 @@ export default function FcAnnuityPage() {
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Ex VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">VAT</th>
                 <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-right uppercase tracking-wider">Incl VAT</th>
-                <th className="px-4 py-2.5 font-medium text-gray-500 text-[11px] text-center uppercase tracking-wider">Status</th>
+
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -170,7 +164,7 @@ export default function FcAnnuityPage() {
                       className={`${isUnallocated ? "bg-orange-50" : "bg-slate-100"} cursor-pointer hover:brightness-95`}
                       onClick={() => toggleFc(fc.fc_id)}
                     >
-                      <td colSpan={8} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
+                      <td colSpan={7} className="px-4 py-2 text-[11px] font-semibold text-slate-700">
                         <span className="flex items-center gap-2">
                           {isOpen ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
                           {fc.fc_email}
@@ -186,7 +180,7 @@ export default function FcAnnuityPage() {
                             </Badge>
                           )}
                           <span className="font-normal text-slate-400">
-                            {fc.client_count} clients &middot; {fc.annuity_client_count} annuity &middot; {fmt(fc.total_invoiced)} incl VAT
+                            {fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced &middot; {fmt(fc.total_invoiced)} incl VAT
                           </span>
                         </span>
                       </td>
@@ -197,35 +191,29 @@ export default function FcAnnuityPage() {
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
                         <td className="px-4 py-2 text-[11px] text-center">
-                          {c.annuity_flag ? (
+                          {c.annuity_flag && c.invoice_number ? (
                             <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Yes</Badge>
                           ) : (
-                            <span className="text-gray-400 text-[10px]">No</span>
+                            <span className="text-gray-400 text-[10px]">—</span>
                           )}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-center font-mono text-gray-700">
                           {c.invoice_number || "—"}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.annuity_flag ? fmt(c.subtotal) : <span className="text-gray-300">—</span>}
+                          {c.invoice_number ? fmt(c.subtotal) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right text-gray-600">
-                          {c.annuity_flag ? fmt(c.vat_amount) : <span className="text-gray-300">—</span>}
+                          {c.invoice_number ? fmt(c.vat_amount) : <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-2 text-[11px] text-right font-semibold">
-                          {c.annuity_flag ? (
+                          {c.invoice_number ? (
                             <span className="text-gray-900">{fmt(c.total_amount)}</span>
                           ) : (
                             <span className="text-gray-300">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 text-[11px] text-center">
-                          {c.payment_status ? (
-                            <Badge className={`${statusColor(c.payment_status)} text-[10px] px-1.5 py-0`}>{c.payment_status}</Badge>
-                          ) : (
-                            <span className="text-gray-300">—</span>
-                          )}
-                        </td>
+
                       </tr>
                     ))}
                   </Fragment>

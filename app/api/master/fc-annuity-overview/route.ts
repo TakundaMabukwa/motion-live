@@ -3,6 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 
 const norm = (v: unknown) => String(v || "").trim().toUpperCase();
 
+const getMonthKey = (value: unknown) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const match = raw.match(/^(\d{4}-\d{2})/);
+  return match ? match[1] : null;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -50,33 +57,31 @@ export async function GET(request: NextRequest) {
       fcEmailMap.set(String(u.id), String(u.email || ""));
     });
 
-    // 3. Fetch ALL account_invoices for the month — no row limit
-    let invoiceQuery = supabase
+    // 3. Fetch ALL account_invoices — no date filter, filter in code
+    const { data: invoices, error: invError } = await supabase
       .from("account_invoices")
       .select("account_number, billing_month, invoice_number, total_amount, subtotal, vat_amount, payment_status")
       .range(0, 9999);
-
-    if (month) {
-      const monthStart = `${month}-01`;
-      const [y, m] = month.split("-").map(Number);
-      const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      invoiceQuery = invoiceQuery.gte("billing_month", monthStart).lt("billing_month", nextMonth);
-    }
-
-    const { data: invoices, error: invError } = await invoiceQuery;
 
     if (invError) {
       return NextResponse.json({ error: invError.message }, { status: 500 });
     }
 
-    // 4. Build invoice lookup: NORMALIZED account_number -> invoice (first-write-wins per account)
-    const invoiceByCode = new Map<string, (typeof invoices)[number]>();
-    (Array.isArray(invoices) ? invoices : []).forEach((inv) => {
-      const key = norm(inv.account_number);
-      if (key && !invoiceByCode.has(key)) {
-        invoiceByCode.set(key, inv);
+    // 4. Filter invoices by month in code, build lookup: NORMALIZED account_number -> invoice[]
+    const allInvoices = Array.isArray(invoices) ? invoices : [];
+    const invoiceByCode = new Map<string, typeof allInvoices>();
+
+    for (const inv of allInvoices) {
+      // Filter by month if provided
+      if (month) {
+        const invMonth = getMonthKey(inv.billing_month);
+        if (invMonth !== month) continue;
       }
-    });
+      const key = norm(inv.account_number);
+      if (!key) continue;
+      if (!invoiceByCode.has(key)) invoiceByCode.set(key, []);
+      invoiceByCode.get(key)!.push(inv);
+    }
 
     // 5. Group cost centres by fc_id (or "unallocated"), deduplicate by cost_code
     const ccsByFc = new Map<string, typeof ccList>();
@@ -95,32 +100,40 @@ export async function GET(request: NextRequest) {
       list.push(cc);
     }
 
-    // 6. Build client rows for a list of cost centres
+    // 6. Build client rows — sum all invoices per account
     const buildClients = (ccs: typeof ccList) => {
       const rows = ccs.map((cc) => {
         const code = norm(cc.cost_code);
-        // Look up invoice for ALL clients, not just annuity-flagged
-        const inv = invoiceByCode.get(code) || null;
-        const amount = inv ? Number(inv.total_amount || 0) : 0;
-        const sub = inv ? Number(inv.subtotal || 0) : 0;
-        const vat = inv ? Number(inv.vat_amount || 0) : 0;
+        const invs = invoiceByCode.get(code) || [];
+
+        let totalAmount = 0;
+        let totalSub = 0;
+        let totalVat = 0;
+        let invoiceNumber: string | null = null;
+        let paymentStatus: string | null = null;
+
+        for (const inv of invs) {
+          totalAmount += Number(inv.total_amount || 0);
+          totalSub += Number(inv.subtotal || 0);
+          totalVat += Number(inv.vat_amount || 0);
+          if (!invoiceNumber) invoiceNumber = inv.invoice_number || "PENDING";
+          if (!paymentStatus) paymentStatus = inv.payment_status || "pending";
+        }
 
         return {
           cost_code: cc.cost_code || "—",
           company: cc.company || cc.legal_name || cc.cost_code || "—",
           annuity_flag: Boolean(cc.annuity_flag),
-          invoice_number: inv ? inv.invoice_number || "PENDING" : null,
-          subtotal: sub,
-          vat_amount: vat,
-          total_amount: amount,
-          payment_status: inv ? inv.payment_status || "pending" : null,
+          invoice_number: invs.length > 0 ? invoiceNumber : null,
+          invoice_count: invs.length,
+          subtotal: totalSub,
+          vat_amount: totalVat,
+          total_amount: totalAmount,
+          payment_status: invs.length > 0 ? paymentStatus : null,
         };
       });
 
-      rows.sort((a, b) => {
-        if (a.annuity_flag !== b.annuity_flag) return a.annuity_flag ? -1 : 1;
-        return b.total_amount - a.total_amount;
-      });
+      rows.sort((a, b) => b.total_amount - a.total_amount);
 
       return rows;
     };
@@ -138,33 +151,40 @@ export async function GET(request: NextRequest) {
 
         const clients = buildClients(myCCs);
 
-        // Done = ALL clients under this FC have an invoice for the month
-        const annuityClients = clients.filter((c) => c.annuity_flag);
-        const allDone = clients.length > 0 && clients.every((c) => c.invoice_number && c.invoice_number !== "PENDING");
+        // Done = ALL clients under this FC have at least one invoice for the month
+        const allDone = clients.length > 0 && clients.every((c) => c.invoice_count > 0);
 
         let groupTotal = 0;
         let groupSub = 0;
         let groupVat = 0;
+        let invoicedTotal = 0;
+        let invoicedSub = 0;
+        let invoicedVat = 0;
         clients.forEach((c) => {
           groupSub += c.subtotal;
           groupVat += c.vat_amount;
           groupTotal += c.total_amount;
+          if (c.invoice_number) {
+            invoicedSub += c.subtotal;
+            invoicedVat += c.vat_amount;
+            invoicedTotal += c.total_amount;
+          }
         });
 
-        totalExVat += groupSub;
-        totalVat += groupVat;
-        totalInclVat += groupTotal;
+        totalExVat += invoicedSub;
+        totalVat += invoicedVat;
+        totalInclVat += invoicedTotal;
         if (allDone) fcsDone++;
 
         return {
           fc_id: fcId,
           fc_email: fcEmail,
           clients,
-          total_invoiced: groupTotal,
-          total_ex_vat: groupSub,
-          total_vat: groupVat,
+          total_invoiced: invoicedTotal,
+          total_ex_vat: invoicedSub,
+          total_vat: invoicedVat,
           client_count: clients.length,
-          annuity_client_count: annuityClients.length,
+          invoiced_client_count: clients.filter((c) => c.invoice_number).length,
           all_annuity_done: allDone,
         };
       })
@@ -174,30 +194,32 @@ export async function GET(request: NextRequest) {
     if (unallocatedCCs.length > 0) {
       const clients = buildClients(unallocatedCCs);
 
-      let groupTotal = 0;
-      let groupSub = 0;
-      let groupVat = 0;
+      let invoicedTotal = 0;
+      let invoicedSub = 0;
+      let invoicedVat = 0;
       clients.forEach((c) => {
-        groupSub += c.subtotal;
-        groupVat += c.vat_amount;
-        groupTotal += c.total_amount;
+        if (c.invoice_number) {
+          invoicedSub += c.subtotal;
+          invoicedVat += c.vat_amount;
+          invoicedTotal += c.total_amount;
+        }
       });
 
-      const allDone = clients.length > 0 && clients.every((c) => c.invoice_number && c.invoice_number !== "PENDING");
+      const allDone = clients.length > 0 && clients.every((c) => c.invoice_count > 0);
 
-      totalExVat += groupSub;
-      totalVat += groupVat;
-      totalInclVat += groupTotal;
+      totalExVat += invoicedSub;
+      totalVat += invoicedVat;
+      totalInclVat += invoicedTotal;
 
       fcGroups.push({
         fc_id: "unallocated",
         fc_email: "Unallocated",
         clients,
-        total_invoiced: groupTotal,
-        total_ex_vat: groupSub,
-        total_vat: groupVat,
+        total_invoiced: invoicedTotal,
+        total_ex_vat: invoicedSub,
+        total_vat: invoicedVat,
         client_count: clients.length,
-        annuity_client_count: clients.filter((c) => c.annuity_flag).length,
+        invoiced_client_count: clients.filter((c) => c.invoice_number).length,
         all_annuity_done: allDone,
       });
     }
