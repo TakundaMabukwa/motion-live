@@ -22,6 +22,8 @@ import { Eye, FileDown, FileText, Loader2, RefreshCw, Search, X } from "lucide-r
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
+import { createClient } from "@/lib/supabase/client";
+import { useFCSidebar } from "@/components/fc/FCSidebarLayout";
 
 interface InvoiceRow {
   id: string;
@@ -119,6 +121,7 @@ interface FCAllInvoicesSectionProps {
 }
 
 export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSectionProps) {
+  const { selectedCostCenter, setHighlightDropdown, costCenters } = useFCSidebar();
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,6 +134,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card" | "credit_note">("all");
+  const [userRole, setUserRole] = useState<string>("");
 
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
   const [creditNoteInvoice, setCreditNoteInvoice] = useState<InvoiceRow | null>(null);
@@ -143,6 +147,21 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [creditNoteComment, setCreditNoteComment] = useState("");
   const [creditNoteReason, setCreditNoteReason] = useState("");
   const [processingCreditNote, setProcessingCreditNote] = useState(false);
+
+  const [showMasterCreditNoteModal, setShowMasterCreditNoteModal] = useState(false);
+  const [masterCreditNoteInvoice, setMasterCreditNoteInvoice] = useState<InvoiceRow | null>(null);
+  const [masterCreditNoteDate, setMasterCreditNoteDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [masterCreditNoteAmount, setMasterCreditNoteAmount] = useState("");
+  const [masterCreditNoteCompany, setMasterCreditNoteCompany] = useState("");
+  const [masterCreditNoteReference, setMasterCreditNoteReference] = useState("");
+  const [masterCreditNoteComment, setMasterCreditNoteComment] = useState("");
+  const [masterCreditNoteReason, setMasterCreditNoteReason] = useState("");
+  const [processingMasterCreditNote, setProcessingMasterCreditNote] = useState(false);
+
+  const isMaster = userRole === "master";
 
   const fetchInvoices = async (search = "", month = selectedMonth) => {
     try {
@@ -228,6 +247,20 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     fetchInvoices(searchTerm, selectedMonth);
   }, [selectedMonth, costCodes]);
 
+  useEffect(() => {
+    const fetchRole = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data } = await supabase.from("users").select("role").eq("id", user.id).single();
+          if (data?.role) setUserRole(data.role);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchRole();
+  }, []);
+
   const filteredInvoices = useMemo(() => {
     let list = invoices;
 
@@ -304,6 +337,69 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     setCreditNoteReference("");
     setCreditNoteComment("");
     setCreditNoteReason("");
+  };
+
+  const closeMasterCreditNoteModal = () => {
+    setShowMasterCreditNoteModal(false);
+    setMasterCreditNoteInvoice(null);
+    setMasterCreditNoteAmount("");
+    setMasterCreditNoteCompany("");
+    setMasterCreditNoteReference("");
+    setMasterCreditNoteComment("");
+    setMasterCreditNoteReason("");
+  };
+
+  const handleConfirmMasterCreditNote = async () => {
+    const accountNumber = costCodes || masterCreditNoteInvoice?.account_number || "";
+    if (!accountNumber) {
+      toast.error("No account number found.");
+      return;
+    }
+
+    const numericAmount = Number(String(masterCreditNoteAmount || "").replace(/,/g, ""));
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      toast.error("Enter a credit note amount greater than 0.");
+      return;
+    }
+
+    const billingMonth = selectedMonth;
+    if (!billingMonth) {
+      toast.error("Unable to determine the billing month for this credit note.");
+      return;
+    }
+
+    setProcessingMasterCreditNote(true);
+    try {
+      const response = await fetch("/api/credit-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountNumber,
+          clientName: masterCreditNoteCompany || null,
+          billingMonth,
+          creditNoteDate: masterCreditNoteDate,
+          amount: numericAmount,
+          reference: masterCreditNoteReference || null,
+          comment: masterCreditNoteComment,
+          reason: masterCreditNoteReason,
+          invoiceCredited: null,
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to apply credit note");
+      }
+
+      toast.success(`${result?.creditNote?.credit_note_number || "Credit note"} applied to ${accountNumber}.`);
+      closeMasterCreditNoteModal();
+      await fetchInvoices(searchTerm, selectedMonth);
+    } catch (error) {
+      console.error("Error applying master credit note:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to apply credit note.");
+    } finally {
+      setProcessingMasterCreditNote(false);
+    }
   };
 
   const handleConfirmCreditNote = async () => {
@@ -598,6 +694,36 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           )}
           {refreshing || loading ? "Refreshing..." : "Refresh"}
         </Button>
+        {isMaster && (
+          <Button onClick={() => {
+            if (selectedCostCenter?.cost_code === "all") {
+              toast.error("Please select a cost center before creating a Master Credit Note.");
+              setHighlightDropdown(true);
+              return;
+            }
+            setMasterCreditNoteInvoice({
+              id: "master-cn",
+              account_number: costCodes || "",
+              billing_month: selectedMonth,
+              invoice_number: null,
+              company_name: null,
+              total_amount: 0,
+              balance_due: 0,
+            } as InvoiceRow);
+            const matchedCc = costCenters.find((cc) => cc.cost_code === costCodes);
+            setMasterCreditNoteCompany(matchedCc?.trading_name || matchedCc?.company_name || matchedCc?.company || "");
+            const d = new Date();
+            setMasterCreditNoteDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+            setMasterCreditNoteAmount("");
+            setMasterCreditNoteReference("");
+            setMasterCreditNoteComment("");
+            setMasterCreditNoteReason("");
+            setShowMasterCreditNoteModal(true);
+          }} variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-50">
+            <FileText className="mr-1 w-3 h-3" />
+            Master Credit Note
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
@@ -753,14 +879,22 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     </TableCell>
                     <TableCell className="py-1.5 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
-                          <Eye className="mr-1 w-3 h-3" />
-                          Pdf
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
-                          <FileDown className="mr-1 w-3 h-3" />
-                          Excel
-                        </Button>
+                        {invoice.source_type === "credit_note" && invoice.decline_reason ? (
+                          <span className="text-[10px] font-medium text-red-600">Declined</span>
+                        ) : invoice.source_type === "credit_note" && !invoice.approved ? (
+                          <span className="text-[10px] font-medium text-amber-600">Waiting for approval</span>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
+                              <Eye className="mr-1 w-3 h-3" />
+                              Pdf
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
+                              <FileDown className="mr-1 w-3 h-3" />
+                              Excel
+                            </Button>
+                          </>
+                        )}
                         {invoice.source_type !== "credit_note" && (
                           <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
                             <FileText className="mr-1 w-3 h-3" />
@@ -957,6 +1091,109 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</>
                 ) : (
                   "Apply Credit Note"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMasterCreditNoteModal && masterCreditNoteInvoice && (
+        <div className="z-50 fixed inset-0 flex justify-center items-center bg-black/50 p-4">
+          <div className="flex flex-col bg-white shadow-2xl rounded-xl w-full max-w-2xl max-h-[90vh]">
+            <div className="flex flex-shrink-0 justify-between items-center px-6 py-4 border-b border-amber-200 bg-amber-50">
+              <div>
+                <h3 className="font-semibold text-slate-900 text-lg">Master Credit Note</h3>
+                <p className="text-slate-500 text-sm mt-0.5">Account: {masterCreditNoteInvoice.account_number}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeMasterCreditNoteModal}
+                disabled={processingMasterCreditNote}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-4 p-6 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Company</label>
+                  <Input
+                    value={masterCreditNoteCompany}
+                    onChange={(e) => setMasterCreditNoteCompany(e.target.value)}
+                    disabled={processingMasterCreditNote}
+                    placeholder="Company name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Credit Note Date</label>
+                  <Input
+                    type="date"
+                    value={masterCreditNoteDate}
+                    onChange={(e) => setMasterCreditNoteDate(e.target.value)}
+                    disabled={processingMasterCreditNote}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Amount (Ex VAT)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={masterCreditNoteAmount}
+                    onChange={(e) => setMasterCreditNoteAmount(e.target.value)}
+                    disabled={processingMasterCreditNote}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Reference (Optional)</label>
+                  <Input
+                    value={masterCreditNoteReference}
+                    onChange={(e) => setMasterCreditNoteReference(e.target.value)}
+                    disabled={processingMasterCreditNote}
+                    placeholder="Optional reference"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Reason</label>
+                  <Input
+                    value={masterCreditNoteReason}
+                    onChange={(e) => setMasterCreditNoteReason(e.target.value)}
+                    disabled={processingMasterCreditNote}
+                    placeholder="Reason for credit note"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-medium text-slate-700 text-sm">Comment</label>
+                <textarea
+                  value={masterCreditNoteComment}
+                  onChange={(e) => setMasterCreditNoteComment(e.target.value)}
+                  disabled={processingMasterCreditNote}
+                  rows={3}
+                  placeholder="Additional comments"
+                  className="px-3 py-2 border border-slate-200 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-shrink-0 justify-end gap-3 px-6 py-4 border-t border-amber-200 bg-amber-50 rounded-b-xl">
+              <Button variant="outline" onClick={closeMasterCreditNoteModal} disabled={processingMasterCreditNote} className="border-slate-200">
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmMasterCreditNote} disabled={processingMasterCreditNote} className="bg-amber-600 hover:bg-amber-700">
+                {processingMasterCreditNote ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Applying...</>
+                ) : (
+                  "Apply Master Credit Note"
                 )}
               </Button>
             </div>

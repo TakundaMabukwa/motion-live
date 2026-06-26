@@ -73,6 +73,16 @@ function CostCenterDropdown({
     if (highlight) setOpen(true);
   }, [highlight]);
 
+  const handleClose = () => {
+    if (!highlight) setOpen(false);
+  };
+
+  const handleDropdownBlur = (e: React.FocusEvent) => {
+    if (!highlight && !e.currentTarget.contains(e.relatedTarget as Node)) {
+      setOpen(false);
+    }
+  };
+
   const displayName = selected?.cost_code === "all"
     ? "All"
     : selected
@@ -87,24 +97,23 @@ function CostCenterDropdown({
           open ? "bg-blue-500 ring-2 ring-blue-300" : highlight ? "bg-blue-500 animate-pulse ring-2 ring-yellow-300" : "bg-white/10 hover:bg-white/20"
         }`}
       >
-        <span className="truncate">{displayName}</span>
+        <span className="text-[13px] leading-snug break-words">{displayName}</span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={handleClose} />
           <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
             <button
               onClick={() => {
                 onSelect({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" } as CostCenter);
                 setOpen(false);
               }}
-              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${
+              className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors ${
                 selected?.cost_code === "all" ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
               }`}
             >
-              <div className="truncate font-medium">All</div>
-              <div className="text-xs text-gray-500 truncate">All cost centers</div>
+              <div className="font-medium text-[13px] leading-snug">All</div>
             </button>
             {costCenters.map((cc) => (
               <button
@@ -113,12 +122,11 @@ function CostCenterDropdown({
                   onSelect(cc);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors ${
                   selected?.cost_code === cc.cost_code ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-700"
                 }`}
               >
-                <div className="truncate font-medium">{cc.trading_name || cc.company_name || cc.company || cc.cost_code}</div>
-                <div className="text-xs text-gray-500 truncate">{cc.cost_code}</div>
+                <div className="font-medium text-[13px] leading-snug break-words">{cc.trading_name || cc.company_name || cc.company || cc.cost_code}</div>
               </button>
             ))}
           </div>

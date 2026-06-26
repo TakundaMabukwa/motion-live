@@ -107,47 +107,42 @@ export async function POST(request: NextRequest) {
     if (!resolvedClientName) {
       const { data: costCenter } = await serviceSupabase
         .from("cost_centers")
-        .select("company_name")
-        .eq("account_number", accountNumber)
+        .select("company")
+        .or(`account_number.eq.${accountNumber},cost_code.eq.${accountNumber}`)
         .maybeSingle();
-      resolvedClientName = costCenter?.company_name || null;
+      resolvedClientName = costCenter?.company || null;
     }
 
-    const { data: maxResult } = await serviceSupabase
-      .from("credit_notes")
-      .select("credit_note_number")
-      .ilike("credit_note_number", "TEMP-%")
-      .order("credit_note_number", { ascending: false })
-      .limit(1);
-    let nextTempNum = 1;
-    if (maxResult && maxResult.length > 0) {
-      const match = String(maxResult[0].credit_note_number).match(/^TEMP-(\d+)$/);
-      if (match) {
-        nextTempNum = Number.parseInt(match[1], 10) + 1;
-      }
+    // Generate unique TEMP number via DB sequence
+    const { data: tempNumber, error: tempError } = await serviceSupabase
+      .rpc("allocate_credit_note_temp_number");
+
+    if (tempError || !tempNumber) {
+      console.error("Error generating temp credit note number:", tempError);
+      return NextResponse.json({ error: "Failed to generate credit note number" }, { status: 500 });
     }
 
     const { data: creditNote, error: insertError } = await serviceSupabase
       .from("credit_notes")
       .insert({
-        credit_note_number: `TEMP-${nextTempNum}`,
-        account_number: accountNumber,
-        client_name: resolvedClientName,
-        billing_month_applies_to: billingMonthDate,
-        credit_note_date: creditNoteDate ? new Date(creditNoteDate).toISOString() : new Date().toISOString(),
-        amount,
-        applied_amount: amount,
-        unapplied_amount: 0,
-        reference,
-        comment,
-        reason,
-        invoice_credited: invoiceCredited,
-        status: "applied",
-        created_by: user.id,
-        created_by_email: user.email || null,
-      })
-      .select()
-      .maybeSingle();
+        credit_note_number: tempNumber,
+          account_number: accountNumber,
+          client_name: resolvedClientName,
+          billing_month_applies_to: billingMonthDate,
+          credit_note_date: creditNoteDate ? new Date(creditNoteDate).toISOString() : new Date().toISOString(),
+          amount,
+          applied_amount: amount,
+          unapplied_amount: 0,
+          reference,
+          comment,
+          reason,
+          invoice_credited: invoiceCredited,
+          status: "applied",
+          created_by: user.id,
+          created_by_email: user.email || null,
+        })
+        .select()
+        .maybeSingle();
 
     if (insertError) {
       console.error("Error inserting credit note:", insertError);
