@@ -119,8 +119,36 @@ export default function FcAnnuityPage() {
     }
   };
 
-  const filterClients = (clients: ClientRow[]) =>
-    sourceFilter === "all" ? clients : clients.filter((c) => hasSource(c, sourceFilter));
+  const getFcFilteredTotals = (fc: FcGroup) => {
+    if (sourceFilter === "all") {
+      return { annuity: fc.annuity_total, jobCards: fc.job_card_total, credit: fc.credit_total, net: fc.total_invoiced, clientCount: fc.client_count, invoicedCount: fc.invoiced_client_count };
+    }
+    const filtered = fc.clients.filter((c) => hasSource(c, sourceFilter));
+    return {
+      annuity: filtered.reduce((s, c) => s + c.annuity_total, 0),
+      jobCards: filtered.reduce((s, c) => s + c.job_card_total, 0),
+      credit: filtered.reduce((s, c) => s + c.credit_total, 0),
+      net: filtered.reduce((s, c) => s + c.total_amount, 0),
+      clientCount: filtered.length,
+      invoicedCount: filtered.filter((c) => c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0).length,
+    };
+  };
+
+  const filteredSummary = (() => {
+    if (sourceFilter === "all") return summary;
+    let annuity = 0, jobCards = 0, credit = 0, inclVat = 0, exVat = 0;
+    for (const fc of fcGroups) {
+      const filtered = fc.clients.filter((c) => hasSource(c, sourceFilter));
+      for (const c of filtered) {
+        annuity += c.annuity_total;
+        jobCards += c.job_card_total;
+        credit += c.credit_total;
+        inclVat += c.total_amount;
+        exVat += c.subtotal;
+      }
+    }
+    return { totalAnnuity: annuity, totalJobCards: jobCards, totalCreditNotes: credit, totalExVat: exVat, totalVat: inclVat - exVat, totalInclVat: inclVat, fcsDone: summary.fcsDone, fcsTotal: summary.fcsTotal };
+  })();
 
   const totalClients = fcGroups.reduce((sum, fc) => sum + fc.client_count, 0);
   const clientsNotRan = fcGroups.reduce((sum, fc) =>
@@ -144,19 +172,19 @@ export default function FcAnnuityPage() {
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Annuity</div>
-            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalAnnuity)}</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(filteredSummary.totalAnnuity)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Job Cards</div>
-            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(summary.totalJobCards)}</div>
+            <div className="text-lg font-bold text-gray-900 mt-0.5">{fmt(filteredSummary.totalJobCards)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Credit Notes</div>
-            <div className="text-lg font-bold text-red-600 mt-0.5">-{fmt(summary.totalCreditNotes)}</div>
+            <div className="text-lg font-bold text-red-600 mt-0.5">-{fmt(filteredSummary.totalCreditNotes)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -169,8 +197,8 @@ export default function FcAnnuityPage() {
         <Card>
           <CardContent className="p-3">
             <div className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">Total Incl VAT</div>
-            <div className="text-lg font-bold text-green-600 mt-0.5">{fmt(summary.totalInclVat)}</div>
-            <div className="text-[10px] text-gray-400">VAT: {fmt(summary.totalVat)}</div>
+            <div className="text-lg font-bold text-green-600 mt-0.5">{fmt(filteredSummary.totalInclVat)}</div>
+            <div className="text-[10px] text-gray-400">VAT: {fmt(filteredSummary.totalVat)}</div>
           </CardContent>
         </Card>
       </div>
@@ -228,7 +256,8 @@ export default function FcAnnuityPage() {
               {fcGroups.map((fc) => {
                 const isUnallocated = fc.fc_id === "unallocated";
                 const isOpen = expanded.has(fc.fc_id);
-                const filteredClients = filterClients(fc.clients);
+                const ft = getFcFilteredTotals(fc);
+                const displayClients = sourceFilter === "all" ? fc.clients : fc.clients.filter((c) => hasSource(c, sourceFilter));
 
                 return (
                   <Fragment key={fc.fc_id}>
@@ -255,28 +284,32 @@ export default function FcAnnuityPage() {
                             </Badge>
                           )}
 
-                          <span className="text-slate-400">{fc.client_count} clients &middot; {fc.invoiced_client_count} invoiced</span>
+                          <span className="text-slate-400">{ft.clientCount} clients &middot; {ft.invoicedCount} invoiced</span>
 
                           <div className="flex items-center gap-4 ml-auto font-medium">
-                            <span className="text-slate-600">
-                              Annuity: <strong className="text-slate-800">{fmt(fc.annuity_total)}</strong>
-                            </span>
-                            <span className="text-slate-600">
-                              Job Cards: <strong className="text-slate-800">{fmt(fc.job_card_total)}</strong>
-                            </span>
-                            {fc.credit_total > 0 && (
+                            {sourceFilter === "all" || sourceFilter === "annuity" ? (
+                              <span className="text-slate-600">
+                                Annuity: <strong className="text-slate-800">{fmt(ft.annuity)}</strong>
+                              </span>
+                            ) : null}
+                            {sourceFilter === "all" || sourceFilter === "job_card" ? (
+                              <span className="text-slate-600">
+                                Job Cards: <strong className="text-slate-800">{fmt(ft.jobCards)}</strong>
+                              </span>
+                            ) : null}
+                            {(sourceFilter === "all" || sourceFilter === "credit_notes") && ft.credit > 0 && (
                               <span className="text-red-600">
-                                CN: <strong>-{fmt(fc.credit_total)}</strong>
+                                CN: <strong>-{fmt(ft.credit)}</strong>
                               </span>
                             )}
                             <span className="text-slate-800 border-l border-slate-300 pl-4">
-                              Net: <strong>{fmt(fc.total_invoiced)}</strong>
+                              Net: <strong>{fmt(ft.net)}</strong>
                             </span>
                           </div>
                         </div>
                       </td>
                     </tr>
-                    {isOpen && filteredClients.map((c, i) => (
+                    {isOpen && displayClients.map((c, i) => (
                       <tr key={`${fc.fc_id}-${c.cost_code}`} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
