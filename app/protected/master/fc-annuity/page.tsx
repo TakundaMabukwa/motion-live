@@ -116,7 +116,7 @@ export default function FcAnnuityPage() {
 
   const hasSource = (c: ClientRow, filter: SourceFilter) => {
     switch (filter) {
-      case "annuity": return c.annuity_invoice_count > 0;
+      case "annuity": return true;
       case "job_card": return c.job_card_invoice_count > 0;
       case "credit_notes": return c.credit_note_count > 0;
       default: return true;
@@ -142,7 +142,7 @@ export default function FcAnnuityPage() {
       exVat,
       vat: net - exVat,
       clientCount: filtered.length,
-      invoicedCount: filtered.filter((c) => c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0).length,
+      invoicedCount: filtered.filter((c) => c.annuity_invoice_count > 0).length,
     };
   };
 
@@ -341,10 +341,8 @@ export default function FcAnnuityPage() {
                         <td className="px-4 py-2 text-[11px] font-mono text-gray-700">{c.cost_code}</td>
                         <td className="px-4 py-2 text-[11px] text-gray-600 truncate max-w-[200px]">{c.company}</td>
                         <td className="px-4 py-2 text-[11px] text-center">
-                          {c.annuity_flag && c.annuity_invoice_number ? (
+                          {c.annuity_invoice_count > 0 ? (
                             <Badge className="bg-green-100 text-green-700 text-[10px] px-1.5 py-0">Yes</Badge>
-                          ) : c.annuity_flag ? (
-                            <Badge className="bg-red-100 text-red-700 text-[10px] px-1.5 py-0">No</Badge>
                           ) : (
                             <span className="text-gray-400 text-[10px]">—</span>
                           )}

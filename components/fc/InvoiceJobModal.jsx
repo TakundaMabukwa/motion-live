@@ -155,6 +155,8 @@ const getProductChargeLines = (product, job) => {
   const qty = Math.max(1, toNumber(product?.quantity) || 1);
   const recurringMultiplier = getRecurringMultiplier(product);
   const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
+  const isReInstall = jobSubType === "reinstall";
   const lines = [];
   const addLine = (grossKey, priceKey, label, multiplier = 1) => {
     const amount = toNumber(product?.[grossKey]) || toNumber(product?.[priceKey]);
@@ -169,8 +171,10 @@ const getProductChargeLines = (product, job) => {
     return lines;
   }
   const recurringLabelSuffix = recurringMultiplier !== 1 ? ` (${recurringMultiplier}x)` : "";
-  addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
-  addLine("rental_gross", "rental_price", `Rental${recurringLabelSuffix}`, recurringMultiplier);
+  if (!isReInstall) {
+    addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
+    addLine("rental_gross", "rental_price", `Rental${recurringLabelSuffix}`, recurringMultiplier);
+  }
   addLine("cash_gross", "cash_price", "Cash");
   addLine("installation_gross", "installation_price", "Installation");
   addLine("de_installation_gross", "de_installation_price", "De-Installation");
@@ -477,7 +481,8 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             vatAmount: rawTotals.vat,
             totalIncl: rawTotals.total,
           }];
-    const manualAnnuityRows = (annuitySelectableItems || [])
+    const isReInstall = String(effectiveJob?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "") === "reinstall";
+    const manualAnnuityRows = isReInstall ? [] : (annuitySelectableItems || [])
       .filter((item) => selectedAnnuityItemKeys.includes(item.key))
       .map((item, idx) => {
         const annuityFlag = Boolean(costCenterInfo?.annuity_flag);

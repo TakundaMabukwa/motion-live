@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 const norm = (v: unknown) => String(v || "").trim().toUpperCase();
 
@@ -29,11 +30,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid month format. Use YYYY-MM." }, { status: 400 });
     }
 
+    const serviceSupabase = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const BATCH = 1000;
+    const fetchAll = async (baseQuery: any) => {
+      let from = 0;
+      let allRows: any[] = [];
+      while (true) {
+        const { data: batch, error } = await baseQuery.range(from, from + BATCH - 1);
+        if (error) return { data: null, error };
+        const rows = batch || [];
+        allRows = allRows.concat(rows);
+        if (rows.length < BATCH) break;
+        from += BATCH;
+      }
+      return { data: allRows, error: null };
+    };
+
     // 1. Get ALL cost centres
-    const { data: allCCs, error: ccError } = await supabase
-      .from("cost_centers")
-      .select("id, cost_code, company, legal_name, fc_id, annuity_flag")
-      .range(0, 9999);
+    const { data: allCCs, error: ccError } = await fetchAll(
+      supabase.from("cost_centers").select("id, cost_code, company, legal_name, fc_id, annuity_flag")
+    );
 
     if (ccError) {
       return NextResponse.json({ error: ccError.message }, { status: 500 });
@@ -57,20 +77,11 @@ export async function GET(request: NextRequest) {
       fcEmailMap.set(String(u.id), String(u.email || ""));
     });
 
-    // 3. Fetch ALL invoices from all three sources in parallel
+    // 3. Fetch ALL invoices from all three sources in parallel (batch fetch)
     const [annuityResult, jobCardResult, creditNoteResult] = await Promise.all([
-      supabase
-        .from("account_invoices")
-        .select("account_number, billing_month, invoice_number, total_amount, subtotal, vat_amount, payment_status")
-        .range(0, 9999),
-      supabase
-        .from("invoices")
-        .select("account_number, invoice_number, invoice_date, total_amount, subtotal, vat_amount")
-        .range(0, 9999),
-      supabase
-        .from("credit_notes")
-        .select("account_number, billing_month_applies_to, credit_note_number, amount, approved, decline_reason, status")
-        .range(0, 9999),
+      fetchAll(serviceSupabase.from("account_invoices").select("account_number, billing_month, invoice_number, total_amount, subtotal, vat_amount, payment_status")),
+      fetchAll(serviceSupabase.from("invoices").select("account_number, invoice_number, invoice_date, total_amount, subtotal, vat_amount")),
+      fetchAll(serviceSupabase.from("credit_notes").select("account_number, billing_month_applies_to, credit_note_number, amount, approved, decline_reason, status")),
     ]);
 
     if (annuityResult.error) return NextResponse.json({ error: annuityResult.error.message }, { status: 500 });
@@ -231,7 +242,7 @@ export async function GET(request: NextRequest) {
       let hasAnyInvoice = false;
 
       clients.forEach((c) => {
-        hasAnyInvoice = hasAnyInvoice || c.annuity_invoice_count > 0 || c.job_card_invoice_count > 0;
+        hasAnyInvoice = hasAnyInvoice || c.annuity_invoice_count > 0;
         invoicedSub += c.subtotal;
         invoicedTotal += c.total_amount;
         fcAnnuity += c.annuity_total;
