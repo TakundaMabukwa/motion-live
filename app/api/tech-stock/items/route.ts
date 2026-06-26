@@ -95,28 +95,21 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = Array.isArray(data) ? data : [];
-    const mergedItems = rows.flatMap((row) => {
-      const rowPrefix = String(row?.id ?? "row");
-      const assignedParts = Array.isArray(row?.assigned_parts)
-        ? row.assigned_parts.map((part, index) => ({
-            ...normalizeAssignedPart(part),
-            row_id: `${rowPrefix}-assigned-${index}`,
-          }))
+    const assignedParts = rows.flatMap((row) => {
+      const parts = Array.isArray(row?.assigned_parts)
+        ? row.assigned_parts.map((part) => normalizeAssignedPart(part))
         : [];
-      return assignedParts.map((part, index) => ({
-        ...part,
-        row_id:
-          String((part as Record<string, unknown>)?.row_id || "").trim() ||
-          `${rowPrefix}-assigned-${index}`,
-      }));
+      return parts;
     });
 
     // Do not group quantities in the UI: expand each item into single-unit rows.
     // This keeps selection accurate and avoids "one checkbox selects many".
-    const expandedItems = mergedItems.flatMap((item, index) => {
+    const expandedItems = assignedParts.flatMap((item, index) => {
       const base = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
       const quantity = normalizeQuantity(base.quantity ?? base.count ?? 1) || 1;
-      const rowId = String(base.row_id || "").trim() || `row-item-${index}`;
+      const serial = String(base.serial_number || base.serial || base.serialNumber || base.ip_address || "").trim();
+      const stockId = String(base.stock_id || base.id || "").trim();
+      const itemId = serial || stockId || `item-${index}`;
 
       // If quantity is 1 (or invalid), keep as-is.
       if (quantity <= 1) {
@@ -125,7 +118,7 @@ export async function GET(request: NextRequest) {
             ...base,
             quantity: 1,
             available_stock: normalizeQuantity(base.available_stock ?? 1) || 1,
-            row_id: rowId,
+            id: itemId,
           },
         ];
       }
@@ -136,7 +129,7 @@ export async function GET(request: NextRequest) {
         available_stock: 1,
         unit_index: unitIndex + 1,
         unit_total: quantity,
-        row_id: `${rowId}-unit-${unitIndex + 1}`,
+        id: `${itemId}-unit-${unitIndex + 1}`,
       }));
     });
 

@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = String(searchParams.get("search") || "").trim();
     const status = String(searchParams.get("status") || "").trim();
+    const accountNumber = String(searchParams.get("account_number") || "").trim();
 
     let query = supabase
       .from("credit_notes")
@@ -25,6 +26,15 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== "all") {
       query = query.eq("status", status);
+    }
+
+    if (accountNumber) {
+      const codes = accountNumber.split(",").map((c) => c.trim()).filter(Boolean);
+      if (codes.length === 1) {
+        query = query.eq("account_number", codes[0]);
+      } else if (codes.length > 1) {
+        query = query.in("account_number", codes);
+      }
     }
 
     const { data, error } = await query;
@@ -103,10 +113,24 @@ export async function POST(request: NextRequest) {
       resolvedClientName = costCenter?.company_name || null;
     }
 
+    const { data: maxResult } = await serviceSupabase
+      .from("credit_notes")
+      .select("credit_note_number")
+      .ilike("credit_note_number", "TEMP-%")
+      .order("credit_note_number", { ascending: false })
+      .limit(1);
+    let nextTempNum = 1;
+    if (maxResult && maxResult.length > 0) {
+      const match = String(maxResult[0].credit_note_number).match(/^TEMP-(\d+)$/);
+      if (match) {
+        nextTempNum = Number.parseInt(match[1], 10) + 1;
+      }
+    }
+
     const { data: creditNote, error: insertError } = await serviceSupabase
       .from("credit_notes")
       .insert({
-        credit_note_number: "",
+        credit_note_number: `TEMP-${nextTempNum}`,
         account_number: accountNumber,
         client_name: resolvedClientName,
         billing_month_applies_to: billingMonthDate,

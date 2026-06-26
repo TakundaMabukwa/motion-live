@@ -63,7 +63,7 @@ const resolveSerialNumber = (item) =>
   ).trim();
 
 const resolveUniqueItemToken = (item) =>
-  String(item?.row_id || item?.id || item?.stock_id || "").trim();
+  String(item?.serial_number || item?.stock_id || item?.id || item?.row_id || "").trim();
 
 const hasSerialOrUniqueItemIdentity = (item) =>
   Boolean(resolveSerialNumber(item)) || Boolean(resolveUniqueItemToken(item));
@@ -79,7 +79,7 @@ const buildSelectionKey = (source, owner, item) => {
   const normalizedOwner = String(owner || "").trim().toLowerCase();
   const candidateId = String(
     normalizedSource === "technician"
-      ? item?.row_id || item?.id || item?.stock_id || ""
+      ? item?.serial_number || item?.stock_id || item?.id || ""
       : item?.id || item?.stock_id || item?.row_id || "",
   ).trim();
   return `${normalizedSource}|${normalizedOwner}|${candidateId}`;
@@ -249,9 +249,8 @@ export default function AssignPartsModal({
         stockArray = Array.isArray(data.items)
           ? data.items
               .map((item) => ({
-                id: item.row_id || "",
+                id: item.id || item.stock_id || "",
                 stock_id: item.stock_id || item.id || "",
-                row_id: item.row_id || "",
                 description: item.description || item.code || "Item",
                 code: item.code || "",
                 supplier: item.supplier || "Technician Stock",
@@ -267,7 +266,7 @@ export default function AssignPartsModal({
                 category_code: item.code || "",
                 category_description: item.description || item.code || "",
               }))
-              .filter((item) => Boolean(String(item.row_id || "").trim()))
+              .filter((item) => Boolean(String(item.serial_number || item.stock_id || "").trim()))
           : [];
       } else {
         const response = await fetch("/api/stock");
@@ -564,8 +563,8 @@ export default function AssignPartsModal({
   );
 
   const addPart = async (item) => {
-    if (modalStockSource === "technician" && !String(item?.row_id || "").trim()) {
-      toast.error("Selected technician stock row is stale. Please refresh and try again.");
+    if (modalStockSource === "technician" && !String(item?.serial_number || item?.stock_id || "").trim()) {
+      toast.error("Selected technician stock item has no serial or stock ID. Please refresh and try again.");
       return;
     }
     const selectedKey = buildSelectionKey(modalStockSource, modalStockOwner, item);
@@ -647,7 +646,7 @@ export default function AssignPartsModal({
     if (sourceMatchesCurrentView) {
       setAllStockItems((prev) => {
         const restoredItem = {
-          id: part.row_id || part.stock_id,
+          id: part.serial_number || part.stock_id || part.row_id || "",
           stock_id: part.stock_id,
           row_id: part.row_id || "",
           description: part.description || "",

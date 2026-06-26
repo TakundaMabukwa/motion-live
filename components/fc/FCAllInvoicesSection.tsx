@@ -45,6 +45,9 @@ interface InvoiceRow {
   order_number?: string | null;
   source_type?: string | null;
   created_by_name?: string | null;
+  decline_reason?: string | null;
+  approved?: boolean | null;
+  created_by_email?: string | null;
 }
 
 const formatCurrency = (value: unknown) =>
@@ -94,7 +97,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [viewerOrderNumber, setViewerOrderNumber] = useState<string | null>(null);
   const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card" | "credit_note">("all");
 
   const [showCreditNoteModal, setShowCreditNoteModal] = useState(false);
   const [creditNoteInvoice, setCreditNoteInvoice] = useState<InvoiceRow | null>(null);
@@ -129,19 +132,57 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
         query.set("month", month.trim());
       }
 
-      const response = await fetch(`/api/accounts/invoices?${query.toString()}`, {
-        cache: "no-store",
-      });
+      const [invoicesRes, creditNotesRes] = await Promise.all([
+        fetch(`/api/accounts/invoices?${query.toString()}`, { cache: "no-store" }),
+        costCodes
+          ? fetch(`/api/credit-notes?account_number=${encodeURIComponent(costCodes)}`, { cache: "no-store" })
+          : Promise.resolve(null),
+      ]);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error || "Failed to fetch invoices");
+      let invoiceRows: InvoiceRow[] = [];
+      if (invoicesRes.ok) {
+        const result = await invoicesRes.json();
+        invoiceRows = Array.isArray(result?.invoices) ? result.invoices : [];
+      } else {
+        const errData = await invoicesRes.json().catch(() => ({}));
+        throw new Error(errData?.error || "Failed to fetch invoices");
       }
 
-      const result = await response.json();
-      setInvoices(Array.isArray(result?.invoices) ? result.invoices : []);
+      if (creditNotesRes && creditNotesRes.ok) {
+        const cnResult = await creditNotesRes.json();
+        const rawCN = Array.isArray(cnResult?.credit_notes) ? cnResult.credit_notes : [];
+        const creditNoteRows: InvoiceRow[] = rawCN.map((cn: Record<string, unknown>) => ({
+          id: `cn-${String(cn?.id || "")}`,
+          account_number: String(cn?.account_number || "").trim(),
+          billing_month: String(cn?.billing_month_applies_to || "").trim() || null,
+          invoice_number: String(cn?.credit_note_number || "").trim() || null,
+          invoice_date: String(cn?.credit_note_date || "").trim() || null,
+          total_amount: -(Number(cn?.amount || 0)),
+          paid_amount: Number(cn?.applied_amount || 0),
+          balance_due: Number(cn?.unapplied_amount || 0),
+          payment_status: String(cn?.status || "applied").trim(),
+          company_name: String(cn?.client_name || "").trim() || null,
+          customer_vat_number: null,
+          company_registration_number: null,
+          client_address: null,
+          notes: String(cn?.comment || "").trim() || null,
+          line_items: [],
+          created_at: String(cn?.created_at || "").trim() || null,
+          job_card_id: null,
+          job_number: null,
+          order_number: null,
+          source_type: "credit_note",
+          created_by_name: String(cn?.created_by_email || "").trim() || null,
+          decline_reason: cn?.decline_reason ? String(cn.decline_reason) : null,
+          approved: cn?.approved === true ? true : false,
+          created_by_email: String(cn?.created_by_email || "").trim() || null,
+        }));
+        invoiceRows = [...creditNoteRows, ...invoiceRows];
+      }
+
+      setInvoices(invoiceRows);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
+      console.error("Error fetching data:", error);
       toast.error(error instanceof Error ? error.message : "Failed to load invoices");
     } finally {
       setLoading(false);
@@ -160,7 +201,9 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       list = list.filter((inv) =>
         sourceFilter === "annuity"
           ? inv.source_type === "account_invoice"
-          : inv.source_type === "job_card_invoice",
+          : sourceFilter === "job_card"
+            ? inv.source_type === "job_card_invoice"
+            : inv.source_type === "credit_note",
       );
     }
 
@@ -187,9 +230,17 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     return sorted;
   }, [filteredInvoices, sortField, sortDir]);
 
+  const invoiceRows = useMemo(() => filteredInvoices.filter((inv) => inv.source_type !== "credit_note"), [filteredInvoices]);
+  const creditNoteRows = useMemo(() => filteredInvoices.filter((inv) => inv.source_type === "credit_note"), [filteredInvoices]);
+
   const totalInvoiceValue = useMemo(
-    () => filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0),
-    [filteredInvoices],
+    () => invoiceRows.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0),
+    [invoiceRows],
+  );
+
+  const totalCreditNoteValue = useMemo(
+    () => creditNoteRows.reduce((sum, cn) => sum + Math.abs(Number(cn.total_amount || 0)), 0),
+    [creditNoteRows],
   );
 
   const handleRefresh = async () => {
@@ -537,7 +588,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
           Current
         </Button>
         <div className="flex rounded-md border border-input overflow-hidden">
-          {(["all", "annuity", "job_card"] as const).map((opt) => (
+          {(["all", "annuity", "job_card", "credit_note"] as const).map((opt) => (
             <button
               key={opt}
               type="button"
@@ -547,7 +598,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                   : "bg-background text-muted-foreground hover:bg-accent"
                 }`}
             >
-              {opt === "all" ? "All" : opt === "annuity" ? "Annuity" : "Job Card"}
+              {opt === "all" ? "All" : opt === "annuity" ? "Annuity" : opt === "job_card" ? "Job Card" : "Credit Note"}
             </button>
           ))}
         </div>
@@ -570,10 +621,17 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
 
       <div className="flex items-center gap-4 text-xs">
         <span className="text-slate-500">
-          <strong className="text-slate-700">{filteredInvoices.length}</strong> invoices
+          <strong className="text-slate-700">{invoiceRows.length}</strong> invoices
         </span>
         <span className="text-slate-500">
           Total: <strong className="text-green-600">{formatCurrency(totalInvoiceValue)}</strong>
+        </span>
+        <span className="text-slate-300">|</span>
+        <span className="text-slate-500">
+          <strong className="text-slate-700">{creditNoteRows.length}</strong> credit notes
+        </span>
+        <span className="text-slate-500">
+          Credit Total: <strong className="text-red-600">{formatCurrency(totalCreditNoteValue)}</strong>
         </span>
       </div>
 
@@ -592,20 +650,22 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                 <TableHead className="py-2 text-xs text-right">Balance</TableHead>
                 <TableHead className="py-2 text-xs">Source</TableHead>
                 <TableHead className="py-2 text-xs">Created By</TableHead>
+                <TableHead className="py-2 text-xs">Decline Reason</TableHead>
+                <TableHead className="py-2 text-xs text-center">Approved</TableHead>
                 <TableHead className="py-2 text-xs text-center">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center text-xs text-slate-400 py-8">
+                  <TableCell colSpan={14} className="text-center text-xs text-slate-400 py-8">
                     <Loader2 className="mx-auto mb-2 w-4 h-4 animate-spin" />
                     Loading invoices...
                   </TableCell>
                 </TableRow>
               ) : sortedInvoices.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center text-xs text-slate-400 py-8">
+                  <TableCell colSpan={14} className="text-center text-xs text-slate-400 py-8">
                     No invoices found{selectedMonth ? ` for ${selectedMonth}` : ""}
                   </TableCell>
                 </TableRow>
@@ -632,6 +692,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     <TableCell className="py-1.5">
                       {invoice.source_type === "account_invoice" ? (
                         <Badge className="bg-purple-100 text-purple-800 text-[10px] px-1.5 py-0">Annuity</Badge>
+                      ) : invoice.source_type === "credit_note" ? (
+                        <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1.5 py-0">Credit Note</Badge>
                       ) : (
                         <Badge className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0">Job Card</Badge>
                       )}
@@ -639,20 +701,36 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     <TableCell className="py-1.5 max-w-[120px] truncate text-[10px] text-slate-600">
                       {invoice.created_by_name || "—"}
                     </TableCell>
+                    <TableCell className="py-1.5 max-w-[150px] truncate text-[10px] text-slate-500">
+                      {invoice.source_type === "credit_note" ? (invoice.decline_reason || "—") : "—"}
+                    </TableCell>
+                    <TableCell className="py-1.5 text-center">
+                      {invoice.source_type === "credit_note" ? (
+                        invoice.approved ? (
+                          <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0">Yes</Badge>
+                        ) : (
+                          <Badge className="bg-red-100 text-red-800 text-[10px] px-1.5 py-0">No</Badge>
+                        )
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="py-1.5 text-center">
                       <div className="flex items-center justify-center gap-1">
                         <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => handleOpenInvoice(invoice)}>
                           <Eye className="mr-1 w-3 h-3" />
-                          View
+                          Pdf
                         </Button>
                         <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => downloadInvoiceExcel(invoice)}>
                           <FileDown className="mr-1 w-3 h-3" />
                           Excel
                         </Button>
-                        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
-                          <FileText className="mr-1 w-3 h-3" />
-                          Credit Note
-                        </Button>
+                        {invoice.source_type !== "credit_note" && (
+                          <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => openCreditNoteModal(invoice)}>
+                            <FileText className="mr-1 w-3 h-3" />
+                            Credit Note
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

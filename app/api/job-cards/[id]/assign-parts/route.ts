@@ -250,45 +250,12 @@ const resolvePartSerialToken = (value: Record<string, unknown>) =>
     value.serial_number ?? value.serial ?? value.serialNumber ?? value.ip_address,
   );
 
-const hasRowLocatorToken = (value: Record<string, unknown>) =>
-  Boolean(parseSourceRowLocator(value.row_id));
-
-type SourceRowLocator = {
-  rowId: number;
-  bucket: 'assigned';
-  index: number;
-  unitIndex: number | null;
-};
-
-const parseSourceRowLocator = (value: unknown): SourceRowLocator | null => {
-  const normalized = String(value || '').trim().toLowerCase();
-  const match = normalized.match(
-    /^(\d+)-(assigned)-(\d+)(?:-unit-(\d+))?$/,
-  );
-  if (!match) return null;
-
-  const rowId = Number.parseInt(match[1] || '', 10);
-  const index = Number.parseInt(match[3] || '', 10);
-  if (!Number.isFinite(rowId) || rowId <= 0) return null;
-  if (!Number.isFinite(index) || index < 0) return null;
-  const unitRaw = match[4];
-  const unitIndex =
-    unitRaw !== undefined ? Number.parseInt(unitRaw, 10) : null;
-
-  return {
-    rowId,
-    bucket: 'assigned',
-    index,
-    unitIndex: Number.isFinite(unitIndex) ? unitIndex : null,
-  };
-};
-
 const hasStrongPartIdentity = (value: Record<string, unknown>) =>
   Boolean(normalizeToken(value.stock_id ?? value.id)) ||
   Boolean(resolvePartSerialToken(value));
 
 const hasPartSelectionIdentity = (value: Record<string, unknown>) =>
-  hasStrongPartIdentity(value) || hasRowLocatorToken(value);
+  hasStrongPartIdentity(value);
 
 const partsMatchStrict = (
   candidate: Record<string, unknown>,
@@ -524,55 +491,18 @@ export async function PUT(request: NextRequest, { params }) {
       }
 
       for (const [technicianEmailForMutation, technicianParts] of technicianPartsByOwner.entries()) {
-        const parsedSelections = technicianParts
-          .map((selectedPart) => {
-            const normalizedSelected = normalizePartRecord(selectedPart);
-            const rowId = String(normalizedSelected.row_id || '').trim();
-            if (!rowId) return null;
-            const rowLocator = parseSourceRowLocator(rowId);
-            return {
-              normalizedSelected,
-              rowLocator,
-            };
-          })
-          .filter(
-            (
-              selection,
-            ): selection is {
-              normalizedSelected: Record<string, unknown>;
-              rowLocator: SourceRowLocator | null;
-            } => Boolean(selection),
-          );
+        const normalizedParts = technicianParts
+          .map((p) => normalizePartRecord(p))
+          .filter((p) => resolvePartSerialToken(p) || String(p.stock_id || p.id || '').trim());
 
-        if (parsedSelections.length === 0) {
-          continue;
-        }
+        if (normalizedParts.length === 0) continue;
 
-        if (parsedSelections.some((selection) => !selection.rowLocator)) {
-          return {
-            success: false,
-            warning:
-              'Selected technician stock item is stale. Please refresh and select exact rows again.',
-          };
-        }
-
-        const requiredRowIds = Array.from(
-          new Set(parsedSelections.map((selection) => selection.rowLocator?.rowId)),
-        ).filter((rowId): rowId is number => Number.isFinite(rowId as number));
-
-        if (requiredRowIds.length === 0) {
-          return {
-            success: false,
-            warning:
-              'Technician source stock row is not available. Please refresh and try again.',
-          };
-        }
-
-        const { data: techStockRows, error: techFetchError } = await supabase
+        const { data: techStockRow, error: techFetchError } = await supabase
           .from('tech_stock')
           .select('id, technician_email, assigned_parts')
           .ilike('technician_email', technicianEmailForMutation)
-          .in('id', requiredRowIds);
+          .limit(1)
+          .maybeSingle();
 
         if (techFetchError) {
           return {
@@ -580,150 +510,85 @@ export async function PUT(request: NextRequest, { params }) {
             warning: `Failed to read technician source stock: ${techFetchError.message}`,
           };
         }
-
-        const rowStates = new Map<
-          number,
-          {
-            rowId: number;
-            technicianEmail: string;
-            assignedParts: unknown[];
-          }
-        >();
-
-        (Array.isArray(techStockRows) ? techStockRows : []).forEach((row) => {
-          const rowId = Number(row?.id);
-          if (!Number.isFinite(rowId) || rowId <= 0) return;
-
-          const assignedParts = Array.isArray(row?.assigned_parts)
-            ? row.assigned_parts.map((part: unknown) =>
-                part && typeof part === 'object' && !Array.isArray(part)
-                  ? JSON.parse(JSON.stringify(part))
-                  : part,
-              )
-            : [];
-
-          rowStates.set(rowId, {
-            rowId,
-            technicianEmail: String(row?.technician_email || technicianEmailForMutation),
-            assignedParts,
-          });
-        });
-
-        if (rowStates.size !== requiredRowIds.length) {
+        if (!techStockRow) {
           return {
             success: false,
-            warning:
-              'Selected technician stock row is stale. Please refresh and reselect items.',
+            warning: `No tech stock row found for ${technicianEmailForMutation}. Please refresh and try again.`,
           };
         }
 
-        for (const selection of parsedSelections) {
-          const normalizedSelected = selection.normalizedSelected;
-          const rowLocator = selection.rowLocator as SourceRowLocator;
-          const rowState = rowStates.get(rowLocator.rowId);
+        const assignedParts: Record<string, unknown>[] = Array.isArray(techStockRow.assigned_parts)
+          ? techStockRow.assigned_parts.map((p: unknown) =>
+              p && typeof p === 'object' && !Array.isArray(p)
+                ? JSON.parse(JSON.stringify(p))
+                : null,
+            ).filter(Boolean)
+          : [];
 
-          if (!rowState) {
-            return {
-              success: false,
-              warning:
-                'Selected technician stock row is stale. Please refresh and reselect items.',
-            };
-          }
+        for (const selected of normalizedParts) {
+          const serial = resolvePartSerialToken(selected);
+          const stockId = String(selected.stock_id || selected.id || '').trim();
+          const requestedQty = toSafePositiveQuantity(selected.quantity);
 
-          const requiresIdentityCheck = hasStrongPartIdentity(normalizedSelected);
-          let remainingQty = toSafePositiveQuantity(normalizedSelected.quantity);
+          let partIndex = -1;
 
-          const serialForLookup = resolvePartSerialToken(normalizedSelected);
-          const stockIdForLookup = String(normalizedSelected.stock_id || normalizedSelected.id || '').trim();
+          if (serial) {
+            const serialMatches = assignedParts
+              .map((p, idx) => ({ p, idx }))
+              .filter(({ p }) => resolvePartSerialToken(p) === serial);
 
-          let locatedPart = rowState.assignedParts[rowLocator.index];
-          if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
-            if (serialForLookup) {
-              const serialMatches = rowState.assignedParts.filter(
-                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
-                  resolvePartSerialToken(p as Record<string, unknown>) === serialForLookup,
+            if (serialMatches.length === 1) {
+              partIndex = serialMatches[0].idx;
+            } else if (serialMatches.length > 1 && stockId) {
+              const match = serialMatches.find(
+                ({ p }) => String(p.stock_id || p.id || '') === stockId,
               );
-              if (serialMatches.length === 1) {
-                locatedPart = serialMatches[0];
-              } else if (serialMatches.length > 1 && stockIdForLookup) {
-                locatedPart = serialMatches.find(
-                  (p) => String((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id ?? '') === stockIdForLookup,
-                );
-              }
-            }
-            if (!locatedPart && stockIdForLookup) {
-              locatedPart = rowState.assignedParts.find(
-                (p) => p && typeof p === 'object' && !Array.isArray(p) &&
-                  String((p as Record<string, unknown>).stock_id ?? (p as Record<string, unknown>).id ?? '') === stockIdForLookup,
-              );
-            }
-            if (!locatedPart || typeof locatedPart !== 'object' || Array.isArray(locatedPart)) {
-              return {
-                success: false,
-                warning:
-                  'Selected technician stock item is stale. Please refresh and try again.',
-              };
+              if (match) partIndex = match.idx;
             }
           }
 
-          const locatedCandidate = normalizePartRecord(
-            locatedPart as Record<string, unknown>,
-          );
-          if (
-            requiresIdentityCheck &&
-            !partsMatchStrict(locatedCandidate, normalizedSelected)
-          ) {
-            return {
-              success: false,
-              warning:
-                'Selected technician stock item changed. Please refresh and try again.',
-            };
-          }
-
-          const { movedQty, remainingQty: locatedRemainingQty } =
-            decrementStructuredQuantity(
-              locatedPart as Record<string, unknown>,
-              remainingQty,
+          if (partIndex < 0 && stockId) {
+            partIndex = assignedParts.findIndex(
+              (p) => String(p.stock_id || p.id || '') === stockId,
             );
-          if (locatedRemainingQty <= 0) {
-            rowState.assignedParts[rowLocator.index] = null;
           }
-          remainingQty -= movedQty;
 
-          if (remainingQty > 0) {
+          if (partIndex < 0) {
             return {
               success: false,
-              warning:
-                'Not enough source technician stock for one or more selected items. Please refresh and try again.',
+              warning: `Stock item (S/N: ${serial || 'N/A'}, ID: ${stockId || 'N/A'}) not found in technician stock. Please refresh and try again.`,
             };
+          }
+
+          const part = assignedParts[partIndex];
+          const currentQty = toSafeNonNegativeQuantity(part.quantity ?? part.count ?? 1);
+          const remaining = Math.max(0, currentQty - requestedQty);
+
+          if (remaining <= 0) {
+            assignedParts.splice(partIndex, 1);
+          } else {
+            if (Object.prototype.hasOwnProperty.call(part, 'quantity')) {
+              part.quantity = remaining;
+            }
+            if (Object.prototype.hasOwnProperty.call(part, 'count')) {
+              part.count = remaining;
+            }
+            if (Object.prototype.hasOwnProperty.call(part, 'available_stock')) {
+              part.available_stock = remaining;
+            }
           }
         }
 
-        for (const rowState of rowStates.values()) {
-          const cleanedAssignedParts = rowState.assignedParts.flatMap((part: unknown) => {
-            if (!part) return [];
-            if (!part || typeof part !== 'object' || Array.isArray(part)) return [part];
-            const partObject = part as Record<string, unknown>;
-            const remainingQty = toSafeNonNegativeQuantity(
-              partObject.quantity ?? partObject.count ?? partObject.available_stock ?? 0,
-            );
-            return remainingQty > 0 ? [partObject] : [];
-          });
+        const { error: techUpdateError } = await supabase
+          .from('tech_stock')
+          .update({ assigned_parts: assignedParts })
+          .eq('id', techStockRow.id);
 
-          const { error: techUpdateError } = await supabase
-            .from('tech_stock')
-            .update({
-              assigned_parts: cleanedAssignedParts,
-            })
-            .eq('id', rowState.rowId)
-            .ilike('technician_email', rowState.technicianEmail);
-
-          if (techUpdateError) {
-            return {
-              success: false,
-              warning: `Failed to update technician source stock: ${techUpdateError.message}`,
-            };
-          }
+        if (techUpdateError) {
+          return {
+            success: false,
+            warning: `Failed to update technician source stock: ${techUpdateError.message}`,
+          };
         }
       }
 

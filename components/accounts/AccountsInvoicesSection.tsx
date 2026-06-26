@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, FileDown, Loader2, RefreshCw, Search } from "lucide-react";
+import { Eye, FileDown, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 import InvoiceReportComponent from "@/components/inv/components/invoice-report";
@@ -82,17 +82,16 @@ export default function AccountsInvoicesSection() {
   const [invoices, setInvoices] = useState<AccountInvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedInvoice, setSelectedInvoice] = useState<AccountInvoiceRow | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [viewerOrderNumber, setViewerOrderNumber] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<"invoice_number" | "company_name">("invoice_number");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "annuity" | "job_card">("all");
+  const [lookupInvoiceNumber, setLookupInvoiceNumber] = useState("");
+  const [lookupSearching, setLookupSearching] = useState(false);
+  const originalInvoicesRef = useRef<AccountInvoiceRow[] | null>(null);
 
-  const fetchInvoices = async (search = "", month = selectedMonth) => {
+  const fetchInvoices = async (month = selectedMonth) => {
     try {
       const isRefresh = !loading;
       if (isRefresh) {
@@ -103,9 +102,6 @@ export default function AccountsInvoicesSection() {
 
       const query = new URLSearchParams();
       query.set("all", "1");
-      if (search.trim()) {
-        query.set("search", search.trim());
-      }
       if (month.trim()) {
         query.set("month", month.trim());
       }
@@ -131,49 +127,58 @@ export default function AccountsInvoicesSection() {
   };
 
   useEffect(() => {
-    fetchInvoices(searchTerm, selectedMonth);
+    fetchInvoices(selectedMonth);
   }, [selectedMonth]);
 
-  const filteredInvoices = useMemo(() => {
-    let list = invoices;
-
-    if (sourceFilter !== "all") {
-      list = list.filter((inv) =>
-        sourceFilter === "annuity"
-          ? inv.source_type === "account_invoice"
-          : inv.source_type === "job_card_invoice",
-      );
-    }
-
-    const normalizedSearch = searchTerm.trim().toLowerCase();
-    if (!normalizedSearch) return list;
-
-    return list.filter((invoice) =>
-      [
-        invoice.invoice_number,
-        invoice.account_number,
-        invoice.company_name,
-        invoice.customer_vat_number,
-      ].some((value) => String(value || "").toLowerCase().includes(normalizedSearch)),
-    );
-  }, [invoices, searchTerm, sourceFilter]);
-
-  const sortedInvoices = useMemo(() => {
-    const sorted = [...filteredInvoices].sort((a, b) => {
-      const aVal = String(sortField === "invoice_number" ? a.invoice_number : a.company_name || "").trim().toLowerCase();
-      const bVal = String(sortField === "invoice_number" ? b.invoice_number : b.company_name || "").trim().toLowerCase();
-      return sortDir === "desc" ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
-    });
-    return sorted;
-  }, [filteredInvoices, sortField, sortDir]);
-
-  const totalInvoiceValue = useMemo(
-    () => filteredInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0),
-    [filteredInvoices],
-  );
+  const totalInvoiceValue = invoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
   const handleRefresh = async () => {
-    await fetchInvoices(searchTerm, selectedMonth);
+    await fetchInvoices(selectedMonth);
+  };
+
+  const handleLookupSearch = async () => {
+    const invoiceNumber = lookupInvoiceNumber.trim();
+    if (!invoiceNumber) {
+      toast.error("Please enter an invoice number to search");
+      return;
+    }
+
+    if (originalInvoicesRef.current === null) {
+      originalInvoicesRef.current = [...invoices];
+    }
+
+    setLookupSearching(true);
+    try {
+      const res = await fetch(
+        `/api/accounts/invoices/lookup?invoice_number=${encodeURIComponent(invoiceNumber)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error || "Lookup failed");
+      }
+      const data = await res.json();
+      const lookupResults: AccountInvoiceRow[] = Array.isArray(data?.invoices) ? data.invoices : [];
+
+      if (lookupResults.length === 0) {
+        toast.info("No invoices found matching that number");
+        return;
+      }
+
+      setInvoices(lookupResults);
+      toast.success(`Found ${lookupResults.length} invoice(s)`);
+    } catch (error) {
+      console.error("Lookup search error:", error);
+      toast.error(error instanceof Error ? error.message : "Lookup failed");
+    } finally {
+      setLookupSearching(false);
+    }
+  };
+
+  const handleLookupClear = () => {
+    originalInvoicesRef.current = null;
+    setLookupInvoiceNumber("");
+    fetchInvoices(selectedMonth);
   };
 
   const downloadInvoiceExcel = async (invoice: AccountInvoiceRow) => {
@@ -418,63 +423,45 @@ export default function AccountsInvoicesSection() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 p-3 rounded-lg border bg-slate-50">
         <div className="relative flex-1 max-w-xs">
           <Search className="top-1/2 left-2.5 absolute w-3.5 h-3.5 text-gray-400 -translate-y-1/2 transform" />
           <Input
             type="text"
-            placeholder="Search invoices..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Lookup invoice number..."
+            value={lookupInvoiceNumber}
+            onChange={(e) => setLookupInvoiceNumber(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleLookupSearch(); }}
             className="pl-8 h-8 text-sm"
           />
         </div>
-        <Input
-          type="month"
-          value={selectedMonth}
-          onChange={(event) => setSelectedMonth(event.target.value)}
-          max={new Date().toISOString().slice(0, 7)}
-          className="w-44 h-8 text-sm"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedMonth(currentMonth)}>
-          Current
-        </Button>
-        <div className="flex rounded-md border border-input overflow-hidden">
-          {(["all", "annuity", "job_card"] as const).map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => setSourceFilter(opt)}
-              className={`px-2.5 h-7 text-[11px] font-medium transition-colors ${
-                sourceFilter === opt
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:bg-accent"
-              }`}
-            >
-              {opt === "all" ? "All" : opt === "annuity" ? "Annuity" : "Job Card"}
-            </button>
-          ))}
-        </div>
-        <select
-          value={sortField}
-          onChange={(e) => setSortField(e.target.value as "invoice_number" | "company_name")}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-        >
-          <option value="invoice_number">Invoice No</option>
-          <option value="company_name">Company</option>
-        </select>
-        <button
+        <Button
           type="button"
-          onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-          className="flex items-center gap-1 h-8 rounded-md border border-input bg-background px-2 text-xs hover:bg-accent"
+          size="sm"
+          onClick={handleLookupSearch}
+          disabled={lookupSearching}
         >
-          {sortDir === "asc" ? "↑ A-Z" : "↓ Z-A"}
-        </button>
+          {lookupSearching ? (
+            <Loader2 className="mr-1 w-3 h-3 animate-spin" />
+          ) : (
+            <Search className="mr-1 w-3 h-3" />
+          )}
+          {lookupSearching ? "Searching..." : "Search"}
+        </Button>
+        {originalInvoicesRef.current !== null && (
+          <Button type="button" variant="outline" size="sm" onClick={handleLookupClear}>
+            <X className="mr-1 w-3 h-3" />
+            Clear
+          </Button>
+        )}
+        <span className="text-[11px] text-slate-400">
+          Searches both annuity and job card invoices
+        </span>
       </div>
 
       <div className="flex items-center gap-4 text-xs">
         <span className="text-slate-500">
-          <strong className="text-slate-700">{filteredInvoices.length}</strong> invoices
+          <strong className="text-slate-700">{invoices.length}</strong> invoices
         </span>
         <span className="text-slate-500">
           Total: <strong className="text-green-600">{formatCurrency(totalInvoiceValue)}</strong>
@@ -507,14 +494,14 @@ export default function AccountsInvoicesSection() {
                     Loading invoices...
                   </TableCell>
                 </TableRow>
-              ) : sortedInvoices.length === 0 ? (
+              ) : invoices.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={11} className="text-center text-xs text-slate-400 py-8">
                     No invoices found{selectedMonth ? ` for ${selectedMonth}` : ""}
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedInvoices.map((invoice) => (
+                [...invoices].sort((a, b) => String(a.invoice_number || "").localeCompare(String(b.invoice_number || ""))).map((invoice) => (
                   <TableRow key={invoice.id} className="text-xs">
                     <TableCell className="py-1.5 font-medium">
                       {invoice.invoice_number || "PENDING"}
