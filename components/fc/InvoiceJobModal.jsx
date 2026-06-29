@@ -295,6 +295,7 @@ const isOnceOffItemJob = (job) => {
 
 export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, editedProducts: externalEditedProducts }) {
   const latestJobRef = useRef(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [billingInvoiceDate, setBillingInvoiceDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [invoiceFormData, setInvoiceFormData] = useState({
     clientName: "", clientEmail: "", clientPhone: "", clientAddress: "", paymentTerms: "30 days", dueDate: "", notes: "",
@@ -338,6 +339,17 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       setSelectedAnnuityItemKeys(annuityItems.map((item) => item.key));
       setBillingInvoiceDate(new Date().toLocaleDateString("en-CA"));
       latestJobRef.current = job;
+
+      // Re-fetch latest job from DB to ensure prices are up to date
+      fetchLatestJobCard(job).then((freshJob) => {
+        if (freshJob?.id) {
+          latestJobRef.current = freshJob;
+          const freshAnnuityItems = getAnnuitySelectionItems(freshJob, externalEditedProducts);
+          setAnnuitySelectableItems(freshAnnuityItems);
+          setSelectedAnnuityItemKeys(freshAnnuityItems.map((item) => item.key));
+          setRefreshKey((k) => k + 1);
+        }
+      });
 
       // Fetch cost center info in background for invoice preview only
       const accountNumber = String(job?.new_account_number || "").trim();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,7 @@ const getProductLineTotal = (p) => {
 export default function EditFinalizeModal({ job, open, onOpenChange, onComplete }) {
   const router = useRouter();
   const [editingJob, setEditingJob] = useState(job);
+  const latestJobRef = useRef(job);
   const [editableProducts, setEditableProducts] = useState([]);
   const [formData, setFormData] = useState({});
   const [finalizing, setFinalizing] = useState(false);
@@ -66,7 +67,10 @@ export default function EditFinalizeModal({ job, open, onOpenChange, onComplete 
   const [showFinalInvoiceModal, setShowFinalInvoiceModal] = useState(false);
 
   useEffect(() => {
-    if (job) setEditingJob(job);
+    if (job) {
+      setEditingJob(job);
+      latestJobRef.current = job;
+    }
   }, [job]);
 
   useEffect(() => {
@@ -198,7 +202,10 @@ export default function EditFinalizeModal({ job, open, onOpenChange, onComplete 
       const freshRes = await fetch(`/api/job-cards/${encodeURIComponent(jobId)}`, { cache: "no-store" });
       if (freshRes.ok) {
         const freshJob = await freshRes.json();
-        if (freshJob?.id) setEditingJob(freshJob);
+        if (freshJob?.id) {
+          setEditingJob(freshJob);
+          latestJobRef.current = freshJob;
+        }
       }
     } catch (err) {
       setFinalizing(false);
@@ -463,7 +470,7 @@ export default function EditFinalizeModal({ job, open, onOpenChange, onComplete 
       </Dialog>
 
       <InvoiceJobModal
-        job={editingJob}
+        job={latestJobRef.current || editingJob}
         open={showFinalInvoiceModal}
         onOpenChange={setShowFinalInvoiceModal}
         onComplete={handleRefreshJobsAfterInvoice}
