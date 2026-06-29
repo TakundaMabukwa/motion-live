@@ -179,7 +179,8 @@ const getProductChargeLines = (product, job) => {
   addLine("installation_gross", "installation_price", "Installation");
   addLine("de_installation_gross", "de_installation_price", "De-Installation");
   if (lines.length === 0 && isLabourProduct(product)) {
-    const amount = toNumber(product?.total_price) || toNumber(product?.subscription_gross) || toNumber(product?.subscription_price) || toNumber(product?.rental_gross) || toNumber(product?.rental_price);
+    const unitAmount = toNumber(product?.cash_price) || toNumber(product?.unit_price) || toNumber(product?.price);
+    const amount = unitAmount > 0 ? unitAmount : toNumber(product?.subscription_price) || toNumber(product?.rental_price) || (qty > 0 ? toNumber(product?.total_price) / qty : 0);
     lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
   }
   if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
