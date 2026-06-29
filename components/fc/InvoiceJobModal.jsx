@@ -159,7 +159,7 @@ const getProductChargeLines = (product, job) => {
   const isReInstall = jobSubType === "reinstall";
   const lines = [];
   const addLine = (grossKey, priceKey, label, multiplier = 1) => {
-    const amount = toNumber(product?.[grossKey]) || toNumber(product?.[priceKey]);
+    const amount = toNumber(product?.[priceKey]) || toNumber(product?.[grossKey]);
     if (amount <= 0) return;
     const unitPrice = amount * Math.max(1, toNumber(multiplier) || 1);
     lines.push({ key: priceKey, label, qty, unitPrice, subtotal: unitPrice * qty });
