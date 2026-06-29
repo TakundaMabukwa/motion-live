@@ -159,6 +159,10 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
   const [masterCreditNoteReference, setMasterCreditNoteReference] = useState("");
   const [masterCreditNoteComment, setMasterCreditNoteComment] = useState("");
   const [masterCreditNoteReason, setMasterCreditNoteReason] = useState("");
+  const [masterCreditNoteBillingMonth, setMasterCreditNoteBillingMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [processingMasterCreditNote, setProcessingMasterCreditNote] = useState(false);
 
   const isMaster = userRole === "master";
@@ -362,7 +366,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       return;
     }
 
-    const billingMonth = selectedMonth;
+    const billingMonth = masterCreditNoteBillingMonth ? `${masterCreditNoteBillingMonth}-01` : selectedMonth;
     if (!billingMonth) {
       toast.error("Unable to determine the billing month for this credit note.");
       return;
@@ -1147,6 +1151,15 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
                     onChange={(e) => setMasterCreditNoteAmount(e.target.value)}
                     disabled={processingMasterCreditNote}
                     placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="font-medium text-slate-700 text-sm">Billing Month</label>
+                  <Input
+                    type="month"
+                    value={masterCreditNoteBillingMonth}
+                    onChange={(e) => setMasterCreditNoteBillingMonth(e.target.value)}
+                    disabled={processingMasterCreditNote}
                   />
                 </div>
               </div>
