@@ -1251,7 +1251,7 @@ export default function InvoiceReportComponent({
   clientLegalName,
   invoiceData,
   onInvoiceGenerated,
-  viewOnly = false,
+  viewOnly = true,
   extraActions = null,
   documentTitle = "Tax Invoice",
   documentNumberLabel = "TAX INVOICE",
