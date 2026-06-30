@@ -351,6 +351,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     setMasterCreditNoteReference("");
     setMasterCreditNoteComment("");
     setMasterCreditNoteReason("");
+    const d = new Date();
+    setMasterCreditNoteBillingMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
 
   const handleConfirmMasterCreditNote = async () => {
@@ -366,7 +368,7 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       return;
     }
 
-    const billingMonth = masterCreditNoteBillingMonth ? `${masterCreditNoteBillingMonth}-01` : selectedMonth;
+    const billingMonth = masterCreditNoteBillingMonth || selectedMonth;
     if (!billingMonth) {
       toast.error("Unable to determine the billing month for this credit note.");
       return;
