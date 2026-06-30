@@ -117,8 +117,8 @@ const getAnnuitySelectionItems = (job, overrideProducts) => {
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   return products.map((product, index) => {
     if (isLabourProduct(product)) return null;
-    const rentalAmount = getRecurringChargeAmount(product, "rental_price", "rental_gross");
-    const subscriptionAmount = getRecurringChargeAmount(product, "subscription_price", "subscription_gross");
+    const rentalAmount = toNumber(product?.rental_price);
+    const subscriptionAmount = toNumber(product?.subscription_price);
     if (rentalAmount <= 0 && subscriptionAmount <= 0) return null;
     const quantity = Math.max(1, toNumber(product?.quantity) || 1);
     return {
@@ -153,7 +153,6 @@ const getProductUnitPrice = (product, options = {}) => {
 
 const getProductChargeLines = (product, job) => {
   const qty = Math.max(1, toNumber(product?.quantity) || 1);
-  const recurringMultiplier = getRecurringMultiplier(product);
   const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
   const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
   const isReInstall = jobSubType === "reinstall";
@@ -170,10 +169,13 @@ const getProductChargeLines = (product, job) => {
     lines.push({ key: "deinstall", label: "De-Installation", qty, unitPrice: totalUnitPrice, subtotal: totalUnitPrice * qty });
     return lines;
   }
-  const recurringLabelSuffix = recurringMultiplier !== 1 ? ` (${recurringMultiplier}x)` : "";
-  if (!isReInstall) {
-    addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
-    addLine("rental_gross", "rental_price", `Rental${recurringLabelSuffix}`, recurringMultiplier);
+  if (isReInstall) {
+    addLine("installation_gross", "installation_price", "Installation");
+    if (lines.length === 0) addLine("cash_gross", "cash_price", "Item");
+    if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
+  } else {
+    addLine("subscription_gross", "subscription_price", "Subscription");
+    addLine("rental_gross", "rental_price", "Rental");
     addLine("cash_gross", "cash_price", "Cash");
     addLine("installation_gross", "installation_price", "Installation");
     addLine("de_installation_gross", "de_installation_price", "De-Installation");
@@ -428,6 +430,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const raw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
+    const productAnnuityRows = [];
+    const annuityProductKeys = new Set();
+    const isReInstall = String(effectiveJob?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "") === "reinstall";
     const seenProductKeys = new Set();
     const productRows = rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
@@ -439,6 +444,36 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
           if (validLines.length > 0) {
             const mainLines = validLines.filter(cl => !["subscription_price", "rental_price"].includes(cl.key));
+            if (!isReInstall) {
+              const annuityLines = validLines.filter(cl => ["subscription_price", "rental_price"].includes(cl.key));
+              const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
+              const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
+              if (annuityLines.length > 0) {
+                const cl = annuityLines[0];
+                const productName = String(product?.name || product?.item_code || "").trim();
+                const productDescription = String(product?.description || "").trim();
+                const lineLabel = productName ? `${productName} - ${cl.label}` : cl.label;
+                const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
+                const annuityUnitPrice = cl.unitPrice * annuityMultiplier;
+                const annuitySubtotal = annuityUnitPrice * cl.qty;
+                const annuityVat = Number((annuitySubtotal * VAT_RATE).toFixed(2));
+                const annuityTotal = Number((annuitySubtotal + annuityVat).toFixed(2));
+                annuityProductKeys.add(productKey);
+                productAnnuityRows.push({
+                  key: `product-annuity-${index}`,
+                  previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
+                  newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
+                  itemCode: "Annuity",
+                  description: resolvedDescription,
+                  comments: annuityMultiplier === 1 ? `${lineLabel} - Annuity` : `${lineLabel} - Double annuity`,
+                  qty: cl.qty,
+                  unitPrice: annuityUnitPrice,
+                  vatPercent: "15.00%",
+                  vatAmount: annuityVat,
+                  totalIncl: annuityTotal,
+                });
+              }
+            }
             if (mainLines.length > 0) {
               return mainLines.map((chargeLine) => {
                 const lineVat = Number((chargeLine.subtotal * VAT_RATE).toFixed(2));
@@ -496,9 +531,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             vatAmount: rawTotals.vat,
             totalIncl: rawTotals.total,
           }];
-    const isReInstall = String(effectiveJob?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "") === "reinstall";
     const manualAnnuityRows = isReInstall ? [] : (annuitySelectableItems || [])
-      .filter((item) => selectedAnnuityItemKeys.includes(item.key))
+      .filter((item) => {
+        if (!selectedAnnuityItemKeys.includes(item.key)) return false;
+        const itemProductKey = String(item?.product?.name || item?.product?.item_code || item?.product?.code || item?.name || "").trim().toLowerCase();
+        if (itemProductKey && annuityProductKeys.has(itemProductKey)) return false;
+        return true;
+      })
       .map((item, idx) => {
         const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
         const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
@@ -514,7 +553,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
           itemCode: "Annuity",
           description: item.name || "Annuity Item",
-          comments: annuityFlag ? `Annuity - ${item.name} - Double annuity` : `Annuity - ${item.name}`,
+          comments: annuityMultiplier === 1 ? `Annuity - ${item.name}` : `Annuity - ${item.name} - Double annuity`,
           qty,
           unitPrice,
           vatPercent: "15.00%",
@@ -522,7 +561,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           totalIncl: total,
         };
       });
-    const annuityRows = manualAnnuityRows;
+    const annuityRows = [...productAnnuityRows, ...manualAnnuityRows];
     const rows = [...productRows, ...annuityRows];
     const totals = rows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;

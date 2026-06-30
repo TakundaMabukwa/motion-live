@@ -20,7 +20,7 @@ import {
 import {
   Search, RefreshCw, Loader2,
   Briefcase, CheckCircle2, Clock, AlertTriangle, Users,
-  History, Eye, FileEdit, Edit, Car,
+  History, Eye, FileEdit, Edit, Car, Ban,
   ArrowUpDown, FileText, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -402,6 +402,25 @@ export default function JobsTab() {
 
   const handleViewJob = (job) => router.push(`/protected/fc/jobs/${job.id}/edit?source=jobs`);
 
+  const handleCancelJob = useCallback(async (job) => {
+    if (!window.confirm(`Cancel job ${job.job_number || job.id}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/job-cards/${encodeURIComponent(job.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "cancelled", job_status: "cancelled", role: "cancelled" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to cancel job");
+      }
+      setJobs((prev) => prev.map((j) => j.id === job.id ? { ...j, status: "cancelled", job_status: "cancelled", role: "cancelled" } : j));
+      toast.success(`Job ${job.job_number || job.id} cancelled`);
+    } catch (err) {
+      toast.error(err.message || "Failed to cancel job");
+    }
+  }, []);
+
   const handleEditAndFinalize = useCallback((job) => {
     setEditingJob(job);
     setFinalizeError(null);
@@ -778,6 +797,9 @@ export default function JobsTab() {
                 <Button variant="secondary" size="sm" onClick={() => handleEditAndFinalize(job)} className="h-8 text-xs flex-1">
                   <FileEdit className="mr-1 w-3.5 h-3.5" /> Edit &amp; Finalize
                 </Button>
+                <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="h-8 text-xs text-red-500 hover:text-red-600 hover:bg-red-50">
+                  <Ban className="w-3.5 h-3.5" />
+                </Button>
               </div>
             </div>
           );
@@ -868,6 +890,9 @@ export default function JobsTab() {
                                 <SelectItem value="admin">Helpdesk</SelectItem>
                               </SelectContent>
                             </Select>
+                            <Button variant="ghost" size="sm" onClick={() => handleCancelJob(job)} className="hover:bg-red-50 text-red-500 hover:text-red-600 h-7 px-2 text-[11px]">
+                              <Ban className="mr-1 w-3 h-3" /> Cancel
+                            </Button>
                           </div>
                         </td>
                       </tr>
