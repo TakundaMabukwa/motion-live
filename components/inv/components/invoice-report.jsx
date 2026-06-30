@@ -1520,6 +1520,11 @@ export default function InvoiceReportComponent({
   const handleInvoiceMonthChange = async (value) => {
     setSelectedInvoiceMonth(value);
 
+    if (viewOnly) {
+      setActiveInvoiceData(invoiceData);
+      return;
+    }
+
     if (value === "__current__") {
       setActiveInvoiceData(invoiceData);
       return;
@@ -1673,7 +1678,7 @@ export default function InvoiceReportComponent({
   return (
     <div className="w-full">
       <div className="invoice-actions">
-        {!hideUI && (
+        {!hideUI && !viewOnly && (
           <select
             value={selectedInvoiceMonth}
             onChange={(event) => handleInvoiceMonthChange(event.target.value)}

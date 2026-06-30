@@ -174,19 +174,21 @@ const getProductChargeLines = (product, job) => {
   if (!isReInstall) {
     addLine("subscription_gross", "subscription_price", `Subscription${recurringLabelSuffix}`, recurringMultiplier);
     addLine("rental_gross", "rental_price", `Rental${recurringLabelSuffix}`, recurringMultiplier);
+    addLine("cash_gross", "cash_price", "Cash");
+    addLine("installation_gross", "installation_price", "Installation");
+    addLine("de_installation_gross", "de_installation_price", "De-Installation");
   }
-  addLine("cash_gross", "cash_price", "Cash");
-  addLine("installation_gross", "installation_price", "Installation");
-  addLine("de_installation_gross", "de_installation_price", "De-Installation");
   if (lines.length === 0 && isLabourProduct(product)) {
     const unitAmount = toNumber(product?.cash_price) || toNumber(product?.unit_price) || toNumber(product?.price);
     const amount = unitAmount > 0 ? unitAmount : toNumber(product?.subscription_price) || toNumber(product?.rental_price) || (qty > 0 ? toNumber(product?.total_price) / qty : 0);
     lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
   }
-  if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
-  if (lines.length === 0) {
-    const fallbackUnitPrice = getProductUnitPrice(product, { includeRecurring: true });
-    lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
+  if (!isReInstall) {
+    if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
+    if (lines.length === 0) {
+      const fallbackUnitPrice = getProductUnitPrice(product, { includeRecurring: true });
+      lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
+    }
   }
   return lines;
 };
