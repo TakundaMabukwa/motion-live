@@ -818,7 +818,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const nextStatuses = { ...currentStatuses, invoice: { done: true, at: new Date().toISOString(), invoice_number: invoiceNumber, invoice_id: invoiceRecord.id, invoice_date: invoiceData.generatedAt, subtotal: invoiceRecord.subtotal || 0, vat_amount: invoiceRecord.vat_amount || 0, total_amount: invoiceRecord.total_amount || 0 } };
           await fetch(`/api/job-cards/${effectiveJob.id}`, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ billing_statuses: nextStatuses, job_status: "invoiced", status: "completed" }),
+            body: JSON.stringify({ billing_statuses: nextStatuses, job_status: "invoiced", status: "invoiced" }),
           });
         } catch { /* non-critical */ }
       }
