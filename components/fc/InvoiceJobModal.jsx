@@ -331,10 +331,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         }
       });
 
-      // Fetch cost center info in background for invoice preview only
+      // Fetch cost center info in background for invoice preview
       const accountNumber = String(job?.new_account_number || "").trim();
       const vehicleReg = String(job?.vehicle_registration || "").trim();
       const fleetNumber = String(job?.fleet_number || "").trim();
+      const normalizedJobType = String(job?.job_type || "").toLowerCase();
+      const isRepairOrAdminOnOpen = normalizedJobType === "repair" || normalizedJobType === "admin_created";
 
       const fetchCostCenter = (ccAccount) => {
         fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(ccAccount)}`)
@@ -348,7 +350,8 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       if (accountNumber) {
         fetchCostCenter(accountNumber);
-      } else if (vehicleReg || fleetNumber) {
+      } else if (isRepairOrAdminOnOpen && (vehicleReg || fleetNumber)) {
+        // Repair/admin: reverse lookup reg → vehicles_duplicate → cost center → auto-fill form
         fetch("/api/cost-centers/vehicle-lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -357,7 +360,31 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           .then((r) => r.ok ? r.json() : null)
           .then((result) => {
             if (result?.account_number) {
-              fetchCostCenter(result.account_number);
+              const foundAccount = String(result.account_number).trim();
+              if (foundAccount && latestJobRef.current) {
+                latestJobRef.current = { ...latestJobRef.current, new_account_number: foundAccount };
+                fetch(`/api/job-cards/${encodeURIComponent(latestJobRef.current.id)}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ new_account_number: foundAccount }),
+                }).catch(() => {});
+              }
+              fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(foundAccount)}`)
+                .then((r) => r.ok ? r.json() : null)
+                .then((ccData) => {
+                  const fetched = (Array.isArray(ccData?.costCenters) ? ccData.costCenters.find((item) => String(item?.cost_code || "").trim().toUpperCase() === foundAccount.toUpperCase()) : null) || null;
+                  if (fetched) {
+                    setSelectedCostCenterInfo(fetched);
+                    setInvoiceFormData((prev) => ({
+                      ...prev,
+                      clientName: prev.clientName || fetched.company || fetched.legal_name || "",
+                      clientEmail: prev.clientEmail || fetched.email || "",
+                      clientPhone: prev.clientPhone || fetched.phone || fetched.contact_number || "",
+                      clientAddress: prev.clientAddress || buildClientAddress(fetched, prev.clientAddress),
+                    }));
+                  }
+                })
+                .catch(() => {});
             }
           })
           .catch(() => {});
@@ -652,8 +679,12 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         effectiveAccountNumber = String(effectiveCostCenterInfo.cost_code).trim();
       }
 
-      // Still no account? Try vehicle lookup by reg/fleet_number
-      if (!effectiveAccountNumber) {
+      const isRepairOrAdmin = ["repair", "admin_created"].includes(
+        String(effectiveJob?.job_type || "").toLowerCase()
+      );
+
+      // Repair/admin only: reverse lookup reg → vehicles_duplicate → cost center
+      if (!effectiveAccountNumber && isRepairOrAdmin && (vehicleReg || fleetNumber)) {
         try {
           const lookupResponse = await fetch("/api/cost-centers/vehicle-lookup", {
             method: "POST",
@@ -672,6 +703,13 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
                   if (cc) {
                     effectiveCostCenterInfo = cc;
                     setSelectedCostCenterInfo(cc);
+                    setInvoiceFormData((prev) => ({
+                      ...prev,
+                      clientName: prev.clientName || cc.company || cc.legal_name || "",
+                      clientEmail: prev.clientEmail || cc.email || "",
+                      clientPhone: prev.clientPhone || cc.phone || cc.contact_number || "",
+                      clientAddress: prev.clientAddress || buildClientAddress(cc, prev.clientAddress),
+                    }));
                   }
                 }
               }
@@ -680,23 +718,15 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         } catch { /* ignore */ }
       }
 
-      const isRepairOrAdmin = ["repair", "admin_created"].includes(
-        String(effectiveJob?.job_type || "").toLowerCase()
-      );
-
-      // For repair/admin jobs, vehicle existence is enough — account number is optional
-      if (!effectiveAccountNumber && !isRepairOrAdmin) {
-        if (!vehicleReg) {
-          toast.error("Job has no vehicle registration to look up a cost center");
-          return;
+      // Block if still no account number after all lookups
+      if (!effectiveAccountNumber) {
+        if (isRepairOrAdmin) {
+          toast.error(`Vehicle ${vehicleReg || "N/A"} not found. Please add it first.`);
+        } else {
+          toast.error(`Vehicle ${vehicleReg || "N/A"} not found, please add a cost center first.`);
         }
-        toast.error(`Vehicle ${vehicleReg} not found, please add it.`);
+        setIsGeneratingInvoice(false);
         return;
-      }
-
-      // For repair/admin with no reg and no account, just warn but continue
-      if (!effectiveAccountNumber && !vehicleReg) {
-        toast.warning("No vehicle registration or account number — billing steps will be skipped.");
       }
 
       // Update job card with account number if we found one

@@ -144,6 +144,7 @@ export async function POST(
           .from("job_cards")
           .update({
             role: "inv",
+            move_to: null,
             move_history: updatedHistory,
           })
           .eq("id", id)
