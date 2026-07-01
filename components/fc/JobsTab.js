@@ -63,6 +63,20 @@ const calcProductTotal = (p) => {
   return Number((qty * sumPrices).toFixed(2));
 };
 
+const normalizeProductPrices = (p) => {
+  const result = { ...p };
+  for (const field of PRICE_FIELDS) {
+    if (toFiniteNumber(result[field]) === 0) {
+      const grossKey = field.replace("_price", "_gross");
+      if (toFiniteNumber(result[grossKey]) > 0) {
+        result[field] = result[grossKey];
+      }
+    }
+  }
+  result.total_price = calcProductTotal(result);
+  return result;
+};
+
 const getProductLineTotal = (p) => {
   const t = toFiniteNumber(p.total_price);
   if (t > 0) return t;
@@ -424,7 +438,7 @@ export default function JobsTab() {
   const handleEditAndFinalize = useCallback((job) => {
     setEditingJob(job);
     setFinalizeError(null);
-    const products = parseProducts(job.quotation_products).map((p) => ({ ...p }));
+    const products = parseProducts(job.quotation_products).map((p) => normalizeProductPrices(p));
     const prods = products.map((p) => {
       const qty = Math.max(1, Number(p.quantity) || 1);
       return { ...p, quantity: qty, total_price: calcProductTotal({ ...p, quantity: qty }) };

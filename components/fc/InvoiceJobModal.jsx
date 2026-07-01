@@ -84,30 +84,6 @@ const isAnnuityProduct = (product) =>
   (toNumber(product?.rental_price) > 0 || toNumber(product?.rental_gross) > 0 ||
    toNumber(product?.subscription_price) > 0 || toNumber(product?.subscription_gross) > 0);
 
-const getAnnuityMultiplier = (annuityFlag) => {
-  const day = new Date().getDate();
-  // Day 28-31 or 1-15: between billing cycles, always double
-  if (day >= 28 || day <= 15) return 2;
-  // Day 16-19: before annuity processing window, single
-  if (day <= 19) return 1;
-  // Day 20-27: annuity processing window, depends on flag
-  return annuityFlag ? 2 : 1;
-};
-
-const getRecurringChargeAmount = (product, priceKey, grossKey) => {
-  const priceAmount = toNumber(product?.[priceKey]);
-  if (priceAmount > 0) return priceAmount;
-  const grossAmount = toNumber(product?.[grossKey]);
-  if (grossAmount > 0) return grossAmount;
-  return 0;
-};
-
-const getRecurringMultiplier = (product) => {
-  const raw = toNumber(product?.recurring_multiplier ?? product?.recurringMultiplier ?? 1);
-  if (raw <= 0) return 1;
-  return Math.max(1, Math.floor(raw));
-};
-
 const getAnnuitySelectionKey = (product) => {
   const parts = [product?.id, product?.code, product?.item_code, product?.name, product?.description, product?.type, product?.category, product?.vehicle_plate, product?.vehicle_id, product?.rental_price, product?.rental_gross, product?.subscription_price, product?.subscription_gross, product?.quantity];
   return parts.map((value) => String(value ?? "").trim().toLowerCase()).join("|");
@@ -157,8 +133,8 @@ const getProductChargeLines = (product, job) => {
   const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
   const isReInstall = jobSubType === "reinstall";
   const lines = [];
-  const addLine = (grossKey, priceKey, label, multiplier = 1) => {
-    const amount = toNumber(product?.[priceKey]) || toNumber(product?.[grossKey]);
+  const addLine = (priceKey, label, multiplier = 1) => {
+    const amount = toNumber(product?.[priceKey]);
     if (amount <= 0) return;
     const unitPrice = amount * Math.max(1, toNumber(multiplier) || 1);
     lines.push({ key: priceKey, label, qty, unitPrice, subtotal: unitPrice * qty });
@@ -170,26 +146,26 @@ const getProductChargeLines = (product, job) => {
     return lines;
   }
   if (isReInstall) {
-    addLine("installation_gross", "installation_price", "Installation");
-    if (lines.length === 0) addLine("cash_gross", "cash_price", "Item");
-    if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
+    addLine("installation_price", "Installation");
+    if (lines.length === 0) addLine("cash_price", "Item");
+    if (lines.length === 0) { addLine("price", "Price"); addLine("unit_price", "Unit Price"); }
   } else {
-    addLine("subscription_gross", "subscription_price", "Subscription");
-    addLine("rental_gross", "rental_price", "Rental");
-    addLine("cash_gross", "cash_price", "Cash");
-    addLine("installation_gross", "installation_price", "Installation");
-    addLine("de_installation_gross", "de_installation_price", "De-Installation");
+    addLine("cash_price", "Cash");
+    addLine("installation_price", "Installation");
+    addLine("de_installation_price", "De-Installation");
   }
   if (lines.length === 0 && isLabourProduct(product)) {
     const unitAmount = toNumber(product?.cash_price) || toNumber(product?.unit_price) || toNumber(product?.price);
-    const amount = unitAmount > 0 ? unitAmount : toNumber(product?.subscription_price) || toNumber(product?.rental_price) || (qty > 0 ? toNumber(product?.total_price) / qty : 0);
+    const amount = unitAmount > 0 ? unitAmount : (qty > 0 ? toNumber(product?.total_price) / qty : 0);
     lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
   }
   if (!isReInstall) {
-    if (lines.length === 0) { addLine("price", "price", "Price"); addLine("unit_price", "unit_price", "Unit Price"); }
+    if (lines.length === 0) { addLine("price", "Price"); addLine("unit_price", "Unit Price"); }
     if (lines.length === 0) {
-      const fallbackUnitPrice = getProductUnitPrice(product, { includeRecurring: true });
-      lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
+      const fallbackUnitPrice = toNumber(product?.unit_price) || toNumber(product?.price) || toNumber(product?.cash_price);
+      if (fallbackUnitPrice > 0) {
+        lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
+      }
     }
   }
   return lines;
@@ -430,8 +406,6 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       const raw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
-    const productAnnuityRows = [];
-    const annuityProductKeys = new Set();
     const isReInstall = String(effectiveJob?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "") === "reinstall";
     const seenProductKeys = new Set();
     const productRows = rawTotals.products.length > 0
@@ -443,61 +417,27 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const chargeLines = getProductChargeLines(product, effectiveJob);
           const validLines = chargeLines.filter((chargeLine) => toNumber(chargeLine?.unitPrice) >= 0);
           if (validLines.length > 0) {
-            const mainLines = validLines.filter(cl => !["subscription_price", "rental_price"].includes(cl.key));
-            if (!isReInstall) {
-              const annuityLines = validLines.filter(cl => ["subscription_price", "rental_price"].includes(cl.key));
-              const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
-              const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
-              if (annuityLines.length > 0) {
-                const cl = annuityLines[0];
-                const productName = String(product?.name || product?.item_code || "").trim();
-                const productDescription = String(product?.description || "").trim();
-                const lineLabel = productName ? `${productName} - ${cl.label}` : cl.label;
-                const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
-                const annuityUnitPrice = cl.unitPrice * annuityMultiplier;
-                const annuitySubtotal = annuityUnitPrice * cl.qty;
-                const annuityVat = Number((annuitySubtotal * VAT_RATE).toFixed(2));
-                const annuityTotal = Number((annuitySubtotal + annuityVat).toFixed(2));
-                annuityProductKeys.add(productKey);
-                productAnnuityRows.push({
-                  key: `product-annuity-${index}`,
-                  previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-                  newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-                  itemCode: "Annuity",
-                  description: resolvedDescription,
-                  comments: annuityMultiplier === 1 ? `${lineLabel} - Annuity` : `${lineLabel} - Double annuity`,
-                  qty: cl.qty,
-                  unitPrice: annuityUnitPrice,
-                  vatPercent: "15.00%",
-                  vatAmount: annuityVat,
-                  totalIncl: annuityTotal,
-                });
-              }
-            }
-            if (mainLines.length > 0) {
-              return mainLines.map((chargeLine) => {
-                const lineVat = Number((chargeLine.subtotal * VAT_RATE).toFixed(2));
-                const lineTotal = Number((chargeLine.subtotal + lineVat).toFixed(2));
-                const productName = String(product?.name || product?.item_code || "").trim();
-                const lineLabel = productName ? `${productName} - ${chargeLine.label}` : chargeLine.label;
-                const productDescription = String(product?.description || "").trim();
-                const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
-                return {
-                  key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
-                  previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-                  newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-                  itemCode: chargeLine.label,
-                  description: resolvedDescription,
-                  comments: lineLabel,
-                  qty: chargeLine.qty,
-                  unitPrice: chargeLine.unitPrice,
-                  vatPercent: "15.00%",
-                  vatAmount: lineVat,
-                  totalIncl: lineTotal,
-                };
-              });
-            }
-            return [];
+            return validLines.map((chargeLine) => {
+              const lineVat = Number((chargeLine.subtotal * VAT_RATE).toFixed(2));
+              const lineTotal = Number((chargeLine.subtotal + lineVat).toFixed(2));
+              const productName = String(product?.name || product?.item_code || "").trim();
+              const lineLabel = productName ? `${productName} - ${chargeLine.label}` : chargeLine.label;
+              const productDescription = String(product?.description || "").trim();
+              const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
+              return {
+                key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
+                previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
+                newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
+                itemCode: chargeLine.label,
+                description: resolvedDescription,
+                comments: lineLabel,
+                qty: chargeLine.qty,
+                unitPrice: chargeLine.unitPrice,
+                vatPercent: "15.00%",
+                vatAmount: lineVat,
+                totalIncl: lineTotal,
+              };
+            });
           }
           return [];
         })
@@ -532,17 +472,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             totalIncl: rawTotals.total,
           }];
     const manualAnnuityRows = isReInstall ? [] : (annuitySelectableItems || [])
-      .filter((item) => {
-        if (!selectedAnnuityItemKeys.includes(item.key)) return false;
-        const itemProductKey = String(item?.product?.name || item?.product?.item_code || item?.product?.code || item?.name || "").trim().toLowerCase();
-        if (itemProductKey && annuityProductKeys.has(itemProductKey)) return false;
-        return true;
-      })
+      .filter((item) => selectedAnnuityItemKeys.includes(item.key))
       .map((item, idx) => {
-        const annuityFlag = Boolean(costCenterInfo?.annuity_flag);
-        const annuityMultiplier = getAnnuityMultiplier(annuityFlag);
-        const baseAmount = toNumber(item.rentalAmount || item.subscriptionAmount || 0);
-        const unitPrice = baseAmount * annuityMultiplier;
+        const unitPrice = toNumber(item.rentalAmount || item.subscriptionAmount || 0);
         const qty = item.quantity || 1;
         const subtotal = unitPrice * qty;
         const vat = Number((subtotal * VAT_RATE).toFixed(2));
@@ -553,7 +485,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
           itemCode: "Annuity",
           description: item.name || "Annuity Item",
-          comments: annuityMultiplier === 1 ? `Annuity - ${item.name}` : `Annuity - ${item.name} - Double annuity`,
+          comments: `Annuity - ${item.name}`,
           qty,
           unitPrice,
           vatPercent: "15.00%",
@@ -561,7 +493,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           totalIncl: total,
         };
       });
-    const annuityRows = [...productAnnuityRows, ...manualAnnuityRows];
+    const annuityRows = manualAnnuityRows;
     const rows = [...productRows, ...annuityRows];
     const totals = rows.reduce((acc, row) => {
       acc.subtotal += row.unitPrice * row.qty;
