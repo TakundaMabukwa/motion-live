@@ -41,6 +41,7 @@ interface VehicleLookupItem {
   model: string | null;
   year: string | number | null;
   vin: string | null;
+  new_account_number?: string | null;
 }
 
 const normalizeIdentifier = (value: string | null | undefined) =>
@@ -81,6 +82,7 @@ export default function CreateJobModal({
     vehicle_year: '',
     vin_numer: '',
     odormeter: '',
+    new_account_number: '',
   });
 
   // Job information
@@ -119,6 +121,7 @@ export default function CreateJobModal({
         vehicle_year: '',
         vin_numer: '',
         odormeter: '',
+        new_account_number: '',
       });
       setJobInfo({
         job_description: '',
@@ -245,6 +248,7 @@ export default function CreateJobModal({
   const applyVehicleSelection = (vehicle: VehicleLookupItem) => {
     const selectedReg = (vehicle.reg || vehicle.fleet_number || '').trim();
     const customerName = (vehicle.company || '').trim();
+    const accountNumber = (vehicle.new_account_number || '').trim();
 
     setVehicleSearch(selectedReg);
     setShowVehicleLookup(false);
@@ -256,6 +260,7 @@ export default function CreateJobModal({
       vehicle_model: vehicle.model || prev.vehicle_model,
       vehicle_year: vehicle.year ? String(vehicle.year) : prev.vehicle_year,
       vin_numer: vehicle.vin || prev.vin_numer,
+      new_account_number: accountNumber,
     }));
 
     if (customerName) {
@@ -263,6 +268,24 @@ export default function CreateJobModal({
         ...prev,
         customer_name: customerName,
       }));
+    } else if (accountNumber) {
+      fetch(`/api/cost-centers/client?all_new_account_numbers=${encodeURIComponent(accountNumber)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((ccData) => {
+          const cc = Array.isArray(ccData?.costCenters)
+            ? ccData.costCenters.find(
+                (item: Record<string, unknown>) =>
+                  String(item?.cost_code || '').trim().toUpperCase() === accountNumber.toUpperCase()
+              )
+            : null;
+          if (cc?.company) {
+            setCustomerInfo((prev) => ({
+              ...prev,
+              customer_name: prev.customer_name || cc.company,
+            }));
+          }
+        })
+        .catch(() => {});
     }
   };
 
@@ -384,6 +407,7 @@ export default function CreateJobModal({
         vehicle_year: vehicleInfo.vehicle_year ? parseInt(vehicleInfo.vehicle_year) : null,
         vin_numer: vehicleInfo.vin_numer,
         odormeter: vehicleInfo.odormeter,
+        new_account_number: vehicleInfo.new_account_number || null,
         
         // Job information
         special_instructions: jobInfo.special_instructions,
