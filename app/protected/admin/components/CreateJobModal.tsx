@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useDeferredValue } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,11 +60,9 @@ export default function CreateJobModal({
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loadingTechnicians, setLoadingTechnicians] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
-  const [allVehicles, setAllVehicles] = useState<VehicleLookupItem[]>([]);
   const [vehicleLookupResults, setVehicleLookupResults] = useState<VehicleLookupItem[]>([]);
-  const [loadingVehicleLookup, setLoadingVehicleLookup] = useState(false);
+  const vehicleSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showVehicleLookup, setShowVehicleLookup] = useState(false);
-  const deferredVehicleSearch = useDeferredValue(vehicleSearch);
   
   // Customer information
   const [customerInfo, setCustomerInfo] = useState({
@@ -132,7 +130,6 @@ export default function CreateJobModal({
       setAssignmentDate(formatLocalDateInput());
       setAssignmentTime('');
       setVehicleSearch('');
-      setAllVehicles([]);
       setVehicleLookupResults([]);
       setShowVehicleLookup(false);
     }
@@ -142,58 +139,36 @@ export default function CreateJobModal({
   useEffect(() => {
     if (isOpen) {
       fetchTechnicians();
-      void fetchVehiclesForLookup();
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (currentStep !== 'customer-info') return;
-    const term = deferredVehicleSearch.trim();
+    const term = vehicleSearch.trim();
     if (!term) {
-      setVehicleLookupResults(allVehicles.slice(0, 50));
+      setVehicleLookupResults([]);
       setShowVehicleLookup(false);
       return;
     }
 
-    const normalized = normalizeIdentifier(term);
-    const lower = term.toLowerCase();
-    const filtered = allVehicles
-      .map((vehicle) => {
-        const reg = vehicle.reg || '';
-        const fleet = vehicle.fleet_number || '';
-        const company = vehicle.company || '';
-        const make = vehicle.make || '';
-        const model = vehicle.model || '';
-        const vin = vehicle.vin || '';
-        const year = vehicle.year ? String(vehicle.year) : '';
+    if (vehicleSearchTimerRef.current) clearTimeout(vehicleSearchTimerRef.current);
+    vehicleSearchTimerRef.current = setTimeout(() => {
+      fetch(`/api/vehicles/reg-search?search=${encodeURIComponent(term)}&limit=50`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          const results = Array.isArray(data?.vehicles) ? data.vehicles : [];
+          setVehicleLookupResults(results);
+          setShowVehicleLookup(results.length > 0);
+        })
+        .catch(() => {
+          setVehicleLookupResults([]);
+        });
+    }, 200);
 
-        const regNorm = normalizeIdentifier(reg);
-        const fleetNorm = normalizeIdentifier(fleet);
-        const vinNorm = normalizeIdentifier(vin);
-
-        let score = 0;
-        if (regNorm.startsWith(normalized)) score += 10;
-        if (fleetNorm.startsWith(normalized)) score += 9;
-        if (vinNorm.startsWith(normalized)) score += 8;
-        if (regNorm.includes(normalized)) score += 7;
-        if (fleetNorm.includes(normalized)) score += 6;
-        if (vinNorm.includes(normalized)) score += 5;
-        if (company.toLowerCase().includes(lower)) score += 4;
-        if (make.toLowerCase().includes(lower)) score += 3;
-        if (model.toLowerCase().includes(lower)) score += 3;
-        if (year.toLowerCase().includes(lower)) score += 2;
-
-        return { vehicle, score };
-      })
-      .filter((entry) => entry.score > 0)
-      .sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        return (a.vehicle.reg || a.vehicle.fleet_number || '').localeCompare(b.vehicle.reg || b.vehicle.fleet_number || '');
-      });
-
-    setVehicleLookupResults(filtered.slice(0, 120).map((entry) => entry.vehicle));
-    setShowVehicleLookup(true);
-  }, [deferredVehicleSearch, allVehicles, currentStep]);
+    return () => {
+      if (vehicleSearchTimerRef.current) clearTimeout(vehicleSearchTimerRef.current);
+    };
+  }, [vehicleSearch, currentStep]);
 
   const fetchTechnicians = async () => {
     setLoadingTechnicians(true);
@@ -209,39 +184,6 @@ export default function CreateJobModal({
       toast.error('Failed to load technicians');
     } finally {
       setLoadingTechnicians(false);
-    }
-  };
-
-  const fetchVehiclesForLookup = async () => {
-    setLoadingVehicleLookup(true);
-    try {
-      const params = new URLSearchParams({ all: 'true', chunk: '1000' });
-      const response = await fetch(`/api/vehicles/reg-search?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to load vehicles');
-      }
-      const data = await response.json();
-      const vehiclesRaw = Array.isArray(data?.vehicles) ? data.vehicles : [];
-      const seenVehicleKeys = new Set<string>();
-      const vehicles = vehiclesRaw.filter((vehicle: VehicleLookupItem) => {
-        const reg = normalizeIdentifier(vehicle.reg);
-        const fleet = normalizeIdentifier(vehicle.fleet_number);
-        if (!reg && !fleet) return false;
-
-        const dedupeKey = reg || fleet;
-        if (seenVehicleKeys.has(dedupeKey)) return false;
-        seenVehicleKeys.add(dedupeKey);
-        return true;
-      });
-      setAllVehicles(vehicles);
-      setVehicleLookupResults(vehicles.slice(0, 50));
-    } catch (error) {
-      console.error('Error loading vehicles:', error);
-      toast.error('Failed to load vehicle list');
-      setAllVehicles([]);
-      setVehicleLookupResults([]);
-    } finally {
-      setLoadingVehicleLookup(false);
     }
   };
 
@@ -296,17 +238,23 @@ export default function CreateJobModal({
       return;
     }
 
-    const normalized = selectedReg.toLowerCase();
-    const matchedVehicle = allVehicles.find((vehicle) =>
-      (vehicle.reg || '').toLowerCase() === normalized ||
-      (vehicle.fleet_number || '').toLowerCase() === normalized
-    );
-
-    if (matchedVehicle) {
-      applyVehicleSelection(matchedVehicle);
+    // If vehicle wasn't selected from dropdown, do a server lookup
+    if (!vehicleInfo.new_account_number && !customerInfo.customer_name.trim()) {
+      try {
+        const response = await fetch(`/api/vehicles/reg-search?search=${encodeURIComponent(selectedReg)}&limit=5`);
+        if (response.ok) {
+          const data = await response.json();
+          const match = (Array.isArray(data?.vehicles) ? data.vehicles : []).find(
+            (v: VehicleLookupItem) =>
+              (v.reg || '').toLowerCase() === selectedReg.toLowerCase() ||
+              (v.fleet_number || '').toLowerCase() === selectedReg.toLowerCase()
+          );
+          if (match) applyVehicleSelection(match);
+        }
+      } catch { /* ignore */ }
     }
 
-    const resolvedCustomerName = customerInfo.customer_name.trim() || (matchedVehicle?.company || '').trim();
+    const resolvedCustomerName = customerInfo.customer_name.trim();
     if (!resolvedCustomerName) {
       toast.error('Customer name is required');
       return;
@@ -567,9 +515,7 @@ export default function CreateJobModal({
                     />
                     {showVehicleLookup && (
                       <div className="z-50 absolute bg-white shadow-lg mt-1 border rounded-md w-full max-h-56 overflow-y-auto">
-                        {loadingVehicleLookup ? (
-                          <div className="px-3 py-2 text-gray-500 text-sm">Searching...</div>
-                        ) : vehicleLookupResults.length > 0 ? (
+                        {vehicleLookupResults.length > 0 ? (
                           vehicleLookupResults.map((vehicle) => {
                             const regValue = vehicle.reg || '-';
                             const fleetValue = vehicle.fleet_number || '-';
@@ -638,10 +584,9 @@ export default function CreateJobModal({
                 </div>
                 <Button
                   onClick={handleCustomerInfoNext}
-                  disabled={loadingVehicleLookup}
                   className="bg-blue-600 hover:bg-blue-700 w-full"
                 >
-                  {loadingVehicleLookup ? 'Loading Vehicles...' : 'Next: Vehicle Details'}
+                  Next: Vehicle Details
                 </Button>
               </CardContent>
             </Card>
