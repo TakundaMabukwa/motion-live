@@ -361,9 +361,6 @@ export async function PUT(request: NextRequest, { params }) {
       : [];
     const stockSource = normalizeStockSource(source);
     const stockOwner = (source_owner || '').toString();
-    const partsForSourceMutation = parts.filter(
-      (part) => part?.is_new_assignment !== false,
-    );
 
     let finalTechnicianEmail = extractFirstEmail(technician_email);
 
@@ -381,6 +378,32 @@ export async function PUT(request: NextRequest, { params }) {
     if (jobError || !jobCard) {
       return NextResponse.json({ error: 'Job card not found' }, { status: 404 });
     }
+
+    // Only process NEW parts for source mutation — skip parts already on the job card
+    const existingParts = Array.isArray(jobCard.parts_required) ? jobCard.parts_required : [];
+    const existingSerials = new Set(
+      existingParts
+        .map((p: Record<string, unknown>) =>
+          String(p?.serial_number ?? p?.serial ?? p?.serialNumber ?? '').trim().toLowerCase(),
+        )
+        .filter(Boolean),
+    );
+    const existingStockIds = new Set(
+      existingParts
+        .map((p: Record<string, unknown>) =>
+          String(p?.stock_id ?? p?.id ?? '').trim().toLowerCase(),
+        )
+        .filter(Boolean),
+    );
+    const partsForSourceMutation = parts.filter((part) => {
+      const serial = String(part?.serial_number ?? part?.serial ?? part?.serialNumber ?? '')
+        .trim()
+        .toLowerCase();
+      const stockId = String(part?.stock_id ?? part?.id ?? '').trim().toLowerCase();
+      if (serial && existingSerials.has(serial)) return false;
+      if (stockId && existingStockIds.has(stockId)) return false;
+      return true;
+    });
     const quoteLineItems = parseQuoteLineItems(jobCard.quotation_products);
     if (!isEmailLike(finalTechnicianEmail)) {
       finalTechnicianEmail = extractFirstEmail(jobCard.technician_phone);
@@ -418,9 +441,61 @@ export async function PUT(request: NextRequest, { params }) {
       );
     }
 
+    const deletedInventoryItems: {
+      table: string;
+      serial_number: string;
+      category_code?: string;
+      cost_code?: string;
+      company?: string;
+      notes?: string;
+      category_id?: string;
+    }[] = [];
+
+    const reinsertDeletedItems = async (): Promise<boolean> => {
+      const MAX_RETRIES = 3;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        let allSucceeded = true;
+        for (const item of deletedInventoryItems) {
+          if (item.table === 'inventory_items') {
+            const { error } = await supabase.from('inventory_items').insert({
+              category_code: item.category_code,
+              serial_number: item.serial_number,
+              status: 'IN STOCK',
+              date_adjusted: new Date().toISOString().split('T')[0],
+              company: item.company,
+              notes: item.notes || 'Re-inserted — partial failure',
+            });
+            if (error) {
+              console.error(`Re-insert attempt ${attempt} failed for inventory ${item.serial_number}:`, error);
+              allSucceeded = false;
+            }
+          } else if (item.table === 'client_inventory_items') {
+            const { error } = await supabase.from('client_inventory_items').insert({
+              category_id: item.category_id,
+              category_code: item.category_code,
+              serial_number: item.serial_number,
+              status: 'IN STOCK',
+              cost_code: item.cost_code,
+              notes: item.notes || 'Re-inserted — partial failure',
+            });
+            if (error) {
+              console.error(`Re-insert attempt ${attempt} failed for client ${item.serial_number}:`, error);
+              allSucceeded = false;
+            }
+          }
+        }
+        if (allSucceeded) {
+          deletedInventoryItems.length = 0;
+          return true;
+        }
+      }
+      console.error(`CRITICAL: Failed to re-insert ${deletedInventoryItems.length} inventory items after ${MAX_RETRIES} attempts. Stock may be lost.`);
+      return false;
+    };
+
     const applySourceStockChanges = async () => {
       if (partsForSourceMutation.length === 0) {
-        return { success: true };
+        return { success: true as const };
       }
 
       const partsBySource = {
@@ -435,37 +510,84 @@ export async function PUT(request: NextRequest, { params }) {
       });
 
       for (const item of partsBySource.soltrack) {
-        const itemId = item.stock_id || item.inventory_item_id || item.id;
-        if (!itemId) continue;
-        const { error } = await supabase
-          .from('inventory_items')
-          .delete()
-          .eq('id', itemId);
-        if (error) {
+        const serial = resolvePartSerialToken(item);
+        if (!serial) {
+          await reinsertDeletedItems();
           return {
-            success: false,
-            warning: `Failed to remove one or more Soltrack stock items: ${error.message}`,
+            success: false as const,
+            warning: `Cannot remove Soltrack item — no serial number found (${getPartIdentityLabel(item)}).`,
           };
         }
+        const { error, data } = await supabase
+          .from('inventory_items')
+          .delete()
+          .eq('serial_number', serial)
+          .eq('status', 'IN STOCK')
+          .select('id, category_code, company, notes');
+        if (error) {
+          await reinsertDeletedItems();
+          return {
+            success: false as const,
+            warning: `Failed to remove Soltrack stock item (S/N: ${serial}): ${error.message}`,
+          };
+        }
+        if (!data || data.length === 0) {
+          await reinsertDeletedItems();
+          return {
+            success: false as const,
+            warning: `No matching IN STOCK inventory item found for serial number ${serial}. It may have already been moved.`,
+          };
+        }
+        deletedInventoryItems.push({
+          table: 'inventory_items',
+          serial_number: serial,
+          category_code: data[0]?.category_code || String(item?.code || ''),
+          company: data[0]?.company || 'N/A',
+          notes: data[0]?.notes || '',
+        });
       }
 
       for (const item of partsBySource.client) {
-        const itemId = item.stock_id || item.inventory_item_id || item.id;
-        if (!itemId) continue;
-        const { error } = await supabase
-          .from('client_inventory_items')
-          .delete()
-          .eq('id', itemId);
-        if (error) {
+        const serial = resolvePartSerialToken(item);
+        if (!serial) {
+          await reinsertDeletedItems();
           return {
-            success: false,
-            warning: `Failed to remove one or more client stock items: ${error.message}`,
+            success: false as const,
+            warning: `Cannot remove client item — no serial number found (${getPartIdentityLabel(item)}).`,
           };
         }
+        const { error, data } = await supabase
+          .from('client_inventory_items')
+          .delete()
+          .eq('serial_number', serial)
+          .eq('status', 'IN STOCK')
+          .select('id, category_code, category_id, cost_code, notes');
+        if (error) {
+          await reinsertDeletedItems();
+          return {
+            success: false as const,
+            warning: `Failed to remove client stock item (S/N: ${serial}): ${error.message}`,
+          };
+        }
+        if (!data || data.length === 0) {
+          await reinsertDeletedItems();
+          return {
+            success: false as const,
+            warning: `No matching IN STOCK client item found for serial number ${serial}. It may have already been moved.`,
+          };
+        }
+        deletedInventoryItems.push({
+          table: 'client_inventory_items',
+          serial_number: serial,
+          category_code: data[0]?.category_code || String(item?.code || ''),
+          category_id: data[0]?.category_id || '',
+          cost_code: data[0]?.cost_code || '',
+          notes: data[0]?.notes || '',
+        });
       }
 
       if (partsBySource.technician.length === 0) {
-        return { success: true };
+        return { success: true as const };
       }
 
       const technicianPartsByOwner = new Map<string, Record<string, unknown>[]>();
@@ -479,8 +601,9 @@ export async function PUT(request: NextRequest, { params }) {
             '',
         );
         if (!partOwner) {
+          await reinsertDeletedItems();
           return {
-            success: false,
+            success: false as const,
             warning:
               'Technician email is required for technician stock booking. Please refresh and select technician stock again.',
           };
@@ -505,14 +628,16 @@ export async function PUT(request: NextRequest, { params }) {
           .maybeSingle();
 
         if (techFetchError) {
+          await reinsertDeletedItems();
           return {
-            success: false,
+            success: false as const,
             warning: `Failed to read technician source stock: ${techFetchError.message}`,
           };
         }
         if (!techStockRow) {
+          await reinsertDeletedItems();
           return {
-            success: false,
+            success: false as const,
             warning: `No tech stock row found for ${technicianEmailForMutation}. Please refresh and try again.`,
           };
         }
@@ -554,8 +679,9 @@ export async function PUT(request: NextRequest, { params }) {
           }
 
           if (partIndex < 0) {
+            await reinsertDeletedItems();
             return {
-              success: false,
+              success: false as const,
               warning: `Stock item (S/N: ${serial || 'N/A'}, ID: ${stockId || 'N/A'}) not found in technician stock. Please refresh and try again.`,
             };
           }
@@ -585,14 +711,15 @@ export async function PUT(request: NextRequest, { params }) {
           .eq('id', techStockRow.id);
 
         if (techUpdateError) {
+          await reinsertDeletedItems();
           return {
-            success: false,
+            success: false as const,
             warning: `Failed to update technician source stock: ${techUpdateError.message}`,
           };
         }
       }
 
-      return { success: true };
+      return { success: true as const };
     };
 
 
@@ -620,36 +747,17 @@ export async function PUT(request: NextRequest, { params }) {
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(JSON.stringify(qrData))}`;
 
-    // Prepare update data
-    const updateData = {
-      parts_required: persistedParts,
-      qr_code: qrCodeUrl,
-      updated_at: new Date().toISOString(),
-      updated_by: user.id
-    };
-    
-    // If technician data is provided, update it too
-    if (technician_id && technician_name && isEmailLike(finalTechnicianEmail)) {
-      updateData.assigned_technician_id = technician_id;
-      updateData.technician_name = technician_name;
-      updateData.technician_phone = finalTechnicianEmail;
+    // STEP 1: Delete source stock FIRST — block job update if this fails
+    const sourceMutation = await applySourceStockChanges();
+    if (!sourceMutation.success && sourceMutation.warning) {
+      return NextResponse.json(
+        { error: `Stock assignment failed: ${sourceMutation.warning}` },
+        { status: 409 },
+      );
     }
 
-    // Update job card
-    const { data: updatedJob, error: updateError } = await supabase
-      .from('job_cards')
-      .update(updateData)
-      .eq('id', jobId)
-      .select('*')
-      .single();
-
-    if (updateError) {
-      return NextResponse.json({ error: 'Failed to update job card' }, { status: 500 });
-    }
-
-    // If technician is already assigned, copy parts to tech_stock
+    // STEP 2: Copy parts to tech stock (soltrack → tech_stock.assigned_parts)
     let techStockMessage = '';
-    let canApplySourceChanges = true;
     const partsForTechnicianCopy = partsForSourceMutation.filter(
       (part) => normalizeStockSource(part?.source ?? stockSource) === 'soltrack',
     );
@@ -666,28 +774,64 @@ export async function PUT(request: NextRequest, { params }) {
       if (result?.success) {
         techStockMessage = ` Parts copied to technician stock (${result.partsAdded} items).`;
       } else {
-        techStockMessage = ` Warning: Failed to copy parts to technician stock.`;
-        canApplySourceChanges = false;
+        // Tech stock copy failed — re-insert deleted inventory items and block
+        if (deletedInventoryItems.length > 0) {
+          const restored = await reinsertDeletedItems();
+          if (!restored) {
+            return NextResponse.json(
+              { error: 'CRITICAL: Failed to copy to technician stock AND failed to restore inventory. Stock may be lost. Check console logs.' },
+              { status: 500 },
+            );
+          }
+        }
+        return NextResponse.json(
+          { error: 'Failed to copy parts to technician stock. Inventory has been restored.' },
+          { status: 409 },
+        );
       }
     }
 
-    let sourceStockMessage = '';
-    if (canApplySourceChanges) {
-      const sourceMutation = await applySourceStockChanges();
-      if (!sourceMutation.success && sourceMutation.warning) {
-        sourceStockMessage = ` Warning: ${sourceMutation.warning}`;
+    // STEP 3: Update job card (only after inventory deletes succeeded)
+    const updateData = {
+      parts_required: persistedParts,
+      qr_code: qrCodeUrl,
+      updated_at: new Date().toISOString(),
+      updated_by: user.id
+    };
+    
+    if (technician_id && technician_name && isEmailLike(finalTechnicianEmail)) {
+      updateData.assigned_technician_id = technician_id;
+      updateData.technician_name = technician_name;
+      updateData.technician_phone = finalTechnicianEmail;
+    }
+
+    const { data: updatedJob, error: updateError } = await supabase
+      .from('job_cards')
+      .update(updateData)
+      .eq('id', jobId)
+      .select('*')
+      .single();
+
+    if (updateError) {
+      // Compensating transaction: re-insert deleted inventory items since job update failed
+      if (deletedInventoryItems.length > 0) {
+        console.warn('Job update failed after inventory DELETEs — re-inserting deleted items');
+        const restored = await reinsertDeletedItems();
+        if (!restored) {
+          return NextResponse.json(
+            { error: 'CRITICAL: Failed to update job card AND failed to restore inventory. Stock may be lost. Check console logs.' },
+            { status: 500 },
+          );
+        }
       }
-    } else if (partsForTechnicianCopy.length > 0) {
-      sourceStockMessage =
-        ' Warning: Source stock was not removed because technician stock update failed.';
+      return NextResponse.json({ error: 'Failed to update job card. Inventory has been restored.' }, { status: 500 });
     }
 
     return NextResponse.json({
       message: (finalTechnicianEmail
         ? 'Parts and technician assigned successfully.'
         : 'Parts assigned successfully.') +
-        techStockMessage +
-        sourceStockMessage,
+        techStockMessage,
       job: updatedJob,
       qr_code: qrCodeUrl
     });

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const upperIn = invoiceNumber.toUpperCase();
 
     const { data: accountInvoices, error: accountError } = await supabase
-      .from("account_invoices_duplicate")
+      .from("account_invoices")
       .select("*")
       .ilike("invoice_number", `%${upperIn}%`)
       .range(0, 50);

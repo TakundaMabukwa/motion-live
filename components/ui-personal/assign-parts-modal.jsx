@@ -568,10 +568,15 @@ export default function AssignPartsModal({
       return;
     }
     const selectedKey = buildSelectionKey(modalStockSource, modalStockOwner, item);
+    const serialNumber = resolveSerialNumber(item);
     const alreadySelected = selectedParts.find(
       (part) => {
         const partKey = String(part.selection_key || "").trim();
-        return Boolean(partKey && partKey === selectedKey);
+        if (partKey && partKey === selectedKey) return true;
+        const partSerial = String(part.serial_number || "").trim().toLowerCase();
+        const itemSerial = String(serialNumber || "").trim().toLowerCase();
+        if (partSerial && itemSerial && partSerial === itemSerial) return true;
+        return false;
       },
     );
     if (alreadySelected) {
@@ -579,7 +584,6 @@ export default function AssignPartsModal({
       return;
     }
 
-    const serialNumber = resolveSerialNumber(item);
     if (!hasSerialOrUniqueItemIdentity(item)) {
       toast.error(
         `No serial or unique item ID found for selected stock item (${item?.code || item?.category_code || item?.description || "item"}).`,
@@ -614,12 +618,13 @@ export default function AssignPartsModal({
 
     setAllStockItems((prev) =>
       prev.filter(
-        (stockItem) =>
-          buildSelectionKey(
-            modalStockSource,
-            modalStockOwner,
-            stockItem,
-          ) !== selectedKey,
+        (stockItem) => {
+          if (buildSelectionKey(modalStockSource, modalStockOwner, stockItem) === selectedKey) return false;
+          const stockSerial = String(resolveSerialNumber(stockItem) || "").trim().toLowerCase();
+          const itemSerial = String(serialNumber || "").trim().toLowerCase();
+          if (stockSerial && itemSerial && stockSerial === itemSerial) return false;
+          return true;
+        },
       ),
     );
   };
