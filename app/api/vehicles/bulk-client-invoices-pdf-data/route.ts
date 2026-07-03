@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     const requestedBillingMonth = String(request.nextUrl.searchParams.get('billingMonth') || request.nextUrl.searchParams.get('startMonth') || '')
       .trim();
     const persistInvoices = String(
-      request.nextUrl.searchParams.get('persist') || 'true',
+      request.nextUrl.searchParams.get('persist') || 'false',
     )
       .trim()
       .toLowerCase() === 'true';
@@ -329,7 +329,7 @@ export async function GET(request: NextRequest) {
 
         const lineItems = invoiceItems.map((item: Record<string, unknown>) => ({
           previous_reg: item.previous_reg || item.reg || '-',
-          new_reg: item.new_reg || item.fleetNumber || item.reg || '-',
+          new_reg: item.new_reg || item.fleet_number || item.fleetNumber || item.reg || '-',
           item_code: item.item_code || '-',
           description: item.description || '-',
           comments: item.company || '',
@@ -357,7 +357,7 @@ export async function GET(request: NextRequest) {
             item.totalRentalSub ??
             0,
           reg: item.reg || null,
-          fleetNumber: item.fleetNumber || null,
+          fleetNumber: item.fleet_number || item.fleetNumber || null,
           company: item.company || '',
           vehicle_created_at: item.vehicle_created_at || null,
           item_added_at:
@@ -531,4 +531,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

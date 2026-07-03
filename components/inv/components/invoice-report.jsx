@@ -784,9 +784,10 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
 
         <table className="invoice-table">
           <colgroup>
-            <col style={{ width: "9.5%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "8%" }} />
             <col style={{ width: "12%" }} />
-            <col style={{ width: "14%" }} />
             <col style={{ width: "16%" }} />
             <col style={{ width: "11%" }} />
             <col style={{ width: "5%" }} />
@@ -799,6 +800,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
             <tr>
               <th>Previous Reg</th>
               <th>New Reg</th>
+              <th>Fleet No</th>
               <th>Item Code</th>
               <th>Description</th>
               <th>Comments</th>
@@ -814,6 +816,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
               <tr key={`${row.itemCode}-${row.previousReg}-${index}`}>
                 <td>{row.previousReg}</td>
                 <td>{row.newReg}</td>
+                <td>{row.fleetNumber}</td>
                 <td>{row.itemCode}</td>
                 <td>{row.description}</td>
                 <td>{row.comments}</td>
@@ -825,7 +828,7 @@ function InvoiceDocument({ logoUrl, invoiceView }) {
               </tr>
             ))}
             <tr className="invoice-body-spacer">
-              <td colSpan={10} />
+              <td colSpan={11} />
             </tr>
           </tbody>
         </table>
@@ -942,6 +945,7 @@ const normalizeInvoiceLine = (item) => {
   return {
     previousReg: item.reg || "-",
     newReg: item.reg || "-",
+    fleetNumber: item.fleet_number || item.fleetNumber || "-",
     itemCode: item.item_code || "-",
     description: item.description || "-",
     comments: item.category || item.comments || item.company || "",
@@ -1085,6 +1089,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
             <tr>
               <td>${escapeHtml(row.previousReg)}</td>
               <td>${escapeHtml(row.newReg)}</td>
+              <td>${escapeHtml(row.fleetNumber)}</td>
               <td>${escapeHtml(row.itemCode)}</td>
               <td>${escapeHtml(row.description)}</td>
               <td>${escapeHtml(row.comments)}</td>
@@ -1162,9 +1167,10 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
               </table>
               <table class="invoice-table">
                 <colgroup>
-                  <col style="width:9.5%" />
+                  <col style="width:9%" />
+                  <col style="width:10%" />
+                  <col style="width:8%" />
                   <col style="width:12%" />
-                  <col style="width:14%" />
                   <col style="width:16%" />
                   <col style="width:11%" />
                   <col style="width:5%" />
@@ -1177,6 +1183,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
                   <tr>
                     <th>Previous Reg</th>
                     <th>New Reg</th>
+                    <th>Fleet No</th>
                     <th>Item Code</th>
                     <th>Description</th>
                     <th>Comments</th>
@@ -1189,7 +1196,7 @@ export function buildInvoicePrintableHtml({ logoUrl, invoiceView }) {
                 </thead>
                 <tbody>
                   ${rowMarkup}
-                  <tr class="invoice-body-spacer"><td colspan="10"></td></tr>
+                  <tr class="invoice-body-spacer"><td colspan="11"></td></tr>
                 </tbody>
               </table>
               <div class="invoice-notes-totals">

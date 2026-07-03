@@ -2234,19 +2234,20 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
             <div className="overflow-x-auto rounded-md border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Date</th>
-                    <th className="px-3 py-2 text-left">Billing Month</th>
-                    <th className="px-3 py-2 text-left">Invoice Number</th>
-                    <th className="px-3 py-2 text-left">Order Number</th>
-                    <th className="px-3 py-2 text-left">Job Number</th>
-                    <th className="px-3 py-2 text-left">Job Type</th>
-                    <th className="px-3 py-2 text-left">Vehicle Reg</th>
-                    <th className="px-3 py-2 text-left">Account</th>
-                    <th className="px-3 py-2 text-left">Customer</th>
-                    <th className="px-3 py-2 text-right">Amount</th>
-                    <th className="px-3 py-2 text-left">Action</th>
-                  </tr>
+                    <tr>
+                      <th className="px-3 py-2 text-left">Date</th>
+                      <th className="px-3 py-2 text-left">Billing Month</th>
+                      <th className="px-3 py-2 text-left">Invoice Number</th>
+                      <th className="px-3 py-2 text-left">Order Number</th>
+                      <th className="px-3 py-2 text-left">Job Number</th>
+                      <th className="px-3 py-2 text-left">Job Type</th>
+                      <th className="px-3 py-2 text-left">Vehicle Reg</th>
+                      <th className="px-3 py-2 text-left">Fleet No</th>
+                      <th className="px-3 py-2 text-left">Account</th>
+                      <th className="px-3 py-2 text-left">Customer</th>
+                      <th className="px-3 py-2 text-right">Amount</th>
+                      <th className="px-3 py-2 text-left">Action</th>
+                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {filteredJobCardInvoices.map((invoice) => (
@@ -2268,6 +2269,7 @@ export default function VehicleValidationEditor({ costCode: costCodeProp }) {
                       <td className="px-3 py-2">{invoice?.job_number || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.job_type || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.vehicle_registration || "N/A"}</td>
+                      <td className="px-3 py-2">{invoice?.fleet_number || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.account_number || firstCostCode || "N/A"}</td>
                       <td className="px-3 py-2">{invoice?.company_name || invoice?.client_name || "N/A"}</td>
                       <td className="px-3 py-2 text-right">

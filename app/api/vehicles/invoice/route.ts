@@ -1112,27 +1112,6 @@ export async function GET(request: NextRequest) {
       group_summaries: groupSummaries,
     };
 
-    if (storedInvoice?.id) {
-      const { error: syncInvoiceError } = await supabase
-        .from('account_invoices')
-        .update({
-          company_name: companyName || null,
-          client_address: clientAddress || null,
-          customer_vat_number: customerVatNumber || null,
-          company_registration_number: companyRegistrationNumber || null,
-          line_items: resolvedLineItems,
-          subtotal: resolvedSubtotal,
-          vat_amount: resolvedVat,
-          total_amount: resolvedTotal,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', storedInvoice.id);
-
-      if (syncInvoiceError) {
-        console.error('Error syncing account invoice from live vehicles:', syncInvoiceError);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       accountNumber,

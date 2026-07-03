@@ -488,7 +488,8 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
       const totalInclLine = exVatLineTotal + vatLineTotal;
       return {
         previousReg: String(item.reg || item.previous_reg || "-"),
-        newReg: String(item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-"),
+        newReg: String(item.fleet_number || item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-"),
+        fleetNumber: String(item.fleet_number || item.fleetNumber || "-"),
         itemCode: String(item.item_code || "-"),
         description: String(item.description || "-"),
         comments: String(item.category || item.comments || item.company || ""),
@@ -604,47 +605,47 @@ export default function FCAllInvoicesSection({ costCodes }: FCAllInvoicesSection
     merge(row, 10, row, 11, "", { border: false });
     row += 2;
 
-    const headers = ["Previous Reg", "New Reg", "Item Code", "Description", "Comments", "Units", "Unit Price", "VAT", "VAT %", "Total Incl"];
+    const headers = ["Previous Reg", "New Reg", "Fleet No", "Item Code", "Description", "Comments", "Units", "Unit Price", "VAT", "VAT %", "Total Incl"];
     headers.forEach((h, i) => {
-      const isNum = i >= 5;
+      const isNum = i >= 6;
       setCell(row, i + 1, h, { bold: true, fill: xeroTealDark, fontColor: white, align: isNum ? "right" : "left", fontSize: 10 });
     });
-    setCell(row, 11, "", { fill: xeroTealDark, border: false });
+    setCell(row, 12, "", { fill: xeroTealDark, border: false });
     row++;
 
     rows.forEach((r, idx) => {
       const bgColor = idx % 2 === 1 ? lightGray : undefined;
       const vals: (string | number)[] = [
-        r.previousReg, r.newReg, r.itemCode, r.description, r.comments,
+        r.previousReg, r.newReg, r.fleetNumber, r.itemCode, r.description, r.comments,
         r.units, r.unitPrice, r.vatAmount, r.vatPercent, r.totalIncl,
       ];
       vals.forEach((v, ci) => {
-        setCell(row, ci + 1, v, { align: ci >= 5 ? "right" : "left", fill: bgColor });
+        setCell(row, ci + 1, v, { align: ci >= 6 ? "right" : "left", fill: bgColor });
       });
-      setCell(row, 11, "", { border: false });
+      setCell(row, 12, "", { border: false });
       row++;
     });
 
     row += 2;
 
     merge(row, 1, row, 7, "", { border: false });
-    merge(row, 8, row, 10, "Total Ex. VAT", { bold: true, align: "right", fill: lightGray });
-    setCell(row, 11, formatTotalAmount(totals.totalExVat), { bold: true, align: "right", fill: lightGray });
+    merge(row, 8, row, 11, "Total Ex. VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 12, formatTotalAmount(totals.totalExVat), { bold: true, align: "right", fill: lightGray });
     row++;
 
     merge(row, 1, row, 7, "", { border: false });
-    merge(row, 8, row, 10, "Discount", { bold: true, align: "right", fill: lightGray });
-    setCell(row, 11, formatTotalAmount(totals.discount), { bold: true, align: "right", fill: lightGray });
+    merge(row, 8, row, 11, "Discount", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 12, formatTotalAmount(totals.discount), { bold: true, align: "right", fill: lightGray });
     row++;
 
     merge(row, 1, row, 7, "", { border: false });
-    merge(row, 8, row, 10, "VAT", { bold: true, align: "right", fill: lightGray });
-    setCell(row, 11, formatTotalAmount(totals.totalVat), { bold: true, align: "right", fill: lightGray });
+    merge(row, 8, row, 11, "VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 12, formatTotalAmount(totals.totalVat), { bold: true, align: "right", fill: lightGray });
     row++;
 
     merge(row, 1, row, 7, "", { bold: true, fill: lightGray });
-    merge(row, 8, row, 10, "Total Incl. VAT", { bold: true, align: "right", fill: lightGray });
-    setCell(row, 11, formatTotalAmount(totalInclVat), { bold: true, align: "right", fill: lightGray });
+    merge(row, 8, row, 11, "Total Incl. VAT", { bold: true, align: "right", fill: lightGray });
+    setCell(row, 12, formatTotalAmount(totalInclVat), { bold: true, align: "right", fill: lightGray });
     row += 2;
 
     merge(row, 1, row, 11, `Notes: ${noteText}`, { fontSize: 9, border: false });

@@ -380,6 +380,32 @@ export async function GET(request: NextRequest) {
           jobCardById.get(jobCardId) ||
           jobCardByNumber.get(jobNumber) ||
           null;
+        const lineItems = Array.isArray(invoice?.line_items) ? invoice.line_items : [];
+        const derivedFleetNumber =
+          String(
+            lineItems.find((item) =>
+              String(
+                item?.fleet_number || item?.fleetNumber || item?.new_reg || item?.reg || "",
+              ).trim(),
+            )?.fleet_number ||
+              lineItems.find((item) =>
+                String(
+                  item?.fleet_number || item?.fleetNumber || item?.new_reg || item?.reg || "",
+                ).trim(),
+              )?.fleetNumber ||
+              lineItems.find((item) =>
+                String(
+                  item?.fleet_number || item?.fleetNumber || item?.new_reg || item?.reg || "",
+                ).trim(),
+              )?.new_reg ||
+              lineItems.find((item) =>
+                String(
+                  item?.fleet_number || item?.fleetNumber || item?.new_reg || item?.reg || "",
+                ).trim(),
+              )?.reg ||
+              linkedJobCard?.fleet_number ||
+              "",
+          ).trim() || null;
 
         return {
           id: invoice.id,
@@ -402,7 +428,8 @@ export async function GET(request: NextRequest) {
           job_card_id: invoice.job_card_id || null,
           job_number: invoice.job_number || null,
           order_number: linkedJobCard?.order_number || null,
-          invoice_items: Array.isArray(invoice?.line_items) ? invoice.line_items : [],
+          fleet_number: derivedFleetNumber,
+          invoice_items: lineItems,
           source_type: "job_card_invoice",
         };
       });
@@ -480,6 +507,7 @@ export async function GET(request: NextRequest) {
                 job_number: invoice?.job_number || linkedJobCard?.job_number || null,
                 customer_name: linkedJobCard?.customer_name || invoice?.company_name || null,
                 vehicle_registration: derivedVehicleRegistration,
+                fleet_number: invoice?.fleet_number || null,
                 job_type: linkedJobCard?.job_type || null,
                 quotation_products: Array.isArray(linkedJobCard?.quotation_products)
                   ? linkedJobCard.quotation_products
