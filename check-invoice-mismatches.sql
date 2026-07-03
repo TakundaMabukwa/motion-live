@@ -19,7 +19,8 @@ WITH jc_serials AS (
 -- Serials in inventory_items (IN STOCK)
 inv_hits AS (
   SELECT DISTINCT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
-         'inventory_items' AS found_in, ii.container AS location, ii.id::text AS item_id
+         'inventory_items' AS stock_source, ii.container AS location,
+         ii.id AS row_id
   FROM jc_serials js
   JOIN inventory_items ii ON ii.serial_number = js.serial_number
     AND upper(coalesce(ii.status, 'IN STOCK')) = 'IN STOCK'
@@ -28,22 +29,30 @@ inv_hits AS (
 -- Serials in client_inventory_items (IN STOCK)
 cli_hits AS (
   SELECT DISTINCT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
-         'client_inventory_items' AS found_in, ci.company AS location, ci.id::text AS item_id
+         'client_inventory_items' AS stock_source, ci.company AS location,
+         ci.id AS row_id
   FROM jc_serials js
   JOIN client_inventory_items ci ON ci.serial_number = js.serial_number
     AND ci.status = 'IN STOCK'
 ),
 
--- Serials in tech_stock.assigned_parts
+-- Serials in tech_stock.assigned_parts — includes array index for splicing
 tech_hits AS (
   SELECT DISTINCT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
-         'tech_stock' AS found_in, ts.technician_email AS location, NULL::text AS item_id
+         'tech_stock' AS stock_source, ts.technician_email AS location,
+         NULL::bigint AS row_id,
+         (SELECT i FROM jsonb_array_elements_text(ts.assigned_parts) WITH ORDINALITY arr(item, i)
+          WHERE (arr.item->>'serial_number') = js.serial_number LIMIT 1) AS array_index
   FROM jc_serials js
   JOIN tech_stock ts ON ts.assigned_parts @>
     jsonb_build_array(jsonb_build_object('serial_number', js.serial_number))
 )
 
-SELECT * FROM inv_hits
-UNION ALL SELECT * FROM cli_hits
-UNION ALL SELECT * FROM tech_hits
-ORDER BY serial_number, found_in, job_number;
+SELECT serial_number, stock_source, location, job_number, vehicle_registration,
+       item_code, jc_source, row_id, array_index
+FROM inv_hits
+UNION ALL SELECT serial_number, stock_source, location, job_number, vehicle_registration,
+       item_code, jc_source, row_id, NULL FROM cli_hits
+UNION ALL SELECT serial_number, stock_source, location, job_number, vehicle_registration,
+       item_code, jc_source, row_id, array_index FROM tech_hits
+ORDER BY stock_source, location, serial_number;
