@@ -1,93 +1,68 @@
--- Xero CSV: one row per line item, exact Xero import format
-WITH cc_deduped AS (
-  SELECT DISTINCT ON (cost_code)
-    cost_code,
-    company,
-    physical_address_1,
-    physical_address_2,
-    physical_address_3,
-    physical_area,
-    physical_code,
-    email,
-    vat_number
-  FROM cost_centers
-  WHERE cost_code IS NOT NULL AND TRIM(cost_code) != ''
-  ORDER BY cost_code, created_at DESC
+-- Extract all serials from job_cards, check where they exist elsewhere
+WITH jc_serials AS (
+  SELECT jc.job_number, jc.vehicle_registration, jc.status AS job_status,
+         (p->>'serial_number')::text AS serial_number,
+         (p->>'code')::text AS item_code, 'parts_required' AS jc_source
+  FROM job_cards jc, jsonb_array_elements(jc.parts_required) p
+  WHERE (p->>'serial_number') IS NOT NULL AND TRIM(p->>'serial_number') != ''
+
+  UNION
+
+  SELECT jc.job_number, jc.vehicle_registration, jc.status AS job_status,
+         (e->>'serial_number')::text AS serial_number,
+         (e->>'code')::text AS item_code, 'equipment_used' AS jc_source
+  FROM job_cards jc, jsonb_array_elements(jc.equipment_used) e
+  WHERE (e->>'serial_number') IS NOT NULL AND TRIM(e->>'serial_number') != ''
+),
+
+vehicle_hits AS (
+  SELECT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
+         'vehicles_duplicate' AS found_in, vd.reg AS match_reg, vd.fleet_number AS match_fleet,
+         match_col AS match_column
+  FROM jc_serials js
+  JOIN vehicles_duplicate vd ON true
+  CROSS JOIN LATERAL (
+    SELECT key AS match_col, value AS match_val
+    FROM jsonb_each_text(to_jsonb(vd))
+    WHERE value = js.serial_number
+      AND value != '' AND value != 'null'
+      AND key NOT IN ('id','created_at','unique_id','reg','fleet_number','new_account_number',
+                       'company','branch','make','model','year','colour','account_number',
+                       'cost_center_code','site_allocated','vehicle_validated','operational',
+                       'annuity_flag','amount_locked','calibration','total_rental_sub',
+                       'total_rental','total_sub')
+  ) sub
+),
+
+inv_hits AS (
+  SELECT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
+         'inventory_items' AS found_in, ii.container AS match_reg, ii.id::text AS match_fleet,
+         'serial_number' AS match_column
+  FROM jc_serials js
+  JOIN inventory_items ii ON ii.serial_number = js.serial_number
+    AND upper(coalesce(ii.status, 'IN STOCK')) = 'IN STOCK'
+),
+
+cli_hits AS (
+  SELECT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
+         'client_inventory_items' AS found_in, ci.company AS match_reg, ci.id::text AS match_fleet,
+         'serial_number' AS match_column
+  FROM jc_serials js
+  JOIN client_inventory_items ci ON ci.serial_number = js.serial_number
+    AND ci.status = 'IN STOCK'
+),
+
+tech_hits AS (
+  SELECT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
+         'tech_stock.assigned_parts' AS found_in, ts.technician_email AS match_reg,
+         NULL::text AS match_fleet, 'serial_number' AS match_column
+  FROM jc_serials js
+  JOIN tech_stock ts ON ts.assigned_parts @>
+    jsonb_build_array(jsonb_build_object('serial_number', js.serial_number))
 )
 
--- Annuity invoices
-SELECT
-  ai.company_name AS "ContactName",
-  COALESCE(cc.email, '') AS "EmailAddress",
-  COALESCE(cc.physical_address_1, '') AS "POAddressLine1",
-  COALESCE(cc.physical_address_2, '') AS "POAddressLine2",
-  COALESCE(cc.physical_address_3, '') AS "POAddressLine3",
-  '' AS "POAddressLine4",
-  COALESCE(cc.physical_area, '') AS "POCity",
-  '' AS "PORegion",
-  COALESCE(cc.physical_code, '') AS "POPostalCode",
-  'South Africa' AS "POCountry",
-  ai.invoice_number AS "InvoiceNumber",
-  ai.invoice_number AS "Reference",
-  TO_CHAR(ai.invoice_date, 'DD/MM/YYYY') AS "InvoiceDate",
-  TO_CHAR(ai.due_date, 'DD/MM/YYYY') AS "DueDate",
-  ROUND((li->>'total_including_vat')::numeric, 2) AS "Total",
-  (li->>'item_code')::text AS "InventoryItemCode",
-  COALESCE((li->>'description')::text, '') AS "Description",
-  1 AS "Quantity",
-  ROUND((li->>'total_excl_vat')::numeric, 2) AS "UnitAmount",
-  0 AS "Discount",
-  ai.account_number AS "AccountCode",
-  'OUTPUT2' AS "TaxType",
-  ROUND((li->>'vat_amount')::numeric, 2) AS "TaxAmount",
-  COALESCE((li->>'reg')::text, '') AS "TrackingName1",
-  'Account' AS "TrackingOption1",
-  'ZAR' AS "Currency",
-  '' AS "BrandingTheme"
-FROM account_invoices ai
-LEFT JOIN cc_deduped cc ON TRIM(cc.cost_code) = TRIM(ai.account_number),
-     jsonb_array_elements(ai.line_items) li
-WHERE ai.billing_month = '2026-05-01'
-  AND ai.total_amount > 0
-  AND ai.invoice_number NOT LIKE 'CN-%'
-
-UNION ALL
-
--- Job card invoices
-SELECT
-  inv.client_name AS "ContactName",
-  COALESCE(cc.email, '') AS "EmailAddress",
-  COALESCE(cc.physical_address_1, '') AS "POAddressLine1",
-  COALESCE(cc.physical_address_2, '') AS "POAddressLine2",
-  COALESCE(cc.physical_address_3, '') AS "POAddressLine3",
-  '' AS "POAddressLine4",
-  COALESCE(cc.physical_area, '') AS "POCity",
-  '' AS "PORegion",
-  COALESCE(cc.physical_code, '') AS "POPostalCode",
-  'South Africa' AS "POCountry",
-  inv.invoice_number AS "InvoiceNumber",
-  inv.invoice_number AS "Reference",
-  TO_CHAR(inv.invoice_date, 'DD/MM/YYYY') AS "InvoiceDate",
-  TO_CHAR(inv.invoice_date + interval '30 days', 'DD/MM/YYYY') AS "DueDate",
-  ROUND((li->>'total_incl')::numeric, 2) AS "Total",
-  (li->>'item_code')::text AS "InventoryItemCode",
-  COALESCE((li->>'description')::text, '') AS "Description",
-  COALESCE((li->>'quantity')::int, 1) AS "Quantity",
-  ROUND((li->>'unit_price')::numeric, 2) AS "UnitAmount",
-  0 AS "Discount",
-  inv.account_number AS "AccountCode",
-  'OUTPUT2' AS "TaxType",
-  ROUND((li->>'vat_amount')::numeric, 2) AS "TaxAmount",
-  COALESCE((li->>'new_reg')::text, '') AS "TrackingName1",
-  'Account' AS "TrackingOption1",
-  'ZAR' AS "Currency",
-  '' AS "BrandingTheme"
-FROM invoices inv
-LEFT JOIN cc_deduped cc ON TRIM(cc.cost_code) = TRIM(inv.account_number),
-     jsonb_array_elements(inv.line_items) li
-WHERE inv.invoice_date >= '2026-05-01'
-  AND inv.invoice_date <= '2026-05-31'
-  AND inv.total_amount > 0
-  AND inv.invoice_number NOT LIKE 'CN-%'
-
-ORDER BY "InvoiceNumber", "InventoryItemCode";
+SELECT * FROM vehicle_hits
+UNION ALL SELECT * FROM inv_hits
+UNION ALL SELECT * FROM cli_hits
+UNION ALL SELECT * FROM tech_hits
+ORDER BY serial_number, found_in;
