@@ -41,8 +41,8 @@ tech_hits AS (
   SELECT DISTINCT js.serial_number, js.job_number, js.vehicle_registration, js.item_code, js.jc_source,
          'tech_stock' AS stock_source, ts.technician_email AS location,
          NULL::bigint AS row_id,
-         (SELECT i FROM jsonb_array_elements_text(ts.assigned_parts) WITH ORDINALITY arr(item, i)
-          WHERE (arr.item->>'serial_number') = js.serial_number LIMIT 1) AS array_index
+         (SELECT i FROM jsonb_array_elements(ts.assigned_parts) WITH ORDINALITY arr(item, i)
+          WHERE (item->>'serial_number') = js.serial_number LIMIT 1) AS array_index
   FROM jc_serials js
   JOIN tech_stock ts ON ts.assigned_parts @>
     jsonb_build_array(jsonb_build_object('serial_number', js.serial_number))
