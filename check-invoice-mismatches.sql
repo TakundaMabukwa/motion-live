@@ -49,10 +49,10 @@ tech_hits AS (
 )
 
 SELECT serial_number, stock_source, location, job_number, vehicle_registration,
-       item_code, jc_source, row_id, array_index
+       item_code, jc_source, row_id, NULL::int AS array_index
 FROM inv_hits
 UNION ALL SELECT serial_number, stock_source, location, job_number, vehicle_registration,
-       item_code, jc_source, row_id, NULL FROM cli_hits
+       item_code, jc_source, row_id, NULL::int FROM cli_hits
 UNION ALL SELECT serial_number, stock_source, location, job_number, vehicle_registration,
        item_code, jc_source, row_id, array_index FROM tech_hits
 ORDER BY stock_source, location, serial_number;
