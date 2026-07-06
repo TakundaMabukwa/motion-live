@@ -448,8 +448,10 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const hideItemCodeColumn = isOnceOffItemInvoice;
     const hideAccountColumn = isOnceOffItemInvoice;
     const rawTotals = getInvoiceTotals(effectiveJob, externalEditedProducts);
+    const jobReg = String(effectiveJob?.vehicle_registration || "").trim() || String(effectiveJob?.temporary_registration || "").trim() || "-";
+    const jobFleet = String(effectiveJob?.fleet_number || "").trim() || "-";
     const invoiceVehicles = getInvoiceVehicles(effectiveJob);
-    const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ") : "N/A";
+    const vehicleSummary = invoiceVehicles.length > 0 ? invoiceVehicles.map((vehicle) => vehicle.reg).filter(Boolean).join(", ") : jobReg;
     const invoiceNumber = storedInvoiceRecord?.invoice_number || generatedInvoice?.invoiceNumber || "PENDING";
     const invoiceDate = storedInvoiceRecord?.invoice_date || generatedInvoice?.generatedAt || billingInvoiceDate || new Date().toISOString();
     const orderNumber = latestJobRef.current?.order_number || effectiveJob?.order_number || "N/A";
@@ -481,8 +483,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
               const resolvedDescription = productDescription || productName || lineLabel || product?.category || "-";
               return {
                 key: `${product?.id || product?.name || product?.item_code || "item"}-${chargeLine.key}-${index}`,
-                previousReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
-                newReg: hideRegistrationColumns ? "" : product?.vehicle_plate || vehicleSummary || "N/A",
+                previousReg: hideRegistrationColumns ? "" : jobReg,
+                newReg: hideRegistrationColumns ? "" : jobReg,
+                fleetNumber: hideRegistrationColumns ? "" : jobFleet,
                 itemCode: chargeLine.label,
                 description: resolvedDescription,
                 comments: lineLabel,
@@ -499,8 +502,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       : Array.isArray(storedInvoiceRecord?.line_items) && storedInvoiceRecord.line_items.length > 0
         ? storedInvoiceRecord.line_items.filter((item) => toNumber(item?.unit_price) >= 0).map((item, index) => ({
             key: `${item?.item_code || item?.description || "item"}-${index}`,
-            previousReg: hideRegistrationColumns ? "" : item?.previous_reg || vehicleSummary || "N/A",
-            newReg: hideRegistrationColumns ? "" : item?.new_reg || item?.previous_reg || vehicleSummary || "N/A",
+            previousReg: hideRegistrationColumns ? "" : item?.previous_reg || jobReg,
+            newReg: hideRegistrationColumns ? "" : item?.new_reg || item?.previous_reg || jobReg,
+            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
             itemCode: item?.item_code || "Item",
             description: item?.description || item?.item_code || "-",
             comments: item?.comments || "",
@@ -512,8 +516,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           }))
         : [{
             key: "fallback-row",
-            previousReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
-            newReg: hideRegistrationColumns ? "" : vehicleSummary || "N/A",
+            previousReg: hideRegistrationColumns ? "" : jobReg,
+            newReg: hideRegistrationColumns ? "" : jobReg,
+            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
             itemCode: isAdminOrRepairFallbackJob(effectiveJob) && normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type) === "repair" ? "REPAIR" : isAdminOrRepairFallbackJob(effectiveJob) ? "ADMIN" : effectiveJob.job_type || "Service",
             description: isAdminOrRepairFallbackJob(effectiveJob) ? (() => {
               const normalizedType = normalizeBillingToken(effectiveJob?.job_type || effectiveJob?.quotation_job_type);
@@ -540,8 +545,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const vat = Number((subtotal * VAT_RATE).toFixed(2));
           rows.push({
             key: `annuity-rental-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            previousReg: hideRegistrationColumns ? "" : jobReg,
+            newReg: hideRegistrationColumns ? "" : jobReg,
+            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
             itemCode: "Rental",
             description: item.name || "Annuity Item",
             comments: annuityMultiplier > 1 ? `Rental (${annuityMultiplier}x) - ${item.name}` : `Rental - ${item.name}`,
@@ -558,8 +564,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const vat = Number((subtotal * VAT_RATE).toFixed(2));
           rows.push({
             key: `annuity-sub-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            previousReg: hideRegistrationColumns ? "" : jobReg,
+            newReg: hideRegistrationColumns ? "" : jobReg,
+            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
             itemCode: "Subscription",
             description: item.name || "Annuity Item",
             comments: annuityMultiplier > 1 ? `Subscription (${annuityMultiplier}x) - ${item.name}` : `Subscription - ${item.name}`,
@@ -577,8 +584,9 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
           const vat = Number((subtotal * VAT_RATE).toFixed(2));
           rows.push({
             key: `annuity-item-${idx}`,
-            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            previousReg: hideRegistrationColumns ? "" : jobReg,
+            newReg: hideRegistrationColumns ? "" : jobReg,
+            fleetNumber: hideRegistrationColumns ? "" : jobFleet,
             itemCode: "Annuity",
             description: item.name || "Annuity Item",
             comments: annuityMultiplier > 1 ? `Annuity (${annuityMultiplier}x) - ${item.name}` : `Annuity - ${item.name}`,
@@ -623,19 +631,19 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
     let lineTableColgroup;
     if (includeRegistrationColumns && includeItemCodeColumn) {
-      lineTableColgroup = '<col style="width:10%" /><col style="width:13%" /><col style="width:15%" /><col style="width:16%" /><col style="width:10%" /><col style="width:5%" /><col style="width:8.5%" /><col style="width:7%" /><col style="width:5%" /><col style="width:10.5%" />';
+      lineTableColgroup = '<col style="width:8%" /><col style="width:10%" /><col style="width:8%" /><col style="width:14%" /><col style="width:16%" /><col style="width:10%" /><col style="width:5%" /><col style="width:8.5%" /><col style="width:7%" /><col style="width:5%" /><col style="width:8.5%" />';
     } else if (includeRegistrationColumns) {
-      lineTableColgroup = '<col style="width:11%" /><col style="width:14%" /><col style="width:20%" /><col style="width:14%" /><col style="width:6.5%" /><col style="width:10.5%" /><col style="width:8.5%" /><col style="width:5.5%" /><col style="width:10%" />';
+      lineTableColgroup = '<col style="width:9%" /><col style="width:11%" /><col style="width:7%" /><col style="width:18%" /><col style="width:14%" /><col style="width:6.5%" /><col style="width:10.5%" /><col style="width:8.5%" /><col style="width:5.5%" /><col style="width:9%" />';
     } else if (includeItemCodeColumn) {
       lineTableColgroup = '<col style="width:17%" /><col style="width:23%" /><col style="width:16%" /><col style="width:8%" /><col style="width:14%" /><col style="width:10%" /><col style="width:6%" /><col style="width:10%" />';
     } else {
       lineTableColgroup = '<col style="width:28%" /><col style="width:24%" /><col style="width:8%" /><col style="width:14%" /><col style="width:10%" /><col style="width:6%" /><col style="width:10%" />';
     }
 
-    const spacerColspan = 7 + (includeRegistrationColumns ? 2 : 0) + (includeItemCodeColumn ? 1 : 0);
+    const spacerColspan = 8 + (includeRegistrationColumns ? 3 : 0) + (includeItemCodeColumn ? 1 : 0);
 
     const rowsHtml = invoiceView.rows.map((row) =>
-      `<tr>${includeRegistrationColumns ? `<td>${escapeHtml(row.previousReg)}</td><td>${escapeHtml(row.newReg)}</td>` : ""}${includeItemCodeColumn ? `<td>${escapeHtml(row.itemCode)}</td>` : ""}<td>${escapeHtml(row.description)}</td><td>${escapeHtml(row.comments)}</td><td class="text-center">${escapeHtml(row.qty)}</td><td class="text-right">${escapeHtml(row.unitPrice.toFixed(2))}</td><td class="text-right">${escapeHtml(row.vatAmount.toFixed(2))}</td><td class="text-center">${escapeHtml(row.vatPercent)}</td><td class="text-right">${escapeHtml(row.totalIncl.toFixed(2))}</td></tr>`
+      `<tr>${includeRegistrationColumns ? `<td>${escapeHtml(row.previousReg)}</td><td>${escapeHtml(row.newReg)}</td><td>${escapeHtml(row.fleetNumber || "-")}</td>` : ""}${includeItemCodeColumn ? `<td>${escapeHtml(row.itemCode)}</td>` : ""}<td>${escapeHtml(row.description)}</td><td>${escapeHtml(row.comments)}</td><td class="text-center">${escapeHtml(row.qty)}</td><td class="text-right">${escapeHtml(row.unitPrice.toFixed(2))}</td><td class="text-right">${escapeHtml(row.vatAmount.toFixed(2))}</td><td class="text-center">${escapeHtml(row.vatPercent)}</td><td class="text-right">${escapeHtml(row.totalIncl.toFixed(2))}</td></tr>`
     ).join("");
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -710,7 +718,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
         <tbody><tr>${includeAccountColumn ? `<td>${escapeHtml(invoiceView.accountNumber)}</td>` : ""}<td>${escapeHtml(invoiceView.clientName)}</td><td>VAT 15%</td><td>${escapeHtml(invoiceView.customerVatNumber)}</td></tr></tbody>
       </table>
       <table class="line-table"><colgroup>${lineTableColgroup}</colgroup>
-        <thead><tr>${includeRegistrationColumns ? "<th>Previous Reg</th><th>New Reg</th>" : ""}${includeItemCodeColumn ? "<th>Item Code</th>" : ""}<th>Description</th><th>Comments</th><th class=\"text-center\">Units</th><th class=\"text-right\">Unit Price</th><th class=\"text-right\">Vat</th><th class=\"text-center\">Vat%</th><th class=\"text-right\">Total Incl</th></tr></thead>
+        <thead><tr>${includeRegistrationColumns ? "<th>Previous Reg</th><th>New Reg</th><th>Fleet No</th>" : ""}${includeItemCodeColumn ? "<th>Item Code</th>" : ""}<th>Description</th><th>Comments</th><th class=\"text-center\">Units</th><th class=\"text-right\">Unit Price</th><th class=\"text-right\">Vat</th><th class=\"text-center\">Vat%</th><th class=\"text-right\">Total Incl</th></tr></thead>
         <tbody>${rowsHtml}<tr class="spacer"><td colspan="${spacerColspan}"></td></tr></tbody>
       </table>
       <div class="bottom-row">
@@ -814,7 +822,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
 
       const invoicePreview = buildCompletedJobInvoiceView(effectiveCostCenterInfo);
       const lineItems = (invoicePreview?.rows || []).map((row) => ({
-        previous_reg: row.previousReg, new_reg: row.newReg, item_code: row.itemCode,
+        previous_reg: row.previousReg, new_reg: row.newReg, fleet_number: row.fleetNumber || "-", item_code: row.itemCode,
         description: row.description, comments: row.comments, quantity: row.qty,
         unit_price: row.unitPrice, vat_percent: row.vatPercent, vat_amount: row.vatAmount, total_incl: row.totalIncl,
       }));
