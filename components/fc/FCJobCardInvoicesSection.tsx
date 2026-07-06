@@ -201,8 +201,9 @@ export default function FCJobCardInvoicesSection({ costCodes }: FCJobCardInvoice
       const vatLineTotal = explicitVatAmount > 0 ? explicitVatAmount : explicitTotalIncl > 0 && exVatLineTotal > 0 ? Math.max(0, explicitTotalIncl - exVatLineTotal) : exVatLineTotal * 0.15;
       const totalInclLine = exVatLineTotal + vatLineTotal;
       return {
-        previousReg: String(item.reg || item.previous_reg || "-"),
-        newReg: String(item.fleetNumber || item.new_reg || item.reg || item.previous_reg || "-"),
+        previousReg: String(item.previous_reg || item.reg || "-"),
+        newReg: String(item.new_reg || item.previous_reg || item.reg || "-"),
+        fleetNumber: String(item.fleet_number || "-"),
         itemCode: String(item.item_code || "-"),
         description: String(item.description || "-"),
         comments: String(item.category || item.comments || item.company || ""),
