@@ -1,9 +1,39 @@
 -- Xero CSV export: one row per invoice, amounts built from line items
 -- Run date range: 2026-06-28 to 2026-07-06
 
--- account_invoices: amounts are strings in line_items JSONB
+WITH account_lines AS (
+  SELECT
+    ai.invoice_number,
+    ai.account_number,
+    ai.company_name,
+    ai.invoice_date,
+    SUM((li->>'total_including_vat')::numeric) AS total_incl,
+    SUM((li->>'unit_price_without_vat')::numeric) AS unit_excl,
+    SUM((li->>'vat_amount')::numeric) AS vat
+  FROM account_invoices ai,
+    jsonb_array_elements(ai.line_items) li
+  WHERE ai.invoice_date >= '2026-06-28'
+    AND ai.invoice_date <= '2026-07-06'
+  GROUP BY ai.id, ai.invoice_number, ai.account_number, ai.company_name, ai.invoice_date
+),
+
+job_lines AS (
+  SELECT
+    inv.invoice_number,
+    inv.account_number,
+    inv.company_name,
+    inv.invoice_date,
+    SUM((li->>'total_incl')::numeric) AS total_incl,
+    SUM((li->>'vat_amount')::numeric) AS vat
+  FROM invoices inv,
+    jsonb_array_elements(inv.line_items) li
+  WHERE inv.invoice_date >= '2026-06-28'
+    AND inv.invoice_date <= '2026-07-06'
+  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.company_name, inv.invoice_date
+)
+
 SELECT
-  ai.company_name AS "ContactName",
+  al.company_name AS "ContactName",
   '' AS "EmailAddress",
   COALESCE(cc.physical_address_1, '') AS "POAddressLine1",
   COALESCE(cc.physical_address_2, '') AS "POAddressLine2",
@@ -13,37 +43,30 @@ SELECT
   '' AS "PORegion",
   COALESCE(cc.physical_code, '') AS "POPostalCode",
   'South Africa' AS "POCountry",
-  ai.invoice_number AS "InvoiceNumber",
-  ai.account_number AS "Reference",
-  ai.invoice_date::text AS "InvoiceDate",
-  ai.invoice_date::text AS "DueDate",
-  ROUND(SUM((li->>'total_including_vat')::numeric), 2) AS "Total",
+  al.invoice_number AS "InvoiceNumber",
+  al.account_number AS "Reference",
+  al.invoice_date::text AS "InvoiceDate",
+  al.invoice_date::text AS "DueDate",
+  ROUND(al.total_incl, 2) AS "Total",
   '' AS "InventoryItemCode",
   'Monthly Service' AS "Description",
   1 AS "Quantity",
-  ROUND(SUM((li->>'unit_price_without_vat')::numeric), 2) AS "UnitAmount",
+  ROUND(al.unit_excl, 2) AS "UnitAmount",
   0 AS "Discount",
   '200' AS "AccountCode",
   'OUTPUT2' AS "TaxType",
-  ROUND(SUM((li->>'vat_amount')::numeric), 2) AS "TaxAmount",
+  ROUND(al.vat, 2) AS "TaxAmount",
   '' AS "TrackingName1",
   '' AS "TrackingOption1",
   'ZAR' AS "Currency",
   '' AS "BrandingTheme"
-FROM account_invoices ai,
-  jsonb_array_elements(ai.line_items) li
-LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(ai.account_number))
-WHERE ai.invoice_date >= '2026-06-28'
-  AND ai.invoice_date <= '2026-07-06'
-GROUP BY ai.id, ai.invoice_number, ai.account_number, ai.company_name,
-         ai.invoice_date, cc.physical_address_1, cc.physical_address_2,
-         cc.physical_address_3, cc.physical_area, cc.physical_code
+FROM account_lines al
+LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(al.account_number))
 
 UNION ALL
 
--- invoices: amounts are numbers in line_items JSONB
 SELECT
-  inv.company_name AS "ContactName",
+  jl.company_name AS "ContactName",
   '' AS "EmailAddress",
   COALESCE(cc.physical_address_1, '') AS "POAddressLine1",
   COALESCE(cc.physical_address_2, '') AS "POAddressLine2",
@@ -53,35 +76,28 @@ SELECT
   '' AS "PORegion",
   COALESCE(cc.physical_code, '') AS "POPostalCode",
   'South Africa' AS "POCountry",
-  inv.invoice_number AS "InvoiceNumber",
-  inv.account_number AS "Reference",
-  inv.invoice_date::text AS "InvoiceDate",
-  inv.invoice_date::text AS "DueDate",
-  ROUND(SUM((li->>'total_incl')::numeric), 2) AS "Total",
+  jl.invoice_number AS "InvoiceNumber",
+  jl.account_number AS "Reference",
+  jl.invoice_date::text AS "InvoiceDate",
+  jl.invoice_date::text AS "DueDate",
+  ROUND(jl.total_incl, 2) AS "Total",
   '' AS "InventoryItemCode",
   'Monthly Service' AS "Description",
   1 AS "Quantity",
-  ROUND(SUM((li->>'total_incl')::numeric) - SUM((li->>'vat_amount')::numeric), 2) AS "UnitAmount",
+  ROUND(jl.total_incl - jl.vat, 2) AS "UnitAmount",
   0 AS "Discount",
   '200' AS "AccountCode",
   'OUTPUT2' AS "TaxType",
-  ROUND(SUM((li->>'vat_amount')::numeric), 2) AS "TaxAmount",
+  ROUND(jl.vat, 2) AS "TaxAmount",
   '' AS "TrackingName1",
   '' AS "TrackingOption1",
   'ZAR' AS "Currency",
   '' AS "BrandingTheme"
-FROM invoices inv,
-  jsonb_array_elements(inv.line_items) li
-LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(inv.account_number))
-WHERE inv.invoice_date >= '2026-06-28'
-  AND inv.invoice_date <= '2026-07-06'
-GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.company_name,
-         inv.invoice_date, cc.physical_address_1, cc.physical_address_2,
-         cc.physical_address_3, cc.physical_area, cc.physical_code
+FROM job_lines jl
+LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(jl.account_number))
 
 UNION ALL
 
--- Credit notes: amount is ex-VAT, add 15% VAT
 SELECT
   cn.client_name AS "ContactName",
   '' AS "EmailAddress",
