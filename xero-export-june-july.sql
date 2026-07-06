@@ -21,7 +21,7 @@ job_lines AS (
   SELECT
     inv.invoice_number,
     inv.account_number,
-    inv.company_name,
+    COALESCE(inv.company_name, inv.client_name, '') AS company_name,
     inv.invoice_date,
     SUM((li->>'total_incl')::numeric) AS total_incl,
     SUM((li->>'vat_amount')::numeric) AS vat
@@ -29,7 +29,7 @@ job_lines AS (
     jsonb_array_elements(inv.line_items) li
   WHERE inv.invoice_date >= '2026-06-28'
     AND inv.invoice_date <= '2026-07-06'
-  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.company_name, inv.invoice_date
+  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.company_name, inv.client_name, inv.invoice_date
 )
 
 SELECT
