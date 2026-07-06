@@ -8,6 +8,18 @@ import {
 
 const toCurrency = (v: unknown) => Number(v || 0);
 
+const getAnnuityMultiplier = (job: Record<string, unknown>) => {
+  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
+  if (jobType.includes("reinstall") || jobSubType === "reinstall") return 1;
+  const isInstall = jobType.includes("install") || jobType === "installation";
+  if (!isInstall) return 1;
+  const today = new Date();
+  const day = today.getDate();
+  if (day >= 28 || day <= 15) return 2;
+  return 1;
+};
+
 const parseProducts = (val: unknown): Record<string, unknown>[] => {
   if (Array.isArray(val)) return val;
   if (typeof val === "string") { try { return JSON.parse(val); } catch { return []; } }
@@ -82,23 +94,69 @@ export async function POST(request: NextRequest) {
       (p: Record<string, unknown>) => p && typeof p === "object",
     );
 
-    const lineItems = products.map((p: Record<string, unknown>) => {
+    const annuityMultiplier = getAnnuityMultiplier(jobCard as Record<string, unknown>);
+
+    const lineItems = products.flatMap((p: Record<string, unknown>) => {
       const qty = Math.max(1, Number(p.quantity) || 1);
-      const cash = toCurrency(p.cash_price);
-      const rental = toCurrency(p.rental_price);
-      const sub = toCurrency(p.subscription_price);
-      const install = toCurrency(p.installation_price);
-      const deinstall = toCurrency(p.de_installation_price);
-      const unitPrice = cash + rental + sub + install + deinstall;
-      const vatAmount = unitPrice * 0.15;
-      return {
-        description: String(p.name || p.description || p.product_name || ""),
-        quantity: qty,
-        unit_price: unitPrice,
-        vat_amount: vatAmount,
-        total_incl: (unitPrice + vatAmount) * qty,
-        type: String(p.type || p.category || ""),
-      };
+      const cash = toCurrency(p.cash_price) || toCurrency(p.cash_gross);
+      const rental = (toCurrency(p.rental_price) || toCurrency(p.rental_gross)) * annuityMultiplier;
+      const sub = (toCurrency(p.subscription_price) || toCurrency(p.subscription_gross)) * annuityMultiplier;
+      const install = toCurrency(p.installation_price) || toCurrency(p.installation_gross);
+      const deinstall = toCurrency(p.de_installation_price) || toCurrency(p.de_installation_gross);
+      const unitPrice = cash + install + deinstall;
+      const productName = String(p.name || p.description || p.product_name || "");
+      const productType = String(p.type || p.category || "");
+      const rows: Record<string, unknown>[] = [];
+      if (unitPrice > 0) {
+        const vatAmount = unitPrice * 0.15;
+        rows.push({
+          description: productName,
+          quantity: qty,
+          unit_price: unitPrice,
+          vat_amount: vatAmount,
+          total_incl: (unitPrice + vatAmount) * qty,
+          type: productType,
+        });
+      }
+      if (rental > 0) {
+        const vatAmount = rental * 0.15;
+        rows.push({
+          description: `${productName} - Rental`,
+          quantity: qty,
+          unit_price: rental,
+          vat_amount: vatAmount,
+          total_incl: (rental + vatAmount) * qty,
+          type: productType,
+          rental_amount: rental,
+          annuity_multiplier: annuityMultiplier,
+        });
+      }
+      if (sub > 0) {
+        const vatAmount = sub * 0.15;
+        rows.push({
+          description: `${productName} - Subscription`,
+          quantity: qty,
+          unit_price: sub,
+          vat_amount: vatAmount,
+          total_incl: (sub + vatAmount) * qty,
+          type: productType,
+          subscription_amount: sub,
+          annuity_multiplier: annuityMultiplier,
+        });
+      }
+      if (rows.length === 0) {
+        const fallbackAmt = unitPrice || rental || sub;
+        const vatAmount = fallbackAmt * 0.15;
+        rows.push({
+          description: productName,
+          quantity: qty,
+          unit_price: fallbackAmt,
+          vat_amount: vatAmount,
+          total_incl: (fallbackAmt + vatAmount) * qty,
+          type: productType,
+        });
+      }
+      return rows;
     });
 
     // If no products, create a fallback line item

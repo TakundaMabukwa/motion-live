@@ -98,6 +98,21 @@ export async function GET(request: NextRequest) {
       return normalizedJobStatus === 'completed' || normalizedStatus === 'completed';
     };
 
+    // Fetch all job IDs, then check which ones have invoices
+    const allJobIds = transformedJobs.map((j) => j.id).filter(Boolean);
+    const invoicedJobIds = new Set<string>();
+    if (allJobIds.length > 0) {
+      const { data: invoiceRows } = await supabase
+        .from('invoices')
+        .select('job_card_id')
+        .in('job_card_id', allJobIds);
+      if (Array.isArray(invoiceRows)) {
+        for (const row of invoiceRows) {
+          if (row.job_card_id) invoicedJobIds.add(row.job_card_id);
+        }
+      }
+    }
+
     const hasPartsRequired = (parts: unknown) => (
       Array.isArray(parts) && parts.length > 0
     );
@@ -191,7 +206,8 @@ export async function GET(request: NextRequest) {
       escalation_source_role: job.escalation_source_role,
       escalated_at: job.escalated_at,
       decommission_date: job.decommission_date,
-      annuity_end_date: job.annuity_end_date
+      annuity_end_date: job.annuity_end_date,
+      is_invoiced: invoicedJobIds.has(job.id),
     }));
 
     if (status === 'open') {
@@ -206,7 +222,7 @@ export async function GET(request: NextRequest) {
         );
       });
     } else if (status === 'completed') {
-      transformedJobs = transformedJobs.filter((job) => isCompletedJob(job));
+      transformedJobs = transformedJobs.filter((job) => isCompletedJob(job) && !job.is_invoiced);
     }
 
     if (roleFilter && roleFilter.trim() !== '') {

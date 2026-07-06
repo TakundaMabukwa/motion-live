@@ -90,11 +90,17 @@ const getAnnuitySelectionKey = (product) => {
 };
 
 const getAnnuitySelectionItems = (job, overrideProducts) => {
+  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
+  const isReInstall = jobSubType === "reinstall" || jobType.includes("reinstall");
+  const isInstall = jobType.includes("install") || jobType === "installation";
+  // Annuity only for install jobs — not reinstalls, not repairs, not admin
+  if (!isInstall || isReInstall) return [];
   const products = overrideProducts || parseQuotationProducts(job?.quotation_products);
   return products.map((product, index) => {
     if (isLabourProduct(product)) return null;
-    const rentalAmount = toNumber(product?.rental_price);
-    const subscriptionAmount = toNumber(product?.subscription_price);
+    const rentalAmount = toNumber(product?.rental_price) || toNumber(product?.rental_gross);
+    const subscriptionAmount = toNumber(product?.subscription_price) || toNumber(product?.subscription_gross);
     if (rentalAmount <= 0 && subscriptionAmount <= 0) return null;
     const quantity = Math.max(1, toNumber(product?.quantity) || 1);
     return {
@@ -133,15 +139,21 @@ const getProductChargeLines = (product, job) => {
   const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
   const isReInstall = jobSubType === "reinstall";
   const lines = [];
+  const grossKeyMap = {
+    cash_price: "cash_gross",
+    installation_price: "installation_gross",
+    de_installation_price: "de_installation_gross",
+  };
   const addLine = (priceKey, label, multiplier = 1) => {
-    const amount = toNumber(product?.[priceKey]);
+    const amount = toNumber(product?.[priceKey]) || toNumber(product?.[grossKeyMap[priceKey]]);
     if (amount <= 0) return;
     const unitPrice = amount * Math.max(1, toNumber(multiplier) || 1);
     lines.push({ key: priceKey, label, qty, unitPrice, subtotal: unitPrice * qty });
   };
   const isDeinstall = jobType.includes("deinstall") || jobType.includes("de-install") || jobType.includes("decomm");
   if (isDeinstall) {
-    const totalUnitPrice = PRICE_FIELDS.reduce((sum, f) => sum + toNumber(product?.[f]), 0);
+    const oneTimeFields = ["cash_price","installation_price","de_installation_price"];
+    const totalUnitPrice = oneTimeFields.reduce((sum, f) => sum + toNumber(product?.[f]) || toNumber(product?.[grossKeyMap[f]]), 0);
     lines.push({ key: "deinstall", label: "De-Installation", qty, unitPrice: totalUnitPrice, subtotal: totalUnitPrice * qty });
     return lines;
   }
@@ -155,20 +167,34 @@ const getProductChargeLines = (product, job) => {
     addLine("de_installation_price", "De-Installation");
   }
   if (lines.length === 0 && isLabourProduct(product)) {
-    const unitAmount = toNumber(product?.cash_price) || toNumber(product?.unit_price) || toNumber(product?.price);
+    const unitAmount = toNumber(product?.cash_price) || toNumber(product?.cash_gross) || toNumber(product?.unit_price) || toNumber(product?.price);
     const amount = unitAmount > 0 ? unitAmount : (qty > 0 ? toNumber(product?.total_price) / qty : 0);
     lines.push({ key: "labour", label: "Labour", qty, unitPrice: amount, subtotal: amount * qty });
   }
   if (!isReInstall) {
     if (lines.length === 0) { addLine("price", "Price"); addLine("unit_price", "Unit Price"); }
     if (lines.length === 0) {
-      const fallbackUnitPrice = toNumber(product?.unit_price) || toNumber(product?.price) || toNumber(product?.cash_price);
+      const fallbackUnitPrice = toNumber(product?.unit_price) || toNumber(product?.price) || toNumber(product?.cash_price) || toNumber(product?.cash_gross) || toNumber(product?.installation_price) || toNumber(product?.installation_gross) || toNumber(product?.de_installation_price) || toNumber(product?.de_installation_gross);
       if (fallbackUnitPrice > 0) {
         lines.push({ key: "fallback", label: "Charge", qty, unitPrice: fallbackUnitPrice, subtotal: fallbackUnitPrice * qty });
       }
     }
   }
   return lines;
+};
+
+const getAnnuityMultiplier = (job) => {
+  const jobType = String(job?.job_type || job?.quotation_job_type || "").toLowerCase();
+  const jobSubType = String(job?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "");
+  // Only applies to install jobs, not reinstalls
+  if (jobType.includes("reinstall") || jobSubType === "reinstall") return 1;
+  const isInstall = jobType.includes("install") || jobType === "installation";
+  if (!isInstall) return 1;
+  const today = new Date();
+  const day = today.getDate();
+  // 28th–31st of current month OR 1st–15th of next month = double annuity
+  if (day >= 28 || day <= 15) return 2;
+  return 1;
 };
 
 const getInvoiceVehicles = (job) => {
@@ -434,6 +460,8 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
       return raw.includes("deinstall") || raw.includes("de-install") || raw.includes("decomm");
     })();
     const isReInstall = String(effectiveJob?.job_sub_type || "").toLowerCase().replace(/[^a-z]/g, "") === "reinstall";
+    const jobTypeRaw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
+    const isInstallJob = jobTypeRaw.includes("install") || jobTypeRaw === "installation";
     const seenProductKeys = new Set();
     const productRows = rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
@@ -498,27 +526,70 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             vatAmount: rawTotals.vat,
             totalIncl: rawTotals.total,
           }];
-    const manualAnnuityRows = isReInstall ? [] : (annuitySelectableItems || [])
+    const annuityMultiplier = getAnnuityMultiplier(effectiveJob);
+    const manualAnnuityRows = !isInstallJob || isReInstall ? [] : (annuitySelectableItems || [])
       .filter((item) => selectedAnnuityItemKeys.includes(item.key))
-      .map((item, idx) => {
-        const unitPrice = toNumber(item.rentalAmount || item.subscriptionAmount || 0);
+      .flatMap((item, idx) => {
         const qty = item.quantity || 1;
-        const subtotal = unitPrice * qty;
-        const vat = Number((subtotal * VAT_RATE).toFixed(2));
-        const total = Number((subtotal + vat).toFixed(2));
-        return {
-          key: `annuity-item-${idx}`,
-          previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-          newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
-          itemCode: "Annuity",
-          description: item.name || "Annuity Item",
-          comments: `Annuity - ${item.name}`,
-          qty,
-          unitPrice,
-          vatPercent: "15.00%",
-          vatAmount: vat,
-          totalIncl: total,
-        };
+        const rows = [];
+        const rentalAmt = toNumber(item.rentalAmount);
+        const subAmt = toNumber(item.subscriptionAmount);
+        if (rentalAmt > 0) {
+          const adjustedUnitPrice = rentalAmt * annuityMultiplier;
+          const subtotal = adjustedUnitPrice * qty;
+          const vat = Number((subtotal * VAT_RATE).toFixed(2));
+          rows.push({
+            key: `annuity-rental-${idx}`,
+            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            itemCode: "Rental",
+            description: item.name || "Annuity Item",
+            comments: annuityMultiplier > 1 ? `Rental (${annuityMultiplier}x) - ${item.name}` : `Rental - ${item.name}`,
+            qty,
+            unitPrice: adjustedUnitPrice,
+            vatPercent: "15.00%",
+            vatAmount: vat,
+            totalIncl: Number((subtotal + vat).toFixed(2)),
+          });
+        }
+        if (subAmt > 0) {
+          const adjustedUnitPrice = subAmt * annuityMultiplier;
+          const subtotal = adjustedUnitPrice * qty;
+          const vat = Number((subtotal * VAT_RATE).toFixed(2));
+          rows.push({
+            key: `annuity-sub-${idx}`,
+            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            itemCode: "Subscription",
+            description: item.name || "Annuity Item",
+            comments: annuityMultiplier > 1 ? `Subscription (${annuityMultiplier}x) - ${item.name}` : `Subscription - ${item.name}`,
+            qty,
+            unitPrice: adjustedUnitPrice,
+            vatPercent: "15.00%",
+            vatAmount: vat,
+            totalIncl: Number((subtotal + vat).toFixed(2)),
+          });
+        }
+        if (rows.length === 0) {
+          const fallbackAmt = rentalAmt || subAmt;
+          const adjustedUnitPrice = fallbackAmt * annuityMultiplier;
+          const subtotal = adjustedUnitPrice * qty;
+          const vat = Number((subtotal * VAT_RATE).toFixed(2));
+          rows.push({
+            key: `annuity-item-${idx}`,
+            previousReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            newReg: hideRegistrationColumns ? "" : item.vehiclePlate || vehicleSummary || "N/A",
+            itemCode: "Annuity",
+            description: item.name || "Annuity Item",
+            comments: annuityMultiplier > 1 ? `Annuity (${annuityMultiplier}x) - ${item.name}` : `Annuity - ${item.name}`,
+            qty,
+            unitPrice: adjustedUnitPrice,
+            vatPercent: "15.00%",
+            vatAmount: vat,
+            totalIncl: Number((subtotal + vat).toFixed(2)),
+          });
+        }
+        return rows;
       });
     const annuityRows = manualAnnuityRows;
     const rows = [...productRows, ...annuityRows];
@@ -955,7 +1026,17 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
             {/* Annuity Items */}
             <div className="bg-emerald-50 p-4 rounded-lg">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Annuity Items (Rental / Subscription)</h3>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Annuity Items (Rental / Subscription)</h3>
+                  {(() => {
+                    const mult = getAnnuityMultiplier(job);
+                    return mult > 1 ? (
+                      <p className="text-sm text-amber-700 font-medium mt-1">
+                        {mult}x multiplier applied — install date falls in the 28th–15th window
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
                 {annuitySelectableItems.length > 0 ? (
                   <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={selectAllAnnuityItems} disabled={!!generatedInvoice}>Select All</Button>

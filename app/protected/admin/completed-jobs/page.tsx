@@ -57,6 +57,7 @@ interface CompletedJob {
   created_at: string;
   updated_at: string;
   repair: boolean;
+  is_invoiced?: boolean;
   role: string;
   move_to?: string;
   parts_required?: unknown;
@@ -185,6 +186,8 @@ export function AwaitingTestingContent({
       const data = await response.json();
       const completedJobs = (data.jobs || []).filter(
         (job: CompletedJob) => {
+          if (job.is_invoiced) return false;
+
           const normalizedRole = String(job.role || "").trim().toLowerCase();
           const normalizedStatus = String(job.status || "").trim().toLowerCase();
           const normalizedJobStatus = String(job.job_status || "")

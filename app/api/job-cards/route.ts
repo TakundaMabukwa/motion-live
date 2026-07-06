@@ -238,6 +238,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch job cards' }, { status: 500 });
     }
 
+    // When exclude_completed is true, also filter out jobs that have invoices
+    let filteredData = data || [];
+    if (excludeCompleted && filteredData.length > 0) {
+      const jobIds = filteredData.map((j: Record<string, unknown>) => j.id).filter(Boolean);
+      const { data: invoiceRows } = await supabase
+        .from('invoices')
+        .select('job_card_id')
+        .in('job_card_id', jobIds);
+      const invoicedIds = new Set(
+        (Array.isArray(invoiceRows) ? invoiceRows : []).map((r: Record<string, unknown>) => r.job_card_id)
+      );
+      filteredData = filteredData.filter((j: Record<string, unknown>) => !invoicedIds.has(j.id));
+    }
+
     let count: number | null = null;
 
     if (includeCount) {
@@ -273,7 +287,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      job_cards: data || [],
+      job_cards: filteredData,
       count: includeCount ? count || 0 : null,
       page,
       limit,
