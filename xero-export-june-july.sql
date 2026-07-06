@@ -8,14 +8,16 @@ WITH account_lines AS (
     ai.account_number,
     ai.company_name,
     ai.invoice_date,
-    SUM((li->>'total_including_vat')::numeric) AS total_incl,
-    SUM((li->>'unit_price_without_vat')::numeric) AS unit_excl,
-    SUM((li->>'vat_amount')::numeric) AS vat
-  FROM account_invoices ai,
-    jsonb_array_elements(ai.line_items) li
+    COALESCE(SUM((li->>'total_including_vat')::numeric), ai.total_amount) AS total_incl,
+    COALESCE(SUM((li->>'unit_price_without_vat')::numeric), ai.total_amount) AS unit_excl,
+    COALESCE(SUM((li->>'vat_amount')::numeric), 0) AS vat
+  FROM account_invoices ai
+  LEFT JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_array_length(ai.line_items) > 0 THEN ai.line_items ELSE '[{}]'::jsonb END
+  ) li ON true
   WHERE ai.invoice_date >= '2026-06-28'
     AND ai.invoice_date <= '2026-07-06'
-  GROUP BY ai.id, ai.invoice_number, ai.account_number, ai.company_name, ai.invoice_date
+  GROUP BY ai.id, ai.invoice_number, ai.account_number, ai.company_name, ai.invoice_date, ai.total_amount
 ),
 
 job_lines AS (
@@ -23,13 +25,15 @@ job_lines AS (
     inv.invoice_number,
     inv.account_number,
     inv.invoice_date,
-    SUM((li->>'total_incl')::numeric) AS total_incl,
-    SUM((li->>'vat_amount')::numeric) AS vat
-  FROM invoices inv,
-    jsonb_array_elements(inv.line_items) li
+    COALESCE(SUM((li->>'total_incl')::numeric), inv.total_amount) AS total_incl,
+    COALESCE(SUM((li->>'vat_amount')::numeric), 0) AS vat
+  FROM invoices inv
+  LEFT JOIN LATERAL jsonb_array_elements(
+    CASE WHEN jsonb_array_length(inv.line_items) > 0 THEN inv.line_items ELSE '[{}]'::jsonb END
+  ) li ON true
   WHERE inv.invoice_date >= '2026-06-28'
     AND inv.invoice_date <= '2026-07-06'
-  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.invoice_date
+  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.invoice_date, inv.total_amount
 ),
 
 cn_start AS (
