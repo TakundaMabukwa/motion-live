@@ -181,29 +181,10 @@ export function AwaitingTestingContent({
   const fetchCompletedJobs = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/jobs?status=completed");
+      const response = await fetch("/api/admin/jobs/awaiting-testing");
       if (!response.ok) throw new Error("Failed to fetch completed jobs");
       const data = await response.json();
-      const completedJobs = (data.jobs || []).filter(
-        (job: CompletedJob) => {
-          if (job.is_invoiced) return false;
-
-          const normalizedRole = String(job.role || "").trim().toLowerCase();
-          const normalizedStatus = String(job.status || "").trim().toLowerCase();
-          const normalizedJobStatus = String(job.job_status || "")
-            .trim()
-            .toLowerCase();
-
-          const isCompleted =
-            normalizedStatus === "completed" ||
-            normalizedJobStatus === "completed";
-
-          const normalizedMoveTo = String(job.move_to || "").trim().toLowerCase();
-
-          return isCompleted && (normalizedRole === "admin" || normalizedMoveTo === "admin");
-        },
-      );
-      setJobs(completedJobs);
+      setJobs(data.jobs || []);
     } catch (error) {
       console.error("Error fetching completed jobs:", error);
       toast({

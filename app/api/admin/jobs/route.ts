@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Fetch all job IDs, then check which ones have invoices
-    const allJobIds = transformedJobs.map((j) => j.id).filter(Boolean);
+    const allJobIds = (data || []).map((j: { id: string }) => j.id).filter(Boolean);
     const invoicedJobIds = new Set<string>();
     if (allJobIds.length > 0) {
       const { data: invoiceRows } = await supabase
