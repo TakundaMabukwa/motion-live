@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import {
-  allocateTrackedInvoiceNumber,
-  markTrackedInvoicePersisted,
-  markTrackedInvoiceFailed,
-} from "@/lib/server/invoice-number-audit";
+import { createAtomicInvoice } from "@/lib/server/invoice-number-audit";
 
 const toCurrency = (v: unknown) => Number(v || 0);
 
@@ -58,20 +54,6 @@ export async function POST(request: NextRequest) {
         { error: jobCardError?.message || "Job card not found" },
         { status: 404 },
       );
-    }
-
-    // Check for existing invoice (idempotent)
-    const { data: existingInvoices } = await supabase
-      .from("invoices")
-      .select("*")
-      .eq("job_card_id", jobCardId)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    const existingInvoice = Array.isArray(existingInvoices) ? existingInvoices[0] || null : null;
-
-    if (existingInvoice) {
-      return NextResponse.json({ invoice: existingInvoice, reused: true });
     }
 
     // Check billing_statuses guard
@@ -184,74 +166,28 @@ export async function POST(request: NextRequest) {
 
     const accountNumber = String(jobCard.new_account_number || "").trim().toUpperCase();
 
-    const payload = {
-      job_card_id: jobCardId,
-      job_number: jobCard.job_number || null,
-      quotation_number: jobCard.quotation_number || null,
-      account_number: accountNumber,
-      client_name: jobCard.customer_name || null,
-      client_email: jobCard.customer_email || null,
-      client_phone: jobCard.customer_phone || null,
-      client_address: jobCard.customer_address || null,
-      invoice_date: resolvedInvoiceDate,
-      due_date: null,
-      payment_terms: null,
+    // Atomic: allocate number + insert invoice in one transaction. No gaps, no PENDING.
+    const { invoice: insertedInvoice, reused } = await createAtomicInvoice(supabase, {
+      source: "api/fc/jobs/generate-invoice",
+      requestKey: jobCardId,
+      userId: user.id,
+      jobCardId,
+      jobNumber: jobCard.job_number || null,
+      quotationNumber: jobCard.quotation_number || null,
+      accountNumber,
+      clientName: jobCard.customer_name || null,
+      clientEmail: jobCard.customer_email || null,
+      clientPhone: jobCard.customer_phone || null,
+      clientAddress: jobCard.customer_address || null,
+      invoiceDate: resolvedInvoiceDate,
+      dueDate: null,
+      paymentTerms: null,
       notes: null,
       subtotal,
-      vat_amount: totalVat,
-      discount_amount: 0,
-      total_amount: totalAmount,
-      line_items: lineItems,
-    };
-
-    // Allocate invoice number (idempotent — uses jobCardId as requestKey)
-    let allocatedInvoiceNumber = "";
-    let allocationAuditId: string | null = null;
-
-    try {
-      const allocation = await allocateTrackedInvoiceNumber(supabase, {
-        source: "api/fc/jobs/generate-invoice",
-        userId: user.id,
-        requestKey: jobCardId,
-        context: { jobCardId, jobNumber: jobCard.job_number || null, accountNumber },
-      });
-      allocatedInvoiceNumber = allocation.invoiceNumber;
-      allocationAuditId = allocation.auditId;
-    } catch (allocationError) {
-      console.error("Error allocating invoice number:", allocationError);
-      return NextResponse.json({ error: "Failed to allocate invoice number" }, { status: 500 });
-    }
-
-    // Insert the invoice record
-    const { data: insertedInvoice, error: insertError } = await supabase
-      .from("invoices")
-      .insert({
-        ...payload,
-        invoice_number: allocatedInvoiceNumber,
-        created_by: user.id,
-      })
-      .select("*")
-      .single();
-
-    if (insertError) {
-      console.error("Error inserting invoice:", insertError);
-      await markTrackedInvoiceFailed(supabase, {
-        auditId: allocationAuditId,
-        invoiceNumber: allocatedInvoiceNumber,
-        errorMessage: insertError.message || "Failed to insert invoice",
-      });
-      return NextResponse.json(
-        { error: "Failed to create invoice", details: insertError.message },
-        { status: 500 },
-      );
-    }
-
-    // Mark as persisted in audit trail
-    await markTrackedInvoicePersisted(supabase, {
-      auditId: allocationAuditId,
-      invoiceNumber: allocatedInvoiceNumber,
-      persistedTable: "invoices",
-      persistedInvoiceId: insertedInvoice.id,
+      vatAmount: totalVat,
+      discountAmount: 0,
+      totalAmount,
+      lineItems,
     });
 
     // Update job card billing_statuses
@@ -263,7 +199,7 @@ export async function POST(request: NextRequest) {
       invoice: {
         done: true,
         invoice_id: insertedInvoice.id,
-        invoice_number: allocatedInvoiceNumber,
+        invoice_number: insertedInvoice.invoice_number,
         date: resolvedInvoiceDate,
         generated_by: "fc",
       },
@@ -280,9 +216,16 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", jobCardId);
 
-    return NextResponse.json({ invoice: insertedInvoice, reused: false });
+    return NextResponse.json({ invoice: insertedInvoice, reused });
   } catch (error) {
     console.error("Error in FC generate invoice:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("unique constraint") || message.includes("duplicate key")) {
+      return NextResponse.json({ error: "An invoice already exists for this job card. Please refresh and try again." }, { status: 409 });
+    }
+    if (message.includes("foreign key")) {
+      return NextResponse.json({ error: "Job card not found. Please refresh and try again." }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Failed to create invoice. Please try again." }, { status: 500 });
   }
 }

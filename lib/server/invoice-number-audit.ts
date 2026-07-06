@@ -203,3 +203,75 @@ export const markTrackedInvoiceFailed = async (
     safeLogAuditFailure("mark-failed", auditError);
   }
 };
+
+export type CreateAtomicInvoiceInput = {
+  source: string;
+  requestKey: string;
+  userId: string;
+  jobCardId: string;
+  jobNumber?: string | null;
+  quotationNumber?: string | null;
+  accountNumber?: string | null;
+  clientName?: string | null;
+  clientEmail?: string | null;
+  clientPhone?: string | null;
+  clientAddress?: string | null;
+  invoiceDate?: string | null;
+  dueDate?: string | null;
+  paymentTerms?: string | null;
+  notes?: string | null;
+  subtotal?: number;
+  vatAmount?: number;
+  discountAmount?: number;
+  totalAmount?: number;
+  lineItems?: Record<string, unknown>[];
+  prefix?: string;
+};
+
+export type CreateAtomicInvoiceResult = {
+  invoice: Record<string, unknown>;
+  reused: boolean;
+};
+
+export const createAtomicInvoice = async (
+  supabase: SupabaseClient,
+  input: CreateAtomicInvoiceInput,
+): Promise<CreateAtomicInvoiceResult> => {
+  const { data, error } = await supabase.rpc("create_atomic_invoice", {
+    p_source: input.source,
+    p_request_key: input.requestKey,
+    p_user_id: input.userId,
+    p_job_card_id: input.jobCardId,
+    p_job_number: input.jobNumber || null,
+    p_quotation_number: input.quotationNumber || null,
+    p_account_number: input.accountNumber || null,
+    p_client_name: input.clientName || null,
+    p_client_email: input.clientEmail || null,
+    p_client_phone: input.clientPhone || null,
+    p_client_address: input.clientAddress || null,
+    p_invoice_date: input.invoiceDate || new Date().toISOString(),
+    p_due_date: input.dueDate || null,
+    p_payment_terms: input.paymentTerms || null,
+    p_notes: input.notes || null,
+    p_subtotal: input.subtotal || 0,
+    p_vat_amount: input.vatAmount || 0,
+    p_discount_amount: input.discountAmount || 0,
+    p_total_amount: input.totalAmount || 0,
+    p_line_items: input.lineItems || [],
+    p_invoice_prefix: input.prefix || "INV",
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to create atomic invoice");
+  }
+
+  const result = data as Record<string, unknown>;
+  const invoice = (result?.invoice as Record<string, unknown>) || null;
+  const reused = Boolean(result?.reused);
+
+  if (!invoice) {
+    throw new Error("Atomic invoice creation returned no invoice");
+  }
+
+  return { invoice, reused };
+};

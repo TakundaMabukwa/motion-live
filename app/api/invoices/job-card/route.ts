@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import {
-  allocateTrackedInvoiceNumber,
-  markTrackedInvoiceFailed,
-  markTrackedInvoicePersisted,
+  createAtomicInvoice,
 } from "@/lib/server/invoice-number-audit";
 
 const SYSTEM_LOCK_KEY = 'billing';
@@ -435,109 +433,40 @@ export async function POST(request: NextRequest) {
           ? toNumberValue(fallbackLineItems[0]?.total_incl)
           : submittedTotalAmount;
 
-    const payload = {
-      job_card_id: jobCardId,
-      job_number: jobNumber || null,
-      quotation_number: quotationNumber || null,
-      account_number: resolvedAccountNumber,
-      client_name: clientName || null,
-      client_email: clientEmail || null,
-      client_phone: clientPhone || null,
-      client_address: clientAddress || null,
-      invoice_date: resolvedInvoiceDate,
-      due_date: dueDate || null,
-      payment_terms: paymentTerms || null,
+    // Atomic: allocate number + insert invoice in one transaction. No gaps, no PENDING.
+    const { invoice: insertedInvoice, reused } = await createAtomicInvoice(supabase, {
+      source: 'api/invoices/job-card',
+      requestKey: jobCardId,
+      userId: user.id,
+      jobCardId,
+      jobNumber: jobNumber || null,
+      quotationNumber: quotationNumber || null,
+      accountNumber: resolvedAccountNumber,
+      clientName: clientName || null,
+      clientEmail: clientEmail || null,
+      clientPhone: clientPhone || null,
+      clientAddress: clientAddress || null,
+      invoiceDate: resolvedInvoiceDate,
+      dueDate: dueDate || null,
+      paymentTerms: paymentTerms || null,
       notes: notes || null,
       subtotal: resolvedSubtotal,
-      vat_amount: resolvedVatAmount,
-      discount_amount: resolvedDiscountAmount,
-      total_amount: resolvedTotalAmount,
-      line_items: resolvedLineItems,
-    };
-
-    let allocatedInvoiceNumber = '';
-    let allocationAuditId: string | null = null;
-
-    try {
-      const allocation = await allocateTrackedInvoiceNumber(supabase, {
-        source: 'api/invoices/job-card',
-        userId: user.id,
-        context: {
-          jobCardId,
-          jobNumber: jobNumber || null,
-          accountNumber: resolvedAccountNumber,
-        },
-      });
-      allocatedInvoiceNumber = allocation.invoiceNumber;
-      allocationAuditId = allocation.auditId;
-    } catch (allocationError) {
-      console.error('Error allocating invoice number:', allocationError);
-      return NextResponse.json(
-        { error: 'Failed to allocate invoice number' },
-        { status: 500 },
-      );
-    }
-
-    const { data: insertedInvoice, error: insertError } = await supabase
-      .from('invoices')
-      .insert({
-        ...payload,
-        invoice_number: allocatedInvoiceNumber,
-        created_by: user.id,
-      })
-      .select('*')
-      .single();
-
-    if (insertError) {
-      if (insertError.code === '23505') {
-        const { data: conflictingInvoices } = await supabase
-          .from('invoices')
-          .select('*')
-          .eq('job_card_id', jobCardId)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        const conflictingInvoice = Array.isArray(conflictingInvoices)
-          ? conflictingInvoices[0] || null
-          : null;
-
-        if (conflictingInvoice) {
-          await markTrackedInvoiceFailed(supabase, {
-            auditId: allocationAuditId,
-            invoiceNumber: allocatedInvoiceNumber,
-            errorMessage:
-              'Invoice insert conflicted with an existing row and reused existing invoice',
-          });
-          return NextResponse.json({ invoice: conflictingInvoice, reused: true });
-        }
-      }
-
-      console.error('Error inserting invoice:', insertError);
-      await markTrackedInvoiceFailed(supabase, {
-        auditId: allocationAuditId,
-        invoiceNumber: allocatedInvoiceNumber,
-        errorMessage: insertError.message || 'Failed to insert invoice',
-      });
-      return NextResponse.json(
-        {
-          error: 'Failed to create invoice',
-          details: insertError.message || null,
-          code: insertError.code || null,
-        },
-        { status: 500 },
-      );
-    }
-
-    await markTrackedInvoicePersisted(supabase, {
-      auditId: allocationAuditId,
-      invoiceNumber: allocatedInvoiceNumber,
-      persistedTable: 'invoices',
-      persistedInvoiceId: insertedInvoice.id,
+      vatAmount: resolvedVatAmount,
+      discountAmount: resolvedDiscountAmount,
+      totalAmount: resolvedTotalAmount,
+      lineItems: resolvedLineItems,
     });
 
-    return NextResponse.json({ invoice: insertedInvoice, reused: false });
+    return NextResponse.json({ invoice: insertedInvoice, reused });
   } catch (error) {
     console.error('Error in invoice job-card POST:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('unique constraint') || message.includes('duplicate key')) {
+      return NextResponse.json({ error: 'An invoice already exists for this job card. Please refresh and try again.' }, { status: 409 });
+    }
+    if (message.includes('foreign key')) {
+      return NextResponse.json({ error: 'Job card not found. Please refresh and try again.' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Failed to create invoice. Please try again.' }, { status: 500 });
   }
 }
