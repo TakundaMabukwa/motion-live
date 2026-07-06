@@ -1,5 +1,6 @@
 -- Xero CSV export: one row per invoice, amounts built from line items
--- Run date range: 2026-06-28 to 2026-07-06
+-- Invoices: 2026-06-28 to 2026-07-06
+-- Credit notes: from CN-1048 creation date onwards
 
 WITH account_lines AS (
   SELECT
@@ -29,6 +30,12 @@ job_lines AS (
   WHERE inv.invoice_date >= '2026-06-28'
     AND inv.invoice_date <= '2026-07-06'
   GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.invoice_date
+),
+
+cn_start AS (
+  SELECT created_at::date AS start_date
+  FROM credit_notes
+  WHERE credit_note_number = 'CN-1048'
 )
 
 SELECT
@@ -127,8 +134,8 @@ SELECT
   '' AS "BrandingTheme"
 FROM credit_notes cn
 LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(cn.account_number))
-WHERE cn.created_at >= '2026-06-28'
-  AND cn.created_at <= '2026-07-06'
+CROSS JOIN cn_start
+WHERE cn.created_at >= cn_start.start_date
   AND (cn.approved = true OR cn.approved IS NULL)
   AND cn.status != 'declined'
 
