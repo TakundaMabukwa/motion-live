@@ -36,6 +36,14 @@ cn_start AS (
   SELECT created_at::date AS start_date
   FROM credit_notes
   WHERE credit_note_number = 'CN-1048'
+),
+
+cost_centers_distinct AS (
+  SELECT DISTINCT ON (UPPER(TRIM(cost_code)))
+    cost_code, company, physical_address_1, physical_address_2,
+    physical_address_3, physical_area, physical_code
+  FROM cost_centers
+  ORDER BY UPPER(TRIM(cost_code)), id
 )
 
 SELECT
@@ -67,7 +75,7 @@ SELECT
   'ZAR' AS "Currency",
   '' AS "BrandingTheme"
 FROM account_lines al
-LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(al.account_number))
+LEFT JOIN cost_centers_distinct cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(al.account_number))
 
 UNION ALL
 
@@ -100,7 +108,7 @@ SELECT
   'ZAR' AS "Currency",
   '' AS "BrandingTheme"
 FROM job_lines jl
-LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(jl.account_number))
+LEFT JOIN cost_centers_distinct cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(jl.account_number))
 
 UNION ALL
 
@@ -133,7 +141,7 @@ SELECT
   'ZAR' AS "Currency",
   '' AS "BrandingTheme"
 FROM credit_notes cn
-LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(cn.account_number))
+LEFT JOIN cost_centers_distinct cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(cn.account_number))
 CROSS JOIN cn_start
 WHERE cn.created_at >= cn_start.start_date
   AND (cn.approved = true OR cn.approved IS NULL)
