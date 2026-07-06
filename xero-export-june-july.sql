@@ -21,7 +21,6 @@ job_lines AS (
   SELECT
     inv.invoice_number,
     inv.account_number,
-    COALESCE(inv.company_name, inv.client_name, '') AS company_name,
     inv.invoice_date,
     SUM((li->>'total_incl')::numeric) AS total_incl,
     SUM((li->>'vat_amount')::numeric) AS vat
@@ -29,7 +28,7 @@ job_lines AS (
     jsonb_array_elements(inv.line_items) li
   WHERE inv.invoice_date >= '2026-06-28'
     AND inv.invoice_date <= '2026-07-06'
-  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.company_name, inv.client_name, inv.invoice_date
+  GROUP BY inv.id, inv.invoice_number, inv.account_number, inv.invoice_date
 )
 
 SELECT
@@ -66,7 +65,7 @@ LEFT JOIN cost_centers cc ON UPPER(TRIM(cc.cost_code)) = UPPER(TRIM(al.account_n
 UNION ALL
 
 SELECT
-  jl.company_name AS "ContactName",
+  COALESCE(cc.company, jl.account_number) AS "ContactName",
   '' AS "EmailAddress",
   COALESCE(cc.physical_address_1, '') AS "POAddressLine1",
   COALESCE(cc.physical_address_2, '') AS "POAddressLine2",
