@@ -289,6 +289,7 @@ export async function GET(request: NextRequest) {
       matchedCount: costCenters?.length || 0,
       requestedCount: accountNumbers.length,
       missingCodes,
+      customers_grouped_id: customersGroupId,
     });
 
   } catch (error) {

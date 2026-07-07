@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, Search, Pencil, Check, X, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { useFCSidebar } from "./FCSidebarLayout";
 
 interface CostCenter {
   id: string | null;
@@ -73,8 +72,23 @@ const emptyForm: FormData = {
   postal_address_3: "",
 };
 
-export default function FCCostCentersSection({ costCodes }: { costCodes: string }) {
-  const { customersGroupId } = useFCSidebar();
+function FormField({ label, field, placeholder, type = "text", value, onChange, disabled }: { label: string; field: string; placeholder?: string; type?: string; value: string; onChange: (val: string) => void; disabled: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-medium text-gray-500">{label}</label>
+      <Input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || label}
+        className="h-7 text-xs"
+        disabled={disabled}
+      />
+    </div>
+  );
+}
+
+function FCCostCentersSection({ costCodes, customersGroupId }: { costCodes: string; customersGroupId: string | null }) {
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -214,20 +228,6 @@ export default function FCCostCentersSection({ costCodes }: { costCodes: string 
     }
   };
 
-  const FormField = ({ label, field, placeholder, type = "text" }: { label: string; field: keyof FormData; placeholder?: string; type?: string }) => (
-    <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-medium text-gray-500">{label}</label>
-      <Input
-        type={type}
-        value={form[field]}
-        onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
-        placeholder={placeholder || label}
-        className="h-7 text-xs"
-        disabled={submitting}
-      />
-    </div>
-  );
-
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between shrink-0">
@@ -272,26 +272,26 @@ export default function FCCostCentersSection({ costCodes }: { costCodes: string 
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <FormField label="Company *" field="company" />
-            <FormField label="Legal Name" field="legal_name" />
-            <FormField label="Contact Name" field="contact_name" />
-            <FormField label="Contact Email" field="contact_email" type="email" />
-            <FormField label="Contact Phone" field="contact_phone" />
-            <FormField label="VAT Number" field="vat_number" />
-            <FormField label="Registration Number" field="registration_number" />
-            <FormField label="Area" field="physical_area" />
-            <FormField label="Province" field="physical_province" />
-            <FormField label="Code" field="physical_code" />
+            <FormField label="Cost Center Name *" field="company" value={form.company} onChange={(v) => setForm((p) => ({ ...p, company: v }))} disabled={submitting} />
+            <FormField label="Legal Name" field="legal_name" value={form.legal_name} onChange={(v) => setForm((p) => ({ ...p, legal_name: v }))} disabled={submitting} />
+            <FormField label="Contact Name" field="contact_name" value={form.contact_name} onChange={(v) => setForm((p) => ({ ...p, contact_name: v }))} disabled={submitting} />
+            <FormField label="Contact Email" field="contact_email" type="email" value={form.contact_email} onChange={(v) => setForm((p) => ({ ...p, contact_email: v }))} disabled={submitting} />
+            <FormField label="Contact Phone" field="contact_phone" value={form.contact_phone} onChange={(v) => setForm((p) => ({ ...p, contact_phone: v }))} disabled={submitting} />
+            <FormField label="VAT Number" field="vat_number" value={form.vat_number} onChange={(v) => setForm((p) => ({ ...p, vat_number: v }))} disabled={submitting} />
+            <FormField label="Registration Number" field="registration_number" value={form.registration_number} onChange={(v) => setForm((p) => ({ ...p, registration_number: v }))} disabled={submitting} />
+            <FormField label="Area" field="physical_area" value={form.physical_area} onChange={(v) => setForm((p) => ({ ...p, physical_area: v }))} disabled={submitting} />
+            <FormField label="Province" field="physical_province" value={form.physical_province} onChange={(v) => setForm((p) => ({ ...p, physical_province: v }))} disabled={submitting} />
+            <FormField label="Code" field="physical_code" value={form.physical_code} onChange={(v) => setForm((p) => ({ ...p, physical_code: v }))} disabled={submitting} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-            <FormField label="Physical Address 1" field="physical_address_1" />
-            <FormField label="Physical Address 2" field="physical_address_2" />
-            <FormField label="Physical Address 3" field="physical_address_3" />
+            <FormField label="Physical Address 1" field="physical_address_1" value={form.physical_address_1} onChange={(v) => setForm((p) => ({ ...p, physical_address_1: v }))} disabled={submitting} />
+            <FormField label="Physical Address 2" field="physical_address_2" value={form.physical_address_2} onChange={(v) => setForm((p) => ({ ...p, physical_address_2: v }))} disabled={submitting} />
+            <FormField label="Physical Address 3" field="physical_address_3" value={form.physical_address_3} onChange={(v) => setForm((p) => ({ ...p, physical_address_3: v }))} disabled={submitting} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-            <FormField label="Postal Address 1" field="postal_address_1" />
-            <FormField label="Postal Address 2" field="postal_address_2" />
-            <FormField label="Postal Address 3" field="postal_address_3" />
+            <FormField label="Postal Address 1" field="postal_address_1" value={form.postal_address_1} onChange={(v) => setForm((p) => ({ ...p, postal_address_1: v }))} disabled={submitting} />
+            <FormField label="Postal Address 2" field="postal_address_2" value={form.postal_address_2} onChange={(v) => setForm((p) => ({ ...p, postal_address_2: v }))} disabled={submitting} />
+            <FormField label="Postal Address 3" field="postal_address_3" value={form.postal_address_3} onChange={(v) => setForm((p) => ({ ...p, postal_address_3: v }))} disabled={submitting} />
           </div>
           <div className="flex justify-end gap-2 mt-3">
             <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setShowForm(false); setForm(emptyForm); }} disabled={submitting}>
@@ -406,3 +406,5 @@ export default function FCCostCentersSection({ costCodes }: { costCodes: string 
     </div>
   );
 }
+
+export default memo(FCCostCentersSection);

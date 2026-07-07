@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     const maxNum = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0;
     const nextNum = maxNum + 1;
-    const newCostCode = `${prefix}-${String(nextNum).padStart(3, "0")}`;
+    const newCostCode = `${prefix}-${String(nextNum).padStart(4, "0")}`;
 
     // Insert the new cost center
     const { data: newCostCenter, error: insertError } = await supabase
@@ -80,14 +80,12 @@ export async function POST(request: Request) {
         legal_name: legal_name || "",
         contact_name: contact_name || "",
         email: contact_email || "",
-        contact_number: contact_phone || "",
         vat_number: vat_number || null,
         registration_number: registration_number || null,
         physical_address_1: physical_address_1 || null,
         physical_address_2: physical_address_2 || null,
         physical_address_3: physical_address_3 || null,
         physical_area: physical_area || null,
-        physical_province: physical_province || null,
         physical_code: physical_code || null,
         postal_address_1: postal_address_1 || null,
         postal_address_2: postal_address_2 || null,

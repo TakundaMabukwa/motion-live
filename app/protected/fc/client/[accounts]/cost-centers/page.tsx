@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react";
 import FCCostCentersSection from "@/components/fc/FCCostCentersSection";
 
 export default function FCCostCentersPage() {
-  const { selectedCostCenter, accounts } = useFCSidebar();
+  const { selectedCostCenter, accounts, customersGroupId } = useFCSidebar();
   const isAll = selectedCostCenter?.cost_code === "all";
   const costCode = isAll ? accounts : selectedCostCenter?.cost_code || accounts;
 
@@ -17,5 +17,5 @@ export default function FCCostCentersPage() {
     );
   }
 
-  return <FCCostCentersSection costCodes={costCode} />;
+  return <FCCostCentersSection costCodes={costCode} customersGroupId={customersGroupId} />;
 }
