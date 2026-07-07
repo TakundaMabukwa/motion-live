@@ -104,7 +104,7 @@ const getAnnuitySelectionItems = (job, overrideProducts) => {
     if (rentalAmount <= 0 && subscriptionAmount <= 0) return null;
     const quantity = Math.max(1, toNumber(product?.quantity) || 1);
     return {
-      key: getAnnuitySelectionKey(product),
+      key: `${getAnnuitySelectionKey(product)}-${index}`,
       product,
       quantity,
       rentalAmount,
@@ -465,6 +465,7 @@ export default function InvoiceJobModal({ job, open, onOpenChange, onComplete, e
     const jobTypeRaw = String(effectiveJob?.job_type || effectiveJob?.quotation_job_type || "").toLowerCase();
     const isInstallJob = jobTypeRaw.includes("install") || jobTypeRaw === "installation";
     const hasStoredLineItems = Array.isArray(storedInvoiceRecord?.line_items) && storedInvoiceRecord.line_items.length > 0;
+    const seenProductKeys = new Set();
     const productRows = !hasStoredLineItems && rawTotals.products.length > 0
       ? rawTotals.products.flatMap((product, index) => {
           const productKey = String(product?.name || product?.item_code || product?.code || "").trim().toLowerCase();

@@ -13,6 +13,7 @@ import {
   Menu,
   Building2,
   ArrowLeft,
+  Landmark,
 } from "lucide-react";
 
 interface CostCenter {
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { label: "Quotes", href: "/quotes", icon: FileText },
   { label: "Jobs", href: "/jobs", icon: Briefcase },
   { label: "Invoices", href: "/invoices", icon: Receipt },
+  { label: "Cost Centers", href: "/cost-centers", icon: Landmark },
   { label: "Vehicle Validation", href: "/vehicles", icon: Car },
   { label: "Client Pricing", href: "/pricing", icon: Receipt },
 ];
