@@ -33,6 +33,7 @@ interface FCSidebarContextValue {
   loading: boolean;
   highlightDropdown: boolean;
   setHighlightDropdown: (v: boolean) => void;
+  customersGroupId: string | null;
 }
 
 const FCSidebarContext = createContext<FCSidebarContextValue>({
@@ -44,6 +45,7 @@ const FCSidebarContext = createContext<FCSidebarContextValue>({
   loading: true,
   highlightDropdown: false,
   setHighlightDropdown: () => {},
+  customersGroupId: null,
 });
 
 export const useFCSidebar = () => useContext(FCSidebarContext);
@@ -153,6 +155,7 @@ export default function FCSidebarLayout({
   const [selectedCostCenter, setSelectedCostCenter] = useState<CostCenter | null>({ cost_code: "all", trading_name: "All", company: "All", company_name: "All" });
   const [highlightDropdown, setHighlightDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [customersGroupId, setCustomersGroupId] = useState<string | null>(null);
 
   const accountsArray = accounts ? accounts.split(",").filter(Boolean) : [];
   const basePath = `/protected/fc/client/${accounts}`;
@@ -171,6 +174,7 @@ export default function FCSidebarLayout({
         if (cancelled) return;
         const centers = Array.isArray(data?.costCenters) ? data.costCenters : [];
         setCostCenters(centers);
+        setCustomersGroupId(data?.customers_grouped_id || null);
         // Set client name from first cost center's company (common for all)
         if (centers.length > 0) {
           setClientName(centers[0]?.company || centers[0]?.trading_name || centers[0]?.company_name || "Client");
@@ -211,7 +215,7 @@ export default function FCSidebarLayout({
 
   return (
     <FCSidebarContext.Provider
-      value={{ accounts, accountsArray, costCenters, selectedCostCenter, setSelectedCostCenter: handleCostCenterSelect, loading, highlightDropdown, setHighlightDropdown }}
+      value={{ accounts, accountsArray, costCenters, selectedCostCenter, setSelectedCostCenter: handleCostCenterSelect, loading, highlightDropdown, setHighlightDropdown, customersGroupId }}
     >
       <div className="flex h-[100dvh] overflow-hidden">
         {/* Mobile overlay */}

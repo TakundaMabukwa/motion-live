@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
     if (missingCodes.length > 0 && !companyName && !legalName) {
       const { data: groupedRows, error: groupedError } = await supabase
         .from('customers_grouped')
-        .select('company_group, legal_names, all_new_account_numbers');
+        .select('id, company_group, legal_names, all_new_account_numbers');
 
       if (groupedError) {
         console.error('Error fetching grouped customers for missing cost centers:', groupedError);
@@ -225,6 +225,25 @@ export async function GET(request: NextRequest) {
             fallbackCompany,
         ).trim();
         fallbackLegalName = String(matchingGroup?.legal_names || legalName || '').trim();
+      }
+    }
+
+    let customersGroupId: string | null = null;
+    if (!companyName && !legalName) {
+      const { data: allGroupedRows } = await supabase
+        .from('customers_grouped')
+        .select('id, all_new_account_numbers');
+      if (Array.isArray(allGroupedRows)) {
+        const matchingGroup = allGroupedRows.find((group) => {
+          const codes = String(group?.all_new_account_numbers || '')
+            .split(',')
+            .map((value) => normalizeCode(value))
+            .filter(Boolean);
+          return accountNumbers.some((code) => codes.includes(code));
+        });
+        if (matchingGroup) {
+          customersGroupId = String(matchingGroup.id);
+        }
       }
     }
 
@@ -250,6 +269,7 @@ export async function GET(request: NextRequest) {
         total_amount_locked_by: null,
         total_amount_locked_at: null,
         total_amount_locked_by_email: null,
+        customers_grouped_id: customersGroupId,
       });
     }
 
@@ -257,6 +277,7 @@ export async function GET(request: NextRequest) {
     const finalCostCenters = enrichedCostCenters.map((row) => ({
       ...row,
       effective_cost_code: getEffectiveCode(row),
+      customers_grouped_id: customersGroupId,
     }));
 
     console.log(`Found ${costCenters?.length || 0} real cost centers and ${missingCodes.length} fallback cost centers for account numbers:`, accountNumbers);
