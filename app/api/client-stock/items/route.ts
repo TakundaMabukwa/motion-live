@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         created_at,
+        client_code,
+        cost_code,
         company,
         category_code,
         serial_number,

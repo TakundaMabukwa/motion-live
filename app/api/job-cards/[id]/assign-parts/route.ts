@@ -445,10 +445,10 @@ export async function PUT(request: NextRequest, { params }) {
       table: string;
       serial_number: string;
       category_code?: string;
+      client_code?: string;
       cost_code?: string;
       company?: string;
       notes?: string;
-      category_id?: string;
     }[] = [];
 
     const reinsertDeletedItems = async (): Promise<boolean> => {
@@ -471,11 +471,11 @@ export async function PUT(request: NextRequest, { params }) {
             }
           } else if (item.table === 'client_inventory_items') {
             const { error } = await supabase.from('client_inventory_items').insert({
-              category_id: item.category_id,
+              client_code: item.client_code,
+              cost_code: item.cost_code,
               category_code: item.category_code,
               serial_number: item.serial_number,
               status: 'IN STOCK',
-              cost_code: item.cost_code,
               notes: item.notes || 'Re-inserted — partial failure',
             });
             if (error) {
@@ -548,40 +548,51 @@ export async function PUT(request: NextRequest, { params }) {
       }
 
       for (const item of partsBySource.client) {
-        const serial = resolvePartSerialToken(item);
-        if (!serial) {
+        const rawSerial = String(item?.serial_number ?? item?.serial ?? item?.serialNumber ?? item?.ip_address ?? '').trim();
+        if (!rawSerial) {
           await reinsertDeletedItems();
           return {
             success: false as const,
             warning: `Cannot remove client item — no serial number found (${getPartIdentityLabel(item)}).`,
           };
         }
+        const costCode = String(item?.cost_code || item?.new_account_number || '').trim();
+        const clientCode = String(item?.client_code || '').trim();
+        if (!clientCode || !costCode) {
+          await reinsertDeletedItems();
+          return {
+            success: false as const,
+            warning: `Cannot remove client item — missing client_code or cost_code for serial ${rawSerial}.`,
+          };
+        }
         const { error, data } = await supabase
           .from('client_inventory_items')
           .delete()
-          .eq('serial_number', serial)
+          .eq('client_code', clientCode)
+          .eq('cost_code', costCode)
+          .eq('serial_number', rawSerial)
           .eq('status', 'IN STOCK')
-          .select('id, category_code, category_id, cost_code, notes');
+          .select('id, category_code, client_code, cost_code, serial_number, status, notes');
         if (error) {
           await reinsertDeletedItems();
           return {
             success: false as const,
-            warning: `Failed to remove client stock item (S/N: ${serial}): ${error.message}`,
+            warning: `Failed to remove client stock item (S/N: ${rawSerial}): ${error.message}`,
           };
         }
         if (!data || data.length === 0) {
           await reinsertDeletedItems();
           return {
             success: false as const,
-            warning: `No matching IN STOCK client item found for serial number ${serial}. It may have already been moved.`,
+            warning: `No matching IN STOCK client item found — serial: "${rawSerial}", cost_code: "${costCode}". It may have already been moved.`,
           };
         }
         deletedInventoryItems.push({
           table: 'client_inventory_items',
-          serial_number: serial,
+          serial_number: rawSerial,
           category_code: data[0]?.category_code || String(item?.code || ''),
-          category_id: data[0]?.category_id || '',
-          cost_code: data[0]?.cost_code || '',
+          client_code: data[0]?.client_code || clientCode,
+          cost_code: data[0]?.cost_code || costCode,
           notes: data[0]?.notes || '',
         });
       }

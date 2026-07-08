@@ -77,10 +77,14 @@ export async function PUT(
     const serial = resolveSerialToken(removedPart);
     const partDescription = String(removedPart?.description || removedPart?.code || 'Item');
     const partCategoryCode = String(removedPart?.code || removedPart?.category_code || '');
-    const costCode = String(job?.new_account_number || '');
+    const costCode = String(removedPart?.cost_code || job?.new_account_number || '');
+    const clientCode = String(removedPart?.client_code || '').trim();
+
+    let insertedClientItemId: number | null = null;
+    let insertedMainItemId: number | null = null;
 
     if (partSource === 'soltrack' && serial) {
-      const { error: insertError } = await supabase
+      const { data: insertedRow, error: insertError } = await supabase
         .from('inventory_items')
         .insert({
           category_code: partCategoryCode,
@@ -89,23 +93,27 @@ export async function PUT(
           date_adjusted: new Date().toISOString().split('T')[0],
           company: job?.customer_name || 'N/A',
           notes: `Returned from job — ${partDescription}`,
-        });
+        })
+        .select('id')
+        .single();
       if (insertError) {
         return NextResponse.json(
           { error: `Failed to return part to inventory: ${insertError.message}. Part NOT removed from job.` },
           { status: 500 },
         );
       }
-    } else if (partSource === 'client' && serial && !costCode) {
+      insertedMainItemId = insertedRow?.id ?? null;
+    } else if (partSource === 'client' && serial && (!clientCode || !costCode)) {
       return NextResponse.json(
-        { error: 'Cannot return client part — job has no account number (new_account_number). Part NOT removed from job.' },
+        { error: 'Cannot return client part — missing client_code or cost_code. Part NOT removed from job.' },
         { status: 409 },
       );
-    } else if (partSource === 'client' && serial && costCode) {
+    } else if (partSource === 'client' && serial && clientCode && costCode) {
       // Find or create client inventory category
       const { data: existingCat } = await supabase
         .from('client_inventory_categories')
         .select('id')
+        .eq('client_code', clientCode)
         .eq('cost_code', costCode)
         .eq('category_code', partCategoryCode)
         .maybeSingle();
@@ -114,29 +122,32 @@ export async function PUT(
       if (!categoryId) {
         const { data: newCat } = await supabase
           .from('client_inventory_categories')
-          .insert({ cost_code: costCode, category_code: partCategoryCode, description: partDescription })
+          .insert({ client_code: clientCode, cost_code: costCode, category_code: partCategoryCode, description: partDescription })
           .select('id')
           .single();
         categoryId = newCat?.id;
       }
 
       if (categoryId) {
-        const { error: insertError } = await supabase
+        const { data: insertedRow, error: insertError } = await supabase
           .from('client_inventory_items')
           .insert({
-            category_id: categoryId,
+            client_code: clientCode,
+            cost_code: costCode,
             category_code: partCategoryCode,
             serial_number: serial,
             status: 'IN STOCK',
-            cost_code: costCode,
             notes: `Returned from job — ${partDescription}`,
-          });
+          })
+          .select('id')
+          .single();
         if (insertError) {
           return NextResponse.json(
             { error: `Failed to return part to client stock: ${insertError.message}. Part NOT removed from job.` },
             { status: 500 },
           );
         }
+        insertedClientItemId = insertedRow?.id ?? null;
       }
     }
     // Technician source parts: no inventory to return to, just remove from job
@@ -148,6 +159,19 @@ export async function PUT(
       .eq('id', id);
 
     if (updateError) {
+      // Rollback: delete the inventory item we just inserted
+      if (insertedMainItemId) {
+        await supabase
+          .from('inventory_items')
+          .delete()
+          .eq('id', insertedMainItemId);
+      }
+      if (insertedClientItemId) {
+        await supabase
+          .from('client_inventory_items')
+          .delete()
+          .eq('id', insertedClientItemId);
+      }
       return NextResponse.json(
         { error: `Part returned to inventory but failed to remove from job: ${updateError.message}` },
         { status: 500 },

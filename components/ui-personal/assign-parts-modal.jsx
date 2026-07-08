@@ -233,6 +233,8 @@ export default function AssignPartsModal({
               category_code: item.category_code,
               category_description:
                 item.inventory_categories?.description || item.category_code,
+              client_code: item.client_code || "",
+              cost_code: item.cost_code || "",
             }))
           : [];
       } else if (modalStockSource === "technician") {
@@ -349,6 +351,8 @@ export default function AssignPartsModal({
           ip_address: part.ip_address || "",
           source,
           source_owner: sourceOwner,
+          client_code: String(part.client_code || ""),
+          cost_code: String(part.cost_code || ""),
           recurring_multiplier: toRecurringMultiplier(
             part.recurring_multiplier || part.recurringMultiplier || 1,
           ),
@@ -609,6 +613,8 @@ export default function AssignPartsModal({
         ip_address: ipAddress || "",
         source: modalStockSource,
         source_owner: modalStockOwner,
+        client_code: String(item.client_code || ""),
+        cost_code: String(item.cost_code || ""),
         recurring_multiplier: 1,
         recurring_multiplier_label: "1x",
         is_new_assignment: true,
