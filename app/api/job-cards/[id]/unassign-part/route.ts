@@ -74,7 +74,7 @@ export async function PUT(
 
     // STEP 1: Return part to inventory FIRST (before removing from job)
     const partSource = normalizeSource(removedPart?.source);
-    const serial = resolveSerialToken(removedPart);
+    const rawSerial = String(removedPart?.serial_number ?? removedPart?.serial ?? removedPart?.serialNumber ?? removedPart?.ip_address ?? '').trim();
     const partDescription = String(removedPart?.description || removedPart?.code || 'Item');
     const partCategoryCode = String(removedPart?.code || removedPart?.category_code || '');
     const costCode = String(removedPart?.cost_code || job?.new_account_number || '');
@@ -83,12 +83,12 @@ export async function PUT(
     let insertedClientItemId: number | null = null;
     let insertedMainItemId: number | null = null;
 
-    if (partSource === 'soltrack' && serial) {
+    if (partSource === 'soltrack' && rawSerial) {
       const { data: insertedRow, error: insertError } = await supabase
         .from('inventory_items')
         .insert({
           category_code: partCategoryCode,
-          serial_number: serial,
+          serial_number: rawSerial,
           status: 'IN STOCK',
           date_adjusted: new Date().toISOString().split('T')[0],
           company: job?.customer_name || 'N/A',
@@ -103,12 +103,12 @@ export async function PUT(
         );
       }
       insertedMainItemId = insertedRow?.id ?? null;
-    } else if (partSource === 'client' && serial && (!clientCode || !costCode)) {
+    } else if (partSource === 'client' && rawSerial && (!clientCode || !costCode)) {
       return NextResponse.json(
         { error: 'Cannot return client part — missing client_code or cost_code. Part NOT removed from job.' },
         { status: 409 },
       );
-    } else if (partSource === 'client' && serial && clientCode && costCode) {
+    } else if (partSource === 'client' && rawSerial && clientCode && costCode) {
       // Find or create client inventory category
       const { data: existingCat } = await supabase
         .from('client_inventory_categories')
@@ -135,7 +135,7 @@ export async function PUT(
             client_code: clientCode,
             cost_code: costCode,
             category_code: partCategoryCode,
-            serial_number: serial,
+            serial_number: rawSerial,
             status: 'IN STOCK',
             notes: `Returned from job — ${partDescription}`,
           })

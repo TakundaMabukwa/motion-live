@@ -510,8 +510,8 @@ export async function PUT(request: NextRequest, { params }) {
       });
 
       for (const item of partsBySource.soltrack) {
-        const serial = resolvePartSerialToken(item);
-        if (!serial) {
+        const rawSerial = String(item?.serial_number ?? item?.serial ?? item?.serialNumber ?? item?.ip_address ?? '').trim();
+        if (!rawSerial) {
           await reinsertDeletedItems();
           return {
             success: false as const,
@@ -521,26 +521,26 @@ export async function PUT(request: NextRequest, { params }) {
         const { error, data } = await supabase
           .from('inventory_items')
           .delete()
-          .eq('serial_number', serial)
+          .eq('serial_number', rawSerial)
           .eq('status', 'IN STOCK')
           .select('id, category_code, company, notes');
         if (error) {
           await reinsertDeletedItems();
           return {
             success: false as const,
-            warning: `Failed to remove Soltrack stock item (S/N: ${serial}): ${error.message}`,
+            warning: `Failed to remove Soltrack stock item (S/N: ${rawSerial}): ${error.message}`,
           };
         }
         if (!data || data.length === 0) {
           await reinsertDeletedItems();
           return {
             success: false as const,
-            warning: `No matching IN STOCK inventory item found for serial number ${serial}. It may have already been moved.`,
+            warning: `No matching IN STOCK inventory item found for serial number ${rawSerial}. It may have already been moved.`,
           };
         }
         deletedInventoryItems.push({
           table: 'inventory_items',
-          serial_number: serial,
+          serial_number: rawSerial,
           category_code: data[0]?.category_code || String(item?.code || ''),
           company: data[0]?.company || 'N/A',
           notes: data[0]?.notes || '',
