@@ -353,8 +353,13 @@ export async function PATCH(
     }> = [];
 
     // Optional flow: move selected equipment from tech_stock.assigned_parts onto this job card.
+    const transferredSerials = new Set<string>();
+    const transferredStockIds = new Set<string>();
+
     if (transferEquipmentFromAssignedParts && Array.isArray(body.equipment_used)) {
-      const selectedEquipment = normalizePartArray(body.equipment_used);
+      const selectedEquipment = normalizePartArray(body.equipment_used).filter(
+        (item) => String(item.source || '').trim() === 'tech_stock.assigned_parts',
+      );
 
       if (selectedEquipment.length > 0) {
         const technicianEmailForTransfer = extractSingleTechnicianEmail(
@@ -525,7 +530,12 @@ export async function PATCH(
             ),
         );
 
-        updateData.parts_required = [...existingPartsRequired, ...transferredParts];
+        for (const p of transferredParts) {
+          const serial = resolvePartSerialToken(normalizePartRecord(p));
+          if (serial) transferredSerials.add(serial);
+          const stockId = normalizeToken(normalizePartRecord(p).stock_id ?? normalizePartRecord(p).id);
+          if (stockId) transferredStockIds.add(stockId);
+        }
         updateData.equipment_used = [
           ...retainedEquipmentUsed,
           ...transferredParts.map((part) => ({
@@ -547,8 +557,153 @@ export async function PATCH(
       updateData.move_to_role = null;
     }
 
+    // Immediately deduct selected tech_stock items (populate pendingTechStockUpdates for atomic apply)
+    if (deductTechStock && Array.isArray(body.equipment_used)) {
+      const techStockItems = normalizePartArray(body.equipment_used).filter(
+        (item) => String(item.source || '').trim() === 'tech_stock.assigned_parts',
+      );
+
+      if (techStockItems.length > 0) {
+        const technicianEmail = extractSingleTechnicianEmail(
+          currentJob.technician_phone,
+          user.email,
+        );
+
+        if (!technicianEmail) {
+          return NextResponse.json(
+            { error: 'Unable to resolve technician email for stock deduction.' },
+            { status: 409 },
+          );
+        }
+
+        const { data: techStockRow, error: techStockError } = await supabase
+          .from('tech_stock')
+          .select('id, assigned_parts, technician_email')
+          .ilike('technician_email', technicianEmail)
+          .limit(1)
+          .maybeSingle();
+
+        if (techStockError || !techStockRow) {
+          return NextResponse.json(
+            { error: 'Technician stock not found for deduction.' },
+            { status: 409 },
+          );
+        }
+
+        const existingDeduction = pendingTechStockUpdates.find(
+          (u) => u.rowId === techStockRow.id,
+        );
+        const baseAssignedParts: Record<string, unknown>[] = existingDeduction
+          ? existingDeduction.nextAssignedParts.map((p: unknown) =>
+              p && typeof p === 'object' && !Array.isArray(p)
+                ? JSON.parse(JSON.stringify(p))
+                : null,
+            ).filter(Boolean)
+          : Array.isArray(techStockRow.assigned_parts)
+            ? techStockRow.assigned_parts.map((p: unknown) =>
+                p && typeof p === 'object' && !Array.isArray(p)
+                  ? JSON.parse(JSON.stringify(p))
+                  : null,
+              ).filter(Boolean)
+            : [];
+
+        for (const item of techStockItems) {
+          const normalized = normalizePartRecord(item);
+          const serial = resolvePartSerialToken(normalized);
+          const stockId = normalizeToken(normalized.stock_id ?? normalized.id);
+
+          let partIndex = -1;
+
+          if (serial) {
+            const matches = baseAssignedParts
+              .map((p, idx) => ({ p, idx }))
+              .filter(({ p }) => resolvePartSerialToken(p) === serial);
+            if (matches.length === 1) {
+              partIndex = matches[0].idx;
+            } else if (matches.length > 1 && stockId) {
+              const match = matches.find(
+                ({ p }) => normalizeToken(p.stock_id ?? p.id) === stockId,
+              );
+              if (match) partIndex = match.idx;
+            }
+          }
+
+          if (partIndex < 0 && stockId) {
+            partIndex = baseAssignedParts.findIndex(
+              (p) => normalizeToken(p.stock_id ?? p.id) === stockId,
+            );
+          }
+
+          if (partIndex >= 0) {
+            baseAssignedParts.splice(partIndex, 1);
+          }
+        }
+
+        if (existingDeduction) {
+          existingDeduction.nextAssignedParts = baseAssignedParts;
+        } else {
+          pendingTechStockUpdates.push({
+            rowId: techStockRow.id,
+            technicianEmail: techStockRow.technician_email || technicianEmail,
+            originalAssignedParts: Array.isArray(techStockRow.assigned_parts)
+              ? [...techStockRow.assigned_parts]
+              : [],
+            nextAssignedParts: baseAssignedParts,
+          });
+        }
+      }
+    }
+
     let appliedTechStockUpdates = false;
     const appliedStockRows: typeof pendingTechStockUpdates = [];
+
+    // Return removed tech_stock items to correct technician's boot stock (BEFORE applying deductions)
+    if (Array.isArray(body.equipment_used)) {
+      const currentEquipmentUsed = normalizePartArray(currentJob.equipment_used);
+      const newEquipmentUsed = normalizePartArray(body.equipment_used);
+
+      const removedTechStockItems = currentEquipmentUsed.filter((oldItem) => {
+        if (String(oldItem.source || '').trim() !== 'tech_stock.assigned_parts') return false;
+        return !newEquipmentUsed.some((newItem) => partsMatchStrict(oldItem, newItem));
+      });
+
+      for (const removedItem of removedTechStockItems) {
+        const techEmail = normalizeEmailValue(removedItem.technician_email)
+          || extractSingleTechnicianEmail(currentJob.technician_phone, user.email);
+
+        if (!techEmail) continue;
+
+        const { data: techStockRow } = await supabase
+          .from('tech_stock')
+          .select('id, assigned_parts, technician_email')
+          .ilike('technician_email', techEmail)
+          .limit(1)
+          .maybeSingle();
+
+        if (techStockRow) {
+          const existingUpdate = pendingTechStockUpdates.find(
+            (u) => u.rowId === techStockRow.id,
+          );
+          const baseParts = existingUpdate
+            ? existingUpdate.nextAssignedParts
+            : Array.isArray(techStockRow.assigned_parts)
+              ? [...techStockRow.assigned_parts]
+              : [];
+
+          if (!existingUpdate) {
+            pendingTechStockUpdates.push({
+              rowId: techStockRow.id,
+              technicianEmail: techStockRow.technician_email || techEmail,
+              originalAssignedParts: [...techStockRow.assigned_parts],
+              nextAssignedParts: [...baseParts, removedItem],
+            });
+          } else {
+            existingUpdate.nextAssignedParts = [...baseParts, removedItem];
+          }
+        }
+      }
+    }
+
     if (pendingTechStockUpdates.length > 0) {
       for (const rowUpdate of pendingTechStockUpdates) {
         const { error: updateTechStockError } = await supabase
@@ -589,6 +744,32 @@ export async function PATCH(
         appliedStockRows.push(rowUpdate);
       }
       appliedTechStockUpdates = true;
+    }
+
+    // Remove parts_required items from parts_required when moved to equipment_used
+    if (Array.isArray(body.equipment_used)) {
+      const equipmentItems = normalizePartArray(body.equipment_used);
+      const assignedItems = equipmentItems.filter(
+        (item) => String(item.source || '').trim() === 'job_card.parts_required',
+      );
+      for (const p of assignedItems) {
+        const serial = resolvePartSerialToken(normalizePartRecord(p));
+        if (serial) transferredSerials.add(serial);
+        const stockId = normalizeToken(normalizePartRecord(p).stock_id ?? normalizePartRecord(p).id);
+        if (stockId) transferredStockIds.add(stockId);
+      }
+    }
+
+    // Single pass: remove all matched items from parts_required
+    if (transferredSerials.size > 0 || transferredStockIds.size > 0) {
+      const existingPartsRequired = normalizePartArray(currentJob.parts_required);
+      updateData.parts_required = existingPartsRequired.filter((p) => {
+        const s = resolvePartSerialToken(p);
+        if (s && transferredSerials.has(s)) return false;
+        const sid = normalizeToken(p.stock_id ?? p.id);
+        if (sid && transferredStockIds.has(sid)) return false;
+        return true;
+      });
     }
 
     // Update the job card
@@ -636,96 +817,6 @@ export async function PATCH(
         },
         { status: 500 }
       );
-    }
-
-    // Optional flow: immediately deduct selected items from tech_stock.assigned_parts
-    if (deductTechStock && Array.isArray(body.equipment_used)) {
-      const techStockItems = normalizePartArray(body.equipment_used).filter(
-        (item) => String(item.source || '').trim() === 'tech_stock.assigned_parts',
-      );
-
-      if (techStockItems.length > 0) {
-        const technicianEmail = extractSingleTechnicianEmail(
-          currentJob.technician_phone,
-          user.email,
-        );
-
-        if (!technicianEmail) {
-          console.error('Unable to resolve technician email for stock deduction.');
-          return NextResponse.json(
-            { error: 'Unable to resolve technician email for stock deduction.' },
-            { status: 409 },
-          );
-        }
-
-        const { data: techStockRow, error: techStockError } = await supabase
-          .from('tech_stock')
-          .select('id, assigned_parts, technician_email')
-          .ilike('technician_email', technicianEmail)
-          .limit(1)
-          .maybeSingle();
-
-        if (techStockError || !techStockRow) {
-          console.error('Error fetching tech stock for deduction:', techStockError);
-          return NextResponse.json(
-            { error: 'Technician stock not found for deduction.' },
-            { status: 409 },
-          );
-        }
-
-        const assignedParts: Record<string, unknown>[] = Array.isArray(techStockRow.assigned_parts)
-          ? techStockRow.assigned_parts.map((p: unknown) =>
-              p && typeof p === 'object' && !Array.isArray(p)
-                ? JSON.parse(JSON.stringify(p))
-                : null,
-            ).filter(Boolean)
-          : [];
-
-        for (const item of techStockItems) {
-          const normalized = normalizePartRecord(item);
-          const serial = resolvePartSerialToken(normalized);
-          const stockId = normalizeToken(normalized.stock_id ?? normalized.id);
-
-          let partIndex = -1;
-
-          if (serial) {
-            const matches = assignedParts
-              .map((p, idx) => ({ p, idx }))
-              .filter(({ p }) => resolvePartSerialToken(p) === serial);
-            if (matches.length === 1) {
-              partIndex = matches[0].idx;
-            } else if (matches.length > 1 && stockId) {
-              const match = matches.find(
-                ({ p }) => normalizeToken(p.stock_id ?? p.id) === stockId,
-              );
-              if (match) partIndex = match.idx;
-            }
-          }
-
-          if (partIndex < 0 && stockId) {
-            partIndex = assignedParts.findIndex(
-              (p) => normalizeToken(p.stock_id ?? p.id) === stockId,
-            );
-          }
-
-          if (partIndex >= 0) {
-            assignedParts.splice(partIndex, 1);
-          }
-        }
-
-        const { error: updateError } = await supabase
-          .from('tech_stock')
-          .update({ assigned_parts: assignedParts })
-          .eq('id', techStockRow.id);
-
-        if (updateError) {
-          console.error('Error deducting tech stock:', updateError);
-          return NextResponse.json(
-            { error: 'Failed to deduct technician stock.' },
-            { status: 500 },
-          );
-        }
-      }
     }
 
     // If job is being completed, handle vehicle addition and stock deduction

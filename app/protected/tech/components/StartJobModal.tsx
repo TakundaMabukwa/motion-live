@@ -47,6 +47,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
   const [technicianStock, setTechnicianStock] = useState<any[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [stockLoading, setStockLoading] = useState(false);
+  const [stockOwnerEmail, setStockOwnerEmail] = useState('');
   const [qrReader, setQrReader] = useState<BrowserQRCodeReader | null>(null);
   const [isQrScanning, setIsQrScanning] = useState(false);
   const [qrStream, setQrStream] = useState<MediaStream | null>(null);
@@ -543,6 +544,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       if (!technicianEmail) {
         throw new Error('Could not resolve technician email');
       }
+      setStockOwnerEmail(technicianEmail);
 
       const response = await fetch(
         `/api/tech-stock/items?technician_email=${encodeURIComponent(technicianEmail)}`,
@@ -660,6 +662,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
           available_stock: parseInt(String(item.quantity || '0')) || 0,
           selected_at: new Date().toISOString(),
           source: 'tech_stock.assigned_parts',
+          technician_email: stockOwnerEmail,
           boot_transfer_pending: false,
         }));
 
@@ -691,11 +694,26 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
       const preservedEquipmentUsed = initialEquipmentUsed.filter(
         (item: any) => !equipmentSourcesReplacedOnSave.has(String(item?.source || '').trim()),
       );
-      const mergedEquipmentUsed = appendUniqueEquipmentUsed(preservedEquipmentUsed, [
+      const newSelectableItems = [
         ...selectedAssignedItems,
         ...selectedStockItems,
         ...selectedDeinstallItems,
-      ]);
+      ];
+      const newSelectableKeys = new Set(
+        newSelectableItems.map((ni) => getExistingEquipmentSelectionKeys([ni])[0]).filter(Boolean),
+      );
+      /** Keep previously-selected items that user didn't uncheck but are no longer in any source list. */
+      const previouslySelectedStillChecked = initialEquipmentUsed.filter((item: any) => {
+        const source = String(item?.source || '').trim();
+        if (!equipmentSourcesReplacedOnSave.has(source)) return false;
+        const key = getExistingEquipmentSelectionKeys([item])[0];
+        if (!key || !selectedEquipmentIds.includes(key)) return false;
+        return !newSelectableKeys.has(key);
+      });
+      const mergedEquipmentUsed = appendUniqueEquipmentUsed(
+        [...preservedEquipmentUsed, ...previouslySelectedStillChecked],
+        newSelectableItems,
+      );
 
       const equipmentChanged =
         JSON.stringify(mergedEquipmentUsed) !== JSON.stringify(initialEquipmentUsed);
@@ -2586,6 +2604,89 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                   </div>
                 </div>
 
+                {(() => {
+                  const existingEquipmentUsed = parseArrayField(jobData?.equipment_used);
+                  const assignedPartKeys = new Set(
+                    getAssignedPartsOptions(jobData).map((o: any) => o.selectionKey).filter(Boolean),
+                  );
+                  const stockKeys = new Set(
+                    technicianStock
+                      .map((item: any) => getPartSelectionKey('stock', item))
+                      .filter(Boolean),
+                  );
+                  const deinstallKeys = new Set(
+                    getDeinstallEquipmentOptions(jobData)
+                      .map((o: any) => o.selectionKey)
+                      .filter(Boolean),
+                  );
+                  const previouslySelected = existingEquipmentUsed.filter((item: any) => {
+                    const key = getExistingEquipmentSelectionKeys([item])[0];
+                    if (!key) return false;
+                    return !assignedPartKeys.has(key) && !stockKeys.has(key) && !deinstallKeys.has(key);
+                  });
+                  if (previouslySelected.length === 0) return null;
+                  return (
+                    <div className="mb-5 rounded-lg border border-purple-200 bg-purple-50 p-4">
+                      <div className="mb-3">
+                        <p className="text-sm font-semibold text-purple-900">Previously selected equipment</p>
+                        <p className="text-xs text-purple-800 mt-1">
+                          These items were previously selected. Untick to return stock to its source.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {previouslySelected.map((item: any, index: number) => {
+                          const key = getExistingEquipmentSelectionKeys([item])[0];
+                          const checked = key ? selectedEquipmentIds.includes(key) : false;
+                          const source = String(item?.source || '');
+                          const sourceLabel = source === 'tech_stock.assigned_parts'
+                            ? 'Technician stock'
+                            : source === 'job_card.parts_required'
+                              ? 'Job parts'
+                              : source === 'job_card.quotation_products.deinstall'
+                                ? 'De-install'
+                                : source;
+                          return (
+                            <label
+                              key={`prev-${index}`}
+                              className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${
+                                checked
+                                  ? 'border-purple-400 bg-white'
+                                  : 'border-purple-200 bg-white/70'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  if (!key) return;
+                                  toggleEquipmentItem(key);
+                                }}
+                                className="mt-1 h-4 w-4 accent-purple-600"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {item.description || item.name || 'Unnamed item'}
+                                </p>
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-700">
+                                  {item.serial_number ? (
+                                    <span>Serial: {item.serial_number}</span>
+                                  ) : null}
+                                  {item.stock_id ? (
+                                    <span>Stock ID: {item.stock_id}</span>
+                                  ) : null}
+                                  <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                                    {sourceLabel}
+                                  </span>
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {getQuotationProductItems(jobData).length > 0 && (
                   <div className="mb-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
                     <div className="mb-3">
@@ -2733,7 +2834,7 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                     <div className="border-b border-gray-200 bg-slate-50 px-4 py-3">
                       <p className="text-sm font-semibold text-slate-900">Additional technician stock</p>
                       <p className="text-xs text-slate-600 mt-1">
-                        Select extra boot stock used on this job. It is saved now and removed from your boot stock when you complete the job.
+                        Select extra boot stock used on this job. It is saved and removed from your boot stock immediately.
                       </p>
                     </div>
                     <div className="max-h-[42vh] overflow-y-auto">
@@ -2792,31 +2893,6 @@ export default function StartJobModal({ isOpen, onClose, job, userJobs, onJobSta
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                   Save & Continue
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (!isJobStartedInTech(jobData)) {
-                      setIsSubmitting(true);
-                      try {
-                        await markJobAsStarted([]);
-                      } catch (error) {
-                        toast.error(
-                          error instanceof Error
-                            ? error.message
-                            : 'Failed to start job',
-                        );
-                        return;
-                      } finally {
-                        setIsSubmitting(false);
-                      }
-                    }
-                    setCurrentStep('job-active');
-                  }}
-                  disabled={isSubmitting}
-                  variant="outline"
-                  className="sm:w-auto"
-                >
-                  Skip
                 </Button>
               </div>
             </div>
